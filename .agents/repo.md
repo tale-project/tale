@@ -216,14 +216,13 @@ default means deleting the override and fixing what surfaces:
   the note and mirrored in the in-memory executor) and a derived `repeatsExhausted: true` on
   `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
 - **The crawler's clocks and knobs are not on the wire** — `Website` carries no
-  `scanStartedAt` (the chain argument is never persisted), a `<meta name="robots"
-  content="noindex">` tag is not honoured (only the `X-Robots-Tag` header is), and the ceilings
+  `scanStartedAt` (the chain argument is never persisted), and the ceilings
   the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
   are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
   (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
-  (set in `claimScan`) surfaced as `Website.scanStartedAt`, a `robotsMetaNoindex(html)` check in
-  the render flush ahead of `storePageText` (kind `robots_noindex`, as the header path), and
-  optional `maxPages` / `includePaths` on `WebsiteInput` honoured by admission.
+  (set in `claimScan`) surfaced as `Website.scanStartedAt`, and optional `maxPages` /
+  `includePaths` on `WebsiteInput` honoured by admission (the meta-robots `noindex` tag is
+  honoured since round h, as the header is).
 - **Website search has no dense leg and its substring fallback is silent** —
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
@@ -232,8 +231,8 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
-  one-live-run-per-task invariant (the `automation_runs_one_live_per_task` partial index and
-  the in-transaction probe in `backend/domains/tasks/external-ref.ts`), so a retry while the
+  one-live-run-per-task invariant (the `automation_runs_one_live_per_task_subject` partial
+  index and the in-transaction probe in `backend/domains/tasks/external-ref.ts`), so a retry while the
   run lives answers `already_running` with its `runId`, but a retry after it finished starts
   another run (2026-09, round g). Paying it down means `beginRunIdempotentInTx` behind
   `readIdempotencyKey(c)` with a door-specific request hash over `{taskId, workflowSlug}` —
@@ -272,3 +271,24 @@ default means deleting the override and fixing what surfaces:
   a `{status, description}` map beside each registry entry, rendered into the reference by a
   docs build step with a guard test that every backticked `UPPER_SNAKE` token in
   `docs/en/develop/api-reference.md` is in the registry.
+- **Notifications are untyped and poll-only** — `GET /api/v1/notifications` rows carry `type`
+  as a free string with no closed vocabulary on the wire, and nothing pushes them (no SSE or
+  webhook lane for a machine caller; `/events` is the app session's) (2026-09, round h). Paying
+  it down means an enum over the emitters' kinds in `spec.ts` (the `notification_kinds` the
+  domain already switches on) and a `since` parameter documented as the poll cursor.
+- **A skill keeps no version history on the machine door** — `PUT /api/v1/skills/{slug}`
+  replaces the bundle, and the superseded `SKILL.md` history the app keeps is not readable
+  through `/api/v1` (2026-09, round h; the reference says so). Paying it down means
+  `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
+  entries' `…/{id}/versions`.
+- **The per-task circuit breaker is not built** — no counter pauses automation on a task after
+  N automated runs in an hour; the one-engine rule and cancel are the only stops, and the docs
+  now say so (2026-09, round h). Paying it down means a per-task window count on
+  `app.automation_runs` (org, task subject, `started_at_ms`) checked in the task-start probe
+  (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human moves the status,
+  and the guardrails bullet restored.
+- **Mirrored conversation messages have no read-back** — `GET /api/v1/conversations` lists the
+  mirrors, but the messages a snapshot applied are readable only in the app; a mirror cannot
+  verify what landed (2026-09, round h). Paying it down means
+  `GET /api/v1/conversations/{id}/messages` under the owner rule, keyset by
+  (`createdAt`, `messageId`), attachments as refs.

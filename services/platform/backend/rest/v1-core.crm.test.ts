@@ -2,7 +2,7 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RestEnv } from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
@@ -30,6 +30,7 @@ vi.mock('../domains/contacts/service.ts', async (importOriginal) => {
       errors: [],
     })),
     updateContact: vi.fn(async () => undefined),
+    restoreContact: vi.fn(async () => 'restored'),
     getContact: vi.fn(async () => ({
       id: 'c-1',
       organizationId: 'org-1',
@@ -54,8 +55,13 @@ vi.mock('../domains/products/service.ts', async (importOriginal) => {
   };
 });
 
-const { bulkCreateContacts, createContact, updateContact } =
-  await import('../domains/contacts/service.ts');
+const {
+  ContactError,
+  bulkCreateContacts,
+  createContact,
+  restoreContact,
+  updateContact,
+} = await import('../domains/contacts/service.ts');
 const { createProduct, updateProduct } =
   await import('../domains/products/service.ts');
 
@@ -144,6 +150,68 @@ describe('GET /me', () => {
         expiresAt: Date.parse('2026-10-12T00:00:00.000Z'),
       },
     });
+  });
+});
+
+describe('the creates name the created resource', () => {
+  afterEach(() => {
+    vi.mocked(createContact).mockClear();
+    vi.mocked(createProduct).mockClear();
+  });
+
+  it('answers Location beside the 201 body on a contact and a product create', async () => {
+    // A generic client follows `Location` whatever shape the body has
+    // (2026-09-14 evaluation, h1).
+    const contact = await send('/contacts', 'POST', { name: 'Ada' });
+    expect(contact.status).toBe(201);
+    expect(contact.headers.get('location')).toBe('/api/v1/contacts/c-new');
+    const product = await send('/products', 'POST', { name: 'Widget' });
+    expect(product.status).toBe(201);
+    expect(product.headers.get('location')).toBe('/api/v1/products/p-new');
+  });
+});
+
+describe('POST /contacts/{id}/restore', () => {
+  it('restores through the service and answers the live contact, body-less or with an empty object', async () => {
+    // The remedy every frozen mirror's 409 names, which no REST verb
+    // offered (2026-09-14 evaluation, h6).
+    const bare = await mount().request(
+      'http://localhost/contacts/c-1/restore',
+      {
+        method: 'POST',
+      },
+    );
+    expect(bare.status).toBe(200);
+    expect(await bare.json()).toMatchObject({ id: 'c-1' });
+    expect(vi.mocked(restoreContact).mock.calls.at(-1)?.[2]).toBe('c-1');
+    const empty = await send('/contacts/c-1/restore', 'POST', {});
+    expect(empty.status).toBe(200);
+    const withKey = await send('/contacts/c-1/restore', 'POST', {
+      force: true,
+    });
+    expect(withKey.status).toBe(400);
+    expect(await withKey.json()).toMatchObject({ code: 'INVALID_BODY' });
+  });
+
+  it('answers the service’s own refusals with their status and code', async () => {
+    vi.mocked(restoreContact).mockRejectedValueOnce(
+      new ContactError(
+        'CONTACT_DUPLICATE_EXTERNAL_ID',
+        'Contact with external ID crm-1 already exists',
+        409,
+      ),
+    );
+    const twin = await send('/contacts/c-1/restore', 'POST', {});
+    expect(twin.status).toBe(409);
+    expect(await twin.json()).toMatchObject({
+      code: 'CONTACT_DUPLICATE_EXTERNAL_ID',
+    });
+    vi.mocked(restoreContact).mockRejectedValueOnce(
+      new ContactError('CONTACT_NOT_FOUND', 'Contact not found', 404),
+    );
+    const missing = await send('/contacts/none/restore', 'POST', {});
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({ code: 'CONTACT_NOT_FOUND' });
   });
 });
 

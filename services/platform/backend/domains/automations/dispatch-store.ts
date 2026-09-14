@@ -46,6 +46,8 @@ import {
   toRunSummary,
   versionRow,
   type TriggerInput,
+  beginRunIdempotent,
+  beginRunIdempotentInTx,
 } from './store.ts';
 
 /**
@@ -266,9 +268,11 @@ export function pgAutomationStore(
       // (`assertTriggerValid`) so this engine door and the HTTP door converge
       // on ONE validation — a schedule that cannot parse is refused there with
       // an actionable AutomationError rather than saving green.
-      // The store may mint a webhook token; its plaintext is deliberately
-      // DISCARDED here — an engine tool call is not a surface that can show
-      // it to a person once (the REST trigger door rotates to reveal).
+      // The store may mint a webhook token; its plaintext travels back
+      // ONCE, to the caller that minted it — a machine door is exactly a
+      // surface that can carry a secret once (the REST trigger door does),
+      // and withholding it left the binding unusable from MCP alone
+      // (2026-09-14 evaluation, h9).
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the kind was validated above; the store validates the rest
       const input = trigger as unknown as TriggerInput;
       const outcome = await setTrigger(sql, {
@@ -277,9 +281,14 @@ export function pgAutomationStore(
         trigger: input,
         actor,
       });
-      return outcome.revoked === undefined
+      return outcome.revoked === undefined && outcome.token === undefined
         ? undefined
-        : { revoked: outcome.revoked };
+        : {
+            ...(outcome.revoked === undefined
+              ? {}
+              : { revoked: outcome.revoked }),
+            ...(outcome.token === undefined ? {} : { token: outcome.token }),
+          };
     },
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);
@@ -335,7 +344,7 @@ export function pgAutomationStore(
         }
       });
     },
-    startRun: async (name, input, mode, version, projectId) => {
+    startRun: async (name, input, mode, version, projectId, options) => {
       const auth = await authorizeActorRun(
         sql,
         organizationId,
@@ -360,18 +369,28 @@ export function pgAutomationStore(
         startedBy: runStarter(actor),
         ...(version !== undefined ? { version } : {}),
       };
+      // The caller's idempotency key rides the REST door's own ledger —
+      // one key, one run, across both dialects (2026-09-14 evaluation, h9).
+      const key = options?.idempotencyKey;
       // The handle names its scope too: a project run is read back at the
       // project URL, an organization run at the flat one.
       if (effectiveProjectId !== undefined) {
         const started = await transactSerializable(sql, async (tx) => {
           await writableActorProject(tx, auth, effectiveProjectId);
-          return beginRunInTx(tx, { ...args, projectId: effectiveProjectId });
+          const scoped = { ...args, projectId: effectiveProjectId };
+          return key === undefined
+            ? beginRunInTx(tx, scoped)
+            : beginRunIdempotentInTx(tx, scoped, { key });
         });
         return started === null
           ? null
           : { ...started, projectId: effectiveProjectId };
       }
-      const started = await beginRun(sql, { ...args, requireOrgScope: true });
+      const orgArgs = { ...args, requireOrgScope: true };
+      const started =
+        key === undefined
+          ? await beginRun(sql, orgArgs)
+          : await beginRunIdempotent(sql, orgArgs, { key });
       return started === null ? null : { ...started, projectId: null };
     },
     cancelRun: async (runId) => {

@@ -43,7 +43,6 @@ const PAGE_SIZE = 20;
 const statusVariant = {
   active: 'green',
   scanning: 'blue',
-  idle: 'outline',
   error: 'destructive',
   deleting: 'destructive',
 } as const;
@@ -58,7 +57,7 @@ const PLACEHOLDER_PAGE: CrawlerPage = {
   url: 'https://example.com/placeholder',
   title: 'Placeholder page title',
   word_count: 0,
-  status: 'idle',
+  status: 'discovered',
   content_hash: null,
   last_crawled_at: null,
   discovered_at: null,
@@ -358,7 +357,6 @@ export function ViewWebsiteDialog({
                 {(website.status &&
                   (
                     {
-                      idle: t('filter.status.idle'),
                       scanning: t('filter.status.scanning'),
                       active: t('filter.status.active'),
                       error: t('filter.status.error'),

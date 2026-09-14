@@ -32,10 +32,14 @@ const {
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../automations/dispatch-store.ts', () => ({ pgAutomationStore }));
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
-vi.mock('../knowledge/service.ts', () => ({ searchKnowledgeForOrg }));
+vi.mock('../knowledge/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
+  searchKnowledgeForOrg,
+}));
 vi.mock('./memories.ts', () => ({ saveMemory, searchApprovedMemories }));
 vi.mock('./shim.ts', () => ({ resolveAccessScope }));
 
+import { KnowledgeError } from '../knowledge/service.ts';
 import { buildCapabilitySurface } from './capabilities.ts';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the surface only threads the handle through to the mocked ports
@@ -108,7 +112,60 @@ describe('get_knowledge on the capability surface', () => {
 
     const result = await surface.dispatch('get_knowledge', { query: 'x' });
 
-    expect(result).toMatchObject({ status: 'unavailable' });
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      code: 'KNOWLEDGE_UNAVAILABLE',
+    });
     expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
+  });
+
+  it('names the knowledge door’s own code when the search refuses, so a model branches on it', async () => {
+    searchKnowledgeForOrg.mockRejectedValue(
+      new KnowledgeError('KNOWLEDGE_QUERY_TOO_LONG', 'query too long'),
+    );
+    const surface = await buildCapabilitySurface(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+
+    const result = await surface.dispatch('get_knowledge', { query: 'x' });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      code: 'KNOWLEDGE_QUERY_TOO_LONG',
+      reason: expect.stringContaining('query too long'),
+    });
+  });
+});
+
+describe('the automation registry of the capability surface', () => {
+  it('holds deployed automations only — a saved-only one is no capability, as the MCP page says', async () => {
+    pgAutomationStore.mockReturnValue({
+      list: () =>
+        Promise.resolve([
+          { name: 'billing/dunning', deployedVersion: 2 },
+          { name: 'billing/drafts', deployedVersion: null },
+        ]),
+    });
+    const surface = await buildCapabilitySurface(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+
+    const found = await surface.dispatch('search_capabilities', {
+      query: 'billing',
+    });
+
+    expect(found).toEqual({
+      capabilities: [
+        expect.objectContaining({ id: 'automation.billing/dunning' }),
+      ],
+    });
+    await expect(
+      surface.invokeCapability({ id: 'automation.billing/drafts' }),
+    ).resolves.toMatchObject({
+      status: 'refused',
+      code: 'CAPABILITY_NOT_FOUND',
+    });
   });
 });

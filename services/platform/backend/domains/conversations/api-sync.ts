@@ -188,12 +188,44 @@ export async function synchronizeConversation(
         403,
       );
     }
-    if (binding && binding.externalContactId !== input.externalContactId)
-      throw new ConversationError(
-        'CONVERSATION_CONTACT_CONFLICT',
-        'The source conversation belongs to another contact',
-        409,
-      );
+    if (binding && binding.externalContactId !== input.externalContactId) {
+      // The binding is a ROW (`conversations.contact_id`); the string is
+      // what the first snapshot named. A contact re-keyed in the CRM sends
+      // its current `externalId`: the same row, not a re-home — accepted,
+      // and the binding's string follows it. A different live row, or no
+      // live row, is the conflict, and the sentence names the id the
+      // conversation is bound to; it used to blame "another contact" for a
+      // rename of the same one (2026-09-14 evaluation, h6).
+      const bound = await tx<{ contactId: string | null }[]>`
+        SELECT contact_id AS "contactId" FROM app.conversations
+        WHERE id = ${binding.conversationId} AND org_id = ${viewer.organizationId}
+      `;
+      const named = await tx<{ id: string }[]>`
+        SELECT id FROM app.contacts
+        WHERE org_id = ${viewer.organizationId} AND external_id = ${input.externalContactId}
+          AND lifecycle_status IS DISTINCT FROM 'trashed'
+        LIMIT 2
+      `;
+      const boundTo = bound[0]?.contactId ?? null;
+      if (!(named.length === 1 && named[0]?.id === boundTo)) {
+        const names =
+          named.length === 0
+            ? 'no live contact'
+            : named.length > 1
+              ? 'more than one contact'
+              : 'a different contact';
+        throw new ConversationError(
+          'CONVERSATION_CONTACT_CONFLICT',
+          `The source conversation is bound to the contact with externalId "${binding.externalContactId}"; "${input.externalContactId}" names ${names} — a conversation is never re-homed`,
+          409,
+        );
+      }
+      await tx`
+        UPDATE app.conversation_api_bindings SET external_contact_id = ${input.externalContactId}
+        WHERE conversation_id = ${binding.conversationId} AND org_id = ${viewer.organizationId}
+      `;
+      binding = { ...binding, externalContactId: input.externalContactId };
+    }
     // A conversation whose contact was moved to the trash must not keep
     // growing. `DELETE /contacts/{id}` frees the `externalId` for a new
     // contact, so re-resolving `externalContactId` on every snapshot would
@@ -217,7 +249,7 @@ export async function synchronizeConversation(
       if (trashed.length > 0)
         throw new ConversationError(
           'CONVERSATION_CONTACT_TRASHED',
-          `The contact this conversation is linked to was moved to the trash; restore it, or sync a "deleted": true teardown to close the mirror. Its externalId "${input.externalContactId}" may now belong to a different contact, so it is never re-resolved for an existing conversation.`,
+          `The contact this conversation is linked to was moved to the trash, so the mirror takes no more content. Restore the contact to continue it (POST /api/v1/contacts/{id}/restore, or the app's Trash), or sync a "deleted": true teardown to close it — a closed mirror stays closed while the contact is in the trash. Its externalId "${input.externalContactId}" may now belong to a different contact and is never re-resolved for an existing conversation; to mirror this source conversation onto another contact, mirror it under a new externalId.`,
           409,
         );
     }
@@ -974,6 +1006,10 @@ export async function apiSnapshotState(
   `;
   return {
     ...binding,
+    // The bound row itself: `externalContactId` is a string a CRM may have
+    // re-keyed since, and nothing else on the receipt said who owns the
+    // thread (2026-09-14 evaluation, h6).
+    contactId: contactRows[0]?.id ?? null,
     contactStatus,
     attachments: rows.flatMap((row) => {
       const parsed = z
@@ -1026,4 +1062,77 @@ export async function apiDeliveryAttachment(
       404,
     );
   return attachment;
+}
+
+/** One mirrored conversation as the reconciliation listing shows it. */
+export interface ApiConversationListRow {
+  conversationId: string;
+  externalId: string;
+  externalContactId: string;
+  contactId: string | null;
+  contactStatus: 'active' | 'trashed' | 'missing';
+  version: number;
+  sourceDeleted: boolean;
+  status: string;
+  subject: string | null;
+  createdAt: number;
+}
+
+export const API_CONTACT_STATUSES = ['active', 'trashed', 'missing'] as const;
+
+/**
+ * Every conversation this key user mirrored under a source — the
+ * reconciliation door a mirror had none of: nothing listed mirrored
+ * conversations, so a mirror wedged by a deleted contact could not even be
+ * found (2026-09-14 evaluation, h6). Newest first (`createdAt`, then
+ * `conversationId`) — creation never moves, so a full pass is complete;
+ * `contactStatus` narrows to the frozen ones.
+ */
+export async function listApiConversations(
+  sql: Sql,
+  viewer: ConversationViewer,
+  source: string,
+  options: {
+    contactStatus?: (typeof API_CONTACT_STATUSES)[number];
+    cursor: { at: number; id: string } | null;
+    limit: number;
+  },
+): Promise<{
+  conversations: ApiConversationListRow[];
+  nextCursor: { at: number; id: string } | null;
+}> {
+  requireWriter(viewer);
+  await assertOwnedSource(sql, viewer, source);
+  const rows = await sql<ApiConversationListRow[]>`
+    WITH mirrored AS (
+      SELECT b.conversation_id AS "conversationId", b.external_id AS "externalId",
+             b.external_contact_id AS "externalContactId", conv.contact_id AS "contactId",
+             CASE
+               WHEN c.id IS NULL THEN 'missing'
+               WHEN c.lifecycle_status = 'trashed' THEN 'trashed'
+               ELSE 'active'
+             END AS "contactStatus",
+             b.snapshot_version::float8 AS version, b.source_deleted AS "sourceDeleted",
+             conv.status, conv.subject, conv.created_at_ms::float8 AS "createdAt"
+      FROM app.conversation_api_bindings b
+      JOIN app.conversations conv ON conv.id = b.conversation_id AND conv.org_id = b.org_id
+      LEFT JOIN app.contacts c ON c.id = conv.contact_id AND c.org_id = b.org_id
+      WHERE b.org_id = ${viewer.organizationId} AND b.source = ${source}
+        AND b.owner_user_id = ${viewer.userId}
+    )
+    SELECT * FROM mirrored
+    WHERE ${options.contactStatus === undefined ? sql`TRUE` : sql`"contactStatus" = ${options.contactStatus}`}
+      AND ${options.cursor === null ? sql`TRUE` : sql`("createdAt", "conversationId") < (${options.cursor.at}, ${options.cursor.id})`}
+    ORDER BY "createdAt" DESC, "conversationId" DESC
+    LIMIT ${options.limit + 1}
+  `;
+  const page = rows.slice(0, options.limit);
+  const last = page.at(-1);
+  return {
+    conversations: page,
+    nextCursor:
+      rows.length > options.limit && last !== undefined
+        ? { at: last.createdAt, id: last.conversationId }
+        : null,
+  };
 }

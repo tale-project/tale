@@ -367,8 +367,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // sweep re-enqueues on its own cadence, so no pg-boss retry on top: a
   // second drive of the same exec would replay the ring buffer twice.
   'task.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
-  // The start is idempotent per (automation, task) — its own live-run guard
-  // refuses a second one — so a transient failure is safe to retry.
+  // The start is idempotent per task — its own live-run guard refuses a
+  // second run on a task that holds one — so a transient failure is safe
+  // to retry.
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },

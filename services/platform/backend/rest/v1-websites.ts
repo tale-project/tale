@@ -28,7 +28,6 @@ import {
   notFound,
   PAGE_QUERY,
   parseBody,
-  queryFilter,
   readIntegerCursor,
   readKeysetCursor,
   readPageLimit,
@@ -160,6 +159,8 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const websiteNotFound = (c: Parameters<typeof notFound>[0]) =>
     notFound(c, 'Website not found', 'WEBSITE_NOT_FOUND');
 
+  const emptyBody = z.object({}).strict();
+
   app.get('/websites', async (c) => {
     const query = readQuery(c, {
       ...PAGE_QUERY,
@@ -168,7 +169,9 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // not an empty page that reads as "no websites in that state"
       // (2026-09-14 evaluation, g4-7).
       status: z.enum(WEBSITE_STATUS_VALUES).optional(),
-      scanInterval: queryFilter(16).optional(),
+      // The same closed set the write side takes: a typo used to read as
+      // "no websites on that interval" (2026-09-14 evaluation, h5).
+      scanInterval: z.enum(SCAN_INTERVAL_VALUES).optional(),
     });
     if (query instanceof Response) return query;
     // The service decodes the `<createdAt>:<id>` position itself; the
@@ -214,7 +217,11 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(description !== undefined ? { description } : {}),
         ...(urls !== undefined ? { urls } : {}),
       });
-      return c.json({ id: outcome.id }, outcome.merged ? 200 : 201);
+      return outcome.merged
+        ? c.json({ id: outcome.id }, 200)
+        : c.json({ id: outcome.id }, 201, {
+            location: `/api/v1/websites/${outcome.id}`,
+          });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -322,6 +329,10 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/websites/:id/sync', async (c) => {
+    // Body-less, like every other action door: a body that is not empty
+    // JSON is refused, never swallowed (2026-09-14 evaluation, h5).
+    const body = await parseBody(c, emptyBody, { optional: true });
+    if (body instanceof Response) return body;
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
     // Fire-and-forget so the response actually means "syncing started"

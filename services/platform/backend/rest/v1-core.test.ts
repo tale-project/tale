@@ -659,6 +659,20 @@ describe('PATCH /documents/:id', () => {
     }
   });
 
+  // RFC 5789: a successful PATCH answers the new representation's tag, so
+  // the next `If-Match` needs no read in between (2026-09-14 evaluation, h4).
+  it('answers the updated representation with its own ETag', async () => {
+    const app = mount(fakeSql([]).sql);
+    const res = await app.request('http://localhost/documents/doc-hub', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Renamed' }),
+    });
+    expect(res.status).toBe(200);
+    const etag = res.headers.get('etag');
+    expect(etag).toBe(entityTagOf(new TextEncoder().encode(await res.text())));
+  });
+
   it('applies a PATCH whose If-Match names the current representation, or any (*)', async () => {
     const app = mount(fakeSql([]).sql);
     const read = await app.request('http://localhost/documents/doc-hub');

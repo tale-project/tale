@@ -326,6 +326,52 @@ export function markBm25Unavailable(sql: Sql): void {
 /** Keyed by the pool object so the entry disappears when the pool is evicted. */
 const bm25Capability = new WeakMap<Sql, Promise<boolean>>();
 
+/**
+ * Whether this database's pgvector knows iterative index scans
+ * (`hnsw.iterative_scan`, pgvector 0.8+) — the knob that keeps an approximate
+ * vector scan producing candidates until the scope's filters have admitted
+ * enough, instead of stopping at `ef_search` rows most of which another
+ * organization's filter then rejects (2026-09-14 evaluation, h4). Probed
+ * once per pool; a failed probe answers `false` (the dense leg then runs the
+ * plain statement, today's behaviour) and is not cached, so a transient
+ * error is retried on the next search.
+ */
+export function hnswIterativeScanAvailable(sql: Sql): Promise<boolean> {
+  const cached = hnswCapability.get(sql);
+  if (cached) return cached;
+  const probe = (async (): Promise<boolean> => {
+    try {
+      await sql`SHOW hnsw.iterative_scan`;
+      return true;
+    } catch (err) {
+      if (isUnrecognizedParameter(err)) {
+        logger.info(
+          'this knowledge database has a pgvector without iterative index scans — large scopes search with the plain approximate scan',
+        );
+        return false;
+      }
+      hnswCapability.delete(sql);
+      logger.warn(
+        `could not probe for hnsw.iterative_scan, searching with the plain scan this time: ${describe(err)}`,
+      );
+      return false;
+    }
+  })();
+  hnswCapability.set(sql, probe);
+  return probe;
+}
+
+const hnswCapability = new WeakMap<Sql, Promise<boolean>>();
+
+/** SQLSTATE 42704 — `unrecognized configuration parameter`. */
+function isUnrecognizedParameter(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    Reflect.get(err, 'code') === '42704'
+  );
+}
+
 /** Close every open pool and forget every cached resolution. */
 export async function closeKnowledgePools(): Promise<void> {
   const open = [...pools.values()];

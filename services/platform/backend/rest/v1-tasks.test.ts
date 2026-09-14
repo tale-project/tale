@@ -866,6 +866,19 @@ describe('project-scoped task reads and operations', () => {
     ).toBe(false);
   });
 
+  it('teaches the body spelling when the URL form ("__") is sent as the workflowSlug', async () => {
+    const { request } = mount({ exists: false });
+    const res = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'billing__dunning',
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_NOT_FOUND',
+      error: expect.stringContaining('written as it is listed'),
+    });
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
   it('refuses a saved but undeployed workflow with 409 AUTOMATION_NOT_DEPLOYED, naming it', async () => {
     const { request, queries } = mount({ deployed: false });
     const res = await request(`${item}/start`, 'POST', {

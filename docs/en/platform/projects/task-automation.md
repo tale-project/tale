@@ -36,7 +36,7 @@ A plain comment keeps a note without starting that agent action. The mention pic
 
 For an automation-owned task, mention the owning automation to request another run. Mentioning a different automation does not transfer ownership or start it. See [Automations](/platform/automations/concepts) for workflows that coordinate several steps.
 
-For a task started through an automation, the same workflow can have only one queued, running, or waiting run for that task in the project. Repeating the start request while it is active returns the existing run. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
+A task can have only one queued, running, or waiting run at a time, whichever automation started it. Repeating a start request while one is active returns the existing run, even when it names another automation. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
 
 ## Handle waiting and failed runs
 
@@ -46,7 +46,7 @@ For a task started through an automation, the same workflow can have only one qu
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | The run remains failed | Read the error and resolve its cause, then use **Retry** to continue the conversation. Deleted agents and time-limit failures need intervention. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
-| Automation is paused on one task | Repeated automated starts have triggered the per-task safeguard. Inspect the repeated work before a human status change releases the pause. |
+| Two automations keep mentioning each other on one task | There is no per-task rate cap: the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
 | The task cannot close | Finish its open subtasks first. |
 
 Recoverable failures get up to three immediate automatic retries. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.

@@ -36,7 +36,7 @@ Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu
 
 Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 
-Wird eine Aufgabe durch eine Automatisierung gestartet, kann derselbe Workflow für diese Aufgabe im Projekt nur einen eingereihten, laufenden oder wartenden Lauf haben. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
+Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich haben, egal welche Automatisierung ihn gestartet hat. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf, auch wenn er eine andere Automatisierung nennt. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
 
 ## Wartende und fehlgeschlagene Läufe behandeln
 
@@ -46,7 +46,7 @@ Wird eine Aufgabe durch eine Automatisierung gestartet, kann derselbe Workflow f
 | Automatischer Wiederholungsversuch | Tale wiederholt einen behebbaren Fehler. Beobachte die Versuchszahl und starte keinen zusätzlichen Lauf. |
 | Der Lauf bleibt fehlgeschlagen | Lies den Fehler und behebe die Ursache. Nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. Gelöschte Agenten und Zeitlimits erfordern einen Eingriff. |
 | Neuzuweisung wird verweigert | Brich den aktiven Lauf ab, bevor du neu zuweist. |
-| Automatisierung einer Aufgabe ist pausiert | Zu viele automatische Starts haben die Sicherung ausgelöst. Prüfe die wiederholte Arbeit, bevor ein menschlicher Statuswechsel die Pause aufhebt. |
+| Zwei Automatisierungen erwähnen einander auf einer Aufgabe immer wieder | Eine Ratenbegrenzung pro Aufgabe gibt es nicht: Die Ein-Engine-Regel ist, was eine Schleife stoppt. Brich den lebenden Lauf ab und lies die Zeitleiste, bevor eine von beiden wieder starten darf. |
 | Die Aufgabe lässt sich nicht abschließen | Schließe zuerst ihre offenen Teilaufgaben ab. |
 
 Bei behebbaren Fehlern folgen bis zu drei sofortige Wiederholungsversuche. Ein Lauf, der mindestens fünfzehn Minuten Fortschritt macht, erhält ein neues Versuchskontingent. So kann lange Arbeit Unterbrechungen überstehen. Die Richtigkeit des Ergebnisses musst du trotzdem prüfen.

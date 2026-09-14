@@ -19,6 +19,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
 import {
   ADMIN_ROLES,
   checkProjectAccess,
@@ -71,7 +72,20 @@ import {
 export const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
 
 const MAX_PROJECT_AGENTS = 50;
-const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
+
+/**
+ * The harnesses a project agent may run on: those the managed lane can run
+ * unattended on the platform's own credentials (`credentialPolicy.managed`
+ * in the harness fact) — the rule the composer roster applies, and the one
+ * `GET /api/v1/models` lists under `harnesses`. A hard-coded set once stood
+ * beside it, and the refusal named nothing (2026-09-14 evaluation, h9).
+ */
+export function eligibleProjectAgentHarnesses(): string[] {
+  return loadHarnesses()
+    .filter((harness) => harness.credentialPolicy.managed)
+    .map((harness) => harness.slug)
+    .sort();
+}
 
 export class ProjectError extends Error {
   readonly code: string;
@@ -1475,13 +1489,13 @@ function validateProjectAgentFields(args: {
   if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
     throw new ProjectError('PROJECT_AGENT_NAME_INVALID', 'Invalid agent name');
   }
-  if (
-    !isHarnessSlug(args.harness) ||
-    PROJECT_AGENT_INELIGIBLE_HARNESSES.has(args.harness)
-  ) {
+  const harnesses = eligibleProjectAgentHarnesses();
+  if (!isHarnessSlug(args.harness) || !harnesses.includes(args.harness)) {
     throw new ProjectError(
       'PROJECT_AGENT_HARNESS_INVALID',
-      'Invalid agent harness',
+      `Unknown or ineligible harness "${args.harness}" — a project agent runs on one of ${harnesses.join(', ')}; GET /api/v1/models lists them under harnesses`,
+      400,
+      { harnesses },
     );
   }
   const model = args.model.trim();

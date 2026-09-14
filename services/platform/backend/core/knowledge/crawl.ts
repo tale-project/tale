@@ -126,19 +126,21 @@ export async function reviveListedUrls(
   return rows.length;
 }
 
-/** Corpus → Convex status vocabulary. The corpus distinguishes `completed`
- * (a finished scan) from `active`; the websites row treats both as a healthy
- * scanned site. */
+/** Corpus → websites-row status vocabulary. The corpus distinguishes
+ * `completed` (a finished scan) from `active`; the websites row treats both
+ * as a healthy scanned site. A corpus row is born `idle` (the column
+ * default) and claimed `scanning` seconds later — the row registered it as
+ * `scanning` already, and `idle` was a value the wire declared but never
+ * observably carried (2026-09-14 evaluation, h5), so it reads `scanning`. */
 function toWebsiteStatus(status: string): CrawlerWebsiteInfo['status'] {
   switch (status) {
     case 'scanning':
+    case 'idle':
       return 'scanning';
     case 'error':
       return 'error';
     case 'deleting':
       return 'deleting';
-    case 'idle':
-      return 'idle';
     default:
       return 'active';
   }

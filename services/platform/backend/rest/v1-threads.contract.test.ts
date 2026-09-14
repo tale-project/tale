@@ -154,6 +154,7 @@ describe('GET /models', () => {
       userId: 'user-1',
     });
     expect(await res.json()).toEqual({
+      harnesses: [],
       models: [
         {
           id: 'model-a',
@@ -178,7 +179,7 @@ describe('GET /models', () => {
     });
     const { app } = mount();
     const res = await app.request('http://localhost/models');
-    expect(await res.json()).toEqual({ models: [] });
+    expect(await res.json()).toEqual({ harnesses: [], models: [] });
   });
 });
 

@@ -171,6 +171,11 @@ is hidden when the org has no teams.
   to **Projects** → You stay on the projects list, because the reset was
   recorded like any other navigation. Then open a project again, leave, and
   return → You are back on that project.
+- [ ] `NAV-F20` · **A pasted key stays in page memory** — Open `/docs`, click
+  **Authorize**, paste an API key, run one request, then reload the page →
+  The request went out authorized; after the reload the lock is open again
+  and DevTools → Application → Local storage for the origin holds no
+  `authorized` entry.
 
 ## Boundary & error tests
 

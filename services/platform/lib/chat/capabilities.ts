@@ -123,6 +123,8 @@ export type BackendResult =
       readonly status: 'refused';
       readonly reason: string;
       readonly hint?: string;
+      /** The stable value to branch on, when the backend minted one. */
+      readonly code?: string;
     };
 
 export interface AutomationInvocation {
@@ -130,7 +132,24 @@ export interface AutomationInvocation {
   readonly userId: string;
   readonly automation: string;
   readonly input: unknown;
+  /** The caller's idempotency key for the durable run underneath. */
+  readonly idempotencyKey?: string;
 }
+
+/**
+ * The refusal codes this surface mints itself, beside the ones a backend
+ * lifts through (`AUTOMATION_NOT_DEPLOYED`, `IDEMPOTENCY_KEY_REUSED`, the
+ * knowledge codes): every refusal carries one, so a calling model branches
+ * on `code` — the MCP page's contract, which two of its tools broke
+ * (2026-09-14 evaluation, h9).
+ */
+const CAPABILITY_REFUSAL_CODES = [
+  /** No capability carries the id. */
+  'CAPABILITY_NOT_FOUND',
+  /** The input misses the capability's own schema. */
+  'CAPABILITY_INPUT_INVALID',
+] as const;
+type CapabilityRefusalCode = (typeof CAPABILITY_REFUSAL_CODES)[number];
 
 export interface CapabilityBackends {
   /** Always through the automations store — see
@@ -177,7 +196,14 @@ export interface KnowledgePassage {
 
 export type KnowledgeResult =
   | { readonly status: 'ok'; readonly passages: readonly KnowledgePassage[] }
-  | { readonly status: 'unavailable'; readonly reason: string };
+  | {
+      readonly status: 'unavailable';
+      readonly reason: string;
+      /** The stable value to branch on — the knowledge door’s own code
+       * (`EMBEDDING_NOT_CONFIGURED`, `EMBEDDING_UPSTREAM_ERROR`, …) or
+       * `KNOWLEDGE_UNAVAILABLE`. */
+      readonly code?: string;
+    };
 
 /**
  * The retrieval seam: one org-scoped query in, passages out. A backend that
@@ -268,6 +294,9 @@ export type InvokeResult =
       readonly id?: string;
       readonly reason: string;
       readonly hint?: string;
+      /** The stable value to branch on — one of
+       * {@link CAPABILITY_REFUSAL_CODES}, or the code the backend minted. */
+      readonly code?: string;
     };
 
 // -------------------------------------------------------------- the surface
@@ -293,6 +322,9 @@ export interface SearchCapabilitiesParams {
 export interface InvokeCapabilityParams {
   readonly id: string;
   readonly input?: unknown;
+  /** The caller's idempotency key for the durable run underneath — the
+   * REST `Idempotency-Key` ledger, so a retried call re-executes nothing. */
+  readonly idempotencyKey?: string;
 }
 
 export interface GetKnowledgeParams {
@@ -360,8 +392,13 @@ function describeErrors(validate: ValidateFunction): string {
     .join('; ');
 }
 
-function refuse(reason: string, hint?: string, id?: string): InvokeResult {
-  return { status: 'refused', reason, hint, id };
+function refuse(
+  reason: string,
+  hint?: string,
+  id?: string,
+  code?: CapabilityRefusalCode | (string & {}),
+): InvokeResult {
+  return { status: 'refused', reason, hint, id, code };
 }
 
 /** What a search result tells the model: what it is and whether its result
@@ -395,6 +432,7 @@ export function createCapabilitySurface(
   const runBackend = async (
     capability: Capability,
     input: unknown,
+    idempotencyKey?: string,
   ): Promise<BackendResult> => {
     switch (capability.kind) {
       case 'automation':
@@ -403,6 +441,7 @@ export function createCapabilitySurface(
           userId,
           automation: capability.automation,
           input,
+          ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
         });
       default: {
         const exhaustive: never = capability.kind;
@@ -438,6 +477,7 @@ export function createCapabilitySurface(
           ? `Did you mean "${suggestion}"?`
           : 'Call search_capabilities to find what this organization actually has.',
         params.id,
+        'CAPABILITY_NOT_FOUND',
       );
     }
 
@@ -448,12 +488,13 @@ export function createCapabilitySurface(
         `Input does not match the schema of "${capability.id}": ${describeErrors(validate)}`,
         'Fix the arguments and call again.',
         capability.id,
+        'CAPABILITY_INPUT_INVALID',
       );
     }
 
-    const result = await runBackend(capability, input);
+    const result = await runBackend(capability, input, params.idempotencyKey);
     if (result.status === 'refused') {
-      return refuse(result.reason, result.hint, capability.id);
+      return refuse(result.reason, result.hint, capability.id, result.code);
     }
 
     const structured = !isUnstructured(capability);
@@ -572,16 +613,26 @@ export function createCapabilitySurface(
           }),
         };
       case 'invoke_capability':
-        return invokeCapability({ id: asString(p.id), input: p.input });
+        return invokeCapability({
+          id: asString(p.id),
+          input: p.input,
+          ...(asString(p.idempotencyKey)
+            ? { idempotencyKey: asString(p.idempotencyKey) }
+            : {}),
+        });
       case 'get_knowledge':
         return getKnowledge({
           query: asString(p.query),
+          // The REST spellings are taken too — one capability, one
+          // vocabulary a model that read either page can use.
           corpus:
-            p.corpus === 'private' ||
-            p.corpus === 'public-web' ||
-            p.corpus === 'all'
-              ? p.corpus
-              : undefined,
+            p.corpus === 'private' || p.corpus === 'documents'
+              ? 'private'
+              : p.corpus === 'public-web' || p.corpus === 'web'
+                ? 'public-web'
+                : p.corpus === 'all'
+                  ? 'all'
+                  : undefined,
           limit: typeof p.limit === 'number' ? p.limit : undefined,
         });
       case 'memory.save':

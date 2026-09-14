@@ -6895,7 +6895,6 @@ websites:
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
   filter:
     status:
-      idle: Inaktiv
       scanning: Wird gescannt
       active: Aktiv
       error: Fehler

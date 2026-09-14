@@ -109,7 +109,7 @@ export interface WebsitesContract {
     returns: Array<{
       _id: string;
       _creationTime: number;
-      status?: 'active' | 'error' | 'idle' | 'scanning' | 'deleting';
+      status?: 'active' | 'error' | 'scanning' | 'deleting';
       metadata?: Record<string, unknown>;
       kind?: 'site' | 'list';
       title?: string;
@@ -142,7 +142,7 @@ export interface WebsitesContract {
       page: Array<{
         _id: string;
         _creationTime: number;
-        status?: 'active' | 'error' | 'idle' | 'scanning' | 'deleting';
+        status?: 'active' | 'error' | 'scanning' | 'deleting';
         metadata?: Record<string, unknown>;
         kind?: 'site' | 'list';
         title?: string;

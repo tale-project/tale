@@ -249,6 +249,49 @@ describe('invoke_capability', () => {
     });
   });
 
+  it('names a code on every refusal it mints, and lifts the backend’s own through', async () => {
+    // Two of the MCP page's tools refused without the `code` the page tells
+    // a model to branch on (2026-09-14 evaluation, h9).
+    const { surface: s, calls } = surface({}, [
+      capability({
+        inputSchema: {
+          type: 'object',
+          properties: { dry: { type: 'boolean' } },
+          required: ['dry'],
+        },
+      }),
+    ]);
+    await expect(
+      s.invokeCapability({ id: 'automation.github/triage-issue' }),
+    ).resolves.toMatchObject({
+      status: 'refused',
+      code: 'CAPABILITY_NOT_FOUND',
+    });
+    await expect(
+      s.invokeCapability({
+        id: 'automation.github/triage-issues',
+        input: { dry: 'yes' },
+      }),
+    ).resolves.toMatchObject({
+      status: 'refused',
+      code: 'CAPABILITY_INPUT_INVALID',
+    });
+    calls.automation.mockResolvedValue({
+      status: 'refused',
+      reason: 'Not deployed.',
+      code: 'AUTOMATION_NOT_DEPLOYED',
+    });
+    await expect(
+      s.invokeCapability({
+        id: 'automation.github/triage-issues',
+        input: { dry: true },
+      }),
+    ).resolves.toMatchObject({
+      status: 'refused',
+      code: 'AUTOMATION_NOT_DEPLOYED',
+    });
+  });
+
   it('passes a backend refusal through with its hint', async () => {
     const refusing: CapabilityBackends = {
       automation: vi.fn().mockResolvedValue({

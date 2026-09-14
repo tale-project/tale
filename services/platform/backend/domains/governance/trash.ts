@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { restoreContact } from '../contacts/service.ts';
 
 /**
  * The admin Trash surface (the 0.4 `listTrashedRows`/`restoreSoftDeletedRow`
@@ -262,6 +263,27 @@ export async function restoreSoftDeletedRow(
       'RESOURCE_TYPE_UNSUPPORTED',
       `No restore lane for ${args.resourceType}`,
     );
+  }
+  // A contact restores through the directory's own door, which re-runs the
+  // create's uniqueness rule: the generic row flip used to mint a live twin
+  // of a contact whose email or external id another contact had since taken
+  // (2026-09-14 evaluation, h6). Its refusals (`ContactError`) surface as
+  // the door's own.
+  if (args.resourceType === 'contact') {
+    const outcome = await restoreContact(
+      tx,
+      {
+        organizationId: auth.organizationId,
+        userId: auth.userId,
+        ...(auth.email !== undefined ? { email: auth.email } : {}),
+        role: 'admin',
+      },
+      args.id,
+    );
+    if (outcome === 'live') {
+      throw new TrashError('ROW_NOT_FOUND', 'Nothing to restore', 404);
+    }
+    return;
   }
   const restored = await tx<{ id: string }[]>`
     UPDATE app.${tx.unsafe(source.table)} SET

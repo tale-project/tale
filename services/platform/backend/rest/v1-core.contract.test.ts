@@ -572,6 +572,7 @@ describe('knowledge search resource scope', () => {
         hits: [],
         diagnostics: {
           bm25: true,
+          dense: true,
           reranked: false,
           cached: false,
           admitted: 0,
@@ -1295,7 +1296,7 @@ describe('GET /skills/{slug}/files/{path}', () => {
     expect(text.headers.get('content-disposition')).toBe(
       `attachment; filename="fill.py"; filename*=UTF-8''fill.py`,
     );
-    expect(text.headers.get('cache-control')).toBe('private, no-store');
+    expect(text.headers.get('cache-control')).toBe('private, no-cache');
     expect(text.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await text.text()).toBe('print("ü")\n');
 
@@ -1320,6 +1321,65 @@ describe('GET /skills/{slug}/files/{path}', () => {
     expect(head.status).toBe(200);
     expect(head.headers.get('content-length')).toBe('5');
     expect(await head.text()).toBe('');
+  });
+
+  /**
+   * A validated read like the two sibling content routes: the tag is the
+   * bytes, `Last-Modified` the file's time, and a matching `If-None-Match`
+   * or an unchanged `If-Modified-Since` answers 304 — a mirror used to
+   * re-download every byte of a bundle on every poll (2026-09-14
+   * evaluation, h8).
+   */
+  it('is a validated read: ETag and Last-Modified on the 200, 304 for a matching tag or an unchanged time', async () => {
+    const { app } = mount();
+    const url = 'http://localhost/skills/pdf-notes/files/scripts/fill.py';
+    const full = await app.request(url);
+    const etag = full.headers.get('etag') ?? '';
+    const lastModified = full.headers.get('last-modified') ?? '';
+    // The store's tag shape (base64url of the bytes' digest), quoted.
+    expect(etag).toMatch(/^"[A-Za-z0-9_-]{16,}"$/);
+    expect(lastModified).toMatch(/GMT$/);
+    for (const header of [
+      etag,
+      `W/${etag}`,
+      `"other", ${etag}`,
+      `${etag.slice(0, -1)}-gzip"`,
+      '*',
+    ]) {
+      const res = await app.request(url, {
+        headers: { 'if-none-match': header },
+      });
+      expect(res.status, header).toBe(304);
+      expect(res.headers.get('etag')).toBe(etag);
+      expect(res.headers.get('last-modified')).toBe(lastModified);
+      expect(res.headers.get('cache-control')).toBe('private, no-cache');
+      expect(await res.text()).toBe('');
+    }
+    const stale = await app.request(url, {
+      headers: { 'if-none-match': '"0000"' },
+    });
+    expect(stale.status).toBe(200);
+    expect(await stale.text()).toBe('print("ü")\n');
+    const unchanged = await app.request(url, {
+      headers: { 'if-modified-since': lastModified },
+    });
+    expect(unchanged.status).toBe(304);
+    const older = await app.request(url, {
+      headers: {
+        'if-modified-since': new Date(
+          Date.parse(lastModified) - 60_000,
+        ).toUTCString(),
+      },
+    });
+    expect(older.status).toBe(200);
+    // `If-None-Match` decides when both are sent (RFC 9110 §13.1.3).
+    const both = await app.request(url, {
+      headers: {
+        'if-none-match': '"0000"',
+        'if-modified-since': lastModified,
+      },
+    });
+    expect(both.status).toBe(200);
   });
 
   it('tells a missing file from a missing skill, and refuses paths the walk never produces', async () => {

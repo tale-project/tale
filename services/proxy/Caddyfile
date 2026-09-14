@@ -138,6 +138,14 @@
 	# compression negotiation issues between browser, Caddy, and backend
 	request_header -Sec-WebSocket-Extensions
 
+	# The edge answers `Expect: 100-continue` itself, as soon as it starts
+	# forwarding the body; with the header forwarded too, the origin (Bun)
+	# wrote a second `100 Continue` that Caddy relayed, so one request drew
+	# two interim responses — a desync for a strict HTTP/1.1 client
+	# (2026-09-14 evaluation, h8). The origin's verdict on the body (a 413
+	# for a declared length over the cap) still arrives before a byte is read.
+	request_header -Expect
+
 	# Health check endpoint for the proxy itself
 	handle /health {
 		respond "OK" 200

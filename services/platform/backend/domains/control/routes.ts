@@ -40,10 +40,13 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
   app.use(async (c, next) => {
     if (!process.env.TALE_CONTROL_TOKEN) {
       // The door is not configured on this deployment — it does not exist.
-      return c.json({ error: 'not found' }, 404);
+      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
     }
     if (!controlTokenMatches(c)) {
-      return c.json({ error: 'unauthorized' }, 401);
+      return c.json(
+        { error: 'Missing or invalid control token', code: 'UNAUTHORIZED' },
+        401,
+      );
     }
     await next();
     return undefined;

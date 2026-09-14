@@ -15,6 +15,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
+import { KNOWLEDGE_QUERY_MAX } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
@@ -52,6 +53,7 @@ import {
   deleteContact,
   getContact,
   listContacts,
+  restoreContact,
   updateContact,
   type ContactScope,
 } from '../domains/contacts/service.ts';
@@ -97,7 +99,11 @@ import {
 import { PRODUCT_STATUSES } from '../domains/products/service.ts';
 import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
-import { entityTagOf } from '../lib/conditional-get.ts';
+import {
+  entityTagOf,
+  ifNoneMatchMatches,
+  modifiedSince,
+} from '../lib/conditional-get.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
   productRestImageSchema,
@@ -357,7 +363,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           source: body.source ?? 'api_import',
         }),
       );
-      return c.json({ id }, 201);
+      return c.json({ id }, 201, { location: `/api/v1/contacts/${id}` });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -504,6 +510,25 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** Restore a contact from the trash — the remedy a frozen mirror's 409
+   * names. Body-less; a live contact is a no-op answering the contact
+   * (the "already there" idiom); the create's own 409s when a live contact
+   * has since taken its email or external id. */
+  app.post('/contacts/:id/restore', async (c) => {
+    const body = await parseBody(c, z.object({}).strict(), { optional: true });
+    if (body instanceof Response) return body;
+    try {
+      await deps.sql.begin((tx) =>
+        restoreContact(tx, scope(c), c.req.param('id')),
+      );
+      const restored = await loadLiveContact(c, c.req.param('id'));
+      if (restored instanceof Response) return restored;
+      return c.json(restored);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
   // ---- products -----------------------------------------------------------
   // The shared field shape (domains/products/input-schema.ts), strict and
   // capped at the domain's own limits; the patch also takes the contacts
@@ -566,7 +591,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         await validateRestProductImage(tx, scope(c), body.imageUrl);
         return createProduct(tx, scope(c), body);
       });
-      return c.json({ id }, 201);
+      return c.json({ id }, 201, { location: `/api/v1/products/${id}` });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -768,7 +793,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await deps.sql.begin((tx) =>
         createHubDocument(tx, auth, body),
       );
-      return c.json({ id }, 201);
+      return c.json({ id }, 201, { location: `/api/v1/documents/${id}` });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -926,13 +951,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const updated = await getDocumentById(deps.sql, auth, doc.id);
       const extras = await readDocumentRestExtras(deps.sql, updated.id);
       const indexing = await indexingOf(c, [updated]);
-      return c.json(
-        hubDocumentPayload(
-          updated,
-          extras,
-          updated.fileRef === null ? undefined : indexing.get(updated.fileRef),
-        ),
+      const payload = hubDocumentPayload(
+        updated,
+        extras,
+        updated.fileRef === null ? undefined : indexing.get(updated.fileRef),
       );
+      // The 200 is the GET's representation, so it carries that
+      // representation's tag — the value the next `If-Match` sends, without
+      // a read in between (RFC 5789 §2; 2026-09-14 evaluation, h4).
+      return c.json(payload, 200, {
+        etag: entityTagOf(new TextEncoder().encode(JSON.stringify(payload))),
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -966,6 +995,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * last three, and answered `rag-opt-out` for a file that opted out at its
    * bind — an explicit retry is the opt-in now, so such a file queues. */
   app.post('/documents/:id/retry-indexing', async (c) => {
+    // Body-less, like every other action door (2026-09-14 evaluation, h5).
+    const body = await parseBody(c, z.object({}).strict(), { optional: true });
+    if (body instanceof Response) return body;
     try {
       // Write-shaped: it rewrites RAG bookkeeping and enqueues billable
       // indexing — the same matrix gate as the session Retry affordance,
@@ -990,7 +1022,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     .object({
       // Trimmed before the length check: a whitespace-only query is a
       // mistake to name, not a search that answers nothing.
-      query: z.string().trim().min(1).max(2000),
+      query: z.string().trim().min(1).max(KNOWLEDGE_QUERY_MAX),
       corpus: z.enum(['documents', 'web', 'all']).optional(),
       limit: z.number().int().min(1).max(50).optional(),
       minSimilarity: z.number().min(0).max(1).optional(),
@@ -1209,7 +1241,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         content: body.content,
         source: 'manual',
       });
-      return c.json(written, 201);
+      return c.json(written, 201, {
+        location: `/api/v1/knowledge-entries/${written.id}`,
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -1353,8 +1387,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * One file of a bundle, raw — `files[].path` of the skill names it, `/`
    * raw or `%2F`. The bytes are whatever the author staged, so they never
    * render on this origin: `application/octet-stream`, an attachment
-   * disposition carrying the file's own name, `nosniff`, private and
-   * uncacheable — the posture of every blob lane on this door. A path the
+   * disposition carrying the file's own name, `nosniff`, private. A
+   * validated read like the two sibling content routes: the `ETag` is the
+   * file's bytes, `Last-Modified` its modification time, and `If-None-Match`
+   * / `If-Modified-Since` answer 304 — a mirror used to re-download every
+   * byte of a bundle on every poll (2026-09-14 evaluation, h8). A path the
    * bundle walk would never produce (`..`, a dot-entry, `node_modules/…`)
    * reads as a file the bundle does not have.
    */
@@ -1375,6 +1412,25 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (asset.kind === 'no-file') {
         return notFound(c, 'Skill file not found', 'SKILL_FILE_NOT_FOUND');
       }
+      const etag = entityTagOf(new Uint8Array(asset.content));
+      const lastModified = new Date(asset.mtimeMs).toUTCString();
+      const ifNoneMatch = c.req.header('if-none-match');
+      const ifModifiedSince = c.req.header('if-modified-since');
+      const unchanged =
+        ifNoneMatch !== undefined
+          ? ifNoneMatchMatches(ifNoneMatch, etag)
+          : ifModifiedSince !== undefined &&
+            !modifiedSince(ifModifiedSince, asset.mtimeMs);
+      if (unchanged) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            etag,
+            'last-modified': lastModified,
+            'cache-control': 'private, no-cache',
+          },
+        });
+      }
       const headers = new Headers({
         'content-type': 'application/octet-stream',
         'content-length': String(asset.content.byteLength),
@@ -1382,7 +1438,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           path.posix.basename(asset.path),
         ),
         'x-content-type-options': 'nosniff',
-        'cache-control': 'private, no-store',
+        'cache-control': 'private, no-cache',
+        etag,
+        'last-modified': lastModified,
       });
       return new Response(
         c.req.method === 'HEAD' ? null : new Uint8Array(asset.content),
@@ -1442,7 +1500,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // status is the create-or-update signal (the Tasks convention), so a
       // sync that mirrors bundles from elsewhere learns which it did
       // without a racy read first — it used to answer 200 either way.
-      return c.json(saved.skill, saved.created ? 201 : 200);
+      return saved.created
+        ? c.json(saved.skill, 201, { location: `/api/v1/skills/${slug}` })
+        : c.json(saved.skill, 200);
     } catch (error) {
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }

@@ -44,7 +44,8 @@ interface StubOptions {
   corpus?: Exclude<KnowledgeCorpus, 'all'>;
   /** `null` models a database with no full-text index. */
   keyword?: readonly KnowledgeHit[] | null;
-  dense?: readonly KnowledgeHit[];
+  /** `null` models a corpus that cannot serve the vector leg. */
+  dense?: readonly KnowledgeHit[] | null;
 }
 
 function stubReader(options: StubOptions = {}): CorpusReader & {
@@ -66,10 +67,9 @@ function stubReader(options: StubOptions = {}): CorpusReader & {
     dense(query) {
       calls.push(query);
       return Promise.resolve(
-        options.dense ?? [
-          hit('dense', corpus, 0.9),
-          hit('shared', corpus, 0.7),
-        ],
+        options.dense === undefined
+          ? [hit('dense', corpus, 0.9), hit('shared', corpus, 0.7)]
+          : options.dense,
       );
     },
   };
@@ -88,11 +88,12 @@ describe('hybrid search is the default', () => {
     ).then((result) => {
       // The result both legs found outranks each leg's own favourite, and
       // nothing in the query switched fusion on. The two single-leg results
-      // tie on score, so the deterministic tie-break orders them by identity.
+      // tie on score, so the deterministic tie-break puts the keyword-ranked
+      // one first — an exact term over a nearest neighbour.
       expect(result.hits.map((entry) => entry.id)).toEqual([
         'shared',
-        'dense',
         'kw',
+        'dense',
       ]);
       expect(result.diagnostics.bm25).toBe(true);
       expect(result.diagnostics.reranked).toBe(false);
@@ -125,8 +126,8 @@ describe('hybrid search is the default', () => {
     );
     expect(result.hits.map((entry) => [entry.id, entry.legs])).toEqual([
       ['shared', 2],
-      ['dense', 1],
       ['kw', 1],
+      ['dense', 1],
     ]);
     expect(result.diagnostics.admitted).toBe(3);
   });
@@ -167,14 +168,22 @@ describe('the keyword index is optional', () => {
     expect(result.diagnostics.bm25).toBe(false);
   });
 
-  it('reports a healthy search that matched nothing as healthy', async () => {
+  it('reports a healthy search that matched nothing as healthy, naming the leg with its zero', async () => {
     // An empty keyword list is not the same as a missing index, and a caller
-    // that cannot tell them apart cannot report the difference either.
+    // that cannot tell them apart cannot report the difference either. The
+    // leg that ran is in `legs` with its `0`: a missing key used to be the
+    // only sign of a leg that found nothing, indistinguishable from one that
+    // never ran (2026-09-14 evaluation, h4).
     const result = await retrieve(
       { readers: [stubReader({ keyword: [] })], embedder, orgSlug: 'acme' },
       { query: 'holiday policy' },
     );
     expect(result.diagnostics.bm25).toBe(true);
+    expect(result.diagnostics.dense).toBe(true);
+    expect(result.diagnostics.legs).toEqual({
+      'documents:keyword': 0,
+      'documents:dense': 2,
+    });
     expect(result.hits.length).toBeGreaterThan(0);
   });
 
@@ -188,6 +197,21 @@ describe('the keyword index is optional', () => {
       { query: 'holiday policy' },
     );
     expect(result.hits).toEqual([]);
+    expect(result.diagnostics.legs).toEqual({
+      'documents:keyword': 0,
+      'documents:dense': 0,
+    });
+  });
+
+  it('reports a corpus that cannot serve the vector leg as dense: false and searches keyword-only', async () => {
+    const result = await retrieve(
+      { readers: [stubReader({ dense: null })], embedder, orgSlug: 'acme' },
+      { query: 'holiday policy' },
+    );
+    expect(result.diagnostics.dense).toBe(false);
+    expect(result.diagnostics.bm25).toBe(true);
+    expect(result.diagnostics.legs).toEqual({ 'documents:keyword': 2 });
+    expect(result.hits.map((entry) => entry.id)).toEqual(['kw', 'shared']);
   });
 });
 
@@ -478,8 +502,8 @@ describe('reranking is off by default and never load-bearing', () => {
     );
     expect(result.diagnostics.reranked).toBe(true);
     expect(result.hits.map((entry) => entry.id)).toEqual([
-      'kw',
       'dense',
+      'kw',
       'shared',
     ]);
     expect(result.hits[0].rerankScore).toBeDefined();
@@ -497,8 +521,8 @@ describe('reranking is off by default and never load-bearing', () => {
     // A slightly worse ranking beats no answer.
     expect(result.hits.map((entry) => entry.id)).toEqual([
       'shared',
-      'dense',
       'kw',
+      'dense',
     ]);
     expect(result.diagnostics.reranked).toBe(false);
   });

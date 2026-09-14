@@ -143,7 +143,10 @@ export function createEventsHandler(
   return async (c: Context<AuthEnv>): Promise<Response> => {
     const orgId = c.req.query('orgId');
     if (!orgId) {
-      return c.json({ error: 'orgId is required' }, 400);
+      return c.json(
+        { error: '"orgId" is required', code: 'INVALID_QUERY' },
+        400,
+      );
     }
     const { user, session } = c.get('sessionBundle');
     const userId = user.id;
@@ -152,7 +155,13 @@ export function createEventsHandler(
       await requireOrganizationMember(sql, orgId, userId);
     } catch (error) {
       if (error instanceof MembershipError) {
-        return c.json({ error: 'not a member of this organization' }, 403);
+        return c.json(
+          {
+            error: 'Not a member of this organization',
+            code: 'ORG_FORBIDDEN',
+          },
+          403,
+        );
       }
       throw error;
     }

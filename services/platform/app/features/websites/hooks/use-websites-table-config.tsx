@@ -15,7 +15,6 @@ import { isScanPaused } from '../lib/scan-paused';
 const statusVariant = {
   active: 'green',
   scanning: 'blue',
-  idle: 'outline',
   error: 'destructive',
   deleting: 'destructive',
 } as const;
@@ -75,7 +74,6 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
         const s = row.original.status;
         const variant = s && s in statusVariant ? statusVariant[s] : 'outline';
         const statusLabels: Record<string, string> = {
-          idle: tEntity('filter.status.idle'),
           scanning: tEntity('filter.status.scanning'),
           active: tEntity('filter.status.active'),
           error: tEntity('filter.status.error'),
@@ -126,8 +124,8 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
         // A successful scan stamps `lastScannedAt`; until then the cell must
         // not pretend work is in progress. Show the spinner only while the
         // website is actively `scanning`, and surface a static, labelled
-        // "Not scanned yet" for every terminal/idle state (freshly added,
-        // `idle`, `error`, or environments where the crawler never ran).
+        // "Not scanned yet" for every state that is not `scanning` (an
+        // `error`, or environments where the crawler never ran).
         if (row.original.lastScannedAt) {
           return (
             <div className="w-0 min-w-full overflow-hidden">

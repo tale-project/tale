@@ -574,6 +574,23 @@ export async function updateContact(
       updated_at_ms = ${Math.max(Date.now(), contact.updatedAt + 1)}
     WHERE id = ${contactId}
   `;
+  // A mirrored conversation is bound to this ROW; the `externalId` string
+  // its binding carries is what the first snapshot named. A re-key follows
+  // through, so the receipt names the contact's current id and a snapshot
+  // naming it applies — the string used to lag for good, so a worker sending
+  // the CRM's current id was refused (2026-09-14 evaluation, h6).
+  if (
+    contact.externalId !== null &&
+    next.externalId !== null &&
+    next.externalId !== contact.externalId
+  ) {
+    await tx`
+      UPDATE app.conversation_api_bindings b SET external_contact_id = ${next.externalId}
+      FROM app.conversations c
+      WHERE c.id = b.conversation_id AND c.org_id = ${scope.organizationId}
+        AND c.contact_id = ${contactId} AND b.external_contact_id = ${contact.externalId}
+    `;
+  }
   await createAuditLog(tx, {
     organizationId: scope.organizationId,
     actorId: scope.userId,
@@ -595,6 +612,92 @@ export async function updateContact(
     entity: 'contact',
     entityId: contactId,
   });
+}
+
+/**
+ * Restore a contact from the trash — the remedy every frozen mirror's 409
+ * names, which no REST verb offered (2026-09-14 evaluation, h6). The
+ * create's own rule under the create's own locks: a live contact that has
+ * since taken the email or the external id refuses the restore with the
+ * create's 409, so a restore can never mint the twin the create refuses (the
+ * app's Trash used to). A contact that is not in the trash is a no-op
+ * (`live`), the "already there" idiom; an absent one is 404. The contact's
+ * mirrored conversations resume with it — nothing on them is written.
+ */
+export async function restoreContact(
+  tx: TransactionSql,
+  scope: ContactScope,
+  contactId: string,
+): Promise<'restored' | 'live'> {
+  assertContactAccess(scope, 'write');
+  const rows = await tx<ContactRow[]>`
+    SELECT ${tx.unsafe(CONTACT_COLUMNS)} FROM app.contacts
+    WHERE id = ${contactId} AND org_id = ${scope.organizationId} LIMIT 1 FOR UPDATE
+  `;
+  const contact = rows[0];
+  if (!contact) {
+    throw new ContactError('CONTACT_NOT_FOUND', 'Contact not found', 404);
+  }
+  if (
+    contact.lifecycleStatus !== 'trashed' &&
+    contact.lifecycleStatus !== 'expired'
+  ) {
+    return 'live';
+  }
+  if (contact.email !== null) {
+    await lockContactEmail(tx, scope.organizationId, contact.email);
+    const twin = await findLiveContactIdByEmail(
+      tx,
+      scope.organizationId,
+      contact.email,
+    );
+    if (twin !== null && twin !== contactId) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EMAIL',
+        `Contact with email ${contact.email} already exists`,
+        409,
+      );
+    }
+  }
+  if (contact.externalId !== null) {
+    await lockContactExternalId(tx, scope.organizationId, contact.externalId);
+    const twin = await findLiveContactIdByExternalId(
+      tx,
+      scope.organizationId,
+      contact.externalId,
+    );
+    if (twin !== null && twin !== contactId) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EXTERNAL_ID',
+        `Contact with external ID ${contact.externalId} already exists`,
+        409,
+      );
+    }
+  }
+  const now = Date.now();
+  await tx`
+    UPDATE app.contacts SET
+      lifecycle_status = NULL, status_changed_at_ms = ${now},
+      updated_at_ms = ${Math.max(now, contact.updatedAt + 1)}
+    WHERE id = ${contactId}
+  `;
+  await createAuditLog(tx, {
+    organizationId: scope.organizationId,
+    actorId: scope.userId,
+    ...(scope.email !== undefined ? { actorEmail: scope.email } : {}),
+    actorType: 'user',
+    action: 'contact.restored_from_trash',
+    category: 'data',
+    resourceType: 'contact',
+    resourceId: contactId,
+    status: 'success',
+  });
+  await emitHintInTx(tx, {
+    orgId: scope.organizationId,
+    entity: 'contact',
+    entityId: contactId,
+  });
+  return 'restored';
 }
 
 /** Soft trash (governance owns hard erase). */

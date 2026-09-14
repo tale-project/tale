@@ -120,6 +120,9 @@ export interface RunDetail extends RunSummary {
 /** One entry of an automation's immutable version history. */
 export interface VersionSummary {
   version: number;
+  /** Whether this is the version that runs — `list_versions` marks it, so a
+   * caller learns in one call which document is live. */
+  deployed?: boolean;
   message?: string;
   /** The last run of the version's tests — the save's or the deploy
    * gate's, the latest winning; absent while no run was recorded. */
@@ -153,9 +156,13 @@ export interface TriggerView {
 }
 
 /** What binding a trigger changed besides recording it: `revoked` names a
- * live webhook URL the bind replaced with another kind. */
+ * live webhook URL the bind replaced with another kind; `token` is a
+ * webhook trigger's plaintext token, minted by this bind and shown ONCE —
+ * the REST door answers it the same way, and a tool that withheld it left
+ * the binding a dead end from MCP alone (2026-09-14 evaluation, h9). */
 export interface SetTriggerOutcome {
   revoked?: 'webhook';
+  token?: string;
 }
 
 /**
@@ -220,12 +227,21 @@ export interface DispatchStore extends StoreAdapter {
     mode: 'mock' | 'live',
     version?: number,
     projectId?: string,
+    options?: {
+      /** The caller's idempotency key — the REST `Idempotency-Key` ledger:
+       * a repeat answers the run it already started (`duplicate: true`), a
+       * repeat with a different request is a refusal. */
+      idempotencyKey?: string;
+    },
   ): Promise<{
     runId: string;
     version: number;
     /** The project the run operates in (null: organization-wide) — the
      * scope a host that reads runs by project needs to build its URL. */
     projectId?: string | null;
+    /** True when `options.idempotencyKey` named a start this host already
+     * made — no new run. */
+    duplicate?: boolean;
   } | null>;
   listRuns?(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun?(runId: string): Promise<RunDetail | null>;
@@ -380,6 +396,7 @@ async function runDeployedDurably(
   name: string,
   version: number,
   input: unknown,
+  idempotencyKey?: string,
 ): Promise<unknown> {
   const { store } = ctx;
   if (!store.startRun || !store.getRun) {
@@ -389,9 +406,14 @@ async function runDeployedDurably(
       hint: 'this host has neither an in-process connector host nor a durable runner; test against mocks instead',
     };
   }
-  let started: { runId: string; version: number } | null;
+  let started: { runId: string; version: number; duplicate?: boolean } | null;
   try {
-    started = await store.startRun(name, input, 'live', version);
+    started =
+      idempotencyKey === undefined
+        ? await store.startRun(name, input, 'live', version)
+        : await store.startRun(name, input, 'live', version, undefined, {
+            idempotencyKey,
+          });
   } catch (e) {
     return refusalFrom(e);
   }
@@ -669,6 +691,27 @@ export async function dispatch(
 
     case 'get_automation': {
       const name = asString(p.name);
+      // "deployed" reads the version that actually runs — the REST door's
+      // `?version=deployed`, which MCP lacked (2026-09-14 evaluation, h9).
+      if (p.version === 'deployed') {
+        const live = await store.deployedVersion(name);
+        if (live === null) {
+          const missing = await missingAutomation(store, name);
+          if (missing) return missing;
+          return {
+            error: `"${name}" has no deployed version`,
+            code: 'AUTOMATION_VERSION_UNKNOWN',
+            hint: 'deploy_automation a saved version first — list_versions shows them',
+          };
+        }
+        return (
+          (await store.get(name, live)) ?? {
+            error: `deployed version ${name}@${live} is missing`,
+            code: 'AUTOMATION_VERSION_UNKNOWN',
+            hint: `the deployed version is gone — deploy_automation a saved one (${LIST_VERSIONS_HINT})`,
+          }
+        );
+      }
       const version =
         p.version === undefined
           ? { value: undefined }
@@ -779,8 +822,13 @@ export async function dispatch(
       try {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape guarded by the host on persist
         const outcome = await store.setTrigger(name, trigger as TriggerSpec);
+        // Whether deliveries will run: a binding on an undeployed
+        // automation is recorded and fires nothing — the REST door says so
+        // beside the token, and so does this one.
+        const deployed = (await store.deployedVersion(name)) !== null;
         return {
           ok: true,
+          deployed,
           note: 'trigger recorded; the host schedules and delivers it',
           // A bind that replaced a live webhook with another kind killed
           // its URL: the caller hears it here, as the REST door's answer
@@ -789,6 +837,15 @@ export async function dispatch(
             ? {
                 revoked: outcome.revoked,
                 note: 'trigger recorded; the webhook URL it replaced is revoked and cannot be recovered — the host schedules and delivers the new one',
+              }
+            : {}),
+          // A webhook trigger's token, shown once: list_triggers never
+          // returns it, so the caller that minted it is the one that
+          // learns it (the REST door answers it the same way).
+          ...(outcome?.token !== undefined
+            ? {
+                token: outcome.token,
+                note: `trigger recorded; the webhook token is shown once — list_triggers never returns it, and rotateToken: true mints a new one${deployed ? '' : '. The automation has no deployed version, so deliveries are refused until one is deployed'}`,
               }
             : {}),
         };
@@ -816,7 +873,13 @@ export async function dispatch(
         };
       const mode = ctx.allowLive ? 'live' : 'mock';
       if (mode === 'live' && !ctx.connectorHost) {
-        return await runDeployedDurably(ctx, name, version, p.input ?? {});
+        return await runDeployedDurably(
+          ctx,
+          name,
+          version,
+          p.input ?? {},
+          asString(p.idempotencyKey) || undefined,
+        );
       }
       try {
         await store.authorizeRun?.(name, mode);
@@ -856,6 +919,7 @@ export async function dispatch(
       // runs against mocks — the same rule `run_deployed` follows.
       const mode = ctx.allowLive ? 'live' : 'mock';
       const projectId = asString(p.projectId) || undefined;
+      const idempotencyKey = asString(p.idempotencyKey) || undefined;
       try {
         // An absent input is an empty one; a null input is the null the
         // caller sent, for the schema to accept or refuse.
@@ -865,6 +929,7 @@ export async function dispatch(
           mode,
           version,
           projectId,
+          idempotencyKey === undefined ? undefined : { idempotencyKey },
         );
         if (!started) {
           return {
@@ -876,7 +941,10 @@ export async function dispatch(
         return {
           ...started,
           mode,
-          note: 'the run continues in the background — poll get_run {runId} for its status, output, trace and effects',
+          note:
+            started.duplicate === true
+              ? 'this idempotencyKey already started this run — no new run was started; poll get_run {runId} for its status, output, trace and effects'
+              : 'the run continues in the background — poll get_run {runId} for its status, output, trace and effects',
           hint: 'use run_deployed instead when you want the finished result in a single call',
         };
       } catch (e) {
@@ -959,7 +1027,16 @@ export async function dispatch(
       // an empty history a caller reads as "exists, nothing saved yet".
       const missing = await missingAutomation(store, name);
       if (missing) return missing;
-      return { versions: await store.listVersions(name) };
+      // Which of them runs: the REST listing marks it, and a model reading
+      // the history had to join two calls to learn it (2026-09-14
+      // evaluation, h9).
+      const deployedVersion = await store.deployedVersion(name);
+      const versions = (await store.listVersions(name)).map((version) =>
+        Object.assign(version, {
+          deployed: version.version === deployedVersion,
+        }),
+      );
+      return { deployedVersion, versions };
     }
 
     case 'list_triggers': {

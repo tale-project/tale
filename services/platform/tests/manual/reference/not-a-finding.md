@@ -40,6 +40,12 @@ here the first time a round re-files it.
   and a slower refusal than the declared-length path. A `Connection: close`
   the platform added would not survive the edge, which strips hop-by-hop
   headers. Observed live in the 2026-09-13 round-e API evaluation (E5-03).
+- **`curl -H 'Idempotency-Key:'` sends no header at all.** curl drops a `-H`
+  whose value is empty, so a probe that seems to send a blank key sends none
+  and the door answers as if no key was given; the blank-key refusal (400
+  `INVALID_HEADER`) is reachable only with the semicolon form
+  (`-H 'Idempotency-Key;'`), which sends an empty value. Observed in the
+  2026-09-14 round-h API evaluation (h1).
 
 ## Known benign console output
 

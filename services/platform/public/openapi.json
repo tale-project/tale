@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.10.0",
+    "version": "1.11.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). The\n400 lists the slugs you may send under `data.organizations`; `GET\n/api/v1/me` lists them too, as its top-level `organizations`. The slug\nis matched without regard to case; a blank or whitespace-only header reads\nas absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`)\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a body-size 413 and a URL-size\n414 add `requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\ncharacters`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{comments, …}`, `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`; search answers `{hits, diagnostics}`.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). The\n400 lists the slugs you may send under `data.organizations`; `GET\n/api/v1/me` lists them too, as its top-level `organizations`. The slug\nis matched without regard to case; a blank or whitespace-only header reads\nas absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a body-size 413 and a URL-size\n414 add `requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\ncharacters`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`; search answers `{hits, diagnostics}`.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -687,7 +687,7 @@
         ],
         "operationId": "getConversationSourceState",
         "summary": "Read an integration snapshot receipt",
-        "description": "Returns the current source revision, the bound `externalContactId`, its `contactStatus` (`active` | `trashed` | `missing`) and attachment refs for safe crash recovery. This is the only read-back of a mirrored conversation’s contact link: a `trashed` status means the contact was deleted and further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED`. An unknown or differently owned source returns a null snapshot.",
+        "description": "Returns the current source revision, the bound contact (`contactId`, the row; `externalContactId`, its current external id), its `contactStatus` (`active` | `trashed` | `missing`) and attachment refs for safe crash recovery. A `trashed` status means the contact was deleted and further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored (`POST /api/v1/contacts/{id}/restore`). `GET /api/v1/conversations?source=` lists every mirror. An unknown or differently owned source returns a null snapshot.",
         "responses": {
           "200": {
             "description": "Current source state",
@@ -704,6 +704,7 @@
                         "organizationId",
                         "version",
                         "externalContactId",
+                        "contactId",
                         "contactStatus",
                         "attachments"
                       ],
@@ -719,12 +720,17 @@
                         },
                         "externalContactId": {
                           "type": "string",
-                          "description": "The contact externalId this conversation is bound to — the one named on first mirror, never re-resolved afterwards."
+                          "description": "The bound contact’s current `externalId`: the one named on first mirror, following a rename of that same contact (a PATCH of its `externalId`, or a snapshot naming the new id) — never re-resolved to a different row."
+                        },
+                        "contactId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "The bound contact row — `GET /api/v1/contacts/{id}` takes it; null when no contact row is linked (`contactStatus: \"missing\"`)."
                         },
                         "contactStatus": {
                           "type": "string",
                           "enum": ["active", "trashed", "missing"],
-                          "description": "The linked contact’s state: `active`, `trashed` (a `DELETE /contacts/{id}` retired it — further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored or the mirror is torn down), or `missing` (no contact row is linked). The only read-back of a mirrored conversation’s contact link."
+                          "description": "The linked contact’s state: `active`, `trashed` (a `DELETE /contacts/{id}` retired it — further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored with `POST /api/v1/contacts/{id}/restore` or in the app; a `deleted` teardown closes the mirror but does not lift the refusal), or `missing` (no contact row is linked)."
                         },
                         "attachments": {
                           "type": "array",
@@ -948,7 +954,7 @@
         ],
         "operationId": "synchronizeConversationSource",
         "summary": "Apply a complete native Inbox source snapshot",
-        "description": "Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: a different `externalContactId` for a source conversation already mirrored answers 409 `CONVERSATION_CONTACT_CONFLICT`, and the id it was bound to on first mirror is never re-resolved afterwards — so deleting the contact and recreating it under the same `externalId` (a common CRM re-import) never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` (restore the contact, or send a `deleted` teardown to close the mirror); the `contactStatus` on the `GET` receipt reports this. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.",
+        "description": "Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: it is bound to a contact ROW, so a contact re-keyed in the CRM (a PATCH of its `externalId`) keeps its conversations — a snapshot naming the contact’s current id applies and the receipt follows it — while an `externalContactId` that names a different contact, or no live one, answers 409 `CONVERSATION_CONTACT_CONFLICT` naming the id the conversation is bound to; deleting the contact and recreating it under the same `externalId` (a common CRM re-import) is a different row and never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` — restore the contact (`POST /api/v1/contacts/{id}/restore`) to continue it; a `deleted` teardown closes the mirror but does not reopen it, so a later content snapshot answers the same 409 while the contact stays in the trash; the `contactStatus` on the `GET` receipt reports this. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1279,6 +1285,294 @@
           },
           "413": {
             "description": "The body exceeds 8 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a whole source snapshot (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "get": {
+        "tags": ["Conversations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. The 400 lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,59}$"
+            },
+            "description": "The source whose mirrors to list"
+          },
+          {
+            "name": "contactStatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["active", "trashed", "missing"]
+            },
+            "description": "One contact state to narrow to"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Page size, 1..200 (default 50; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "operationId": "listConversations",
+        "summary": "List the conversations you mirrored",
+        "description": "Every conversation this key user mirrored under a source, newest first — the reconciliation read: `conversationId`, the source `externalId`, the bound contact (`contactId`, the row; `externalContactId`, its current external id) and its `contactStatus`, the stored `version`, whether the source tore the mirror down (`sourceDeleted`), and the Inbox `status` and `subject`. `contactStatus=trashed` finds the mirrors a deleted contact froze. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`.",
+        "responses": {
+          "200": {
+            "description": "The mirrors, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "x-tale-pagination": "keyset",
+                  "required": ["conversations", "isDone", "continueCursor"],
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ConversationMirror"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "The contact `externalContactId` names does not exist (`CONTACT_NOT_FOUND`), no snapshot ever named the source (`CONVERSATION_SOURCE_NOT_FOUND`), or the delivery or attachment is absent (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONVERSATION_CONTACT_TRASHED` (the linked contact is in the trash — restore it or send a `deleted` teardown), `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3513,6 +3807,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -3979,7 +4276,7 @@
         },
         "responses": {
           "200": {
-            "description": "The document as it now stands — the shape `GET` answers, `updatedAt` included",
+            "description": "The document as it now stands — the shape `GET` answers, `updatedAt` included — with the `ETag` of that representation, the value the next `If-Match` sends",
             "content": {
               "application/json": {
                 "schema": {
@@ -3988,6 +4285,9 @@
               }
             },
             "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -4989,18 +5289,19 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["idle", "scanning", "active", "error", "deleting"]
+              "enum": ["scanning", "active", "error", "deleting"]
             },
-            "description": "Only websites in this scan status — `idle`, `scanning`, `active`, `error` or `deleting`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page)"
+            "description": "Only websites in this scan status — `scanning`, `active`, `error` or `deleting`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page; `idle` was declared and never observable, and left the set in 1.11.0)"
           },
           {
             "name": "scanInterval",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["60m", "6h", "12h", "1d", "5d", "7d", "30d"]
             },
-            "description": "Only websites on this scan interval"
+            "description": "Only websites on this scan interval — `60m`, `6h`, `12h`, `1d`, `5d`, `7d` or `30d`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page)"
           },
           {
             "name": "X-Request-Id",
@@ -5212,7 +5513,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Create website",
-        "description": "Registers a domain for crawling and schedules the first crawl. With `urls`, registers (or, for a domain already registered AS A LIST, extends) a curated URL list instead of a whole-site crawl. The host is stored as given — `www.` is kept — and the `www.` and apex spellings count as one site: a domain already registered, under either spelling, is a 409 unless the post extends a list; `data.websiteId` and `data.domain` name the existing row.",
+        "description": "Registers a domain for crawling and schedules the first crawl. With `urls`, registers (or, for a domain already registered AS A LIST, extends) a curated URL list instead of a whole-site crawl. The host is stored as given — `www.` is kept — and the `www.` and apex spellings count as one site: a domain already registered, under either spelling, is a 409 unless the post extends a list; `data.websiteId` and `data.domain` name the existing row. Discovery honours the site’s `robots.txt` `Disallow` rules for the `*` agent on every path a URL can enter by — the sitemap, the link walk and the links a rendered page reveals — and a page a rule covers is never fetched; a page a rule added later covers leaves the index on the next scan. Listed URLs are exempt: an explicit list is your instruction.",
         "operationId": "createWebsite",
         "security": [
           {
@@ -5270,6 +5571,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -5279,7 +5583,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`), a `domain` that names no http(s) host (`WEBSITE_DOMAIN_INVALID`), a domain the crawl policy refuses — loopback, link-local, private-network or cloud metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL off the domain (`WEBSITE_INVALID_LIST_URL`)",
+            "description": "A body the schema refuses (`INVALID_BODY`), a `domain` that names no https host (`WEBSITE_DOMAIN_INVALID` — `http://` is refused: the crawler dials https only), a domain the crawl policy refuses — loopback, link-local, private-network or cloud metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL off the domain (`WEBSITE_INVALID_LIST_URL`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6364,7 +6668,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Sync statuses",
-        "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished. The job is keyed per website: a second call while one is still queued or running folds into it — two calls answer `syncing` twice and run once — so calling after every crawl costs nothing extra.",
+        "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished. The job is keyed per website: a second call while one is still queued or running folds into it — two calls answer `syncing` twice and run once — so calling after every crawl costs nothing extra. The row is also synced on the crawler’s own cadence — after discovery, after every stored batch, at each link’s end and at the scan’s end — so polling GET /api/v1/websites/{id} without this door follows a running scan. Takes no body.",
         "operationId": "syncWebsite",
         "security": [
           {
@@ -6428,7 +6732,7 @@
             }
           },
           "400": {
-            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "description": "A body that is not empty JSON — this operation takes none (`INVALID_BODY`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7490,9 +7794,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["active", "inactive", "draft", "archived"]
             },
-            "description": "Only products in this status"
+            "description": "Only products in this status — the closed set the write side takes; any other value answers 400 `INVALID_QUERY` naming the set"
           },
           {
             "name": "category",
@@ -7752,6 +8057,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -8929,6 +9237,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -9362,6 +9673,222 @@
         ]
       }
     },
+    "/api/v1/contacts/{id}/restore": {
+      "post": {
+        "tags": ["Contacts"],
+        "summary": "Restore a contact from the trash",
+        "operationId": "restoreContact",
+        "description": "Puts a trashed contact back in the directory — the remedy a frozen conversation mirror’s 409 `CONVERSATION_CONTACT_TRASHED` names — under the create’s own rule: a live contact that has since taken its email or external id refuses the restore with 409 `CONTACT_DUPLICATE_EMAIL` or `CONTACT_DUPLICATE_EXTERNAL_ID`, so a restore never mints a twin. A contact not in the trash is a no-op that answers the contact; one that does not exist answers 404 `CONTACT_NOT_FOUND`. Its mirrored conversations resume with it — a content snapshot at a higher version applies again. Takes no body.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. The 400 lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Contact ID"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The contact, live again (or still live)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "A body that is not empty JSON — this operation takes none (`INVALID_BODY`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Contact not found (`CONTACT_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A live contact took the email (`CONTACT_DUPLICATE_EMAIL`) or the external id (`CONTACT_DUPLICATE_EXTERNAL_ID`) meanwhile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/contacts/{id}": {
       "get": {
         "tags": ["Contacts"],
@@ -9585,7 +10112,7 @@
       "patch": {
         "tags": ["Contacts"],
         "summary": "Update contact",
-        "description": "Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. A patch that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone (the document rule), so it never spends another client’s `expectedUpdatedAt`; a write that changes something advances `updatedAt`, even within one millisecond. Omit the precondition for the existing unconditional behavior.",
+        "description": "Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. A patch that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone (the document rule), so it never spends another client’s `expectedUpdatedAt`; a write that changes something advances `updatedAt`, even within one millisecond. Omit the precondition for the existing unconditional behavior. A changed `externalId` carries through to the conversations mirrored onto this contact: their receipts name the new id and a snapshot naming it applies, while the old id names no live contact and is refused (409 `CONVERSATION_CONTACT_CONFLICT`).",
         "operationId": "patchContact",
         "security": [
           {
@@ -9828,7 +10355,7 @@
         "tags": ["Contacts"],
         "summary": "Delete contact",
         "operationId": "deleteContact",
-        "description": "Move the contact to the trash, which frees its email and external id for a new contact; a contact already there answers 404 `CONTACT_NOT_FOUND`. Any mirrored conversation still linked to this contact keeps its messages but stops accepting content snapshots — `POST /api/v1/conversations/sync` answers 409 `CONVERSATION_CONTACT_TRASHED` for it, and its `GET` receipt reports `contactStatus: \"trashed\"` — until the contact is restored or the mirror is torn down with a `deleted` snapshot. Because the external id is freed, it is never re-resolved for an existing conversation, so a contact recreated under the same id never inherits the old one’s history.",
+        "description": "Move the contact to the trash, which frees its email and external id for a new contact; a contact already there answers 404 `CONTACT_NOT_FOUND`. Any mirrored conversation still linked to this contact keeps its messages but stops accepting content snapshots — `POST /api/v1/conversations/sync` answers 409 `CONVERSATION_CONTACT_TRASHED` for it, and its `GET` receipt reports `contactStatus: \"trashed\"` — until the contact is restored (`POST /api/v1/contacts/{id}/restore`, or the app’s Trash); a `deleted` teardown closes such a mirror but does not reopen it. Because the external id is freed, it is never re-resolved for an existing conversation, so a contact recreated under the same id never inherits the old one’s history.",
         "security": [
           {
             "bearerAuth": []
@@ -10374,6 +10901,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -11396,7 +11926,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11617,6 +12147,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -11626,7 +12159,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11898,7 +12431,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -12137,7 +12670,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -12371,7 +12904,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -12861,6 +13394,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -15211,6 +15747,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -15556,6 +16095,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -16534,7 +17076,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Start a deployed workflow on a project task",
-        "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run, and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
+        "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run, whichever automation started it: a start while one is live reuses it. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startTaskWorkflow",
         "security": [
           {
@@ -16592,7 +17134,8 @@
                   "workflowSlug": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 200,
+                    "description": "The automation’s name as GET /api/v1/automations lists it — the `/` form (`billing/dunning`), never the `__` spelling the `{name}` path parameter takes"
                   }
                 }
               }
@@ -16680,7 +17223,7 @@
             }
           },
           "403": {
-            "description": "Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), or the automation is bound elsewhere; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -22238,12 +22781,30 @@
                   "type": "object",
                   "description": "The complete set under `models` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": ["models"],
+                  "required": ["models", "harnesses"],
                   "properties": {
                     "models": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ChatModel"
+                      }
+                    },
+                    "harnesses": {
+                      "type": "array",
+                      "description": "The harnesses a project agent may run on — the managed lane’s, those that run unattended on the platform’s own credentials; `harness` is the value `POST /api/v1/projects/{id}/agents` takes, and a value outside this list answers 400 `PROJECT_AGENT_HARNESS_INVALID` naming the list in `data.harnesses`",
+                      "items": {
+                        "type": "object",
+                        "required": ["harness", "label"],
+                        "properties": {
+                          "harness": {
+                            "type": "string",
+                            "description": "The slug the agent input takes"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "The harness’s display name"
+                          }
+                        }
                       }
                     }
                   }
@@ -22757,6 +23318,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -23144,7 +23708,7 @@
       "patch": {
         "tags": ["Threads"],
         "summary": "Archive, restore or rename a thread",
-        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. A thread whose turn is still running — or whose accepted send is still queued — refuses the archive with 409 `CHAT_TURN_IN_PROGRESS`, as the delete does: cancel the turn first (restoring and renaming stay open mid-turn). Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
         "operationId": "updateThread",
         "security": [
           {
@@ -23316,6 +23880,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "`archived: true` while a turn is running on the thread, or an accepted send is still queued (`CHAT_TURN_IN_PROGRESS`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -23919,7 +24501,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100000,
-                    "description": "The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
+                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
                   },
                   "model": {
                     "type": "string",
@@ -24419,7 +25001,7 @@
       "get": {
         "tags": ["Threads"],
         "summary": "Poll the running turn",
-        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the characters of `text` you already hold) and `reasoningSince` (the characters of `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/threads/{id}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/threads/{id}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the UTF-16 code units of `text` you already hold — JavaScript `String.length`, an emoji counting two; not code points) and `reasoningSince` (the same for `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them — reassemble by one rule, `held = held.slice(0, textOffset) + text`, and send `textLength` back as `since`; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/threads/{id}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/threads/{id}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
         "operationId": "getGeneration",
         "security": [
           {
@@ -24453,7 +25035,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "description": "The number of characters of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts and `textLength` how long the whole reply is so far. A value past the current length — the text was reset when a tool round settled — answers from 0: when `textOffset` is below the `since` you sent, replace what you hold. Ignored unless the turn is streaming"
+            "description": "The number of UTF-16 code units (JavaScript `String.length` — an emoji counts two; not code points, not grapheme clusters) of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair (an astral character is two units, and a slice opening on its second half would put an unpaired surrogate on the wire), or 0 when a tool round reset the reply — and `textLength` how long the whole reply is so far. Reassemble by one rule, `held = held.slice(0, textOffset) + text`, and send `textLength` back as `since`: it never falls inside a pair. Ignored unless the turn is streaming"
           },
           {
             "name": "reasoningSince",
@@ -24463,7 +25045,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "description": "The number of characters of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts and `reasoningLength` how long the whole reasoning is so far. A value past the current length — the reasoning was reset with the text when a tool round settled — answers from 0: when `reasoningOffset` is below the `reasoningSince` you sent, replace what you hold. Ignored unless the turn is streaming"
+            "description": "The number of UTF-16 code units (JavaScript `String.length`) of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair, or 0 when a tool round reset the reasoning with the text — and `reasoningLength` how long the whole reasoning is so far. Reassemble as `held = held.slice(0, reasoningOffset) + reasoning` and send `reasoningLength` back as `reasoningSince`. Ignored unless the turn is streaming"
           },
           {
             "name": "X-Request-Id",
@@ -24495,17 +25077,17 @@
                     },
                     "text": {
                       "type": "string",
-                      "description": "The reply text streamed so far — from `textOffset` on when `since` was sent (present while streaming)"
+                      "description": "The reply text streamed so far — from `textOffset` on when `since` was sent, always whole characters (present while streaming)"
                     },
                     "textOffset": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The character position `text` starts at: the `since` you sent, or 0 when the reply was reset since (present while streaming)"
+                      "description": "Where `text` starts, in UTF-16 code units: the `since` you sent, one lower when that would have split a surrogate pair, or 0 when the reply was reset since — reassemble as `held = held.slice(0, textOffset) + text` (present while streaming)"
                     },
                     "textLength": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The length of the whole reply streamed so far — send it back as `since` on the next poll (present while streaming)"
+                      "description": "The length of the whole reply streamed so far, in UTF-16 code units (JavaScript `String.length`) — send it back as `since` on the next poll; it never falls inside a surrogate pair (present while streaming)"
                     },
                     "lastMessageId": {
                       "type": "string",
@@ -24518,17 +25100,17 @@
                     },
                     "reasoning": {
                       "type": "string",
-                      "description": "The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent; display-only, may be empty (present while streaming)"
+                      "description": "The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent, always whole characters; display-only, may be empty (present while streaming)"
                     },
                     "reasoningOffset": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The character position `reasoning` starts at: the `reasoningSince` you sent, or 0 when the reasoning was reset since (present while streaming)"
+                      "description": "Where `reasoning` starts, in UTF-16 code units: the `reasoningSince` you sent, one lower when that would have split a surrogate pair, or 0 when the reasoning was reset since (present while streaming)"
                     },
                     "reasoningLength": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The length of the whole reasoning streamed so far — send it back as `reasoningSince` on the next poll (present while streaming)"
+                      "description": "The length of the whole reasoning streamed so far, in UTF-16 code units — send it back as `reasoningSince` on the next poll; it never falls inside a surrogate pair (present while streaming)"
                     },
                     "cancelRequested": {
                       "type": "boolean",
@@ -25254,6 +25836,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -25650,7 +26235,7 @@
       "patch": {
         "tags": ["Threads"],
         "summary": "Archive, restore or rename a thread",
-        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. A thread whose turn is still running — or whose accepted send is still queued — refuses the archive with 409 `CHAT_TURN_IN_PROGRESS`, as the delete does: cancel the turn first (restoring and renaming stay open mid-turn). Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
         "operationId": "updateProjectThread",
         "security": [
           {
@@ -25831,6 +26416,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "`archived: true` while a turn is running on the thread, or an accepted send is still queued (`CHAT_TURN_IN_PROGRESS`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -26461,7 +27064,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100000,
-                    "description": "The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
+                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
                   },
                   "model": {
                     "type": "string",
@@ -26970,7 +27573,7 @@
       "get": {
         "tags": ["Threads"],
         "summary": "Poll the running turn",
-        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the characters of `text` you already hold) and `reasoningSince` (the characters of `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/projects/{id}/threads/{threadId}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/projects/{id}/threads/{threadId}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the UTF-16 code units of `text` you already hold — JavaScript `String.length`, an emoji counting two; not code points) and `reasoningSince` (the same for `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them — reassemble by one rule, `held = held.slice(0, textOffset) + text`, and send `textLength` back as `since`; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/projects/{id}/threads/{threadId}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/projects/{id}/threads/{threadId}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
         "operationId": "getProjectThreadGeneration",
         "security": [
           {
@@ -27013,7 +27616,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "description": "The number of characters of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts and `textLength` how long the whole reply is so far. A value past the current length — the text was reset when a tool round settled — answers from 0: when `textOffset` is below the `since` you sent, replace what you hold. Ignored unless the turn is streaming"
+            "description": "The number of UTF-16 code units (JavaScript `String.length` — an emoji counts two; not code points, not grapheme clusters) of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair (an astral character is two units, and a slice opening on its second half would put an unpaired surrogate on the wire), or 0 when a tool round reset the reply — and `textLength` how long the whole reply is so far. Reassemble by one rule, `held = held.slice(0, textOffset) + text`, and send `textLength` back as `since`: it never falls inside a pair. Ignored unless the turn is streaming"
           },
           {
             "name": "reasoningSince",
@@ -27023,7 +27626,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "description": "The number of characters of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts and `reasoningLength` how long the whole reasoning is so far. A value past the current length — the reasoning was reset with the text when a tool round settled — answers from 0: when `reasoningOffset` is below the `reasoningSince` you sent, replace what you hold. Ignored unless the turn is streaming"
+            "description": "The number of UTF-16 code units (JavaScript `String.length`) of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair, or 0 when a tool round reset the reasoning with the text — and `reasoningLength` how long the whole reasoning is so far. Reassemble as `held = held.slice(0, reasoningOffset) + reasoning` and send `reasoningLength` back as `reasoningSince`. Ignored unless the turn is streaming"
           },
           {
             "name": "X-Request-Id",
@@ -27055,17 +27658,17 @@
                     },
                     "text": {
                       "type": "string",
-                      "description": "The reply text streamed so far — from `textOffset` on when `since` was sent (present while streaming)"
+                      "description": "The reply text streamed so far — from `textOffset` on when `since` was sent, always whole characters (present while streaming)"
                     },
                     "textOffset": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The character position `text` starts at: the `since` you sent, or 0 when the reply was reset since (present while streaming)"
+                      "description": "Where `text` starts, in UTF-16 code units: the `since` you sent, one lower when that would have split a surrogate pair, or 0 when the reply was reset since — reassemble as `held = held.slice(0, textOffset) + text` (present while streaming)"
                     },
                     "textLength": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The length of the whole reply streamed so far — send it back as `since` on the next poll (present while streaming)"
+                      "description": "The length of the whole reply streamed so far, in UTF-16 code units (JavaScript `String.length`) — send it back as `since` on the next poll; it never falls inside a surrogate pair (present while streaming)"
                     },
                     "lastMessageId": {
                       "type": "string",
@@ -27078,17 +27681,17 @@
                     },
                     "reasoning": {
                       "type": "string",
-                      "description": "The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent; display-only, may be empty (present while streaming)"
+                      "description": "The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent, always whole characters; display-only, may be empty (present while streaming)"
                     },
                     "reasoningOffset": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The character position `reasoning` starts at: the `reasoningSince` you sent, or 0 when the reasoning was reset since (present while streaming)"
+                      "description": "Where `reasoning` starts, in UTF-16 code units: the `reasoningSince` you sent, one lower when that would have split a surrogate pair, or 0 when the reasoning was reset since (present while streaming)"
                     },
                     "reasoningLength": {
                       "type": "integer",
                       "minimum": 0,
-                      "description": "The length of the whole reasoning streamed so far — send it back as `reasoningSince` on the next poll (present while streaming)"
+                      "description": "The length of the whole reasoning streamed so far, in UTF-16 code units — send it back as `reasoningSince` on the next poll; it never falls inside a surrogate pair (present while streaming)"
                     },
                     "cancelRequested": {
                       "type": "boolean",
@@ -28112,6 +28715,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -29086,6 +29692,9 @@
               }
             },
             "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -30286,7 +30895,7 @@
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1,
-                    "description": "Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity`, never on `fusedScore`"
+                    "description": "Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity` for the hits the vector leg ranked (`matchedLegs` contains `…:dense`), never on `fusedScore` — and keep a hit only the keyword leg found (`similarity: null`, its `keywordScore` set): an exact identifier or phrase match is stronger evidence than any cosine"
                   }
                 }
               }
@@ -30578,7 +31187,7 @@
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1,
-                    "description": "Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity`, never on `fusedScore`"
+                    "description": "Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity` for the hits the vector leg ranked (`matchedLegs` contains `…:dense`), never on `fusedScore` — and keep a hit only the keyword leg found (`similarity: null`, its `keywordScore` set): an exact identifier or phrase match is stronger evidence than any cosine"
                   }
                 }
               }
@@ -31647,7 +32256,13 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.10.0"
+          "example": "1.11.0"
+        }
+      },
+      "Location": {
+        "description": "The created resource’s own path, relative to the request URL — follow it with GET whatever shape the 201 body has",
+        "schema": {
+          "type": "string"
         }
       },
       "RetryAfter": {
@@ -31719,7 +32334,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An organization API key. Create one in Settings → API."
+        "description": "An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored."
       }
     },
     "schemas": {
@@ -32217,7 +32832,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["site", "list"],
+            "enum": ["site", "list", null],
             "nullable": true
           },
           "title": {
@@ -32234,23 +32849,23 @@
           "lastScannedAt": {
             "type": "integer",
             "minimum": 0,
-            "description": "Epoch milliseconds",
+            "description": "When the last scan ENDED, epoch ms; `null` until the first scan finishes — `status: \"scanning\"` is the in-flight signal, and the page counts move while it runs",
             "nullable": true
           },
           "status": {
             "type": "string",
-            "enum": ["idle", "scanning", "active", "error", "deleting"],
-            "description": "The SCAN’s lifecycle, not the content’s health: `idle` — registered, never scanned; `scanning` — in flight; `active` — the last scan finished and stored at least one page; `error` — the last scan failed or stored no page (`metadata.lastSyncError` says why; a domain that does not resolve or an expired certificate lands here, never on `active`); `deleting` — mid removal. A registered site starts `scanning`. The obvious health check is `status === \"active\"`; `crawledPageCount - failedPageCount` says how many pages it holds.",
+            "enum": ["scanning", "active", "error", "deleting", null],
+            "description": "The SCAN’s lifecycle, not the content’s health: `scanning` — in flight (a registered site starts here); `active` — the last scan finished and stored at least one page; `error` — the last scan failed or stored no page (`metadata.lastSyncError` says why; a domain that does not resolve or an expired certificate lands here, never on `active`); `deleting` — mid removal. The obvious health check is `status === \"active\"`; `crawledPageCount - failedPageCount` says how many pages it holds.",
             "nullable": true
           },
           "pageCount": {
             "type": "integer",
-            "description": "Pages the crawler knows on this site",
+            "description": "Pages the crawler knows on this site, as of the last corpus → row sync (`metadata.lastStatusSyncAt` says when): during a scan the sync runs after discovery and after every stored batch, at each link’s end and at the scan’s end, and `POST /api/v1/websites/{id}/sync` forces one",
             "nullable": true
           },
           "crawledPageCount": {
             "type": "integer",
-            "description": "Pages the crawler ATTEMPTED in its scans so far — stored or not; a page whose every attempt failed counts here too (see `failedPageCount`), and `indexed` per page is on `GET /api/v1/websites/{id}/pages`",
+            "description": "Pages the crawler ATTEMPTED in its scans so far — stored or not; a page whose every attempt failed counts here too (see `failedPageCount`), and `indexed` per page is on `GET /api/v1/websites/{id}/pages`. Stamped by the corpus → row sync like `pageCount`",
             "nullable": true
           },
           "failedPageCount": {
@@ -32283,7 +32898,7 @@
           "domain": {
             "type": "string",
             "maxLength": 2048,
-            "description": "A public hostname or http(s) URL (`docs.example.com`, `https://www.example.com/docs`); the host is what is registered, spelled as given — `www.` is not stripped, and the `www.`/apex pair counts as one site (registering the sibling of a registered domain is the 409). Loopback, link-local, private-network and cloud metadata hosts are refused — the crawler dials the target from inside the deployment’s network."
+            "description": "A public hostname or https URL (`docs.example.com`, `https://www.example.com/docs`); `http://` is refused (`WEBSITE_DOMAIN_INVALID`) — the crawler dials https only. The host is what is registered, spelled as given — `www.` is not stripped; case is folded, an internationalised name is stored in its punycode form and a trailing dot is dropped — and the `www.`/apex pair counts as one site (registering the sibling of a registered domain is the 409). Loopback, link-local, private-network and cloud metadata hosts are refused — the crawler dials the target from inside the deployment’s network."
           },
           "title": {
             "type": "string",
@@ -32363,7 +32978,7 @@
           "status": {
             "type": "string",
             "enum": ["discovered", "active"],
-            "description": "`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A page the site answered 404/410 for leaves the listing."
+            "description": "`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A DISCOVERED page the site answered 404/410 for leaves the listing, and so does one `robots.txt` has come to disallow; a LISTED one the site answers 404/410 for stays `discovered` with `http_error` naming the answer and is probed again next scan."
           },
           "contentHash": {
             "type": "string",
@@ -32416,9 +33031,10 @@
               "render_failed",
               "extraction_failed",
               "unsupported_content",
-              "robots_noindex"
+              "robots_noindex",
+              null
             ],
-            "description": "The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout`; `response_too_large`; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex`, honoured); `null` when the last attempt succeeded",
+            "description": "The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name=\"robots\" content=\"noindex\">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log",
             "nullable": true
           },
           "lastErrorAt": {
@@ -32502,6 +33118,65 @@
           },
           "total": {
             "type": "integer"
+          }
+        }
+      },
+      "ConversationMirror": {
+        "type": "object",
+        "required": [
+          "conversationId",
+          "externalId",
+          "externalContactId",
+          "contactId",
+          "contactStatus",
+          "version",
+          "sourceDeleted",
+          "status",
+          "subject",
+          "createdAt"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string",
+            "description": "The source conversation’s own id"
+          },
+          "externalContactId": {
+            "type": "string",
+            "description": "The bound contact’s current external id"
+          },
+          "contactId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The bound contact row — `GET /api/v1/contacts/{id}` takes it; null when none is linked"
+          },
+          "contactStatus": {
+            "type": "string",
+            "enum": ["active", "trashed", "missing"],
+            "description": "`trashed`: the contact was deleted and the mirror takes no more content until it is restored"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The stored source revision; -1 before the first snapshot applied"
+          },
+          "sourceDeleted": {
+            "type": "boolean",
+            "description": "The source tore the mirror down with a `deleted` snapshot"
+          },
+          "status": {
+            "type": "string",
+            "description": "The Inbox conversation’s status"
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
           }
         }
       },
@@ -32785,7 +33460,7 @@
       },
       "ProductInput": {
         "type": "object",
-        "description": "`name` is required on create; every field is optional on update. Strings are trimmed, and a blank optional field reads as left out. Unknown keys are refused (`INVALID_BODY`).",
+        "description": "`name` is required on create; every field is optional on update. Strings are trimmed, and a blank optional field — or one sent as `null` — reads as left out. Unknown keys are refused (`INVALID_BODY`).",
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -32797,35 +33472,41 @@
           "description": {
             "type": "string",
             "maxLength": 4000,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "imageUrl": {
             "type": "string",
             "format": "uri",
             "maxLength": 2048,
-            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half. Exception: an exact managed product-image URL returned by this deployment may be replayed, including on a private deployment. It must name registered image metadata in this organization that the caller uploaded or a current product already uses; a missing or inaccessible image answers 404 `FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route."
+            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half. Exception: an exact managed product-image URL returned by this deployment may be replayed, including on a private deployment. It must name registered image metadata in this organization that the caller uploaded or a current product already uses; a missing or inaccessible image answers 404 `FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route.",
+            "nullable": true
           },
           "stock": {
             "type": "number",
             "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "nullable": true
           },
           "price": {
             "type": "number",
             "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "nullable": true
           },
           "currency": {
             "type": "string",
             "pattern": "^[A-Z]{3}$",
             "minLength": 3,
             "maxLength": 3,
-            "description": "An ISO 4217 code (`USD`, `EUR`) — any case in, stored uppercase; a code the platform does not know answers 400"
+            "description": "An ISO 4217 code (`USD`, `EUR`) — any case in, stored uppercase; a code the platform does not know answers 400",
+            "nullable": true
           },
           "category": {
             "type": "string",
             "maxLength": 100,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "tags": {
             "type": "array",
@@ -32834,22 +33515,26 @@
               "maxLength": 60,
               "description": "Trimmed"
             },
-            "maxItems": 50
+            "maxItems": 50,
+            "nullable": true
           },
           "status": {
             "type": "string",
-            "enum": ["active", "inactive", "draft", "archived"]
+            "enum": ["active", "inactive", "draft", "archived", null],
+            "nullable": true
           },
           "externalId": {
             "type": "string",
             "maxLength": 256,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "metadata": {
             "type": "object",
             "additionalProperties": true,
             "maxProperties": 500,
-            "description": "Free-form. On PATCH it MERGES per RFC 7396 — sent keys are set, omitted keys stay, a key sent as `null` is removed, and the whole field sent as `null` clears it. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path."
+            "description": "Free-form. On PATCH it MERGES per RFC 7396 — sent keys are set, omitted keys stay, a key sent as `null` is removed, and the whole field sent as `null` clears it. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path.",
+            "nullable": true
           }
         }
       },
@@ -32915,7 +33600,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "inactive", "draft", "archived"],
+            "enum": ["active", "inactive", "draft", "archived", null],
             "nullable": true
           },
           "externalId": {
@@ -33124,24 +33809,27 @@
       },
       "ContactInput": {
         "type": "object",
-        "description": "Unknown keys are refused (`INVALID_BODY`). Strings are trimmed, and a blank optional field reads as left out (a CSV-shaped row imports cleanly). A create needs at least one of `name`, `email` or `externalId` to file the contact under.",
+        "description": "Unknown keys are refused (`INVALID_BODY`). Strings are trimmed, and a blank optional field — or one sent as `null` — reads as left out (a CSV-shaped row or a JSON export imports cleanly); the same body clears the field on a PATCH. A create needs at least one of `name`, `email` or `externalId` to file the contact under.",
         "additionalProperties": false,
         "properties": {
           "name": {
             "type": "string",
             "maxLength": 300,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "email": {
             "type": "string",
             "format": "email",
             "maxLength": 320,
-            "description": "Trimmed and stored lowercase — a duplicate matches case-insensitively; the part before `@` is at most 64 characters"
+            "description": "Trimmed and stored lowercase — a duplicate matches case-insensitively; the part before `@` is at most 64 characters",
+            "nullable": true
           },
           "phone": {
             "type": "string",
             "maxLength": 50,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "source": {
             "type": "string",
@@ -33177,13 +33865,15 @@
           "locale": {
             "type": "string",
             "maxLength": 20,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           },
           "address": {
             "type": "object",
             "additionalProperties": true,
             "maxProperties": 500,
-            "description": "Free-form. On PATCH it is REPLACED whole — an address is a unit. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path."
+            "description": "Free-form. On PATCH it is REPLACED whole — an address is a unit. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path.",
+            "nullable": true
           },
           "externalId": {
             "oneOf": [
@@ -33197,7 +33887,8 @@
                 "maximum": 9007199254740991
               }
             ],
-            "description": "Stored as a trimmed string. Send a source system’s id as a string: a number beyond 2^53 − 1 cannot be carried exactly and is refused"
+            "description": "Stored as a trimmed string. Send a source system’s id as a string: a number beyond 2^53 − 1 cannot be carried exactly and is refused",
+            "nullable": true
           },
           "tags": {
             "type": "array",
@@ -33206,18 +33897,21 @@
               "maxLength": 60,
               "description": "Trimmed"
             },
-            "maxItems": 50
+            "maxItems": 50,
+            "nullable": true
           },
           "metadata": {
             "type": "object",
             "additionalProperties": true,
             "maxProperties": 500,
-            "description": "Free-form. On PATCH it MERGES per RFC 7396 — sent keys are set, omitted keys stay, a key sent as `null` is removed, and the whole field sent as `null` clears it. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path."
+            "description": "Free-form. On PATCH it MERGES per RFC 7396 — sent keys are set, omitted keys stay, a key sent as `null` is removed, and the whole field sent as `null` clears it. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path.",
+            "nullable": true
           },
           "notes": {
             "type": "string",
             "maxLength": 10000,
-            "description": "Trimmed"
+            "description": "Trimmed",
+            "nullable": true
           }
         }
       },
@@ -33768,8 +34462,13 @@
               },
               "lastSkipReason": {
                 "type": "string",
+                "enum": [
+                  "not_deployed",
+                  "unusable_cron",
+                  "start_refused",
+                  null
+                ],
                 "nullable": true,
-                "enum": ["not_deployed", "unusable_cron", "start_refused"],
                 "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
               }
             },
@@ -33988,8 +34687,8 @@
           },
           "lastSkipReason": {
             "type": "string",
+            "enum": ["not_deployed", "unusable_cron", "start_refused", null],
             "nullable": true,
-            "enum": ["not_deployed", "unusable_cron", "start_refused"],
             "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
           }
         }
@@ -34209,7 +34908,8 @@
               "resume_failed",
               "deadline",
               "ask_expired",
-              "budget_exceeded"
+              "budget_exceeded",
+              null
             ],
             "nullable": true,
             "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
@@ -34321,7 +35021,8 @@
               "resume_failed",
               "deadline",
               "ask_expired",
-              "budget_exceeded"
+              "budget_exceeded",
+              null
             ],
             "nullable": true,
             "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
@@ -34461,7 +35162,7 @@
             "nullable": true,
             "minimum": 0,
             "maximum": 1,
-            "description": "The dense (vector) leg’s cosine similarity when it ranked the passage, on the embedding model’s own 0..1 scale — the one number to threshold on, and what `minSimilarity` floors; null when only the keyword leg found it"
+            "description": "The dense (vector) leg’s cosine similarity when it ranked the passage, on the embedding model’s own 0..1 scale — the number to threshold the vector leg on, and what `minSimilarity` floors; null when only the keyword leg found it — keep such a hit, its `keywordScore` is the evidence"
           },
           "keywordScore": {
             "type": "number",
@@ -34483,15 +35184,26 @@
             "items": {
               "$ref": "#/components/schemas/KnowledgeHit"
             },
-            "description": "In fused order (`fusedScore` descending), one passage per repeated text. Every candidate is checked against its live document BEFORE fusion, so a refused one never holds a rank, and the page is cut last — `limit` never costs a readable hit"
+            "description": "In fused order (`fusedScore` descending), one passage per repeated text; at equal `fusedScore` a passage the keyword leg ranked precedes one only the vector leg found (an exact term is stronger evidence than a nearest neighbour), then the lower row identity. Every candidate is checked against its live document BEFORE fusion, so a refused one never holds a rank, and the page is cut last — `limit` never costs a readable hit"
           },
           "diagnostics": {
             "type": "object",
-            "required": ["bm25", "reranked", "cached", "admitted", "legs"],
+            "required": [
+              "bm25",
+              "dense",
+              "reranked",
+              "cached",
+              "admitted",
+              "legs"
+            ],
             "properties": {
               "bm25": {
                 "type": "boolean",
                 "description": "False when the keyword index was unavailable and only the vector leg ran"
+              },
+              "dense": {
+                "type": "boolean",
+                "description": "False when the corpus could not serve the vector leg (its table, or a column this release selects, is missing) and only the keyword leg ran — the twin of `bm25`, so a dead leg is never silent"
               },
               "reranked": {
                 "type": "boolean",
@@ -34509,7 +35221,7 @@
               "legs": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "How many admitted candidates each leg contributed to fusion — counts after the live-document check, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`)"
+                "description": "Every leg that RAN, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`), with how many admitted candidates it contributed to fusion — counts after the live-document check, `0` when it ran and nothing survived that check or the `minSimilarity` floor. A leg that could not run is absent and named by `bm25` / `dense`"
               }
             }
           }
@@ -35001,7 +35713,7 @@
         },
         "required": ["name", "harness", "model", "skills", "connectors"],
         "additionalProperties": false,
-        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants, and a name the organization has not stored is refused (`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned."
+        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution — one the managed lane runs unattended on the platform’s own credentials; `GET /api/v1/models` lists them under `harnesses`. Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants, and a name the organization has not stored is refused (`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned."
       },
       "ProjectAgentUpdate": {
         "type": "object",

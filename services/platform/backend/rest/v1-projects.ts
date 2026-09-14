@@ -437,7 +437,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         );
       }
       const project = await loadProjectOrThrow(deps.sql, projectId);
-      return c.json({ project: projectPayload(project) }, 201);
+      return c.json({ project: projectPayload(project) }, 201, {
+        location: `/api/v1/projects/${project.id}`,
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -583,15 +585,17 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      const agent = await transactSerializable(deps.sql, async (tx) => {
+      const created = await transactSerializable(deps.sql, async (tx) => {
         const id = await createProjectAgent(tx, auth, {
           ...body,
           projectId: project.id,
           unknownSecrets: 'refuse',
         });
-        return getProjectAgent(tx, auth, project.id, id);
+        return { id, agent: await getProjectAgent(tx, auth, project.id, id) };
       });
-      return c.json({ agent }, 201);
+      return c.json({ agent: created.agent }, 201, {
+        location: `/api/v1/projects/${project.id}/agents/${created.id}`,
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -777,7 +781,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         },
         created: result.created,
       };
-      return c.json(payload, result.created ? 201 : 200);
+      return result.created
+        ? c.json(payload, 201, {
+            location: `/api/v1/projects/${project.id}/folders/${result.folderId}`,
+          })
+        : c.json(payload, 200);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -1057,6 +1065,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           },
         },
         201,
+        {
+          location: `/api/v1/projects/${project.id}/files/${bound.documentId}`,
+        },
       );
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -1270,7 +1281,16 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         createdAt: doc.createdAt,
         size: meta?.size ?? null,
       };
-      if (meta !== undefined) file.indexing = indexingStateFrom(meta);
+      if (meta !== undefined) {
+        file.indexing = indexingStateFrom(meta);
+      } else if (doc.fileRef !== null) {
+        // A blob-backed file with no metadata row reads as untracked
+        // (`indexing` absent) — a shape one evaluation saw once mid-index
+        // and nobody could attribute (2026-09-14 evaluation, h4). Name it.
+        console.warn(
+          `[rest] project file ${doc.id} has no file_metadata row for ${doc.fileRef} (request ${c.get('requestId') ?? '-'})`,
+        );
+      }
       return c.json({ file });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -1308,6 +1328,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * corpus short of deleting and re-binding it (round e, E5-01). Editors
    * of an active project, the delete lane's gate; the same opaque 404. */
   app.post('/projects/:id/files/:documentId/retry-indexing', async (c) => {
+    // Body-less, like every other action door (2026-09-14 evaluation, h5).
+    const body = await parseBody(c, z.object({}).strict(), { optional: true });
+    if (body instanceof Response) return body;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));

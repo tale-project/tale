@@ -187,6 +187,27 @@ describe('mechanics', () => {
     expect(fused[0].item.from).toBe('keyword');
   });
 
+  /**
+   * A keyword rank 1 and a dense rank 1 tie exactly; the tie used to fall to
+   * the lexical order of the row ids, so the wrong passage came first when
+   * its row was older (2026-09-14 evaluation, h4). An exact-term rank is the
+   * stronger evidence, then the lower row identity — as a number.
+   */
+  it('breaks a tie in favour of the keyword-ranked candidate, then the lower numeric id', () => {
+    const fused = fuseByRank(
+      [[row('documents:6746', 39.9)], [row('documents:2519', 0.48)]],
+      identify,
+      { limit: 2, legs: ['documents:keyword', 'documents:dense'] },
+    );
+    expect(ids(fused)).toEqual(['documents:6746', 'documents:2519']);
+    const numeric = fuseByRank(
+      [[row('documents:10000')], [row('documents:9999')]],
+      identify,
+      { limit: 2, legs: ['documents:dense', 'web:dense'] },
+    );
+    expect(ids(numeric)).toEqual(['documents:9999', 'documents:10000']);
+  });
+
   it('orders ties deterministically', () => {
     // Same rank in the same single leg is impossible, but the same SCORE across
     // legs is not; a ranking that reshuffled between identical calls would make

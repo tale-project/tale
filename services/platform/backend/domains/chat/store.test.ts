@@ -293,7 +293,15 @@ describe('createPgTurnStore.beginTurn', () => {
     expect(guard).toBeGreaterThanOrEqual(0);
     expect(guard).toBeLessThan(insert);
     expect(f.tx[guard]?.text).toContain('tm.project_id IS NOT DISTINCT FROM');
-    expect(f.tx[guard]?.values).toEqual(['thread_1', 'org_1', 'user_1', null]);
+    // The scope guard binds its archived tolerance (false on a send) before
+    // the project id.
+    expect(f.tx[guard]?.values).toEqual([
+      'thread_1',
+      'org_1',
+      'user_1',
+      false,
+      null,
+    ]);
     expect(f.transactions).toEqual(['commit']);
     expect(f.pool).toEqual([]);
   });

@@ -135,6 +135,43 @@ describe('updateContact — metadata merges, address replaces', () => {
   });
 });
 
+/**
+ * A mirrored conversation is bound to the contact ROW; the `externalId`
+ * string its binding carries is what the first snapshot named. A re-key in
+ * the CRM follows through, so a snapshot naming the contact's current id
+ * applies — the string used to lag for good (2026-09-14 evaluation, h6).
+ */
+describe('updateContact — a re-key follows through to the mirrored conversations', () => {
+  const bindings = (statements: Statement[]) =>
+    statements.filter((s) =>
+      s.text.startsWith('UPDATE app.conversation_api_bindings'),
+    );
+
+  it('rewrites the bindings that carry the old id when the externalId changes', async () => {
+    const { sql, statements } = recordingSql(rowAnswer());
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateContact(sql as never, scope, 'c-1', { externalId: 'crm-2' });
+    const carried = bindings(statements);
+    expect(carried).toHaveLength(1);
+    expect(carried[0]?.text).toContain('SET external_contact_id = ?');
+    expect(carried[0]?.text).toContain('b.external_contact_id = ?');
+    expect(carried[0]?.values).toEqual(['crm-2', 'org-1', 'c-1', 'crm-1']);
+  });
+
+  it('leaves the bindings alone when the id is unchanged, cleared, or not in the patch', async () => {
+    for (const patch of [
+      { externalId: 'crm-1' },
+      { externalId: null },
+      { name: 'Anne' },
+    ]) {
+      const { sql, statements } = recordingSql(rowAnswer());
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+      await updateContact(sql as never, scope, 'c-1', patch);
+      expect(bindings(statements)).toEqual([]);
+    }
+  });
+});
+
 describe('updateContact — the clearing rule', () => {
   it('clears every optional field sent as null (tags to an empty list)', async () => {
     const values = await update({

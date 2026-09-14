@@ -7003,7 +7003,6 @@ websites:
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
   filter:
     status:
-      idle: Inactif
       scanning: En cours d'analyse
       active: Actif
       error: Erreur

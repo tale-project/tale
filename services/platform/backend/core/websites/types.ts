@@ -9,13 +9,14 @@ import { SAFE_FETCH_ERROR_KINDS } from '../../../lib/net/safe-fetch-kinds';
  * REST filter refuses a value outside it and the OpenAPI enum publishes it
  * (the filter used to answer an empty page for `?status=bogus`, and the
  * spec declared the field a bare string — 2026-09-14 evaluation, g4-7):
- * `idle` registered, never scanned; `scanning` in flight; `active` the last
+ * `scanning` in flight — a registered site starts here; `active` the last
  * scan finished and stored at least one page; `error` the last scan failed
  * or stored no page (`metadata.lastSyncError` says why); `deleting` mid
- * removal.
+ * removal. `idle` was declared and never observable — a site is `scanning`
+ * from registration and `active`/`error` between scans (2026-09-14
+ * evaluation, h5).
  */
 export const WEBSITE_STATUS_VALUES = [
-  'idle',
   'scanning',
   'active',
   'error',

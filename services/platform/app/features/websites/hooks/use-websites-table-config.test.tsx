@@ -37,7 +37,7 @@ function renderLastScannedCell(website: Partial<WebsiteDoc>) {
 
 describe('useWebsitesTableConfig — lastScannedAt cell', () => {
   it('shows a static "Not scanned yet" label for a never-scanned website', () => {
-    renderLastScannedCell({ status: 'idle' });
+    renderLastScannedCell({ status: 'error' });
 
     expect(screen.getByText('Not scanned yet')).toBeInTheDocument();
     // Must NOT misrepresent an idle/terminal state as work-in-progress.
