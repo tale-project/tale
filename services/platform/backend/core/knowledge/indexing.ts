@@ -40,6 +40,7 @@ import {
 } from '../../../lib/knowledge/chunking';
 import { planIngest, sliceToStore } from '../../../lib/knowledge/ingest-plan';
 import { logger } from '../../../lib/knowledge/logger';
+import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
 import { assertVectorWidth } from './dimensions';
@@ -161,7 +162,13 @@ export async function indexDocument(
   // The organization's own PII policy, applied before anything is chunked or
   // embedded — so a masked identifier never reaches the vectors, and a blocked
   // document never reaches the index at all.
-  const decision = applyPiiPolicyForIndexing(args.text, args.piiConfig ?? null);
+  // A NUL cannot be stored by the corpus (Postgres `22021`); it is stripped
+  // BEFORE the policy and the chunker see the text, so a stray one never
+  // fails the chunk INSERT after the embedding was paid for.
+  const decision = applyPiiPolicyForIndexing(
+    sanitizeExtractedText(args.text),
+    args.piiConfig ?? null,
+  );
   if (decision.kind === 'refuse') {
     const reason = `Indexing refused by the organization's PII policy (${decision.categoryIds.join(', ')}).`;
     await markFailed(args.sql, args.orgSlug, args.fileId, reason);
@@ -210,6 +217,35 @@ export async function indexDocument(
   });
 
   if (plan.action === 'skip') {
+    // Content is unchanged, so nothing re-embeds — but the document's scope
+    // or folder can have moved since it was indexed (a project detach
+    // releases it to the hub without touching a byte). Re-stamp the corpus
+    // row off the current args, so `POST …/retry-indexing` HEALS a drifted
+    // stamp instead of reporting success and changing nothing — the one
+    // recovery path a caller has for a released-but-unfindable document.
+    // `IS DISTINCT FROM` writes only when a column actually drifted.
+    const skipTeamIds =
+      args.teamIds && args.teamIds.length > 0 ? [...args.teamIds] : null;
+    await args.sql.unsafe(
+      `UPDATE ${SCHEMA}.documents SET
+          team_ids = $3::text[], team_id = $4, project_id = $5,
+          folder_path = $6, conversation_id = $7, updated_at = NOW()
+        WHERE org_slug = $1 AND file_id = $2
+          AND (team_ids IS DISTINCT FROM $3::text[]
+            OR team_id IS DISTINCT FROM $4
+            OR project_id IS DISTINCT FROM $5
+            OR folder_path IS DISTINCT FROM $6
+            OR conversation_id IS DISTINCT FROM $7)`,
+      [
+        args.orgSlug,
+        args.fileId,
+        skipTeamIds,
+        skipTeamIds?.[0] ?? null,
+        args.projectId ?? null,
+        args.folderPath ?? null,
+        args.conversationId ?? null,
+      ],
+    );
     logger.info(
       `document "${args.fileId}" is unchanged and fully indexed; nothing to do`,
     );

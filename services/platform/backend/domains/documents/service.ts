@@ -10,6 +10,7 @@ import {
 import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config.ts';
 import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
+import { TERMINAL_RAG_ERROR_CODES } from '../../core/knowledge/rag_error_codes.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
@@ -1547,12 +1548,14 @@ export async function queueRagIndexingRetry(
       id: string;
       ragStatus: string | null;
       ragError: string | null;
+      ragErrorCode: string | null;
       ragQueuedAt: number | null;
       createdAt: number;
       skipRagIndexing: boolean | null;
     }[]
   >`
     SELECT id, rag_status AS "ragStatus", rag_error AS "ragError",
+           rag_error_code AS "ragErrorCode",
            rag_queued_at_ms::float8 AS "ragQueuedAt",
            created_at_ms::float8 AS "createdAt",
            skip_rag_indexing AS "skipRagIndexing"
@@ -1562,9 +1565,16 @@ export async function queueRagIndexingRetry(
   `;
   const meta = metas[0];
   if (!meta) return { kind: 'untracked-blob' };
-  // Terminal, non-retryable: no extractor exists — a retry reproduces the
-  // same rejection (public endpoint; the UI hiding the button is no gate).
-  if (meta.ragStatus === 'unsupported') {
+  // Terminal, non-retryable: no extractor exists, no text, not text, or a
+  // malformed file — a retry reproduces the same rejection (public endpoint;
+  // the UI hiding the button is no gate). Judged by the status AND by a
+  // terminal code, so a row a previous release left on `failed` with a
+  // terminal cause is refused too rather than re-queued forever.
+  if (
+    meta.ragStatus === 'unsupported' ||
+    (meta.ragErrorCode !== null &&
+      TERMINAL_RAG_ERROR_CODES.has(meta.ragErrorCode))
+  ) {
     return {
       kind: 'unsupported',
       error:

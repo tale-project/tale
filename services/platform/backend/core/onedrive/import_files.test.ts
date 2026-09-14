@@ -7,6 +7,12 @@ import {
   type ImportItem,
 } from './import_files';
 
+// The stored type is resolved from the file name's extension first — a
+// declared `text/plain` on `a.docx` is the source's claim, not the file's
+// type (2026-09-14 evaluation, g3-3).
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 function makeDeps(overrides: Partial<ImportFilesDependencies> = {}) {
   const createDocument = vi.fn().mockResolvedValue('doc-1');
   const deps = {
@@ -275,7 +281,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       10,
       'doc-1',
     );
@@ -300,7 +306,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       4096,
       'doc-1',
     );
@@ -320,7 +326,7 @@ describe('importFiles sync configs', () => {
     expect(depsNoSize.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       10,
       'doc-1',
     );
@@ -358,7 +364,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       2048,
       'doc-1',
     );

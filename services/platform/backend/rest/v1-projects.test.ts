@@ -92,6 +92,7 @@ vi.mock('../domains/projects/service.ts', async (importOriginal) => ({
       detachedThreadCount: 0,
       cascadedDocCount: 0,
       cascadedThreadCount: 0,
+      detachedDocIds: [],
     }),
   ),
 }));
@@ -1322,7 +1323,10 @@ describe('POST /projects/{id}/files upload policy', () => {
     const res = await bind(sql, {});
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
-    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+    expect(await res.json()).toMatchObject({
+      code: 'RATE_LIMITED',
+      error: expect.stringMatching(/^Too many requests — retry after \d+ ms$/),
+    });
     expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
   });
 
@@ -1967,7 +1971,10 @@ describe('POST /projects/{id}/folders folder:mutate budget', () => {
     );
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
-    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+    expect(await res.json()).toMatchObject({
+      code: 'RATE_LIMITED',
+      error: expect.stringMatching(/^Too many requests — retry after \d+ ms$/),
+    });
     const charge = queries.find((q) =>
       q.text.includes('INSERT INTO app.rate_limits'),
     );
@@ -1983,6 +1990,49 @@ describe('POST /projects/{id}/folders folder:mutate budget', () => {
  * regression under test: an integrator's mistakes accumulated permanently —
  * nothing this family created could be removed through the API.
  */
+/**
+ * The single-file read the listing used to be the only route to: a poller
+ * waiting for one upload's `indexing` walked the whole project listing
+ * (2026-09-14 evaluation, g3-5). The row is the listing's row; the absences
+ * are the delete's opaque 404.
+ */
+describe('GET /projects/{id}/files/{documentId}', () => {
+  it('answers the file row of a live file of this project', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ file: { id: 'd-1' } });
+  });
+
+  it('refuses a query parameter like every lookup', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1?limit=5',
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+
+  it.each([
+    { projectId: 'other-project' },
+    { organizationId: 'other-org' },
+    { fileRef: null },
+    { lifecycleStatus: 'trashed' },
+  ])(
+    'answers the opaque 404 for a document outside the live project file set: %j',
+    async (shape) => {
+      const { sql } = fakeSql({ document: shape });
+      const res = await mount(sql).request(
+        'http://localhost/projects/p-1/files/d-1',
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ code: 'FILE_NOT_FOUND' });
+    },
+  );
+});
+
 describe('DELETE /projects/{id}/files/{documentId}', () => {
   it('purges a file of this project and answers 204', async () => {
     const { deleteDocumentHard } =
