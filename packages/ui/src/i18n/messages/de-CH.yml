@@ -6,3 +6,6 @@ markdownImage:
 search:
   close: Suche schliessen
   tipClose: zum Schliessen
+common:
+  aria:
+    close: Schliessen

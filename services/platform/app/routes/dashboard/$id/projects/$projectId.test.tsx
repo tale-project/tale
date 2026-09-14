@@ -102,7 +102,7 @@ vi.mock('@tale/ui/header-breadcrumbs', () => ({
   ),
 }));
 
-vi.mock('@/app/components/ui/editor', () => ({
+vi.mock('@tale/ui/editor', () => ({
   ActiveEditorProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),

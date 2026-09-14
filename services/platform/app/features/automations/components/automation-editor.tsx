@@ -628,7 +628,7 @@ function AutomationEditorScope({
               icon={Play}
               isLoading={startRun.isPending}
               onClick={() => {
-                if (meta === undefined || stored === null) return;
+                if (meta == null || stored === null) return;
                 const request: AutomationRunRequest = {
                   mode: 'mock',
                   version: meta.version,

@@ -31,7 +31,6 @@ export const uiMessages: PackageMessages = {
   bundles: {
     en: enMessages,
     de: deMessages,
-    'de-CH': deChMessages,
     fr: frMessages,
     'de-CH': deChMessages,
   },

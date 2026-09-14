@@ -1,12 +1,12 @@
 'use client';
 
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useId, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useT } from '@/lib/i18n/client';
 
 export interface AutomationRunRequest {

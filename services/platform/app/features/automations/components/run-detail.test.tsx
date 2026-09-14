@@ -54,7 +54,7 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('./automation-canvas', () => ({ AutomationCanvas: () => null }));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
 vi.mock('./agent-execution-log', () => ({ AgentExecutionLog: () => null }));
-vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
+vi.mock('@tale/ui/json-viewer', () => ({
   JsonViewer: ({ data }: { data: unknown }) => (
     <pre>{JSON.stringify(data)}</pre>
   ),
