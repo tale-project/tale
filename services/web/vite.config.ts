@@ -75,6 +75,13 @@ export default defineConfig({
   // as the fallback for nested URLs (e.g. /de/pricing) — relative './assets/'
   // resolves against the request path and 404s under any /<locale>/<route>.
   base: '/',
+  preview: {
+    // One request per connection — Bun's node:http shim can crash `vite
+    // preview` with ERR_STREAM_WRITE_AFTER_END when a keep-alive request
+    // sits behind a large response it closes the socket after; see the docs
+    // vite config for the full account. Preview only.
+    headers: { Connection: 'close' },
+  },
   resolve: {
     dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,

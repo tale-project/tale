@@ -33,6 +33,19 @@ export default defineConfig({
       allow: ['../..'],
     },
   },
+  preview: {
+    // One request per connection. Bun's node:http shim (1.4.2) closes the
+    // socket after a response larger than its send buffer — every JS chunk
+    // here — and still dispatches a keep-alive request the browser had
+    // already put on that socket, whose write then throws
+    // ERR_STREAM_WRITE_AFTER_END out of `advanceResponsePipeline` and takes
+    // the preview process down mid-suite (the docs Playwright job on PR
+    // #3353: three tests green, then ERR_CONNECTION_REFUSED for the rest).
+    // Advertising `Connection: close` keeps the browser from reusing a
+    // connection at all, so nothing is ever queued behind a closing one.
+    // Preview only: the dev server and production serve through other paths.
+    headers: { Connection: 'close' },
+  },
   optimizeDeps: {
     include: [
       'react',
