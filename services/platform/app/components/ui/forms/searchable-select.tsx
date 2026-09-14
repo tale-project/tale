@@ -9,6 +9,7 @@ import { Text } from '@tale/ui/text';
 import { TooltipContent } from '@tale/ui/tooltip';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
+  Fragment,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
@@ -35,6 +36,8 @@ export interface SearchableSelectOption {
   labelBadge?: ReactNode;
   description?: string;
   disabled?: boolean;
+  /** Opaque visual group key; differing adjacent groups get a divider. */
+  group?: string;
   /** Non-selectable section header row (skipped by keyboard navigation). */
   isSectionHeader?: boolean;
 }
@@ -467,6 +470,7 @@ function SearchableSelectBase({
       )}
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          aria-label={ariaLabel ?? searchPlaceholder}
           align={align}
           side={side}
           sideOffset={sideOffset}
@@ -556,20 +560,31 @@ function SearchableSelectBase({
             )}
           >
             {filteredOptions.map((option, index) => (
-              <SearchableSelectOptionItem
-                key={option.value}
-                option={option}
-                index={index}
-                id={optionId(index)}
-                isSelected={value === option.value}
-                isHighlighted={highlightedIndex === index}
-                onSelect={handleSelect}
-                onMouseEnter={setHighlightedIndex}
-                showRadio={showRadio}
-                descriptionMode={descriptionMode}
-                action={optionAction?.(option)}
-                variant={variant}
-              />
+              <Fragment key={option.value}>
+                {index > 0 &&
+                  !option.isSectionHeader &&
+                  !filteredOptions[index - 1]?.isSectionHeader &&
+                  option.group !== filteredOptions[index - 1]?.group && (
+                    <div
+                      role="separator"
+                      aria-hidden="true"
+                      className="border-border my-1 border-t"
+                    />
+                  )}
+                <SearchableSelectOptionItem
+                  option={option}
+                  index={index}
+                  id={optionId(index)}
+                  isSelected={value === option.value}
+                  isHighlighted={highlightedIndex === index}
+                  onSelect={handleSelect}
+                  onMouseEnter={setHighlightedIndex}
+                  showRadio={showRadio}
+                  descriptionMode={descriptionMode}
+                  action={optionAction?.(option)}
+                  variant={variant}
+                />
+              </Fragment>
             ))}
 
             {filteredOptions.length === 0 && emptyText && (
@@ -709,9 +724,10 @@ function SearchableSelectOptionItem({
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
         'group/option relative flex w-full cursor-default gap-2 text-left text-sm',
-        isSwitcher
-          ? 'border-border rounded-none border-b px-3 py-2 last:border-b-0'
-          : 'rounded-md p-2',
+        isSwitcher ? 'rounded-none px-3 py-2' : 'rounded-md p-2',
+        isSwitcher &&
+          option.group === undefined &&
+          'border-border border-b last:border-b-0',
         showInlineDescription ? 'items-start' : 'items-center',
         isSwitcher && isSelected && 'bg-muted/60',
         isHighlighted && !(isSwitcher && isSelected) && 'bg-accent',

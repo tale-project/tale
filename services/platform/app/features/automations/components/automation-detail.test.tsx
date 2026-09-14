@@ -186,15 +186,22 @@ vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
 import { AutomationDetail } from './automation-detail';
 
 /** Mirrors the shells: a provider around the page, no cluster of its own. */
-function renderPage() {
-  return render(
+function page(props: Partial<Parameters<typeof AutomationDetail>[0]> = {}) {
+  return (
     <ActiveEditorProvider>
       <AutomationDetail
         organizationId="org-1"
         automationSlug="billing/dunning"
+        {...props}
       />
-    </ActiveEditorProvider>,
+    </ActiveEditorProvider>
   );
+}
+
+function renderPage(
+  props: Partial<Parameters<typeof AutomationDetail>[0]> = {},
+) {
+  return render(page(props));
 }
 
 const saveButton = () => screen.getByRole('button', { name: 'Save' });
@@ -217,6 +224,11 @@ beforeEach(() => {
   projectsData.list = [];
   projectsData.bound = [];
   runsData.length = 0;
+  state.document = {
+    name: 'billing/dunning',
+    description: 'Chases unpaid invoices.',
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+  };
   state.presentation = undefined;
   state.version = 3;
   state.deployedVersion = 2;
@@ -369,6 +381,66 @@ describe('AutomationDetail', () => {
     expect(
       screen.queryByRole('button', { name: 'Deploy this version' }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([undefined, 'project_a'])(
+    'opens the latest version when switching automation in project scope %s',
+    async (projectId) => {
+      const props = projectId === undefined ? {} : { projectId };
+      const { user, rerender } = renderPage(props);
+      await user.click(screen.getByRole('button', { name: 'v2' }));
+      expect(versionPicker()).toHaveTextContent('v2');
+
+      // A sibling may have fewer versions. Keeping v2 selected would request
+      // a version that does not exist, leaving the new workbench loading.
+      state.version = 1;
+      state.document = {
+        name: 'billing/reminders',
+        nodes: [
+          { id: 'reminder', type: 'llm', prompt: 'Remind the customer.' },
+        ],
+      };
+      rerender(page({ ...props, automationSlug: 'billing/reminders' }));
+
+      expect(versionPicker()).toHaveTextContent('v1');
+      expect(
+        screen.getByRole('button', { name: 'select reminder' }),
+      ).toBeVisible();
+      expect(saveButton()).toBeDisabled();
+    },
+  );
+
+  it.each([
+    { automationSlug: 'billing/reminders' },
+    { organizationId: 'org-2' },
+    { projectId: 'project_b' },
+  ])('drops the previous draft after navigation to %j', async (destination) => {
+    const props = { projectId: 'project_a' };
+    const { user, rerender } = renderPage(props);
+    await editTheNode(user);
+    expect(saveButton()).toBeEnabled();
+
+    // A live query refresh is still the same editor: retain unsaved work.
+    rerender(page(props));
+    expect(whenField()).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+
+    // The router changes these props only after the shared dirty guard has
+    // accepted leaving. The destination must never inherit the old draft.
+    state.document = {
+      name: destination.automationSlug ?? 'billing/dunning',
+      nodes: [{ id: 'destination', type: 'llm', prompt: 'The new workflow.' }],
+    };
+    rerender(page({ ...props, ...destination }));
+
+    expect(screen.queryByRole('button', { name: 'select summary' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'select destination' }),
+    ).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(saveButton()).toBeDisabled();
+    expect(discardButton()).toBeDisabled();
+    expect(saveMutation.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('toggles the last-run overlay from a canvas control', async () => {

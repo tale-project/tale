@@ -136,6 +136,90 @@ describe('SearchableSelect', () => {
     });
   });
 
+  describe('visual groups', () => {
+    const groupedOptions: SearchableSelectOption[] = [
+      { value: 'apple', label: 'Apple', group: 'organization' },
+      { value: 'apricot', label: 'Apricot', group: 'organization' },
+      { value: 'banana', label: 'Banana', group: 'project' },
+      { value: 'cherry', label: 'Cherry', group: 'project' },
+    ];
+
+    it('separates groups without adding selectable rows or visible labels', async () => {
+      const { user } = renderSelect({
+        options: groupedOptions,
+        variant: 'switcher',
+        value: 'banana',
+      });
+      await user.click(screen.getByText('Open select'));
+
+      const rows = screen.getAllByRole('option');
+      const divider = screen.getByRole('separator', { hidden: true });
+      expect(rows).toHaveLength(4);
+      expect(divider.previousElementSibling).toBe(rows[1]);
+      expect(divider.nextElementSibling).toBe(rows[2]);
+      expect(screen.queryByRole('separator')).toBeNull();
+      expect(screen.queryByText('organization')).toBeNull();
+      expect(screen.queryByText('project')).toBeNull();
+      expect(rows[2]).toHaveAttribute('aria-selected', 'true');
+      for (const row of rows) expect(row).not.toHaveClass('border-b');
+    });
+
+    it('keeps dividers only between groups with visible search matches', async () => {
+      const { user } = renderSelect({ options: groupedOptions });
+      await user.click(screen.getByText('Open select'));
+      const input = screen.getByRole('combobox');
+
+      await user.type(input, 'a');
+      expect(screen.getAllByRole('option')).toHaveLength(3);
+      expect(screen.getAllByRole('separator', { hidden: true })).toHaveLength(
+        1,
+      );
+
+      // Either group can be the only match: no leading or trailing divider.
+      for (const query of ['Banana', 'Apple', 'no match']) {
+        await user.clear(input);
+        await user.type(input, query);
+        expect(screen.queryByRole('separator', { hidden: true })).toBeNull();
+      }
+
+      await user.clear(input);
+      expect(screen.getAllByRole('option')).toHaveLength(4);
+      expect(screen.getAllByRole('separator', { hidden: true })).toHaveLength(
+        1,
+      );
+    });
+
+    it('moves and selects across a divider with no extra keyboard stop', async () => {
+      const { user, onValueChange } = renderSelect({
+        options: groupedOptions,
+        value: 'apricot',
+      });
+      await user.click(screen.getByText('Open select'));
+      const input = screen.getByRole('combobox');
+      const apricot = screen.getByRole('option', { name: 'Apricot' });
+      const banana = screen.getByRole('option', { name: 'Banana' });
+      expect(input).toHaveAttribute('aria-activedescendant', apricot.id);
+
+      await user.keyboard('{ArrowDown}');
+      expect(input).toHaveAttribute('aria-activedescendant', banana.id);
+      await user.keyboard('{ArrowUp}');
+      expect(input).toHaveAttribute('aria-activedescendant', apricot.id);
+      await user.keyboard('{ArrowDown}{Enter}');
+
+      expect(onValueChange).toHaveBeenCalledExactlyOnceWith('banana');
+    });
+
+    it('retains ordinary switcher row borders without visual groups', async () => {
+      const { user } = renderSelect({ variant: 'switcher' });
+      await user.click(screen.getByText('Open select'));
+
+      expect(screen.queryByRole('separator', { hidden: true })).toBeNull();
+      expect(screen.getByRole('option', { name: /Apple/ })).toHaveClass(
+        'border-b',
+      );
+    });
+  });
+
   describe('interactions', () => {
     it('opens on trigger click', async () => {
       const { user } = renderSelect();
