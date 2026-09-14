@@ -39,11 +39,18 @@ describe('Select', () => {
   describe('border visibility', () => {
     // Same contract as Input (#1478): resting edge must use the stronger
     // --color-border-input token, not the faint generic ring-border.
-    it('uses the input border token for its ring', () => {
+    it('uses the input border token for its edge', () => {
       render(<Select options={options} label="Fruit" placeholder="Select" />);
       expect(screen.getByRole('combobox').className).toContain(
         '--color-border-input',
       );
+    });
+
+    it('uses flush focus instead of an offset ring', () => {
+      render(<Select options={options} label="Fruit" placeholder="Select" />);
+      const trigger = screen.getByRole('combobox');
+      expect(trigger.className).not.toContain('ring-offset-2');
+      expect(trigger.className).toContain('--color-accent-base');
     });
   });
 
@@ -107,6 +114,13 @@ describe('Select', () => {
       await user.click(screen.getByRole('combobox'));
 
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('fills the trigger instead of dimming it when disabled', () => {
+      render(<Select options={options} placeholder="Select fruit" disabled />);
+      const trigger = screen.getByRole('combobox');
+      expect(trigger.className).toContain('disabled:bg-bg-elevated');
+      expect(trigger.className).not.toContain('disabled:opacity-50');
     });
   });
 

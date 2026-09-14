@@ -1,6 +1,5 @@
 'use client';
 
-import { Heading } from '@tale/ui/heading';
 import { LabeledValue } from '@tale/ui/labeled-value';
 import { HStack, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
@@ -68,15 +67,6 @@ export function ContactInformation({ contact }: ContactInformationProps) {
 
   return (
     <Stack gap={5}>
-      <Stack gap={1}>
-        <Heading level={3} size="lg" className="leading-none">
-          {contact.name || t('labels.notAvailable')}
-        </Heading>
-        <Text as="div" variant="muted" className="tracking-tight">
-          {contact.email || t('labels.notAvailable')}
-        </Text>
-      </Stack>
-
       <StatGrid items={items} />
 
       {address && (

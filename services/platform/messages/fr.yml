@@ -1904,8 +1904,6 @@ dialogs:
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
-  contactInfo:
-    title: Détails du contact
   selectConversation: Sélectionner la conversation
 documents:
   entityLabel: documents
@@ -4031,9 +4029,6 @@ knowledgeEntries:
     title: Supprimer l'entrée de connaissances
     confirmation: Supprimer cette entrée ? Les agents ne pourront plus la retrouver dans la base de connaissances.
   viewDialog:
-    title: Détails de l'entrée de connaissances
-    indexingStatus: Statut d'indexation
-    updated: Mis à jour
     history: Historique des versions
     versionCount: '{count, plural, one {# version précédente} other {# versions
       précédentes}}'
@@ -4564,9 +4559,6 @@ products:
   noneImported: Aucun produit n'a été importé
   edit:
     title: Modifier le produit
-    description:
-      Mettre à jour les informations du produit. Les champs obligatoires
-      sont marqués d'un *
     namePlaceholder: Saisir le nom du produit
     descriptionPlaceholder: Saisir la description du produit
     categoryPlaceholder: Électronique, Vêtements, etc.
@@ -4635,15 +4627,12 @@ products:
     thisProduct: ce produit
     warning: Toutes les relations et données associées seront définitivement supprimées.
   view:
-    title: Détails du produit
-    description: Voir toutes les informations sur ce produit
     labels:
       price: Prix
       stock: Stock
       category: Catégorie
       lastUpdated: Dernière mise à jour
       tags: Tags
-      fullDescription: Description complète
       source: Source
       productId: ID du produit
 questions:
@@ -6980,24 +6969,27 @@ websites:
     deleteError: Échec de la suppression du site web
   adding: Ajout en cours...
   viewDialog:
-    title: Détails du site web
-    domain: Domaine
-    status: Statut
-    scanInterval: Intervalle d'analyse
-    lastScanned: Dernière analyse
     notScannedYet: Pas encore analysé
-    titleField: Titre
-    description: Description
-    created: Créé
     unknown: Inconnu
     scanPausedNotice: L'analyse est suspendue après plusieurs échecs d'accès à
       la base de connaissances. Vérifie la connexion sous Paramètres →
       Résidence des données, puis reprends l'analyse.
+    scanError:
+      runtime: L'analyse n'a pas eu lieu.
+      notInCorpus: Ce site n'est pas dans le crawler. Supprime-le et ajoute-le
+        à nouveau.
+      generic: Le dernier scan ne s'est pas terminé.
+    scanEmpty:
+      runtime: Rien n'a été indexé. L'URL n'est pas le problème.
+      dns: Rien n'a été indexé. Change l'URL si l'hôte est incorrect.
+      notInCorpus: Rien n'a été indexé. Supprime le site et ajoute-le à nouveau.
+      generic: Rien n'a été indexé.
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
   indexed: Indexé
   pagesDialog:
     title: Pages du site web
+    listTitle: Pages
     noPages: Aucune page explorée pour le moment
     noPagesDescription: Lance un scan de ce site — les pages explorées apparaissent ici.
     loadMore: Charger plus
@@ -7010,7 +7002,28 @@ websites:
     noChunks: Aucun fragment indexé pour cette page
     chunkIndex: Fragment {index}
     lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
+    failed: Échec
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
+    errorKind:
+      dnsFailed: Impossible de résoudre l'hôte.
+      timeout: La page n'a pas répondu à temps.
+      insecurePublicHttp: Redirection en clair ou vers une adresse privée refusée.
+      privateIp: Adresse privée refusée.
+      httpError: La page a répondu par une erreur.
+      networkError: Impossible d'atteindre la page.
+      renderFailed: Le navigateur n'a pas pu afficher la page.
+      extractionFailed: Impossible de lire le contenu de la page.
+      invalidUrl: L'URL n'est pas valide.
+      unsupportedProtocol: Ce protocole n'est pas pris en charge.
+      redirectMissingLocation: La redirection n'a pas de destination.
+      redirectLimitExceeded: Trop de redirections.
+      responseTooLarge: La page est trop volumineuse pour être récupérée.
+      responseTooSmall: La page était vide.
+      aborted: Récupération annulée.
+      tlsError: Le certificat n'est pas fiable.
+      unsupportedContent: Cette page n'est pas un texte que le crawler peut indexer.
+      robotsNoindex: La page a demandé à ne pas être indexée.
+      fallback: Impossible de récupérer cette page.
   filter:
     status:
       idle: Inactif

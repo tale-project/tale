@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 28 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -33,9 +33,11 @@ records and delete them after.
 > **Agent note**: These are DataTable list pages. The header create affordance
 > is a split/menu button (e.g. **Upload documents**, **Add product**) that
 > opens a menu — pick **From your device** / **Manual entry** inside it; it is
-> not a direct dialog. Row edit/delete live behind each row's **Open menu**
-> (`common.actions.openMenu`) 3-dot button — only manually-created rows expose
-> them. Verify every write by reloading the route and reading the row back,
+> not a direct dialog. On Products, a row click opens a details dialog titled
+> with the product name; writers can **Edit** from that dialog's header
+> (`common.actions.edit`). Row edit/delete also live behind each row's **Open
+> menu** (`common.actions.openMenu`) 3-dot button — only manually-created rows
+> expose them. Verify every write by reloading the route and reading the row back,
 > never by the toast. Document **indexing** needs the RAG service, which is
 > NOT in the hermetic mock stack, so an uploaded doc lands **Queued** then
 > flips to **Failed** (terminal here) — both are valid hermetic landing
@@ -197,10 +199,11 @@ records and delete them after.
   and one that answers a redirect into a private address (`http://127.0.0.1/`
   behind a `302`) or a plain `500` → wait for the scan → row **Open menu** →
   **View pages** → The healthy page shows its word and chunk counts; the
-  failed page shows no words and no chunks but a destructive caption naming
-  the failed attempts and the reason (`websites.pagesDialog.lastError` — a
-  refused plaintext/private redirect reads as exactly that, never as a page
-  nobody fetched), and the pages header counts it
+  failed page does not show word or chunk counts; a muted caption names
+  the reason (`websites.pagesDialog.errorKind.insecurePublicHttp` for a refused
+  plaintext/private redirect, `websites.pagesDialog.errorKind.dnsFailed` for a
+  host that does not resolve — never the raw `getaddrinfo` dump) next to a
+  **Failed** badge (`websites.pagesDialog.failed`), and the pages header counts it
   (`websites.pagesDialog.failedPages`). Reload `/dashboard/{org}/websites`
   and reopen → the reason is still there (stored on the page, not remembered
   by the tab). Fix the origin, or re-save the same list → the next scan
@@ -217,6 +220,30 @@ records and delete them after.
   stored. Re-list the same three URLs → the two reasons persist and their
   attempt counts grow. Then register a whole site whose only page answers
   `500` → after the scan its **Status** reads **Error** (not **Active**).
+- [ ] `KNOW-F15` · **Product row opens details** — Products → click a product
+  row (the name cell, not the checkbox and not **Open menu**) → a dialog titled
+  the product's name; **Edit** (`common.actions.edit`) is in the header. Click
+  Edit → dialog title `products.edit.title` ("Edit product"); **Product name**
+  (`products.edit.labels.name`) is prefilled. Close without saving → the row
+  is unchanged on reload.
+- [ ] `KNOW-F16` · **Website scan failure reason** — Websites → open a site
+  whose table badge is **Error** (`websites.filter.status.error`) after a
+  scan that never started (sandbox/runtime missing, or the crawler refused
+  the host) and that has nothing indexed (`crawledPageCount` 0, no failed
+  pages) → the view keeps that **Error** badge in the header; the body is a
+  teaching empty (`websites.viewDialog.scanError.runtime` +
+  `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
+  `websites.pagesDialog.errorKind.dnsFailed` +
+  `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
+  `websites.viewDialog.scanError.generic` +
+  `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
+  JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow
+  page row (`0 words` / `0 chunks`), search field, or `0 indexed` count.
+  Hover the empty → the dump is on `title`. A site that already has indexed
+  or failed pages keeps the list and a muted caption
+  (`websites.viewDialog.scanError.*`) instead of the empty. Reload
+  `/dashboard/{org}/websites` and reopen → the empty or caption is still
+  the human line.
 
 ## Boundary & error tests
 

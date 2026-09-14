@@ -50,6 +50,20 @@ describe('StatItem', () => {
       expect(statItem).toBeInTheDocument();
     });
 
+    it('wraps overflow at word boundaries, not mid-token', () => {
+      // `break-all` splits dates like "14 September 2026 11:11" into
+      // "…11:1" / "1" inside a 2-column StatGrid. Wrap long unbroken
+      // strings only when they would overflow.
+      render(
+        <dl>
+          <StatItem label="Last updated">14 September 2026 11:11</StatItem>
+        </dl>,
+      );
+      const dd = screen.getByText('14 September 2026 11:11').closest('dd');
+      expect(dd).toHaveClass('wrap-break-word');
+      expect(dd).not.toHaveClass('break-all');
+    });
+
     it('applies col-span-2 when colSpan is 2', () => {
       const { container } = render(
         <dl>

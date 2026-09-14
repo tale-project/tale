@@ -31,7 +31,9 @@ export function StatItem({
           {label}
         </Text>
       </dt>
-      <dd className="break-all">{children}</dd>
+      {/* Word boundaries, not `break-all` — a 2-col grid would otherwise
+          split a timestamp mid-digit ("11:1" / "1"). */}
+      <dd className="wrap-break-word">{children}</dd>
     </div>
   );
 }

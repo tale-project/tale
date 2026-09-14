@@ -35,6 +35,18 @@ function renderLastScannedCell(website: Partial<WebsiteDoc>) {
   return render(<Providers>{cell({ row: { original: website } })}</Providers>);
 }
 
+describe('useWebsitesTableConfig — column layout', () => {
+  it('lets the domain column soak leftover width so date cells stay under their headers', () => {
+    const { result } = renderHook(() => useWebsitesTableConfig(), {
+      wrapper: Providers,
+    });
+    const domain = result.current.columns.find(
+      (c) => 'accessorKey' in c && c.accessorKey === 'domain',
+    );
+    expect((domain?.meta as { flex?: boolean } | undefined)?.flex).toBe(true);
+  });
+});
+
 describe('useWebsitesTableConfig — lastScannedAt cell', () => {
   it('shows a static "Not scanned yet" label for a never-scanned website', () => {
     renderLastScannedCell({ status: 'idle' });

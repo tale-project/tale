@@ -82,6 +82,10 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
         accessorKey: 'name',
         header: sortableHeader<Contact>(tTables('headers.name'), sortLabels),
         size: 200,
+        // Name soaks leftover width so icon/date columns stay at their
+        // declared px — otherwise they grow with the table and an empty
+        // dash floats away from its header.
+        meta: { flex: true },
         // `block truncate`: a long value (contacts frequently carry an email as
         // their name) is an unbreakable token that, as a bare inline span in a
         // `table-fixed` cell, overflows the column and bleeds over the next one.

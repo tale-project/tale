@@ -115,6 +115,13 @@ export interface DialogProps {
   size?: DialogSize;
   /** Actions to display in the header (next to the title) */
   headerActions?: React.ReactNode;
+  /**
+   * Where `headerActions` sit. `end` (default) packs them with Close on the
+   * trailing edge — right for a status badge. `inline` places them on the
+   * title row so they belong to the identity; Close stays on the far right
+   * as chrome.
+   */
+  headerActionsPlacement?: 'end' | 'inline';
   /** Icon to display before the title */
   icon?: React.ReactNode;
   /**
@@ -136,6 +143,13 @@ export interface DialogProps {
    * close (e.g. a dropdown menu item). Passed to `useRestoreFocus`.
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * Where focus lands when the overlay opens. `default` is Radix's first
+   * tabbable (correct for forms). `container` focuses the scroll body so
+   * header icon actions (Edit, Close) don't receive focus — their tooltip
+   * would otherwise look like a hover the pointer never asked for.
+   */
+  openAutoFocus?: 'default' | 'container';
 }
 
 /**
@@ -175,6 +189,7 @@ export function Dialog({
   footerClassName,
   size = 'default',
   headerActions,
+  headerActionsPlacement = 'end',
   icon,
   onBack,
   backLabel,
@@ -182,13 +197,16 @@ export function Dialog({
   trigger,
   preventCloseAutoFocus = false,
   restoreFocusRef,
+  openAutoFocus = 'default',
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
   const isNested = parentDepth > 0;
   const hasBody = React.Children.toArray(children).length > 0;
+  const actionsInline = headerActionsPlacement === 'inline';
   // Without a `trigger`, Radix has no element to restore focus to on close, so
   // focus falls to <body> (WCAG 2.4.3). Capture the opener and refocus it.
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
@@ -209,11 +227,24 @@ export function Dialog({
             {...(customHeader || !description
               ? { 'aria-describedby': undefined }
               : {})}
+            onOpenAutoFocus={
+              openAutoFocus === 'container'
+                ? (event) => {
+                    event.preventDefault();
+                    bodyRef.current?.focus({ preventScroll: true });
+                  }
+                : undefined
+            }
             onCloseAutoFocus={
               preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }
           >
-            {!hideClose && !customHeader && !onBack && (
+            {/* Close sits in the header row when headerActions exist, so it
+                shares one axis with the rest of the chrome instead of floating
+                `absolute` while actions sit in flow (a gap + a height mismatch).
+                Default placement packs actions with Close; `inline` keeps Close
+                on the far right and puts actions on the title row. */}
+            {!hideClose && !customHeader && !onBack && !headerActions && (
               <div className="absolute top-3 right-4">
                 <DialogCloseButton />
               </div>
@@ -252,9 +283,13 @@ export function Dialog({
                 <div
                   className={cn(
                     'flex flex-col space-y-2 text-left',
-                    !hideClose && !onBack && 'pr-8',
+                    !hideClose && !onBack && !headerActions && 'pr-8',
+                    headerActions && 'flex-row gap-3 space-y-0',
+                    headerActions && !actionsInline && 'justify-between',
                     headerActions &&
-                      'flex-row items-start justify-between gap-4',
+                      !actionsInline &&
+                      (description ? 'items-start' : 'items-center'),
+                    headerActions && actionsInline && 'items-start',
                     headerClassName,
                   )}
                 >
@@ -262,19 +297,37 @@ export function Dialog({
                     className={cn(
                       'flex items-center gap-3',
                       headerActions &&
-                        'min-w-0 flex-1 flex-col items-start gap-0 space-y-2',
+                        'min-w-0 flex-1 flex-col items-start gap-0',
+                      headerActions && !actionsInline && 'space-y-1',
                     )}
                   >
                     {icon && <div className="shrink-0">{icon}</div>}
                     <div
                       className={cn(
-                        'flex flex-col space-y-2',
-                        headerActions && 'min-w-0',
+                        'flex min-w-0 flex-col',
+                        headerActions ? 'space-y-1' : 'space-y-2',
                       )}
                     >
-                      <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
-                        {title}
-                      </DialogPrimitive.Title>
+                      <div
+                        className={cn(
+                          headerActions && 'flex h-8 items-center',
+                          actionsInline && 'min-w-0 gap-1',
+                        )}
+                      >
+                        <DialogPrimitive.Title
+                          className={cn(
+                            'text-base leading-none font-semibold tracking-tight',
+                            actionsInline && 'min-w-0 truncate',
+                          )}
+                        >
+                          {title}
+                        </DialogPrimitive.Title>
+                        {actionsInline && headerActions && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            {headerActions}
+                          </div>
+                        )}
+                      </div>
                       {description && (
                         <DialogPrimitive.Description className="text-muted-foreground text-sm">
                           {description}
@@ -282,9 +335,15 @@ export function Dialog({
                       )}
                     </div>
                   </div>
-                  {headerActions && (
-                    <div className="-mt-1 flex items-center gap-1">
+                  {headerActions && !actionsInline && (
+                    <div className="flex shrink-0 items-center gap-1">
                       {headerActions}
+                      {!hideClose && !onBack && <DialogCloseButton />}
+                    </div>
+                  )}
+                  {headerActions && actionsInline && !hideClose && !onBack && (
+                    <div className="flex shrink-0 items-center">
+                      <DialogCloseButton />
                     </div>
                   )}
                 </div>
@@ -292,8 +351,10 @@ export function Dialog({
             )}
             {hasBody && (
               <div
+                ref={bodyRef}
+                tabIndex={-1}
                 className={cn(
-                  '-mx-2 -my-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1',
+                  '-mx-2 -my-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1 outline-none',
                   bodyClassName,
                 )}
               >

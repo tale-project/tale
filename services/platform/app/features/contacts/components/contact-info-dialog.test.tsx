@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -44,6 +45,23 @@ function makeContactInfo(overrides = {}) {
     created_at: new Date().toISOString(),
     ...overrides,
   };
+}
+
+/** Mirrors ContactsTable: unmount the view tree when the overlay asks to close. */
+function ContactsTableHost() {
+  const [contact, setContact] = useState<ReturnType<
+    typeof makeContactDoc
+  > | null>(makeContactDoc());
+  if (!contact) return null;
+  return (
+    <ContactInfoDialog
+      contact={contact}
+      open
+      onOpenChange={(open) => {
+        if (!open) setContact(null);
+      }}
+    />
+  );
 }
 
 describe('ContactInfoDialog', () => {
@@ -97,7 +115,7 @@ describe('ContactInfoDialog', () => {
     expect(screen.queryByText('Unknown Contact')).not.toBeInTheDocument();
   });
 
-  // --- Edit / New email header actions (#2639) ------------------------------
+  // --- Edit / New email identity actions (#2639) ---------------------------
   it('offers Edit and New email for an editable full contact document', () => {
     render(
       <ContactInfoDialog
@@ -111,6 +129,41 @@ describe('ContactInfoDialog', () => {
     expect(
       screen.getByRole('button', { name: 'New email' }),
     ).toBeInTheDocument();
+  });
+
+  it('uses the contact name as the dialog title, with email as the subtitle', () => {
+    render(
+      <ContactInfoDialog
+        contact={makeContactDoc()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('dialog', { name: 'John Doe' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Contact details')).not.toBeInTheDocument();
+    expect(screen.getByText('john@example.com')).toBeInTheDocument();
+  });
+
+  it('places Edit and New email beside the name; Close stays on the far right', () => {
+    render(
+      <ContactInfoDialog
+        contact={makeContactDoc()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const title = screen.getByRole('heading', { name: 'John Doe' });
+    const edit = screen.getByRole('button', { name: 'Edit' });
+    const email = screen.getByRole('button', { name: 'New email' });
+    const close = screen.getByRole('button', { name: 'Close' });
+    expect(title.parentElement).toContainElement(edit);
+    expect(title.parentElement).toContainElement(email);
+    expect(edit.parentElement).toBe(email.parentElement);
+    expect(edit.parentElement).not.toBe(close.parentElement);
   });
 
   it('offers no actions for the lightweight ContactInfo shape (no _id to act on)', () => {
@@ -144,7 +197,7 @@ describe('ContactInfoDialog', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('closes the details dialog and opens the edit dialog on Edit', async () => {
+  it('swaps the same dialog into the edit form without a second overlay', async () => {
     const onOpenChange = vi.fn();
     const { user } = render(
       <ContactInfoDialog
@@ -156,10 +209,25 @@ describe('ContactInfoDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    const dialogs = screen.getAllByRole('dialog');
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toHaveAccessibleName('Edit contact');
     expect(
-      await screen.findByRole('dialog', { name: 'Edit contact' }),
+      screen.queryByRole('dialog', { name: 'John Doe' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('John Doe');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
+  it('keeps the overlay mounted when Edit is used from the list host', async () => {
+    const { user } = render(<ContactsTableHost />);
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(
+      screen.getByRole('dialog', { name: 'Edit contact' }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('John Doe');
   });
 
   describe('accessibility', () => {

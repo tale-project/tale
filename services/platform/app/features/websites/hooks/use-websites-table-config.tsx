@@ -34,6 +34,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       header: tTables('headers.website'),
       size: 256,
       meta: {
+        flex: true,
         skeleton: { type: 'icon-text', icon: <Globe className="size-5" /> },
       },
       cell: ({ row }) => (

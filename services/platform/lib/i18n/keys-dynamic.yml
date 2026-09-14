@@ -75,6 +75,7 @@ entries:
   # goes through the same `createTableConfigHook` runtime `entityNamespace`, so
   # the scanner can't tie the literal back to the `websites` namespace either.
   - 'websites.kindList'
+  - 'websites.viewDialog.notScannedYet'
 
   # Sortable-column header state announced to assistive tech (#2639):
   # `t.common('aria.sortAscending' | 'aria.sortDescending' | 'aria.sortAvailable')`

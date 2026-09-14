@@ -115,7 +115,8 @@ describe('Product create wizard', () => {
     // basics -> pricing
     await user.click(next());
     // The pricing step exposes the Price field; the review step doesn't.
-    expect(within(dialog).getByLabelText('Price')).toBeInTheDocument();
+    // `required={false}` appends a muted "(optional)" into the accessible name.
+    expect(within(dialog).getByLabelText(/Price/)).toBeInTheDocument();
 
     // pricing -> review
     await user.click(next());
@@ -216,14 +217,13 @@ describe('ProductStatusBadge', () => {
     expect(badge.closest('[title="Active"]')).toHaveClass('bg-blue-100');
   });
 
-  it('renders the localized label with the outline variant for a non-active status', () => {
+  it('renders the localized label with the slate variant for draft', () => {
     render(<ProductStatusBadge status="draft" />);
 
     const badge = screen.getByText('Draft');
     expect(badge).toBeInTheDocument();
     const wrapper = badge.closest('[title="Draft"]');
-    // Non-active -> default `outline` variant, not the blue active style.
-    expect(wrapper).toHaveClass('border');
+    expect(wrapper).toHaveClass('bg-slate-100');
     expect(wrapper).not.toHaveClass('bg-blue-100');
   });
 

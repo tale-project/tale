@@ -307,6 +307,36 @@ describe('Input', () => {
     });
   });
 
+  describe('disabled visual', () => {
+    // Design-system Input/Text Disabled (`xZ0I9`): `$surface-disabled` fill
+    // and muted text. An opacity wash on the whole control is the wrong recipe.
+    it('fills the bordered field instead of dimming it', () => {
+      render(
+        <Input aria-label="Domain" disabled defaultValue="docs.example.com" />,
+      );
+      const input = screen.getByRole('textbox');
+      expect(input.className).toContain('--color-bg-elevated');
+      expect(input.className).toContain('--color-fg-subtle');
+      expect(input.className).not.toContain('disabled:opacity-50');
+    });
+
+    it('uses the same fill when soft-disabled with a reason', () => {
+      render(
+        <Input
+          aria-label="Domain"
+          disabled
+          disabledReason="Locked for this plan"
+          defaultValue="docs.example.com"
+        />,
+      );
+      const input = screen.getByRole('textbox');
+      expect(input.className).toContain(
+        'aria-disabled:bg-[color:var(--color-bg-elevated)]',
+      );
+      expect(input.className).not.toContain('aria-disabled:opacity-50');
+    });
+  });
+
   describe('border visibility', () => {
     // Regression test for #1478: the resting field edge was barely visible in
     // light mode. The input ring must use the stronger --color-border-input

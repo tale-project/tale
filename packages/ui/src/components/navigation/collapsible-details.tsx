@@ -21,12 +21,14 @@ export const CollapsibleDetails = forwardRef<
   <details ref={ref} className={cn('group', className)} {...props}>
     <summary
       className={cn(
-        'flex min-w-0 cursor-pointer items-center gap-1 font-medium select-none',
+        // `items-start` keeps the chevron on the first line of a multi-line
+        // summary (title + meta). `items-center` parked it mid-block.
+        'flex min-w-0 cursor-pointer items-start gap-1 font-medium select-none',
         variant === 'default' ? 'text-sm' : 'text-muted-foreground text-xs',
       )}
     >
       <ChevronRightIcon
-        className="size-4 shrink-0 transition-transform group-open:rotate-90"
+        className="mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90"
         aria-hidden
       />
       {summary}

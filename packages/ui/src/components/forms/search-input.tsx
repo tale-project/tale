@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { FIELD_INVALID } from './field-focus';
 import { Input } from './input';
 import { Label } from './label';
 
@@ -135,7 +136,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             // readOnly → borderless auto-selection doesn't strip the chrome.
             className={cn(
               'h-9 max-w-70 pl-10',
-              hasError && 'border-destructive focus-visible:ring-destructive',
+              hasError && FIELD_INVALID,
               showShake && 'animate-shake',
               className,
             )}

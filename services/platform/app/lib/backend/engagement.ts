@@ -52,11 +52,26 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
-/** Bridge one pg row (`id`) onto the 0.4 doc identity (`_id`). */
-function withConvexId(row: unknown): unknown {
-  return row !== null && typeof row === 'object' && 'id' in row
-    ? { ...row, _id: row.id }
-    : row;
+/**
+ * Bridge one pg row onto the 0.4 doc identity the tables still read:
+ * `id` → `_id`, `createdAt` → `_creationTime`, and `updatedAt` →
+ * `lastUpdated` when those Convex-shaped fields are absent — otherwise
+ * Added/Updated columns render an empty dash.
+ */
+export function withConvexId(row: unknown): unknown {
+  if (row === null || typeof row !== 'object' || !('id' in row)) return row;
+  const rec = row as Record<string, unknown>;
+  return {
+    ...rec,
+    _id: rec.id,
+    ...(typeof rec._creationTime !== 'number' &&
+    typeof rec.createdAt === 'number'
+      ? { _creationTime: rec.createdAt }
+      : {}),
+    ...(typeof rec.lastUpdated !== 'number' && typeof rec.updatedAt === 'number'
+      ? { lastUpdated: rec.updatedAt }
+      : {}),
+  };
 }
 
 interface PageEnvelope {
@@ -131,7 +146,9 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ versions: unknown[] }>(
           `/knowledge-entries/${encodeURIComponent(entryId)}/versions`,
           { orgId },
-        ).then((body) => body.versions.map(withConvexId)),
+        ).then((body) => ({
+          versions: body.versions.map(withConvexId),
+        })),
     };
   },
   'websites/queries:listWebsites': (args, ctx) => {

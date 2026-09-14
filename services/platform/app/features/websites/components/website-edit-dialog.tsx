@@ -1,22 +1,11 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
-import { Input } from '@tale/ui/input';
-import { Select } from '@tale/ui/select';
-import { useForm } from '@tale/ui/use-form';
-import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo } from 'react';
-import * as z from 'zod';
+import { useEffect, useRef } from 'react';
 
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
-import { useT } from '@/lib/i18n/client';
 
-import { useUpdateWebsite } from '../hooks/mutations';
-
-type FormData = {
-  scanInterval: string;
-};
+import { useWebsiteEditForm, WebsiteEditFields } from './website-edit-form';
 
 interface EditWebsiteDialogProps {
   isOpen: boolean;
@@ -29,108 +18,41 @@ export function EditWebsiteDialog({
   onClose,
   website,
 }: EditWebsiteDialogProps) {
-  const { t: tWebsites } = useT('websites');
-  const { mutate: updateWebsite, isPending: isLoading } = useUpdateWebsite();
-
-  const formSchema = useMemo(
-    () =>
-      z.object({
-        scanInterval: z
-          .string()
-          .min(1, tWebsites('validation.scanIntervalRequired')),
-      }),
-    [tWebsites],
-  );
-
-  const SCAN_INTERVALS = useMemo(
-    () => [
-      { value: '60m', label: tWebsites('scanIntervals.1hour') },
-      { value: '6h', label: tWebsites('scanIntervals.6hours') },
-      { value: '12h', label: tWebsites('scanIntervals.12hours') },
-      { value: '1d', label: tWebsites('scanIntervals.1day') },
-      { value: '5d', label: tWebsites('scanIntervals.5days') },
-      { value: '7d', label: tWebsites('scanIntervals.7days') },
-      { value: '30d', label: tWebsites('scanIntervals.30days') },
-    ],
-    [tWebsites],
-  );
-
   const {
-    handleSubmit,
-    formState: { errors, isDirty },
-    reset,
+    tWebsites,
+    errors,
+    isDirty,
+    isPending,
+    seed,
     setValue,
-    watch,
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      scanInterval: website.scanInterval,
-    },
-  });
+    scanInterval,
+    scanIntervalOptions,
+    submit,
+  } = useWebsiteEditForm(website, onClose);
 
-  const scanInterval = watch('scanInterval');
-
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (website) {
-      reset({
-        scanInterval: website.scanInterval,
-      });
-    }
-  }, [website, reset]);
-
-  const onSubmit = (data: FormData) => {
-    updateWebsite(
-      {
-        websiteId: website._id,
-        scanInterval: data.scanInterval,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: tWebsites('toast.updateSuccess'),
-            variant: 'success',
-          });
-          onClose();
-        },
-        onError: (error) => {
-          console.error('Failed to update website:', error);
-          toast({
-            title: tWebsites('toast.updateError'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  };
+    if (isOpen && !wasOpen.current) seed();
+    wasOpen.current = isOpen;
+  }, [isOpen, seed]);
 
   return (
     <FormDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
-      isSubmitting={isLoading}
+      isSubmitting={isPending}
       isDirty={isDirty}
-      onSubmit={handleSubmit(onSubmit)}
+      size="default"
+      onSubmit={submit}
     >
-      <Input
-        id="domain"
-        label={tWebsites('domain')}
-        value={website.domain}
-        readOnly
-      />
-
-      <Select
-        value={scanInterval}
-        onValueChange={(value) =>
-          setValue('scanInterval', value, { shouldDirty: true })
-        }
-        disabled={isLoading}
-        id="scanInterval"
-        label={tWebsites('scanInterval')}
-        required
-        error={!!errors.scanInterval}
-        placeholder={tWebsites('scanIntervalPlaceholder')}
-        options={SCAN_INTERVALS}
+      <WebsiteEditFields
+        website={website}
+        scanInterval={scanInterval}
+        scanIntervalOptions={scanIntervalOptions}
+        errors={errors}
+        isPending={isPending}
+        setValue={setValue}
       />
     </FormDialog>
   );

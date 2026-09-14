@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
@@ -16,26 +15,22 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-import { useCreateKnowledgeEntry } from '../hooks/mutations';
+import { useUpdateKnowledgeEntry } from '../hooks/mutations';
+import type { KnowledgeEntryItem } from '../hooks/queries';
+
+export const KNOWLEDGE_ENTRY_EDIT_FORM_ID = 'knowledge-entry-edit';
 
 type FormData = {
   topic: string;
   content: string;
 };
 
-interface AddKnowledgeEntryDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  organizationId: string;
-}
-
-export function AddKnowledgeEntryDialog({
-  isOpen,
-  onClose,
-  organizationId,
-}: AddKnowledgeEntryDialogProps) {
+export function useKnowledgeEntryEditForm(
+  entry: KnowledgeEntryItem,
+  onSaved: () => void,
+) {
   const { t } = useT('knowledgeEntries');
-  const { mutate: createEntry, isPending } = useCreateKnowledgeEntry();
+  const { mutate: updateEntry, isPending } = useUpdateKnowledgeEntry();
 
   const formSchema = useMemo(
     () =>
@@ -61,52 +56,54 @@ export function AddKnowledgeEntryDialog({
     reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: { topic: '', content: '' },
+    defaultValues: { topic: entry.topic, content: entry.content },
   });
 
-  const onSubmit = (data: FormData) => {
-    createEntry(
+  const submit = handleSubmit((data) => {
+    updateEntry(
       {
-        organizationId,
+        entryId: entry._id,
         topic: data.topic,
         content: data.content,
       },
       {
         onSuccess: () => {
-          toast({ title: t('toast.addSuccess'), variant: 'success' });
-          reset();
-          onClose();
+          toast({ title: t('toast.updateSuccess'), variant: 'success' });
+          onSaved();
         },
         onError: (error) => {
-          console.error('Failed to add knowledge entry:', error);
+          console.error('Failed to update knowledge entry:', error);
           const isDuplicate =
             backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
           toast({
             title: isDuplicate
               ? t('toast.addErrorDuplicate')
-              : t('toast.addError'),
+              : t('toast.updateError'),
             variant: 'destructive',
           });
         },
       },
     );
-  };
+  });
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
+  return { register, errors, isPending, reset, submit };
+}
+
+export function KnowledgeEntryEditFields({
+  register,
+  errors,
+  disabled,
+  autoFocus = false,
+}: {
+  register: ReturnType<typeof useKnowledgeEntryEditForm>['register'];
+  errors: ReturnType<typeof useKnowledgeEntryEditForm>['errors'];
+  disabled: boolean;
+  autoFocus?: boolean;
+}) {
+  const { t } = useT('knowledgeEntries');
 
   return (
-    <FormDialog
-      open={isOpen}
-      onOpenChange={(open) => !open && handleClose()}
-      title={t('addEntry')}
-      submittingText={t('adding')}
-      isSubmitting={isPending}
-      size="default"
-      onSubmit={handleSubmit(onSubmit)}
-    >
+    <>
       <Input
         id="topic"
         type="text"
@@ -114,10 +111,10 @@ export function AddKnowledgeEntryDialog({
         placeholder={t('topicPlaceholder')}
         required
         {...register('topic')}
-        disabled={isPending}
+        autoFocus={autoFocus}
+        disabled={disabled}
         errorMessage={errors.topic?.message}
       />
-
       <Textarea
         id="content"
         label={t('content')}
@@ -125,9 +122,9 @@ export function AddKnowledgeEntryDialog({
         required
         rows={8}
         {...register('content')}
-        disabled={isPending}
+        disabled={disabled}
         errorMessage={errors.content?.message}
       />
-    </FormDialog>
+    </>
   );
 }

@@ -1834,8 +1834,6 @@ dialogs:
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
-  contactInfo:
-    title: Contact details
   selectConversation: Select conversation
 documents:
   entityLabel: documents
@@ -3823,9 +3821,6 @@ knowledgeEntries:
     title: Delete knowledge entry
     confirmation: Delete this entry? Agents will no longer be able to find it in the knowledge base.
   viewDialog:
-    title: Knowledge entry details
-    indexingStatus: Indexing status
-    updated: Updated
     history: Version history
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
@@ -4332,7 +4327,6 @@ products:
   noneImported: No products were imported
   edit:
     title: Edit product
-    description: Update product information. Required fields are marked with *
     namePlaceholder: Enter product name
     descriptionPlaceholder: Enter product description
     categoryPlaceholder: Electronics, Clothing, etc.
@@ -4400,15 +4394,12 @@ products:
     thisProduct: this product
     warning: All related relationships and data will be permanently removed.
   view:
-    title: Product details
-    description: View all information about this product
     labels:
       price: Price
       stock: Stock
       category: Category
       lastUpdated: Last updated
       tags: Tags
-      fullDescription: Full description
       source: Source
       productId: Product ID
 questions:
@@ -6934,24 +6925,26 @@ websites:
     deleteError: Couldn't delete website
   adding: Adding...
   viewDialog:
-    title: Website details
-    domain: Domain
-    status: Status
-    scanInterval: Scan interval
-    lastScanned: Last scanned
     notScannedYet: Not scanned yet
-    titleField: Title
-    description: Description
-    created: Created
     unknown: Unknown
     scanPausedNotice: Scanning is paused after repeated failures to reach the
       knowledge database. Fix the connection under Settings → Data residency,
       then resume scanning.
+    scanError:
+      runtime: Scanning didn't run.
+      notInCorpus: This site isn't in the crawler. Delete it and add it again.
+      generic: The last scan didn't finish.
+    scanEmpty:
+      runtime: Nothing was indexed. The URL isn't the problem.
+      dns: Nothing was indexed. Change the URL if the host is wrong.
+      notInCorpus: Nothing was indexed. Delete the site and add it again.
+      generic: Nothing was indexed.
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
   indexed: Indexed
   pagesDialog:
     title: Website pages
+    listTitle: Pages
     noPages: No pages crawled yet
     noPagesDescription: Start a scan on this website, then come back — crawled pages show up here.
     loadMore: Load more
@@ -6964,7 +6957,28 @@ websites:
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
+    failed: Failed
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
+    errorKind:
+      dnsFailed: Couldn't resolve the host.
+      timeout: The page didn't answer in time.
+      insecurePublicHttp: Refused a plaintext or private redirect.
+      privateIp: Refused a private address.
+      httpError: The page answered with an error.
+      networkError: Couldn't reach the page.
+      renderFailed: The browser couldn't render the page.
+      extractionFailed: Couldn't read the page content.
+      invalidUrl: The URL isn't valid.
+      unsupportedProtocol: This protocol isn't supported.
+      redirectMissingLocation: The redirect had no destination.
+      redirectLimitExceeded: Too many redirects.
+      responseTooLarge: The page is too large to fetch.
+      responseTooSmall: The page was empty.
+      aborted: The fetch was cancelled.
+      tlsError: The certificate isn't trusted.
+      unsupportedContent: This page isn't text the crawler can index.
+      robotsNoindex: The page asked not to be indexed.
+      fallback: Couldn't fetch this page.
   filter:
     status:
       idle: Idle

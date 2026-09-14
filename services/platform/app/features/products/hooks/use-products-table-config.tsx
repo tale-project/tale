@@ -24,7 +24,10 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
       accessorKey: 'name',
       header: tTables('headers.product'),
       size: 400,
-      meta: { skeleton: { type: 'avatar-text', lines: 1 } },
+      // Name soaks leftover width so stock/price/updated stay at their
+      // declared px — otherwise those columns grow and empty dashes float
+      // away from their headers (same defect as contacts locale/Added).
+      meta: { flex: true, skeleton: { type: 'avatar-text', lines: 1 } },
       cell: ({ row }) => (
         <HStack gap={3}>
           <ProductImage
@@ -39,9 +42,8 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
       ),
     },
     // Description column dropped — at the table's row truncation width it
-    // collapses to a few words and earns zero scannability vs the detail
-    // view, which already shows the full description on click. Frees space
-    // for the price/stock/category columns to breathe at sensible widths.
+    // collapses to a few words. The view dialog on row click holds the full
+    // description; writers can Edit from that dialog's header.
     {
       accessorKey: 'stock',
       header: () => (

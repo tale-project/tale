@@ -25,6 +25,24 @@ describe('CollapsibleDetails', () => {
       expect(screen.getByText('Expanded content')).toBeInTheDocument();
     });
 
+    it('keeps the chevron on the first line of the summary', () => {
+      const { container } = render(
+        <CollapsibleDetails
+          summary={
+            <div>
+              <p>Title</p>
+              <p>Meta</p>
+            </div>
+          }
+        >
+          <p>Content</p>
+        </CollapsibleDetails>,
+      );
+      const summary = container.querySelector('summary');
+      expect(summary).toHaveClass('items-start');
+      expect(summary).not.toHaveClass('items-center');
+    });
+
     it('renders chevron icon', () => {
       const { container } = render(
         <CollapsibleDetails summary="Details">

@@ -100,9 +100,13 @@ export const WithHeaderActions: Story = {
           title="Document details"
           headerActions={
             <div className="flex gap-1">
-              <IconButton icon={Copy} aria-label="Copy link" />
-              <IconButton icon={ExternalLink} aria-label="Open in new tab" />
-              <IconButton icon={Pencil} aria-label="Edit" />
+              <IconButton icon={Copy} size="sm" aria-label="Copy link" />
+              <IconButton
+                icon={ExternalLink}
+                size="sm"
+                aria-label="Open in new tab"
+              />
+              <IconButton icon={Pencil} size="sm" aria-label="Edit" />
             </div>
           }
         >

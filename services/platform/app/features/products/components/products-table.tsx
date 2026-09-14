@@ -171,7 +171,7 @@ export function ProductsTable({
 
       {viewingProduct && (
         <ProductViewDialog
-          isOpen={!!viewingProduct}
+          isOpen
           onClose={() => setViewingProduct(null)}
           product={viewingProduct}
         />

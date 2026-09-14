@@ -1895,8 +1895,6 @@ dialogs:
   thisMember: dieses Mitglied
   confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden
-  contactInfo:
-    title: Kontaktdetails
   selectConversation: Konversation auswählen
 documents:
   entityLabel: Dokumente
@@ -3966,9 +3964,6 @@ knowledgeEntries:
     title: Wissenseintrag löschen
     confirmation: Diesen Eintrag löschen? Agenten können ihn danach nicht mehr in der Wissensdatenbank finden.
   viewDialog:
-    title: Details zum Wissenseintrag
-    indexingStatus: Indexierungsstatus
-    updated: Aktualisiert
     history: Versionsverlauf
     versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
     superseded: Ersetzt
@@ -4485,7 +4480,6 @@ products:
   noneImported: Es wurden keine Produkte importiert
   edit:
     title: Produkt bearbeiten
-    description: Produktinformationen aktualisieren. Pflichtfelder sind mit * gekennzeichnet
     namePlaceholder: Produktname eingeben
     descriptionPlaceholder: Produktbeschreibung eingeben
     categoryPlaceholder: Elektronik, Kleidung usw.
@@ -4556,15 +4550,12 @@ products:
     thisProduct: dieses Produkt
     warning: Alle zugehörigen Beziehungen und Daten werden dauerhaft entfernt.
   view:
-    title: Produktdetails
-    description: Alle Informationen zu diesem Produkt anzeigen
     labels:
       price: Preis
       stock: Bestand
       category: Kategorie
       lastUpdated: Zuletzt aktualisiert
       tags: Tags
-      fullDescription: Vollständige Beschreibung
       source: Quelle
       productId: Produkt-ID
 questions:
@@ -6869,24 +6860,28 @@ websites:
     deleteError: Website konnte nicht gelöscht werden
   adding: Füge hinzu...
   viewDialog:
-    title: Website-Details
-    domain: Domain
-    status: Status
-    scanInterval: Scan-Intervall
-    lastScanned: Zuletzt gescannt
     notScannedYet: Noch nicht gescannt
-    titleField: Titel
-    description: Beschreibung
-    created: Erstellt
     unknown: Unbekannt
     scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
       mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
       Datenresidenz und setze die Scans danach fort.
+    scanError:
+      runtime: Der Scan ist nicht gelaufen.
+      notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
+        erneut hinzu.
+      generic: Der letzte Scan ist nicht durchgelaufen.
+    scanEmpty:
+      runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
+      dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
+      notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
+        erneut hinzu.
+      generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
   indexed: Indexiert
   pagesDialog:
     title: Website-Seiten
+    listTitle: Seiten
     noPages: Noch keine Seiten gecrawlt
     noPagesDescription: Starte einen Scan für diese Website — gecrawlte Seiten erscheinen hier.
     loadMore: Mehr laden
@@ -6899,7 +6894,28 @@ websites:
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
+    failed: Fehlgeschlagen
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
+    errorKind:
+      dnsFailed: Host konnte nicht aufgelöst werden.
+      timeout: Die Seite hat nicht rechtzeitig geantwortet.
+      insecurePublicHttp: Unverschlüsselte oder private Weiterleitung abgelehnt.
+      privateIp: Private Adresse abgelehnt.
+      httpError: Die Seite hat mit einem Fehler geantwortet.
+      networkError: Die Seite war nicht erreichbar.
+      renderFailed: Der Browser konnte die Seite nicht darstellen.
+      extractionFailed: Der Seiteninhalt konnte nicht gelesen werden.
+      invalidUrl: Die URL ist ungültig.
+      unsupportedProtocol: Dieses Protokoll ist nicht unterstützt.
+      redirectMissingLocation: Die Weiterleitung hat kein Ziel.
+      redirectLimitExceeded: Zu viele Weiterleitungen.
+      responseTooLarge: Die Seite ist zu groß zum Abrufen.
+      responseTooSmall: Die Seite war leer.
+      aborted: Abruf abgebrochen.
+      tlsError: Das Zertifikat ist nicht vertrauenswürdig.
+      unsupportedContent: Diese Seite ist kein Text, den der Crawler indexieren kann.
+      robotsNoindex: Die Seite hat gebeten, nicht indexiert zu werden.
+      fallback: Seite konnte nicht geladen werden.
   filter:
     status:
       idle: Inaktiv
