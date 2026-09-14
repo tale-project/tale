@@ -19,7 +19,7 @@ export interface SecurityHeadersConfig {
    */
   contentSecurityPolicy?: Record<string, readonly string[]> | false;
   /**
-   * `Strict-Transport-Security` value (e.g. `'max-age=15552000'`). Only
+   * `Strict-Transport-Security` value (e.g. `'max-age=31536000'`). Only
    * emitted on HTTPS requests. Set to `false` to omit.
    */
   strictTransportSecurity?: string | false;
@@ -67,9 +67,10 @@ export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
     // (`/videos/…` mp4 + vtt) are served from the site's own mount.
     mediaSrc: ["'self'"],
   },
-  // 180 days, no `includeSubDomains` / `preload` — self-deployed operators
-  // run on varied domains and don't own preload submission.
-  strictTransportSecurity: 'max-age=15552000',
+  // One year (the platform's value, `services/platform/server.ts`), no
+  // `includeSubDomains` / `preload` — self-deployed operators run on varied
+  // domains and don't own preload submission.
+  strictTransportSecurity: 'max-age=31536000',
   xContentTypeOptions: 'nosniff',
   xFrameOptions: 'DENY',
   referrerPolicy: 'strict-origin-when-cross-origin',

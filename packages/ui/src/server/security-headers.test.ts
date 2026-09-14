@@ -33,7 +33,7 @@ describe('defaultReactServerSecurityHeaders (web + docs contract)', () => {
     // Regression: `media-src 'none'` blocked the docs tutorial videos —
     // same-origin media must stay allowed.
     expect(h.get('Content-Security-Policy')).toContain("media-src 'self'");
-    expect(h.get('Strict-Transport-Security')).toBe('max-age=15552000');
+    expect(h.get('Strict-Transport-Security')).toBe('max-age=31536000');
     expect(h.get('X-Content-Type-Options')).toBe('nosniff');
     expect(h.get('X-Frame-Options')).toBe('DENY');
     expect(h.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
