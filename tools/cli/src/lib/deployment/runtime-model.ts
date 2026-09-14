@@ -12,6 +12,7 @@ import { parseDocument } from 'yaml';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
 
 export const RUNTIME_SERVICES = [
@@ -34,6 +35,7 @@ export const hash = (bytes: string | Buffer): string =>
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 export const revisionSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const platformSchema = z.enum(['linux/amd64', 'linux/arm64']);
+export const containerPrefixSchema = slug.max(40);
 export type RuntimePlatform = z.infer<typeof platformSchema>;
 
 export const runtimeImageSchema = z
@@ -63,6 +65,7 @@ export const runtimeBundleSchema = z
     kind: z.literal('source-compose-0.5'),
     revision: revisionSchema,
     platform: platformSchema,
+    containerPrefix: containerPrefixSchema.optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
       .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })
@@ -84,6 +87,8 @@ export interface PrepareRuntimeOptions {
   revision: string;
   output: string;
   platform: RuntimePlatform;
+  /** Visible singleton container names only; persistent deployment identity stays unchanged. */
+  containerPrefix?: string;
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -153,7 +158,10 @@ export type ComposeDocument = Record<string, unknown> & {
   volumes: Record<string, unknown>;
   networks: Record<string, unknown>;
 };
-export function parseCompose(source: string): ComposeDocument {
+export function parseCompose(
+  source: string,
+  containerPrefix?: string,
+): ComposeDocument {
   const document = parseDocument(source, { uniqueKeys: true });
   requireRuntime(
     document.errors.length === 0,
@@ -177,6 +185,18 @@ export function parseCompose(source: string): ComposeDocument {
       [...RUNTIME_SERVICES].sort().join(','),
     'Runtime source is not the supported complete 0.5 Compose topology.',
   );
+  for (const name of RUNTIME_SERVICES) {
+    const expected =
+      containerPrefix === undefined
+        ? name === 'backend-api' || name === 'backend-worker'
+          ? undefined
+          : `tale-${name}`
+        : `${containerPrefixSchema.parse(containerPrefix)}-${name}`;
+    requireRuntime(
+      compose.services[name].container_name === expected,
+      'Runtime container name differs from its supported naming policy.',
+    );
+  }
   requireRuntime(
     Object.values(compose.volumes).every((volume) => {
       const definition = z
@@ -333,7 +353,10 @@ export function readRuntimeBundle(directory: string): {
       'Runtime image source revision differs.',
     );
   }
-  const compose = parseCompose(contents['compose.yml'].toString('utf8'));
+  const compose = parseCompose(
+    contents['compose.yml'].toString('utf8'),
+    bundle.containerPrefix,
+  );
   for (const service of RUNTIME_SERVICES) {
     const spec = compose.services[service];
     const matches = bundle.images.filter((image) =>

@@ -130,6 +130,8 @@ Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composi
 
 `origin` et chaque entrée native `redirectUris` acceptent aussi des références d’environnement. Un registre de déploiement peut ainsi posséder les adresses publiques. La préparation les résout en URL HTTPS littérales validées dans le bundle.
 
+Pour reconnaître l’environnement dans la liste des conteneurs, renseigne l’option `runtime.containerPrefix`, par exemple `north-desk-prod`. Choisis un slug en minuscules avec des traits d’union, limité à 40 caractères. Chaque service géré reçoit le nom de conteneur `<prefix>-<service>`, comme `north-desk-prod-db` ou `north-desk-prod-backend-api` ; les noms DNS des services restent identiques. Sans cette option, les noms du code source s’appliquent. Ajouter, modifier ou retirer le préfixe recrée les conteneurs et peut interrompre brièvement le service. Pour une installation existante, conserve `name`, `composeProject` et `stateDirectory` afin de garder l’identité des volumes, des identifiants et des journaux de récupération. Le snapshot habituel et la reprise avec le même bundle s’appliquent. Continue à exécuter un seul runtime géré complet par daemon Docker : cette option n’attribue pas de ports, de réseaux sandbox ou de répertoires de travail distincts sur l’hôte.
+
 ```json
 {
   "schemaVersion": 1,
@@ -138,7 +140,8 @@ Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composi
   "composeProject": "tale-example",
   "runtime": {
     "revision": { "env": "TALE_RUNTIME_REF" },
-    "platform": "linux/amd64"
+    "platform": "linux/amd64",
+    "containerPrefix": "north-desk-prod"
   },
   "origin": { "env": "TALE_PUBLIC_ORIGIN" },
   "tlsMode": "external",

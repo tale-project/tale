@@ -286,6 +286,65 @@ async function create(legacy = false, identity = true) {
 }
 
 describePosix('fresh native receipt custody', () => {
+  test('a container-prefix rollout retains deployment identity, snapshots before recreation and preserves native IDs', async () => {
+    const run = await create(true);
+    await run.apply();
+    const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+    const secrets = readFileSync(
+      join(run.fixture.options.stateDirectory, 'secrets.env'),
+    );
+    const prefixBundle = join(run.fixture.directory, 'prefixed-deployment');
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        runtime: { ...run.spec.runtime, containerPrefix: 'north-desk-prod' },
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: prefixBundle },
+      run.prepareDependencies,
+    );
+    run.events.length = 0;
+    await applyDeployment({ bundle: prefixBundle }, run.dependencies);
+    expect(run.events.indexOf('snapshot')).toBeLessThan(
+      run.events.indexOf('up'),
+    );
+    expect(run.events.filter((event) => event === 'snapshot')).toHaveLength(1);
+    const renamed = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+    expect(renamed.name).toBe(ready.name);
+    expect(renamed.native).toEqual(ready.native);
+    expect(
+      readFileSync(join(run.fixture.options.stateDirectory, 'secrets.env')),
+    ).toEqual(secrets);
+    expect(
+      run.docker.containers.every((container) =>
+        String(container.Name).startsWith('/north-desk-prod-'),
+      ),
+    ).toBe(true);
+    run.events.length = 0;
+    await applyDeployment({ bundle: prefixBundle }, run.dependencies);
+    expect(run.events).not.toContain('up');
+    expect(run.events).not.toContain('snapshot');
+  });
+
+  test('refuses a declaration prefix that differs from its verified runtime before destination access', async () => {
+    const run = await create();
+    const metadata = await verifyDeploymentBundle(run.bundle);
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      ...metadata,
+      spec: {
+        ...run.spec,
+        runtime: { ...run.spec.runtime, containerPrefix: 'north-desk-prod' },
+      },
+    });
+    run.docker.calls = [];
+    await expect(run.apply()).rejects.toThrow('container prefix');
+    expect(run.docker.calls).toEqual([]);
+    expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+  });
+
   test('late owner, managed credentials and explicit attestation must match before ready; recovery and replay retain exact artifact proof', async () => {
     const run = await create();
     const metadata = await verifyDeploymentBundle(run.bundle);

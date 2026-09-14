@@ -68,6 +68,125 @@ function mutations(docker: RuntimeDockerFixture) {
 
 // The managed CLI refuses NTFS: runtime custody includes POSIX file modes.
 describePosix('managed source-Compose runtime adoption', () => {
+  test('renames visible containers through an interrupted managed rollout without moving storage or regenerating credentials', async () => {
+    const { fixture, docker, apply, receipt } = await create(true);
+    await apply();
+    const original = receipt();
+    const volumes = [...docker.volumes];
+    const secrets = readFileSync(
+      join(fixture.options.stateDirectory, 'secrets.env'),
+    );
+    const oldBundle = fixture.options.bundleDirectory;
+    fixture.options.bundleDirectory = join(fixture.directory, 'prefixed');
+    await prepareRuntime(
+      {
+        repoRoot: fixture.repoRoot,
+        revision: fixture.revision,
+        output: fixture.options.bundleDirectory,
+        platform: 'linux/amd64',
+        containerPrefix: 'north-desk-prod',
+      },
+      docker.dependencies(),
+    );
+    expect(await apply(true)).toMatchObject({ existing: true, changed: true });
+    expect(receipt()).toEqual(original);
+    docker.upFailure = true;
+    await expect(apply()).rejects.toThrow('could not complete');
+    expect(receipt()).toMatchObject({
+      phase: 'pending',
+      name: original.name,
+      stateDirectory: original.stateDirectory,
+      composeProject: original.composeProject,
+    });
+    docker.upFailure = false;
+    docker.calls = [];
+    await expect(
+      applyRuntime(
+        { ...fixture.options, bundleDirectory: oldBundle },
+        docker.dependencies(),
+      ),
+    ).rejects.toThrow('different runtime operation');
+    expect(mutations(docker)).toEqual([]);
+    expect(await apply()).toMatchObject({
+      changed: true,
+      regeneratedSecrets: [],
+    });
+    expect(
+      docker.containers.every((container) =>
+        String(container.Name).startsWith('/north-desk-prod-'),
+      ),
+    ).toBe(true);
+    expect(docker.volumes).toEqual(volumes);
+    expect(
+      readFileSync(join(fixture.options.stateDirectory, 'secrets.env')),
+    ).toEqual(secrets);
+    expect(receipt()).toMatchObject({
+      phase: 'ready',
+      name: original.name,
+      stateDirectory: original.stateDirectory,
+      composeProject: original.composeProject,
+    });
+    docker.calls = [];
+    expect(await apply()).toMatchObject({
+      changed: false,
+      regeneratedSecrets: [],
+    });
+    expect(mutations(docker)).toEqual([]);
+    fixture.options.bundleDirectory = oldBundle;
+    expect(await apply()).toMatchObject({
+      changed: true,
+      regeneratedSecrets: [],
+    });
+    expect(docker.volumes).toEqual(volumes);
+    expect(
+      readFileSync(join(fixture.options.stateDirectory, 'secrets.env')),
+    ).toEqual(secrets);
+    expect(docker.containers[0].Name).toBe('/tale-db');
+  });
+
+  test('refuses a prefixed name belonging to another deployment before runtime writes', async () => {
+    const { fixture, docker, apply } = await create();
+    fixture.options.bundleDirectory = join(fixture.directory, 'prefixed');
+    await prepareRuntime(
+      {
+        repoRoot: fixture.repoRoot,
+        revision: fixture.revision,
+        output: fixture.options.bundleDirectory,
+        platform: 'linux/amd64',
+        containerPrefix: 'north-desk-prod',
+      },
+      docker.dependencies(),
+    );
+    docker.foreignNames = ['north-desk-prod-db'];
+    docker.calls = [];
+    await expect(apply()).rejects.toThrow('belongs to another deployment');
+    expect(mutations(docker)).toEqual([]);
+    expect(existsSync(fixture.options.stateDirectory)).toBe(false);
+  });
+
+  test('does not record readiness until the requested container names are observed', async () => {
+    const { fixture, docker, apply, receipt } = await create();
+    fixture.options.bundleDirectory = join(fixture.directory, 'prefixed');
+    await prepareRuntime(
+      {
+        repoRoot: fixture.repoRoot,
+        revision: fixture.revision,
+        output: fixture.options.bundleDirectory,
+        platform: 'linux/amd64',
+        containerPrefix: 'north-desk-prod',
+      },
+      docker.dependencies(),
+    );
+    docker.onUp = () => {
+      docker.containers[0].Name = '/unexpected-db';
+    };
+    await expect(apply()).rejects.toThrow('did not become healthy');
+    expect(receipt().phase).toBe('pending');
+    docker.onUp = null;
+    await apply();
+    expect(receipt().phase).toBe('ready');
+  });
+
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {
     const fresh = await create();
     expect(await fresh.apply(true)).toMatchObject({

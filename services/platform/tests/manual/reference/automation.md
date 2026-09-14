@@ -233,6 +233,14 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Seams
 
+Managed container prefixes are covered by `tools/cli/src/lib/deployment/inputs.test.ts`,
+`runtime-prepare.test.ts`, `runtime-apply.test.ts`, `prepare-config.test.ts` and
+`apply.test.ts` in the same directory. They verify bounded explicit names, original
+source topology, declaration/bundle agreement, snapshot-before-recreation, retained
+deployment identity and native IDs, unchanged volumes and secret bytes, foreign-name
+refusal, observed container names, interrupted rollout and exact replay. These tests
+do not establish multiple complete runtimes on one Docker daemon.
+
 Managed hostname migration is covered by `tools/cli/src/lib/deployment/identity.test.ts`,
 `email-attestation.test.ts`, `native-client-fresh.test.ts` and `fresh-inputs.test.ts`
 in the same directory. They verify exact source-origin admission, retained user and

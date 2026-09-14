@@ -94,6 +94,37 @@ test('resolves full source pins while retaining host credential references', () 
   ).toThrow('control characters');
 });
 
+test('accepts an optional bounded container prefix without changing persistent identity', () => {
+  const input = spec();
+  const resolved = resolveDeploymentSpec({
+    ...input,
+    runtime: { ...input.runtime, containerPrefix: 'north-desk-prod' },
+  });
+  expect(resolved.runtime.containerPrefix).toBe('north-desk-prod');
+  expect(resolved.name).toBe(input.name);
+  expect(resolved.composeProject).toBe(input.composeProject);
+  expect(resolved.stateDirectory).toBe(input.stateDirectory);
+  expect(resolveDeploymentSpec(input).runtime).not.toHaveProperty(
+    'containerPrefix',
+  );
+  for (const prefix of [
+    '',
+    'UPPER',
+    '-prefix',
+    'prefix-',
+    'two--parts',
+    '../other',
+    'a'.repeat(41),
+    'valid\n',
+  ])
+    expect(() =>
+      resolveDeploymentSpec({
+        ...input,
+        runtime: { ...input.runtime, containerPrefix: prefix },
+      }),
+    ).toThrow();
+});
+
 test('refuses moving pins, path escapes, duplicate targets and invalid public policy', () => {
   for (const bad of ['main', 'sha-abcd123', `${revision}\n`, 'v1.2.3'])
     expect(() =>

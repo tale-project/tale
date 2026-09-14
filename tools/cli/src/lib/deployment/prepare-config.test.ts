@@ -48,7 +48,10 @@ describePosix('managed preparation native-owner binding', () => {
         stateDirectory: join(root, 'state'),
         origin: 'https://native.example.invalid',
         tlsMode: 'external',
-        runtime: { revision: 'a'.repeat(40) },
+        runtime: {
+          revision: 'a'.repeat(40),
+          containerPrefix: 'north-desk-prod',
+        },
         identity: {
           bootstrap: 'fresh',
           email: { env: 'TALE_EMAIL' },
@@ -88,7 +91,8 @@ describePosix('managed preparation native-owner binding', () => {
               request.repository === TALE_REPOSITORY ? root : client.root,
             );
           },
-          runtime: async ({ output: directory }) => {
+          runtime: async ({ output: directory, containerPrefix }) => {
+            expect(containerPrefix).toBe('north-desk-prod');
             await mkdir(directory);
             await writeFile(join(directory, 'runtime.json'), '{}');
             await writeFile(join(directory, 'compose.yml'), 'services: {}\n');

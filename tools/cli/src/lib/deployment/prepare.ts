@@ -69,6 +69,7 @@ export async function prepareDeployment(
         repoRoot: source(runtimeRequest),
         revision: runtimeRequest.revision,
         platform: spec.runtime.platform,
+        containerPrefix: spec.runtime.containerPrefix,
         output: join(output, 'runtime'),
       });
       for (const config of spec.configs) {

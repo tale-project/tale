@@ -13,6 +13,7 @@ import {
   sha,
   slug,
 } from '../config/releases/model';
+import { containerPrefixSchema } from './runtime-model';
 
 const text = z
   .string()
@@ -98,6 +99,7 @@ const deploymentFields = z.strictObject({
   runtime: z.strictObject({
     revision: ref,
     platform: z.enum(['linux/amd64', 'linux/arm64']).default('linux/amd64'),
+    containerPrefix: containerPrefixSchema.optional(),
   }),
   origin,
   tlsMode: z.enum(['external', 'letsencrypt']),
