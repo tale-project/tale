@@ -19,6 +19,8 @@ Genehmigungen sind in dieser Version keine Mitglieder-Oberfläche. Ein Connector
 
 Die Org-Konfigurationseinstellungen — Anbieter, Connectors, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Großteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und Benachrichtigungen.
 
+Ein Benachrichtigungslink öffnet die zugehörige Aufgabe, das Dokument oder die Konversation. Musst du dich zuerst anmelden, merkt sich Tale das Ziel und öffnet es nach der Anmeldung. Du benötigst weiterhin Zugriff auf die Organisation und den verlinkten Inhalt. Verbinde dich bei einer privaten Bereitstellung zuerst mit dem dafür vorgesehenen Netzwerk.
+
 ## Seiten in diesem Bereich
 
 Dieser Bereich ist kurz — die Mitglieder-Oberfläche ist die Querschnittsmenge der Seiten, für die Redakteure bauen und die alle nutzen. Die tiefere Lektüre liegt in den Per-Funktions-Bereichen.

@@ -19,6 +19,8 @@ Les approbations ne sont pas une surface Membre dans cette version. Une écritur
 
 Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et Notifications.
 
+Un lien de notification ouvre la tâche, le document ou la conversation concernés. Si tu dois d’abord te connecter, Tale conserve cette destination et l’ouvre après la connexion. Tu dois toujours avoir accès à l’organisation et au contenu lié. Pour un déploiement privé, rejoins d’abord le réseau requis.
+
 ## Pages dans cette section
 
 Cette section est courte — la surface Membre est l’intersection des pages que les Éditeurs construisent et que tout le monde utilise. La lecture plus profonde vit dans les zones par fonctionnalité.

@@ -1,3 +1,4 @@
+import { E2E_PASSWORD } from '../helpers/auth';
 import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
@@ -13,6 +14,7 @@ import { t } from '../helpers/i18n';
 
 test('creates a project with a task shown in both views, then deletes it', async ({
   page,
+  context,
   org,
 }) => {
   const { organizationId } = org;
@@ -90,6 +92,34 @@ test('creates a project with a task shown in both views, then deletes it', async
   await expect(page.getByText(taskTitle).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
+
+  // A notification opens the bare task alias with its selected task. A cold,
+  // signed-out visit must survive the login wall and reopen that exact sheet.
+  await page.getByText(taskTitle).first().click();
+  const taskDetail = page.getByRole('dialog', { name: taskTitle });
+  await expect(taskDetail).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  const taskId = new URL(page.url()).searchParams.get('task');
+  expect(taskId).toBeTruthy();
+  const notificationPath = `/dashboard/${organizationId}/projects/${projectId}/tasks?task=${encodeURIComponent(taskId!)}`;
+  await context.clearCookies();
+  await page.goto(notificationPath);
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === '/log-in' &&
+      url.searchParams.get('redirectTo') === notificationPath,
+  );
+  await page.getByLabel(t('auth.email'), { exact: true }).fill(org.ownerEmail);
+  await page.getByLabel(t('auth.password'), { exact: true }).fill(E2E_PASSWORD);
+  await page
+    .getByRole('button', { name: t('auth.login.loginButton'), exact: true })
+    .click();
+  await expect(taskDetail).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(page).toHaveURL(
+    (url) => url.searchParams.get('task') === taskId,
+  );
+  await taskDetail
+    .getByRole('button', { name: t('common.actions.close') })
+    .click();
   await page.goto(boardUrl.replace('/tasks/board', '/tasks/list'));
   await expect(page.getByText(taskTitle).first()).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
