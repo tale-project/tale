@@ -97,6 +97,10 @@ hide a shared correction. Check the rendered label as well as key and ICU parity
 [translation skill](../../.agents/skills/write-translations/SKILL.md).
 
 The [Markdown registry](src/markdown/components/registry.tsx) defines the common docs components.
+Pass that registry to `Markdown` when rendering documentation components. Keep `<Frame>` tags
+on their own lines, separated from their contents by blank lines. The renderer protects the
+tag from HTML’s obsolete `frame` element so the figure and caption survive parsing; code
+examples remain literal.
 Product documentation follows the [product docs contract](../../docs/AGENTS.md); component
 examples follow the [design-system docs contract](../../services/ui-docs/content/README.md).
 Keep prop names, defaults, imports, and keyboard behavior aligned with the actual component.

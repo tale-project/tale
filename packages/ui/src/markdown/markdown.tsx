@@ -26,6 +26,7 @@ import { Mermaid } from './components/mermaid';
 import { isHttpUrl } from './is-http-url';
 import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
 import { rehypePreserveCodeMeta } from './plugins/rehype-preserve-code-meta';
+import { remarkFrame } from './plugins/remark-frame';
 
 type AlertTone = 'note' | 'tip' | 'info' | 'warning' | 'danger';
 
@@ -383,7 +384,11 @@ export function Markdown({ children, components, className }: MarkdownProps) {
         // nodes so `rehypeKatex` can render them; without it TeX would show
         // verbatim. It sits after `remarkGfm` so GFM tables/lists/fences are
         // unaffected.
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[
+          remarkGfm,
+          remarkMath,
+          ...(components && 'tale-frame' in components ? [remarkFrame] : []),
+        ]}
         // `rehypePreserveCodeMeta` lifts each code fence's metastring
         // (the part after the language, e.g. `` ```python Python ``) onto
         // a `data-meta` attribute. It must run before `rehype-raw`, which

@@ -201,6 +201,7 @@
         "@testing-library/react": "16.3.2",
         "@testing-library/user-event": "14.6.1",
         "@types/hast": "3.0.4",
+        "@types/mdast": "4.0.4",
         "@vitejs/plugin-react": "6.0.1",
         "@vitest/browser-playwright": "4.1.10",
         "storybook": "10.3.5",

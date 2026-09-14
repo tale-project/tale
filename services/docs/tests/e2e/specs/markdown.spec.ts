@@ -12,6 +12,28 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   const path = `${prefix}/self-hosted/configuration/approvals`;
 
   test.describe(`${locale} rendered Markdown`, () => {
+    test('shows frame captions and keeps keyboard image zoom usable', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`${prefix}/platform/knowledge/documents`);
+      const figure = page.locator('main figure').first();
+      await expect(figure.locator('figcaption')).toBeVisible();
+      await expect(figure.locator('figcaption')).not.toHaveText('');
+      const image = figure.getByRole('button');
+      await image.focus();
+      await page.keyboard.press('Enter');
+      const zoom = page.getByRole('dialog');
+      await expect(zoom.getByRole('img')).toBeVisible();
+      await expect(zoom.getByRole('img')).toHaveJSProperty(
+        'naturalWidth',
+        2880,
+      );
+      await page.keyboard.press('Escape');
+      await expect(zoom).not.toBeVisible();
+      await expect(image).toBeFocused();
+    });
+
     test('keeps long inline paths inside the phone viewport without changing their text', async ({
       page,
     }) => {

@@ -32,6 +32,8 @@ export const markdownComponents = {
   card: Card,
   cardgroup: CardGroup,
   frame: Frame,
+  // remarkFrame protects this authored component from HTML's void <frame>.
+  'tale-frame': Frame,
   steps: Steps,
   step: Step,
   tabs: Tabs,
