@@ -48,6 +48,7 @@ vi.mock('../domains/documents/service.ts', async (importOriginal) => {
   return {
     ...actual,
     getDocumentById: vi.fn(async () => ({ ...hubDocument })),
+    requireDocumentWriteAccess: vi.fn(async () => ({ ...hubDocument })),
     readDocumentRestExtras: vi.fn(async () => ({
       content: 'beta content',
       record: null,
@@ -610,6 +611,52 @@ describe('PATCH /documents/:id', () => {
       });
     }
     expect(vi.mocked(updateDocument).mock.calls.length).toBe(writesBefore);
+  });
+
+  it('rechecks If-Match after a concurrent edit while acquiring the document write lock', async () => {
+    const { requireDocumentWriteAccess, updateDocument } =
+      await import('../domains/documents/service.ts');
+    const { sql } = fakeSql([]);
+    const transaction = fakeSql([]).sql;
+    const app = mount(sql);
+    const read = await app.request('http://localhost/documents/doc-hub');
+    const current = entityTagOf(new TextEncoder().encode(await read.text()));
+    const writesBefore = vi.mocked(updateDocument).mock.calls.length;
+    Object.assign(sql, {
+      begin: async (run: (tx: Sql) => Promise<unknown>) => {
+        // Another writer commits after the request's preflight read but
+        // before its transaction acquires the row lock.
+        vi.mocked(requireDocumentWriteAccess).mockResolvedValueOnce({
+          ...hubDocument,
+          title: 'Concurrent edit',
+          updatedAt: hubDocument.updatedAt + 1,
+        } as never);
+        return run(transaction);
+      },
+    });
+    try {
+      const response = await app.request('http://localhost/documents/doc-hub', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'if-match': current },
+        body: JSON.stringify({ title: 'Stale overwrite' }),
+      });
+      expect(response.status).toBe(412);
+      expect(await response.json()).toMatchObject({
+        code: 'PRECONDITION_FAILED',
+        data: { etag: expect.not.stringMatching(new RegExp(`^${current}$`)) },
+      });
+      expect(requireDocumentWriteAccess).toHaveBeenLastCalledWith(
+        transaction,
+        expect.objectContaining({ organizationId: 'org-1' }),
+        'doc-hub',
+        { lock: true },
+      );
+      expect(vi.mocked(updateDocument).mock.calls.length).toBe(writesBefore);
+    } finally {
+      vi.mocked(requireDocumentWriteAccess)
+        .mockReset()
+        .mockResolvedValue({ ...hubDocument } as never);
+    }
   });
 
   it('applies a PATCH whose If-Match names the current representation, or any (*)', async () => {

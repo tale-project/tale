@@ -11,7 +11,7 @@ import {
   skillEditFields,
 } from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
@@ -65,6 +65,7 @@ import {
   queueRagIndexingRetry,
   readDocumentIndexing,
   readDocumentRestExtras,
+  requireDocumentWriteAccess,
   updateDocument,
 } from '../domains/documents/service.ts';
 import type { DocumentIndexingState } from '../domains/file_metadata/indexing-state.ts';
@@ -632,8 +633,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** The indexing state of every file-backed document on a page, by blob. */
-  const indexingOf = (c: Context<RestEnv>, docs: readonly DocumentRow[]) =>
-    readDocumentIndexing(deps.sql, c.get('organizationId'), [
+  const indexingOf = (
+    c: Context<RestEnv>,
+    docs: readonly DocumentRow[],
+    sql: Sql | TransactionSql = deps.sql,
+  ) =>
+    readDocumentIndexing(sql, c.get('organizationId'), [
       ...new Set(
         docs
           .map((doc) => doc.fileRef)
@@ -847,47 +852,48 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         if (backing) return backing;
       }
       const auth = await restProjectAuth(deps.sql, c);
-      // `If-Match` (RFC 9110 §13.1.1) is honoured the way the skills door
-      // honours it: the tag is the strong entity tag `GET /documents/{id}`
-      // answers — the digest of that read's JSON — so the same
-      // representation is rebuilt here and compared strongly (a `W/` tag
-      // never matches). A mismatch answers 412 `PRECONDITION_FAILED` with
-      // `data.etag` naming the current tag, nothing written. The header used
-      // to be ignored, so a client that reached for the standard HTTP
-      // precondition got a silent overwrite it thought it was guarded
-      // against (2026-09-14 evaluation, g8-5). `expectedUpdatedAt` remains
-      // the row-level precondition (409 `DOCUMENT_STALE`).
       const ifMatch = c.req.header('if-match');
-      if (ifMatch !== undefined) {
-        const extras = await readDocumentRestExtras(deps.sql, doc.id);
-        const indexing = await indexingOf(c, [doc]);
-        const current = hubDocumentPayload(
-          doc,
-          extras,
-          doc.fileRef === null ? undefined : indexing.get(doc.fileRef),
-        );
-        const etag = entityTagOf(
-          new TextEncoder().encode(JSON.stringify(current)),
-        );
-        const holds = ifMatchHolds(
-          parseEntityTagList(ifMatch),
-          parseEntityTag(etag),
-        );
-        if (!holds) {
-          return c.json(
-            {
-              error:
-                'The document does not carry the entity tag If-Match names — reload it, merge, and send its current etag',
-              code: 'PRECONDITION_FAILED',
-              data: { etag },
-            },
-            412,
+      const result = await deps.sql.begin(async (tx) => {
+        if (ifMatch !== undefined) {
+          // Validate the GET representation after acquiring the SAME row
+          // lock updateDocument holds. A preflight ETag check can pass
+          // before another writer commits, then overwrite that writer.
+          const locked = await requireDocumentWriteAccess(tx, auth, doc.id, {
+            lock: true,
+          });
+          if (
+            locked.projectId !== null ||
+            (locked.lifecycleStatus ?? 'active') !== 'active'
+          ) {
+            return notFound(c, 'Document not found', 'DOCUMENT_NOT_FOUND');
+          }
+          const extras = await readDocumentRestExtras(tx, locked.id);
+          const indexing = await indexingOf(c, [locked], tx);
+          const current = hubDocumentPayload(
+            locked,
+            extras,
+            locked.fileRef === null ? undefined : indexing.get(locked.fileRef),
           );
+          const etag = entityTagOf(
+            new TextEncoder().encode(JSON.stringify(current)),
+          );
+          if (
+            !ifMatchHolds(parseEntityTagList(ifMatch), parseEntityTag(etag))
+          ) {
+            return c.json(
+              {
+                error:
+                  'The document does not carry the entity tag If-Match names — reload it, merge, and send its current etag',
+                code: 'PRECONDITION_FAILED',
+                data: { etag },
+              },
+              412,
+            );
+          }
         }
-      }
-      const result = await deps.sql.begin((tx) =>
-        updateDocument(tx, auth, { documentId: doc.id, ...body }),
-      );
+        return updateDocument(tx, auth, { documentId: doc.id, ...body });
+      });
+      if (result instanceof Response) return result;
       // Same post-commit re-stamp as the app door: a team or folder change
       // moves the corpus filters, not the embeddings.
       if (
