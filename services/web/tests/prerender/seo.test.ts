@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { extractInlineScriptHashes } from '@tale/ui/server';
 import { describe, expect, it } from 'vitest';
 
+import { RELEASES } from '../../app/generated/releases-manifest';
+import { prerenderedBodyCount } from '../../lib/releases/prerender-budget';
 import { MARKETING_ROUTE_URLS } from '../../lib/seo/marketing-routes';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -135,13 +137,17 @@ describe('prerender SEO suite', () => {
   // Regression: the changelog prerendered all 40 release bodies, putting
   // ~400 KB of GitHub release notes into the HTML and growing with every
   // release. Ahrefs flags it as a slow page. Every release stays in the
-  // stream; bodies past `PRERENDERED_BODY_COUNT` mount on hydration from
-  // the manifest the JS bundle already ships.
+  // stream; only the newest bodies within `prerenderedBodyCount`'s byte
+  // budget are prerendered, the rest mount on hydration from the manifest
+  // the JS bundle already ships.
   describe('changelog page weight', () => {
-    // Mirrors DISPLAY_LIMIT / PRERENDERED_BODY_COUNT in
-    // app/pages/changelog-page.tsx. Update both together.
+    // Mirrors DISPLAY_LIMIT in app/pages/changelog-page.tsx; the body cut
+    // is the byte budget applied to the manifest this build fetched
+    // (`bun run build` refreshes it before prerendering).
     const RELEASES_IN_STREAM = 40;
-    const PRERENDERED_BODIES = 12;
+    const PRERENDERED_BODIES = prerenderedBodyCount(
+      RELEASES.slice(0, RELEASES_IN_STREAM),
+    );
     // The prose wrapper ReleaseBody renders — one per rendered body.
     const BODY_MARKER = /max-w-none text-\[15px\]/g;
 
@@ -157,12 +163,16 @@ describe('prerender SEO suite', () => {
         expect((found.match(BODY_MARKER) ?? []).length).toBe(
           PRERENDERED_BODIES,
         );
+        // The budget is a bound, never a reason to prerender nothing.
+        expect(PRERENDERED_BODIES).toBeGreaterThanOrEqual(1);
       });
 
       it(`${url} stays under the HTML size budget`, () => {
         const html = readHtml(url);
         if (!html) return;
-        // Was 407 KB with every body prerendered; 216 KB after.
+        // Was 407 KB with every body prerendered; 216 KB with a fixed
+        // twelve, until the 0.5.x fix releases' notes grew and the same
+        // twelve weighed 308 KB; ~245 KB under the byte budget.
         expect(html.length).toBeLessThan(300_000);
       });
     }

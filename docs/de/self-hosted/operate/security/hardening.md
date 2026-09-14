@@ -93,7 +93,7 @@ Gegen die eigene Bereitstellung prüfen:
 
 Die öffentliche Demo ist die Live-Referenz dafür, was eine korrekte Bereitstellung meldet: Der [Observatory-Scan von demo.tale.dev](https://developer.mozilla.org/de/observatory/analyze?host=demo.tale.dev) stand am 15.07.2026 bei A+ — Score 115/100, alle zehn Tests bestanden. Der einzige Header, der im Report als nicht implementiert steht — `Cross-Origin-Resource-Policy` — kostet keine Punkte und ist die bewusste Ausnahme direkt darunter.
 
-Cross-Origin-Isolation (COOP/CORP) bleibt auf der Plattform-App bewusst aus: `Cross-Origin-Opener-Policy: same-origin` würde die Fenster-Referenz kappen, über die ein OAuth-Anmelde-Popup die fertige Anmeldung an die App zurückmeldet, und `Cross-Origin-Resource-Policy` würde Branding-Assets blockieren, die von einem zweiten Host geladen werden. Die Content-Seiten, die beides nicht tun, aktivieren beide Header. HSTS wird nur ausgegeben, wenn `SITE_URL` `https://` ist.
+Cross-Origin-Isolation (COOP/CORP) bleibt auf der Plattform-App bewusst aus: `Cross-Origin-Opener-Policy: same-origin` würde die Fenster-Referenz kappen, über die ein OAuth-Anmelde-Popup die fertige Anmeldung an die App zurückmeldet, und `Cross-Origin-Resource-Policy` würde Branding-Assets blockieren, die von einem zweiten Host geladen werden. Die Content-Seiten, die beides nicht tun, aktivieren beide Header. HSTS wird nur ausgegeben, wenn `SITE_URL` `https://` ist, mit einem `max-age` von einem Jahr und ohne `includeSubDomains` oder `preload`: Selbst gehostete Deployments laufen auf den unterschiedlichsten Domains — eine Apex-Domain mit Nachbarn, die nur über HTTP laufen, eingeschlossen —, und einen Preload-Eintrag reicht der Operator selbst ein.
 
 ## Wo das hingehört
 

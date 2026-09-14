@@ -93,7 +93,7 @@ Vérifie-le sur ton propre déploiement :
 
 La démo publique est la référence en direct de ce qu’un déploiement correct rapporte : le [scan Observatory de demo.tale.dev](https://developer.mozilla.org/fr/observatory/analyze?host=demo.tale.dev) affichait A+ le 15/07/2026 — score 115/100, dix tests sur dix réussis. Le seul en-tête que le rapport liste comme non implémenté, `Cross-Origin-Resource-Policy`, ne coûte aucun point ; c’est l’exception délibérée décrite juste en dessous.
 
-L’isolation cross-origin (COOP/CORP) reste volontairement désactivée sur l’app de la plateforme : `Cross-Origin-Opener-Policy: same-origin` couperait la référence de fenêtre par laquelle un popup de connexion OAuth renvoie l’authentification terminée à l’app, et `Cross-Origin-Resource-Policy` bloquerait les ressources de marque chargées depuis un second hôte. Les sites de contenu, qui ne font ni l’un ni l’autre, activent les deux. HSTS n’est émis que lorsque `SITE_URL` est `https://`.
+L’isolation cross-origin (COOP/CORP) reste volontairement désactivée sur l’app de la plateforme : `Cross-Origin-Opener-Policy: same-origin` couperait la référence de fenêtre par laquelle un popup de connexion OAuth renvoie l’authentification terminée à l’app, et `Cross-Origin-Resource-Policy` bloquerait les ressources de marque chargées depuis un second hôte. Les sites de contenu, qui ne font ni l’un ni l’autre, activent les deux. HSTS n’est émis que lorsque `SITE_URL` est `https://`, avec un `max-age` d’un an et sans `includeSubDomains` ni `preload` : les déploiements auto-hébergés tournent sur des domaines variés — un apex avec des voisins en HTTP simple compris — et l’inscription sur la liste de preload, c’est l’opérateur qui la soumet lui-même.
 
 ## Où cela s'inscrit
 

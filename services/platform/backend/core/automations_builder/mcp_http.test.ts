@@ -576,6 +576,27 @@ describe('tools/call — arguments are held to the advertised schema', () => {
     expect(message).toContain('>= 1');
   });
 
+  // A blank string used to pass the schema and reach the engine, which
+  // answered its own `INVALID_PARAMS` refusal as data — a code the MCP page
+  // never promised. The schema now refuses it where a missing field is
+  // refused, so no dispatch refusal for a malformed argument reaches a
+  // client.
+  it('refuses a blank automation name, run id or query at the transport', async () => {
+    for (const [name, args] of [
+      ['get_automation', { name: '' }],
+      ['start_run', { name: '' }],
+      ['list_runs', { name: '' }],
+      ['get_run', { runId: '' }],
+      ['cancel_run', { runId: '' }],
+      ['search_catalog', { query: '' }],
+      ['search_catalog', { query: '   ' }],
+    ] as const) {
+      const { message, runAction } = await invalid(name, args);
+      expect(message).toContain('arguments.');
+      expect(runAction).not.toHaveBeenCalled();
+    }
+  });
+
   it('refuses an unexpected property by name', async () => {
     const { message } = await invalid('get_run', {
       runId: 'r1',
@@ -638,6 +659,11 @@ describe('tools/call — the developer gate on persistence tools', () => {
     const text = resultText(payload);
     expect(text).toContain('save_automation is refused for this key');
     expect(text).toContain('developer');
+    // The refusal carries the same code the store's own role refusal does,
+    // so a client branches on `code` here as on every other refusal.
+    expect(JSON.parse(text)).toMatchObject({
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+    });
     expect(runAction).not.toHaveBeenCalled();
   });
 

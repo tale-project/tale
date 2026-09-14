@@ -148,9 +148,11 @@ fi
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|^[[:space:]]*#[[:space:]]*TLS_PLACEHOLDER[[:space:]]*\$|\\t${TLS_CONFIG}|" "$CADDYFILE"
 # The edge's own JSON refusals carry HSTS exactly when the platform's
-# responses do (server.ts pins browsers only for an https public origin).
+# responses do (server.ts pins browsers only for an https public origin),
+# with the same one-year lifetime and, like the platform, no
+# includeSubDomains / preload — self-hosted domains vary.
 if echo "${SITE_URL}" | grep -qi '^https://'; then
-  sed -i "s|^[[:space:]]*#[[:space:]]*HSTS_PLACEHOLDER[[:space:]]*\$|\\theader Strict-Transport-Security \"max-age=15552000\"|" "$CADDYFILE"
+  sed -i "s|^[[:space:]]*#[[:space:]]*HSTS_PLACEHOLDER[[:space:]]*\$|\\theader Strict-Transport-Security \"max-age=31536000\"|" "$CADDYFILE"
 else
   sed -i "/# HSTS_PLACEHOLDER/d" "$CADDYFILE"
 fi

@@ -219,14 +219,22 @@ function object(
   };
 }
 
+/** `minLength: 1` on every string the engine would otherwise refuse as
+ * "missing" (`INVALID_PARAMS`, a blank `name`, `runId` or `query`): the
+ * transport holds a call to the schema `tools/list` advertised, so a blank
+ * is the same `-32602` a missing field gets, and no dispatch refusal code
+ * for a malformed argument ever reaches an MCP client — exactly what the
+ * MCP page promises. */
 const AUTOMATION_NAME: Record<string, unknown> = {
   type: 'string',
+  minLength: 1,
   description:
     'The automation name — a "/"-separated path, e.g. "billing/dunning-reminder".',
 };
 
 const RUN_ID: Record<string, unknown> = {
   type: 'string',
+  minLength: 1,
   description: 'The run handle start_run and list_runs return.',
 };
 
@@ -302,6 +310,10 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     {
       query: {
         type: 'string',
+        // The engine trims the query: whitespace alone is as missing as
+        // an empty string, and the schema says so first.
+        minLength: 1,
+        pattern: '\\S',
         description:
           'Capability keywords — verbs and objects, e.g. "send email".',
       },

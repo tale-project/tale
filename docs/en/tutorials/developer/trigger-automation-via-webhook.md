@@ -9,7 +9,7 @@ You need a Developer role in the org, an automation with a deployed version, and
 
 ## Before you begin
 
-Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — a single `transform` node, built on the canvas as [The workflow editor](/platform/automations/editor) describes.
+Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — a single `transform` node, built on the canvas as [The workflow editor](/platform/automations/editor) describes, or saved and deployed through the [MCP endpoint](/develop/mcp-endpoint)'s `save_automation` and `deploy_automation`. REST has no authoring door — `POST /api/v1/automations` answers **405**; it lists, reads, runs and wires triggers for automations built elsewhere — so this prerequisite is met in the app or over MCP, never from the REST key alone.
 
 For the project delivery below, choose an active project where this automation is installed. The project and trigger must belong to the same organization. The [API reference](/develop/api-reference) explains how to install an automation in a project.
 

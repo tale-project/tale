@@ -69,7 +69,7 @@ security headers, and none of the precompiled artifacts.
   `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`
   denying camera/mic/geolocation/… (clipboard deliberately **not** denied —
   the copy buttons need it), COOP/CORP `same-origin`;
-  `Strict-Transport-Security: max-age=15552000` on HTTPS only (mode A)
+  `Strict-Transport-Security: max-age=31536000` on HTTPS only (mode A)
 - [ ] `SEO-F10` · **Special endpoints** — `curl -s
   {base}/platform/chat/basics.md` and `{base}/de/platform/chat/basics.md` →
   Both serve the raw markdown (HTTP 200, not the HTML shell) — `.md`,

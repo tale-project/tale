@@ -140,6 +140,20 @@ default means deleting the override and fixing what surfaces:
   `invalid_args` (2026-09, round e). Paying it down means carrying `rawInput` on the stored part
   (`MessagePart` in `services/platform/scripts/openapi/spec.ts` + the app renderer) as an
   additive field.
+- **No image input on the REST chat send** — `GET /api/v1/models` advertises `capabilities.vision`
+  ("Reads images") as a fact about the model, but `POST …/threads/{id}/messages` takes text only
+  (`content`); the app's send carries `attachments[{fileId, fileName, fileType, fileSize}]`
+  (`services/platform/backend/domains/chat/routes.ts`) into the same `runChatTurn`, whose gate
+  (`backend/core/chat/turn_action.ts`, `validateTurnAttachments`) binds the blobs to the thread
+  lineage and inlines an image for a vision model (`lib/chat/wire-parts.ts` lifts `image/*` parts to
+  `attachmentRefs`). A data URI pasted into `content` reaches the model as text and is answered as
+  text, billed (2026-09, round f). The surface now says so. Paying it down means an `attachments`
+  field on the REST send naming staged uploads the key holder minted — `POST
+  /api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
+  unfiled `/api/v1/threads` lane lacks today — handed to `runChatTurn` as the app's
+  `{fileId: <s3Ref>, fileName, fileType, fileSize}`, with the spec's send body, the `Message`
+  `attachment` part on the read side, the upload allowlist (`UNSUPPORTED_FILE_TYPE`) and a
+  contract bump.
 - **Legacy NFD folder names beside NFC lookups** — folder names are now stored trimmed + NFC and
   every lookup canonicalises (`services/platform/backend/domains/folders/paths.ts`), but rows
   written before 2026-09 (round e) keep their bytes and the sibling index compares `lower(name)`

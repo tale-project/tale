@@ -28,20 +28,12 @@ import {
   groupReleasesByMonth,
   releaseDayOfMonth,
 } from '@/lib/releases/group-by-month';
+import { prerenderedBodyCount } from '@/lib/releases/prerender-budget';
 import type { Release } from '@/lib/releases/types';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const DISPLAY_LIMIT = 40;
-
-/**
- * How many release bodies the prerendered HTML carries. Rendering all 40
- * put ~250 KB of GitHub release notes into `dist/changelog/index.html`,
- * and it grew with every release; Ahrefs flags the page as slow. The rest
- * mount on hydration from `RELEASES`, which the JS bundle already ships,
- * so a visitor sees the same page.
- */
-const PRERENDERED_BODY_COUNT = 12;
 
 /** True when the GitHub release name is more than a version restatement. */
 function distinctiveReleaseName(release: Release): string | null {
@@ -88,6 +80,13 @@ export function ChangelogPage() {
   useEffect(() => {
     setHydrated(true);
   }, []);
+  // Until then only the newest bodies within the byte budget are rendered
+  // (`prerenderedBodyCount` — the same cut on the server and on the first
+  // client render); the rest mount from the manifest once `hydrated` flips.
+  const prerenderedBodies = useMemo(
+    () => prerenderedBodyCount(releases),
+    [releases],
+  );
 
   const tags = useMemo(() => releases.map((r) => r.tag), [releases]);
   const activeTag = useActiveRelease(tags);
@@ -182,7 +181,7 @@ export function ChangelogPage() {
               </h2>
             )}
             {release.body ? (
-              hydrated || index < PRERENDERED_BODY_COUNT ? (
+              hydrated || index < prerenderedBodies ? (
                 <div className="mt-5">
                   <ReleaseBody markdown={release.body} />
                 </div>

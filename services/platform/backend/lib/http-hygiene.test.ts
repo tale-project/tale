@@ -135,7 +135,7 @@ describe('backendSecureHeaders', () => {
       'http://localhost/api/v1/documents/1',
     );
     expect(secure.headers.get('strict-transport-security')).toBe(
-      'max-age=15552000',
+      'max-age=31536000',
     );
     expect(secure.headers.get('x-content-type-options')).toBe('nosniff');
     expect(secure.headers.get('x-frame-options')).toBe('DENY');

@@ -933,7 +933,7 @@ export function buildSpec(): Json {
       operationId: 'synchronizeConversationSource',
       summary: 'Apply a complete native Inbox source snapshot',
       description:
-        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this integration and still be within its window (400 `ATTACHMENT_NOT_STAGED` otherwise — a `storageId` that door never handed out, malformed or another organization’s, is the same refusal) at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on either refusal. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: a different `externalContactId` for a source conversation already mirrored answers 409 `CONVERSATION_CONTACT_CONFLICT`. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
       requestBody: jsonBody(
         z.toJSONSchema(apiSnapshotSchema, {
           target: 'openapi-3.0',
@@ -4332,7 +4332,7 @@ export function buildSpec(): Json {
               minLength: 1,
               maxLength: 100000,
               description:
-                'The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn.',
+                'The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer.',
             },
             model: {
               type: 'string',
@@ -4358,7 +4358,7 @@ export function buildSpec(): Json {
               type: 'integer',
               minimum: 1,
               description:
-                'The largest reply this turn may produce across every model round, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A tool-calling turn spends the cap round by round: a later round gets what the earlier ones left, and a round that would start with nothing left is not run. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: "length"` on the message — a cut that fell on an earlier round’s tool call included: that call does not run and its tool-result reads `status: "invalid_args"`.',
+                'The largest reply this turn may produce across every model round, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A tool-calling turn spends the cap round by round: a later round gets what the earlier ones left, and a round that would start with nothing left is not run. A reasoning model spends its reasoning inside the cap too, and the catalog does not say how much: a cap of a few hundred tokens can be consumed by the reasoning alone and settle an EMPTY reply — `complete`, `finishReason: "length"`, no text part, billed — so give a reasoning model a few thousand tokens or lower `reasoningEffort`. The one floor is the thinking-budget dialect (Anthropic-style extended thinking): there a cap under 2,048 is raised to 2,048; a model whose reasoning is set by an effort level (the GLM and DeepSeek families) has no floor and the cap bites exactly. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: "length"` on the message — a cut that fell on an earlier round’s tool call included: that call does not run and its tool-result reads `status: "invalid_args"`.',
             },
             locale: {
               type: 'string',
@@ -6947,7 +6947,10 @@ curl -H "Authorization: Bearer <api-key>" \\
               ...epochMs,
               description:
                 'When `testsPassed` was last judged; null beside a null ' +
-                'verdict',
+                'verdict, and null beside a verdict recorded before the ' +
+                'time was kept (0.5.23 and earlier) — a known verdict of ' +
+                'unknown age, never backfilled. Branch on `testsPassed` for ' +
+                'the verdict and on this field for its freshness only.',
             }),
             deployedVersion: nullable({
               ...int,
@@ -6989,7 +6992,10 @@ curl -H "Authorization: Bearer <api-key>" \\
               ...epochMs,
               description:
                 'When `testsPassed` was last judged; null beside a null ' +
-                'verdict',
+                'verdict, and null beside a verdict recorded before the ' +
+                'time was kept (0.5.23 and earlier) — a known verdict of ' +
+                'unknown age, never backfilled. Branch on `testsPassed` for ' +
+                'the verdict and on this field for its freshness only.',
             }),
             createdBy: {
               ...str,
@@ -7425,7 +7431,11 @@ curl -H "Authorization: Bearer <api-key>" \\
               additionalProperties: false,
               properties: {
                 tools: { ...bool, description: 'Accepts function tools' },
-                vision: { ...bool, description: 'Reads images' },
+                vision: {
+                  ...bool,
+                  description:
+                    'Reads images — a fact about the model, not an input this surface offers: the REST send is text only (`content`), so `vision` matters here for a thread the app continues with image attachments, whose `attachment` parts the model then sees. An image pasted into `content` as a data URI is read as text.',
+                },
                 reasoning: {
                   ...bool,
                   description: 'Has a controllable reasoning depth',
@@ -7446,7 +7456,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             tags: {
               ...strArray,
               description:
-                'The catalog’s capability tags (`chat`, `vision`, …) — an open, additive vocabulary',
+                'The catalog’s capability tags (`chat`, `vision`, …) — an open, additive vocabulary describing the model, like `capabilities`; `vision` does not add an image input to the text-only REST send',
             },
             default: {
               ...bool,

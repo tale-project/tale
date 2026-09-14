@@ -97,12 +97,21 @@ export const apiSnapshotSchema = z
   .strictObject({
     source: apiSourceSchema,
     externalId: apiExternalIdSchema,
-    externalContactId: apiExternalIdSchema,
+    // The snapshot never creates the contact: the id must already be a
+    // contact's `externalId` in this organization, so a mirror creates the
+    // contact through `POST /api/v1/contacts` first.
+    externalContactId: apiExternalIdSchema.describe(
+      'The `externalId` of an EXISTING contact in this organization — the snapshot links its conversation to that contact and never creates one: create the contact through `POST /api/v1/contacts` first. An id no contact carries answers 404 `CONTACT_NOT_FOUND`; one more than one contact carries 409 `CONTACT_AMBIGUOUS`. A trashed contact does not count.',
+    ),
     version: z.number().int().min(0),
     subject: z.string().min(1).max(1000),
     status: z.enum(['open', 'closed']),
     deleted: z.boolean().default(false),
-    replyConstraints: replyConstraintsSchema.prefault({}),
+    replyConstraints: replyConstraintsSchema
+      .describe(
+        'What a person’s Inbox reply to this conversation may carry — body length (`minBodyChars`, `maxBodyChars`), attachment count, size and file extensions. The Inbox enforces it when the reply is written and refuses one that breaks it; no snapshot is ever refused by it. Omitted, the defaults shown apply.',
+      )
+      .prefault({}),
     messages: z.array(apiSnapshotMessageSchema).max(200),
   })
   .superRefine((value, ctx) => {
