@@ -161,6 +161,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [notifications](../suites/notifications.md) | `NOTIF-F9`–`NOTIF-F11` | ⛔ manual-only | — (need two accounts in one org; mode A works) |
 | [notifications](../suites/notifications.md) | `NOTIF-F12` | ⛔ manual-only | — (env-gated: cron/agent-driven, documentation row) |
 | [notifications](../suites/notifications.md) | `NOTIF-F13` | 🔶 backend | — (no e2e; `convex/automations/human_asks.test.ts`: fan-out scope, prefs, fold rewrite, dismissal) |
+| [notifications](../suites/notifications.md) | `NOTIF-F15` | 🔶 backend | `backend/rest/v1-notifications.test.ts` (recipient/admin isolation, native targets, signed cursor scope, translations); deployment and connected-app round remain manual |
 | [notifications](../suites/notifications.md) | `NOTIF-B1`–`NOTIF-B3` | ⛔ manual-only | — |
 | [notifications](../suites/notifications.md) | `NOTIF-A1`–`NOTIF-A3` | ⛔ manual-only | — |
 | [performance](../suites/performance.md) | `PERF-P5` (pagination) | 🔶 partial | `projects-depth.spec.ts` (functional, NOT timed) |

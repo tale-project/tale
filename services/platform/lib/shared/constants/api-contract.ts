@@ -30,5 +30,8 @@
  * 1.7.0 — 2026-09-14: `setupFolderName` on the task intake — a root folder
  * of the project, bound by name as the task's `externalUrl` the way the
  * app's desks bind it — with its `400` `SETUP_FOLDER_MISSING`.
+ *
+ * 1.8.0 — 2026-09-14: recipient-scoped personal and organization notification
+ * export, with signed pagination cursors and the app's own deep links.
  */
-export const API_CONTRACT_VERSION = '1.7.0';
+export const API_CONTRACT_VERSION = '1.8.0';

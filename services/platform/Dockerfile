@@ -407,6 +407,7 @@ COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 # 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
 # in docker-entrypoint.sh execs `node /app/backend/main.ts`).
 COPY --from=pruner --chown=app:app /app/services/platform/backend ./backend
+COPY --from=pruner --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The
 # platform runs `bun server.ts` unbundled, so server-side imports of
