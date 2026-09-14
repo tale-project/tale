@@ -682,11 +682,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limit instanceof Response) return limit;
     try {
       const auth = await restProjectAuth(deps.sql, c);
+      // `folderId=root` is the hub root — the documents in no folder; any
+      // other value is a folder id. Omitting it lists the whole hub.
       const result = await listHubDocumentsPage(deps.sql, auth, {
         ...(query.sourceProvider !== undefined
           ? { sourceProvider: query.sourceProvider }
           : {}),
-        ...(query.folderId !== undefined ? { folderId: query.folderId } : {}),
+        ...(query.folderId !== undefined
+          ? { folderId: query.folderId === 'root' ? null : query.folderId }
+          : {}),
         cursor:
           cursor === null ? null : formatKeysetCursor(cursor.at, cursor.id),
         limit,

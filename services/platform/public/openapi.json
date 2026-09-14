@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -3267,7 +3267,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only documents inside this folder"
+            "description": "Only documents inside this folder — a folder id, or `root` for the documents in no folder. Omit it to list the whole hub, whatever folder a document sits in."
           },
           {
             "name": "X-Request-Id",
@@ -14846,7 +14846,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Only files inside this project folder"
+            "description": "Only files inside this project folder — a folder id of this project (any other id is 404 `FOLDER_NOT_FOUND`), or `root` for the files in no folder. Omit it to list every file of the project."
           },
           {
             "name": "cursor",
@@ -31647,7 +31647,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.9.0"
+          "example": "1.10.0"
         }
       },
       "RetryAfter": {

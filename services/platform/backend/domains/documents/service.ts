@@ -1070,13 +1070,15 @@ export interface HubDocumentsPage {
  * Hub documents, newest first, cursor-paginated — the REST listing. The
  * cursor is `<createdAt>:<id>` of the last row; team visibility filters
  * POST-page (like the in-app listing), so a page may run short of `limit`.
+ * `folderId` undefined lists the whole hub, `null` the documents in no
+ * folder (the root), a string one folder — the door spells the root `root`.
  */
 export async function listHubDocumentsPage(
   sql: Sql,
   auth: ProjectAuthContext,
   options: {
     sourceProvider?: string;
-    folderId?: string;
+    folderId?: string | null;
     cursor: string | null;
     limit: number;
   },
@@ -1099,8 +1101,8 @@ export async function listHubDocumentsPage(
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
       AND (${options.sourceProvider ?? null}::text IS NULL
         OR source_provider = ${options.sourceProvider ?? null})
-      AND (${options.folderId ?? null}::text IS NULL
-        OR folder_id = ${options.folderId ?? null})
+      AND (${options.folderId === undefined}
+        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
       AND (${cursorCreatedAt}::bigint IS NULL
         OR created_at_ms < ${cursorCreatedAt}
         OR (created_at_ms = ${cursorCreatedAt} AND id < ${cursorId}))
