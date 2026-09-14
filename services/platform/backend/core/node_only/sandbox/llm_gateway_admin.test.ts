@@ -338,6 +338,70 @@ describe('provisionProviders', () => {
     expect(network.base_url).toBe('https://open.bigmodel.cn/api/paas/v4');
   });
 
+  it('admits a private self-hosted upstream to the gateway only with the operator opt-in', async () => {
+    // The gateway refuses a private base_url by default ("Invalid base URL:
+    // private IP addresses are not allowed") and resolves the host first, so
+    // a LAN hostname is refused too. `allow_private_network` lifts it for the
+    // providers TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 already admitted.
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'selfhosted',
+        baseUrl: 'http://172.21.255.254:8081/vatplus/reasoning/v1',
+        apiKey: 'key-P',
+        models: ['glm-5.3'],
+      },
+    ]);
+    expect(writes(calls)[0]?.body).toMatchObject({
+      network_config: expect.objectContaining({
+        base_url: 'http://172.21.255.254:8081/vatplus/reasoning/v1',
+        allow_private_network: true,
+      }),
+    });
+  });
+
+  it('leaves the gateway guard in place for a private upstream without the opt-in', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'selfhosted',
+        baseUrl: 'http://172.21.255.254:8081/v1',
+        apiKey: 'key-Q',
+        models: ['glm-5.3'],
+      },
+    ]);
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const network = writes(calls)[0]?.body?.network_config as Record<
+      string,
+      unknown
+    >;
+    expect(network).not.toHaveProperty('allow_private_network');
+  });
+
+  it('never sends allow_private_network for a public upstream', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [
+      {
+        name: 'publichost',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'key-R',
+        models: ['m-1'],
+      },
+    ]);
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const network = writes(calls)[0]?.body?.network_config as Record<
+      string,
+      unknown
+    >;
+    expect(network).not.toHaveProperty('allow_private_network');
+  });
+
   it('provisions an apiFormat:"anthropic" custom provider with base_provider_type anthropic, no allowed_requests, un-stripped base_url', async () => {
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
