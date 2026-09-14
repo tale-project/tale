@@ -2,7 +2,7 @@
 
 > **Prefix** `SEARCH-` · **Reset** none · **Cost** 14 boxes
 
-Exercise the docs search — the header trigger and the **Cmd/Ctrl+K** shortcut,
+Exercise the docs search — the rail trigger and the **Cmd/Ctrl+K** shortcut,
 the shared `@tale/ui` `SearchCommand` dialog over a prebuilt MiniSearch index
 (one per locale, `scripts/build-search-index.ts`), result navigation,
 empty/short/no-result states, and the recent-searches store.
@@ -11,7 +11,7 @@ empty/short/no-result states, and the recent-searches store.
 
 | Surface       | Where                                                                                        |
 | ------------- | -------------------------------------------------------------------------------------------- |
-| Trigger       | header button **Open search** (`nav.openSearch`) — icon at mobile, labelled field at desktop |
+| Trigger       | **Open search** (`nav.openSearch`) — the rail's field from `md` up, the phone bar's icon and the drawer's field below |
 | Shortcut      | **Cmd/Ctrl+K** anywhere (`app/routes/__root.tsx`)                                            |
 | Dialog        | `app/features/search/dialog.tsx` → `@tale/ui` `SearchCommand`                                |
 | Index         | `{base}/search-index-{locale}.json` (static, built per locale)                               |
@@ -79,8 +79,10 @@ index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
 - [ ] `SEARCH-A1` · **Dialog** → The search is a labelled dialog (**Search
   documentation**, `search.title`); focus lands in the input on open; **Esc**
   closes and focus returns to the page.
-- [ ] `SEARCH-A2` · **Trigger** → The header trigger is a labelled control
-  (**Open search**) reachable by Tab at both mobile and desktop widths.
+- [ ] `SEARCH-A2` · **Trigger** → Every entry point is a labelled control
+  (**Open search**) reachable by Tab: the rail field at desktop, the bar icon
+  and the drawer field on a phone; the shortcut hint is a `<kbd>` inside the
+  field, not the control's name.
 - [ ] `SEARCH-A3` · **Announcements** → The result count (`search.results`) is
   exposed to AT; selected rows are conveyed programmatically, not colour-only.
 

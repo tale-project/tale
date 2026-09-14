@@ -55,7 +55,7 @@ German at `{base}/de/platform/chat/basics`.
 
 | Check          | Route / control                           | Verify                                                                                                                               |
 | -------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Landing        | `{base}/`                                 | h1 **Tale documentation** renders; sidebar + header visible                                                                          |
+| Landing        | `{base}/`                                 | h1 **Tale documentation** renders; rail + header strip visible                                                                          |
 | Sidebar        | `{base}/`                                 | the six top groups render: **Start here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**, **Development** (`nav.groups.*`) |
 | A content page | `{base}/self-hosted/install/quickstart`   | body + **On this page** TOC render                                                                                                   |
 | Search         | header **Open search** (`nav.openSearch`) | the dialog opens with the **Search documentation…** input                                                                            |

@@ -15,6 +15,7 @@ COPY package.json bun.lock bunfig.toml ./
 COPY packages/e2e/package.json ./packages/e2e/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/marketing-ui/package.json ./packages/marketing-ui/
 COPY services/platform/package.json ./services/platform/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/

@@ -54,8 +54,9 @@ clipboard permission.
 > heading-link labels are still **hard-coded English** (see
 > [locale.md](locale.md)). `<Step title>` renders a plain `<h3>` with **no
 > id** (`packages/ui/src/markdown/components/steps.tsx`) — Step titles are not
-> deep-linkable and never appear in the **On this page** TOC; anchor rows must
-> target real markdown H2/H3s.
+> deep-linkable and never appear in the **On this page** outline; anchor rows
+> must target real markdown H2/H3s. The **Open in** cluster is the shared
+> `DropdownMenu`, so its items are `menuitem`s inside a `role="menu"` panel.
 
 ## Functional tests
 
@@ -79,7 +80,7 @@ clipboard permission.
   anchorable — see the agent note.
 - [ ] `CONT-F4` · **Deep link entry** — Open the CONT-F3 URL (with hash) in a
   fresh tab → The page loads scrolled to that heading, offset below the sticky
-  header (`scroll-mt`), the right sidebar/TOC state matches
+  header strip (`scroll-mt`), the outline's active row matches
   ([navigation.md](navigation.md) NAV-F5)
 - [ ] `CONT-F5` · **Copy page** — Click **Copy page**
   (`docs.pageActions.copyPage`) in the page-actions cluster → Button flips to

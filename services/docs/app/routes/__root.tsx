@@ -9,8 +9,8 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { DocsFooter } from '@/app/components/docs/docs-footer';
-import { DocsHeader } from '@/app/components/docs/docs-header';
-import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
+import { DocsMobileNav } from '@/app/components/docs/docs-mobile-nav';
+import { DocsNavRail } from '@/app/components/docs/docs-nav-rail';
 import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
 import { SwUpdateBanner } from '@/app/components/docs/sw-update-banner';
 import { useT } from '@/lib/i18n/client';
@@ -68,6 +68,13 @@ const SECTION_TO_NAV_KEY: Record<string, string> = {
   tutorials: 'tutorials',
 };
 
+/**
+ * The docs shell, in the app's detail-page anatomy: a permanent `SubPanel`
+ * rail on the left (the phone reaches the same tree through the drawer in
+ * `DocsMobileNav`), and a single scrolling column holding the page's header
+ * strip, the article and the compact footer. The page owns its own header
+ * strip, so a route can render the trail and the actions that belong to it.
+ */
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [searchOpen, setSearchOpen] = useState(false);
@@ -80,6 +87,7 @@ function RootLayout() {
   const locale = localeFromPathname(pathname);
   const { resolvedTheme } = useTheme();
   const { t: tNav } = useT('nav');
+  const openSearch = useCallback(() => setSearchOpen(true), []);
 
   // ⌘K / Ctrl+K opens the search dialog.
   useEffect(() => {
@@ -118,27 +126,26 @@ function RootLayout() {
   const activeSlug = activeSlugFromPathname(pathname);
 
   return (
-    <div className="bg-bg-base text-fg-base flex min-h-screen flex-col">
+    <div className="bg-background text-foreground flex min-h-screen">
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
       <ThemeAssetSync resolvedTheme={resolvedTheme} />
       <SkipLink>{tNav('skipToMain')}</SkipLink>
-      <DocsHeader
+      <DocsNavRail
         locale={locale}
         activeSlug={activeSlug}
-        onOpenSearch={() => setSearchOpen(true)}
+        onOpenSearch={openSearch}
       />
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 px-4 sm:px-5 md:px-8">
-        <DocsSidebar locale={locale} activeSlug={activeSlug} />
-        <main
-          id="main"
-          className="min-w-0 flex-1 py-6 sm:py-8 lg:px-8 lg:py-10 xl:flex xl:gap-10"
-        >
-          <article className="min-w-0 flex-1">
-            <Outlet />
-          </article>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <DocsMobileNav
+          locale={locale}
+          activeSlug={activeSlug}
+          onOpenSearch={openSearch}
+        />
+        <main id="main" className="flex min-w-0 flex-1 flex-col">
+          <Outlet />
         </main>
+        <DocsFooter />
       </div>
-      <DocsFooter />
       <ScrollToTop />
       <SwUpdateBanner />
       {searchMounted ? (

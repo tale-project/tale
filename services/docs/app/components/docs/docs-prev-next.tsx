@@ -1,3 +1,4 @@
+import { Card } from '@tale/ui/card';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 
@@ -31,53 +32,55 @@ function pageLabel(locale: SupportedLocale, slug: string): string {
   return prettifySlug(slug);
 }
 
+/**
+ * Previous / next neighbours in flattened nav order, as the one bordered
+ * surface the app has: an interactive `Card` wrapping the router link.
+ */
 export function DocsPrevNext({
   locale,
   prevSlug,
   nextSlug,
 }: DocsPrevNextProps) {
-  // `useT('docs')` is safe even though `previous`/`next` keys aren't (yet) in
-  // the message bundles — i18next falls back to the key name, which renders as
-  // `previous`/`next` in dev. Once the keys are added in en/de/fr the labels
-  // localize automatically without further code changes.
   const { t } = useT('docs');
   if (!prevSlug && !nextSlug) return null;
+
   return (
-    <nav className="border-border-base mt-12 flex flex-col items-stretch gap-3 border-t pt-6 sm:flex-row">
+    <nav
+      aria-label={t('pagination')}
+      className="border-border mt-12 grid gap-3 border-t pt-8 sm:grid-cols-2"
+    >
       {prevSlug ? (
-        <Link
-          // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-          to={docPath(locale, prevSlug) as any}
-          className="border-border-base bg-bg-base hover:border-border-strong hover:bg-bg-elevated group flex min-w-0 flex-1 flex-col gap-1 rounded-lg border px-4 py-3 transition-colors"
-        >
-          <span className="text-fg-muted inline-flex items-center gap-1.5 text-xs">
-            <ArrowLeft aria-hidden className="size-3" />
-            {t('previous')}
-          </span>
-          <span className="text-fg-base truncate text-sm font-medium">
-            {pageLabel(locale, prevSlug)}
-          </span>
-        </Link>
-      ) : (
-        <div aria-hidden className="hidden flex-1 sm:block" />
-      )}
+        <Card asChild padding="md" interactive>
+          <Link
+            to={docPath(locale, prevSlug)}
+            className="flex min-w-0 flex-col gap-1"
+          >
+            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+              <ArrowLeft aria-hidden className="size-3" />
+              {t('previous')}
+            </span>
+            <span className="text-foreground truncate text-sm font-medium">
+              {pageLabel(locale, prevSlug)}
+            </span>
+          </Link>
+        </Card>
+      ) : null}
       {nextSlug ? (
-        <Link
-          // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-          to={docPath(locale, nextSlug) as any}
-          className="border-border-base bg-bg-base hover:border-border-strong hover:bg-bg-elevated group flex min-w-0 flex-1 flex-col gap-1 rounded-lg border px-4 py-3 text-right transition-colors"
-        >
-          <span className="text-fg-muted inline-flex items-center justify-end gap-1.5 text-xs">
-            {t('next')}
-            <ArrowRight aria-hidden className="size-3" />
-          </span>
-          <span className="text-fg-base truncate text-sm font-medium">
-            {pageLabel(locale, nextSlug)}
-          </span>
-        </Link>
-      ) : (
-        <div aria-hidden className="hidden flex-1 sm:block" />
-      )}
+        <Card asChild padding="md" interactive className="sm:col-start-2">
+          <Link
+            to={docPath(locale, nextSlug)}
+            className="flex min-w-0 flex-col items-end gap-1 text-right"
+          >
+            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+              {t('next')}
+              <ArrowRight aria-hidden className="size-3" />
+            </span>
+            <span className="text-foreground max-w-full truncate text-sm font-medium">
+              {pageLabel(locale, nextSlug)}
+            </span>
+          </Link>
+        </Card>
+      ) : null}
     </nav>
   );
 }

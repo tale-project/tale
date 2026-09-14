@@ -1,13 +1,14 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 19 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 22 boxes
 
-Exercise every way a reader moves through the docs — the sidebar tree
-(`docs/nav.json`), collapsible sub-groups, breadcrumbs, previous/next links,
-the on-page TOC with scroll-spy, the back-to-top button, the mobile drawer,
-the styled 404 with did-you-mean suggestions, the moved-page redirects
-(`docs/redirects.json`), and the PWA layer (offline shell + service-worker
-update banner). Search has its own guide ([search.md](search.md)).
+Exercise every way a reader moves through the docs — the navigation rail
+(`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
+previous/next cards, the on-page outline with scroll-spy, the back-to-top
+button, the phone drawer, the styled 404 with did-you-mean suggestions, the
+moved-page redirects (`docs/redirects.json`), and the PWA layer (offline shell
++ service-worker update banner). Search has its own guide
+([search.md](search.md)).
 
 ## Scope & routes
 
@@ -17,7 +18,7 @@ update banner). Search has its own guide ([search.md](search.md)).
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
-| Sidebar source | [`docs/nav.json`](../../../../../docs/nav.json) → `lib/content/nav.ts`                                                                       |
+| Rail source    | [`docs/nav.json`](../../../../../docs/nav.json) → `lib/content/nav.ts`                                                                       |
 | Redirects      | [`docs/redirects.json`](../../../../../docs/redirects.json) → `lib/redirects.ts` (server 301s) + `scripts/prerender.ts` (meta-refresh stubs) |
 | PWA            | `public/offline.html` + `app/components/docs/sw-update-banner.tsx` (`pwa.*` keys)                                                         |
 
@@ -27,38 +28,44 @@ Bring the site up per [SETUP.md](../setup.md) — either mode for
 NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
-registers no service worker. The sidebar tree is build-time static;
+registers no service worker. The rail tree is build-time static;
 `navigation.test.ts` already guarantees every entry resolves to a page, so
 this guide focuses on **behaviour**, not link rot.
 
-> **Agent note**: the sidebar is a `<nav>` whose `aria-label` comes from
-> `nav.sidebarAriaLabel` (EN **Documentation**); the active link carries
-> `aria-current="page"`. Group toggles are buttons with `aria-expanded`. The
-> TOC is the `<aside>` labelled **On this page** (`docs.onThisPage`) and only
-> renders at the `xl` breakpoint — use a ≥ 1280 px viewport for NAV-F5/NAV-F6.
-> Scroll-spy marks the active TOC item with `aria-current="true"`.
+> **Agent note**: the rail is the app's `SubPanel` — a `<nav>` whose
+> `aria-label` comes from `nav.sidebarAriaLabel` (EN **Documentation**),
+> carrying the logo row, the search field and the tree, and hidden below
+> `md` (768 px) where the phone bar's **Open navigation menu** opens the same
+> tree in a left drawer. Exactly one row carries `aria-current="page"` —
+> ancestors do not. Group toggles are buttons with `aria-expanded`. The
+> outline is the `<aside>` labelled **On this page** (`docs.onThisPage`) from
+> `xl` (1280 px) up — use a ≥ 1280 px viewport for NAV-F5 — and the same list
+> inside a `<nav>` disclosure above the article below that width; the copy the
+> stylesheet hides is `aria-hidden`, so only one is ever in the a11y tree.
+> Scroll-spy marks the active outline item with `aria-current="true"`.
 
 ## Functional tests
 
-- [ ] `NAV-F1` · **Sidebar tree** — On `{base}/`, read the sidebar → The six
-  top groups render in `nav.json` order: **Start here**, **Cloud**,
-  **Self-hosted**, **Platform**, **Tutorials**, **Development**
-  (`nav.groups.*`); clicking a page link commits its slug URL and renders that
-  page.
+- [ ] `NAV-F1` · **Rail tree** — On `{base}/`, read the rail → The six top
+  groups render in `nav.json` order as uppercase section labels: **Start
+  here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**,
+  **Development** (`nav.groups.*`); clicking a page row commits its slug URL
+  and renders that page.
 - [ ] `NAV-F2` · **Sub-group collapse** — In **Platform**, click a sub-group
   header (e.g. **Chat**, `nav.groups.chat`) → The button toggles
   `aria-expanded` and the child links show/hide; collapsing does **not**
   navigate.
 - [ ] `NAV-F3` · **Active state** — Open `{base}/platform/chat/basics`
-  directly (deep link) → The sidebar auto-expands every ancestor group of the
-  active page; the active link has `aria-current="page"` and is scrolled into
-  view within the sidebar.
+  directly (deep link) → The rail auto-expands every ancestor group of the
+  active page; the active row is filled, carries `aria-current="page"` — the
+  **only** row that does — and is scrolled into view within the rail.
 - [ ] `NAV-F4` · **Breadcrumbs** — On a nested page, read the `<nav
-  aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) → Trail = **Home**
-  (`docs.home`, links to `{base}/`) → group labels → current page (marked
-  `aria-current="page"`, not a link); the landing page (`index`) shows **no**
-  breadcrumbs; clicking a crumb navigates there.
-- [ ] `NAV-F5` · **TOC + scroll-spy** — ≥ 1280 px viewport, on a long page
+  aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
+  Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
+  page (marked `aria-current="page"`, not a link, and **not** a heading — the
+  page's only `<h1>` is the article title below); on the landing page the trail
+  is **Home** alone, as its own current leaf; clicking a crumb navigates there.
+- [ ] `NAV-F5` · **Outline + scroll-spy** — ≥ 1280 px viewport, on a long page
   (e.g. `{base}/self-hosted/install/quickstart`): scroll through the sections
   → The **On this page** aside lists the page's **markdown** H2/H3s only
   (`extract-toc.ts` reads the markdown source) — `<Step title>` headings
@@ -68,14 +75,17 @@ this guide focuses on **behaviour**, not link rot.
   history entry per click.
 - [ ] `NAV-F6` · **Prev/next** — On a page in the middle of a group, scroll to
   the page bottom → **Previous** (`docs.previous`) and **Next** (`docs.next`)
-  cards link to the flattened-nav neighbours; the first page has no Previous,
-  the last no Next; clicking navigates and scrolls to top.
+  cards link to the flattened-nav neighbours, inside a `<nav>` named **Page
+  navigation** (`docs.pagination`); the first page has no Previous, the last no
+  Next, and the remaining card keeps its side of the row; clicking navigates
+  and scrolls to top.
 - [ ] `NAV-F7` · **Back to top** — Scroll a long page > 600 px down → The
   **Back to top** button (`docs.backToTop`) fades in (fixed, bottom-right);
   clicking it returns to the top and it disappears again.
-- [ ] `NAV-F8` · **Header + logo** — Click the header logo (aria-label **Tale
-  documentation home**, `nav.homeAriaLabel`) from a deep page → Returns to
-  `{base}/` (locale-preserving: from `/de/…` it returns to `{base}/de`)
+- [ ] `NAV-F8` · **Logo home** — Click the logo at the top of the rail
+  (aria-label **Tale documentation home**, `nav.homeAriaLabel`; on a phone the
+  same logo sits in the header bar) from a deep page → Returns to `{base}/`
+  (locale-preserving: from `/de/…` it returns to `{base}/de`)
 - [ ] `NAV-F9` · **Moved-page 301s** — Built server only — `curl -sI` three
   old slugs: `{base}/platform/integrations/overview`,
   `{base}/platform/workflows/triggers`,
@@ -104,6 +114,21 @@ this guide focuses on **behaviour**, not link rot.
   **Dismiss** (`pwa.dismiss`) hides it; the offline-ready toast
   (`pwa.offlineReady`) is one-shot and removes itself after ~4 s
   (`sw-update-banner.tsx`)
+- [ ] `NAV-F13` · **Header strip pinned** — ≥ 768 px, scroll a long page down →
+  The breadcrumb + page-actions strip stays pinned at the top of the article
+  column (one `h-13` row, translucent, content scrolling under it), the rail
+  stays put beside it, and there is exactly **one** horizontal line under the
+  strip — it meets the rail's logo-row line without a step or a double border.
+- [ ] `NAV-F14` · **Phone drawer** — ≤ 767 px: tap **Open navigation menu**
+  (`nav.openMenu`) → A left drawer slides in over a dimmed page carrying the
+  logo, **Close navigation menu** (`nav.closeMenu`), the search field and the
+  full tree; the page behind does not scroll; one **Esc** closes it and focus
+  returns to the menu button; choosing a page closes it and navigates; growing
+  the window past 768 px with it open leaves a clickable page, not a scrim.
+- [ ] `NAV-F15` · **Outline below `xl`** — Between 768 px and 1279 px, open a
+  long page → The right-hand outline rail is gone and **On this page**
+  (`docs.onThisPage`) is a collapsed disclosure above the article; opening it
+  reveals the same headings, and choosing one scrolls to that section.
 
 ## Boundary & error tests
 
@@ -122,18 +147,18 @@ this guide focuses on **behaviour**, not link rot.
 
 ## Accessibility (WCAG 2.1 AA)
 
-- [ ] `NAV-A1` · **Landmarks** → One `<main>`; the sidebar is `<nav
-  aria-label>` = `nav.sidebarAriaLabel` (EN **Documentation**); breadcrumbs
-  `<nav aria-label>` = **Breadcrumbs**; the TOC an `<aside>` labelled **On
-  this page**.
-- [ ] `NAV-A2` · **Keyboard** → The whole sidebar (group toggles + links) and
-  the TOC operate by keyboard; Enter/Space toggles groups; focus visible
-  throughout.
-- [ ] `NAV-A3` · **Current markers** → Active sidebar link
-  `aria-current="page"`; active TOC item `aria-current="true"`; breadcrumb
-  leaf `aria-current="page"`
+- [ ] `NAV-A1` · **Landmarks** → One `<main>`; the rail is `<nav aria-label>` =
+  `nav.sidebarAriaLabel` (EN **Documentation**); breadcrumbs `<nav aria-label>`
+  = **Breadcrumbs**; the outline an `<aside>` labelled **On this page** at
+  `xl`, a `<nav>` of the same name below it — never both in the a11y tree.
+- [ ] `NAV-A2` · **Keyboard** → The whole rail (logo, search field, group
+  toggles, rows) and the outline operate by keyboard; Enter/Space toggles
+  groups; focus visible throughout.
+- [ ] `NAV-A3` · **Current markers** → Exactly one rail row carries
+  `aria-current="page"` (ancestors of the open page do **not**); active outline
+  item `aria-current="true"`; breadcrumb leaf `aria-current="page"`
 
 ## Performance
 
-- [ ] `NAV-P1` · **Page-to-page** → A sidebar navigation settles (new body
+- [ ] `NAV-P1` · **Page-to-page** → A rail navigation settles (new body
   rendered) in **< 1 s** warm — content is prebuilt.

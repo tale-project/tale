@@ -1,7 +1,11 @@
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
+import { Text } from '@tale/ui/text';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { FileText } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { DocsPageHeader } from '@/app/components/docs/docs-page-header';
 import { flattenNav } from '@/lib/content/nav';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
@@ -92,46 +96,55 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
   });
 
   return (
-    <div className="flex flex-col items-start gap-6 py-16">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-fg-base text-3xl font-semibold">
-          {t('notFoundTitle')}
-        </h1>
-        <p className="text-fg-muted">{t('notFoundBody')}</p>
-      </div>
-
-      {suggestions.length > 0 && (
-        <nav
-          aria-label={t('notFoundSuggestions')}
-          className="flex flex-col gap-2"
-        >
-          <p className="text-fg-base text-sm font-medium">
-            {t('notFoundSuggestions')}
+    <>
+      <DocsPageHeader
+        locale={locale}
+        crumbs={[{ label: t('notFoundTitle') }]}
+      />
+      <div className="mx-auto flex w-full max-w-6xl flex-1 px-4 py-8 lg:px-6">
+        <div className="w-full max-w-3xl min-w-0 flex-1">
+          <h1 className="text-foreground text-3xl font-semibold tracking-tight md:text-4xl">
+            {t('notFoundTitle')}
+          </h1>
+          <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+            {t('notFoundBody')}
           </p>
-          <ul className="flex flex-col gap-1">
-            {suggestions.map((slug) => (
-              <li key={slug}>
-                <Link
-                  // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-                  to={docPath(locale, slug) as any}
-                  className="text-fg-link hover:text-fg-link-hover text-sm underline-offset-4 hover:underline"
-                >
-                  {slugLabel(slug, t('home'))}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
 
-      <Button asChild variant="secondary">
-        <Link
-          // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-          to={docPath(locale, 'index') as any}
-        >
-          {t('notFoundBackHome')}
-        </Link>
-      </Button>
-    </div>
+          {suggestions.length > 0 && (
+            <nav aria-label={t('notFoundSuggestions')} className="mt-8">
+              <Text variant="label" className="mb-2">
+                {t('notFoundSuggestions')}
+              </Text>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {suggestions.map((slug) => (
+                  <li key={slug}>
+                    <Card asChild padding="md" interactive>
+                      <Link
+                        to={docPath(locale, slug)}
+                        className="flex min-w-0 items-center gap-2"
+                      >
+                        <FileText
+                          aria-hidden
+                          className="text-muted-foreground size-4 shrink-0"
+                        />
+                        <span className="text-foreground truncate text-sm font-medium">
+                          {slugLabel(slug, t('home'))}
+                        </span>
+                      </Link>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
+
+          <div className="mt-8">
+            <Button asChild variant="secondary">
+              <Link to={docPath(locale, 'index')}>{t('notFoundBackHome')}</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

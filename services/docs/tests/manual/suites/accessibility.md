@@ -1,9 +1,9 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 14 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 15 boxes
 
 A WCAG 2.1 **Level AA** sweep across the docs site, including the theme
-switcher and the mobile drawer. Tale's standard (root
+switcher and the phone drawer. Tale's standard (root
 [`AGENTS.md`](../../../../../AGENTS.md) → Accessibility) is mandatory.
 Per-area guides carry their own `A#` rows; this guide is the holistic pass and
 the place to log _systemic_ findings.
@@ -35,19 +35,22 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
   content**); it becomes visible on focus; Enter moves focus into the main
   content.
 - [ ] `A11Y-A2` · **Landmarks** — Query `main, header, footer, nav, aside` →
-  Exactly one `<main>`; sidebar `<nav aria-label>` = `nav.sidebarAriaLabel`
-  (EN **Documentation**); breadcrumbs `<nav>` labelled **Breadcrumbs**; TOC
-  `<aside>` labelled **On this page**; one `<header>`, one `<footer>`
+  Exactly one `<main>`; rail `<nav aria-label>` = `nav.sidebarAriaLabel`
+  (EN **Documentation**); breadcrumbs `<nav>` labelled **Breadcrumbs**;
+  outline `<aside>` labelled **On this page** (a `<nav>` of the same name below
+  `xl`, never both exposed); prev/next `<nav>` labelled **Page navigation**;
+  one `<header>` (the phone bar, hidden from `md` up), one `<footer>`
 - [ ] `A11Y-A3` · **Rendered headings** — Walk headings top→bottom on landing
   + content page → Exactly one `<h1>` (the page title); rendered levels never
   skip. Caveat: `<Step title>` injects an `<h3>` regardless of context
   (`@tale/ui` `steps.tsx`) — on a page whose Steps sit directly under an H2
   that's fine, but flag any page where a Step h3 follows the H1 with no H2
   between.
-- [ ] `A11Y-A4` · **Keyboard reach** — Tab through: header (logo, search,
-  menu), sidebar, body links, page actions, prev/next, footer switchers →
-  Everything is focusable and operable by keyboard in a sensible order; no
-  keyboard trap; hover-revealed copy buttons appear on focus.
+- [ ] `A11Y-A4` · **Keyboard reach** — Tab through: skip link, rail (logo,
+  search field, tree), header-strip page actions, body links, prev/next, footer
+  switchers — and on a phone the bar (menu, logo, search) → Everything is
+  focusable and operable by keyboard in a sensible order; no keyboard trap;
+  hover-revealed copy buttons appear on focus.
 - [ ] `A11Y-A5` · **Visible focus** — Repeat A11Y-A4 watching the focus
   indicator — in **both** themes → A visible focus ring on every stop
   (`focus-visible:ring` styles); never invisible against its background.
@@ -57,15 +60,16 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
   option programmatically marked; the choice persists
   (`localStorage['tale-theme']`); contrast spot-checks (body ≥ 4.5:1, muted
   text ≥ 4.5:1, code tokens ≥ 4.5:1) pass in **both** themes.
-- [ ] `A11Y-A7` · **Mobile drawer** — ≤ 767 px: header **Open navigation
-  menu** (`nav.openMenu`) → Button toggles to **Close navigation menu**
-  (`nav.closeMenu`) with `aria-expanded`; the drawer contains the search
-  trigger + full nav tree; Esc closes it; choosing a page closes it and
-  navigates; body scroll locks while open.
+- [ ] `A11Y-A7` · **Phone drawer** — ≤ 767 px: the bar's **Open navigation
+  menu** (`nav.openMenu`) carries `aria-expanded` and opens a modal drawer
+  holding its own **Close navigation menu** (`nav.closeMenu`) button, the
+  search field and the full tree → Focus moves into the drawer and stays
+  trapped there; **one** Esc closes it and focus returns to the menu button;
+  choosing a page closes it and navigates; body scroll locks while open.
 - [ ] `A11Y-A8` · **Reduced motion** — With `prefers-reduced-motion: reduce`,
-  expand sidebar groups, open search, use back-to-top → Collapse/expand and
-  scroll behaviours present without animation (framer-motion reduced paths;
-  instant scroll)
+  expand rail groups, open the drawer, open search, use back-to-top →
+  Collapse/expand, drawer and scroll behaviours present without animation
+  (`motion-reduce:` paths; instant scroll)
 - [ ] `A11Y-A9` · **Image zoom** — On `{base}/platform/chat/basics`, Tab to a
   screenshot, Enter, then Esc → The zoom trigger is a button named by the
   image alt; the lightbox traps focus (Tab cycles inside), Esc closes it, and
@@ -81,6 +85,10 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
   The container is `role="status"` with `aria-live="polite"` — announced
   without stealing focus; **Reload** / **Dismiss** are real buttons reachable
   by Tab; the one-shot offline toast (self-removes ~4 s) never traps focus.
+- [ ] `A11Y-A12` · **One page title** — On a content page and on the 404, walk
+  the accessibility tree → Exactly one `<h1>`, and it is the article title; the
+  header strip's breadcrumb leaf is a plain `aria-current="page"` marker, not a
+  heading, so the outline never gains a second title.
 
 ## Boundary & error tests
 

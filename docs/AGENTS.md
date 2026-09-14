@@ -14,7 +14,11 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   disk but not in the nav is invisible; a nav slug with no file fails the suite.
 - Redirects: [`docs/redirects.json`](redirects.json) — old slug → new slug for every moved or
   merged page; served as 301s and prerendered as meta-refresh stubs.
-- The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML).
+- The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
+  chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
+  `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
+  the "On this page" outline (a rail from `xl`, a disclosure below it). Component map:
+  [`services/docs/README.md`](../services/docs/README.md) → _The chrome_.
 
 ## Directory → tab → audience
 

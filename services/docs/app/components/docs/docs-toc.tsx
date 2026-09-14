@@ -1,5 +1,12 @@
 import { cn } from '@tale/ui/cn';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import type { TocEntry } from '@tale/ui/markdown/extract-toc';
+import {
+  SUB_PANEL_ROW_CLASS,
+  SubPanelSectionHeader,
+  useSubPanelRowTreatment,
+} from '@tale/ui/sub-panel-list';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -16,16 +23,18 @@ interface DocsTocProps {
 // than the 24px gap, so the extra tolerance can't cause oscillation.
 const ACTIVATION_OFFSET = 120;
 
+/** Tailwind `xl` — the width at which the outline earns its own rail. */
+const TOC_RAIL_QUERY = '(min-width: 1280px)';
+
 /**
- * Right-rail "On this page" outline with scroll-spy. The active heading is
- * the last one whose top has scrolled past `ACTIVATION_OFFSET`. The rule is
+ * Scroll-spy over the page's headings. The active heading is the last one
+ * whose top has scrolled past {@link ACTIVATION_OFFSET}. The rule is
  * monotonic in scroll direction, so adjacent headings can't oscillate the
  * way an IntersectionObserver does when its callback only delivers entries
  * that just crossed a threshold (which makes `visible[0]` flip between two
  * close-together headings).
  */
-export function DocsToc({ entries }: DocsTocProps) {
-  const { t } = useT('docs');
+function useActiveHeading(entries: TocEntry[]): string | null {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,62 +82,110 @@ export function DocsToc({ entries }: DocsTocProps) {
     };
   }, [entries]);
 
+  return activeId;
+}
+
+function TocRow({
+  entry,
+  active,
+  onSelect,
+}: {
+  entry: TocEntry;
+  active: boolean;
+  onSelect: (e: React.MouseEvent<HTMLAnchorElement>, id: string) => void;
+}) {
+  const treatment = useSubPanelRowTreatment(active);
+  return (
+    <li>
+      <a
+        href={`#${entry.id}`}
+        onClick={(e) => onSelect(e, entry.id)}
+        aria-current={active ? 'true' : undefined}
+        className={cn(
+          SUB_PANEL_ROW_CLASS,
+          'h-auto min-h-8 py-1.5 leading-snug',
+          entry.level === 3 && 'pl-5',
+          treatment.className,
+        )}
+        {...(treatment.style !== undefined ? { style: treatment.style } : {})}
+      >
+        {entry.text}
+      </a>
+    </li>
+  );
+}
+
+function TocList({ entries }: DocsTocProps) {
+  const activeId = useActiveHeading(entries);
+
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     const el = document.getElementById(id);
     if (!el) return;
     e.preventDefault();
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setActiveId(id);
     if (history.replaceState) history.replaceState(null, '', `#${id}`);
   };
 
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {entries.map((entry) => (
+        <TocRow
+          key={entry.id}
+          entry={entry}
+          active={activeId === entry.id}
+          onSelect={handleClick}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Right-rail "On this page" outline with scroll-spy, in the sub-panel row
+ * vocabulary so it reads as the mirror of the navigation rail. Renders from
+ * `xl` up; narrower viewports get {@link DocsTocOutline} above the article.
+ */
+export function DocsToc({ entries }: DocsTocProps) {
+  const { t } = useT('docs');
+  const isRail = useMediaQuery(TOC_RAIL_QUERY);
   if (entries.length === 0) return null;
 
   return (
     <aside
       aria-label={t('onThisPage')}
-      className="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 overflow-y-auto py-6 pl-4 xl:block"
+      // The outline ships twice (rail + disclosure) so the prerendered HTML
+      // carries it at any width; mark the copy the stylesheet hides so only
+      // one reaches the accessibility tree — the `AdaptiveHeader` contract.
+      aria-hidden={!isRail || undefined}
+      className="sticky top-13 hidden h-[calc(100vh-3.25rem)] w-56 shrink-0 flex-col gap-1 overflow-y-auto py-8 pr-4 xl:flex"
     >
-      <h2 className="text-fg-base mb-2 px-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
-        {t('onThisPage')}
-      </h2>
-      <ul className="flex flex-col">
-        {entries.map((entry) => {
-          const isActive = activeId === entry.id;
-          const depth = entry.level === 3 ? 1 : 0;
-          const paddingLeft = 12 + depth * 12;
-          return (
-            <li key={entry.id}>
-              <a
-                href={`#${entry.id}`}
-                onClick={(e) => handleClick(e, entry.id)}
-                aria-current={isActive ? 'true' : undefined}
-                style={{ paddingLeft }}
-                className={cn(
-                  'focus-visible:ring-fg-base/40 group relative block rounded-md py-1.5 pr-2 text-sm leading-tight transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                  isActive
-                    ? 'bg-bg-elevated text-fg-base font-medium'
-                    : 'text-fg-muted hover:text-fg-base hover:bg-bg-elevated/60',
-                )}
-              >
-                {depth > 0 ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'absolute top-0 bottom-0 w-px transition-colors',
-                      isActive
-                        ? 'bg-fg-base'
-                        : 'bg-border-base group-hover:bg-fg-muted',
-                    )}
-                    style={{ left: paddingLeft - 12 }}
-                  />
-                ) : null}
-                {entry.text}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
+      <SubPanelSectionHeader label={t('onThisPage')} />
+      <TocList entries={entries} />
     </aside>
+  );
+}
+
+/**
+ * The same outline for viewports with no room for the rail: a disclosure
+ * above the article body, collapsed by default so the page still opens on
+ * its own first paragraph.
+ */
+export function DocsTocOutline({ entries }: DocsTocProps) {
+  const { t } = useT('docs');
+  const isRail = useMediaQuery(TOC_RAIL_QUERY);
+  if (entries.length === 0) return null;
+
+  return (
+    <nav
+      aria-label={t('onThisPage')}
+      aria-hidden={isRail || undefined}
+      className="border-border mb-8 border-b pb-4 xl:hidden"
+    >
+      <CollapsibleDetails summary={t('onThisPage')}>
+        <div className="mt-2">
+          <TocList entries={entries} />
+        </div>
+      </CollapsibleDetails>
+    </nav>
   );
 }

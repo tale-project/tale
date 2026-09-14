@@ -17,6 +17,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `@tale/ui` component tests (`checkAccessibility()` via `vitest-axe`) + Storybook a11y addon |
 | [accessibility](../suites/accessibility.md) | Source heading hierarchy | ✅ automated | vitest `structure-headings.test.ts` (per-page heading rules in the corpus) |
+| [accessibility](../suites/accessibility.md) | Docs chrome axe (rail tree, header strip, outline) | ✅ automated | `app/components/docs/*.test.tsx` via the service-local `tests/utils/a11y.ts` (`checkAccessibility()`) |
+| [accessibility](../suites/accessibility.md) | `A11Y-A12` (one page title) | ✅ automated | `page-header.spec.ts` (one `h1`, in the article; the trail leaf is a plain current marker) + `tests/prerender/seo.test.ts` |
 | [accessibility](../suites/accessibility.md) | Full-page audits (`A11Y-A1`–`A11Y-A11`) | ⛔ manual-only | — this guide (the shared `ImageZoom`/`Video` components carry `vitest-axe` in `@tale/ui`) |
 | [content](../suites/content.md) | `CONT-F1` (source shape) | ✅ automated | vitest `structure-code.test.ts` (every fence declares a language), `structure-headings.test.ts`, `links.test.ts` |
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
@@ -26,12 +28,16 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [locale](../suites/locale.md) | `LOC-F2` (mirror exists) | ✅ automated | vitest `locale-tree.test.ts` (every EN page has DE/FR mirrors) + `locale-outline.test.ts` (same outline) + `docs.test.ts` (voice/terminology) |
 | [locale](../suites/locale.md) | `LOC-F5` (dialog parity) | 🔶 partial | vitest `locale-components.test.ts` + `locale-translation.test.ts` (mirrors are real translations, same component tags) — rendered chrome manual |
 | [locale](../suites/locale.md) | `LOC-F1`, `LOC-F3`–`LOC-F7`, `LOC-B1`–`LOC-B2` | 🔶 partial | `page-header.spec.ts` checks EN/DE/FR breadcrumb and action labels; switcher, full-page locale behavior and unknown routes remain manual |
-| [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (sidebar shows links) + vitest `navigation.test.ts` (entries resolve) |
-| [navigation](../suites/navigation.md) | `NAV-F4`, `NAV-A3` (breadcrumb trail) | 🔶 partial | `page-header.spec.ts` checks translated groups, one current leaf and home targets; landing-page omission and navigating ancestors remain manual |
+| [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (the rail is the labelled landmark and shows links) + vitest `navigation.test.ts` (entries resolve) + `docs-nav-tree.test.tsx` (groups, rows, disclosure, active row) |
+| [navigation](../suites/navigation.md) | `NAV-F4`, `NAV-A3` (breadcrumb trail) | 🔶 partial | `page-header.spec.ts` checks translated groups, one current leaf, home targets and that the leaf is not a heading; `docs-page-header.test.tsx` checks the `nav > ol` shape, the unlinked group crumb and the landing-page trail; navigating ancestors remains manual |
+| [navigation](../suites/navigation.md) | `NAV-F3` (single current row) | ✅ automated | `smoke.spec.ts` (only the open page's row carries `aria-current="page"`) |
+| [navigation](../suites/navigation.md) | `NAV-F13` (pinned header strip) | ✅ automated | `smoke.spec.ts` (the trail keeps its viewport position while the article scrolls) |
+| [navigation](../suites/navigation.md) | `NAV-F14` (phone drawer) | 🔶 partial | `smoke.spec.ts` (opens, carries close + search, one Escape closes, focus returns, a row navigates and closes it, and growing past `md` releases the overlay); scroll lock and the trapped tab cycle remain manual |
+| [navigation](../suites/navigation.md) | `NAV-F15` (outline breakpoints) | 🔶 partial | `smoke.spec.ts` (aside at `xl`, disclosure below, exactly one in the a11y tree) + `docs-toc.test.tsx`; scroll-spy remains manual |
 | [navigation](../suites/navigation.md) | Page header at 375 px and 1440 px | ✅ automated | `page-header.spec.ts` checks non-overlapping phone actions, desktop row alignment, viewport containment and Escape/focus restoration in EN/DE/FR |
 | [navigation](../suites/navigation.md) | `NAV-F9`–`NAV-F10` (source map) | 🔶 partial | vitest `redirects.test.ts` (slug shape, every target exists in every locale, no source shadows a page, no chains) — the **served** 301s/stubs manual |
 | [navigation](../suites/navigation.md) | `NAV-F2`–`NAV-F3`, `NAV-F5`–`NAV-F8`, `NAV-F11`–`NAV-F12`, `NAV-B1`–`NAV-B3` | ⛔ manual-only | — |
-| [search](../suites/search.md) | `SEARCH-F1` | ✅ automated | `smoke.spec.ts` (open via header button → placeholder input visible) |
+| [search](../suites/search.md) | `SEARCH-F1` | ✅ automated | `smoke.spec.ts` (open via the rail field → placeholder input visible; the drawer carries the same trigger) |
 | [search](../suites/search.md) | `SEARCH-F2`–`SEARCH-F6` | 🔶 partial | component `app/features/search/dialog.test.tsx` (wiring); real index + navigation manual |
 | [search](../suites/search.md) | `SEARCH-F7` | 🔶 partial | vitest `redirects.test.ts` (no redirect source is still a page) — index content manual |
 | [search](../suites/search.md) | `SEARCH-B1`–`SEARCH-B3`, `SEARCH-A1`–`SEARCH-A3`, `SEARCH-P1` | ⛔ manual-only | — |
