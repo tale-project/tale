@@ -146,6 +146,15 @@ vi.mock('@tanstack/react-router', () => ({
       </a>
     );
   }),
+  // The detail view reads the location to tell a RESTORED arrival (rail
+  // reopening a remembered automation) from a deliberate one, so a deleted
+  // automation falls back to the list instead of dead-ending.
+  useLocation: () => ({
+    pathname: '/dashboard/org-1/automations/sync-emails',
+    search: {},
+    state: {},
+  }),
+  useNavigate: () => vi.fn(),
 }));
 
 // The canvas is a React Flow viewport and jsdom performs no layout; the page
