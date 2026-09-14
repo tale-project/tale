@@ -28,7 +28,7 @@ nav:
     knowledge: Wissen
     connectors: Connectors
     member: Mitglied
-    editor: Redakteur
+    editor: Bearbeiter
     developer: Entwickler
     admin: Verwaltung
     tutorials: Tutorials
@@ -38,7 +38,7 @@ nav:
     governance: Governance
     legal: Rechtliches
     tutorialsAdmin: Verwaltung
-    tutorialsEditor: Editor
+    tutorialsEditor: Bearbeiter
     tutorialsDeveloper: Entwickler
     tutorialsMember: Mitglied
     tutorialsVideos: Videos
