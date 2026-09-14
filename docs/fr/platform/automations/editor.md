@@ -9,6 +9,8 @@ Cette page est la moitié pratique des automatisations : ce que tu cliques, et d
 
 Ouvre **Automatisations** dans la barre latérale. La liste montre chaque automatisation de l’organisation avec son nombre de versions et soit la version en service, soit **Pas en service** tant qu’il n’y en a aucune. Clique sur l’une d’elles et tu arrives sur sa page.
 
+Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée.
+
 Cette page est un plan de travail, pas une série d’onglets. Le nom porte le badge **En service** quand la version à l’écran est en service. **Version**, **Essai**, **Exécuter en réel**, **Abandonner** et **Enregistrer** sont à droite — **Mettre cette version en service** se place à côté de **Version** quand le choix n’est pas en service. À côté du canvas, le panneau montre **Déclencheur** et **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — jusqu’à ce que tu cliques sur une boîte. Le panneau a la hauteur du canvas, qui remplit la fenêtre sous l’en-tête. Quand tu sélectionnes un nœud, le canvas ne s’agrandit pas — les champs en trop défilent dans le panneau. Clique sur **Fermer**, appuie sur Échap, clique à nouveau sur la boîte sélectionnée, ou sur le canvas vide, pour les retrouver. **Versions** et **Exécutions** sont en dessous.
 
 ## Lire le canvas
