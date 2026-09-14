@@ -235,13 +235,16 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined) return null;
     const folderId = textArg(args, 'folderId');
     if (folderId === '') return null;
+    // The pg backend answers folder ROWS (`id`); the 0.4 call site reads
+    // `_id` — through the one folder view, or every crumb rendered with an
+    // undefined key and a click on a parent crumb navigated to the root.
     return {
       queryKey: backendKey(orgId, 'folder', 'breadcrumb', folderId),
       queryFn: () =>
-        backendFetch<{ breadcrumb: unknown }>(
+        backendFetch<{ breadcrumb: FolderWire[] }>(
           `/folders/${encodeURIComponent(folderId)}/breadcrumb`,
           { orgId },
-        ).then((body) => body.breadcrumb),
+        ).then((body) => body.breadcrumb.map(folderView)),
     };
   },
   'file_metadata/queries:getByStorageIds': (args, ctx) => {
