@@ -177,7 +177,11 @@ export function apiKeyHeaderGuard<E extends Env>(
  * paths keep the framework's plain 404.
  */
 export const apiNotFound: NotFoundHandler = (c: Context) =>
-  c.req.path.startsWith('/api/')
+  // A doubled leading slash (`//api/v1/me`) is still a question to the API:
+  // the edge merges consecutive slashes for its own matching but proxies
+  // the raw URI, so it reached here as a non-`/api/` path and answered the
+  // framework's text/plain 404 (2026-09-14 evaluation, g8-3).
+  c.req.path.replace(/^\/{2,}/, '/').startsWith('/api/')
     ? // Uncacheable like every other API answer — a route miss cached by
       // an intermediary would outlive the deploy that adds the route.
       c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404, {

@@ -4,6 +4,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
+import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
@@ -559,7 +560,7 @@ export function UserButton({
         type: 'item',
         label: t('userButton.documentation'),
         icon: BookOpen,
-        href: 'https://tale.dev/docs',
+        href: TALE_DOCS_URL,
         external: true,
         className: 'py-2.5',
       },

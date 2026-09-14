@@ -44,6 +44,9 @@ export default defineConfig({
             'app/components/**/*.test.{ts,tsx}',
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
+            // Route-level component tests are jsdom tests owned by the `ui`
+            // project (`vitest.ui.config.ts` includes `app/routes/**`).
+            'app/routes/**/*.test.{ts,tsx}',
             '**/*.browser.test.{ts,tsx}',
             // PII suites run in the dedicated `pii` project below — they
             // need `isolate: false` to amortize the pre-built scrubbers
