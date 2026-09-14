@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/app/components/ui/navigation/tab-navigation';
+} from '@/app/components/navigation/tab-navigation';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproxConversationCountByStatus } from '../hooks/queries';

@@ -10,11 +10,11 @@
  * reports upward so the caller can close the menu itself.
  */
 
+import { cn } from '@tale/ui/cn';
 import { Check, Search } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 export interface PickerSearchOption {
   /** Stable identity — also the search haystack when `search` is absent. */

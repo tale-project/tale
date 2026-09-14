@@ -2,10 +2,10 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { JsonViewer } from '@tale/ui/json-viewer';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useT } from '@/lib/i18n/client';
 
 import { useResolveRunApproval } from '../hooks/mutations';

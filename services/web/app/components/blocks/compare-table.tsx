@@ -1,5 +1,5 @@
 import {
-  Tooltip,
+  TooltipRoot,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -20,7 +20,7 @@ export function LabelWithInfo({
     <span className="inline-flex items-center gap-1.5">
       {label}
       <TooltipProvider delayDuration={150}>
-        <Tooltip>
+        <TooltipRoot>
           <TooltipTrigger asChild>
             <button
               type="button"
@@ -33,7 +33,7 @@ export function LabelWithInfo({
           <TooltipContent side="top" className="max-w-xs text-center">
             {info}
           </TooltipContent>
-        </Tooltip>
+        </TooltipRoot>
       </TooltipProvider>
     </span>
   );

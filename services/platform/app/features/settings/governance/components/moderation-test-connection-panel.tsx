@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { FormSection } from '@tale/ui/form-section';
 import { Stack } from '@tale/ui/layout';
+import { Textarea } from '@tale/ui/textarea';
 import { useState } from 'react';
 
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
 import { useTestModerationProvider } from '../hooks/mutations';

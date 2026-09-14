@@ -5,11 +5,11 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockToast = vi.fn();
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
   }),

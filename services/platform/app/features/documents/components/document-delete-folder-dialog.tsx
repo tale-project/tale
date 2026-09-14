@@ -1,9 +1,9 @@
 'use client';
 
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useT } from '@/lib/i18n/client';
 
 interface DocumentDeleteFolderDialogProps {

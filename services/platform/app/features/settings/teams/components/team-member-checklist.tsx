@@ -1,12 +1,9 @@
 'use client';
 
 import { Row, Stack } from '@tale/ui/layout';
+import { MultiSelect, type MultiSelectOption } from '@tale/ui/multi-select';
 import { useCallback, useMemo } from 'react';
 
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from '@/app/components/ui/forms/multi-select';
 import { useT } from '@/lib/i18n/client';
 
 import { useMembers } from '../../organization/hooks/queries';

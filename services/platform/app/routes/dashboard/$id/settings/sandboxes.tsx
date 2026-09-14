@@ -1,6 +1,6 @@
+import { EditorGroup } from '@tale/ui/editor';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SandboxesSettings } from '@/app/features/settings/sandboxes/sandboxes-settings';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';

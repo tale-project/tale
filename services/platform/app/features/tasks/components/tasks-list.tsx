@@ -6,6 +6,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
@@ -13,7 +14,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';

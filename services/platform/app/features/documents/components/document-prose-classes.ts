@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@tale/ui/cn';
 
 // `@tailwindcss/typography` is not loaded in this monorepo, so `prose` is a
 // no-op and Tailwind preflight strips heading / list defaults. Style each

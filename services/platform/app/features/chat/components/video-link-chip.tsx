@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { AlertCircle, Loader2, X } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 

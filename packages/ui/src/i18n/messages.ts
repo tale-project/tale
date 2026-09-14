@@ -1,26 +1,32 @@
 import type { PackageMessages } from './init-service';
+import deChMessages from './messages/de-CH.yml';
 import deMessages from './messages/de.yml';
 import enMessages from './messages/en.yml';
 import frMessages from './messages/fr.yml';
 import globalMessages from './messages/global.yml';
 
 /**
- * Shared translation bundles owned by `@tale/i18n` — keys consumed by
- * components shipped in `@tale/ui` (language switcher, theme switcher,
- * etc.). The host service merges these into its i18n instance via
- * `initServiceI18n({ packages: [uiMessages] })`, so every component
- * shipped from `@tale/ui` can call `useT(...)` without the consuming
- * app duplicating the keys in its own `messages/*.json`.
+ * Translation bundles shipped by `@tale/ui` — every string a component in
+ * this package renders (form controls, data tables, dialogs, the search
+ * palette, the language and theme switchers, …). A host service merges
+ * them into its i18n instance via `initServiceI18n({ packages: [uiMessages] })`,
+ * so a component can call `useT(...)` without the consuming app duplicating
+ * the keys in its own `messages/*.yml`.
  *
- * Locale-neutral keys (entries that read the same in every language)
- * live in `global.json` and fold into every base locale — same
- * convention services follow for their own `messages/global.json`.
+ * Keys keep the namespaces the components use (`common.actions.*`,
+ * `common.aria.*`, `search.*`, …); the service merge is a deep merge, so a
+ * host that redeclares a key wins per key, not per namespace.
+ *
+ * Locale-neutral keys (entries that read the same in every language) live in
+ * `global.yml` and fold into every base locale. `de-CH.yml` is a sparse
+ * regional override (Swiss spelling) layered over `de`.
  */
 export const uiMessages: PackageMessages = {
   bundles: {
     en: enMessages,
     de: deMessages,
     fr: frMessages,
+    'de-CH': deChMessages,
   },
   global: globalMessages,
 };

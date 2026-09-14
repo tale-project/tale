@@ -1,13 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo } from 'react';
 import { z } from 'zod/v4';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

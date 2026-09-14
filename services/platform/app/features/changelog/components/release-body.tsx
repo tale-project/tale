@@ -1,9 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import DOMPurify from 'dompurify';
 import { useMemo } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 interface ReleaseBodyProps {
   html: string;

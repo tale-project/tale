@@ -42,23 +42,48 @@ interface InitServiceParams {
   /**
    * Per-package bundles to merge in *before* the service's own bundles, so
    * any service-level key wins on conflict. Each entry is what a package
-   * exports from `@tale/<name>/i18n/messages`. Package namespaces should
-   * be scoped to the component family (`piiPlayground`,
-   * `languageSwitcher`, …) so they don't collide with service strings.
+   * exports from `@tale/<name>/i18n/messages`. A package may ship keys in
+   * the shared namespaces its components speak (`common.actions.*`,
+   * `common.aria.*`): the merge is deep, so a service that redeclares one
+   * key overrides that key alone, never the sibling keys around it.
    */
   packages?: ReadonlyArray<PackageMessages>;
 }
 
-/** Shallow merge at the namespace level — later entries win per namespace. */
-function mergeBundles(...bundles: ReadonlyArray<Bundle | undefined>): Bundle {
-  const out: Bundle = {};
-  for (const b of bundles) {
-    if (!b) continue;
-    for (const [ns, value] of Object.entries(b)) {
-      out[ns] = { ...out[ns], ...value };
-    }
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    const existing = out[key];
+    out[key] =
+      isPlainObject(existing) && isPlainObject(value)
+        ? deepMerge(existing, value)
+        : value;
   }
   return out;
+}
+
+/**
+ * Deep merge of message trees — later entries win per key. A namespace
+ * present in several bundles keeps every key each of them defines; only a
+ * key defined more than once is overridden, by the last bundle.
+ */
+export function mergeBundles(
+  ...bundles: ReadonlyArray<Bundle | undefined>
+): Bundle {
+  let out: Record<string, unknown> = {};
+  for (const b of bundles) {
+    if (!b) continue;
+    out = deepMerge(out, b);
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every top-level value is a namespace tree; deepMerge never flattens one
+  return out as Bundle;
 }
 
 function packageBundle(

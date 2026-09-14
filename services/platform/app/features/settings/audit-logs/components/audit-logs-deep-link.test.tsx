@@ -63,7 +63,7 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
   toast: toastSpy,
 }));

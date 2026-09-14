@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { ArrowRightLeft } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 

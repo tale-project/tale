@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
@@ -8,7 +9,6 @@ import { TrendIndicator } from '@tale/ui/trend-indicator';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface FeedbackSummaryCardsProps {
   helpful: number;

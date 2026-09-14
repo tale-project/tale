@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Field } from '@tale/ui/field';
 import { IconButton } from '@tale/ui/icon-button';
@@ -13,7 +14,6 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { useDeselectOnEscape } from '../hooks/use-deselect-on-escape';

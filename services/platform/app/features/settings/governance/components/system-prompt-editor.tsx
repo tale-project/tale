@@ -4,17 +4,14 @@ import {
   effectiveMandatoryInstructions,
   type SystemPromptConfig,
 } from '@tale/shared/schemas/governance';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
+import { Textarea } from '@tale/ui/textarea';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';

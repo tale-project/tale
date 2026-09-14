@@ -1,12 +1,12 @@
 'use client';
 
-import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
-import { useMemo } from 'react';
-
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
+} from '@tale/ui/entity/entity-row-actions';
+import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';

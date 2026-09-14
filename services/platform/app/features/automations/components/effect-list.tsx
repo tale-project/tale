@@ -1,10 +1,10 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { JsonViewer } from '@tale/ui/json-viewer';
 import { Text } from '@tale/ui/text';
 import { Zap } from 'lucide-react';
 
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import type { Effect } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 

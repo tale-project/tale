@@ -1,5 +1,5 @@
 import {
-  Tooltip,
+  TooltipRoot,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -78,7 +78,7 @@ function LogoTile({
   // provider) intermittently miss pointer events.
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip>
+      <TooltipRoot>
         <TooltipTrigger asChild>
           <button
             type="button"
@@ -93,7 +93,7 @@ function LogoTile({
           </button>
         </TooltipTrigger>
         <TooltipContent side="top">{tooltip}</TooltipContent>
-      </Tooltip>
+      </TooltipRoot>
     </TooltipProvider>
   );
 }

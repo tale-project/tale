@@ -14,6 +14,8 @@
  */
 
 import { Stack } from '@tale/ui/layout';
+import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
 import { useMemo } from 'react';
 
 import {
@@ -21,8 +23,6 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
 import {
   useAgentSecrets,

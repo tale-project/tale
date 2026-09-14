@@ -6,24 +6,24 @@ import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
+import {
+  seriesToLegend,
+  TrendBarChart,
+  type ChartSeries,
+} from '@tale/ui/metrics/charts';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
+import { MetricsSection } from '@tale/ui/metrics/metrics-section';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
-import {
-  seriesToLegend,
-  TrendBarChart,
-  type ChartSeries,
-} from '@/app/components/metrics/charts';
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';

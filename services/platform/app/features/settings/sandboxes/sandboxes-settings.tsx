@@ -1,19 +1,19 @@
 import { Badge } from '@tale/ui/badge';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Row, Stack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
+import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useToast } from '@/app/hooks/use-toast';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 

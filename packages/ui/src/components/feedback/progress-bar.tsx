@@ -3,7 +3,11 @@
 import * as React from 'react';
 
 import { cn } from '../../lib/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../overlays/tooltip';
+import {
+  TooltipContent,
+  TooltipRoot,
+  TooltipTrigger,
+} from '../overlays/tooltip';
 
 interface ProgressBarProps {
   value: number;
@@ -62,9 +66,9 @@ export function ProgressBar({
   if (!tooltipContent) return body;
 
   return (
-    <Tooltip>
+    <TooltipRoot>
       <TooltipTrigger asChild>{body}</TooltipTrigger>
       <TooltipContent>{tooltipContent}</TooltipContent>
-    </Tooltip>
+    </TooltipRoot>
   );
 }

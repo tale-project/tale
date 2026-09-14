@@ -66,7 +66,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json'],
-      include: ['components/ui/**/*.{ts,tsx}'],
+      include: ['app/components/**/*.{ts,tsx}'],
       exclude: ['**/*.stories.{ts,tsx}', '**/*.test.{ts,tsx}', '**/index.ts'],
       thresholds: {
         branches: 80,

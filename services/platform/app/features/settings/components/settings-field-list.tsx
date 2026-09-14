@@ -1,8 +1,7 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import type { HTMLAttributes, ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 import { SettingsRow } from './settings-row';
 

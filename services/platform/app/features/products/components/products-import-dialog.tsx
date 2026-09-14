@@ -1,18 +1,18 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useMemo, useCallback } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import {
   useFileImport,
   productMappers,
   PRODUCT_REQUIRED_COLUMNS,
 } from '@/app/hooks/use-file-import';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ProductStatus } from '@/lib/shared/constants/product-enums';
 import { PRODUCT_STATUS } from '@/lib/shared/constants/product-enums';

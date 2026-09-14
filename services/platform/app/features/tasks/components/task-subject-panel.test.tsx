@@ -42,7 +42,7 @@ vi.mock('../hooks/mutations', () => ({
   useAddTaskComment: () => ({ mutateAsync: vi.fn() }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 // The reviewer name line rides the actor directory (org members via router
 // params) — stub the seam; these tests exercise the subject verbs, not names.

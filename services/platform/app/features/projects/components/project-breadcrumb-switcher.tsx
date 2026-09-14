@@ -1,11 +1,11 @@
 'use client';
 
+import { HeaderBreadcrumbSwitcher } from '@tale/ui/header-breadcrumb-switcher';
+import type { SearchableSelectOption } from '@tale/ui/searchable-select';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Layers } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
-import type { SearchableSelectOption } from '@/app/components/ui/forms/searchable-select';
 import { useT } from '@/lib/i18n/client';
 
 import { useProjects } from '../hooks/queries';

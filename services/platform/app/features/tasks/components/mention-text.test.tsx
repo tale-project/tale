@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MentionText } from './mention-text';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 

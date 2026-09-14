@@ -1,13 +1,13 @@
 'use client';
 
 import { LinkButton } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Heading } from '@tale/ui/heading';
 import { Center, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FileQuestion } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface DashboardNotFoundProps {
   /** Org id used to build the "Back to dashboard" recovery link. */

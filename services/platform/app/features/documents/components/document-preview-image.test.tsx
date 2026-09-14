@@ -6,7 +6,7 @@ import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { DocumentPreviewImage } from './document-preview-image';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => {
       const translations: Record<string, Record<string, string>> = {

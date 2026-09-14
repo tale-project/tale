@@ -1,23 +1,25 @@
+import {
+  AdaptiveHeaderProvider,
+  AdaptiveHeaderSlot,
+} from '@tale/ui/adaptive-header';
+import { DirtyBlockerProvider } from '@tale/ui/editor';
+import { ErrorScopeProvider } from '@tale/ui/error-boundaries/error-scope';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import {
-  AdaptiveHeaderProvider,
-  AdaptiveHeaderSlot,
-} from '@/app/components/layout/adaptive-header';
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-placeholder';
 import { ChatSubPanelPlaceholder } from '@/app/components/layout/chat-sub-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
-import { DirtyBlockerProvider } from '@/app/components/ui/editor';
 import { UserButton } from '@/app/components/user-button';
 import {
   AbilityContext,
@@ -32,7 +34,6 @@ import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
-import { toast } from '@/app/hooks/use-toast';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
@@ -257,108 +258,110 @@ function DashboardLayout() {
   // convex/react's useQuery, which *throws* UnauthorizedError on mount — so
   // each region shows a masked placeholder in place of its real component.
   return (
-    <AbilityContext.Provider value={ability}>
-      <AbilityLoadingContext.Provider value={isLoading}>
-        <TeamFilterProvider organizationId={organizationId}>
-          <DirtyBlockerProvider>
-            <AdaptiveHeaderProvider>
-              <SidebarProvider>
-                {/* Learns the client↔server clock offset from getThreadMeta.serverNow
+    <ErrorScopeProvider organizationId={organizationId}>
+      <AbilityContext.Provider value={ability}>
+        <AbilityLoadingContext.Provider value={isLoading}>
+          <TeamFilterProvider organizationId={organizationId}>
+            <DirtyBlockerProvider>
+              <AdaptiveHeaderProvider>
+                <SidebarProvider>
+                  {/* Learns the client↔server clock offset from getThreadMeta.serverNow
                   so the sidebar's chat-history relative times and the chat
                   interface's timers share one clock frame on every route. */}
-                <ClockOffsetProvider>
-                  {/* Shell alerts sit above nav + main so page headers (chat toolbar,
+                  <ClockOffsetProvider>
+                    {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
-                  <div className="flex h-full w-full flex-col overflow-hidden">
-                    {hasRole && (
-                      <TwoFactorGraceBanner organizationId={organizationId} />
-                    )}
-                    {hasRole && (
-                      <TwoFactorLowBackupCodesBanner
-                        organizationId={organizationId}
-                      />
-                    )}
-                    {hasRole && (
-                      <EmbeddingSetupBanner organizationId={organizationId} />
-                    )}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-                      {/* Safe-area inset clears the notch; the inner fixed-height row
+                    <div className="flex h-full w-full flex-col overflow-hidden">
+                      {hasRole && (
+                        <TwoFactorGraceBanner organizationId={organizationId} />
+                      )}
+                      {hasRole && (
+                        <TwoFactorLowBackupCodesBanner
+                          organizationId={organizationId}
+                        />
+                      )}
+                      {hasRole && (
+                        <EmbeddingSetupBanner organizationId={organizationId} />
+                      )}
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+                        {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
-                      <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                        <Row gap={2} className="min-h-12">
-                          <div className="min-w-0 flex-1">
-                            <AdaptiveHeaderSlot />
-                          </div>
-                          <UserButton align="end" />
-                        </Row>
-                      </header>
-
-                      {hasRole ? (
-                        <AppSidebar organizationId={organizationId} />
-                      ) : (
-                        <AppSidebarPlaceholder />
-                      )}
-
-                      <Stack
-                        id="main-content"
-                        as="main"
-                        tabIndex={-1}
-                        gap={0}
-                        // outline-none: as the skip-link target this region is
-                        // focused programmatically (tabIndex -1, never in the
-                        // tab order), so the browser's focus-visible ring would
-                        // outline the whole content area without conveying
-                        // anything actionable.
-                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
-                      >
-                        {hasRole && <ChangelogToastTrigger />}
-                        {!hasRole && (
-                          // While access resolves, hold the chat layout's
-                          // slots (CSS-gated to chat navigations) — the
-                          // sub-panel and the composer at the message
-                          // column's foot — so the real chat slots in
-                          // without a late pop. Mirrors the boot shell's
-                          // frame exactly.
-                          <div className="flex min-h-0 flex-1 flex-row">
-                            <ChatSubPanelPlaceholder />
-                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                              <ChatComposerPlaceholder />
+                        <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                          <Row gap={2} className="min-h-12">
+                            <div className="min-w-0 flex-1">
+                              <AdaptiveHeaderSlot />
                             </div>
-                          </div>
-                        )}
+                            <UserButton align="end" />
+                          </Row>
+                        </header>
+
                         {hasRole ? (
-                          isSwitching ? (
-                            <FullPageCenter>
-                              <VStack gap={3} align="center">
-                                <Spinner
-                                  size="lg"
-                                  label={tSettings(
-                                    'organization.switchingLabel',
-                                  )}
-                                />
-                                <Text variant="muted" className="text-sm">
-                                  {tSettings('organization.switching')}
-                                </Text>
-                              </VStack>
-                            </FullPageCenter>
-                          ) : (
-                            <Outlet />
-                          )
-                        ) : null}
-                      </Stack>
-                      {hasRole && (
-                        <MobileBottomNav organizationId={organizationId} />
-                      )}
+                          <AppSidebar organizationId={organizationId} />
+                        ) : (
+                          <AppSidebarPlaceholder />
+                        )}
+
+                        <Stack
+                          id="main-content"
+                          as="main"
+                          tabIndex={-1}
+                          gap={0}
+                          // outline-none: as the skip-link target this region is
+                          // focused programmatically (tabIndex -1, never in the
+                          // tab order), so the browser's focus-visible ring would
+                          // outline the whole content area without conveying
+                          // anything actionable.
+                          className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
+                        >
+                          {hasRole && <ChangelogToastTrigger />}
+                          {!hasRole && (
+                            // While access resolves, hold the chat layout's
+                            // slots (CSS-gated to chat navigations) — the
+                            // sub-panel and the composer at the message
+                            // column's foot — so the real chat slots in
+                            // without a late pop. Mirrors the boot shell's
+                            // frame exactly.
+                            <div className="flex min-h-0 flex-1 flex-row">
+                              <ChatSubPanelPlaceholder />
+                              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                                <ChatComposerPlaceholder />
+                              </div>
+                            </div>
+                          )}
+                          {hasRole ? (
+                            isSwitching ? (
+                              <FullPageCenter>
+                                <VStack gap={3} align="center">
+                                  <Spinner
+                                    size="lg"
+                                    label={tSettings(
+                                      'organization.switchingLabel',
+                                    )}
+                                  />
+                                  <Text variant="muted" className="text-sm">
+                                    {tSettings('organization.switching')}
+                                  </Text>
+                                </VStack>
+                              </FullPageCenter>
+                            ) : (
+                              <Outlet />
+                            )
+                          ) : null}
+                        </Stack>
+                        {hasRole && (
+                          <MobileBottomNav organizationId={organizationId} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </ClockOffsetProvider>
-              </SidebarProvider>
-            </AdaptiveHeaderProvider>
-          </DirtyBlockerProvider>
-        </TeamFilterProvider>
-      </AbilityLoadingContext.Provider>
-    </AbilityContext.Provider>
+                  </ClockOffsetProvider>
+                </SidebarProvider>
+              </AdaptiveHeaderProvider>
+            </DirtyBlockerProvider>
+          </TeamFilterProvider>
+        </AbilityLoadingContext.Provider>
+      </AbilityContext.Provider>
+    </ErrorScopeProvider>
   );
 }

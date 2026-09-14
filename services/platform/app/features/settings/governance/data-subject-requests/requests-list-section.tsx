@@ -1,7 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import {
+  DataTableFilters,
+  type FilterConfig,
+} from '@tale/ui/data-table/data-table-filters';
 import { Stack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -9,12 +15,6 @@ import { FileText } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import {
-  DataTableFilters,
-  type FilterConfig,
-} from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import {

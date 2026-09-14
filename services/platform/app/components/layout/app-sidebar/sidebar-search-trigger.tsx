@@ -1,10 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useSearchShortcut } from '@tale/ui/use-search-shortcut';
 import { Search } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useSearchShortcut } from '@/app/hooks/use-search-shortcut';
 import { useT } from '@/lib/i18n/client';
 
 import { useOptionalSidebar } from './sidebar-context';

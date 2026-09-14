@@ -2,10 +2,10 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Bot } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';

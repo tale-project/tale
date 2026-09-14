@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
@@ -8,7 +9,6 @@ import { Info } from 'lucide-react';
 import { useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 const TAG_LABEL_KEYS: Record<string, string> = {
   chat: 'modelSelector.tags.chat',

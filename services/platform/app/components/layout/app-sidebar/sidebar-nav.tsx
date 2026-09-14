@@ -1,18 +1,18 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useIsMac } from '@tale/ui/use-is-mac';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useIsMac } from '@/app/hooks/use-is-mac';
 import {
   useNavigationItems,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { TOOLTIP_SHORTCUT_CLASS } from './sidebar-motion';
 

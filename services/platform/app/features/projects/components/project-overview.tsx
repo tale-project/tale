@@ -4,18 +4,18 @@ import {
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
 } from '@tale/shared/schemas/projects';
-import { Text } from '@tale/ui/text';
-import { useCallback, useMemo } from 'react';
-import { z } from 'zod/v4';
-
-import { ContentArea } from '@/app/components/layout/content-area';
+import { ContentArea } from '@tale/ui/content-area';
 import {
   EditorGroup,
   useFormEditor,
   useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
+} from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
+import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod/v4';
+
 import {
   SettingsFieldList,
   SettingsFieldRow,

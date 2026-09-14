@@ -1,16 +1,16 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Heading } from '@tale/ui/heading';
+import { LabeledValue, LabeledValueGroup } from '@tale/ui/labeled-value';
 import { HStack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useMemo } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/utils/format/number';
 
@@ -109,7 +109,7 @@ export function ProductViewDialog({
       description={tProducts('view.description')}
       className="sm:max-w-[600px]"
     >
-      <FieldGroup gap={4}>
+      <LabeledValueGroup gap={4}>
         <HStack gap={4} className="items-start">
           <ProductImage
             images={product.imageUrl ? [product.imageUrl] : []}
@@ -137,7 +137,7 @@ export function ProductViewDialog({
 
         {/* Tags */}
         {product.tags && product.tags.length > 0 && (
-          <Field label={tProducts('view.labels.tags')}>
+          <LabeledValue label={tProducts('view.labels.tags')}>
             <HStack gap={2} className="flex-wrap">
               {product.tags.map((tag, index) => (
                 <Badge key={`${tag}-${index}`} variant="outline">
@@ -145,19 +145,19 @@ export function ProductViewDialog({
                 </Badge>
               ))}
             </HStack>
-          </Field>
+          </LabeledValue>
         )}
 
         {/* Full Description */}
         {product.description && (
-          <Field label={tProducts('view.labels.fullDescription')}>
+          <LabeledValue label={tProducts('view.labels.fullDescription')}>
             <Text className="leading-relaxed">{product.description}</Text>
-          </Field>
+          </LabeledValue>
         )}
 
         {/* Product Source URL */}
         {typeof product.metadata?.url === 'string' && (
-          <Field label={tProducts('view.labels.source')}>
+          <LabeledValue label={tProducts('view.labels.source')}>
             <a
               href={product.metadata.url}
               target="_blank"
@@ -166,16 +166,16 @@ export function ProductViewDialog({
             >
               {product.metadata.url}
             </a>
-          </Field>
+          </LabeledValue>
         )}
 
         {/* Product ID */}
-        <Field label={tProducts('view.labels.productId')}>
+        <LabeledValue label={tProducts('view.labels.productId')}>
           <code className="bg-muted rounded px-2 py-1 text-xs">
             {product._id}
           </code>
-        </Field>
-      </FieldGroup>
+        </LabeledValue>
+      </LabeledValueGroup>
     </ViewDialog>
   );
 }

@@ -11,14 +11,14 @@
  * operators through the notification bell.
  */
 
+import { cn } from '@tale/ui/cn';
+import { toast } from '@tale/ui/use-toast';
 import { AlertTriangle, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
-import { toast } from '@/app/hooks/use-toast';
 import { requestUsageCreditsRequest } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useMyBudgetStatus } from '../../settings/governance/hooks/queries';
 

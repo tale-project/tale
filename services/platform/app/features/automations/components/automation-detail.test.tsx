@@ -1,7 +1,7 @@
+import { ActiveEditorProvider } from '@tale/ui/editor';
 import { forwardRef, type AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -61,7 +61,7 @@ const {
 
 // `EditorActions` owns every piece of save feedback and reaches for the
 // module-level toast to do it.
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: toastSpy,
   useToast: () => ({ toast: toastSpy }),
 }));
@@ -177,7 +177,7 @@ vi.mock('./automation-canvas', () => ({
   ),
 }));
 
-vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
+vi.mock('@tale/ui/json-viewer', () => ({
   JsonViewer: ({ data }: { data: unknown }) => (
     <pre data-testid="json">{JSON.stringify(data)}</pre>
   ),

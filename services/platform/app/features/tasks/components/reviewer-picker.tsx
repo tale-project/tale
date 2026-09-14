@@ -3,16 +3,16 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
 import { UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { EDITOR_ROLES } from '@/backend/core/projects/access';
 import { useT } from '@/lib/i18n/client';
 

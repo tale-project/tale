@@ -8,9 +8,11 @@ import {
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
+import { Sheet } from '@tale/ui/sheet';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import {
@@ -21,16 +23,14 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { useToast } from '@tale/ui/use-toast';
 import { Copy, Fingerprint, ListFilter, Shield } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useGovernancePolicy } from '../hooks/queries';

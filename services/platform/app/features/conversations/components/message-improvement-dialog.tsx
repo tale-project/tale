@@ -1,10 +1,10 @@
 'use client';
 
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import ReactMarkdown from 'react-markdown';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useT } from '@/lib/i18n/client';
 
 interface MessageImprovementDialogProps {

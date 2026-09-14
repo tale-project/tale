@@ -1,25 +1,25 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
-import { useRouterState } from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-
-import { SubPanel } from '@/app/components/layout/sub-panel';
+import { SubPanel } from '@tale/ui/sub-panel';
 import {
   SUB_PANEL_ROW_CLASS,
   SubPanelDisclosureBody,
   SubPanelRowLink,
   SubPanelSectionHeader,
   useSubPanelRowTreatment,
-} from '@/app/components/layout/sub-panel-list';
+} from '@tale/ui/sub-panel-list';
+import { useRouterState } from '@tanstack/react-router';
+import { ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
 import { METRICS_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/metrics/-nav-items';
 import { useT } from '@/lib/i18n/client';
 import type { AppAction, AppSubject } from '@/lib/permissions/ability';
-import { cn } from '@/lib/utils/cn';
 
 interface SettingsRailProps {
   organizationId: string;

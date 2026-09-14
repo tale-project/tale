@@ -21,7 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       const labels: Record<string, string> = {

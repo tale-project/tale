@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { JsonViewer } from '@tale/ui/json-viewer';
 import {
   TableBody,
   TableCell,
@@ -13,10 +15,8 @@ import { Children, isValidElement, memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
+import { Image } from '@/app/components/image';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { classifyLink } from '@/lib/utils/link-classifier';
 
 import { CitationLink } from './citation-link';

@@ -18,7 +18,7 @@ vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => localeState,
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
       if (params) {
@@ -36,7 +36,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 

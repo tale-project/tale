@@ -8,19 +8,19 @@ import {
   useEditor,
   useInstance,
 } from '@milkdown/react';
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { LoaderIcon } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
-import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n/client';
 
 import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';

@@ -1,6 +1,5 @@
+import { toast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { toast } from '@/app/hooks/use-toast';
 
 import { useUpsertGovernancePolicy } from './mutations';
 

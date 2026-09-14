@@ -2,7 +2,13 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
+import { Form } from '@tale/ui/form';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
@@ -11,15 +17,6 @@ import { Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  useFormEditor,
-  useRegisterActiveEditor,
-} from '@/app/components/ui/editor';
-import { Form } from '@/app/components/ui/forms/form';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useDeleteOrganization } from '@/app/features/organization/hooks/use-delete-organization';
 import {

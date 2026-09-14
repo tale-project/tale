@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Check, Loader2, Plus } from 'lucide-react';
@@ -7,7 +8,6 @@ import { useCallback, useState } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface OrganizationListPanelProps {
   currentOrganizationId: string | null;

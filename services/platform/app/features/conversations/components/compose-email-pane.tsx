@@ -2,8 +2,19 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Input } from '@tale/ui/input';
 import { Center, Row, Stack } from '@tale/ui/layout';
+import { lazyComponent } from '@tale/ui/lazy-component';
+import { PanelFooter } from '@tale/ui/panel-footer';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
+import { selectTriggerClasses } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import {
   Check,
   ChevronDown,
@@ -13,24 +24,13 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
-import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { selectTriggerClasses } from '@/app/components/ui/forms/select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
   useComposeEmailConversation,

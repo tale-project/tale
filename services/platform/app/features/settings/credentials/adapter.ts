@@ -1,6 +1,5 @@
+import { type EntityRowAction } from '@tale/ui/entity/entity-row-actions';
 import { type ComponentType, type ReactNode } from 'react';
-
-import { type EntityRowAction } from '@/app/components/ui/entity/entity-row-actions';
 
 /**
  * The contract that lets one credential UI serve both the connectors page and

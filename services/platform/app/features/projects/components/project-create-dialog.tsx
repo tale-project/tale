@@ -6,15 +6,15 @@ import {
   isValidProjectKey,
   normalizeProjectKey,
 } from '@tale/shared/utils/project-key';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Textarea } from '@tale/ui/textarea';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod/v4';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

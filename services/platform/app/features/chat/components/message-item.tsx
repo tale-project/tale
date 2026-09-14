@@ -13,7 +13,9 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { CircleStop, Pencil } from 'lucide-react';
 import {
   memo,
@@ -28,11 +30,9 @@ import {
 } from 'react';
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
-import { cn } from '@/lib/utils/cn';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import { useReportPerceivedWait } from '../hooks/use-report-perceived-wait';

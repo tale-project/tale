@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, waitFor } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   useActiveEditor,
   type EditorController,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+
 import { adjustColorForTheme } from '@/lib/utils/color';
 import { render, screen } from '@/tests/utils/render';
 
@@ -17,7 +17,7 @@ vi.mock('next-intl', () => ({
 }));
 
 // Mock toast
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
@@ -58,7 +58,7 @@ vi.mock('@tale/ui/theme', async (importOriginal) => {
 });
 
 // Mock Image component
-vi.mock('@/app/components/ui/data-display/image', () => ({
+vi.mock('@/app/components/image', () => ({
   Image: (props: Record<string, unknown>) => (
     <img src={props.src as string} alt={props.alt as string} />
   ),

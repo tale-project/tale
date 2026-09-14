@@ -7,7 +7,7 @@ import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import { BulkSendDialog } from './bulk-send-dialog';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => key,
   }),

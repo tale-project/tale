@@ -3,14 +3,14 @@
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
-import { BarChart3 } from 'lucide-react';
-
 import {
   seriesToLegend,
   TrendBarChart,
   type ChartSeries,
-} from '@/app/components/metrics/charts';
-import { MetricsSection } from '@/app/components/metrics/metrics-section';
+} from '@tale/ui/metrics/charts';
+import { MetricsSection } from '@tale/ui/metrics/metrics-section';
+import { BarChart3 } from 'lucide-react';
+
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

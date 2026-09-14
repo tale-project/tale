@@ -19,7 +19,6 @@ common:
     close: Schliessen
     completeStepToContinue: Schliesse diesen Schritt ab, um fortzufahren
   aria:
-    close: Schliessen
     zoomIn: Vergrössern
 documents:
   preview:

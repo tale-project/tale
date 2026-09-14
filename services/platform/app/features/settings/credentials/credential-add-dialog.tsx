@@ -2,13 +2,13 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useId, useMemo, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

@@ -83,7 +83,7 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
     mockUseCurrentMemberContext(organizationId, skip),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
   }),
@@ -115,7 +115,7 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ accentColor: undefined, logoUrl: undefined }),
 }));
 
-vi.mock('@/app/components/layout/adaptive-header', () => ({
+vi.mock('@tale/ui/adaptive-header', () => ({
   AdaptiveHeaderProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),

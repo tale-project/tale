@@ -1,21 +1,21 @@
+import { cn } from '@tale/ui/cn';
+import { FilePreviewCard } from '@tale/ui/file-preview-card';
+import { FileUpload } from '@tale/ui/file-upload';
+import { FormSection } from '@tale/ui/form-section';
 import { Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
-import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { toast } from '@/app/hooks/use-toast';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import {
   isSpreadsheet,
   SPREADSHEET_IMPORT_ACCEPT,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 interface ContactImportFormProps {
   hideTabs?: boolean;

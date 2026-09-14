@@ -1,48 +1,157 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { Meta, StoryObj } from '@storybook/react';
+import { HelpCircle, Info } from 'lucide-react';
 
 import { Button } from '../primitives/button';
+import { IconButton } from '../primitives/icon-button';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
+  TooltipRoot,
   TooltipTrigger,
 } from './tooltip';
 
-const meta: Meta = {
+const meta: Meta<typeof Tooltip> = {
   title: 'Overlays/Tooltip',
+  component: Tooltip,
   tags: ['autodocs'],
-  parameters: { layout: 'centered' },
-};
-export default meta;
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        component: `
+A tooltip for a short hint on hover and focus.
 
-type Story = StoryObj;
+## Usage
+\`\`\`tsx
+import { Tooltip } from '@tale/ui/tooltip';
+
+<Tooltip content="Tooltip content">
+  <button>Hover me</button>
+</Tooltip>
+\`\`\`
+
+Compose \`TooltipRoot\` + \`TooltipTrigger\` + \`TooltipContent\` when the shorthand
+is not enough (a non-\`asChild\` trigger, a custom portal). Both forms share one
+surface class.
+
+## Accessibility
+- Built on Radix UI Tooltip
+- Shows on hover and focus
+- Dismisses on Escape
+- Proper ARIA attributes
+        `,
+      },
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof Tooltip>;
 
 export const Default: Story = {
-  render: () => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="secondary">Hover me</Button>
-        </TooltipTrigger>
-        <TooltipContent>Helpful hint</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+  args: {
+    content: 'This is a tooltip',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
+      <Button variant="secondary">Hover me</Button>
+    </Tooltip>
   ),
 };
 
-export const Sides: Story = {
-  render: () => (
-    <TooltipProvider>
-      <div className="flex gap-6">
-        {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
-          <Tooltip key={side}>
-            <TooltipTrigger asChild>
-              <Button variant="secondary">{side}</Button>
-            </TooltipTrigger>
-            <TooltipContent side={side}>On {side}</TooltipContent>
-          </Tooltip>
-        ))}
-      </div>
-    </TooltipProvider>
+export const OnIconButton: Story = {
+  args: {
+    content: 'More information about this feature',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
+      <IconButton icon={Info} aria-label="More information" />
+    </Tooltip>
   ),
+};
+
+export const Positions: Story = {
+  render: () => (
+    <div className="flex gap-4">
+      <Tooltip content="Tooltip on top" side="top">
+        <Button variant="secondary">Top</Button>
+      </Tooltip>
+      <Tooltip content="Tooltip on right" side="right">
+        <Button variant="secondary">Right</Button>
+      </Tooltip>
+      <Tooltip content="Tooltip on bottom" side="bottom">
+        <Button variant="secondary">Bottom</Button>
+      </Tooltip>
+      <Tooltip content="Tooltip on left" side="left">
+        <Button variant="secondary">Left</Button>
+      </Tooltip>
+    </div>
+  ),
+};
+
+export const WithIcon: Story = {
+  render: () => (
+    <div className="flex items-center gap-1">
+      <span className="text-sm">What is this?</span>
+      <Tooltip content="This explains what the feature does.">
+        <HelpCircle className="text-muted-foreground size-4" />
+      </Tooltip>
+    </div>
+  ),
+};
+
+export const LongContent: Story = {
+  args: {
+    content:
+      'This is a longer tooltip with more detailed information. It wraps to multiple lines when the content is too long.',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
+      <Button variant="secondary">Hover for details</Button>
+    </Tooltip>
+  ),
+};
+
+export const DisabledTrigger: Story = {
+  args: {
+    content:
+      'This button is disabled because you need to fill out the form first.',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- tooltip trigger needs focus */}
+      <span tabIndex={0}>
+        <Button variant="secondary" disabled>
+          Disabled button
+        </Button>
+      </span>
+    </Tooltip>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Wrap disabled elements in a span for tooltip to work on disabled buttons.',
+      },
+    },
+  },
+};
+
+export const Composed: Story = {
+  render: () => (
+    <TooltipRoot>
+      <TooltipTrigger asChild>
+        <Button variant="secondary">Composed from the root parts</Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">Same surface, full control.</TooltipContent>
+    </TooltipRoot>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The composed form for cases the shorthand cannot express — the content still uses the shared `tooltipContentClassName`.',
+      },
+    },
+  },
 };

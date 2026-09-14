@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row, Stack } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { ChangeBlock } from './comparison-types';
 

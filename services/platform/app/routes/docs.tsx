@@ -1,11 +1,11 @@
+import { ContentArea } from '@tale/ui/content-area';
+import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { lazy, useMemo } from 'react';
 
-import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
-import { ContentArea } from '@/app/components/layout/content-area';
 import { seo } from '@/lib/utils/seo';
 
 import 'swagger-ui-react/swagger-ui.css';

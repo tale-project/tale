@@ -1,11 +1,11 @@
 'use client';
 
+import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,

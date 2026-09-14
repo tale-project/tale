@@ -2,15 +2,15 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { CatalogLabels } from '@tale/ui/catalog/catalog-labels';
+import { ConfigIcon as SkillIcon } from '@tale/ui/catalog/config-icon';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { HStack } from '@tale/ui/layout';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { CatalogLabels } from '@/app/components/catalog/catalog-labels';
-import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';

@@ -1,7 +1,7 @@
+import { pickFilterOption } from '@tale/ui/testing/filters';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { pickFilterOption } from '@/tests/utils/filters';
 import { render, screen, within } from '@/tests/utils/render';
 
 import type {
@@ -143,7 +143,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: toastSpy,
   useToast: () => ({ toast: toastSpy }),
 }));

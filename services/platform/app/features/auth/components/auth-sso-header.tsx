@@ -3,7 +3,7 @@
 import { Grid } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 
-import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
+import { TaleLogo } from '@/app/components/logo/tale-logo';
 
 import { AuthSsoBackButton } from './auth-sso-back-button';
 

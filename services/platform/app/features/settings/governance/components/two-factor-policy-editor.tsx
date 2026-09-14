@@ -5,14 +5,15 @@ import {
   twoFactorPolicyConfigSchema,
   type TwoFactorPolicyConfig,
 } from '@tale/shared/schemas/governance';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -20,7 +21,6 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';

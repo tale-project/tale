@@ -1,9 +1,9 @@
 import { Card } from '@tale/ui/card';
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 export interface SsoSelectableOrg {
   organizationId: string;

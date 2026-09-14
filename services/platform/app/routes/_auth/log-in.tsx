@@ -1,7 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Form } from '@tale/ui/form';
+import { FormSection } from '@tale/ui/form-section';
+import { MicrosoftIcon } from '@tale/ui/icons/microsoft-icon';
+import { Input } from '@tale/ui/input';
+import { Label } from '@tale/ui/label';
 import { Stack } from '@tale/ui/layout';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import {
   createFileRoute,
   useNavigate,
@@ -11,12 +18,6 @@ import { AlertCircle, Info } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { z } from 'zod';
 
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
-import { Form } from '@/app/components/ui/forms/form';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { ConditionalAccessError } from '@/app/features/auth/components/conditional-access-error';
 import { SsoOrgPicker } from '@/app/features/auth/components/sso-org-picker';
@@ -27,7 +28,6 @@ import {
 } from '@/app/features/auth/hooks/queries';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
-import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';

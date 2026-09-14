@@ -1,13 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
+import { isConvexTransientError } from '@tale/ui/error-boundaries/layout-error-boundary';
 import { Center, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { type ReactNode } from 'react';
 
-import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
-import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';

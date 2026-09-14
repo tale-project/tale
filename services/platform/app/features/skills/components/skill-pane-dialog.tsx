@@ -1,8 +1,7 @@
 'use client';
 
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { useCallback } from 'react';
-
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 
 import { SkillDetailPane } from './skill-detail-pane';
 

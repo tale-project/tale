@@ -2,14 +2,14 @@
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { cn } from '@tale/ui/cn';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { tooltipContentClassName } from '@tale/ui/tooltip';
 import { Bell } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { tooltipContentClassName } from '@/app/components/ui/overlays/tooltip';
 import { useUnreadNotificationCount } from '@/app/features/inbox/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useNotificationsUnreadCount } from '../hooks/queries';
 import { NotificationListPanel } from './notification-list-panel';

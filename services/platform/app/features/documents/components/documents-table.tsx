@@ -1,15 +1,15 @@
 'use client';
 
+import { DataTable } from '@tale/ui/data-table/data-table';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';

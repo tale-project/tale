@@ -1,8 +1,8 @@
 'use client';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
+import { Input } from '@tale/ui/input';
+import { Select } from '@tale/ui/select';
+import { Switch } from '@tale/ui/switch';
 
 import { type CredentialExtraModule } from '../credentials/adapter';
 import { type ConnectorSummary } from './hooks/backend';

@@ -2,17 +2,17 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Lock, LockOpen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
-import { isFilterAffordanceDisabled } from '@/app/components/ui/filters/filter-panel';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 

@@ -1,14 +1,14 @@
 'use client';
 
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Select } from '@tale/ui/select';
+import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Select } from '@/app/components/ui/forms/select';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

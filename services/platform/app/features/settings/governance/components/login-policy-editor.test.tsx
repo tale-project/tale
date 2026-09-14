@@ -1,11 +1,11 @@
-import { act } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   useActiveEditor,
   type EditorController,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { act } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
 import { render, screen } from '@/tests/utils/render';
 
 import { LoginPolicyEditor } from './login-policy-editor';
@@ -14,7 +14,7 @@ import { LoginPolicyEditor } from './login-policy-editor';
 // every piece of save feedback belongs to the header Save/Discard cluster.
 const { pageToast } = vi.hoisted(() => ({ pageToast: vi.fn() }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: pageToast }),
   toast: pageToast,
 }));

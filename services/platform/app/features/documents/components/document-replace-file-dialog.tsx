@@ -2,7 +2,11 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { FileUp } from 'lucide-react';
 import {
   useCallback,
@@ -12,11 +16,8 @@ import {
   type RefObject,
 } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -24,7 +25,6 @@ import {
   isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentRecordInfo } from '@/types/documents';
 

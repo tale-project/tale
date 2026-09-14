@@ -24,7 +24,7 @@ vi.mock('../hooks/use-unpinned-serving-preview', () => ({
   useUnpinnedServingPreview: () => ({ data: previewState.data }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 // FormDialog reads the route for the org id; there is no router in the test.
 vi.mock('@tanstack/react-router', async (importOriginal) => ({

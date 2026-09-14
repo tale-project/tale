@@ -5,7 +5,11 @@ import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
 import { EmptyState } from '../feedback/empty-state';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../overlays/tooltip';
+import {
+  TooltipContent,
+  TooltipRoot,
+  TooltipTrigger,
+} from '../overlays/tooltip';
 
 interface ChartCardProps {
   /**
@@ -85,7 +89,7 @@ export function ChartCard({
               </h3>
             ) : null}
             {tooltip ? (
-              <Tooltip>
+              <TooltipRoot>
                 <TooltipTrigger
                   type="button"
                   aria-label={tooltip}
@@ -94,7 +98,7 @@ export function ChartCard({
                   <Info className="size-4" aria-hidden />
                 </TooltipTrigger>
                 <TooltipContent side="top">{tooltip}</TooltipContent>
-              </Tooltip>
+              </TooltipRoot>
             ) : null}
           </div>
           {toolbar ? <div className="shrink-0">{toolbar}</div> : null}

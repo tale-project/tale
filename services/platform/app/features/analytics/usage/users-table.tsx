@@ -1,12 +1,12 @@
 'use client';
 
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { MetricsSection } from '@tale/ui/metrics/metrics-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { MetricsSection } from '@/app/components/metrics/metrics-section';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

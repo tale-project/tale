@@ -1,15 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Textarea } from '@tale/ui/textarea';
+import { useForm } from '@tale/ui/use-form';
+import { useToast } from '@tale/ui/use-toast';
 import { useMemo } from 'react';
 import * as z from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useRejectLegalHoldRelease } from '../hooks/mutations';

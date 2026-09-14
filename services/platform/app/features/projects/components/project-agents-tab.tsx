@@ -1,16 +1,16 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProjectAgent } from '../hooks/mutations';

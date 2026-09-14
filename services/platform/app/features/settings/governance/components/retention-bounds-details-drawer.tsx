@@ -1,9 +1,9 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
+import { Sheet } from '@tale/ui/sheet';
 import { Text } from '@tale/ui/text';
 
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useT } from '@/lib/i18n/client';
 
 export interface DiffEntry {

@@ -62,7 +62,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

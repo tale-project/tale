@@ -5,7 +5,7 @@ import { render } from '@/tests/utils/render';
 
 import { CitationLink } from './citation-link';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string, params?: Record<string, string>) => {
       const translations: Record<string, string> = {

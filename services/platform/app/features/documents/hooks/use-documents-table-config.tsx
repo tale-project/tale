@@ -1,21 +1,22 @@
 'use client';
 
+import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
+import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
+import { DocumentIcon } from '@tale/ui/document-icon';
+import { GoogleDriveIcon } from '@tale/ui/icons/google-drive-icon';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ComponentType } from 'react';
 import { useMemo } from 'react';
 
-import { GoogleDriveIcon } from '@/app/components/icons/google-drive-icon';
-import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { documentScopeKind, scopeTeamIds } from '@/lib/knowledge/types';
+import { documentIconExtension } from '@/lib/shared/file-types';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
 
@@ -122,7 +123,10 @@ export function useDocumentsTableConfig({
               <DocumentIcon
                 className="shrink-0"
                 fileName={fileName}
-                mimeType={row.original.mimeType}
+                extension={documentIconExtension(
+                  fileName,
+                  row.original.mimeType,
+                )}
                 isFolder={row.original.type === 'folder'}
               />
               <button

@@ -10,7 +10,7 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 // the name input (not a toast). The backend rule itself is covered by
 // `assert_unique_product_name.test.ts`.
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -24,7 +24,7 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

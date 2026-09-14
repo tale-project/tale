@@ -6,7 +6,7 @@ import { render } from '@/tests/utils/render';
 import type { ApiKey } from '../types';
 import { ApiKeyRowActions } from './api-key-row-actions';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

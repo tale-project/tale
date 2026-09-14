@@ -2,13 +2,13 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CappedScrollRegion } from '@tale/ui/capped-scroll-region';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useId } from 'react';
 
-import { CappedScrollRegion } from '@/app/components/ui/data-display/capped-scroll-region';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 /** One row of the immutable version history, as the store reports it. */

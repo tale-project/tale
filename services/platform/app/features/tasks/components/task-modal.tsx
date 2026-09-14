@@ -7,9 +7,12 @@ import {
 } from '@tale/shared/schemas/automation-settings';
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { DatePicker } from '@tale/ui/date-picker';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
@@ -18,6 +21,9 @@ import {
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import {
   Archive,
@@ -34,9 +40,6 @@ import {
   type ReactNode,
 } from 'react';
 
-import { DatePicker } from '@/app/components/ui/forms/date-picker';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { AutomationSettingsDialog } from '@/app/features/automations/components/automation-settings-dialog';
 import { AutomationSettingsForm } from '@/app/features/automations/components/automation-settings-form';
 import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
@@ -49,13 +52,10 @@ import {
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useAssignTask,

@@ -11,7 +11,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/app/components/ui/navigation/tab-navigation';
+} from '@/app/components/navigation/tab-navigation';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';

@@ -3,20 +3,20 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DEFAULT_PASSWORD_POLICY } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
+import { MicrosoftIcon } from '@tale/ui/icons/microsoft-icon';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
+import { ValidationCheckList } from '@tale/ui/validation-check-item';
+import { WizardStep } from '@tale/ui/wizard/wizard';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
-import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { Input } from '@/app/components/ui/forms/input';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
-import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';

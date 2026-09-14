@@ -3,10 +3,10 @@ import { Card } from '@tale/ui/card';
 import { Grid, Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { RefreshCw } from 'lucide-react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { SandboxCapacity } from '@/app/lib/backend/contract/sandbox';
 import { useT } from '@/lib/i18n/client';

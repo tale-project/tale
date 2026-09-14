@@ -6,12 +6,11 @@
  * optional trailing action. Never shows a MIME string.
  */
 
+import { cn } from '@tale/ui/cn';
+import { middleEllipsis } from '@tale/ui/format';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
-import { middleEllipsis } from '@/lib/utils/format/file';
 
 import { FileTypeIcon } from './file-displays';
 

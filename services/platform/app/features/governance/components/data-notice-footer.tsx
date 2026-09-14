@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { ShieldAlert } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useDataClassificationNotice } from '../hooks/use-data-classification-notice';
 

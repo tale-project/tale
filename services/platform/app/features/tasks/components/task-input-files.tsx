@@ -1,19 +1,19 @@
 'use client';
 
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FileUpload } from '@tale/ui/file-upload';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { FolderInput, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,

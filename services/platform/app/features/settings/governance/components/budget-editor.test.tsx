@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

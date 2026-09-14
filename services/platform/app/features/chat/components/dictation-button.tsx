@@ -1,6 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
+import { toast } from '@tale/ui/use-toast';
 import { AlertCircle, Loader2, Mic, RotateCcw, X } from 'lucide-react';
 import {
   forwardRef,
@@ -10,10 +13,7 @@ import {
   useRef,
 } from 'react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useMediaRecorderDictation } from '../hooks/use-media-recorder-dictation';
 import { useMicrophoneLevel } from '../hooks/use-microphone-level';

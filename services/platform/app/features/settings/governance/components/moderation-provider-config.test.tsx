@@ -7,7 +7,7 @@ import { render, screen } from '@/tests/utils/render';
 // route imports that name); it is the container that owns data + Skeletonize.
 import { ModerationProviderConfigView } from './moderation-provider-config';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

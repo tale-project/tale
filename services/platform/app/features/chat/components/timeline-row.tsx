@@ -17,10 +17,9 @@
  * affordance for a cosmetic gain.
  */
 
+import { cn } from '@tale/ui/cn';
 import { ChevronRight } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 export interface TimelineRowProps {
   icon: ComponentType<{ className?: string }>;

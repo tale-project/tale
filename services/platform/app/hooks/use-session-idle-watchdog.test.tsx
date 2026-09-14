@@ -25,8 +25,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv }));
 vi.mock('@/lib/auth-client', () => ({ authClient: { signOut: h.signOut } }));
-vi.mock('@/app/hooks/use-toast', () => ({ toast: h.toast }));
-vi.mock('@/lib/i18n/client', () => ({ useT: () => ({ t: h.t }) }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: h.toast }));
+vi.mock('@tale/ui/i18n/client', () => ({ useT: () => ({ t: h.t }) }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => h.state.orgId,
 }));

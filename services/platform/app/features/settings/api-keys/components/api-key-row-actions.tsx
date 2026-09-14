@@ -1,9 +1,9 @@
 'use client';
 
+import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { useT } from '@/lib/i18n/client';
 
 import type { ApiKey } from '../types';

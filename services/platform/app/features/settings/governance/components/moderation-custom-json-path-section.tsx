@@ -1,11 +1,11 @@
 'use client';
 
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { useState } from 'react';
 
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
 
 import type { EndpointDraft } from './moderation-presets';

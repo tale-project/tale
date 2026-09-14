@@ -17,6 +17,7 @@
  * thought timeline above the answer.
  */
 
+import { cn } from '@tale/ui/cn';
 import { useMemo } from 'react';
 
 import {
@@ -24,7 +25,6 @@ import {
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
 import { TypewriterText } from '@/app/features/shared/markdown/typewriter-text';
-import { cn } from '@/lib/utils/cn';
 
 import type { MessagePart } from '../types';
 import { MessageParts } from './message-parts';

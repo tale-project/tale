@@ -1,20 +1,20 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Checkbox } from '@tale/ui/checkbox';
+import { cn } from '@tale/ui/cn';
 import { Heading } from '@tale/ui/heading';
 import { Center, HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { decode } from 'he';
 import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { isKeyOf } from '@/lib/utils/type-utils';
 
 import type { Conversation } from '../types';

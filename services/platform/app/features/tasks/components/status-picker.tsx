@@ -3,7 +3,8 @@
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
+} from '@tale/ui/searchable-select';
+
 import { useT } from '@/lib/i18n/client';
 
 import {

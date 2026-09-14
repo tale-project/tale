@@ -1,12 +1,12 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
-
 import {
   metricsPeriodSearchSchema,
   metricsPeriodToParam,
   parseMetricsPeriodDays,
   type MetricsPeriodDays,
-} from '@/app/components/metrics/metrics-period';
+} from '@tale/ui/metrics/metrics-period';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useCallback } from 'react';
+
 import { ExternalTurnMetricsPage } from '@/app/features/analytics/external-turns/external-turns-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';

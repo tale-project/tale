@@ -1,9 +1,9 @@
 'use client';
 
+import { MetricsSection } from '@tale/ui/metrics/metrics-section';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 
-import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

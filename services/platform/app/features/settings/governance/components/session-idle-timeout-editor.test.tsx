@@ -5,7 +5,7 @@ import { render, screen } from '@/tests/utils/render';
 
 import { SessionIdleTimeoutEditor } from './session-idle-timeout-editor';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
   toast: vi.fn(),
 }));

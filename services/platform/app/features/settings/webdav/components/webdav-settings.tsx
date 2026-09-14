@@ -2,18 +2,19 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Key, KeyRound, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -21,7 +22,6 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

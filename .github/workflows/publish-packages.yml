@@ -1,0 +1,115 @@
+# =============================================================================
+# Publish the design-system packages as installable git snapshots.
+# =============================================================================
+# Bun cannot install a package from a subdirectory of a git repository, so
+# every push to main republishes `packages/ui` and `packages/marketing-ui` as
+# orphan snapshots on the `dist/ui` / `dist/marketing-ui` branches, and every
+# release pins the same snapshot with a `ui-v<version>` / `marketing-ui-v<version>`
+# tag. A consumer then depends on
+#
+#   "@tale/ui": "github:tale-project/tale#dist/ui"          (moving)
+#   "@tale/ui": "github:tale-project/tale#ui-v0.5.25"       (pinned)
+#
+# See scripts/publish-package.ts and packages/ui/README.md.
+# =============================================================================
+
+name: Publish packages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/ui/**'
+      - 'packages/marketing-ui/**'
+      - 'scripts/publish-package.ts'
+      - '.github/workflows/publish-packages.yml'
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag_version:
+        description: 'Also tag the snapshots with this release version (e.g. 0.5.25); empty = branches only'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ui, marketing-ui]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      # A release tag (`v0.5.25`) or an explicit dispatch input pins the
+      # snapshot with `<package>-v<version>`; a plain push to main only moves
+      # the `dist/<package>` branch.
+      - name: Resolve snapshot tag
+        id: tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.tag_version }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          VERSION=""
+          if [ "$REF_TYPE" = "tag" ]; then
+            VERSION="${REF_NAME#v}"
+          elif [ -n "$INPUT_VERSION" ]; then
+            VERSION="${INPUT_VERSION#v}"
+          fi
+          if [ -n "$VERSION" ]; then
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+              echo "::error::Version must be semver, got '$VERSION'"; exit 1
+            fi
+            echo "value=${PACKAGE}-v${VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE: ${{ matrix.package }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if [ -n "$TAG" ]; then
+            bun scripts/publish-package.ts "packages/${PACKAGE}" --remote "$REMOTE" --tag "$TAG"
+          else
+            bun scripts/publish-package.ts "packages/${PACKAGE}" --remote "$REMOTE"
+          fi
+
+      - name: Summary
+        env:
+          PACKAGE: ${{ matrix.package }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          {
+            echo "## Published @tale/${PACKAGE}"
+            echo ""
+            echo "- branch: \`dist/${PACKAGE}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#dist/${PACKAGE}\"\`"
+            if [ -n "$TAG" ]; then
+              echo "- tag: \`${TAG}\` → \`\"@tale/${PACKAGE}\": \"github:${GITHUB_REPOSITORY}#${TAG}\"\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

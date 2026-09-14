@@ -217,16 +217,6 @@ entries:
   - 'skills.loadErrorDetail'
   - 'skills.upload.errors'
 
-  # `common.aria.selectRow` labels the data-table selection checkboxes
-  # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
-  # by every selectable table). It is referenced via the
-  # `i18n.t('common:aria.…')` colon form the usage scanner's `i18n.t()` matcher
-  # can't tie back to a flat key, and the builder runs outside a hook so it
-  # can't alias `useT('common')`. (`selectRow` used to escape orphaning through
-  # a second `tCommon('aria.selectRow')` site in the removed Puck
-  # conversation-list block; the column builder is now its only caller.)
-  - 'common.aria.selectRow'
-
   # Run-admission refusal reasons (#2609): task-timeline.tsx and
   # task-run-failure-banner.tsx resolve `TASK_RUN_REFUSAL_LABEL_KEY[refusedReason]`
   # — an enum-driven lookup keyed by the machine `refusedReason` string stored on

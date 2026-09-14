@@ -1,7 +1,7 @@
 import { Input } from '@tale/ui/input';
 import { Slider } from '@tale/ui/slider';
 import {
-  Tooltip,
+  TooltipRoot,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -124,7 +124,7 @@ export function UserCountControl({
           {label}
         </label>
         <TooltipProvider delayDuration={0}>
-          <Tooltip open={showMinTip}>
+          <TooltipRoot open={showMinTip}>
             <TooltipTrigger asChild>
               <Input
                 id="pricing-users-input"
@@ -142,7 +142,7 @@ export function UserCountControl({
             <TooltipContent side="top" align="end">
               {minTooltip}
             </TooltipContent>
-          </Tooltip>
+          </TooltipRoot>
         </TooltipProvider>
       </div>
       <Slider

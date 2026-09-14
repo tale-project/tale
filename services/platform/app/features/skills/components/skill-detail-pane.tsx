@@ -2,19 +2,19 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';

@@ -1,3 +1,15 @@
+import { AdaptiveHeaderRoot } from '@tale/ui/adaptive-header';
+import { ContentArea } from '@tale/ui/content-area';
+import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@tale/ui/editor';
+import {
+  HEADER_CRUMB_LINK_CLASS,
+  HeaderBreadcrumbs,
+} from '@tale/ui/header-breadcrumbs';
+import { PageLayout } from '@tale/ui/page-layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -11,22 +23,10 @@ import {
 } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 
-import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { ContentArea } from '@/app/components/layout/content-area';
-import {
-  HEADER_CRUMB_LINK_CLASS,
-  HeaderBreadcrumbs,
-} from '@/app/components/layout/header-breadcrumbs';
-import { PageLayout } from '@/app/components/layout/page-layout';
-import {
-  ActiveEditorProvider,
-  EditorActions,
-  useActiveEditor,
-} from '@/app/components/ui/editor';
 import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/app/components/ui/navigation/tab-navigation';
+} from '@/app/components/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import {

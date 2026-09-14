@@ -1,5 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import {
   Ban,
   Bot,
@@ -9,10 +12,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { TASK_TERMINAL_STATUSES, isTaskStatus } from '../lib/display';
 

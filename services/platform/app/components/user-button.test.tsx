@@ -10,7 +10,7 @@ import { UserButton } from './user-button';
 // keyed by relative path. Strings mirror the real en.json values the e2e
 // asserts against (messages/en.json + messages/global.json), so the migrated
 // "user menu" test stays faithful to the spec it replaces.
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (_ns: string) => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
@@ -55,7 +55,7 @@ vi.mock('@tale/ui/use-is-mobile', () => ({
 
 // Mock toast
 const mockToast = vi.fn();
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 

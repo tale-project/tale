@@ -4,10 +4,10 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
+import { useToast } from '@tale/ui/use-toast';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

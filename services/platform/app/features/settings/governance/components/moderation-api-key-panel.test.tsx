@@ -7,7 +7,7 @@ import { ApiKeyPanel } from './moderation-api-key-panel';
 
 const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
 }));
 

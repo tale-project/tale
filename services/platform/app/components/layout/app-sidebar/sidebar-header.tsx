@@ -3,7 +3,7 @@
 import { Link } from '@tanstack/react-router';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
+import { TaleLogo } from '@/app/components/logo/tale-logo';
 
 export interface SidebarHeaderProps {
   organizationId: string;

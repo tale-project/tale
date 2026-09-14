@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (key === 'run.details') return 'Details';

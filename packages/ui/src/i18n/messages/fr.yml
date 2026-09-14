@@ -30,3 +30,190 @@ search:
   tipSelect: pour ouvrir
   tipClose: pour fermer
   results: '{count, plural, =0 {aucun résultat} =1 {# résultat} other {# résultats}}'
+auth:
+  userButton:
+    iosInstall:
+      description: Ajoute Tale à ton écran d'accueil pour l'ouvrir en plein écran, comme une app.
+      done: OK
+      step1: Appuie sur « Partager » dans la barre d'outils de ton navigateur.
+      step2: Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».
+      title: Installer Tale
+common:
+  actions:
+    archiveSelected: Archiver la sélection
+    cancel: Annuler
+    clearAll: Tout effacer
+    confirm: Confirmer
+    copied: Copié
+    copy: Copier
+    delete: Supprimer
+    deleteSelected: Supprimer la sélection
+    deleting: Suppression...
+    discard: Abandonner
+    openMenu: Ouvrir le menu
+    reset: Réinitialiser
+    save: Enregistrer
+    saved: Enregistré
+    source: Source
+    tryAgain: Réessayer
+  aria:
+    back: Retour
+    close: Fermer
+    goToPage: Aller à la page
+    hidePassword: Masquer le mot de passe
+    invalid: invalide
+    moreInfo: Plus d'informations
+    moreTabs: Autres onglets
+    nextPage: Page suivante
+    previousPage: Page précédente
+    removeFile: Supprimer le fichier
+    resizePanel: Redimensionner le panneau
+    rowActions: Actions de la ligne
+    scrollDown: Défiler vers le bas
+    selectAll: Tout sélectionner
+    selectRow: Sélectionner la ligne
+    showPassword: Afficher le mot de passe
+    unsavedChanges: Modifications non enregistrées
+    valid: valide
+    validationRequirements: Exigences de validation
+    validationStatus: "{message} : {status}"
+  bulkActions:
+    archiveFailed: Échec de l'archivage de certains éléments
+    archiveSuccess: "{count, plural, one {# élément archivé} other {# éléments archivés}}"
+    archiving: Archivage...
+    confirmArchiveDescription: Archiver {count, plural, one {cet élément} other {ces {count} éléments}} ? Tu pourras {count, plural, one {le} other {les}} restaurer plus tard.
+    confirmArchiveTitle: Archiver {count, plural, one {# élément} other {# éléments}}
+    confirmDeleteDescription: Supprimer {count, plural, one {cet élément} other {ces {count} éléments}} ? Cette action est irréversible.
+    confirmDeleteTitle: Supprimer {count, plural, one {# élément} other {# éléments}}
+    deleteFailed: Échec de la suppression de certains éléments
+    deleteSuccess: "{count, plural, one {# élément supprimé} other {# éléments supprimés}}"
+    deleting: Suppression...
+    itemsSelected: "{count, plural, one {# élément sélectionné} other {# éléments sélectionnés}}"
+  confirmDialog:
+    typeToConfirmLabel: Tape "{phrase}" pour confirmer
+  dataTable:
+    dateFilterUnavailable: Filtre de date indisponible
+  datePicker:
+    nextMonth: Mois suivant
+    placeholder: Choisir une date
+    presets:
+      custom: Personnalisé
+      today: Aujourd'hui
+      last7Days: 7 derniers jours
+      last14Days: 14 derniers jours
+      last30Days: 30 derniers jours
+      last3Months: 3 derniers mois
+      last12Months: 12 derniers mois
+      monthToDate: Mois en cours
+      quarterToDate: Trimestre en cours
+      yearToDate: Année en cours
+      allTime: Tout le temps
+    previousMonth: Mois précédent
+  dates:
+    today: Aujourd'hui
+    yesterday: Hier
+  discardChangesConfirm: Abandonner les modifications non enregistrées ?
+  editor:
+    fixHighlightedFields: Corrige les champs surlignés et réessaie.
+  errors:
+    contactSupport: contacter le support
+    errorLoadingPage: Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.
+    hideDetails: Masquer les détails
+    persistsProblem: Si ce problème persiste,
+    showDetails: Afficher les détails
+    somethingWentWrong: Une erreur s'est produite. Réessaie.
+    tryAgain: Réessayer
+  flow:
+    aiEditor: Éditeur IA
+    resetView: Réinitialiser la vue
+    zoomIn: Zoomer
+    zoomOut: Dézoomer
+  keyboardShortcuts:
+    ctrlEnter: Ctrl+Entrée
+    escape: Échap
+    hintToCancel: pour annuler
+    hintToSave: pour enregistrer,
+  labels:
+    filter: Filtre
+    filters: Filtres
+    nSelected: "{count} sélectionné(s)"
+  loading:
+    label: Chargement
+    navigating: Chargement de la page
+  moreTabs: Plus
+  optional: facultatif
+  pagination:
+    loadMore: Charger plus
+    loading: Chargement...
+    noMore: Plus d'éléments à charger
+    rowsPerPage: Lignes par page
+    showing: "{start}-{end} sur {total}"
+    showingAll: "{count, plural, one {Affichage de # {entityOne} au total} other {Affichage de # {entityOther} au total}}"
+    showingFiltered: "{total, plural, one {Affichage de {filtered} sur # {entityOne}} other {Affichage de {filtered} sur # {entityOther}}}"
+    showingRange: "{total, plural, one {Affichage de {start}-{end} sur # {entityOne}} other {Affichage de {start}-{end} sur # {entityOther}}}"
+  search:
+    noResults: Aucun résultat trouvé
+    placeholder: Rechercher
+    tryAdjusting: Essaie d'ajuster tes critères de recherche
+  select:
+    noOptionsHint: Rien à choisir pour l'instant.
+  unsavedChanges:
+    description: Tu as des modifications non enregistrées. Quitter maintenant les fera disparaître.
+    discardAndLeave: Abandonner & Quitter
+    stay: Continuer à modifier
+    title: Modifications non enregistrées
+  upload:
+    dropFilesHere: Dépose les fichiers ici pour téléverser
+    pickADate: Choisir une date
+  validation:
+    invalidJson: Format JSON invalide
+    schemaValidationFailed: "Échec de la validation du schéma{error, select, empty {} other { : {error}}}"
+envEditor:
+  add: Ajouter une variable
+  badKey: « {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret bas ; ne doit pas commencer par un chiffre).
+  confirmRemoveDescription: Elle sera supprimée lorsque tu enregistreras tes modifications. Cette action est irréversible.
+  confirmRemoveTitle: Supprimer la variable ?
+  dupKey: Nom de variable en double — chaque NOM doit être unique.
+  keyPlaceholder: NOM
+  remove: Supprimer
+  save: Enregistrer
+  saveError: Impossible d'enregistrer l'environnement
+  saved: Environnement enregistré
+  saving: Enregistrement…
+  secret: Secret
+  typeTokenSource: Source de jetons
+  typeValue: Valeur
+  valuePlaceholder: valeur
+  valueType: Type
+metrics:
+  period:
+    label: Période
+    last24Hours: Dernières 24 heures
+    last7Days: 7 derniers jours
+    last30Days: 30 derniers jours
+    last90Days: 90 derniers jours
+    allTime: Tout l'historique
+pwa:
+  offlineReady: Tale est prêt à fonctionner hors ligne.
+  updateAvailableDescription: Une nouvelle version de Tale est prête.
+  updateAvailableTitle: Mise à jour disponible
+  updateNow: Mettre à jour
+settings:
+  agents:
+    form:
+      addModel: Ajouter un modèle
+      modelSelector:
+        dragHandle: Glisser pour réorganiser le modèle
+        moveDown: Déplacer le modèle vers le bas
+        moveUp: Déplacer le modèle vers le haut
+      noModelsFound: Aucun modèle trouvé
+      removeModel: Retirer
+      searchModels: Rechercher des modèles
+toast:
+  success:
+    deleted:
+      description: L'élément a été supprimé.
+      title: Supprimé
+tables:
+  headers:
+    description: Description

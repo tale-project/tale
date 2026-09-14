@@ -12,11 +12,11 @@
  */
 
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
-import { CatalogLoadError } from '@/app/components/catalog/catalog-view';
 import { useT } from '@/lib/i18n/client';
 
 import {

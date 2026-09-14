@@ -405,14 +405,6 @@ auth:
     defaultName: Benutzer
     manageAccount: Konto verwalten
     getApp: App installieren
-    iosInstall:
-      title: Tale installieren
-      description:
-        Füge Tale zu deinem Home-Bildschirm hinzu, damit es im Vollbild wie
-        eine App läuft.
-      step1: Tippe in der Symbolleiste deines Browsers auf „Teilen“.
-      step2: Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.
-      done: OK
     documentation: Dokumentation
     currentVersion: 'Aktuelle Version: v{version}'
     whatsNew: Neuigkeiten
@@ -1488,45 +1480,18 @@ chat:
   budgetWarningTypeCost: Kosten
   budgetWarningTypeRequests: Anfragen
 common:
-  optional: optional
   or: oder
   select:
-    noOptionsHint: Noch nichts zum Auswählen.
     noProvidersHint: Lege zuerst einen KI-Anbieter an.
     pickProviderFirstHint: Wähle zuerst einen Anbieter — seine Modelle erscheinen hier.
-  dates:
-    today: Heute
-    yesterday: Gestern
-  datePicker:
-    placeholder: Datum wählen
-    previousMonth: Vorheriger Monat
-    nextMonth: Nächster Monat
-    presets:
-      custom: Benutzerdefiniert
-      today: Heute
-      last7Days: Letzte 7 Tage
-      last14Days: Letzte 14 Tage
-      last30Days: Letzte 30 Tage
-      last3Months: Letzte 3 Monate
-      last12Months: Letzte 12 Monate
-      monthToDate: Aktueller Monat
-      quarterToDate: Aktuelles Quartal
-      yearToDate: Aktuelles Jahr
-      allTime: Gesamter Zeitraum
   units:
     stock: '{count, plural, one {# Einheit} other {# Einheiten}}'
   actions:
-    save: Speichern
     saving: Speichern...
-    saved: Gespeichert
-    cancel: Abbrechen
-    delete: Löschen
-    deleting: Lösche...
     edit: Bearbeiten
     adding: Füge hinzu...
     create: Erstellen
     close: Schließen
-    confirm: Bestätigen
     back: Zurück
     next: Weiter
     skip: Überspringen
@@ -1535,45 +1500,12 @@ common:
     done: Fertig
     view: Anzeigen
     viewSource: Quelle anzeigen
-    source: Quelle
-    copy: Kopieren
-    copied: Kopiert
     showInfo: Info anzeigen
-    clearAll: Alle löschen
-    reset: Zurücksetzen
-    discard: Verwerfen
     import: Importieren
     importing: Wird importiert...
-    openMenu: Menü öffnen
-    deleteSelected: Ausgewählte löschen
-    archiveSelected: Ausgewählte archivieren
-    tryAgain: Erneut versuchen
-  unsavedChanges:
-    title: Ungespeicherte Änderungen
-    description: Du hast ungespeicherte Änderungen. Wenn du jetzt gehst, gehen sie verloren.
-    stay: Weiter bearbeiten
-    discardAndLeave: Verwerfen & Gehen
-  editor:
-    fixHighlightedFields: Bitte korrigiere die hervorgehobenen Felder und versuche es erneut.
-  confirmDialog:
-    typeToConfirmLabel: Tippe "{phrase}" zum Bestätigen
-  bulkActions:
-    itemsSelected: '{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}'
-    confirmDeleteTitle: '{count, plural, one {# Element} other {# Elemente}} löschen'
-    confirmDeleteDescription: '{count, plural, one {Dieses Element} other {Diese {count} Elemente}} löschen? Das lässt sich nicht rückgängig machen.'
-    deleteSuccess: '{count, plural, one {# Element} other {# Elemente}} gelöscht'
-    deleteFailed: Einige Elemente konnten nicht gelöscht werden
-    deleting: Lösche...
-    confirmArchiveTitle: '{count, plural, one {# Element} other {# Elemente}} archivieren'
-    confirmArchiveDescription: '{count, plural, one {Dieses Element} other {Diese {count} Elemente}} archivieren? Du kannst {count, plural, one {es} other {sie}} später wiederherstellen.'
-    archiveSuccess: '{count, plural, one {# Element} other {# Elemente}} archiviert'
-    archiveFailed: Einige Elemente konnten nicht archiviert werden
-    archiving: Archiviere...
   upload:
     clickToUpload: Hochladen
-    dropFilesHere: Dateien hier ablegen zum Hochladen
     supportedFormats: .xlsx, .xls oder .csv
-    pickADate: Datum auswählen
   labels:
     phone: Telefon
     source: Quelle
@@ -1582,10 +1514,7 @@ common:
     tags: Tags
     notes: Notizen
     created: Erstellt
-    filter: Filter
-    filters: Filter
     notAvailable: k. A.
-    nSelected: '{count} ausgewählt'
   status:
     active: Aktiv
     inactive: Inaktiv
@@ -1604,65 +1533,24 @@ common:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
     email: Gib eine gültige E-Mail-Adresse ein
-    invalidJson: Ungültiges JSON-Format
     uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp
-    schemaValidationFailed:
-      'Schema-Validierung fehlgeschlagen{error, select, empty
-      {} other {: {error}}}'
   aria:
-    close: Schließen
-    rowActions: Aktionen für die Zeile
-    resizePanel: Panelgröße ändern
-    hidePassword: Passwort ausblenden
-    showPassword: Passwort anzeigen
     dismiss: Verwerfen
-    previousPage: Vorherige Seite
-    nextPage: Nächste Seite
-    goToPage: Zur Seite
     zoomIn: Vergrößern
     zoomOut: Verkleinern
-    selectAll: Alle auswählen
-    selectRow: Zeile auswählen
-    removeFile: Datei entfernen
     removeNamed: '{name} entfernen'
     unread: Ungelesen
     completed: Abgeschlossen
-    back: Zurück
     backTo: Zurück zu {page}
     breadcrumb: Brotkrumennavigation
     knowledgeNavigation: Wissen-Navigation
-    moreInfo: Weitere Informationen
-    valid: gültig
-    invalid: ungültig
-    validationRequirements: Validierungsanforderungen
-    validationStatus: '{message}: {status}'
     skipToContent: Zum Hauptinhalt springen
     mainNavigation: Hauptnavigation
     projectsNavigation: Projektnavigation
     sortAscending: aufsteigend sortiert
     sortDescending: absteigend sortiert
     sortAvailable: sortierbar
-    unsavedChanges: Nicht gespeicherte Änderungen
-    moreTabs: Weitere Tabs
-    scrollDown: Nach unten scrollen
-  pagination:
-    rowsPerPage: Zeilen pro Seite
-    showing: '{start}–{end} von {total}'
-    loadMore: Mehr laden
-    loading: Weitere werden geladen...
-    noMore: Keine weiteren Einträge
-    showingAll:
-      '{count, plural, one {# {entityOne} wird angezeigt} other {Alle #
-      {entityOther} werden angezeigt}}'
-    showingFiltered: '{total, plural, one {{filtered} von # {entityOne} wird
-      angezeigt} other {{filtered} von # {entityOther} werden angezeigt}}'
-    showingRange: '{total, plural, one {{start}-{end} von # {entityOne} wird
-      angezeigt} other {{start}-{end} von # {entityOther} werden angezeigt}}'
-  search:
-    noResults: Keine Ergebnisse gefunden
-    tryAdjusting: Passe deine Suchkriterien an
-    placeholder: Suchen
   mentions:
     unresolvedTitle: Erwähnung nicht erkannt
     unresolvedDescription:
@@ -1671,30 +1559,14 @@ common:
   errors:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
-    somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
-    errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
-    persistsProblem: Wenn das immer wieder passiert,
-    contactSupport: kontaktiere den Support
-    tryAgain: Erneut versuchen
-    showDetails: Details anzeigen
-    hideDetails: Details ausblenden
-  keyboardShortcuts:
-    ctrlEnter: Ctrl+Enter
-    escape: Esc
-    hintToSave: zum Speichern,
-    hintToCancel: zum Abbrechen
   notFound:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
     backToDashboard: Zurück zum Dashboard
-  discardChangesConfirm: Ungespeicherte Änderungen verwerfen?
   moveUp: Nach oben
   moveDown: Nach unten
   drag: Zum Sortieren ziehen
   remove: Entfernen
-  loading:
-    navigating: Seite wird geladen
-    label: Wird geladen
   sessionIdle:
     warningTitle: Du wirst bald abgemeldet
     warningDescription: Deine Sitzung endet nach einer Phase der Inaktivität.
@@ -1703,14 +1575,6 @@ common:
     staySignedIn: Angemeldet bleiben
     signedOutNotice: Du wurdest abgemeldet, weil deine Sitzung zu lange inaktiv war.
     continueToSignIn: Weiter zur Anmeldung
-  dataTable:
-    dateFilterUnavailable: Datumsfilter nicht verfügbar
-  flow:
-    zoomIn: Vergrößern
-    zoomOut: Verkleinern
-    resetView: Ansicht zurücksetzen
-    aiEditor: KI-Editor
-  moreTabs: Mehr
 composer:
   openMenu: Chat-Menü öffnen
   addFiles: Fotos & Dateien hinzufügen
@@ -4041,13 +3905,6 @@ metrics:
     external-turns: Harness-Runden
     automations: Automatisierungen
     projects: Projekte
-  period:
-    label: Zeitraum
-    last24Hours: Letzte 24 Stunden
-    last7Days: Letzte 7 Tage
-    last30Days: Letzte 30 Tage
-    last90Days: Letzte 90 Tage
-    allTime: Gesamter Zeitraum
   projects:
     selectLabel: Projekt
     selectPlaceholder: Projekt auswählen
@@ -4895,11 +4752,6 @@ skills:
     bodyHelp:
       Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
       Konventionen, Referenzmaterial. Wird nie ausgeführt.
-pwa:
-  updateAvailableTitle: Aktualisierung verfügbar
-  updateAvailableDescription: Eine neue Version von Tale ist bereit.
-  updateNow: Jetzt aktualisieren
-  offlineReady: Tale ist offline einsatzbereit.
 settings:
   menu:
     groups:
@@ -5094,16 +4946,6 @@ settings:
       stattdessen das Team, um das letzte Mitglied zu entfernen.
     description: Teams innerhalb deiner Organisation erstellen und verwalten für
       granulare Zugriffskontrolle
-  agents:
-    form:
-      addModel: Modell hinzufügen
-      searchModels: Modelle suchen
-      noModelsFound: Keine Modelle gefunden
-      removeModel: Entfernen
-      modelSelector:
-        moveUp: Modell nach oben verschieben
-        moveDown: Modell nach unten verschieben
-        dragHandle: Ziehen zum Neuordnen des Modells
   credentials:
     default: Standard
     makeDefault: Zum Standard machen
@@ -6792,7 +6634,6 @@ tables:
     uploadedBy: Hochgeladen von
     actions: Aktionen
     created: Hinzugefügt
-    description: Beschreibung
     email: E-Mail
     product: Produkt
     scanned: Gescannt
@@ -6806,9 +6647,6 @@ tables:
     noEmail: Keine E-Mail
 toast:
   success:
-    deleted:
-      title: Gelöscht
-      description: Das Element wurde gelöscht.
     passwordChanged:
       title: Passwort geändert
       description: Verwende dein neues Passwort bei der nächsten Anmeldung.
@@ -7565,22 +7403,3 @@ sandboxes:
       Arbeitsbereiche erscheinen, sobald ein Projekt-Agent oder Workflow läuft.
       Die Kapazitätszahlen oben enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
-envEditor:
-  confirmRemoveTitle: Variable entfernen?
-  confirmRemoveDescription: Sie wird beim Speichern deiner Änderungen entfernt.
-    Dies kann nicht rückgängig gemacht werden.
-  keyPlaceholder: NAME
-  valuePlaceholder: Wert
-  secret: Geheim
-  valueType: Typ
-  typeValue: Wert
-  typeTokenSource: Token-Quelle
-  add: Variable hinzufügen
-  remove: Entfernen
-  save: Speichern
-  saving: Wird gespeichert…
-  saved: Umgebung gespeichert
-  saveError: Umgebung konnte nicht gespeichert werden
-  badKey: „{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern,
-    Unterstrich; nicht mit einer Ziffer beginnend).
-  dupKey: Doppelter Variablenname — jeder NAME muss eindeutig sein.

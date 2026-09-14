@@ -5,9 +5,16 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { useToast } from '@tale/ui/use-toast';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,15 +25,6 @@ import {
 } from 'react-hook-form';
 import { z } from 'zod';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  useFormEditor,
-  useRegisterActiveEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -34,7 +32,6 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type {
   PlatformRole,

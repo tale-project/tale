@@ -8,9 +8,16 @@ import {
 } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { HStack, Stack, Row } from '@tale/ui/layout';
+import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { structuralEqual } from '@tale/ui/structural-equal';
+import { Switch } from '@tale/ui/switch';
 import {
   Table,
   TableBody,
@@ -21,24 +28,17 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import type { TFunction } from 'i18next';
 import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
-import { structuralEqual } from '@/lib/utils/structural-equal';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (key === 'agentRuns.status.running') return 'Running';
@@ -26,7 +26,7 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/components/ui/dialog/view-dialog', () => ({
+vi.mock('@tale/ui/dialog/view-dialog', () => ({
   ViewDialog: ({
     open,
     title,

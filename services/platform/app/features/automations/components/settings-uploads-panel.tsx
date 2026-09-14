@@ -2,10 +2,19 @@
 
 import type { SettingsUploadsForm } from '@tale/shared/schemas/automation-settings';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@tale/ui/file-tree-primitives';
+import { FileUpload } from '@tale/ui/file-upload';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import {
   ChevronDown,
   ChevronRight,
@@ -25,14 +34,6 @@ import {
 } from 'react';
 
 import {
-  iconForPath,
-  TreeRowButton,
-  treeNavigationKeyDown,
-} from '@/app/components/ui/data-display/file-tree-primitives';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import {
   useCreateFolder,
   useDeleteDocument,
 } from '@/app/features/documents/hooks/mutations';
@@ -42,7 +43,6 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_MAX_FILE_SIZE,

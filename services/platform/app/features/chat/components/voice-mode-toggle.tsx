@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
 import { Volume2, VolumeOff } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /**
  * Composer voice-mode toggle — reads replies aloud for the current thread.

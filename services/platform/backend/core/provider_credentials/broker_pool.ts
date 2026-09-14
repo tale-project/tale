@@ -17,10 +17,15 @@ import type {
   BrokerResponseMapping,
   BrokerSelection,
 } from '@tale/shared/schemas/providers';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
-import dayjs from '../../../lib/utils/date/dayjs-setup';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { readJsonPath } from '../lib/json/json_path';
+
+// The broker only needs UTC parsing; the app-side dayjs setup (plugins +
+// lazy locales) lives in the design system, which the backend never imports.
+dayjs.extend(utc);
 
 /**
  * A clear, non-leaky failure of the broker credential path — never carries a

@@ -2,11 +2,11 @@
 
 import { voiceOutputConfigSchema } from '@tale/shared/schemas/governance';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
+import { useToast } from '@tale/ui/use-toast';
 
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';

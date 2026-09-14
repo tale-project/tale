@@ -1,6 +1,8 @@
 'use client';
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
+import { cn } from '@tale/ui/cn';
+import { Sheet } from '@tale/ui/sheet';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   BrainIcon,
@@ -15,12 +17,10 @@ import {
 import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 export interface MobileBottomNavProps {
   organizationId: string;

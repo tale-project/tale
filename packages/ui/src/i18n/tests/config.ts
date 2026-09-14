@@ -89,6 +89,16 @@ export interface I18nTestsConfig {
   /** Pretty path printed in failure messages. Inferred when omitted. */
   allowlistDisplayPath?: string;
 
+  /**
+   * Message directories of the packages this service merges at runtime
+   * (`initServiceI18n({ packages })`) — e.g. `packages/ui/src/i18n/messages`.
+   * Their base-locale keys count as defined for the `usage-missing` check,
+   * so a service component can reference a key a package ships without the
+   * service duplicating it. They never feed the orphan check: a package's
+   * own `messages.test.ts` owns that.
+   */
+  packageCatalogs?: string[];
+
   /** Base locale every primary locale must match. Defaults to `'en'`. */
   baseLocale?: string;
 

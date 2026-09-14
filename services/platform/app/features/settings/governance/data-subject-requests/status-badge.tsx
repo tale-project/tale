@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import {
   AlertCircle,
   Ban,
@@ -14,7 +15,6 @@ import {
 
 import type { ErasureStatus } from '@/backend/core/governance/erasure_constants';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 const HOUR_MS = 60 * 60 * 1000;
 

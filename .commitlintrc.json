@@ -14,6 +14,7 @@
         "docs",
         "e2e",
         "manual",
+        "marketing-ui",
         "opengrep",
         "platform",
         "plop",
@@ -23,6 +24,7 @@
         "skills",
         "storybook",
         "ui",
+        "ui-docs",
         "web"
       ]
     ],

@@ -6,7 +6,7 @@ import { render } from '@/tests/utils/render';
 import type { ApiKey } from '../types';
 import { ApiKeyRevokeDialog } from './api-key-revoke-dialog';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

@@ -241,6 +241,12 @@ export default {
         // don't have to install it; knip flags optional peers that are
         // referenced, which is exactly the pattern we want here.
         'vite',
+        // Same shape for the shared Storybook config (src/storybook/*): the
+        // addons are optional peers a consumer installs only when it runs
+        // Storybook, yet the config module references them by name.
+        '@storybook/addon-a11y',
+        '@storybook/addon-docs',
+        '@storybook/addon-themes',
       ],
     },
     'tools/cli': {

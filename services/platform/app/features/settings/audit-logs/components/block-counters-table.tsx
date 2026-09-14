@@ -1,16 +1,16 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { DataTable } from '@tale/ui/data-table/data-table';
 import { Row } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ShieldOff } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface BlockCountersTableProps {
   organizationId: string;

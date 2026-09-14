@@ -3,20 +3,20 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
-import { Text } from '@tale/ui/text';
-import { KeyRound, Trash2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { useFormatDate } from '@/app/hooks/use-format-date';
+} from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
+import { Switch } from '@tale/ui/switch';
+import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { KeyRound, Trash2 } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 

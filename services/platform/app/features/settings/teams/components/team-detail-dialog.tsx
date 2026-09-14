@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -9,7 +10,6 @@ import { Text } from '@tale/ui/text';
 import { Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 

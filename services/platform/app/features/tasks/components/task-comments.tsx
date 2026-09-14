@@ -1,17 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useAddTaskComment,

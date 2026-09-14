@@ -13,8 +13,8 @@ import { Composer } from './composer';
 // The stated-block path raises its reason as a toast (module-level `toast`,
 // not the hook) — spy on it without losing the module's other exports.
 const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
-vi.mock('@/app/hooks/use-toast', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/app/hooks/use-toast')>()),
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
   toast: toastSpy,
 }));
 

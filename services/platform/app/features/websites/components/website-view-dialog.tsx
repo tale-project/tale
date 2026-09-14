@@ -4,14 +4,19 @@ import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
 import { Grid, HStack, Row } from '@tale/ui/layout';
+import { SearchInput } from '@tale/ui/search-input';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { FileText, Search as SearchIcon } from 'lucide-react';
 import {
   type ChangeEvent,
@@ -22,12 +27,7 @@ import {
   useState,
 } from 'react';
 
-import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import type {
   CrawlerChunk,

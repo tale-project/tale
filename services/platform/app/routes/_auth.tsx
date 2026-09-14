@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { LogoLink } from '@/app/components/logo/logo-link';
 import { AuthSsoHeader } from '@/app/features/auth/components/auth-sso-header';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';

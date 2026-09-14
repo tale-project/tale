@@ -33,21 +33,21 @@ import {
   type PiiCustomPattern,
 } from '@tale/shared/schemas/pii';
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
+import { cn } from '@tale/ui/cn';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Grid, Row, Stack } from '@tale/ui/layout';
+import { RadioGroup } from '@tale/ui/radio-group';
 import type { TFunction } from 'i18next';
 import { Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { piiTypeIcon } from './pii-type-icons';
 import { piiTypeLabel } from './pii-type-labels';

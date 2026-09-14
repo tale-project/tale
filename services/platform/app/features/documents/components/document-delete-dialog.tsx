@@ -1,8 +1,8 @@
 'use client';
 
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { Fragment, useMemo } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useT } from '@/lib/i18n/client';
 
 interface DocumentDeleteDialogProps {

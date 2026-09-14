@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { NextStepsSection } from './section-renderers';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {

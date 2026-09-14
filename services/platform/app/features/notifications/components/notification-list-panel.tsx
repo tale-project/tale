@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
 import {
@@ -24,7 +25,6 @@ import {
 } from '@/app/features/inbox/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { isActionableNotificationType } from '@/lib/shared/attention';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {

@@ -1,11 +1,11 @@
-import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
-
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { PageLayout } from '@/app/components/layout/page-layout';
-import { ActiveEditorProvider } from '@/app/components/ui/editor';
+} from '@tale/ui/adaptive-header';
+import { ActiveEditorProvider } from '@tale/ui/editor';
+import { PageLayout } from '@tale/ui/page-layout';
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+
 import { AutomationBreadcrumbs } from '@/app/features/automations/components/automation-breadcrumbs';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';

@@ -13,15 +13,15 @@
  * mobile back arrow follows that immediate parent.
  */
 
+import {
+  HEADER_CRUMB_LINK_CLASS,
+  HeaderBreadcrumbs,
+} from '@tale/ui/header-breadcrumbs';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Link, useMatch } from '@tanstack/react-router';
 
-import {
-  HEADER_CRUMB_LINK_CLASS,
-  HeaderBreadcrumbs,
-} from '@/app/components/layout/header-breadcrumbs';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';

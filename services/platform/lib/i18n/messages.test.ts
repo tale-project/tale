@@ -22,6 +22,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
   allowlistDisplayPath: 'services/platform/lib/i18n/keys-dynamic.yml',
+  // The shared vocabulary (`common.actions.*`, `common.aria.*`, …) ships
+  // with the design system; platform code may reference those keys without
+  // redeclaring them here.
+  packageCatalogs: [
+    path.resolve(HERE, '../../../../packages/ui/src/i18n/messages'),
+  ],
   modes: {
     // Referenced-but-missing keys (raw-key rendering, the #2414 bug class).
     // Enforced since the 2026-07-27 sweep restored the last dangling refs

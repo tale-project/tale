@@ -1,7 +1,7 @@
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Textarea } from '@tale/ui/textarea';
 import { useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
 interface BulkSendDialogProps {

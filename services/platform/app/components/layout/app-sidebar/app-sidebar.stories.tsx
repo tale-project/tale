@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { cn } from '@tale/ui/cn';
 import {
   MessageCircle,
   Folder,
@@ -10,8 +11,6 @@ import {
   Bell,
   UserCircle,
 } from 'lucide-react';
-
-import { cn } from '@/lib/utils/cn';
 
 // NOTE: The full AppSidebar requires TanStack Router, the SidebarProvider,
 // and i18n. This story renders a static visual replica of the rail to

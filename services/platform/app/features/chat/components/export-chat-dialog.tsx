@@ -8,11 +8,11 @@
 
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useId, useMemo, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatMessages } from '../data/chat-backend';

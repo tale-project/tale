@@ -42,7 +42,7 @@ vi.mock('../hooks/mutations', () => ({
 
 // The component imports the standalone `toast` fn directly; stub it so the
 // success/error toasts don't reach the real toast store.
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
   useToast: () => ({ toast: mockToast }),
 }));

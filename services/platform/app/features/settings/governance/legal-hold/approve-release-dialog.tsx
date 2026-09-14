@@ -1,13 +1,13 @@
 'use client';
 
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproveLegalHoldRelease } from '../hooks/mutations';

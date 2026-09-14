@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { memo } from 'react';
 
-import { Image } from '@/app/components/ui/data-display/image';
+import { Image } from '@/app/components/image';
 import { useT } from '@/lib/i18n/client';
 import { deriveAccentPalette } from '@/lib/utils/color';
 

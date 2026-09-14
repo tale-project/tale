@@ -1,8 +1,7 @@
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-
-import { cn } from '@/lib/utils/cn';
 
 /**
  * Masked stand-in for an open conversation while its messages are on their

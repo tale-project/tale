@@ -1,17 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
+import { useDebounce } from '@tale/ui/use-debounce';
 import { Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useDebounce } from '@/app/hooks/use-debounce';
 import { useT } from '@/lib/i18n/client';
 
 import {

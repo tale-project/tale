@@ -16,8 +16,10 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
+import { useCopy } from '@tale/ui/use-copy';
 import {
   Check,
   Copy,
@@ -31,9 +33,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import { useCopy } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useFeedbackActions,

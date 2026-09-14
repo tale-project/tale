@@ -2,22 +2,22 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useForm } from '@tale/ui/use-form';
+import { useToast } from '@tale/ui/use-toast';
+import { ValidationCheckList } from '@tale/ui/validation-check-item';
 import { useState, useMemo, useEffect } from 'react';
 import * as z from 'zod';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {

@@ -1,12 +1,12 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { ChevronRightIcon } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import { humanizeNodeId, type AutomationGraph } from '../lib/graph';

@@ -3,10 +3,10 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { MultiSelect } from '@tale/ui/multi-select';
 import { Text } from '@tale/ui/text';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 

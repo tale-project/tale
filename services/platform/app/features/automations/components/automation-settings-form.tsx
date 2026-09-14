@@ -7,9 +7,9 @@ import {
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useEffect, useState } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';

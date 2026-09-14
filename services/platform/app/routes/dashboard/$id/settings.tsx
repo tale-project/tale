@@ -1,19 +1,21 @@
-import { Button } from '@tale/ui/button';
-import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
-import { useState } from 'react';
-
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { ContentArea } from '@/app/components/layout/content-area';
-import { MobileFloatingActions } from '@/app/components/layout/mobile-floating-actions';
-import { PageLayout } from '@/app/components/layout/page-layout';
+} from '@tale/ui/adaptive-header';
+import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { ContentArea } from '@tale/ui/content-area';
 import {
   ActiveEditorProvider,
   EditorActions,
   useActiveEditor,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { MobileFloatingActions } from '@tale/ui/mobile-floating-actions';
+import { PageLayout } from '@tale/ui/page-layout';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
+import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
+import { useState } from 'react';
+
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
 import { SettingsRail } from '@/app/features/settings/components/settings-rail';
 import {
@@ -22,9 +24,7 @@ import {
   useSettingsHeaderActions,
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
-import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings')({

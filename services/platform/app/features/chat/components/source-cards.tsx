@@ -16,11 +16,11 @@
  * Beyond the first three, cards fold behind a "Show all N sources" toggle.
  */
 
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronUp, FileText, Globe } from 'lucide-react';
 import { useState } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';

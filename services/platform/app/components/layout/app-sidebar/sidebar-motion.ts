@@ -1,6 +1,5 @@
+import { cn } from '@tale/ui/cn';
 import type { CSSProperties } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 /**
  * Shared row vocabulary for the sidebar rail and its satellites. The rail

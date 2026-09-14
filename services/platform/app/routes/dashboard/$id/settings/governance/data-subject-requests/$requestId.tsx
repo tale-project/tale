@@ -1,6 +1,5 @@
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const RequestDetailDrawer = lazyComponent(() =>
   import('@/app/features/settings/governance/data-subject-requests/request-detail-drawer').then(

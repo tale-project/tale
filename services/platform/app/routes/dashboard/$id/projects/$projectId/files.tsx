@@ -1,12 +1,12 @@
+import { ContentArea } from '@tale/ui/content-area';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const searchSchema = z.object({
   folderId: z.string().optional(),

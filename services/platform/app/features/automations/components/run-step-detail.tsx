@@ -2,11 +2,11 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { JsonViewer } from '@tale/ui/json-viewer';
 import { Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeRunView } from '../lib/run-view';

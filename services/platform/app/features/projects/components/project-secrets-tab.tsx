@@ -11,14 +11,14 @@
  * a mask and the field clears for a clean re-type.
  */
 import { Alert } from '@tale/ui/alert';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
-import { ShieldAlert } from 'lucide-react';
-
+import { ContentArea } from '@tale/ui/content-area';
 import {
   EnvVarListEditor,
   type LoadedEnvVar,
-} from '@/app/components/env/env-var-list-editor';
-import { ContentArea } from '@/app/components/layout/content-area';
+} from '@tale/ui/env-var-list-editor';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { ShieldAlert } from 'lucide-react';
+
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 

@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
+import { useToast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

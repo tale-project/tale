@@ -1,20 +1,20 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import {
+  MetricsFilterChips,
+  type MetricsFilterChip,
+} from '@tale/ui/metrics/metrics-filter-chips';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@tale/ui/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import {
-  MetricsFilterChips,
-  type MetricsFilterChip,
-} from '@/app/components/metrics/metrics-filter-chips';
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import {
-  parseMetricsPeriodDays,
-  type MetricsPeriodDays,
-} from '@/app/components/metrics/metrics-period';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';

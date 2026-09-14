@@ -1,6 +1,6 @@
+import { EditorGroup } from '@tale/ui/editor';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ChatFilterConfigView } from '@/app/features/settings/governance/components/chat-filter-config';
 import { GuardrailsOverview } from '@/app/features/settings/governance/components/guardrails-overview';

@@ -43,8 +43,11 @@ Per [`AGENTS.md`](../../AGENTS.md): _discover the conventions, don't memorize th
   design-intent tokens (DTCG, light/dark).
 - [`packages/ui/src/globals.css`](../../packages/ui/src/globals.css) — the **shipped** tokens (the real
   ones in code) and the `@theme` / `.dark` wiring.
-- [`packages/ui/src/index.ts`](../../packages/ui/src/index.ts) + the Storybook
-  ([`packages/ui/src/storybook`](../../packages/ui/src/storybook/)) — the live component catalogue.
+- [`packages/ui/package.json`](../../packages/ui/package.json) (the `exports` map — one subpath per
+  component) + the Storybook ([`packages/ui/src/storybook`](../../packages/ui/src/storybook/)) —
+  the live component catalogue. Every reusable platform component lives here
+  (`src/components/<family>/`); the platform keeps only the wrappers that carry business logic
+  (org-branded logos, the ability-gated tab strip, the app sidebar).
 - [`design/sources/accessibility-audit.md`](../sources/accessibility-audit.md) — a11y rules + the form text
   hierarchy.
 - The `.pen` files are **encrypted** — open them only through the Pencil MCP with the editor running

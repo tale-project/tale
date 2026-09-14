@@ -1,6 +1,5 @@
+import { PanelHeader } from '@tale/ui/panel-header';
 import type { ReactNode } from 'react';
-
-import { PanelHeader } from '@/app/components/layout/panel-header';
 
 interface ConversationListToolbarProps {
   children: ReactNode;

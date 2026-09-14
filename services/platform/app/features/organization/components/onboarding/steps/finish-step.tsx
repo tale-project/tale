@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { WizardStep } from '@tale/ui/wizard/wizard';
 import { Check, KeyRound, Users } from 'lucide-react';
 
-import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /** Where a finish-step CTA sends the user (after marking onboarding complete). */
 export type FinishTarget = 'providers' | 'members';

@@ -1,13 +1,13 @@
 'use client';
 
+import { DataTable } from '@tale/ui/data-table/data-table';
 import { EmptyState } from '@tale/ui/empty-state';
+import { SharePointIcon } from '@tale/ui/icons/sharepoint-icon';
 import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
-import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useT } from '@/lib/i18n/client';
 
 import type { SharePointSite } from './types';

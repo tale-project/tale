@@ -2,14 +2,14 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FolderUp, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   parseSkillBundle,

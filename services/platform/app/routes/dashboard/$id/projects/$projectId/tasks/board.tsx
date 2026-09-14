@@ -1,3 +1,4 @@
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
@@ -9,7 +10,6 @@ import {
   type TaskView,
   validateTaskSearch,
 } from '@/app/features/tasks/lib/view';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const TasksWorkspace = lazyComponent(
   () =>

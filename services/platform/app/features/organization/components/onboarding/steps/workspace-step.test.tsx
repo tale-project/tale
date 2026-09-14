@@ -1,8 +1,8 @@
+import { Wizard, WizardStep } from '@tale/ui/wizard/wizard';
+import { WizardFooter } from '@tale/ui/wizard/wizard-footer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
-import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { authClient } from '@/lib/auth-client';
 import { render, screen } from '@/tests/utils/render';
 
@@ -13,7 +13,7 @@ vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

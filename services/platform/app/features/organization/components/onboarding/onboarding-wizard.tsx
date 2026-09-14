@@ -4,18 +4,15 @@ import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useWizard, type WizardStepMeta } from '@tale/ui/wizard/use-wizard';
+import { Wizard } from '@tale/ui/wizard/wizard';
+import { WizardFooter } from '@tale/ui/wizard/wizard-footer';
+import { WizardProgress } from '@tale/ui/wizard/wizard-progress';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ChevronLeft, X } from 'lucide-react';
 import { useState } from 'react';
 
-import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
-import {
-  useWizard,
-  type WizardStepMeta,
-} from '@/app/components/ui/wizard/use-wizard';
-import { Wizard } from '@/app/components/ui/wizard/wizard';
-import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
-import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
+import { TaleLogo } from '@/app/components/logo/tale-logo';
 import { UserButton } from '@/app/components/user-button';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useAuth } from '@/app/hooks/use-session-user';

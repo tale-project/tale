@@ -18,6 +18,7 @@
  * it rides the turn as transcribed text.
  */
 
+import { formatFileSize } from '@tale/ui/format';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FileAudio, FileText, Loader2, TriangleAlert, X } from 'lucide-react';
@@ -31,7 +32,6 @@ import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
-import { formatFileSize } from '@/lib/utils/format/file';
 
 interface ComposerAttachmentsProps {
   attachments: readonly FileAttachment[];

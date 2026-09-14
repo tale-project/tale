@@ -1,10 +1,9 @@
 'use client';
 
 import type { ProjectColor, ProjectIcon } from '@tale/shared/schemas/projects';
+import { cn } from '@tale/ui/cn';
 import * as icons from 'lucide-react';
 import type { ComponentType } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 type IconComponent = ComponentType<{ className?: string }>;
 

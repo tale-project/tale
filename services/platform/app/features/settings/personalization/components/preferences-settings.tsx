@@ -18,24 +18,21 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useChatMemories } from '@/app/features/chat/data/chat-backend';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 

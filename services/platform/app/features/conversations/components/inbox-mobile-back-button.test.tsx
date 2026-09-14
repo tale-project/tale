@@ -28,7 +28,7 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => mockSearch,
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({ t: (key: string) => `${ns}.${key}` }),
 }));
 

@@ -6,9 +6,18 @@ import {
 } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Label } from '@tale/ui/label';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import {
   Table,
   TableBody,
@@ -18,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { useToast } from '@tale/ui/use-toast';
 import { useNavigate, Link } from '@tanstack/react-router';
 import {
   ArrowLeft,
@@ -29,21 +39,11 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';

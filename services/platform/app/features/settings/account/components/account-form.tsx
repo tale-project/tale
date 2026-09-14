@@ -2,22 +2,20 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
+import { Form } from '@tale/ui/form';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import { useForm } from '@tale/ui/use-form';
+import { useToast } from '@tale/ui/use-toast';
+import { ValidationCheckList } from '@tale/ui/validation-check-item';
 import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import {
-  useFormEditor,
-  useRegisterActiveEditor,
-} from '@/app/components/ui/editor';
-import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { Form } from '@/app/components/ui/forms/form';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
@@ -26,7 +24,6 @@ import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/quer
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { useToast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';

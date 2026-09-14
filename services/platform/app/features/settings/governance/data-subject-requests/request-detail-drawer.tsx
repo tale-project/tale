@@ -4,14 +4,14 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import { Sheet } from '@tale/ui/sheet';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Clock, RefreshCcw, X } from 'lucide-react';
 import { useState } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useT } from '@/lib/i18n/client';
 
 import { foldBreakdownEntries } from './breakdown-entries.ts';

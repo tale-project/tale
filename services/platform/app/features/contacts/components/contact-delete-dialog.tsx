@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
-
-import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
+import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
 import {
   useDeleteDialog,
   useDeleteDialogTranslations,
-} from '@/app/components/ui/entity/use-delete-dialog';
+} from '@tale/ui/entity/use-delete-dialog';
+import { Trash2 } from 'lucide-react';
+import { useCallback } from 'react';
+
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 

@@ -5,7 +5,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { CodeBlock, HighlightedCode } from './code-block';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
@@ -26,7 +26,7 @@ vi.mock('@tale/ui/theme', () => ({
 }));
 
 // Mock i18n
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {

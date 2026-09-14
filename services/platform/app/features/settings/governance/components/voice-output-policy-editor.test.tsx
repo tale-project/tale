@@ -7,7 +7,7 @@ import { VoiceOutputPolicyEditor } from './voice-output-policy-editor';
 
 const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
 }));
 

@@ -3,13 +3,13 @@
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS, CHART_SERIES } from '@tale/ui/chart-theme';
-import { Clock } from 'lucide-react';
-
 import {
   DonutChart,
   segmentsToLegend,
   type DonutSegment,
-} from '@/app/components/metrics/charts';
+} from '@tale/ui/metrics/charts';
+import { Clock } from 'lucide-react';
+
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

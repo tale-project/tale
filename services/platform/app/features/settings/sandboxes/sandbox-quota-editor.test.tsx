@@ -1,12 +1,12 @@
-import type { ComponentProps } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   EditorActions,
   EditorGroup,
   useActiveEditor,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import type { ComponentProps } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
@@ -34,7 +34,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => state.usage,
 }));
-vi.mock('@/app/hooks/use-toast', () => ({ toast }));
+vi.mock('@tale/ui/use-toast', () => ({ toast }));
 vi.mock('../governance/hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({ mutateAsync: save }),
 }));

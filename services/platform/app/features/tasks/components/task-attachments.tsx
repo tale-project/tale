@@ -1,11 +1,12 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Loader, Paperclip, X } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FileAttachmentDisplay } from '@/app/features/shared/files/file-displays';
 import type { FileAttachment } from '@/app/features/shared/files/use-file-upload';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
@@ -15,7 +16,6 @@ import {
 } from '@/app/features/shared/markdown/image-preview-dialog';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_UPLOAD_ACCEPT, isImage } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 /**
  * Task image/document attachments — shared by the create draft and the saved

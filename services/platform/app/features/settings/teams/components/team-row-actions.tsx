@@ -1,12 +1,12 @@
 'use client';
 
-import { Eye, Pencil, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
-
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
+} from '@tale/ui/entity/entity-row-actions';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';

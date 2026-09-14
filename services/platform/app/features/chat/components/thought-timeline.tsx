@@ -23,6 +23,7 @@
  * below, clean.
  */
 
+import { cn } from '@tale/ui/cn';
 import {
   Brain,
   FileText,
@@ -37,7 +38,6 @@ import { useId, useState, type ComponentType } from 'react';
 import { TypewriterText } from '@/app/features/shared/markdown/typewriter-text';
 import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 import { isRecord } from '@/lib/utils/type-utils';
 

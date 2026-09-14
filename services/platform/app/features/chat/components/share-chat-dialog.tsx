@@ -10,19 +10,19 @@
 
 import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { Check, ExternalLink, Link2, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useChatQuery } from '../data/chat-backend';
 import { useThreadSharing } from '../data/thread-sharing';

@@ -1,4 +1,9 @@
+import {
+  AdaptiveHeaderRoot,
+  AdaptiveHeaderTitle,
+} from '@tale/ui/adaptive-header';
 import { Button } from '@tale/ui/button';
+import { PageLayout } from '@tale/ui/page-layout';
 import {
   createFileRoute,
   useCanGoBack,
@@ -8,11 +13,6 @@ import {
 import { X } from 'lucide-react';
 import { useCallback } from 'react';
 
-import {
-  AdaptiveHeaderRoot,
-  AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { PageLayout } from '@/app/components/layout/page-layout';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { useT } from '@/lib/i18n/client';
 

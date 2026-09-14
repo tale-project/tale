@@ -1,6 +1,6 @@
+import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 

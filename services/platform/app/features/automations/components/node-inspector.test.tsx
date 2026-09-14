@@ -17,7 +17,7 @@ import { NodeInspector } from './node-inspector';
  * "Prompt*" while the name a screen reader announces is "Prompt" — and the
  * announced name is what these tests are actually about.
  */
-vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
+vi.mock('@tale/ui/json-viewer', () => ({
   JsonViewer: ({ data }: { data: unknown }) => (
     <pre data-testid="json">{JSON.stringify(data)}</pre>
   ),

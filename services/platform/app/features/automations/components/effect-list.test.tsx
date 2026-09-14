@@ -13,7 +13,7 @@ import { EffectList } from './effect-list';
  * The JSON viewer is lazily imported and belongs to a third party; it is stood
  * in for here so the assertions stay about the effect record itself.
  */
-vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
+vi.mock('@tale/ui/json-viewer', () => ({
   JsonViewer: ({ data }: { data: unknown }) => (
     <pre data-testid="json">{JSON.stringify(data)}</pre>
   ),

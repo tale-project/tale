@@ -1,8 +1,8 @@
 'use client';
 
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useT } from '@/lib/i18n/client';
 
 /**

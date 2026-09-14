@@ -2,14 +2,14 @@
 
 import { type ModerationCategoryMapping } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
+import { Switch } from '@tale/ui/switch';
 import { useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { useT } from '@/lib/i18n/client';
 
 interface MappingEditDialogProps {

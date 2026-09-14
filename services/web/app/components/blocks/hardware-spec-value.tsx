@@ -1,5 +1,5 @@
 import {
-  Tooltip,
+  TooltipRoot,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -118,7 +118,7 @@ function ParenChip({ text, info }: { text: string; info?: string }) {
     <span className="text-fg-subtle inline-block align-super text-xs whitespace-nowrap">
       {'('}
       {info ? (
-        <Tooltip>
+        <TooltipRoot>
           <TooltipTrigger asChild>
             <button
               type="button"
@@ -133,7 +133,7 @@ function ParenChip({ text, info }: { text: string; info?: string }) {
           >
             {info}
           </TooltipContent>
-        </Tooltip>
+        </TooltipRoot>
       ) : (
         text
       )}

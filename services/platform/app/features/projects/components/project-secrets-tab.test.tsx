@@ -39,7 +39,7 @@ vi.mock('../hooks/secrets', () => ({
 // EnvVarListEditor toasts on save via the standalone `toast`; stub it so it
 // doesn't reach the real store outside a provider.
 const mockToast = vi.fn();
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
   useToast: () => ({ toast: mockToast }),
 }));

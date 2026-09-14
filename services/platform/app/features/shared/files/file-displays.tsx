@@ -1,5 +1,7 @@
 'use client';
 
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
+import { formatFileSize, middleEllipsis } from '@tale/ui/format';
 import { Row, VStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -20,12 +22,10 @@ import {
 } from 'lucide-react';
 import { memo, useState } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
-import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import {
   isTextBasedFile,
   getTextFileCategory,
@@ -36,7 +36,7 @@ import { extractStorageFileId } from './storage-file-id';
 import type { FileAttachment, FilePart } from './types';
 import { useFileUrl } from './use-file-url';
 
-export { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
+export { formatFileSize, middleEllipsis } from '@tale/ui/format';
 
 function getFileTypeLabel(
   fileName: string,

@@ -1,15 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { useForm } from '@tale/ui/use-form';
+import { useToast } from '@tale/ui/use-toast';
 import { useMemo, useState } from 'react';
 import * as z from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { useCreateFolder } from '@/app/features/documents/hooks/mutations';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface ProjectCreateFolderDialogProps {

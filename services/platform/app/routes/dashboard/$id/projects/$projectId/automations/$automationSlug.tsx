@@ -1,8 +1,8 @@
+import { AdaptiveHeaderRoot } from '@tale/ui/adaptive-header';
+import { ActiveEditorProvider } from '@tale/ui/editor';
+import { PageLayout } from '@tale/ui/page-layout';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
-import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { PageLayout } from '@/app/components/layout/page-layout';
-import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { AutomationBreadcrumbs } from '@/app/features/automations/components/automation-breadcrumbs';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { paramToAutomationSlug } from '@/lib/automations/slug';

@@ -1,18 +1,18 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createActionsColumn,
+  createSelectColumn,
+} from '@tale/ui/data-table/column-builders';
 import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import {
-  ACTIONS_COLUMN_SIZE,
-  createActionsColumn,
-  createSelectColumn,
-} from '@/app/components/ui/data-table/column-builders';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';

@@ -1,12 +1,12 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
-
-import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { ContentArea } from '@/app/components/layout/content-area';
-import { PageLayout } from '@/app/components/layout/page-layout';
+} from '@tale/ui/adaptive-header';
+import { ContentArea } from '@tale/ui/content-area';
+import { PageLayout } from '@tale/ui/page-layout';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
+
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';

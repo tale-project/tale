@@ -4,7 +4,7 @@ import { render, screen } from '@/tests/utils/render';
 
 import { DefaultModelEditor } from './default-model-editor';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

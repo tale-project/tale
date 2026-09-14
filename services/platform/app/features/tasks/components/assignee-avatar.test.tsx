@@ -6,7 +6,7 @@ import { render, screen } from '@/tests/utils/render';
 
 import { AssigneeAvatar } from './assignee-avatar';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => key,
   }),

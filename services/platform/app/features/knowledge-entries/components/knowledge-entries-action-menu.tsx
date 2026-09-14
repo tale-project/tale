@@ -1,9 +1,9 @@
 'use client';
 
+import { DataTableActionMenu } from '@tale/ui/data-table/data-table-action-menu';
 import { Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 

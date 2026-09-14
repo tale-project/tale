@@ -1,18 +1,18 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { EmptyState } from '@tale/ui/empty-state';
+import { Label } from '@tale/ui/label';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { Settings, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Label } from '@/app/components/ui/forms/label';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';

@@ -1,10 +1,9 @@
 'use client';
 
+import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
+import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
+import { isConvexTransientError } from '@tale/ui/error-boundaries/layout-error-boundary';
 import { type ReactNode } from 'react';
-
-import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
-import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
-import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 
 const MAX_RETRIES = 3;
 

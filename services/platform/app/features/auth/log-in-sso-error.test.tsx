@@ -31,7 +31,7 @@ vi.mock('@/app/hooks/use-react-query-client', () => ({
   useReactQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { email: vi.fn() } },

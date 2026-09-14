@@ -5,16 +5,13 @@ import {
   type SandboxQuotaConfig,
 } from '@tale/shared/schemas/governance';
 import { Badge } from '@tale/ui/badge';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo } from 'react';
 import { useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
 import {
   SettingsFieldList,
   SettingsFieldRow,

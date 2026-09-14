@@ -1,10 +1,10 @@
 'use client';
 
+import { toast } from '@tale/ui/use-toast';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { FileAttachment } from '@/app/features/shared/files/types';
-import { toast } from '@/app/hooks/use-toast';
 import { fileStatusesQuery } from '@/app/lib/backend/chat';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';

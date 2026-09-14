@@ -2,13 +2,13 @@
 
 import { isValidSkillSlug } from '@tale/shared/schemas/skills';
 import { Button } from '@tale/ui/button';
+import { Input } from '@tale/ui/input';
 import { Label } from '@tale/ui/label';
 import { Stack, Row } from '@tale/ui/layout';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { useId, useState } from 'react';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSaveSkill } from '../hooks/mutations';

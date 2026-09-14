@@ -16,7 +16,13 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import {
+  SUB_PANEL_ROW_CLASS,
+  useSubPanelRowTreatment,
+} from '@tale/ui/sub-panel-list';
+import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Archive,
@@ -35,14 +41,8 @@ import {
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-import {
-  SUB_PANEL_ROW_CLASS,
-  useSubPanelRowTreatment,
-} from '@/app/components/layout/sub-panel-list';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useThreadActions } from '../data/thread-actions';
 import {

@@ -27,7 +27,7 @@ vi.mock('../../hooks/use-document-comparison', () => ({
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),
 }));

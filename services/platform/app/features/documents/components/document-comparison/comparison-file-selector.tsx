@@ -1,20 +1,20 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
+import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Tabs } from '@tale/ui/tabs';
 import { FileText, Upload, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
   isAllowedDocumentUpload,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 export interface SelectedFile {
   type: 'upload' | 'existing';

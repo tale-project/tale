@@ -3,23 +3,23 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { HStack, Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
+import { ValidationCheckList } from '@tale/ui/validation-check-item';
 import { useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import * as z from 'zod';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   memberRoleSchema,

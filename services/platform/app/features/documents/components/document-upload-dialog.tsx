@@ -2,25 +2,25 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
+import { toast } from '@tale/ui/use-toast';
 import { RotateCw, Upload } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { useDocumentUpload } from '../hooks/mutations';

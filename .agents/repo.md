@@ -11,8 +11,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site), plus `db`, `proxy`, and the
   `sandbox*` family.
-- `packages/` — `ui` (the design system), `shared` (schemas + pg), `e2e` (Playwright config
-  factory).
+- `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
+  the platform, docs and marketing site all build on it, and other repositories install it from
+  GitHub), `shared` (schemas + pg), `e2e` (Playwright config factory). A component that carries
+  tale business logic (org branding, abilities, backend queries) stays in its service and wraps
+  the `@tale/ui` primitive; only UI-reusable logic lives in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here).
@@ -104,7 +107,9 @@ default means deleting the override and fixing what surfaces:
 - **`import/no-cycle`** — off in `services/platform` only (21 cycles, 2026-08).
 - **jsx-a11y trio** (`no-noninteractive-element-to-interactive-role`, `interactive-supports-focus`,
   `no-noninteractive-element-interactions`, `no-noninteractive-tabindex`) — off in
-  `services/platform` only (11 sites needing real markup work, 2026-08).
+  `services/platform` (11 sites needing real markup work, 2026-08); `interactive-supports-focus`
+  and `no-noninteractive-tabindex` are also off for the three of those sites that moved into
+  `packages/ui` with their components (file-scoped overrides in `packages/ui/.oxlintrc.json`).
 - `typescript/no-unnecessary-type-assertion` is relaxed for platform test files: the tsgolint 7
   engine false-positives on widening assertions over frozen literals and on mock returns.
 

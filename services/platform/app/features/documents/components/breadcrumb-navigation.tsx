@@ -1,12 +1,12 @@
 'use client';
 
 import { Row } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {

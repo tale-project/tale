@@ -1,17 +1,17 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { FileUpload } from '@tale/ui/file-upload';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { ImagePlus, Pencil, X } from 'lucide-react';
 import { useState } from 'react';
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Input } from '@/app/components/ui/forms/input';
-import { toast } from '@/app/hooks/use-toast';
+import { Image } from '@/app/components/image';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   PRODUCT_IMAGE_ACCEPT,

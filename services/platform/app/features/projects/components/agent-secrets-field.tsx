@@ -15,18 +15,18 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
 import { Description } from '@tale/ui/description';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FieldShell } from '@tale/ui/field-shell';
+import { Input } from '@tale/ui/input';
+import { Label } from '@tale/ui/label';
 import { Stack } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { FieldShell } from '@/app/components/ui/forms/field-shell';
-import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
 import { useAbility } from '@/app/hooks/use-ability';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

@@ -15,7 +15,7 @@ let submitDialogOpenings: {
   standingReviewer?: { userId?: string; name?: string };
 }[] = [];
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -42,7 +42,7 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: mockLegalHold }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

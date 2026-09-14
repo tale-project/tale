@@ -1,14 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
+import { RadioGroup, RadioGroupItem } from '@tale/ui/radio-group';
 import { Text } from '@tale/ui/text';
 import { useId } from 'react';
-
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/app/components/ui/forms/radio-group';
-import { cn } from '@/lib/utils/cn';
 
 // `'all'` is a legacy value still accepted by the backend for older project
 // rows; the UI no longer offers it as a choice (single-list model). Read

@@ -3,12 +3,12 @@
 import { icons as lucideIcons } from '@iconify-json/lucide';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Button } from '@tale/ui/button';
+import { ConfigIcon } from '@tale/ui/catalog/config-icon';
+import { cn } from '@tale/ui/cn';
 import { Search } from 'lucide-react';
 import { useId, useMemo, useRef, useState } from 'react';
 
-import { ConfigIcon } from '@/app/components/catalog/config-icon';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /** Grid width; the arrow keys move by ±1 and ±COLUMNS. */
 const COLUMNS = 8;

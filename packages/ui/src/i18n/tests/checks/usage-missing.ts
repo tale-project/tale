@@ -21,6 +21,8 @@ import path from 'node:path';
 import {
   ARRAY_NAMES_RE,
   flatten,
+  I18N_T_RE,
+  i18nTKey,
   loadAllowlist,
   readJson,
   T_DESTRUCTURE_RE,
@@ -40,6 +42,11 @@ interface MissingKeyRefsConfig {
   allowlistPath?: string;
   /** Base files whose keys form the catalog. */
   baseFiles?: string[];
+  /**
+   * Message directories of packages merged at runtime; their `baseFiles`
+   * keys count as defined too (see `I18nTestsConfig.packageCatalogs`).
+   */
+  packageCatalogs?: ReadonlyArray<string>;
 }
 
 /** 1-based line of a match index within `content`. */
@@ -62,13 +69,16 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
     scanRoots = ['app', 'components', 'hooks', 'lib', 'backend'],
     allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.yml'),
     baseFiles = ['en.yml', 'global.yml'],
+    packageCatalogs = [],
   } = config;
 
   const allKeys = new Set<string>();
-  for (const file of baseFiles) {
-    const full = path.join(messagesDir, file);
-    if (!fs.existsSync(full)) continue;
-    for (const k of flatten(readJson(full))) allKeys.add(k);
+  for (const dir of [messagesDir, ...packageCatalogs]) {
+    for (const file of baseFiles) {
+      const full = path.join(dir, file);
+      if (!fs.existsSync(full)) continue;
+      for (const k of flatten(readJson(full))) allKeys.add(k);
+    }
   }
   if (allKeys.size === 0) return [];
 
@@ -88,6 +98,22 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
     const rootDir = path.isAbsolute(root) ? root : path.join(serviceRoot, root);
     for (const file of walk(rootDir)) {
       const content = fs.readFileSync(file, 'utf8');
+
+      // `i18n.t('ns:key')` names its key in full — no alias to resolve.
+      for (const m of content.matchAll(I18N_T_RE)) {
+        const key = i18nTKey(m);
+        if (allKeys.has(key) || allowlisted(key)) continue;
+        findings.push({
+          file: path.relative(serviceRoot, file),
+          line: lineOf(content, m.index ?? 0),
+          key,
+          locale: 'en',
+          rule: 'referenced-key-missing',
+          detail: `i18n.t('${m[1] ? `${m[1]}:` : ''}${m[2]}') resolves to ${key} — not defined in ${baseFiles.join(' + ')}, so the UI renders the raw key`,
+          suggest:
+            'Add the key to the base catalog (and every locale), or add its dynamic prefix to keys-dynamic.yml if it is constructed at runtime',
+        });
+      }
 
       // alias → bound namespaces; only aliases whose namespaces are ALL
       // known are checkable (an unknown namespace may resolve from another
@@ -180,6 +206,7 @@ export const usageMissing = createCheck({
       messagesDir: ctx.messagesDir,
       scanRoots: ctx.scanRoots,
       allowlistPath: ctx.allowlistPath,
+      packageCatalogs: ctx.packageCatalogs,
     });
   },
 });

@@ -1,6 +1,6 @@
+import { middleEllipsis } from '@tale/ui/format';
 import { describe, expect, it } from 'vitest';
 
-import { middleEllipsis } from '@/lib/utils/format/file';
 import { render, screen } from '@/tests/utils/render';
 
 import { AttachmentFileChip } from './attachment-file-chip';

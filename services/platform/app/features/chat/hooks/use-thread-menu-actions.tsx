@@ -11,12 +11,12 @@
  */
 
 import { type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { useCopy } from '@tale/ui/use-copy';
+import { toast } from '@tale/ui/use-toast';
 import type { TFunction } from 'i18next';
 import { FolderInput } from 'lucide-react';
 
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
-import { useCopy } from '@/app/hooks/use-copy';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { PickerSearchList } from '../components/picker-search-list';

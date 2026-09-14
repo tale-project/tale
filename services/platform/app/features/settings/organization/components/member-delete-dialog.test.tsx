@@ -5,7 +5,7 @@ import { render } from '@/tests/utils/render';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

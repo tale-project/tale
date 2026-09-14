@@ -1,12 +1,12 @@
 'use client';
 
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import { Mail, Pencil } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import type { ContactInfo } from '@/backend/core/conversations/types';

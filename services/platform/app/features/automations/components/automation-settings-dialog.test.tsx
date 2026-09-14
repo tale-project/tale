@@ -26,7 +26,7 @@ vi.mock('../hooks/use-settings-values', () => ({
 }));
 
 const toastMock = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 // FormDialog reads the org from the route params (error-boundary context);
 // there is no router in this render, so answer it directly.

@@ -3,13 +3,13 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { beforeAll, describe, it, expect, vi } from 'vitest';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => key,
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
@@ -73,7 +73,7 @@ const { lazyPromises } = vi.hoisted(() => ({
   lazyPromises: [] as Promise<void>[],
 }));
 
-vi.mock('@/lib/utils/lazy-component', () => ({
+vi.mock('@tale/ui/lazy-component', () => ({
   lazyComponent: (factory: () => Promise<{ default: unknown }>) => {
     let Resolved: React.ComponentType<Record<string, unknown>> | null = null;
     const p = factory().then((m) => {

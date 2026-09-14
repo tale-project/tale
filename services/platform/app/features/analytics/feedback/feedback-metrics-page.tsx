@@ -6,23 +6,23 @@ import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
 import { HStack } from '@tale/ui/layout';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import { AlertTriangle } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
-
 import {
   seriesToLegend,
   TrendBarChart,
   type ChartSeries,
-} from '@/app/components/metrics/charts';
+} from '@tale/ui/metrics/charts';
 import {
   MetricsFilterChips,
   type MetricsFilterChip,
-} from '@/app/components/metrics/metrics-filter-chips';
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
+} from '@tale/ui/metrics/metrics-filter-chips';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
+import { Select } from '@tale/ui/select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
+import { AlertTriangle } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
+
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';

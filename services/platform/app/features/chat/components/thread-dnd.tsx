@@ -20,7 +20,9 @@ import {
   type MeasuringConfiguration,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ReactNode,
@@ -31,9 +33,7 @@ import {
   useState,
 } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';

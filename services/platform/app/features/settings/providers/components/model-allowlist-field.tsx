@@ -1,12 +1,9 @@
 'use client';
 
+import { Input } from '@tale/ui/input';
+import { MultiSelect, type MultiSelectOption } from '@tale/ui/multi-select';
 import { useMemo, useState } from 'react';
 
-import { Input } from '@/app/components/ui/forms/input';
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from '@/app/components/ui/forms/multi-select';
 import { useT } from '@/lib/i18n/client';
 
 import type { CatalogModel } from '../hooks/queries';

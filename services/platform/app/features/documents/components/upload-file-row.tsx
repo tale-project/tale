@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { CircleAlert, CircleCheck, Loader2, RotateCw, X } from 'lucide-react';
 import { memo } from 'react';
@@ -7,7 +8,6 @@ import { memo } from 'react';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { getDisplayExtension } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import type { FileUploadStatus } from '../hooks/mutations';

@@ -1,14 +1,14 @@
 'use client';
 
-import { Pencil, Trash2, ExternalLink } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
-
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
+} from '@tale/ui/entity/entity-row-actions';
+import { toast } from '@tale/ui/use-toast';
+import { Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { useMemo, useCallback, useState } from 'react';
+
 import { useAbility } from '@/app/hooks/use-ability';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProduct } from '../hooks/mutations';

@@ -10,7 +10,7 @@ import { ContactEditDialog } from './contact-edit-dialog';
 const mockMutateAsync = vi.fn();
 const mockToast = vi.fn();
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 

@@ -2,20 +2,20 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CopyableField } from '@tale/ui/copyable-field';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useToast } from '@/app/hooks/use-toast';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
 
 import { useShowBackupCodes } from './backup-codes-dialog-provider';

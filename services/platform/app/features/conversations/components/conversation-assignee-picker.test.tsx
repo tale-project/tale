@@ -33,7 +33,7 @@ vi.mock('../hooks/mutations', () => ({
   useAssignConversationTeam: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 
@@ -81,7 +81,7 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }));
 
-vi.mock('@/app/components/ui/forms/searchable-select', () => ({
+vi.mock('@tale/ui/searchable-select', () => ({
   SearchableSelect: ({
     trigger,
     footer,

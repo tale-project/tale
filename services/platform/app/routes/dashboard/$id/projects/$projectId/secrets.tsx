@@ -1,11 +1,11 @@
+import { ContentArea } from '@tale/ui/content-area';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 // Skeletonized layout frame shown while the tab's JS chunk loads, so the
 // content frame doesn't go blank between navigation and chunk-ready. It mirrors

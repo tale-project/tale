@@ -1,66 +1,210 @@
-import { type TextareaHTMLAttributes, type ReactNode, forwardRef } from 'react';
+'use client';
 
-import { cn } from '../../lib/cn';
-import { SkeletonBox } from '../feedback/skeleton';
+import { cn } from '@tale/ui/cn';
+import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
+import { Info } from 'lucide-react';
+import * as React from 'react';
+
 import {
   DisabledReasonTooltip,
   hasDisabledReason,
 } from '../overlays/disabled-reason';
+import { FieldShell } from './field-shell';
+import { Label } from './label';
 
-export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
+  label?: string;
+  description?: React.ReactNode;
+  errorMessage?: string;
+  /**
+   * Render a `used / max` character counter under the control, owned by the
+   * field itself so every surface places it identically. Display-only — it
+   * does not cap input (pair with validation); the count turns destructive
+   * past the max.
+   */
+  counterMax?: number;
+  /**
+   * Span the full row in the settings row layout instead of the standard
+   * control column — for a tall textarea that IS the section's whole body.
+   */
+  wideControl?: boolean;
+  /**
+   * Fill the height the flex parent grants (see `FieldShell`): the textarea
+   * stretches to the remaining pane space and scrolls internally — for an
+   * editor-style body rather than a form field.
+   */
+  fillHeight?: boolean;
+  /** Extra classes for the field's outer frame (mirrors `Input`). */
+  wrapperClassName?: string;
   /**
    * Explains *why* the field is disabled, surfaced in a tooltip on hover AND
-   * focus and to screen readers (#1949). Only takes effect while the field is
+   * focus and to screen readers. Only takes effect while the field is
    * `disabled`; ignored otherwise, so callers can pass it unconditionally.
-   *
-   * A natively-`disabled` field emits no pointer events and leaves the tab
-   * order, so no tooltip could reach it. When a disabled field carries a
-   * `disabledReason` we therefore keep it focusable and `readOnly` (still
-   * rendered visually disabled and inert to edits), swap `disabled` for
-   * `aria-disabled`, and let the shared Tooltip wire up `aria-describedby`.
+   * Mirrors `Input`: the field stays focusable and `readOnly` with
+   * `aria-disabled` instead of the native attribute.
    */
-  disabledReason?: ReactNode;
+  disabledReason?: React.ReactNode;
 }
 
-/**
- * Skeleton-aware Textarea. Always wraps the real field in a `<SkeletonBox>`:
- * idle, the box is `display: contents`; inside a `<Skeletonize loading>` it
- * masks the field with an overlay at its exact size (incl. `rows`).
- */
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
+// Plain control — the real textarea field. No skeleton logic of its own.
+const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
-    { className, rows = 4, disabled, disabledReason, readOnly, ...props },
+    {
+      className,
+      label,
+      description,
+      required,
+      errorMessage,
+      counterMax,
+      wideControl,
+      fillHeight,
+      wrapperClassName,
+      disabled,
+      disabledReason,
+      readOnly,
+      id: providedId,
+      ...props
+    },
     ref,
   ) => {
+    const generatedId = React.useId();
+    const id = providedId ?? generatedId;
+    const errorId = `${id}-error`;
     // Soft-disable keeps the field focusable + hoverable (so the reason tooltip
     // reaches pointer and keyboard users) while `readOnly` blocks edits.
     const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
+
+    // The live character count for the counter. Reconciled from the DOM
+    // after every render (not just onChange) because form libraries reset
+    // values programmatically without firing events; the state-equality
+    // bail-out keeps this loop-free.
+    const innerRef = React.useRef<HTMLTextAreaElement | null>(null);
+    const [charCount, setCharCount] = React.useState(0);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- deliberately deps-less: it reconciles the counter with the DOM value after EVERY render, because form resets change the value without an event; the setState equality bail-out keeps it loop-free
+    React.useEffect(() => {
+      if (counterMax === undefined) return;
+      setCharCount(innerRef.current?.value.length ?? 0);
+    });
+    const descriptionId = `${id}-description`;
+    const hasError = !!errorMessage;
+    const describedBy =
+      [description && descriptionId, hasError && errorId]
+        .filter(Boolean)
+        .join(' ') || undefined;
+    const [showShake, setShowShake] = React.useState(false);
+
+    // Trigger shake animation when error appears
+    React.useEffect(() => {
+      if (hasError) {
+        setShowShake(true);
+        const timer = setTimeout(() => setShowShake(false), 400);
+        return () => clearTimeout(timer);
+      }
+      return undefined;
+    }, [hasError, errorMessage]);
+
     return (
-      <SkeletonBox fullWidth>
+      <FieldShell
+        {...(wideControl !== undefined ? { wideControl } : {})}
+        {...(fillHeight !== undefined ? { fillHeight } : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
+        {...(label !== undefined
+          ? {
+              label: (
+                <Label htmlFor={id} required={required} error={hasError}>
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description !== undefined
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(errorMessage !== undefined
+          ? {
+              error: (
+                <p
+                  id={errorId}
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive flex items-center gap-1.5 text-sm"
+                >
+                  <Info className="size-4" aria-hidden="true" />
+                  {errorMessage}
+                </p>
+              ),
+            }
+          : {})}
+      >
         <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
           <textarea
-            ref={ref}
-            rows={rows}
+            id={id}
             disabled={softDisabled ? undefined : disabled}
-            // Only the soft-disabled branch needs `aria-disabled`; a natively
-            // `disabled` field already conveys the state, so emitting it there
-            // too would be redundant with the native attribute.
             aria-disabled={softDisabled || undefined}
             readOnly={softDisabled ? true : readOnly}
             className={cn(
-              'min-h-[120px] w-full rounded-lg border px-3 py-2 text-base md:text-sm',
-              'border-[color:var(--color-border-input)] bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)] shadow-sm transition-colors placeholder:text-[color:var(--color-fg-subtle)]',
-              'focus-visible:border-[color:var(--color-accent-base)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:outline-none',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
-              'aria-invalid:border-[color:var(--color-danger)] aria-invalid:ring-[color:var(--color-danger)]/20',
+              'bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+              fillHeight && 'min-h-0 flex-1 resize-none',
+              hasError && 'border-destructive focus-visible:ring-destructive',
+              showShake && 'animate-shake',
               className,
             )}
+            ref={(node) => {
+              innerRef.current = node;
+              if (typeof ref === 'function') {
+                ref(node);
+              } else if (ref) {
+                ref.current = node;
+              }
+            }}
+            required={required}
+            aria-invalid={hasError || undefined}
+            aria-describedby={describedBy}
+            aria-errormessage={hasError ? errorId : undefined}
             {...props}
           />
         </DisabledReasonTooltip>
-      </SkeletonBox>
+        {counterMax !== undefined && (
+          <p
+            className={cn(
+              'text-muted-foreground text-xs',
+              charCount > counterMax && 'text-destructive',
+            )}
+          >
+            {charCount} / {counterMax}
+          </p>
+        )}
+      </FieldShell>
     );
+  },
+);
+TextareaBase.displayName = 'TextareaBase';
+
+/**
+ * Skeleton-aware Textarea. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — the real field is laid out
+ * invisibly to set the exact height (incl. `rows`), with a pulse overlay on
+ * top, so the skeleton can never drift from the live control.
+ */
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  (props, ref) => {
+    const loading = useSkeleton();
+    if (loading) {
+      return (
+        <SkeletonBox>
+          <TextareaBase {...props} ref={ref} />
+        </SkeletonBox>
+      );
+    }
+    return <TextareaBase {...props} ref={ref} />;
   },
 );
 Textarea.displayName = 'Textarea';

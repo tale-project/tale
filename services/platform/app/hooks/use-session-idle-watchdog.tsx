@@ -4,12 +4,12 @@ import * as ToastPrimitives from '@radix-ui/react-toast';
 import { sessionIdleTimeoutConfigSchema } from '@tale/shared/schemas/governance';
 import { resolveEffectiveIdleMinutes } from '@tale/shared/utils/session-idle';
 import { Button } from '@tale/ui/button';
+import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useSessionUser } from '@/app/hooks/use-session-user';
-import { toast } from '@/app/hooks/use-toast';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';

@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
@@ -8,7 +9,6 @@ import { useCallback, useRef } from 'react';
 
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface ColorPickerInputProps {
   value: string;

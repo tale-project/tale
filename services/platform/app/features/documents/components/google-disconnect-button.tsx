@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { toast } from '@tale/ui/use-toast';
 import { useCallback, useState } from 'react';
 
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface GoogleDisconnectButtonProps {

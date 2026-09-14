@@ -1,13 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { ZoomPanViewer } from '@tale/ui/zoom-pan-viewer';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo } from 'react';
 
-import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useT } from '@/lib/i18n/client';
 
 export interface GalleryImage {

@@ -1,15 +1,15 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { useToast } from '@/app/hooks/use-toast';
+import { Image } from '@/app/components/image';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useSaveImage } from '../hooks/mutations';
 import { imageUploadErrorToastKey } from '../utils/image-upload-error';

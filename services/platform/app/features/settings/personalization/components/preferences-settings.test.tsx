@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   useActiveEditor,
   type EditorController,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { act } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 

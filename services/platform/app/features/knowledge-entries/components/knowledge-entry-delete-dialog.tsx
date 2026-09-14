@@ -1,9 +1,9 @@
 'use client';
 
+import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
+import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
 import { useCallback } from 'react';
 
-import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
-import { useDeleteDialogTranslations } from '@/app/components/ui/entity/use-delete-dialog';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';

@@ -35,7 +35,7 @@ vi.mock('@/app/features/settings/governance/hooks/mutations', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
@@ -55,7 +55,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 // The "Trashed" column renders via the shared, locale-aware <TableDateCell>.
 // Stub the date hook so the relative output is deterministic (mirrors the
 // sibling table-date-cell test).
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatDate: (_date: unknown, preset?: string) =>
       preset === 'relative' ? '5 minutes ago' : 'Jan 1, 2025',

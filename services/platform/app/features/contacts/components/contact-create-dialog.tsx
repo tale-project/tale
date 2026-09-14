@@ -1,11 +1,11 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useCallback } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 

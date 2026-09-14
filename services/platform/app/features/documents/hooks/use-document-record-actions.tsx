@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  useEntityRowDialogs,
+  type EntityRowAction,
+} from '@tale/ui/entity/entity-row-actions';
+import { toast } from '@tale/ui/use-toast';
+import {
   ClipboardCheck,
   FilePen,
   FileUp,
@@ -10,13 +15,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, type ReactNode, type RefObject } from 'react';
 
-import {
-  useEntityRowDialogs,
-  type EntityRowAction,
-} from '@/app/components/ui/entity/entity-row-actions';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo } from '@/types/documents';
 

@@ -1,11 +1,11 @@
 'use client';
 
+import { HeaderBreadcrumbSwitcher } from '@tale/ui/header-breadcrumb-switcher';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import type { SearchableSelectOption } from '@tale/ui/searchable-select';
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
-import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
-import type { SearchableSelectOption } from '@/app/components/ui/forms/searchable-select';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 

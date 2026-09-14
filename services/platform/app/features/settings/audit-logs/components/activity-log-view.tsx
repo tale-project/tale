@@ -1,5 +1,6 @@
 'use client';
 
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -7,7 +8,6 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';

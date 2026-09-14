@@ -1,14 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Textarea } from '@tale/ui/textarea';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useMemo } from 'react';
 import * as z from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { toast } from '@/app/hooks/use-toast';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,

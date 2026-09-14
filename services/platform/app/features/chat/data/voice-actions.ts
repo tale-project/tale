@@ -11,9 +11,9 @@
  * a governance veto) that reads as "the switch is broken".
  */
 
+import { toast } from '@tale/ui/use-toast';
 import { useCallback, useMemo } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import {
   invalidateVoiceMode,
   setThreadVoiceOverrideRequest,

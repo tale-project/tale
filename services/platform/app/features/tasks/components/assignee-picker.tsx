@@ -2,23 +2,23 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useCancelTaskAgentRun } from '../hooks/mutations';

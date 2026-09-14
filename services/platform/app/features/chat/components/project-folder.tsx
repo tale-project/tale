@@ -10,9 +10,15 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Stack } from '@tale/ui/layout';
+import {
+  SUB_PANEL_ROW_CLASS,
+  SubPanelDisclosureBody,
+} from '@tale/ui/sub-panel-list';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Archive,
@@ -25,14 +31,8 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import {
-  SUB_PANEL_ROW_CLASS,
-  SubPanelDisclosureBody,
-} from '@/app/components/layout/sub-panel-list';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useProjectPin } from '../data/chat-backend';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';

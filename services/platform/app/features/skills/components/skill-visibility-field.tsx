@@ -1,12 +1,12 @@
 'use client';
 
 import type { SkillVisibility } from '@tale/shared/schemas/skills';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Stack } from '@tale/ui/layout';
+import { RadioGroup } from '@tale/ui/radio-group';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
