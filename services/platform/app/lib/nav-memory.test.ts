@@ -8,11 +8,12 @@ import {
   parseDashboardPath,
   readNavTarget,
   recordNavLocation,
-  sectionForSubpath,
+  sectionForPath,
   stripOneShotParams,
 } from './nav-memory';
 
 const ORG = 'org-1';
+const KEY = `tale:nav-memory:v1:${ORG}`;
 const EIGHT_HOURS = 8 * 60 * 60 * 1000;
 
 beforeEach(() => {
@@ -26,7 +27,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('sectionForSubpath', () => {
+describe('sectionForPath', () => {
   it('maps all five knowledge tabs onto one section', () => {
     for (const segment of [
       'documents',
@@ -35,42 +36,35 @@ describe('sectionForSubpath', () => {
       'products',
       'contacts',
     ]) {
-      expect(sectionForSubpath(segment)).toBe('knowledge');
+      expect(sectionForPath(segment)).toBe('knowledge');
     }
   });
 
   it('reads the section from the first segment only', () => {
-    expect(sectionForSubpath('projects/p1/tasks/board?task=AG-31')).toBe(
-      'projects',
-    );
-    expect(sectionForSubpath('conversations/open')).toBe('conversations');
+    expect(sectionForPath('projects/p1/tasks/board')).toBe('projects');
+    expect(sectionForPath('conversations/open')).toBe('conversations');
   });
 
   it('returns undefined outside a section', () => {
-    expect(sectionForSubpath('')).toBeUndefined();
-    expect(sectionForSubpath('nonsense')).toBeUndefined();
+    expect(sectionForPath('')).toBeUndefined();
+    expect(sectionForPath('nonsense')).toBeUndefined();
   });
 });
 
 describe('parseDashboardPath', () => {
-  it('splits the org id from the subpath and appends the search string', () => {
+  it('splits the org id from the dashboard-relative path', () => {
     expect(
-      parseDashboardPath('/dashboard/org-1/projects/p1/tasks/board', '?task=A'),
-    ).toEqual({
-      organizationId: 'org-1',
-      subpath: 'projects/p1/tasks/board?task=A',
-    });
+      parseDashboardPath('/dashboard/org-1/projects/p1/tasks/board'),
+    ).toEqual({ organizationId: 'org-1', path: 'projects/p1/tasks/board' });
   });
 
-  it('ignores the org home, which has no subpath to remember', () => {
+  it('ignores the org home, which has no place to remember', () => {
     expect(parseDashboardPath('/dashboard/org-1')).toBeUndefined();
     expect(parseDashboardPath('/dashboard/org-1/')).toBeUndefined();
   });
 
   it('ignores the org-switch staging route', () => {
-    expect(parseDashboardPath('/dashboard/switching', '?to=org-2')).toBe(
-      undefined,
-    );
+    expect(parseDashboardPath('/dashboard/switching')).toBeUndefined();
   });
 
   it('ignores non-dashboard routes', () => {
@@ -79,37 +73,58 @@ describe('parseDashboardPath', () => {
 });
 
 describe('stripOneShotParams', () => {
-  it('leaves a subpath byte-identical when no one-shot param is present', () => {
-    const subpath = 'documents?folderId=f1&doc=d1';
-    expect(stripOneShotParams(subpath)).toBe(subpath);
+  it('keeps a search that has no one-shot param', () => {
+    expect(stripOneShotParams({ folderId: 'f1', doc: 'd1' })).toEqual({
+      folderId: 'f1',
+      doc: 'd1',
+    });
   });
 
   it('drops the one-shot param and keeps the rest', () => {
-    expect(stripOneShotParams('documents?folderId=f1&cloudImport=google')).toBe(
-      'documents?folderId=f1',
-    );
+    expect(
+      stripOneShotParams({ folderId: 'f1', cloudImport: 'google' }),
+    ).toEqual({ folderId: 'f1' });
   });
 
-  it('drops the query entirely when only one-shot params remain', () => {
-    expect(stripOneShotParams('chat?new=1')).toBe('chat');
+  it('returns undefined when only one-shot params were present', () => {
+    expect(stripOneShotParams({ new: true })).toBeUndefined();
+    expect(stripOneShotParams({})).toBeUndefined();
+    expect(stripOneShotParams(undefined)).toBeUndefined();
   });
 });
 
 describe('readNavTarget / recordNavLocation', () => {
-  it('round-trips a deep subpath for its section', () => {
-    recordNavLocation(ORG, 'projects/p1/tasks/board?task=AG-31');
+  it('round-trips a deep place with its search object', () => {
+    recordNavLocation(ORG, 'projects/p1/tasks/board', { task: 'AG-31' });
 
-    expect(readNavTarget(ORG, 'projects')).toBe(
-      'projects/p1/tasks/board?task=AG-31',
-    );
+    expect(readNavTarget(ORG, 'projects')).toEqual({
+      path: 'projects/p1/tasks/board',
+      search: { task: 'AG-31' },
+    });
+  });
+
+  it('omits search entirely when there is none', () => {
+    recordNavLocation(ORG, 'projects/p1/tasks/board', {});
+
+    expect(readNavTarget(ORG, 'projects')).toEqual({
+      path: 'projects/p1/tasks/board',
+    });
+  });
+
+  it('preserves a non-string search value (the parser is JSON-based)', () => {
+    recordNavLocation(ORG, 'settings/metrics/usage', { period: 90 });
+
+    expect(readNavTarget(ORG, 'settings')?.search).toEqual({ period: 90 });
   });
 
   it('keeps sections independent', () => {
     recordNavLocation(ORG, 'projects/p1/tasks/board');
-    recordNavLocation(ORG, 'websites?status=error');
+    recordNavLocation(ORG, 'websites', { status: 'error' });
 
-    expect(readNavTarget(ORG, 'projects')).toBe('projects/p1/tasks/board');
-    expect(readNavTarget(ORG, 'knowledge')).toBe('websites?status=error');
+    expect(readNavTarget(ORG, 'projects')?.path).toBe(
+      'projects/p1/tasks/board',
+    );
+    expect(readNavTarget(ORG, 'knowledge')?.path).toBe('websites');
   });
 
   it('never reads one org through another org id', () => {
@@ -119,46 +134,46 @@ describe('readNavTarget / recordNavLocation', () => {
   });
 
   it('prefers this tab over the shared copy', () => {
-    // The shared copy stands for another tab having recorded a different place.
-    recordNavLocation(ORG, 'projects/shared-tab/tasks/board');
-    window.sessionStorage.clear();
     recordNavLocation(ORG, 'projects/this-tab/tasks/board');
+    // Stand in for another tab having recorded a different place.
     window.localStorage.setItem(
-      'tale:nav-memory:v1:' + ORG,
+      KEY,
       JSON.stringify({
-        sections: { projects: 'projects/shared-tab/tasks/board' },
+        sections: { projects: { path: 'projects/other-tab/tasks/board' } },
         savedAt: Date.now(),
       }),
     );
 
-    expect(readNavTarget(ORG, 'projects')).toBe(
+    expect(readNavTarget(ORG, 'projects')?.path).toBe(
       'projects/this-tab/tasks/board',
     );
   });
 
   it('restores from the shared copy just inside the 8h window', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T09:00:00Z'));
+    const start = new Date('2026-01-01T09:00:00Z').getTime();
+    vi.setSystemTime(start);
     recordNavLocation(ORG, 'projects/p1/tasks/board');
     window.sessionStorage.clear();
 
-    vi.setSystemTime(new Date('2026-01-01T09:00:00Z').getTime() + EIGHT_HOURS);
+    vi.setSystemTime(start + EIGHT_HOURS);
 
-    expect(readNavTarget(ORG, 'projects')).toBe('projects/p1/tasks/board');
+    expect(readNavTarget(ORG, 'projects')?.path).toBe(
+      'projects/p1/tasks/board',
+    );
   });
 
   it('forgets the shared copy once past the 8h window', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T09:00:00Z'));
+    const start = new Date('2026-01-01T09:00:00Z').getTime();
+    vi.setSystemTime(start);
     recordNavLocation(ORG, 'projects/p1/tasks/board');
     window.sessionStorage.clear();
 
-    vi.setSystemTime(
-      new Date('2026-01-01T09:00:00Z').getTime() + EIGHT_HOURS + 1,
-    );
+    vi.setSystemTime(start + EIGHT_HOURS + 1);
 
     expect(readNavTarget(ORG, 'projects')).toBeUndefined();
-    expect(window.localStorage.getItem('tale:nav-memory:v1:' + ORG)).toBeNull();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
   });
 
   it('slides the window: a later navigation refreshes the expiry', () => {
@@ -167,45 +182,65 @@ describe('readNavTarget / recordNavLocation', () => {
     vi.setSystemTime(start);
     recordNavLocation(ORG, 'projects/p1/tasks/board');
 
-    // Seven hours later the user navigates again, then goes away for another
+    // Seven hours on, the user navigates again, then goes away for another
     // seven — 14h after the FIRST visit, but only 7h after the last.
     vi.setSystemTime(start + 7 * 60 * 60 * 1000);
     recordNavLocation(ORG, 'projects/p2/tasks/board');
     window.sessionStorage.clear();
     vi.setSystemTime(start + 14 * 60 * 60 * 1000);
 
-    expect(readNavTarget(ORG, 'projects')).toBe('projects/p2/tasks/board');
+    expect(readNavTarget(ORG, 'projects')?.path).toBe(
+      'projects/p2/tasks/board',
+    );
   });
 
   it('does not record a public shared-chat snapshot', () => {
     recordNavLocation(ORG, 'chat/t1');
     recordNavLocation(ORG, 'chat/shared/token-abc');
 
-    expect(readNavTarget(ORG, 'chat')).toBe('chat/t1');
+    expect(readNavTarget(ORG, 'chat')?.path).toBe('chat/t1');
   });
 
   it('does not record a path outside every section', () => {
     recordNavLocation(ORG, 'nonsense/deep');
 
-    expect(window.localStorage.getItem('tale:nav-memory:v1:' + ORG)).toBeNull();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
   });
 
   it('strips a one-shot param before storing', () => {
-    recordNavLocation(ORG, 'documents?folderId=f1&cloudImport=google');
+    recordNavLocation(ORG, 'documents', {
+      folderId: 'f1',
+      cloudImport: 'google',
+    });
 
-    expect(readNavTarget(ORG, 'knowledge')).toBe('documents?folderId=f1');
+    expect(readNavTarget(ORG, 'knowledge')?.search).toEqual({ folderId: 'f1' });
   });
 
   it('ignores a malformed record instead of throwing', () => {
-    window.sessionStorage.setItem('tale:nav-memory:v1:' + ORG, '{not json');
+    window.sessionStorage.setItem(KEY, '{not json');
 
     expect(readNavTarget(ORG, 'projects')).toBeUndefined();
   });
 
-  it('ignores a record whose section value is not a string', () => {
+  it('ignores a record whose stored target is not a shaped object', () => {
     window.sessionStorage.setItem(
-      'tale:nav-memory:v1:' + ORG,
-      JSON.stringify({ sections: { projects: 42 }, savedAt: Date.now() }),
+      KEY,
+      JSON.stringify({
+        sections: { projects: 'projects/p1' },
+        savedAt: Date.now(),
+      }),
+    );
+
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+  });
+
+  it('ignores a record whose path is not a string', () => {
+    window.sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        sections: { projects: { path: 42 } },
+        savedAt: Date.now(),
+      }),
     );
 
     expect(readNavTarget(ORG, 'projects')).toBeUndefined();
@@ -220,7 +255,7 @@ describe('clearing', () => {
     clearNavSection(ORG, 'projects');
 
     expect(readNavTarget(ORG, 'projects')).toBeUndefined();
-    expect(readNavTarget(ORG, 'automations')).toBe('automations/a1');
+    expect(readNavTarget(ORG, 'automations')?.path).toBe('automations/a1');
   });
 
   it('clearNavMemory without an org clears every org', () => {
@@ -240,17 +275,21 @@ describe('clearing', () => {
     clearNavMemory('org-1');
 
     expect(readNavTarget('org-1', 'projects')).toBeUndefined();
-    expect(readNavTarget('org-2', 'projects')).toBe('projects/p2/tasks/board');
+    expect(readNavTarget('org-2', 'projects')?.path).toBe(
+      'projects/p2/tasks/board',
+    );
   });
 });
 
 describe('installNavMemory', () => {
   it('records the location the router resolved to', () => {
     let listener:
-      | ((e: { toLocation: { pathname: string; searchStr: string } }) => void)
+      | ((e: {
+          toLocation: { pathname: string; search: Record<string, unknown> };
+        }) => void)
       | undefined;
     const router = {
-      subscribe: (_event: 'onResolved', fn: typeof listener) => {
+      subscribe: (_event: 'onResolved', fn: NonNullable<typeof listener>) => {
         listener = fn;
         return () => {};
       },
@@ -260,12 +299,13 @@ describe('installNavMemory', () => {
     listener?.({
       toLocation: {
         pathname: '/dashboard/org-1/projects/p1/tasks/board',
-        searchStr: '?task=AG-31',
+        search: { task: 'AG-31' },
       },
     });
 
-    expect(readNavTarget('org-1', 'projects')).toBe(
-      'projects/p1/tasks/board?task=AG-31',
-    );
+    expect(readNavTarget('org-1', 'projects')).toEqual({
+      path: 'projects/p1/tasks/board',
+      search: { task: 'AG-31' },
+    });
   });
 });

@@ -6,6 +6,7 @@ import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/g
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
 import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 import { warmSession } from '@/app/lib/auth/session-query';
+import { installNavMemory } from '@/app/lib/nav-memory';
 import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { normalizeConvexSentryEvent } from '@/app/lib/sentry-normalize';
@@ -72,6 +73,12 @@ export const router = createTanStackRouter({
   // covers misses under nested dashboard layouts that have no splat of their own.
   defaultNotFoundComponent: RouteNotFound,
 });
+
+// Remember where the user was inside each primary rail section, so re-entering
+// a section returns them there. A router subscription rather than an effect in
+// the dashboard layout: section roots keep rendering their own pages, and the
+// rail reads this back when it builds its links.
+installNavMemory(router);
 
 const sentryDsn = getEnv('SENTRY_DSN');
 if (sentryDsn) {

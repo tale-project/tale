@@ -64,8 +64,8 @@ const SECTION_BY_SEGMENT: Readonly<Record<string, NavSection>> = {
 /**
  * Search params that describe a one-shot flow rather than a place: OAuth
  * import returns (already scrubbed with `replace` once consumed) and a compose
- * intent. Restoring them would re-trigger the flow, so they are stripped from
- * the recorded subpath while the rest of the query survives.
+ * intent. Restoring them would re-trigger the flow, so they are dropped while
+ * the rest of the search survives.
  */
 const ONE_SHOT_PARAMS = [
   'cloudImport',
@@ -75,8 +75,24 @@ const ONE_SHOT_PARAMS = [
   'new',
 ] as const;
 
+/**
+ * A remembered place. The search object is kept SEPARATE from the path
+ * because the router does not parse a query string out of a `to` prop — a
+ * `to` of `"…/board?task=A"` becomes a pathname containing a literal `?`,
+ * which then matches no route. `Link` takes the two as separate props, and
+ * the router hands us `toLocation.search` already parsed, so storing the
+ * object round-trips exactly (its parser is JSON-based: `?new=1` is the
+ * NUMBER 1, not the string).
+ */
+export interface NavTarget {
+  /** Dashboard-relative, no leading slash: `projects/p1/tasks/board`. */
+  path: string;
+  /** Omitted entirely when there is nothing to restore. */
+  search?: Record<string, unknown>;
+}
+
 interface NavMemoryRecord {
-  sections: Partial<Record<NavSection, string>>;
+  sections: Partial<Record<NavSection, NavTarget>>;
   savedAt: number;
 }
 
@@ -92,11 +108,15 @@ function parseRecord(raw: string): NavMemoryRecord | null {
     if (!isRecord(parsed)) return null;
     const { sections, savedAt } = parsed;
     if (typeof savedAt !== 'number' || !isRecord(sections)) return null;
-    const clean: Partial<Record<NavSection, string>> = {};
+    const clean: Partial<Record<NavSection, NavTarget>> = {};
     for (const [key, value] of Object.entries(sections)) {
-      if (SECTION_SET.has(key) && typeof value === 'string' && value !== '') {
-        clean[key as NavSection] = value;
-      }
+      if (!SECTION_SET.has(key) || !isRecord(value)) continue;
+      const { path, search } = value;
+      if (typeof path !== 'string' || path === '') continue;
+      clean[key as NavSection] = {
+        path,
+        ...(isRecord(search) ? { search } : {}),
+      };
     }
     return { sections: clean, savedAt };
   } catch (error) {
@@ -131,10 +151,10 @@ function write(
   }
 }
 
-/** The section a dashboard-relative subpath belongs to, or `undefined` for a
+/** The section a dashboard-relative path belongs to, or `undefined` for a
  *  path that is not inside one (the org home, the switching staging route). */
-export function sectionForSubpath(subpath: string): NavSection | undefined {
-  const segment = subpath.split(/[/?#]/, 1)[0];
+export function sectionForPath(path: string): NavSection | undefined {
+  const segment = path.split('/', 1)[0];
   if (segment === undefined || segment === '') return undefined;
   return SECTION_BY_SEGMENT[segment];
 }
@@ -144,33 +164,34 @@ export function sectionForSubpath(subpath: string): NavSection | undefined {
  * reachable without being a member, and restoring into it would strand the
  * user outside their own chat list.
  */
-function isNeverRecorded(subpath: string): boolean {
-  return subpath === 'chat/shared' || subpath.startsWith('chat/shared/');
+function isNeverRecorded(path: string): boolean {
+  return path === 'chat/shared' || path.startsWith('chat/shared/');
 }
 
-/** Drops {@link ONE_SHOT_PARAMS}, leaving the subpath byte-identical when none
- *  are present (the common case) so a restore reproduces the URL exactly. */
-export function stripOneShotParams(subpath: string): string {
-  const queryAt = subpath.indexOf('?');
-  if (queryAt === -1) return subpath;
-  const path = subpath.slice(0, queryAt);
-  const query = subpath.slice(queryAt + 1);
-  const params = new URLSearchParams(query);
-  if (!ONE_SHOT_PARAMS.some((name) => params.has(name))) return subpath;
-  for (const name of ONE_SHOT_PARAMS) params.delete(name);
-  const rest = params.toString();
-  return rest === '' ? path : `${path}?${rest}`;
+/** Drops {@link ONE_SHOT_PARAMS}, returning `undefined` when nothing is left
+ *  so an empty search is never stored. */
+export function stripOneShotParams(
+  search: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (search === undefined) return undefined;
+  const kept = Object.fromEntries(
+    Object.entries(search).filter(
+      ([key]) =>
+        !ONE_SHOT_PARAMS.includes(key as (typeof ONE_SHOT_PARAMS)[number]),
+    ),
+  );
+  return Object.keys(kept).length === 0 ? undefined : kept;
 }
 
 /**
- * The remembered subpath for a section: this tab's first, then the shared copy
+ * The remembered place for a section: this tab's first, then the shared copy
  * if it is still inside the TTL. `undefined` means "use the section's own
  * default entry".
  */
 export function readNavTarget(
   organizationId: string,
   section: NavSection,
-): string | undefined {
+): NavTarget | undefined {
   if (!isBrowser) return undefined;
   const tab = read(window.sessionStorage, organizationId);
   const fromTab = tab?.sections[section];
@@ -188,12 +209,17 @@ export function readNavTarget(
  *  section, and for the never-recorded paths above. */
 export function recordNavLocation(
   organizationId: string,
-  subpath: string,
+  path: string,
+  search?: Record<string, unknown>,
 ): void {
   if (!isBrowser) return;
-  const section = sectionForSubpath(subpath);
-  if (section === undefined || isNeverRecorded(subpath)) return;
-  const target = stripOneShotParams(subpath);
+  const section = sectionForPath(path);
+  if (section === undefined || isNeverRecorded(path)) return;
+  const kept = stripOneShotParams(search);
+  const target: NavTarget = {
+    path,
+    ...(kept !== undefined ? { search: kept } : {}),
+  };
   const savedAt = Date.now();
   for (const store of [window.sessionStorage, window.localStorage]) {
     const existing = read(store, organizationId);
@@ -239,22 +265,21 @@ export function clearNavMemory(organizationId?: string): void {
 }
 
 /**
- * Splits a router pathname into the org id and the dashboard-relative subpath.
+ * Splits a router pathname into the org id and the dashboard-relative path.
  * `pathname` is basepath-relative (the router strips `basepath` when parsing),
  * which is why every caller in the app compares it against a bare
  * `/dashboard/...` string.
  */
 export function parseDashboardPath(
   pathname: string,
-  searchStr = '',
-): { organizationId: string; subpath: string } | undefined {
+): { organizationId: string; path: string } | undefined {
   const segments = pathname.replace(/^\/+|\/+$/g, '').split('/');
   if (segments[0] !== 'dashboard') return undefined;
   const organizationId = segments[1];
   if (organizationId === undefined || organizationId === '') return undefined;
   const rest = segments.slice(2).join('/');
   if (rest === '') return undefined;
-  return { organizationId, subpath: `${rest}${searchStr}` };
+  return { organizationId, path: rest };
 }
 
 /**
@@ -267,16 +292,13 @@ export function installNavMemory(router: {
   subscribe: (
     event: 'onResolved',
     listener: (e: {
-      toLocation: { pathname: string; searchStr: string };
+      toLocation: { pathname: string; search: Record<string, unknown> };
     }) => void,
   ) => () => void;
 }): () => void {
   return router.subscribe('onResolved', ({ toLocation }) => {
-    const parsed = parseDashboardPath(
-      toLocation.pathname,
-      toLocation.searchStr,
-    );
+    const parsed = parseDashboardPath(toLocation.pathname);
     if (parsed === undefined) return;
-    recordNavLocation(parsed.organizationId, parsed.subpath);
+    recordNavLocation(parsed.organizationId, parsed.path, toLocation.search);
   });
 }
