@@ -1,3 +1,5 @@
+/// <reference path="../../types/react-file-icon.d.ts" />
+
 'use client';
 
 import { cn } from '@tale/ui/cn';

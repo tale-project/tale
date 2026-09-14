@@ -533,7 +533,9 @@ export function EnvVarListEditor({
     pendingRemove !== null ? localRows[pendingRemove] : undefined;
   const visibleRows =
     isLoading && localRows.length === 0
-      ? Array.from({ length: 3 }, () => emptyRow(forceSecret))
+      ? Array.from({ length: 3 }, () =>
+          toRow({ key: '', isSecret: forceSecret }),
+        )
       : localRows;
 
   return (
