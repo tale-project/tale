@@ -112,6 +112,9 @@ const deploymentFields = z.strictObject({
    * review, instead of replaying it. The ready receipt lists every bundle
    * superseded this way under `supersededBundles`. */
   supersedesPendingBundle: sha.optional(),
+  /** Explicit review of the native configuration journal's complete plan hash.
+   * Bundle supersession alone never replaces a partially applied native plan. */
+  supersedesPendingConfigurationPlan: sha.optional(),
   configs: z
     .array(
       z.strictObject({
@@ -172,6 +175,13 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         code: 'custom',
         message: 'Platform configuration requires an organization identity',
         path: ['identity'],
+      });
+    if (spec.supersedesPendingConfigurationPlan && !spec.configuration)
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Pending configuration recovery requires a configuration declaration',
+        path: ['supersedesPendingConfigurationPlan'],
       });
     for (const resource of spec.configuration?.resources ?? []) {
       if (resource.kind !== 'provider-credential') continue;

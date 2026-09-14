@@ -266,25 +266,41 @@ export function resourceConverged(
   resource: PlatformResource,
   current: unknown,
 ): boolean {
-  if (resource.kind !== 'knowledge-embedding') {
-    return sameConfiguration(current, resource.config);
-  }
-  const declared = resource.config.minSimilarity;
+  return resourceConvergedWithHash(
+    resource,
+    current,
+    valueHash(resource.config),
+  );
+}
+
+/** A retained plan holds the declaration hash, not its original secret-free
+ * object. Compare that hash with precisely the declarations native readback
+ * satisfies, including the embedding floor's preserve/clear semantics. */
+export function resourceConvergedWithHash(
+  resource: PlatformResource,
+  current: unknown,
+  desiredSha256: string,
+): boolean {
+  if (resource.kind !== 'knowledge-embedding')
+    return valueHash(current) === desiredSha256;
   const stored =
     current && typeof current === 'object' && !Array.isArray(current)
       ? Reflect.get(current, 'minSimilarity')
       : undefined;
-  if (declared === undefined) {
-    return sameConfiguration(
-      withoutKey(current, 'minSimilarity'),
-      resource.config,
-    );
-  }
-  if (declared === null) {
+  const withoutFloor = withoutKey(current, 'minSimilarity');
+  if (valueHash(withoutFloor) === desiredSha256) return true;
+  if (
+    stored === undefined &&
+    withoutFloor &&
+    typeof withoutFloor === 'object' &&
+    !Array.isArray(withoutFloor)
+  )
     return (
-      stored === undefined &&
-      sameConfiguration(current, withoutKey(resource.config, 'minSimilarity'))
+      valueHash({ ...withoutFloor, minSimilarity: null }) === desiredSha256
     );
-  }
-  return sameConfiguration(current, resource.config);
+  return (
+    stored !== undefined &&
+    stored !== null &&
+    valueHash(current) === desiredSha256
+  );
 }

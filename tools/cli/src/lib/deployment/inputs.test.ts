@@ -431,3 +431,26 @@ test('failed private source checkout scrubs errors and removes its ephemeral key
   expect(keySeen).toBe(true);
   expect(() => readFileSync(keyFile)).toThrow();
 });
+
+test('configuration recovery requires an exact plan hash and a native declaration', () => {
+  const input = {
+    ...spec(),
+    supersedesPendingConfigurationPlan: 'a'.repeat(64),
+  };
+  expect(deploymentSpecSchema.safeParse(input).success).toBe(false);
+  const configuration = {
+    schemaVersion: 1,
+    resources: [{ kind: 'branding', config: { accentColor: '#123456' } }],
+  };
+  expect(
+    deploymentSpecSchema.parse({ ...input, configuration })
+      .supersedesPendingConfigurationPlan,
+  ).toBe('a'.repeat(64));
+  expect(
+    deploymentSpecSchema.safeParse({
+      ...input,
+      configuration,
+      supersedesPendingConfigurationPlan: 'not-a-hash',
+    }).success,
+  ).toBe(false);
+});
