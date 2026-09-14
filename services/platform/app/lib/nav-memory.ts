@@ -67,13 +67,13 @@ const SECTION_BY_SEGMENT: Readonly<Record<string, NavSection>> = {
  * intent. Restoring them would re-trigger the flow, so they are dropped while
  * the rest of the search survives.
  */
-const ONE_SHOT_PARAMS = [
+const ONE_SHOT_PARAMS: ReadonlySet<string> = new Set([
   'cloudImport',
   'cloudImportStatus',
   'compose',
   'composeContact',
   'new',
-] as const;
+]);
 
 /**
  * A remembered place. The search object is kept SEPARATE from the path
@@ -102,6 +102,10 @@ function storageKey(organizationId: string): string {
 
 const SECTION_SET: ReadonlySet<string> = new Set(NAV_SECTIONS);
 
+function isNavSection(value: string): value is NavSection {
+  return SECTION_SET.has(value);
+}
+
 function parseRecord(raw: string): NavMemoryRecord | null {
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -110,10 +114,10 @@ function parseRecord(raw: string): NavMemoryRecord | null {
     if (typeof savedAt !== 'number' || !isRecord(sections)) return null;
     const clean: Partial<Record<NavSection, NavTarget>> = {};
     for (const [key, value] of Object.entries(sections)) {
-      if (!SECTION_SET.has(key) || !isRecord(value)) continue;
+      if (!isNavSection(key) || !isRecord(value)) continue;
       const { path, search } = value;
       if (typeof path !== 'string' || path === '') continue;
-      clean[key as NavSection] = {
+      clean[key] = {
         path,
         ...(isRecord(search) ? { search } : {}),
       };
@@ -175,10 +179,7 @@ export function stripOneShotParams(
 ): Record<string, unknown> | undefined {
   if (search === undefined) return undefined;
   const kept = Object.fromEntries(
-    Object.entries(search).filter(
-      ([key]) =>
-        !ONE_SHOT_PARAMS.includes(key as (typeof ONE_SHOT_PARAMS)[number]),
-    ),
+    Object.entries(search).filter(([key]) => !ONE_SHOT_PARAMS.has(key)),
   );
   return Object.keys(kept).length === 0 ? undefined : kept;
 }

@@ -11,6 +11,7 @@ import {
   useNavigationItems,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
+import { readNavTarget } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -24,6 +25,7 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
 
 export interface SidebarNavItemProps {
   item: NavItem;
+  organizationId: string;
 }
 
 /**
@@ -32,7 +34,7 @@ export interface SidebarNavItemProps {
  * right-side tooltip (with a shortcut chip for items owning a global
  * binding).
  */
-export function SidebarNavItem({ item }: SidebarNavItemProps) {
+export function SidebarNavItem({ item, organizationId }: SidebarNavItemProps) {
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
@@ -46,6 +48,34 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
   if (item.can && !ability.can(item.can[0], item.can[1])) {
     return null;
   }
+
+  // Where this tile goes. Already inside the section → its default entry,
+  // which is the one-click way back out of a deep page (and, being recorded
+  // like any navigation, becomes the new memory so the reset sticks).
+  // Elsewhere → the place the user last had open, when one is still live.
+  // Read on every render rather than memoized: this component already
+  // re-renders on each location change, which is exactly when it changes.
+  const remembered =
+    isActive || item.section === undefined
+      ? undefined
+      : readNavTarget(organizationId, item.section);
+
+  const linkProps = remembered
+    ? ({
+        to: `/dashboard/${organizationId}/${remembered.path}`,
+        search: remembered.search,
+        // A restored target is a deep route; prefetching six of them on every
+        // dashboard render would load far more than the section roots do.
+        preload: 'intent',
+      } as const)
+    : ({
+        to: item.to,
+        params: item.params,
+        ...(isActive && item.reentrySearch !== undefined
+          ? { search: item.reentrySearch }
+          : {}),
+        preload: 'render',
+      } as const);
 
   const Icon = item.icon;
 
@@ -104,13 +134,7 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
       {rowContent}
     </a>
   ) : (
-    <Link
-      to={item.to}
-      params={item.params}
-      preload="render"
-      aria-label={item.label}
-      className={linkClassName}
-    >
+    <Link {...linkProps} aria-label={item.label} className={linkClassName}>
       {rowContent}
     </Link>
   );
@@ -160,7 +184,11 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
     <nav aria-label={tCommon('aria.mainNavigation')}>
       <ul role="list" className="flex list-none flex-col gap-2">
         {primary.map((item) => (
-          <SidebarNavItem key={item.href} item={item} />
+          <SidebarNavItem
+            key={item.href}
+            item={item}
+            organizationId={organizationId}
+          />
         ))}
       </ul>
     </nav>
