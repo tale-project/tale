@@ -124,6 +124,49 @@ const endpointModeSchema = z.enum(['fixed', 'per-credential']);
 export type ConnectorEndpointMode = z.infer<typeof endpointModeSchema>;
 
 /**
+ * How a request host is matched against `allowedHosts` — the one axis
+ * `endpointMode` used to imply, now sayable on its own because a third rule
+ * exists that no endpoint mode describes.
+ *
+ *  - `exact`             — the host must EQUAL an entry. What a `fixed`
+ *                          connector gets: its bodies hardcode vendor URLs, so
+ *                          the tightest rule is also the sufficient one.
+ *  - `suffix`            — an entry admits itself and its subdomains, matched
+ *                          on a dot boundary so `evil-atlassian.net` never
+ *                          passes for `atlassian.net`. What a `per-credential`
+ *                          connector gets: a customer instance lives under the
+ *                          vendor's domain.
+ *  - `credential-origin` — the allowlist is not declared here at all; the
+ *                          origin on the CREDENTIAL is the single permitted
+ *                          host, matched exactly. For a connector that calls
+ *                          back to a deployment the operator runs, no host is
+ *                          knowable when the catalog ships. The https
+ *                          requirement and the private/link-local/cloud-metadata
+ *                          guard still apply to that origin, an action's input
+ *                          never names a host, and a credential that names no
+ *                          origin reaches nothing.
+ *
+ * OPTIONAL, and absent it is derived from `endpointMode` — see
+ * {@link connectorHostPolicy}. Every connector written before this existed
+ * keeps the matching it already had.
+ */
+const hostPolicySchema = z.enum(['exact', 'suffix', 'credential-origin']);
+export type ConnectorHostPolicy = z.infer<typeof hostPolicySchema>;
+
+/**
+ * The matching rule this connector's allowlist is read under. Declared
+ * `hostPolicy` wins; otherwise the endpoint mode's long-standing implication
+ * stands, so an undeclared connector behaves exactly as it always has.
+ */
+export function connectorHostPolicy(connector: {
+  endpointMode: ConnectorEndpointMode;
+  hostPolicy?: ConnectorHostPolicy | undefined;
+}): ConnectorHostPolicy {
+  if (connector.hostPolicy !== undefined) return connector.hostPolicy;
+  return connector.endpointMode === 'per-credential' ? 'suffix' : 'exact';
+}
+
+/**
  * A non-secret per-credential setting a connector needs but which is neither a
  * secret nor an https origin — the IMAP/SMTP server host and port, a Shopify
  * API version, a region. It rides ALONGSIDE the auth method: `basic` still
@@ -213,9 +256,12 @@ export const connectorSchema = z
     tags: z.array(z.string().min(1).max(64)).default([]),
     endpointMode: endpointModeSchema.default('fixed'),
     /** Hosts the live HTTP paths may reach — the SSRF allowlist for this
-     * connector's `yaml-js` actions (exact hosts under `fixed`, host suffixes
-     * under `per-credential`). Absent for purely native connectors. */
+     * connector's `yaml-js` actions, read under `hostPolicy`. Absent for
+     * purely native connectors, and for `credential-origin`, whose one host
+     * comes from the credential. */
     allowedHosts: z.array(z.string().min(1)).default([]),
+    /** How `allowedHosts` is matched. Omitted, it follows `endpointMode`. */
+    hostPolicy: hostPolicySchema.optional(),
     /** Non-secret per-credential settings this connector needs (a mail server
      * host/port, an API version). A live/native body reads them as
      * `ctx.config.<key>`. Empty for connectors that need none. */
@@ -245,5 +291,13 @@ export const connectorSchema = z
         message: 'action names must be unique per connector',
       }),
   })
-  .strict();
+  .strict()
+  .refine(
+    (c) => c.hostPolicy !== 'credential-origin' || c.allowedHosts.length === 0,
+    {
+      message:
+        'hostPolicy "credential-origin" takes its one host from the credential — listing allowedHosts here would declare hosts nothing reads',
+      path: ['allowedHosts'],
+    },
+  );
 export type Connector = z.infer<typeof connectorSchema>;

@@ -1,0 +1,132 @@
+# Connector — a conversation channel that is not a mailbox.
+#
+# The Inbox syncs mail and answers mail. A product that owns its own
+# customer-facing surface — an in-app support widget, a portal, a kiosk — has no
+# mailbox to answer through, but wants the same shared inbox, the same
+# assignment and teams, and the same agents. This connector is the outbound half
+# of that: staff reply in the Inbox, and the reply is POSTed to the deployment
+# the credential names, signed so the receiver can tell it from a forgery.
+#
+# The inbound half needs no connector — the product posts its customers'
+# messages to `/api/v1/conversations` with an API key.
+#
+# `hostPolicy: credential-origin` is why no `allowedHosts` are listed: the
+# destination is a deployment the operator runs, so it is known only when an org
+# admin enters it on the credential, and the host derives the allowlist from
+# that endpoint. Native rather than a live body because the delivery is signed,
+# and a sandboxed body has no crypto.
+name: webhook-channel
+displayName: Webhook channel
+description: >-
+  Deliver Inbox replies to your own application over a signed webhook, so a
+  conversation can live somewhere other than a mailbox.
+tags:
+  - Messaging
+  - Platform
+endpointMode: per-credential
+hostPolicy: credential-origin
+configFields:
+  - key: path
+    label: Delivery path
+    type: string
+    required: false
+    default: /
+    description: >-
+      Path on the endpoint that receives the deliveries, e.g. /webhooks/inbox.
+      The credential stores an origin, so the route is set here.
+auth:
+  - method: api-key
+actions:
+  - name: send_message
+    description: >-
+      POST one outbound conversation message to the credential's endpoint,
+      signed with Standard Webhooks headers (webhook-id, webhook-timestamp,
+      webhook-signature). The Inbox's send lane calls this; it is not meant to
+      be called by hand from an automation.
+    effects: write
+    input:
+      type: object
+      required: [conversationId, messageId, body]
+      additionalProperties: false
+      properties:
+        conversationId:
+          type: string
+          description: The conversation this reply belongs to — what the receiver threads on.
+        messageId:
+          type: string
+          description: The Tale message row, so the receiver can reconcile what it stored.
+        to:
+          type: array
+          description: >-
+            Recipient references in the receiver's own vocabulary — whatever it
+            put on the conversation when it opened the thread. Opaque to Tale.
+          items: { type: string }
+        subject:
+          type: string
+          description: The conversation subject, when it has one.
+        body:
+          type: string
+          description: The reply content.
+        contentType:
+          type: string
+          enum: [HTML, Text]
+          description: How to render `body` (default Text).
+        attachments:
+          type: array
+          description: Files on the reply, each with a presigned URL the receiver fetches.
+          items:
+            type: object
+            required: [name, size, url]
+            properties:
+              name: { type: string }
+              contentType: { type: string }
+              size: { type: number }
+              url: { type: string }
+    output: '{ status: number, deliveryId: string, messageId?: string }'
+    mock: |
+      return { status: 200, deliveryId: 'whk_mock', messageId: 'remote_mock' };
+    backend:
+      kind: native
+      impl: webhook-channel.send_message
+    exampleInput:
+      {
+        conversationId: 'conv_1',
+        messageId: 'msg_1',
+        to: ['user_42'],
+        subject: 'Payment not reflecting',
+        body: 'We have credited the payment — it should show now.',
+        contentType: 'Text',
+      }
+  - name: send_status
+    description: >-
+      POST a conversation's status change to the credential's endpoint, signed
+      with the same Standard Webhooks headers as send_message. A product that
+      owns the customer's view needs to know when staff close or reopen a
+      thread, or its copy says "we're on it" forever. The Inbox's status lane
+      calls this; it is not meant to be called by hand from an automation.
+    effects: write
+    input:
+      type: object
+      required: [conversationId, status]
+      additionalProperties: false
+      properties:
+        conversationId:
+          type: string
+          description: The conversation whose status changed.
+        status:
+          type: string
+          enum: [open, closed, spam, archived]
+          description: The status it changed TO.
+        to:
+          type: array
+          description: >-
+            Recipient references in the receiver's own vocabulary, as on
+            send_message. Opaque to Tale.
+          items: { type: string }
+    output: '{ status: number, deliveryId: string }'
+    mock: |
+      return { status: 200, deliveryId: 'whk_mock' };
+    backend:
+      kind: native
+      impl: webhook-channel.send_status
+    exampleInput: { conversationId: 'conv_1', status: 'closed' }

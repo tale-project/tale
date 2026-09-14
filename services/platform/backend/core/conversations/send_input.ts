@@ -6,6 +6,7 @@
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
+import { WEBHOOK_CHANNEL_CONNECTOR } from './channel';
 import { sendConnectorAction } from './connector_slug';
 import { normalizeExternalMessageId } from './ingest/normalize_external_message_id';
 
@@ -23,6 +24,12 @@ export function joinRecipients(addresses: readonly string[]): string {
 
 export function buildSendInput(args: {
   connectorName: string;
+  /** The conversation and message the send belongs to. A channel connector
+   * carries them on the wire — they are how the receiving product threads the
+   * reply and reconciles what it stored — and the mail connectors ignore them,
+   * because a mail thread is threaded by its Message-ID headers instead. */
+  conversationId?: string;
+  messageId?: string;
   to: string[];
   cc?: string[];
   subject: string;
@@ -48,6 +55,27 @@ export function buildSendInput(args: {
   const html = isHtmlContentType(args.contentType);
   const { connector } = sendConnectorAction(args.connectorName);
   const recipients = joinRecipients(args.to);
+
+  if (connector === WEBHOOK_CHANNEL_CONNECTOR) {
+    // A channel delivery is not mail: no cc, no Re:-chain, no address list —
+    // the recipients are ids in the receiving product's own vocabulary, and
+    // they stay an array so it never has to split a joined string. Attachments
+    // travel as presigned URLs, which is what a receiver can actually fetch.
+    return {
+      conversationId: args.conversationId ?? '',
+      messageId: args.messageId ?? '',
+      to: args.to,
+      subject: args.subject,
+      body: args.body,
+      contentType: html ? 'HTML' : 'Text',
+      attachments: args.attachments.map((att) => ({
+        name: att.name,
+        contentType: att.contentType,
+        size: att.size,
+        url: att.url,
+      })),
+    };
+  }
 
   if (connector === 'imap-smtp') {
     // The imap-smtp native carries the same fidelity as the API-mail send

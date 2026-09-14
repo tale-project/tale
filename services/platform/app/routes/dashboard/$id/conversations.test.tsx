@@ -125,7 +125,7 @@ describe('ConversationsLayout', () => {
     expect(
       screen.getByRole('heading', { name: 'Set up your Inbox' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Install an email automation/)).toBeInTheDocument();
+    expect(screen.getByText(/Connect a mailbox/)).toBeInTheDocument();
     expect(
       screen.queryByText(/first install an email automation\./),
     ).not.toBeInTheDocument();

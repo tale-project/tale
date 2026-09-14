@@ -162,6 +162,115 @@ export function buildSpec(): Json {
 
   // ── Documents (the Knowledge-Hub lane) ────────────────────────────────────
 
+  paths['/api/v1/conversations'] = {
+    get: {
+      tags: ['Conversations'],
+      summary: 'List conversations',
+      description:
+        'Threads in the shared Inbox, most recently active first. Read under ' +
+        'the same assignment privacy the app applies: an unassigned thread is ' +
+        'admin-triage only, so a key held by a plain member sees what that ' +
+        'member would see.',
+      operationId: 'listConversations',
+      security: sec,
+      parameters: [
+        ...paginationParams(100, 25),
+        queryParam('status', 'open, closed, spam or archived'),
+        queryParam('channel', 'Only threads on this channel'),
+        queryParam('connectorName', 'Only threads on this connector'),
+        queryParam('contactId', 'Only threads with this contact'),
+      ],
+      responses: {
+        '200': jsonResponse('Conversations', obj),
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Conversations'],
+      summary: 'Open a conversation',
+      description:
+        'Open a thread on behalf of a customer and post its first message — ' +
+        'the door a product uses when it owns the customer-facing surface and ' +
+        'the Inbox is only where staff answer. The contact is found or created ' +
+        'by `contact.externalId`. Idempotent on `message.externalMessageId`: ' +
+        'a retry that already succeeded answers 200 with `created: false` and ' +
+        'the conversation it made, never a second thread.',
+      operationId: 'openConversation',
+      security: sec,
+      requestBody: jsonBody(ref('ConversationIntakeInput')),
+      responses: {
+        '201': jsonResponse('Created', obj),
+        '200': jsonResponse('Already created by an earlier attempt', obj),
+        '403': errorResponse(
+          'The key holder’s role cannot write conversations',
+        ),
+        ...standardErrors,
+        // After the spread: this route's 400 is more specific than the
+        // generic one, and a spread would otherwise overwrite it.
+        '400': errorResponse(
+          'Invalid body, or a connector with several credentials was not told ' +
+            'which one this thread belongs to',
+        ),
+      },
+    },
+  };
+
+  paths['/api/v1/conversations/{id}'] = {
+    get: {
+      tags: ['Conversations'],
+      summary: 'Get conversation',
+      description: 'One thread with its messages, oldest first.',
+      operationId: 'getConversation',
+      security: sec,
+      parameters: [pathParam('id', 'Conversation id')],
+      responses: {
+        '200': jsonResponse('The conversation and its thread', obj),
+        ...standardErrors,
+      },
+    },
+    patch: {
+      tags: ['Conversations'],
+      summary: 'Update conversation',
+      description:
+        'Close, reopen, or retitle a thread from the customer’s side. A ' +
+        'status change here notifies nobody outward — it IS the outward side.',
+      operationId: 'updateConversation',
+      security: sec,
+      parameters: [pathParam('id', 'Conversation id')],
+      requestBody: jsonBody(ref('ConversationPatchInput')),
+      responses: {
+        '204': noContent('Updated'),
+        '403': errorResponse(
+          'The key holder’s role cannot write conversations',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/conversations/{id}/messages'] = {
+    post: {
+      tags: ['Conversations'],
+      summary: 'Post a customer message',
+      description:
+        'Append a message from the customer to an existing thread. Idempotent ' +
+        'on `externalMessageId`, so a redelivered message is dropped rather ' +
+        'than shown twice.',
+      operationId: 'postConversationMessage',
+      security: sec,
+      parameters: [pathParam('id', 'Conversation id')],
+      requestBody: jsonBody(ref('ConversationMessageInput')),
+      responses: {
+        '201': jsonResponse('Created', obj),
+        '200': jsonResponse('Already recorded by an earlier attempt', obj),
+        '403': errorResponse(
+          'The key holder’s role cannot write conversations',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
   paths['/api/v1/documents'] = {
     get: {
       tags: ['Documents'],
@@ -2243,6 +2352,90 @@ curl -H "Authorization: Bearer tale_..." \\
         },
 
         // ── Documents ──
+        ConversationAttachmentInput: {
+          type: 'object',
+          required: ['name', 'url'],
+          description:
+            'A file on the message, as a URL the Inbox fetches it from. The ' +
+            'sending product already stores the bytes; a second copy here ' +
+            'would have no owner.',
+          properties: {
+            name: str,
+            contentType: str,
+            size: { type: 'number' },
+            url: str,
+          },
+        },
+        ConversationMessageInput: {
+          type: 'object',
+          required: ['body'],
+          properties: {
+            body: str,
+            externalMessageId: {
+              ...str,
+              description:
+                'The sender’s own id for this message — what makes a retry ' +
+                'recognisable rather than a duplicate',
+            },
+            sentAt: { type: 'number', description: 'Epoch ms' },
+            attachments: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/ConversationAttachmentInput',
+              },
+            },
+          },
+        },
+        ConversationIntakeInput: {
+          type: 'object',
+          required: ['connectorName', 'contact', 'message'],
+          properties: {
+            connectorName: {
+              ...str,
+              description: 'The channel connector that carries replies back',
+            },
+            credentialRef: {
+              ...str,
+              description:
+                'Which credential of that connector this thread belongs to, ' +
+                'by id or name. Optional only when the connector has exactly ' +
+                'one — otherwise replies would go to whichever is default, ' +
+                'which on an org running two products is the other one.',
+            },
+            channel: {
+              ...str,
+              description: 'Stamped on the thread. Anything but `email`.',
+            },
+            subject: str,
+            priority: str,
+            metadata: obj,
+            contact: {
+              type: 'object',
+              required: ['externalId'],
+              properties: {
+                externalId: {
+                  ...str,
+                  description: 'The caller’s own id for this person',
+                },
+                name: str,
+                email: str,
+                phone: str,
+              },
+            },
+            message: { $ref: '#/components/schemas/ConversationMessageInput' },
+          },
+        },
+        ConversationPatchInput: {
+          type: 'object',
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['open', 'closed', 'spam', 'archived'],
+            },
+            subject: str,
+            priority: str,
+          },
+        },
         Document: {
           type: 'object',
           required: ['id', 'title', 'createdBy', 'createdAt', 'updatedAt'],

@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 29 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -12,9 +12,12 @@ tab, and routes only render the inbox when at least one **deployed**
 automation declares the `inbox` builtin view — today the three org-scoped
 email automations (**Sync Outlook emails** / `outlook/sync-emails`, **Sync
 Gmail emails** / `gmail/sync-emails`, **Sync emails via SMTP/IMAP** /
-`imap-smtp/sync-emails`). Conversations are created by inbound email
-ingestion, which the **mock stack cannot drive**; see Prerequisites for the
-seeding pattern.
+`imap-smtp/sync-emails`) — **or** the org already holds conversations. The
+second signal matters for an org fed over `POST /api/v1/conversations`, which
+installs no automation and connects no mailbox: without it the Inbox would be
+hidden from an org actively using one. Conversations are created by inbound
+email ingestion, which the **mock stack cannot drive**; see Prerequisites for
+the seeding pattern.
 
 ## Scope & routes
 
@@ -136,6 +139,13 @@ rows lead with the subject.
   Uninstalling the last email automation hides the entry again and CONV-G2
   applies again.
 
+- [ ] `CONV-G4` · **Opens for an API-fed org** — On an org with **no** email
+  automation (CONV-G1 state), open a conversation through
+  `POST /api/v1/conversations` with an API key → The sidebar **Inbox** entry
+  appears without a reload, `/conversations/open` lists the new thread, and
+  CONV-G2's empty state no longer applies. Proves the Inbox is reachable
+  without a mailbox.
+
 ## Functional tests
 
 - [ ] `CONV-F1` · **Inbox redirect** — Open `/dashboard/{org}/conversations`
@@ -203,6 +213,18 @@ rows lead with the subject.
   → **Archive** (`conversations.bulk.*`) → Selected rows leave the source lane
   and appear in the target **after reload**; the selection clears; **Send
   messages** opens the bulk-send dialog (`conversations.bulkSend.*`)
+
+- [ ] `CONV-F11` · **Reply reaches a channel product** — On a conversation
+  created through `POST /api/v1/conversations` with a `webhook-channel`
+  credential, reply from the reading pane and wait past the undo window → The
+  message settles **sent** (not failed), and the endpoint named on the
+  credential receives one signed POST carrying the conversation id. A receiver
+  answering a plain-text `200 OK` (no JSON body) still counts as delivered.
+- [ ] `CONV-F12` · **Closing notifies the product** — Close that same
+  conversation → The credential's endpoint receives a second signed POST with
+  `type: conversation.closed`. Reopening it sends `conversation.reopened`.
+  Closing a MAIL conversation sends nothing, because no product owns the
+  customer's view of an email thread.
 
 ## Boundary & error tests
 

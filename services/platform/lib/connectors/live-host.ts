@@ -5,11 +5,13 @@
  * handle — it holds the functions built here. Everything a body can reach is
  * policed on the way out:
  *
- *  - **The host allowlist runs on every request.** Under `endpointMode: fixed`
- *    the request host must EQUAL one of the connector's `allowedHosts`; under
- *    `per-credential` it must equal one or be a subdomain of one, matched on a
- *    dot boundary so `evil-atlassian.net` never passes for `atlassian.net`. A
- *    connector that declares no hosts reaches nothing — fail closed.
+ *  - **The host allowlist runs on every request**, under the connector's
+ *    `hostPolicy`: `exact` requires the request host to EQUAL one of its
+ *    `allowedHosts`; `suffix` also admits subdomains, matched on a dot boundary
+ *    so `evil-atlassian.net` never passes for `atlassian.net`; and
+ *    `credential-origin` declares no hosts at all, taking the single permitted
+ *    one from the credential's own origin. A connector with no reachable host
+ *    reaches nothing — fail closed.
  *  - **Only https.** A body cannot downgrade the transport carrying an
  *    injected credential.
  *  - **Private, link-local, and cloud-metadata addresses are refused**, reusing
@@ -45,7 +47,11 @@ import type {
 } from '../engine/core/slots';
 import { checkProviderHostPolicy } from '../net/host-policy';
 import { safeFetch, safeFetchBinary, SafeFetchError } from '../net/safe-fetch';
-import type { Connector } from '../shared/schemas/connectors';
+import {
+  connectorHostPolicy,
+  type Connector,
+  type ConnectorHostPolicy,
+} from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
 
 /** Bounds one exchange end to end, redirects included. */
@@ -59,10 +65,10 @@ const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 
 /** The connector facts the host polices against — the whole connector
- * document is accepted, but only these three fields are consulted. */
+ * document is accepted, but only these four fields are consulted. */
 export type LiveHostConnector = Pick<
   Connector,
-  'name' | 'endpointMode' | 'allowedHosts'
+  'name' | 'endpointMode' | 'allowedHosts' | 'hostPolicy'
 >;
 
 /** What `ctx.files` hands bytes to. Persisting blobs is the caller's
@@ -117,33 +123,31 @@ function normalizeHost(host: string): string {
 }
 
 /**
- * Whether one host satisfies one allowlist entry under the connector's
- * endpoint mode. `fixed` connectors hardcode their vendor URLs, so an exact
- * match is both sufficient and the tightest rule available. `per-credential`
- * connectors point at a customer instance under a vendor's domain, so a
- * subdomain is admitted — but only on a dot boundary, which is what keeps a
- * look-alike registration such as `evil-atlassian.net` out.
+ * Whether one host satisfies one allowlist entry under the connector's host
+ * policy. Only `suffix` widens an entry to its subdomains — a customer instance
+ * lives under the vendor's domain — and only on a dot boundary, which is what
+ * keeps a look-alike registration such as `evil-atlassian.net` out. The other
+ * policies match exactly: a `fixed` connector hardcodes its vendor URLs, and a
+ * `credential-origin` one has a single host to reach.
  */
 export function hostMatchesAllowEntry(
   host: string,
   entry: string,
-  endpointMode: Connector['endpointMode'],
+  hostPolicy: ConnectorHostPolicy,
 ): boolean {
   const h = normalizeHost(host);
   const e = normalizeHost(entry);
   if (h === e) return true;
-  return endpointMode === 'per-credential' && h.endsWith(`.${e}`);
+  return hostPolicy === 'suffix' && h.endsWith(`.${e}`);
 }
 
 /**
- * Police one URL against a connector's policy and return it parsed. Exported
- * because every path that can reach the network — the http verbs, attachment
- * downloads, and any native backend that speaks HTTP — must run it.
+ * The scheme and address half of the policy: a parseable https URL that is not
+ * private, link-local, or cloud-metadata space. Split from the allowlist half
+ * because a `credential-origin` connector derives its one permitted host FROM a
+ * URL, and that URL has to clear these checks before it names anything.
  */
-export function checkConnectorRequestUrl(
-  rawUrl: string,
-  connector: LiveHostConnector,
-): URL {
+function checkConnectorUrlShape(rawUrl: string, connectorName: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -151,7 +155,7 @@ export function checkConnectorRequestUrl(
     throw new ConnectorError(
       'INVALID_URL',
       `not a valid URL: ${rawUrl.slice(0, 200)}`,
-      { connector: connector.name, cause },
+      { connector: connectorName, cause },
     );
   }
 
@@ -160,7 +164,7 @@ export function checkConnectorRequestUrl(
       'INSECURE_SCHEME',
       `connector requests are https only, got "${parsed.protocol}//" for ${parsed.host}`,
       {
-        connector: connector.name,
+        connector: connectorName,
         hint: 'use the https origin of the vendor API; plaintext would expose the injected credential',
       },
     );
@@ -175,23 +179,45 @@ export function checkConnectorRequestUrl(
     throw new ConnectorError(
       'BLOCKED_HOST',
       `host "${parsed.hostname}" is not reachable from a connector (private, link-local, or cloud-metadata address)`,
-      { connector: connector.name, cause },
+      { connector: connectorName, cause },
     );
   }
+  return parsed;
+}
 
+/**
+ * Police one URL against a connector's policy and return it parsed. Exported
+ * because every path that can reach the network — the http verbs, attachment
+ * downloads, and any native backend that speaks HTTP — must run it.
+ */
+export function checkConnectorRequestUrl(
+  rawUrl: string,
+  connector: LiveHostConnector,
+): URL {
+  const parsed = checkConnectorUrlShape(rawUrl, connector.name);
+
+  const policy = connectorHostPolicy(connector);
   const allowed = connector.allowedHosts;
   if (allowed.length === 0) {
+    // Two ways to reach nothing, and the message says which: a connector that
+    // listed no hosts, or a `credential-origin` one invoked without the
+    // credential it takes its single host from.
     throw new ConnectorError(
       'HOST_NOT_ALLOWED',
-      `connector "${connector.name}" declares no allowedHosts, so it cannot make HTTP requests`,
+      policy === 'credential-origin'
+        ? `connector "${connector.name}" reaches only the origin its credential names, and this call has no credential endpoint`
+        : `connector "${connector.name}" declares no allowedHosts, so it cannot make HTTP requests`,
       {
         connector: connector.name,
-        hint: "add the vendor host to the connector's allowedHosts, or implement the action as a native backend",
+        hint:
+          policy === 'credential-origin'
+            ? 'enter the deployment URL on the credential'
+            : "add the vendor host to the connector's allowedHosts, or implement the action as a native backend",
       },
     );
   }
   const ok = allowed.some((entry) =>
-    hostMatchesAllowEntry(parsed.hostname, entry, connector.endpointMode),
+    hostMatchesAllowEntry(parsed.hostname, entry, policy),
   );
   if (!ok) {
     throw new ConnectorError(
@@ -200,9 +226,9 @@ export function checkConnectorRequestUrl(
       {
         connector: connector.name,
         hint:
-          connector.endpointMode === 'per-credential'
+          policy === 'suffix'
             ? 'per-credential connectors admit an allowed host and its subdomains — check the credential endpoint'
-            : 'fixed-endpoint connectors admit exactly the hosts they declare',
+            : 'this connector admits exactly the hosts it declares',
       },
     );
   }
@@ -299,7 +325,7 @@ export function createLiveHost(
   options: LiveHostOptions,
 ): ConnectorHostCapabilities {
   const {
-    connector,
+    connector: declared,
     authHeader,
     blobs,
     action,
@@ -311,8 +337,24 @@ export function createLiveHost(
   // A per-credential endpoint is operator-supplied data: check it against the
   // connector's policy once here so a mis-pointed credential fails with one
   // clear message instead of once per request inside a body.
+  //
+  // Under `credential-origin` that endpoint also BECOMES the policy, resolved
+  // here into an ordinary exact-match allowlist naming its single host — so no
+  // path downstream needs a special case, and no subdomain rides along. The
+  // endpoint clears the scheme and address checks first, so a credential can
+  // name a public https origin and nothing else. Every path below reads
+  // `connector`, so they all inherit it.
   let endpoint: string | undefined;
+  let connector = declared;
   if (options.endpoint !== undefined && options.endpoint !== '') {
+    if (connectorHostPolicy(declared) === 'credential-origin') {
+      const origin = checkConnectorUrlShape(options.endpoint, declared.name);
+      connector = {
+        ...declared,
+        hostPolicy: 'exact',
+        allowedHosts: [origin.hostname],
+      };
+    }
     const checked = checkConnectorRequestUrl(options.endpoint, connector);
     endpoint = checked.origin;
   }

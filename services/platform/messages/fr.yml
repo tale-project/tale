@@ -1915,8 +1915,8 @@ conversations:
     description: Les conversations entrantes de vos canaux connectés apparaîtront ici.
     noAutomationTitle: Configure ta boîte de réception
     noAutomationDescription:
-      Installe une automatisation e-mail (Gmail, Outlook ou
-      IMAP) pour commencer à lire et à répondre aux conversations ici.
+      Connecte une boîte mail (Gmail, Outlook ou IMAP), ou
+      envoie des conversations via l'API.
     composeNotice: Pour écrire à {name}, installe d'abord une automatisation e-mail.
     browseAutomations: Parcourir les automatisations
   filter:

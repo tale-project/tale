@@ -59,6 +59,7 @@ function conversation(id: string, contactId: string | null): ConversationRow {
     channel: 'email',
     direction: 'inbound',
     connectorName: 'imap-smtp',
+    credentialId: null,
     lastMessageAt: 1_000,
     metadata: { unread_count: 1 },
     lifecycleStatus: null,

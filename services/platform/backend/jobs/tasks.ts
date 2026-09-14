@@ -151,12 +151,26 @@ export interface TaskPayloads {
     providerSlug?: string;
     locale?: string;
   };
+  /** Tell a channel-backed conversation's product that its status changed.
+   * Mail conversations have no such product and enqueue nothing. */
+  'conversation.notify_status': {
+    organizationId: string;
+    conversationId: string;
+    connectorName: string;
+    credentialRef?: string;
+    status: string;
+    to: string[];
+  };
   /** One outbound conversation send — fired after the undo window; the
    * handler re-checks the row is still queued (an undo deletes it). */
   'conversation.send_message': {
     organizationId: string;
     messageId: string;
     connectorName: string;
+    /** WHICH credential of that connector delivers this. Absent resolves to
+     * the org's default for the slug — right for a mailbox conversation, wrong
+     * for a channel whose destination lives on the credential. */
+    credentialRef?: string;
     to: string[];
     cc?: string[];
     subject: string;
@@ -411,6 +425,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once outbound mail: a lost job settles via retrySendMessage by a
   // human, never a silent duplicate email from pg-boss.
   'conversation.send_message': { retryLimit: 0, expireInSeconds: 600 },
+  // Unlike a send, a status notice is safe to retry: the receiver keys on the
+  // conversation and the delivery id, so a repeat is the same fact twice.
+  'conversation.notify_status': { retryLimit: 3, expireInSeconds: 300 },
   'watchdog.conversation_sends': { retryLimit: 1, expireInSeconds: 300 },
   // Best-effort at-most-once: the bell row is the durable record; a lost or
   // failed email is never retried into a duplicate.

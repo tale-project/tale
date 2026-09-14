@@ -2,17 +2,25 @@
  * The platform's native connector backends, and the one call that installs
  * them.
  *
- * Six shipped actions declare `backend: { kind: native }` because they speak
- * something HTTP cannot: IMAP and SMTP are raw-TCP sessions, and the WebDAV
- * actions act on the organization's own file store rather than on any vendor
- * API. Until a native is registered the dispatcher refuses those actions
- * loudly — a caller that asked for a real send must never be handed a
- * fabricated success — so registration is the whole point of this module.
+ * An action declares `backend: { kind: native }` when a sandboxed `yaml-js`
+ * body cannot do its job. Three reasons across the shipped catalog:
+ *
+ *  - it speaks something HTTP cannot — IMAP and SMTP are raw-TCP sessions;
+ *  - it acts on the platform's own data rather than a vendor API — the WebDAV,
+ *    task, document and conversation actions;
+ *  - it needs crypto — `webhook-channel.send_message` signs each delivery, and
+ *    the sandboxed context offers no primitives to sign with.
+ *
+ * Until a native is registered the dispatcher refuses those actions loudly — a
+ * caller that asked for a real send must never be handed a fabricated success —
+ * so registration is the whole point of this module.
  *
  * Everything the natives depend on is injected: the document store the WebDAV
  * actions act through, and the transports the mail actions open. A host wires
  * the real implementations once, at the same place it installs the connector
  * catalog; tests wire doubles and need neither a network nor a database.
+ * `webhook-channel` takes no dependency — everything it needs rides on the
+ * credential and the mediated context.
  */
 
 import { registerNativeImpl, nativeImplIds } from '../dispatcher';
@@ -37,6 +45,7 @@ import {
   type SandboxScriptRunner,
 } from './sandbox-script';
 import { webdavNatives, type WebdavStore } from './webdav';
+import { webhookChannelNatives } from './webhook-channel';
 
 export {
   discoverSentMailbox,
@@ -94,6 +103,14 @@ export {
   type WorkflowDocumentStore,
   type WorkflowFolderFile,
 } from './platform-documents';
+export {
+  signWebhookPayload,
+  verifyWebhookSignature,
+  webhookChannelNatives,
+  WEBHOOK_CHANNEL_SEND_IMPL,
+  WEBHOOK_CHANNEL_STATUS_IMPL,
+  type WebhookChannelSendInput,
+} from './webhook-channel';
 
 /**
  * What the natives need from the platform.
@@ -144,6 +161,8 @@ export const NATIVE_IMPL_IDS = [
   'webdav.list',
   'webdav.read',
   'webdav.write',
+  'webhook-channel.send_message',
+  'webhook-channel.send_status',
 ] as const;
 
 /**
@@ -168,6 +187,7 @@ export function registerNativeConnectors(
     ...platformTaskNatives(deps.tasks),
     ...sandboxScriptNatives(deps.sandboxScripts),
     ...webdavNatives(deps.webdav),
+    ...webhookChannelNatives(),
   };
 
   const missing = NATIVE_IMPL_IDS.filter((id) => !(id in impls));

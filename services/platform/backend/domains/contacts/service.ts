@@ -387,6 +387,71 @@ export async function findOrCreateContactByEmail(
   return { contactId, created: true };
 }
 
+/**
+ * Find by external id or create — the API-ingest twin of
+ * {@link findOrCreateContactByEmail}, for a system that identifies its people
+ * by its OWN id rather than by an address (an in-app support widget, a portal,
+ * a kiosk).
+ *
+ * The identity key is `external_id` and ONLY `external_id`. An email passed
+ * here is enrichment on a new row, never a second lookup key: conflating the
+ * two would let a caller's id silently resolve to somebody else's contact
+ * because the addresses happened to match.
+ *
+ * Serialized per (org, external id) like every other create, and blind to
+ * trashed rows like the directory itself — a message from someone the org
+ * trashed mints a fresh live contact rather than re-attaching to the trash.
+ */
+export async function findOrCreateContactByExternalId(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    externalId: string;
+    name?: string | undefined;
+    email?: string | undefined;
+    phone?: string | undefined;
+    source: ContactSource;
+    metadata?: Record<string, unknown> | undefined;
+  },
+): Promise<{ contactId: string; created: boolean }> {
+  const externalId = args.externalId.trim();
+  if (externalId === '') {
+    throw new ContactError(
+      'CONTACT_EXTERNAL_ID_REQUIRED',
+      'find-or-create needs an external id',
+    );
+  }
+  await lockContactExternalId(tx, args.organizationId, externalId);
+  const existing = await findLiveContactIdByExternalId(
+    tx,
+    args.organizationId,
+    externalId,
+  );
+  if (existing !== null) {
+    return { contactId: existing, created: false };
+  }
+  const contactId = await insertContactRow(tx, {
+    organizationId: args.organizationId,
+    name: args.name?.trim() ?? null,
+    email: normalizeContactEmail(args.email) ?? null,
+    phone: args.phone?.trim() ?? null,
+    externalId,
+    source: args.source,
+    locale: null,
+    address: null,
+    tags: [],
+    metadata: args.metadata ?? null,
+    notes: null,
+  });
+  await recordContactCreated(tx, {
+    organizationId: args.organizationId,
+    contactId,
+    name: args.name,
+    actor: { type: 'system' },
+  });
+  return { contactId, created: true };
+}
+
 export async function updateContact(
   tx: TransactionSql,
   scope: ContactScope,

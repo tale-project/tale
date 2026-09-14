@@ -19,6 +19,7 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import { notifyChannelStatusInTx } from './notify-status.ts';
 
 /**
  * Conversations — the shared Inbox core, the 0.5 twin of
@@ -65,6 +66,10 @@ export interface ConversationRow {
   channel: string | null;
   direction: 'inbound' | 'outbound' | null;
   connectorName: string | null;
+  /** WHICH of the connector's credentials carries this conversation. Null
+   * means the organization's default for the slug — what every conversation
+   * created before this existed resolves to, unchanged. */
+  credentialId: string | null;
   lastMessageAt: number | null;
   metadata: Record<string, unknown> | null;
   lifecycleStatus: string | null;
@@ -77,6 +82,7 @@ export const CONVERSATION_COLUMNS = `
   assignee_user_id AS "assigneeUserId", assignee_team_id AS "assigneeTeamId",
   external_message_id AS "externalMessageId", subject, status, priority,
   type, channel, direction, connector_name AS "connectorName",
+  credential_id AS "credentialId",
   last_message_at_ms::float8 AS "lastMessageAt", metadata,
   lifecycle_status AS "lifecycleStatus",
   status_changed_at_ms::float8 AS "statusChangedAt",
@@ -202,6 +208,11 @@ export interface CreateConversationArgs {
   channel?: string;
   direction?: 'inbound' | 'outbound';
   connectorName?: string;
+  /** The credential this conversation replies through. Required in practice
+   * for a channel whose destination lives on the credential rather than in the
+   * thread — without it the reply goes to the connector's DEFAULT credential,
+   * which on a multi-product org is somebody else's endpoint. */
+  credentialId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -214,7 +225,7 @@ export async function createConversation(
     INSERT INTO app.conversations (
       org_id, contact_id, assignee_user_id, assignee_team_id, external_message_id,
       subject, status, priority, type, channel, direction, connector_name,
-      metadata, created_at_ms
+      credential_id, metadata, created_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.contactId ?? null},
       ${args.assigneeUserId ?? null}, ${args.assigneeTeamId ?? null},
@@ -222,6 +233,7 @@ export async function createConversation(
       ${args.subject ?? null}, ${args.status ?? 'open'},
       ${args.priority ?? null}, ${args.type ?? null}, ${args.channel ?? null},
       ${args.direction ?? null}, ${args.connectorName ?? null},
+      ${args.credentialId ?? null},
       ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
       ${now}
     )
@@ -711,6 +723,24 @@ export function statusChangeStamps(
 }
 
 /**
+ * Whether this write CLOSES the conversation — the condition
+ * `conversation.closed` fires on, SHARED by the PATCH door and the bulk verbs.
+ *
+ * It is the transition that is the event, not the resulting state. A patch
+ * that leaves the status alone closes nothing, and re-closing a conversation
+ * that is already closed raises nothing: a bulk close over a selection that is
+ * half closed already would otherwise fire a second time for those rows, and a
+ * trigger reading the event as "a customer's case just ended" would run twice
+ * on one case.
+ */
+export function closesConversation(
+  previous: ConversationStatus | null,
+  next: ConversationStatus | undefined,
+): boolean {
+  return next === 'closed' && previous !== 'closed';
+}
+
+/**
  * The PATCH door. Metadata is a shallow MERGE onto the stored object (the
  * `patchWebsite` contract), never a wholesale replace — a caller patching one
  * key must not wipe `unread_count` or routing state — and a status flip
@@ -725,9 +755,19 @@ export async function updateConversation(
   actor: { userId: string },
 ): Promise<void> {
   const rows = await tx<
-    { id: string; metadata: Record<string, unknown> | null }[]
+    {
+      id: string;
+      metadata: Record<string, unknown> | null;
+      status: ConversationStatus | null;
+      channel: string | null;
+      connectorName: string | null;
+      credentialId: string | null;
+    }[]
   >`
-    SELECT id, metadata FROM app.conversations
+    SELECT id, metadata, status, channel,
+           connector_name AS "connectorName",
+           credential_id AS "credentialId"
+    FROM app.conversations
     WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
   `;
   const row = rows[0];
@@ -776,6 +816,30 @@ export async function updateConversation(
       metadata = ${nextMetadata !== undefined ? tx.json(toJson(nextMetadata)) : tx.unsafe('metadata')}
     WHERE id = ${conversationId}
   `;
+  if (closesConversation(row.status, updates.status)) {
+    await emitEvent(tx, {
+      organizationId,
+      eventType: 'conversation.closed',
+      eventData: { conversationId, closedBy: actor.userId },
+    });
+  }
+  // The event above reaches the org's automation triggers. A conversation on a
+  // channel also has a PRODUCT holding the customer's view of it, and that
+  // product learns nothing from an automation trigger — so the transition is
+  // carried to it here, in the same transaction that made it.
+  if (updates.status !== undefined && updates.status !== row.status) {
+    await notifyChannelStatusInTx(
+      tx,
+      {
+        id: conversationId,
+        organizationId,
+        channel: row.channel,
+        connectorName: row.connectorName,
+        credentialId: row.credentialId,
+      },
+      updates.status,
+    );
+  }
   await emitHintInTx(tx, {
     orgId: organizationId,
     entity: 'conversation',
@@ -1055,8 +1119,19 @@ export async function bulkSetConversationStatus(
   const now = Date.now();
   await sql.begin(async (tx) => {
     for (const conversationId of args.conversationIds) {
-      const rows = await tx<{ metadata: Record<string, unknown> | null }[]>`
-        SELECT metadata FROM app.conversations
+      const rows = await tx<
+        {
+          metadata: Record<string, unknown> | null;
+          status: ConversationStatus | null;
+          channel: string | null;
+          connectorName: string | null;
+          credentialId: string | null;
+        }[]
+      >`
+        SELECT metadata, status, channel,
+               connector_name AS "connectorName",
+               credential_id AS "credentialId"
+        FROM app.conversations
         WHERE id = ${conversationId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
@@ -1073,6 +1148,26 @@ export async function bulkSetConversationStatus(
           metadata = ${tx.json(toJson({ ...row.metadata, ...stamps }))}
         WHERE id = ${conversationId}
       `;
+      if (closesConversation(row.status, target.status)) {
+        await emitEvent(tx, {
+          organizationId: args.organizationId,
+          eventType: 'conversation.closed',
+          eventData: { conversationId, closedBy: args.actor.userId },
+        });
+      }
+      if (target.status !== row.status) {
+        await notifyChannelStatusInTx(
+          tx,
+          {
+            id: conversationId,
+            organizationId: args.organizationId,
+            channel: row.channel,
+            connectorName: row.connectorName,
+            credentialId: row.credentialId,
+          },
+          target.status,
+        );
+      }
       result.successCount += 1;
     }
     if (result.successCount > 0) {

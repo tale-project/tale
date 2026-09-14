@@ -18,6 +18,7 @@ import {
 import { domainErrorResponse, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
+import { createConversationRestRoutes } from './v1-conversations.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -51,7 +52,9 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * so a consumer written against 0.4 keeps working. Families live beside
  * this door: v1-core (contacts, products, documents, knowledge, agents,
  * skills), v1-automations (+ runs), v1-projects (folders, uploads, files),
- * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
+ * v1-tasks (external-ref intake, comments, start), v1-threads (chat),
+ * v1-conversations (Inbox intake for a product that owns its own customer
+ * surface).
  * `/websites` rides the crawler family (v1-websites), `/browser-sessions`
  * is the operator door to the video-ingest cookie pool
  * (v1-browser-sessions), and `/api/v1/mcp` rides automations_builder
@@ -186,6 +189,7 @@ export function createRestV1Routes(deps: {
   });
 
   app.route('/', createCoreRoutes({ sql: deps.sql }));
+  app.route('/', createConversationRestRoutes({ sql: deps.sql }));
   app.route('/', createProjectRestRoutes({ sql: deps.sql }));
   app.route('/', createTaskRestRoutes({ sql: deps.sql }));
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));

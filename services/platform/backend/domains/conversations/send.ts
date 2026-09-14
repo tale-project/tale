@@ -6,6 +6,10 @@ import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
 import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
+import {
+  conversationChannel,
+  isEmailChannel,
+} from '../../core/conversations/channel.ts';
 import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
 import { normalizeEmail } from '../../core/conversations/ingest/normalize_email.ts';
 import { normalizeExternalMessageId } from '../../core/conversations/ingest/normalize_external_message_id.ts';
@@ -187,6 +191,10 @@ export interface SendMessageViaConnectorArgs {
   references?: string[];
   sourceMarkdown?: string;
   attachments?: SendAttachment[];
+  /** The credential to deliver through. Omitted, the connector resolves the
+   * org's default — which is what a mailbox conversation wants and what an
+   * external channel must never be left to. */
+  credentialRef?: string;
   actor: { userId: string; email?: string };
 }
 
@@ -234,23 +242,35 @@ export async function sendMessageViaConnectorInTx(
     );
   }
 
-  const latest = args.inReplyTo
-    ? null
-    : (
-        await tx<{ externalMessageId: string | null }[]>`
+  const channel = conversationChannel(conversation.channel);
+  const onEmail = isEmailChannel(channel);
+
+  // `In-Reply-To` and `References` are RFC 5322 mail headers: off a mail
+  // channel there is no header to carry them and no thread they would join, so
+  // the walk that finds the previous Message-ID is skipped too.
+  const latest =
+    !onEmail || args.inReplyTo
+      ? null
+      : (
+          await tx<{ externalMessageId: string | null }[]>`
             SELECT external_message_id AS "externalMessageId"
             FROM app.conversation_messages
             WHERE conversation_id = ${args.conversationId}
             ORDER BY delivered_at_ms DESC NULLS LAST, seq DESC
             LIMIT 1
           `
-      )[0];
-  const { inReplyTo, references } = buildThreadingHeaders({
-    ...(args.inReplyTo !== undefined ? { inReplyTo: args.inReplyTo } : {}),
-    ...(args.references !== undefined ? { references: args.references } : {}),
-    latestMessageExternalId: latest?.externalMessageId ?? undefined,
-    conversationExternalMessageId: conversation.externalMessageId ?? undefined,
-  });
+        )[0];
+  const { inReplyTo, references } = onEmail
+    ? buildThreadingHeaders({
+        ...(args.inReplyTo !== undefined ? { inReplyTo: args.inReplyTo } : {}),
+        ...(args.references !== undefined
+          ? { references: args.references }
+          : {}),
+        latestMessageExternalId: latest?.externalMessageId ?? undefined,
+        conversationExternalMessageId:
+          conversation.externalMessageId ?? undefined,
+      })
+    : { inReplyTo: undefined, references: undefined };
 
   const now = Date.now();
   const attachmentsMeta = args.attachments?.length
@@ -269,6 +289,9 @@ export async function sendMessageViaConnectorInTx(
     to: args.to,
     subject: args.subject,
     connectorName: args.connectorName,
+    ...(args.credentialRef !== undefined
+      ? { credentialRef: args.credentialRef }
+      : {}),
     scheduledSendAt: now + undoSendDelayMs(),
     sendContentType: args.html ? 'HTML' : 'Text',
     ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
@@ -285,7 +308,7 @@ export async function sendMessageViaConnectorInTx(
         created_at_ms, status_changed_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.conversationId},
-        ${args.connectorName}, 'email', 'outbound', 'queued',
+        ${args.connectorName}, ${channel}, 'outbound', 'queued',
         ${args.content}, ${now}, ${now},
         ${tx.json(toJson(messageMetadata))}, ${now}, ${now}
       )
@@ -302,6 +325,9 @@ export async function sendMessageViaConnectorInTx(
       organizationId: args.organizationId,
       messageId,
       connectorName: args.connectorName,
+      ...(args.credentialRef !== undefined
+        ? { credentialRef: args.credentialRef }
+        : {}),
       to: args.to,
       ...(args.cc !== undefined ? { cc: args.cc } : {}),
       subject: args.subject,
@@ -422,13 +448,18 @@ export async function replyToConversation(
     {
       organizationId: string;
       connectorName: string | null;
+      credentialId: string | null;
       subject: string | null;
+      channel: string | null;
       contactEmail: string | null;
+      contactExternalId: string | null;
     }[]
   >`
     SELECT c.org_id AS "organizationId",
-           c.connector_name AS "connectorName", c.subject,
-           ct.email AS "contactEmail"
+           c.connector_name AS "connectorName",
+           c.credential_id AS "credentialId", c.subject, c.channel,
+           ct.email AS "contactEmail",
+           ct.external_id AS "contactExternalId"
     FROM app.conversations c
     LEFT JOIN app.contacts ct ON ct.id = c.contact_id AND ct.org_id = c.org_id
     WHERE c.id = ${args.conversationId} LIMIT 1
@@ -455,21 +486,46 @@ export async function replyToConversation(
       409,
     );
   }
-  if (!row.contactEmail || row.contactEmail === UNKNOWN_CONTACT_EMAIL) {
-    throw new ConversationError(
-      'customer_email_not_found',
-      'Conversation has no contact email to reply to',
-      409,
-    );
+
+  // WHO the reply goes to, and what its subject line is, are both channel
+  // questions. On email the recipient is an address and the subject gets its
+  // `Re:`; off it the recipient is the id the originating product gave its
+  // contact, and the subject is the thread's own — a customer reading a reply
+  // in an app sees a thread title, never a mail header.
+  const onEmail = isEmailChannel(row.channel);
+  let recipient: string;
+  if (onEmail) {
+    if (!row.contactEmail || row.contactEmail === UNKNOWN_CONTACT_EMAIL) {
+      throw new ConversationError(
+        'customer_email_not_found',
+        'Conversation has no contact email to reply to',
+        409,
+      );
+    }
+    recipient = row.contactEmail;
+  } else {
+    if (!row.contactExternalId) {
+      throw new ConversationError(
+        'customer_reference_not_found',
+        `Conversation is on the "${conversationChannel(row.channel)}" channel but its contact carries no external id to reply to`,
+        409,
+      );
+    }
+    recipient = row.contactExternalId;
   }
-  const subject = buildReplySubject(row.subject ?? undefined);
+  const subject = onEmail
+    ? buildReplySubject(row.subject ?? undefined)
+    : (row.subject ?? '');
   const { html, text } = splitHtmlText(args.content);
   return sendMessageViaConnector(sql, {
     conversationId: args.conversationId,
     organizationId: args.organizationId,
     connectorName: row.connectorName,
+    // The credential the conversation arrived on, so a reply goes back to the
+    // instance it came from rather than to the connector's default one.
+    ...(row.credentialId !== null ? { credentialRef: row.credentialId } : {}),
     content: args.content,
-    to: [row.contactEmail],
+    to: [recipient],
     subject,
     html,
     text,
@@ -840,10 +896,18 @@ export async function retrySendMessage(
     const cc = asStringArray(metadata.cc);
     const references = asStringArray(metadata.references);
     const attachments = attachmentsFromMetadata(metadata.attachments);
+    // The credential the first attempt used. Dropping it here would retry a
+    // failed delivery against the connector's DEFAULT credential — a different
+    // instance than the one the conversation belongs to.
+    const credentialRef =
+      typeof metadata.credentialRef === 'string'
+        ? metadata.credentialRef
+        : undefined;
     await addJobInTx(tx, 'conversation.send_message', {
       organizationId: args.organizationId,
       messageId: args.messageId,
       connectorName,
+      ...(credentialRef !== undefined ? { credentialRef } : {}),
       to,
       ...(cc ? { cc } : {}),
       subject,
@@ -1113,6 +1177,11 @@ export async function runSendMessageJob(
         );
     const input = buildSendInput({
       connectorName: payload.connectorName,
+      // Read off the claimed row rather than the payload: the conversation is
+      // what a channel connector threads on, and the row is the one place it
+      // is guaranteed to be right.
+      conversationId: message.conversationId,
+      messageId: payload.messageId,
       to: payload.to,
       ...(payload.cc !== undefined ? { cc: payload.cc } : {}),
       subject: payload.subject,
@@ -1138,8 +1207,11 @@ export async function runSendMessageJob(
       connector,
       action,
       input,
+      ...(payload.credentialRef !== undefined
+        ? { credentialRef: payload.credentialRef }
+        : {}),
       mode: 'live',
-      caller: { kind: 'system', reason: 'conversation email reply' },
+      caller: { kind: 'system', reason: 'conversation reply' },
     });
     if (result.status !== 'ok') {
       throw new Error(result.message);

@@ -44,6 +44,7 @@ const EXPECTED_SLUGS = [
   'teams',
   'twilio',
   'webdav',
+  'webhook-channel',
 ] as const;
 
 const runner = nodeVmRunner();

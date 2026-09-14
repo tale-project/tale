@@ -48,6 +48,7 @@ export const CONNECTOR_CODES = {
     'private, link-local, and cloud-metadata addresses are never reachable',
   REQUEST_FAILED: 'a live request that never produced a response is an error',
   RESPONSE_TOO_LARGE: 'a response body must fit the per-request cap',
+  REQUEST_TOO_LARGE: 'a request body must fit the per-request cap',
 } as const;
 
 export type ConnectorErrorCode = keyof typeof CONNECTOR_CODES;

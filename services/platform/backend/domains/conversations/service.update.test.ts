@@ -5,20 +5,36 @@
  * showed undated) and to REPLACE metadata wholesale, so a one-key patch wiped
  * `unread_count` and routing state. PATCH and bulk now share one stamp table
  * and metadata is merged.
+ *
+ * The same door raises `conversation.closed`. The event type has been in the
+ * platform vocabulary since the automation bus shipped, and nothing raised it:
+ * an org whose trigger listens for a closed conversation got silence.
  */
 
 import type { TransactionSql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
+vi.mock('../events/emit.ts', () => ({
+  emitEvent: vi.fn(async () => undefined),
+}));
+vi.mock('./notify-status.ts', () => ({
+  notifyChannelStatusInTx: vi.fn(async () => undefined),
+}));
 
+import { emitEvent } from '../events/emit.ts';
 import {
   ConversationError,
+  closesConversation,
   statusChangeStamps,
   updateConversation,
 } from './service.ts';
+
+beforeEach(() => {
+  vi.mocked(emitEvent).mockClear();
+});
 
 const ORG = 'org_1';
 const STORED_METADATA = {
@@ -28,8 +44,12 @@ const STORED_METADATA = {
 };
 
 /** A transaction double: answers the SELECT with `row`, records the UPDATE's
- * parameters (json/unsafe are identity so the metadata object is inspectable). */
-function txDouble(row: { id: string; metadata: unknown } | null) {
+ * parameters (json/unsafe are identity so the metadata object is inspectable).
+ * `status` is the row's status BEFORE the patch — what decides whether this
+ * write is the close transition. */
+function txDouble(
+  row: { id: string; metadata: unknown; status?: string } | null,
+) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (
     strings: TemplateStringsArray,
@@ -89,6 +109,7 @@ describe('updateConversation (the PATCH door)', () => {
     const { tx, statements } = txDouble({
       id: 'c1',
       metadata: STORED_METADATA,
+      status: 'open',
     });
     await updateConversation(tx, ORG, 'c1', { status: 'closed' }, actor);
     const { status, statusChangedAt, metadata } = updateParams(statements);
@@ -107,6 +128,7 @@ describe('updateConversation (the PATCH door)', () => {
     const { tx, statements } = txDouble({
       id: 'c1',
       metadata: STORED_METADATA,
+      status: 'open',
     });
     await updateConversation(tx, ORG, 'c1', { status: 'spam' }, actor);
     const { metadata } = updateParams(statements);
@@ -120,6 +142,7 @@ describe('updateConversation (the PATCH door)', () => {
     const { tx, statements } = txDouble({
       id: 'c1',
       metadata: STORED_METADATA,
+      status: 'open',
     });
     await updateConversation(
       tx,
@@ -137,6 +160,7 @@ describe('updateConversation (the PATCH door)', () => {
     const { tx, statements } = txDouble({
       id: 'c1',
       metadata: STORED_METADATA,
+      status: 'open',
     });
     await updateConversation(tx, ORG, 'c1', { subject: 'Renamed' }, actor);
     const { metadata, statusChangedAt } = updateParams(statements);
@@ -150,7 +174,11 @@ describe('updateConversation (the PATCH door)', () => {
       resolved_at: '2026-09-01T00:00:00.000Z',
       resolved_by: 'user_x',
     };
-    const { tx, statements } = txDouble({ id: 'c1', metadata: stored });
+    const { tx, statements } = txDouble({
+      id: 'c1',
+      metadata: stored,
+      status: 'closed',
+    });
     await updateConversation(tx, ORG, 'c1', { status: 'open' }, actor);
     const { status, metadata } = updateParams(statements);
     expect(status).toBe('open');
@@ -168,8 +196,10 @@ describe('updateConversation (the PATCH door)', () => {
     ): Promise<unknown[]> => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       statements.push({ text, values });
-      if (text.startsWith('SELECT id, metadata FROM app.conversations')) {
-        return Promise.resolve([{ id: 'c1', metadata: STORED_METADATA }]);
+      if (text.startsWith('SELECT id, metadata, status, channel')) {
+        return Promise.resolve([
+          { id: 'c1', metadata: STORED_METADATA, status: 'open' },
+        ]);
       }
       if (text.startsWith('SELECT id FROM app.contacts')) {
         return Promise.resolve(contactRows);
@@ -217,5 +247,65 @@ describe('updateConversation (the PATCH door)', () => {
       status: 404,
     } satisfies Partial<ConversationError>);
     expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(emitEvent).not.toHaveBeenCalled();
+  });
+
+  it('raises conversation.closed when the patch closes an open conversation', async () => {
+    const { tx } = txDouble({
+      id: 'c1',
+      metadata: STORED_METADATA,
+      status: 'open',
+    });
+    await updateConversation(tx, ORG, 'c1', { status: 'closed' }, actor);
+    expect(emitEvent).toHaveBeenCalledTimes(1);
+    expect(emitEvent).toHaveBeenCalledWith(tx, {
+      organizationId: ORG,
+      eventType: 'conversation.closed',
+      eventData: { conversationId: 'c1', closedBy: 'user_admin' },
+    });
+  });
+
+  it('raises nothing when an already-closed conversation is closed again', async () => {
+    const { tx } = txDouble({
+      id: 'c1',
+      metadata: STORED_METADATA,
+      status: 'closed',
+    });
+    await updateConversation(tx, ORG, 'c1', { status: 'closed' }, actor);
+    expect(emitEvent).not.toHaveBeenCalled();
+  });
+
+  it('raises nothing for spam, archive, reopen, or a patch that skips status', async () => {
+    for (const status of ['spam', 'archived', 'open'] as const) {
+      const { tx } = txDouble({
+        id: 'c1',
+        metadata: STORED_METADATA,
+        status: 'open',
+      });
+      await updateConversation(tx, ORG, 'c1', { status }, actor);
+    }
+    const { tx } = txDouble({
+      id: 'c1',
+      metadata: STORED_METADATA,
+      status: 'open',
+    });
+    await updateConversation(tx, ORG, 'c1', { subject: 'Renamed' }, actor);
+    expect(emitEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('closesConversation (the transition the event fires on)', () => {
+  it('is true only for a write that moves a non-closed row to closed', () => {
+    expect(closesConversation('open', 'closed')).toBe(true);
+    expect(closesConversation('spam', 'closed')).toBe(true);
+    expect(closesConversation('archived', 'closed')).toBe(true);
+    expect(closesConversation(null, 'closed')).toBe(true);
+  });
+
+  it('is false when the row is already closed or the status is untouched', () => {
+    expect(closesConversation('closed', 'closed')).toBe(false);
+    expect(closesConversation('open', undefined)).toBe(false);
+    expect(closesConversation('closed', undefined)).toBe(false);
+    expect(closesConversation('open', 'spam')).toBe(false);
   });
 });

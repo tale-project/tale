@@ -2,6 +2,11 @@
  * The Inbox gate. Every org is seeded with the mail packs as DRAFTS, so the
  * seeded files alone must not surface a shared inbox — only a deployed pack
  * that declares the `inbox` builtin view opens the nav entry and the routes.
+ *
+ * A second signal opens it too: threads that already exist in any status. An
+ * org fed over `/api/v1/conversations` installs no mail pack and connects no
+ * mailbox, so the automation signal alone would hide the Inbox from an org
+ * actively using one.
  */
 
 import { renderHook } from '@testing-library/react';
@@ -36,12 +41,35 @@ const SYNC_PRESENTATION = {
   requiredConnectors: ['imap-smtp', 'conversation'],
 };
 
+/** The hook makes one automation query and four status queries; the stub has
+ * to answer them apart or the automations array would be handed back as a
+ * conversation count. */
+function stubBackend(
+  automations: unknown[] | undefined,
+  conversations: number | Partial<Record<string, number>> = 0,
+  isLoading = false,
+): void {
+  convexQuery.mockImplementation((ref: unknown, args: unknown) => {
+    if (args === 'skip') return { data: undefined, isLoading: false };
+    if (String(ref).includes('approxCountConversationsByStatus')) {
+      const status =
+        typeof args === 'object' && args !== null && 'status' in args
+          ? String(args.status)
+          : 'open';
+      return {
+        data:
+          typeof conversations === 'number'
+            ? conversations
+            : (conversations[status] ?? 0),
+        isLoading,
+      };
+    }
+    return { data: automations, isLoading };
+  });
+}
+
 function stubList(data: unknown[] | undefined, isLoading = false): void {
-  convexQuery.mockImplementation((_ref: unknown, args: unknown) =>
-    args === 'skip'
-      ? { data: undefined, isLoading: false }
-      : { data, isLoading },
-  );
+  stubBackend(data, 0, isLoading);
 }
 
 beforeEach(() => {
@@ -120,5 +148,47 @@ describe('useInboxAvailability', () => {
       'skip',
     );
     expect(result.current.hasInbox).toBe(false);
+  });
+});
+
+describe('useInboxAvailability — orgs fed over the API', () => {
+  it('opens the Inbox when threads exist and no pack is deployed', () => {
+    // What a product that owns its own customer surface looks like: it posts
+    // conversations to /api/v1/conversations and installs nothing.
+    stubBackend([], 3);
+
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+
+    expect(result.current.hasInbox).toBe(true);
+    // No mail pack means no compose provider, which is correct — there is no
+    // mailbox to compose from.
+    expect(result.current.inboxAutomations).toEqual([]);
+  });
+
+  it('opens the Inbox when only a non-open thread exists', () => {
+    stubBackend([], { closed: 2 });
+
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+
+    expect(result.current.hasInbox).toBe(true);
+  });
+
+  it('keeps the Inbox closed for an org with neither packs nor threads', () => {
+    stubBackend([], 0);
+
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+
+    expect(result.current.hasInbox).toBe(false);
+  });
+
+  it('still opens for a deployed pack before any thread arrives', () => {
+    stubBackend(
+      [automationRow('imap-smtp/sync-emails', SYNC_PRESENTATION, 1)],
+      0,
+    );
+
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+
+    expect(result.current.hasInbox).toBe(true);
   });
 });

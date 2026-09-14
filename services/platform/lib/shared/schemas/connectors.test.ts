@@ -175,6 +175,48 @@ describe('connectorSchema', () => {
     ).toBe(false);
   });
 
+  it('leaves hostPolicy undefined when a connector declares none', () => {
+    // Every connector written before the axis existed keeps the matching it
+    // had; the derivation, not the document, supplies it.
+    expect(connectorSchema.parse(GITHUB).hostPolicy).toBeUndefined();
+  });
+
+  it('accepts each declared host policy', () => {
+    const github = connectorSchema.parse(GITHUB);
+    for (const hostPolicy of ['exact', 'suffix'] as const) {
+      expect(connectorSchema.parse({ ...github, hostPolicy }).hostPolicy).toBe(
+        hostPolicy,
+      );
+    }
+    expect(
+      connectorSchema.parse({
+        ...github,
+        endpointMode: 'per-credential',
+        allowedHosts: [],
+        hostPolicy: 'credential-origin',
+      }).hostPolicy,
+    ).toBe('credential-origin');
+  });
+
+  it('rejects an unknown host policy', () => {
+    expect(
+      connectorSchema.safeParse({
+        ...connectorSchema.parse(GITHUB),
+        hostPolicy: 'anything-goes',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses allowedHosts on credential-origin, whose host comes from the credential', () => {
+    expect(
+      connectorSchema.safeParse({
+        ...connectorSchema.parse(GITHUB),
+        hostPolicy: 'credential-origin',
+        allowedHosts: ['api.github.com'],
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects duplicate auth methods', () => {
     const bad = {
       ...(GITHUB as Connector),

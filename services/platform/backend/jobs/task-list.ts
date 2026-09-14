@@ -537,6 +537,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/collab/email-sink.ts');
       await runNotificationEmailJob(deps.sql, input);
     },
+    'conversation.notify_status': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          conversationId: z.string().min(1),
+          connectorName: z.string().min(1),
+          credentialRef: z.string().optional(),
+          status: z.string().min(1),
+          to: z.array(z.string()).default([]),
+        })
+        .parse(payload);
+      const { runNotifyStatusJob } =
+        await import('../domains/conversations/notify-status.ts');
+      await runNotifyStatusJob(deps.sql, input);
+    },
     'conversation.send_message': async (payload) => {
       const input = z
         .object({

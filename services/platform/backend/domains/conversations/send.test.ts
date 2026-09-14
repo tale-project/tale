@@ -246,6 +246,7 @@ describe('composeEmailConversation — one transaction', () => {
     channel: 'email',
     direction: 'outbound',
     connectorName: 'imap-smtp',
+    credentialId: null,
     lastMessageAt: null,
     metadata: null,
     lifecycleStatus: null,

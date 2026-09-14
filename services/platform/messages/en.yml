@@ -1841,8 +1841,8 @@ conversations:
     description: Incoming conversations from your connected channels will appear here.
     noAutomationTitle: Set up your Inbox
     noAutomationDescription:
-      Install an email automation (Gmail, Outlook, or IMAP)
-      to start reading and replying to conversations here.
+      Connect a mailbox (Gmail, Outlook, or IMAP), or send
+      conversations in over the API.
     composeNotice: To email {name}, first install an email automation.
     browseAutomations: Browse automations
   filter:

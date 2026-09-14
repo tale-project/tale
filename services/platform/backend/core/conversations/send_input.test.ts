@@ -125,3 +125,65 @@ describe('buildSendInput — imap-smtp fidelity', () => {
     ]);
   });
 });
+
+describe('buildSendInput — the webhook channel', () => {
+  const base = {
+    connectorName: 'webhook-channel',
+    conversationId: 'conv_1',
+    messageId: 'msg_1',
+    to: ['user_42', 'user_43'],
+    subject: 'Payment not reflecting',
+    body: '<p>Credited.</p>',
+    contentType: 'HTML',
+    attachments: [],
+  };
+
+  it('carries the conversation and message the receiver threads on', () => {
+    expect(buildSendInput(base)).toMatchObject({
+      conversationId: 'conv_1',
+      messageId: 'msg_1',
+    });
+  });
+
+  it('keeps recipients an array — they are ids, not an address list', () => {
+    expect(buildSendInput(base).to).toEqual(['user_42', 'user_43']);
+  });
+
+  it('sends no mail-only fields, whatever the caller passed', () => {
+    const input = buildSendInput({
+      ...base,
+      cc: ['user_99'],
+      inReplyTo: '<root@mail.test>',
+      references: ['<root@mail.test>'],
+      from: 'desk@example.com',
+    });
+    expect(input.cc).toBeUndefined();
+    expect(input.inReplyTo).toBeUndefined();
+    expect(input.references).toBeUndefined();
+    expect(input.from).toBeUndefined();
+  });
+
+  it('offers attachments as URLs the receiver can fetch', () => {
+    expect(
+      buildSendInput({ ...base, attachments: [ATTACHMENT] }),
+    ).toMatchObject({
+      attachments: [
+        {
+          name: 'invoice.pdf',
+          contentType: 'application/pdf',
+          size: 2048,
+          url: 'https://blob.example.test/invoice.pdf?sig=abc',
+        },
+      ],
+    });
+  });
+
+  it('normalizes the content type to the two the channel accepts', () => {
+    expect(buildSendInput({ ...base, contentType: 'HTML' }).contentType).toBe(
+      'HTML',
+    );
+    expect(buildSendInput({ ...base, contentType: 'Text' }).contentType).toBe(
+      'Text',
+    );
+  });
+});

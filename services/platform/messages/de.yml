@@ -1900,8 +1900,8 @@ conversations:
     description: Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.
     noAutomationTitle: Richte deine Inbox ein
     noAutomationDescription:
-      Installiere eine E-Mail-Automatisierung (Gmail, Outlook
-      oder IMAP), um hier Konversationen zu lesen und zu beantworten.
+      Verbinde ein Postfach (Gmail, Outlook oder IMAP) oder
+      sende Konversationen über die API.
     composeNotice: Um {name} zu schreiben, installiere zuerst eine E-Mail-Automatisierung.
     browseAutomations: Automatisierungen durchsuchen
   filter:

