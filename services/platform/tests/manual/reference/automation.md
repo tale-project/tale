@@ -230,7 +230,10 @@ Managed hostname migration is covered by `tools/cli/src/lib/deployment/identity.
 `email-attestation.test.ts`, `native-client-fresh.test.ts` and `fresh-inputs.test.ts`
 in the same directory. They verify exact source-origin admission, retained user and
 organization bindings, unchanged client credentials, refusal before authentication,
-partial completion and replay. These tests do not prove production DNS or TLS routing.
+partial completion and replay. `tools/cli/src/lib/config/platform-apply.test.ts`
+also exercises the managed configuration bridge, retained organization bindings,
+resource and credential preservation, reverse migration and interrupted-plan
+recovery. These tests do not prove production DNS or TLS routing.
 
 General native configuration is also covered by `tools/cli/tests/platform-configuration.test.ts`
 (real HTTP with source/compiled CLI commands), `tools/cli/src/lib/config/platform-apply.test.ts`

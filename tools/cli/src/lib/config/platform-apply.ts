@@ -139,6 +139,7 @@ export async function applyPlatformConfiguration(
   rawPlan: unknown,
   client: PlatformConfigurationClient,
   receiptPath: string,
+  options: { migrateOriginFrom?: string } = {},
 ) {
   const configuration = parsePlatformConfiguration(input);
   const plan = configurationPlanSchema.parse(rawPlan);
@@ -146,9 +147,20 @@ export async function applyPlatformConfiguration(
   const rawPrevious = await readOptionalJson(receiptPath);
   const previous =
     rawPrevious === undefined ? undefined : journalSchema.parse(rawPrevious);
+  if (options.migrateOriginFrom && !previous)
+    throw preconditionError(
+      'Origin migration requires a retained native configuration receipt.',
+    );
+  const migrating =
+    previous?.phase === 'ready' &&
+    previous.plan.target.origin === options.migrateOriginFrom &&
+    sameConfiguration(
+      { ...previous.plan.target, origin: client.target.origin },
+      client.target,
+    );
   if (
     previous &&
-    (!sameConfiguration(previous.plan.target, client.target) ||
+    ((!sameConfiguration(previous.plan.target, client.target) && !migrating) ||
       (previous.phase === 'pending' && !sameConfiguration(previous.plan, plan)))
   )
     throw preconditionError(

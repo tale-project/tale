@@ -59,6 +59,7 @@ export async function provisionDeploymentConfiguration(
     plan,
     client,
     receipt,
+    { migrateOriginFrom: context.migrateOriginFrom },
   );
   return {
     ...result,
