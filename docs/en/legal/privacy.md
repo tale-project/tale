@@ -18,13 +18,15 @@ Three buckets of data exist, each with its own retention rule:
 
 We do not sell personal data. We do not use product data to train models — your conversations and documents are not part of any model training set, neither ours nor any provider's, except where you have explicitly enabled a feature that requires it and acknowledged the consent prompt.
 
+Optional aggregate analytics uses self-hosted Umami on Tale’s own sites and on deployments where the operator enables it. It records known public page paths or private route templates, referrer origins, browser language, screen size, device/browser information and approximate location. The IP address derives location and short-lived visit grouping without raw IP storage. No cookies, persistent browser identifiers, cross-site identity, page titles, query strings, form contents, organization/resource identifiers or session replays are collected. Do Not Track and Global Privacy Control disable this collection. The marketing site counts completed contact/demo submissions without their contents.
+
 ## Why we collect it
 
 The legal basis for each bucket is one of:
 
 - **Contractual necessity.** Account data and the product data you create exist because you asked us to provide the service. We cannot run the platform without them.
 - **Legitimate interest.** Operational data is collected to keep the platform secure, debug failures, and meet contractual SLAs.
-- **Consent.** Marketing communications, analytics on the marketing site, and any feature that processes data beyond the contract are consent-based — opt-in, revocable, and recorded.
+- **Consent.** Marketing communications, any feature that processes data beyond the contract are consent-based — opt-in, revocable, and recorded.
 
 The lawful-basis breakdown per data category lives in the Data Processing Agreement available to enterprise customers on request.
 

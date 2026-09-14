@@ -50,3 +50,22 @@ For prerequisites, the pre-flight check, and port-conflict handling, see the [co
 - `messages/` — i18n message catalogues (`en.json` is the source of truth)
 - `scripts/` — operational helpers (see `scripts/README.md`)
 - `server.ts` — minimal HTTP shim wrapping the Vite static server with `/api/health`
+
+## Optional aggregate analytics
+
+Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and server-only `UMAMI_PROXY_TOKEN` at runtime
+to enable Umami. Leave the website ID empty to disable it. The shared
+`@tale/ui/analytics` implementation loads the upstream tracker through `/_a/script.js`
+and sends curated pageviews through `/_a/api/send`; existing same-origin CSP stays intact.
+Subpath deployments prefix those browser URLs with their configured base path.
+
+The collector origin must expose authenticated `GET /_collect/script.js` and
+`POST /_collect/api/send`, accepting the bearer token. Edge Caddy must overwrite
+`X-Analytics-Client-IP` from its trusted client address; application ports must stay
+private. The proxy forwards only that validated IP, browser User-Agent and Umami
+session headers. It drops cookies, browser credentials and referrer headers.
+
+See the [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md)
+and [observability guide](../../docs/en/self-hosted/configuration/observability-config.md)
+for collected fields and opt-outs. Tracking requires the production Bun server;
+the Vite development server does not inject deployment configuration.

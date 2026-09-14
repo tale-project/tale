@@ -46,6 +46,8 @@ For each page view we record the page address, the referring page, your approxim
 
 To deliver the website we also temporarily process minimal technical data (see Server Logs below), and the site stores one functional language cookie plus a theme preference in your browser (see Cookies below).
 
+Only the page path and the referring origin are collected; URL search parameters, fragments and page titles are omitted. Browser language is included. Completed contact and demo requests are counted without form contents. Do Not Track and Global Privacy Control disable collection.
+
 ### 3.3 Server Logs
 
 When you visit our website, our self-operated web server and hosting infrastructure ([hosting provider — to be confirmed before publication]) may temporarily process technical data such as your IP address, browser type, and access timestamps for the purpose of delivering the website and maintaining security (for example, rate limiting). This data is processed as part of standard web-server operations, retained only briefly, and is not used by us for any other purpose.

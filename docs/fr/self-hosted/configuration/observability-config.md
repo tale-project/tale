@@ -58,6 +58,16 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 Le sample rate plafonne les traces de performance du navigateur et ne s'applique que là — le backend remonte des erreurs, jamais de traces. Laisse-le non défini pour le défaut 1.0 en développement et resserre-le (0.05–0.2) en production. Les stack frames sont envoyés sans rédaction des deux côtés, donc pointe le DSN sur une infra que tu contrôles si tes payloads d'erreur sont sensibles.
 
+## Statistiques agrégées avec Umami
+
+La mesure du trafic s’active séparément pour chaque déploiement. Définis `UMAMI_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_PROXY_TOKEN` selon la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Une Website ID vide la désactive sans reconstruire l’image. Le Token reste sur le serveur. Utilise une Website ID distincte par déploiement.
+
+Le proxy sur le domaine du site sert le tracker Umami et transmet uniquement les pages vues et les demandes de contact ou de démo abouties du site marketing. La passerelle de collecte doit authentifier `GET /_collect/script.js` et `POST /_collect/api/send` avec le Bearer Token configuré. Caddy doit remplacer `X-Analytics-Client-IP` par l’adresse du client de confiance. Garde les ports applicatifs privés et configure les réseaux de proxy de confiance si un autre proxy se trouve en amont. Les cookies du navigateur, les identifiants de connexion, les en-têtes de provenance, les titres de page, les paramètres de recherche, les fragments, les identifiants de compte, les champs de formulaire et le contenu produit ne parviennent jamais à la collecte.
+
+Les rapports contiennent les chemins publics connus, les modèles de routes de la plateforme privée, les origines de provenance, la langue du navigateur, la taille de l’écran, le navigateur, le système, l’appareil et la localisation approximative. La collecte déduit les visites et la localisation de l’adresse IP sans la conserver en clair. Des paramètres génériques remplacent les identifiants privés d’organisation et de ressource. Aucune identité entre sites, capture automatique des clics ou relecture de session. Do Not Track et Global Privacy Control désactivent la collecte.
+
+Après le déploiement, ouvre une page connue, navigue dans l’application et vérifie les deux pages vues dans le site Umami du déploiement. Inspecte le corps de la requête de collecte : une route privée contient des paramètres génériques, sans paramètres de recherche, titres ou données de formulaire. La navigation doit fonctionner même si la collecte est bloquée ou indisponible.
+
 ## Ce qui ne ship pas encore
 
 Les traces OpenTelemetry ne sont pas intégrées aux conteneurs. Les données sont joignables indirectement — les durées de requête backend et les timings de routes HTTP arrivent par les métriques Prometheus — mais il n'y a pas d'exportateur OTLP sur la boîte aujourd'hui. Si tu as besoin d'export de traces complet, fais tourner un OpenTelemetry Collector à côté de Tale et scrape les endpoints Prometheus depuis lui.

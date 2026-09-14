@@ -14,6 +14,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [navigation](../suites/navigation.md) | Optional analytics: runtime disablement, safe SPA pageviews, private route templates, DNT/GPC and collector boundary | ✅ automated | `packages/ui/src/analytics/browser.test.ts`, `packages/ui/src/analytics/server.test.ts` |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `@tale/ui` component tests (`checkAccessibility()` via `vitest-axe`) + Storybook a11y addon |
 | [accessibility](../suites/accessibility.md) | Source heading hierarchy | ✅ automated | vitest `structure-headings.test.ts` (per-page heading rules in the corpus) |

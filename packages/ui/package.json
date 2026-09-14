@@ -9,6 +9,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./analytics/browser": "./src/analytics/browser.ts",
+    "./analytics/server": "./src/analytics/server.ts",
     "./accordion": "./src/components/feedback/accordion.tsx",
     "./action-row": "./src/components/layout/action-row.tsx",
     "./alert": "./src/components/feedback/alert.tsx",
