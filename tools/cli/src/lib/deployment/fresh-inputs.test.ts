@@ -47,6 +47,31 @@ test('fresh declarations carry symbolic native targets without old database iden
   expect(actual.identity?.nativeClients[0]?.managed).toBe(true);
 });
 
+test('origin migration requires an explicit different HTTPS source and retained fresh identity', () => {
+  const identity = {
+    ...spec.identity,
+    migrateOriginFrom: 'https://old.example.org',
+  };
+  expect(
+    deploymentSpecSchema.parse({ ...spec, identity }).identity
+      ?.migrateOriginFrom,
+  ).toBe('https://old.example.org');
+  for (const changed of [
+    { ...identity, bootstrap: undefined },
+    ...[
+      spec.origin,
+      'http://old.example.org',
+      'https://old.example.org/path',
+      'https://old.example.org/',
+    ].map((migrateOriginFrom) =>
+      Object.assign({}, identity, { migrateOriginFrom }),
+    ),
+  ])
+    expect(
+      deploymentSpecSchema.safeParse({ ...spec, identity: changed }).success,
+    ).toBe(false);
+});
+
 test('operator email attestation is explicit and restricted to fresh identity declarations', () => {
   const selected = {
     ...spec,

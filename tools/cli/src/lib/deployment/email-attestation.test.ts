@@ -16,6 +16,7 @@ import { createEmailVerificationToken } from 'better-auth/api';
 
 import { oidcOrganizationClaims } from '../../../../../services/platform/backend/auth/oidc';
 import { createBackendEmailAttestation } from './email-attestation';
+import { writeProvisionState } from './provision-state';
 
 const origin = 'https://native.example.org';
 const email = 'operator@example.org';
@@ -242,6 +243,49 @@ async function createFixture() {
 // The public managed command refuses Windows. Pre-intent policy stays portable;
 // later failures must not pass merely because the directory fsync failed first.
 const testPosix = test.skipIf(process.platform === 'win32');
+
+testPosix(
+  'origin migration rebinds a ready attestation without another native account write',
+  async () =>
+    fixture(async (f) => {
+      const first = await f.run();
+      const file = first.receipt.path;
+      const original = JSON.parse(readFileSync(file, 'utf8'));
+      const old = { ...original, origin: 'https://old.example.org' };
+      writeProvisionState(file, old);
+      const counts = f.counts();
+      for (const migrateOriginFrom of [undefined, 'https://wrong.example.org'])
+        await expect(f.run({ migrateOriginFrom })).rejects.toThrow(
+          'attestation failed',
+        );
+      writeProvisionState(file, { ...old, phase: 'pending' });
+      await expect(f.run({ migrateOriginFrom: old.origin })).rejects.toThrow(
+        'attestation failed',
+      );
+      writeProvisionState(file, old);
+      const migrated = await f.run({ migrateOriginFrom: old.origin });
+      expect(migrated.userId).toBe(first.userId);
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(original);
+      const bytes = readFileSync(file);
+      await f.run({ migrateOriginFrom: old.origin });
+      expect(readFileSync(file)).toEqual(bytes);
+      expect(f.counts().writes).toBe(counts.writes);
+      expect(f.database.session).toHaveLength(f.sessionCount);
+    }),
+);
+
+testPosix(
+  'origin migration cannot attest an account without a retained journal',
+  async () =>
+    fixture(async (f) => {
+      await expect(
+        f.run({ migrateOriginFrom: 'https://old.example.org' }),
+      ).rejects.toThrow('attestation failed');
+      expect(f.counts().writes).toBe(0);
+      expect(f.user.emailVerified).toBe(false);
+      expect(readdirSync(f.root)).toEqual([]);
+    }),
+);
 
 testPosix(
   'native public signup remains unverified; explicit attestation preserves hooks and sessions and replays without a write',

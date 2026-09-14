@@ -21,6 +21,17 @@ import { preconditionError } from '../../utils/fail';
 import { sha256 } from '../config/releases/identity';
 import { relativePath, slug } from '../config/releases/model';
 
+/** Hostname changes admit only completed journals from the reviewed source;
+ * already-migrated journals remain valid when an interrupted deploy replays. */
+export function admitsProvisionOrigin(
+  state: { origin: string; phase: 'pending' | 'ready' },
+  origin: string,
+  migrateOriginFrom?: string,
+): boolean {
+  if (migrateOriginFrom && state.phase !== 'ready') return false;
+  return state.origin === origin || state.origin === migrateOriginFrom;
+}
+
 /** Backend-native state is fixed beneath its data volume, never a path supplied
  * in private stdin. Existing parent permissions are validated, not rewritten. */
 export function nativeDeploymentStateDirectory(

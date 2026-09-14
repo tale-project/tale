@@ -69,6 +69,7 @@ const nativeClient = z.strictObject({
 });
 const identity = z.strictObject({
   bootstrap: z.literal('fresh').optional(),
+  migrateOriginFrom: origin.optional(),
   emailVerification: z.literal('operator-attested').optional(),
   email: value,
   password: environmentReference.optional(),
@@ -135,6 +136,17 @@ const deploymentFields = z.strictObject({
 
 export const deploymentSpecSchema = deploymentFields.superRefine(
   (spec, context) => {
+    if (
+      spec.identity?.migrateOriginFrom &&
+      (spec.identity.bootstrap !== 'fresh' ||
+        spec.identity.migrateOriginFrom === spec.origin)
+    )
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Origin migration requires a different source origin and retained fresh identity',
+        path: ['identity', 'migrateOriginFrom'],
+      });
     if (spec.identity?.emailVerification && spec.identity.bootstrap !== 'fresh')
       context.addIssue({
         code: 'custom',
