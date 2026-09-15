@@ -163,14 +163,10 @@ export function createConversationRoutes(deps: {
     return c.json({
       byStatus: await countConversationsByStatus(
         deps.sql,
-        c.get('orgId'),
+        viewer(c),
         connector,
       ),
-      unread: await countUnreadConversations(
-        deps.sql,
-        c.get('orgId'),
-        connector,
-      ),
+      unread: await countUnreadConversations(deps.sql, viewer(c), connector),
     });
   });
 

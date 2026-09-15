@@ -636,17 +636,61 @@ export async function listConversationsPage(
   };
 }
 
+/**
+ * The scope the two count doors below filter by.
+ *
+ * The tiles must agree with the list, and the list applies
+ * `conversationAssignmentAllows` — the ONE definition of inbox visibility —
+ * row by row in application code. A count cannot stream every row to do that,
+ * so the two queries below carry a SQL mirror of that predicate:
+ *
+ * ```sql
+ * AND (${isAdmin}
+ *      OR assignee_user_id = ${viewer.userId}
+ *      OR assignee_team_id = ANY(${teamIds}))
+ * ```
+ *
+ * Each branch mirrors one branch of the rule, in the same order. A row with
+ * NEITHER stamp matches none of them — `NULL = <id>` is NULL, so the row is
+ * not counted — which is the rule's admin-triage-only branch. That is the one
+ * to be careful with: a clause admitting unassigned rows would publish the
+ * triage queue, which is the failure
+ * `backend/core/lib/rls/helpers/conversation_assignment.ts` exists to prevent.
+ *
+ * Resolving the scope once keeps the expensive half (the team round-trip)
+ * in one place; `service.counts.test.ts` pins the two predicates to each
+ * other so the copies cannot drift apart.
+ */
+async function resolveAssignmentScope(
+  sql: Sql,
+  viewer: ConversationViewer,
+): Promise<{ isAdmin: boolean; teamIds: string[] }> {
+  const isAdmin = viewerIsAdmin(viewer.role);
+  return {
+    isAdmin,
+    teamIds: isAdmin
+      ? []
+      : await getUserTeamIds(sql, viewer.organizationId, viewer.userId),
+  };
+}
+
 /** Status tile counts (bounded like the 0.4 approx counters). */
 export async function countConversationsByStatus(
   sql: Sql,
-  organizationId: string,
+  viewer: ConversationViewer,
   connectorName?: string,
 ): Promise<Record<string, number>> {
+  const { isAdmin, teamIds } = await resolveAssignmentScope(sql, viewer);
   const rows = await sql<{ status: string | null; count: string }[]>`
     SELECT status, count(*)::text AS count FROM app.conversations
-    WHERE org_id = ${organizationId}
+    WHERE org_id = ${viewer.organizationId}
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
+      AND (
+        ${isAdmin}
+        OR assignee_user_id = ${viewer.userId}
+        OR assignee_team_id = ANY(${teamIds})
+      )
     GROUP BY status
   `;
   const out: Record<string, number> = {};
@@ -661,14 +705,20 @@ export async function countConversationsByStatus(
  * API metadata patch) must not 500 the whole org's count tiles. */
 export async function countUnreadConversations(
   sql: Sql,
-  organizationId: string,
+  viewer: ConversationViewer,
   connectorName?: string,
 ): Promise<number> {
+  const { isAdmin, teamIds } = await resolveAssignmentScope(sql, viewer);
   const rows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.conversations
-    WHERE org_id = ${organizationId} AND status = 'open'
+    WHERE org_id = ${viewer.organizationId} AND status = 'open'
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
+      AND (
+        ${isAdmin}
+        OR assignee_user_id = ${viewer.userId}
+        OR assignee_team_id = ANY(${teamIds})
+      )
       AND CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number'
             THEN (metadata->>'unread_count')::numeric > 0
             ELSE false END

@@ -169,14 +169,34 @@ describe('conversations route — connector filter wire contract', () => {
     await makeApp().request('/counts?orgId=o1&connectorName=imap-smtp');
     expect(countConversationsByStatus).toHaveBeenCalledWith(
       expect.anything(),
-      'o1',
+      { organizationId: 'o1', userId: 'u1', role: 'admin' },
       'imap-smtp',
     );
     expect(countUnreadConversations).toHaveBeenCalledWith(
       expect.anything(),
-      'o1',
+      { organizationId: 'o1', userId: 'u1', role: 'admin' },
       'imap-smtp',
     );
+  });
+
+  it('GET /counts passes the authenticated viewer for permission filtering', async () => {
+    const previousRole = viewerRole.current;
+    viewerRole.current = 'member';
+    try {
+      await makeApp().request('/counts?orgId=o1');
+      expect(countConversationsByStatus).toHaveBeenCalledWith(
+        expect.anything(),
+        { organizationId: 'o1', userId: 'u1', role: 'member' },
+        undefined,
+      );
+      expect(countUnreadConversations).toHaveBeenCalledWith(
+        expect.anything(),
+        { organizationId: 'o1', userId: 'u1', role: 'member' },
+        undefined,
+      );
+    } finally {
+      viewerRole.current = previousRole;
+    }
   });
 });
 
