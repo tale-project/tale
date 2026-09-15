@@ -89,6 +89,8 @@ Wähle Dateien oder Ordner und anschließend den Importmodus:
 | **Einmaliger Import** | Kopiert die Auswahl einmal und erhält die Ordnerstruktur. Spätere Änderungen an der Quelle ändern die Kopie nicht. |
 | **Synchronisierungsimport** | Hält die unterstützte Auswahl aktuell. Neue Dateien folgen bei einem späteren Abgleich; Änderungen werden neu indexiert; an der Quelle gelöschte Dateien verschwinden aus dem Abbild. |
 
+In der Bibliothek zeigt die Spalte **Quelle**, woher eine Datei stammt. Eine importierte Datei trägt das Logo von OneDrive, SharePoint oder Google Drive. Kreispfeile neben dem Logo bedeuten, dass ein Synchronisierungsimport die Datei aktuell hält; sie stehen auch beim synchronisierten Ordner selbst. Durchgestrichene Kreispfeile stehen für einen einmaligen Import. Eine hochgeladene Datei zeigt einen Upload-Pfeil. Zeigst du auf ein Symbol, erscheint die Quelle als Text.
+
 Ein neuer Ordnerabgleich kann auch einen früheren Import umordnen. Ist dieselbe Quelldatei bereits in Tale vorhanden, übernimmt die Synchronisierung dieses Dokument und verschiebt es in den passenden Sync-Ordner — selbst wenn der Inhalt unverändert ist. Entscheidend ist die Identität der Quelldatei, nicht nur ihr Name. Gibt es keinen Zielordner für den Abgleich, bleibt die bisherige Ablage erhalten.
 
 Bei Microsoft 365 stehen **Mein OneDrive** und **SharePoint-Websites** zur Wahl. Die Synchronisierung unterstützt persönliche OneDrive-Ordner; SharePoint wird einmalig importiert. Wähle bei Google Drive aus Mein Drive. Native Google Docs, Tabellen und Präsentationen werden übersprungen. Exportiere sie zuerst als PDF oder Office-Dateien.

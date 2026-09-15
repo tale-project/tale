@@ -89,6 +89,8 @@ Sélectionne les fichiers ou dossiers, puis le mode d’import :
 | **Importation unique** | Copie une fois la sélection en conservant les dossiers. Les changements ultérieurs de la source ne modifient pas cette copie. |
 | **Importation synchronisée** | Maintient la sélection prise en charge à jour. Les nouveaux fichiers arrivent lors d’un prochain passage ; les fichiers modifiés sont réindexés ; ceux supprimés à la source disparaissent de la copie. |
 
+Dans la bibliothèque, la colonne **Source** indique la provenance de chaque fichier. Un fichier importé porte le logo de OneDrive, SharePoint ou Google Drive. Des flèches circulaires à côté du logo signifient qu’une importation synchronisée tient le fichier à jour ; elles figurent aussi sur le dossier synchronisé lui-même. Les mêmes flèches barrées signalent une importation unique. Un fichier téléversé affiche une flèche de téléversement. Survole une icône pour lire la source en toutes lettres.
+
 Démarrer la synchronisation d’un dossier peut aussi réorganiser un import antérieur. Si le même fichier source existe déjà dans Tale, la synchronisation reprend ce document et le déplace dans le dossier synchronisé correspondant, même si son contenu n’a pas changé. La correspondance repose sur l’identité du fichier source, pas uniquement sur son nom. Une synchronisation sans dossier de destination conserve l’emplacement existant.
 
 Pour Microsoft 365, choisis **Mon OneDrive** ou **Sites SharePoint**. La synchronisation concerne les dossiers OneDrive personnels ; SharePoint s’importe une seule fois. Pour Google Drive, sélectionne dans Mon Drive. Les Docs, Sheets et Slides natifs sont ignorés : exporte-les d’abord en PDF ou au format Office.

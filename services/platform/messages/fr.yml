@@ -2376,13 +2376,13 @@ documents:
           malformed: Le fichier ne peut pas être lu dans le format indiqué. Il peut être endommagé ou protégé par mot de passe.
   sourceType:
     confluence: Confluence
-    googleDrive: Google Drive
     webDav: WebDAV
-    oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisé)
+    oneDriveNotSynced: OneDrive (non synchronisé)
     googleDriveSynced: Google Drive (synchronisé)
-    sharePoint: SharePoint
+    googleDriveNotSynced: Google Drive (non synchronisé)
     sharePointSynced: SharePoint (synchronisé)
+    sharePointNotSynced: SharePoint (non synchronisé)
     uploaded: Téléversement
   syncHealth:
     badge:

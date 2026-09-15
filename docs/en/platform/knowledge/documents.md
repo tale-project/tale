@@ -89,6 +89,8 @@ Select files or folders, then choose the import mode:
 | **One-time import** | Copies the selection once and preserves its folder structure. Later source changes do not update the copy. |
 | **Sync import** | Keeps the supported selection current. New files arrive on a later sync; changed files reindex; deleted source files are removed from the mirror. |
 
+In the library, the **Source** column shows where each file came from. An imported file carries the OneDrive, SharePoint, or Google Drive logo. Circling arrows beside the logo mean a sync import keeps the file current, and they appear on the synced folder itself too; the same arrows struck through mean a one-time import. An uploaded file shows an upload arrow. Point to an icon to read the source in words.
+
 Starting a folder sync can also reorganize an earlier import. If the same source file is already in Tale, the sync adopts that document and moves it into the matching sync folder, even when its content has not changed. This is a match to the source file, not merely to its name. A sync without a destination folder keeps the existing placement.
 
 For Microsoft 365, choose **My OneDrive** or **SharePoint Sites**. Sync is available for personal OneDrive folders; SharePoint selections import once. For Google Drive, select from My Drive. Native Google Docs, Sheets, and Slides are skipped: export them to PDF or Office formats first.
