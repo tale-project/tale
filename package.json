@@ -139,7 +139,6 @@
     "ip-address": "10.4.0",
     "js-yaml": "4.3.2",
     "kysely": "0.28.17",
-    "linkify-it": "6.1.0",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "magic-string": "0.30.21",
