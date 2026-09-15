@@ -105,7 +105,6 @@ export function KnowledgeEntryCreateDialog({
       description={t('addDescription')}
       submittingText={t('adding')}
       isSubmitting={isPending}
-      size="default"
       onSubmit={handleSubmit(onSubmit)}
       size="entity"
     >

@@ -60,7 +60,7 @@ describe('StatItem', () => {
         </dl>,
       );
       const dd = screen.getByText('14 September 2026 11:11').closest('dd');
-      expect(dd).toHaveClass('wrap-break-word');
+      expect(dd).toHaveClass('wrap-anywhere');
       expect(dd).not.toHaveClass('break-all');
     });
 

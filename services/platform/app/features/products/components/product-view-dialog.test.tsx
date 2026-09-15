@@ -33,6 +33,7 @@ vi.mock('../hooks/use-product-image-upload', () => ({
 
 const PRODUCT = {
   _id: 'a2d88d57-5efd-472b-845b-7a4552762dca',
+  _creationTime: Date.parse('2026-09-14T11:11:00'),
   organizationId: 'org-1',
   name: 'Draft gadget',
   price: 0,
