@@ -102,7 +102,8 @@ async function inspectHealth(
   };
 }
 
-async function listContainersUsingVolume(
+/** The running containers that mount `volumeName`: what a read of it pauses. */
+export async function listContainersUsingVolume(
   volumeName: string,
   docker: VolumePauseDeps['docker'] = defaultDocker,
 ): Promise<string[]> {
