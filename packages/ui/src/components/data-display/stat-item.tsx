@@ -31,7 +31,9 @@ export function StatItem({
           {label}
         </Text>
       </dt>
-      <dd className="break-all">{children}</dd>
+      {/* Wrap at spaces first; only an unbroken run (a URL, an id) breaks
+          mid-word — `break-all` split dates like "8:54" across lines. */}
+      <dd className="wrap-anywhere">{children}</dd>
     </div>
   );
 }

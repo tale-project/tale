@@ -58,6 +58,46 @@ describe('useRestoreFocus', () => {
     expect(document.activeElement).toBe(fallback);
   });
 
+  it('refocuses the fallback when focus rested on <body> as the overlay opened', () => {
+    const fallback = document.createElement('button');
+    document.body.append(fallback);
+    // The control that held focus was removed in the update that opened the
+    // overlay (an edit dialog's Cancel reopening the details it replaced).
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    expect(document.activeElement).toBe(document.body);
+
+    const fallbackRef = createRef<HTMLButtonElement>();
+    fallbackRef.current = fallback;
+
+    const { result } = renderHook(
+      ({ open }) => useRestoreFocus(open, fallbackRef),
+      { initialProps: { open: true } },
+    );
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(fallback);
+  });
+
+  it('leaves Radix its default when focus rested on <body> and there is no fallback', () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('does not refocus an opener that has been removed from the DOM', () => {
     const trigger = document.createElement('button');
     document.body.appendChild(trigger);

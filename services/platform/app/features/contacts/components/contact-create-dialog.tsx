@@ -97,9 +97,11 @@ export function ContactCreateDialog({
       open={isOpen}
       onOpenChange={handleOpenChange}
       title={tContacts('create.title')}
+      description={tContacts('create.description')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
+      size="entity"
     >
       <ContactFormFields
         register={register}

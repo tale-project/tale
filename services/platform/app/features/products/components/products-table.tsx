@@ -8,6 +8,7 @@ import { Package } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -90,13 +91,20 @@ export function ProductsTable({
     [status, tTables, tCommon, handleStatusChange],
   );
 
-  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const {
+    record: viewedRecord,
+    open: openRecord,
+    close: closeRecord,
+  } = useViewedRecord(paginatedResult.results, paginatedResult.status);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const deleteProduct = useDeleteProduct();
 
-  const handleRowClick = useCallback((row: Row<Product>) => {
-    setViewingProduct(row.original);
-  }, []);
+  const handleRowClick = useCallback(
+    (row: Row<Product>) => {
+      openRecord(row.original._id);
+    },
+    [openRecord],
+  );
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -169,11 +177,11 @@ export function ProductsTable({
         {...list.tableProps}
       />
 
-      {viewingProduct && (
+      {viewedRecord && (
         <ProductViewDialog
-          isOpen={!!viewingProduct}
-          onClose={() => setViewingProduct(null)}
-          product={viewingProduct}
+          isOpen
+          onClose={closeRecord}
+          product={viewedRecord}
         />
       )}
     </>

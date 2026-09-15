@@ -39,6 +39,11 @@ export interface ViewDialogProps {
   enableErrorBoundary?: boolean;
   /** Callback when error occurs */
   onError?: (error: Error) => void;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -61,6 +66,7 @@ export function ViewDialog({
   headerClassName,
   enableErrorBoundary = true,
   onError,
+  restoreFocusRef,
 }: ViewDialogProps) {
   const { organizationId: orgId } = useErrorScope();
 
@@ -78,6 +84,7 @@ export function ViewDialog({
       onBack={onBack}
       backLabel={backLabel}
       headerClassName={headerClassName}
+      restoreFocusRef={restoreFocusRef}
     >
       {enableErrorBoundary ? (
         <DialogErrorBoundary

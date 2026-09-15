@@ -7,7 +7,7 @@ import { useCallback, useState } from 'react';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
-import { AddKnowledgeEntryDialog } from './knowledge-entry-add-dialog';
+import { KnowledgeEntryCreateDialog } from './knowledge-entry-create-dialog';
 
 interface KnowledgeEntriesActionMenuProps {
   organizationId: string;
@@ -42,7 +42,7 @@ export function KnowledgeEntriesActionMenu({
         icon={Plus}
         onClick={handleAddClick}
       />
-      <AddKnowledgeEntryDialog
+      <KnowledgeEntryCreateDialog
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
         organizationId={organizationId}

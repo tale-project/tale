@@ -112,6 +112,52 @@ describe('DocumentRowActions', () => {
     });
   });
 
+  describe('view', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      return user;
+    };
+
+    it('leads a file row menu with View and opens the preview', async () => {
+      const onView = vi.fn();
+      render(
+        <DocumentRowActions
+          documentId="doc-1"
+          itemType="file"
+          name="report.pdf"
+          sourceMode="manual"
+          onView={onView}
+        />,
+      );
+      const user = await openMenu();
+
+      const items = screen.getAllByRole('menuitem');
+      expect(items[0]).toHaveTextContent('common.actions.view');
+
+      await user.click(items[0]);
+      expect(onView).toHaveBeenCalledWith(
+        'doc-1',
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+    });
+
+    it('offers no View on a folder row, which opens by navigating', async () => {
+      render(
+        <DocumentRowActions
+          documentId="folder-1"
+          itemType="folder"
+          name="Meetings"
+          onView={vi.fn()}
+        />,
+      );
+      await openMenu();
+      expect(screen.queryByText('common.actions.view')).not.toBeInTheDocument();
+    });
+  });
+
   describe('stop sync visibility', () => {
     const openMenu = async () => {
       const user = userEvent.setup();

@@ -28,7 +28,7 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 
-import { AddWebsiteDialog } from './website-add-dialog';
+import { WebsiteCreateDialog } from './website-create-dialog';
 
 async function fillAndSubmit(user: ReturnType<typeof render>['user']) {
   const domain = document.querySelector(
@@ -43,11 +43,11 @@ async function fillAndSubmit(user: ReturnType<typeof render>['user']) {
   await user.click(submit);
 }
 
-describe('AddWebsiteDialog', () => {
+describe('WebsiteCreateDialog', () => {
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"
@@ -66,7 +66,7 @@ describe('AddWebsiteDialog', () => {
   describe('renders the add-website dialog and its fields', () => {
     it('shows the dialog titled "Add website" with the domain and scan-interval fields', () => {
       render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"
@@ -110,7 +110,7 @@ describe('AddWebsiteDialog', () => {
       );
 
       const { user } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"
@@ -136,7 +136,7 @@ describe('AddWebsiteDialog', () => {
       );
 
       const { user } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"
@@ -164,7 +164,7 @@ describe('AddWebsiteDialog', () => {
       createWebsiteAsyncMock.mockResolvedValue('site-id');
       const onClose = vi.fn();
       const { user } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={onClose}
           organizationId="test-org-id"
@@ -214,7 +214,7 @@ describe('AddWebsiteDialog', () => {
 
     it('rejects an unparseable line with a field error and no calls', async () => {
       const { user } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"
@@ -238,7 +238,7 @@ describe('AddWebsiteDialog', () => {
 
     it('passes axe audit in list mode', async () => {
       const { container, user } = render(
-        <AddWebsiteDialog
+        <WebsiteCreateDialog
           isOpen={true}
           onClose={vi.fn()}
           organizationId="test-org-id"

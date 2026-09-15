@@ -1768,12 +1768,14 @@ contacts:
     expectedColumns: 'Expected columns: email, name, locale'
   addButton: Add contact
   editContact: Edit contact
+  editDescription: Update contact information.
   deleteContact: Delete contact
   importMenu:
     fromDevice: From your device
     manualEntry: Manual entry
   create:
     title: Add contact
+    description: Enter the contact's email address, name, phone number, and locale.
     success: Contact created
     error: Couldn't create contact
     duplicateEmail: A contact with this email already exists
@@ -1841,6 +1843,8 @@ dialogs:
   toSend: to send
   contactInfo:
     title: Contact details
+    description: View all information about this contact
+    contactId: Contact ID
   selectConversation: Select conversation
 documents:
   entityLabel: documents
@@ -3828,7 +3832,9 @@ knowledgeEntries:
   searchPlaceholder: Search knowledge entries
   addButton: Add entry
   addEntry: Add knowledge entry
+  addDescription: Name a topic, then write the knowledge so it makes sense on its own.
   editEntry: Edit knowledge entry
+  editDescription: Update knowledge entry information.
   adding: Adding...
   saving: Saving...
   topic: Topic
@@ -3859,11 +3865,13 @@ knowledgeEntries:
     deleteError: Couldn't delete knowledge entry
   delete:
     title: Delete knowledge entry
-    confirmation: Delete this entry? Agents will no longer be able to find it in the knowledge base.
+    confirmation: Delete {name}?
+    warning: Agents will no longer be able to find it in the knowledge base.
   viewDialog:
     title: Knowledge entry details
-    indexingStatus: Indexing status
+    description: View all information about this knowledge entry
     updated: Updated
+    entryId: Entry ID
     history: Version history
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
@@ -4368,7 +4376,7 @@ products:
   noneImported: No products were imported
   edit:
     title: Edit product
-    description: Update product information. Required fields are marked with *
+    description: Update product information.
     namePlaceholder: Enter product name
     descriptionPlaceholder: Enter product description
     categoryPlaceholder: Electronics, Clothing, etc.
@@ -4429,10 +4437,9 @@ products:
       unknown: Couldn't finish that import. Try again.
   actions:
     deleteFailed: Couldn't delete product
-    deleteSuccess: Product deleted successfully
   delete:
     title: Delete product
-    confirmation: Delete "{name}"?
+    confirmation: Delete {name}?
     thisProduct: this product
     warning: All related relationships and data will be permanently removed.
   view:
@@ -6923,7 +6930,9 @@ websites:
   searchPlaceholder: Search websites
   addButton: Add website
   addWebsite: Add website
+  addDescription: Index a whole website or a list of pages, and choose how often to scan it.
   editWebsite: Edit website
+  editDescription: Update website information.
   urlPlaceholder: example.com
   scanIntervalPlaceholder: Select scan interval
   domain: Domain
@@ -6966,14 +6975,14 @@ websites:
   adding: Adding...
   viewDialog:
     title: Website details
-    domain: Domain
     status: Status
     scanInterval: Scan interval
     lastScanned: Last scanned
     notScannedYet: Not scanned yet
-    titleField: Title
-    description: Description
+    description: View all information about this website
+    descriptionField: Description
     created: Created
+    websiteId: Website ID
     unknown: Unknown
     scanPausedNotice: Scanning is paused after repeated failures to reach the
       knowledge database. Fix the connection under Settings → Data residency,
@@ -7011,7 +7020,8 @@ websites:
       7d: Every 7 days
       30d: Every 30 days
   delete:
-    confirmation: Delete this website? This can't be undone.
+    confirmation: Delete {name}?
+    warning: This can't be undone.
     title: Delete website
 webdav:
   description: Mount Tale documents as a network drive in Finder, File Explorer,

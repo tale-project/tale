@@ -5,7 +5,7 @@ import {
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
 import { toast } from '@tale/ui/use-toast';
-import { CloudOff, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CloudOff, Eye, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useMemo, useCallback, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
@@ -47,6 +47,8 @@ interface DocumentRowActionsProps {
   ragStatus?: RagStatus;
   /** Controlled-record state — drives the lifecycle actions + delete gate. */
   record?: DocumentRecordInfo;
+  /** Opens the file's preview — the row menu's View, like every knowledge row. */
+  onView?: (documentId: string, opener: HTMLElement | null) => void;
 }
 
 export function DocumentRowActions({
@@ -64,6 +66,7 @@ export function DocumentRowActions({
   parentFolderTeamId,
   ragStatus,
   record,
+  onView,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -216,6 +219,13 @@ export function DocumentRowActions({
   const actions = useMemo(
     () => [
       {
+        key: 'view',
+        label: tCommon('actions.view'),
+        icon: Eye,
+        onClick: () => onView?.(documentId, menuTriggerRef.current),
+        visible: itemType === 'file' && onView !== undefined,
+      },
+      {
         key: 'reindex',
         label: tDocuments('actions.reindex'),
         icon: RefreshCw,
@@ -262,7 +272,10 @@ export function DocumentRowActions({
     ],
     [
       tDocuments,
+      tCommon,
       tGovernance,
+      documentId,
+      onView,
       deleteLabel,
       handleDeleteClick,
       handleReindex,

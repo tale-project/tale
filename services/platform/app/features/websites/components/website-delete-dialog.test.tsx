@@ -27,7 +27,7 @@ vi.mock('../hooks/mutations', () => ({
   useDeleteWebsite: () => ({ mutateAsync: vi.fn() }),
 }));
 
-import { DeleteWebsiteDialog } from './website-delete-dialog';
+import { WebsiteDeleteDialog } from './website-delete-dialog';
 
 const mockWebsite = {
   _id: 'website-1' as const,
@@ -35,13 +35,13 @@ const mockWebsite = {
   organizationId: 'org-1',
   domain: 'example.com',
   scanInterval: '6h',
-} as Parameters<typeof DeleteWebsiteDialog>[0]['website'];
+} as Parameters<typeof WebsiteDeleteDialog>[0]['website'];
 
-describe('DeleteWebsiteDialog', () => {
+describe('WebsiteDeleteDialog', () => {
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(
-        <DeleteWebsiteDialog
+        <WebsiteDeleteDialog
           isOpen={true}
           onClose={vi.fn()}
           website={mockWebsite}

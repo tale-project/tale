@@ -144,10 +144,21 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(orgId, 'knowledge_entry', 'versions', entryId),
       queryFn: () =>
-        backendFetch<{ versions: unknown[] }>(
+        backendFetch<{ versions: { id: string }[] }>(
           `/knowledge-entries/${encodeURIComponent(entryId)}/versions`,
           { orgId },
-        ).then((body) => body.versions.map(withConvexId)),
+        ).then((body) => {
+          // The door lists the whole chain, the asked-for row included; the
+          // contract carries that row apart as `entry`. Answering the bare
+          // array left the details' version history permanently empty.
+          const entry = body.versions.find((version) => version.id === entryId);
+          return entry === undefined
+            ? null
+            : {
+                entry: withConvexId(entry),
+                versions: body.versions.map(withConvexId),
+              };
+        }),
     };
   },
   'websites/queries:listWebsites': (args, ctx) => {

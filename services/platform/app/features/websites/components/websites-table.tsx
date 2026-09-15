@@ -8,6 +8,7 @@ import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -17,7 +18,7 @@ import {
   useListWebsitesPaginated,
 } from '../hooks/queries';
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
-import { ViewWebsiteDialog } from './website-view-dialog';
+import { WebsiteViewDialog } from './website-view-dialog';
 import { WebsitesActionMenu } from './websites-action-menu';
 
 type Website = WebsiteDoc;
@@ -134,22 +135,20 @@ export function WebsitesTable({
     ],
   );
 
-  const [viewingWebsiteId, setViewingWebsiteId] = useState<string | null>(null);
+  const {
+    record: viewedRecord,
+    open: openRecord,
+    close: closeRecord,
+  } = useViewedRecord(paginatedResult.results, paginatedResult.status);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { mutateAsync: deleteWebsite } = useDeleteWebsite();
 
-  const viewingWebsite = useMemo(
-    () =>
-      viewingWebsiteId
-        ? (paginatedResult.results.find((w) => w._id === viewingWebsiteId) ??
-          null)
-        : null,
-    [viewingWebsiteId, paginatedResult.results],
+  const handleRowClick = useCallback(
+    (row: Row<Website>) => {
+      openRecord(row.original._id);
+    },
+    [openRecord],
   );
-
-  const handleRowClick = useCallback((row: Row<Website>) => {
-    setViewingWebsiteId(row.original._id);
-  }, []);
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -220,11 +219,11 @@ export function WebsitesTable({
         {...list.tableProps}
       />
 
-      {viewingWebsite && (
-        <ViewWebsiteDialog
-          isOpen={!!viewingWebsite}
-          onClose={() => setViewingWebsiteId(null)}
-          website={viewingWebsite}
+      {viewedRecord && (
+        <WebsiteViewDialog
+          isOpen
+          onClose={closeRecord}
+          website={viewedRecord}
         />
       )}
     </>

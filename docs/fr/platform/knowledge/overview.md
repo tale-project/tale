@@ -26,7 +26,7 @@ Connaissances est la bibliothèque partagée de ton organisation. Documents, inf
 | Des articles avec leurs caractéristiques | **Produits** | Consulte les champs de la fiche au lieu de rechercher un paragraphe. |
 | Des fichiers de référence pour un travail précis | L’onglet **Connaissances** du projet | Garde les fichiers dans le périmètre d’accès et le contexte de ce projet. |
 
-Les membres peuvent lire les contenus auxquels ils ont accès. Les rôles Éditeur et supérieurs entretiennent la bibliothèque commune. Le guide des [données structurées](/fr/platform/knowledge/structured-data) aide à choisir lorsqu’un tableur peut servir de document source ou de collection de fiches.
+Les membres peuvent lire les contenus auxquels ils ont accès. Les rôles Éditeur et supérieurs entretiennent la bibliothèque commune. Ouvre une ligne ou choisis **Voir** dans son menu pour afficher ses détails. Si tu peux modifier une source, ce même menu propose les actions correspondantes, comme **Supprimer** ; les contacts, produits, sites web et entrées de connaissances y proposent aussi **Modifier**, que tu retrouves dans leurs détails. Le guide des [données structurées](/fr/platform/knowledge/structured-data) aide à choisir lorsqu’un tableur peut servir de document source ou de collection de fiches.
 
 ## Préparer une source pour les réponses
 

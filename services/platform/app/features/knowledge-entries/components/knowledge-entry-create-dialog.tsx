@@ -23,17 +23,17 @@ type FormData = {
   content: string;
 };
 
-interface AddKnowledgeEntryDialogProps {
+interface KnowledgeEntryCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
 }
 
-export function AddKnowledgeEntryDialog({
+export function KnowledgeEntryCreateDialog({
   isOpen,
   onClose,
   organizationId,
-}: AddKnowledgeEntryDialogProps) {
+}: KnowledgeEntryCreateDialogProps) {
   const { t } = useT('knowledgeEntries');
   const { mutate: createEntry, isPending } = useCreateKnowledgeEntry();
 
@@ -102,9 +102,11 @@ export function AddKnowledgeEntryDialog({
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={t('addEntry')}
+      description={t('addDescription')}
       submittingText={t('adding')}
       isSubmitting={isPending}
       onSubmit={handleSubmit(onSubmit)}
+      size="entity"
     >
       <Input
         id="topic"

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { render, waitFor } from '@/tests/utils/render';
 
-import { AddKnowledgeEntryDialog } from './knowledge-entry-add-dialog';
+import { KnowledgeEntryCreateDialog } from './knowledge-entry-create-dialog';
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
-describe('AddKnowledgeEntryDialog', () => {
+describe('KnowledgeEntryCreateDialog', () => {
   // Regression for #2056: in prod Convex redacts raw Error messages to "Server
   // Error", so the old `error.message.includes('already exists')` check was
   // dead and the duplicate toast never appeared. The backend now throws
@@ -67,7 +67,7 @@ describe('AddKnowledgeEntryDialog', () => {
     );
 
     const { user } = render(
-      <AddKnowledgeEntryDialog
+      <KnowledgeEntryCreateDialog
         isOpen={true}
         onClose={vi.fn()}
         organizationId="org-1"
@@ -93,7 +93,7 @@ describe('AddKnowledgeEntryDialog', () => {
     );
 
     const { user } = render(
-      <AddKnowledgeEntryDialog
+      <KnowledgeEntryCreateDialog
         isOpen={true}
         onClose={vi.fn()}
         organizationId="org-1"

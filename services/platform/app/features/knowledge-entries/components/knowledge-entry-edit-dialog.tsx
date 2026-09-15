@@ -6,7 +6,7 @@ import { Input } from '@tale/ui/input';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { useMemo } from 'react';
+import { type RefObject, useMemo } from 'react';
 import * as z from 'zod';
 
 import {
@@ -24,17 +24,23 @@ type FormData = {
   content: string;
 };
 
-interface EditKnowledgeEntryDialogProps {
+interface KnowledgeEntryEditDialogProps {
   isOpen: boolean;
   onClose: () => void;
   entry: KnowledgeEntryItem;
+  /** Runs after a successful save, before the dialog closes. */
+  onSaved?: () => void;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-export function EditKnowledgeEntryDialog({
+export function KnowledgeEntryEditDialog({
   isOpen,
   onClose,
   entry,
-}: EditKnowledgeEntryDialogProps) {
+  onSaved,
+  restoreFocusRef,
+}: KnowledgeEntryEditDialogProps) {
   const { t } = useT('knowledgeEntries');
   const { mutate: updateEntry, isPending } = useUpdateKnowledgeEntry();
 
@@ -58,7 +64,7 @@ export function EditKnowledgeEntryDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -75,6 +81,7 @@ export function EditKnowledgeEntryDialog({
       {
         onSuccess: () => {
           toast({ title: t('toast.updateSuccess'), variant: 'success' });
+          onSaved?.();
           onClose();
         },
         onError: (error) => {
@@ -102,9 +109,13 @@ export function EditKnowledgeEntryDialog({
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={t('editEntry')}
+      description={t('editDescription')}
       submittingText={t('saving')}
       isSubmitting={isPending}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
+      size="entity"
+      restoreFocusRef={restoreFocusRef}
     >
       <Input
         id="topic"

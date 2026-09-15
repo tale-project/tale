@@ -58,6 +58,11 @@ export interface FormDialogProps {
   enableErrorBoundary?: boolean;
   /** Callback when error occurs */
   onError?: (error: Error) => void;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -86,6 +91,7 @@ export function FormDialog({
   trigger,
   enableErrorBoundary = true,
   onError,
+  restoreFocusRef,
 }: FormDialogProps) {
   const { t: tCommon } = useT('common');
   const { organizationId: orgId } = useErrorScope();
@@ -191,8 +197,16 @@ export function FormDialog({
       className={cn(large && 'max-h-[90vh] overflow-y-auto pr-2', className)}
       trigger={trigger}
       customHeader={customHeader}
+      restoreFocusRef={restoreFocusRef}
     >
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {/* The form fills the body and the actions take up the slack above
+          them, so a dialog with a minimum height (the `entity` size) keeps
+          its actions on the bottom edge instead of mid-dialog. */}
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-1 flex-col gap-4"
+        noValidate
+      >
         {enableErrorBoundary ? (
           <DialogErrorBoundary
             organizationId={orgId}
@@ -203,7 +217,7 @@ export function FormDialog({
         ) : (
           <Stack>{children}</Stack>
         )}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           {footer}
         </div>
       </form>

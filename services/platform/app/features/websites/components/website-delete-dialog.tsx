@@ -2,24 +2,27 @@
 
 import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
-import { useCallback } from 'react';
+import { type RefObject, useCallback } from 'react';
 
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteWebsite } from '../hooks/mutations';
 
-interface DeleteWebsiteDialogProps {
+interface WebsiteDeleteDialogProps {
   isOpen: boolean;
   onClose: () => void;
   website: WebsiteDoc;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-export function DeleteWebsiteDialog({
+export function WebsiteDeleteDialog({
   isOpen,
   onClose,
   website,
-}: DeleteWebsiteDialogProps) {
+  restoreFocusRef,
+}: WebsiteDeleteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const { t: tToast } = useT('toast');
   const { mutateAsync: deleteWebsite } = useDeleteWebsite();
@@ -30,6 +33,7 @@ export function DeleteWebsiteDialog({
     keys: {
       title: 'delete.title',
       description: 'delete.confirmation',
+      warningText: 'delete.warning',
       errorMessage: 'toast.deleteError',
     },
   });
@@ -51,6 +55,7 @@ export function DeleteWebsiteDialog({
       getEntityName={getEntityName}
       deleteMutation={handleDelete}
       translations={translations}
+      restoreFocusRef={restoreFocusRef}
     />
   );
 }
