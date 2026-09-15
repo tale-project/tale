@@ -58,6 +58,12 @@ Les commutateurs par défaut des instructions personnalisées et des souvenirs e
 1. Active le commutateur **Avis de confidentialité**. Les membres voient aussitôt l’avis dans le chat, dans leur langue, et les chats ouverts se mettent à jour sans rechargement.
 2. Si tu le souhaites, saisis ton propre texte dans les onglets de langue **English**, **Deutsch** et **Français**, jusqu’à 280 caractères par langue. Enregistre ensuite les changements de la page.
 
+<Frame caption="Gouvernance > Politiques et limites — l’avis de confidentialité activé, avec un texte anglais, une traduction allemande et le français encore non traduit.">
+
+![La section Avis de confidentialité, commutateur activé et onglet English sélectionné, demande de ne pas coller de noms de clients, de montants de contrats ni de noms de code de projets non publiés dans le chat ; l’onglet Français est marqué non traduit.](/images/platform/governance-confidentiality-notice.webp)
+
+</Frame>
+
 Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).

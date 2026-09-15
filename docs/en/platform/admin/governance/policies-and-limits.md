@@ -58,6 +58,12 @@ The custom-instructions and memories default switches store organization default
 1. Turn on the **Confidentiality notice** switch. Members see the notice in chat right away, in their language; open chats update without reloading.
 2. Optionally enter your own text in the language tabs **English**, **Deutsch**, and **Français**, up to 280 characters per language. Save the pending page changes.
 
+<Frame caption="Governance > Policies & Limits — the confidentiality notice switched on, with English text, a German translation, and French still untranslated.">
+
+![The Confidentiality notice section with its switch on and the English tab selected, asking members not to paste client names, contract values, or unreleased project codenames into chat; the Français tab is marked untranslated.](/images/platform/governance-confidentiality-notice.webp)
+
+</Frame>
+
 Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
 
 The notice is a reminder only. It does not check, block, or change what members send. To act on sensitive content, configure [Guardrails](/platform/admin/governance/guardrails).

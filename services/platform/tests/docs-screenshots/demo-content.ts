@@ -346,6 +346,16 @@ export const DEMO_MCP_SERVER = {
 export const DEMO_CUSTOM_INSTRUCTIONS =
   'Write in the direct register from our brand guide: short sentences, no exclamation marks. Use ISO dates and metric units. When you use a document, name the file you took it from.';
 
+/**
+ * The chat confidentiality notice (Governance > Policies & Limits), per
+ * language. French stays empty on purpose: its tab shows the untranslated
+ * pill the docs explain. Each value stays within the 280-character cap.
+ */
+export const DEMO_DATA_NOTICE = {
+  en: 'Do not paste client names, contract values, or unreleased project codenames into chat.',
+  de: 'Füge keine Kundennamen, Vertragswerte oder Codenamen unveröffentlichter Projekte in den Chat ein.',
+} as const;
+
 /** Enterprise SSO form values (filled, never saved — saving would gate sign-in). */
 export const DEMO_SSO_EXAMPLE = {
   issuerUrl: 'https://login.microsoftonline.com/8f2c-northlight/v2.0',

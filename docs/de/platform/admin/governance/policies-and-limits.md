@@ -58,6 +58,12 @@ Die Standardschalter für benutzerdefinierte Anweisungen und Erinnerungen speich
 1. Schalte **Vertraulichkeitshinweis** ein. Mitglieder sehen den Hinweis sofort im Chat, in ihrer Sprache; geöffnete Chats aktualisieren sich ohne Neuladen.
 2. Gib bei Bedarf in den Sprach-Tabs **English**, **Deutsch** und **Français** eigene Texte mit jeweils höchstens 280 Zeichen ein. Speichere danach die ausstehenden Seitenänderungen.
 
+<Frame caption="Richtlinien > Richtlinien & Limits — der Vertraulichkeitshinweis ist eingeschaltet, mit englischem Text, deutscher Übersetzung und noch nicht übersetztem Französisch.">
+
+![Der Bereich Vertraulichkeitshinweis mit eingeschaltetem Schalter und gewähltem Tab English: Der Hinweis fordert dazu auf, keine Kundennamen, Vertragswerte oder Codenamen unveröffentlichter Projekte in den Chat einzufügen; der Tab Français ist als nicht übersetzt markiert.](/images/platform/governance-confidentiality-notice.webp)
+
+</Frame>
+
 Mitglieder sehen den Text in ihrer Sprache. Ein Tab mit der Markierung **nicht übersetzt** hat keinen eigenen Text: Mitglieder mit dieser Sprache sehen deinen englischen Text oder, wenn auch dieser fehlt, den Standardhinweis, und das leere Feld zeigt diesen Text als Vorschau. Ein roter Punkt markiert eine Sprache mit zu langem Text; Speichern ist erst wieder möglich, wenn du ihn kürzt. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
 
 Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine Nachrichten. Um auf sensible Inhalte zu reagieren, richte [Guardrails](/de/platform/admin/governance/guardrails) ein.

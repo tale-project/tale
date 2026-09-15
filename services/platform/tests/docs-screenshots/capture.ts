@@ -360,6 +360,7 @@ async function captureShots(
         // chat-shared-view reads the share URL Share put on the clipboard.
         permissions: ['clipboard-read', 'clipboard-write'],
       });
+      let page: Page | undefined;
       try {
         // Deterministic theme + locale regardless of saved preferences.
         await context.addInitScript(() => {
@@ -377,7 +378,7 @@ async function captureShots(
             document.head.append(style);
           });
         });
-        const page = await context.newPage();
+        page = await context.newPage();
         await page.emulateMedia({ reducedMotion: 'reduce' });
 
         const route = shot.route.replace(':orgId', ctx.orgId);
@@ -420,6 +421,18 @@ async function captureShots(
         failures.push({ name: shot.name, reason });
         console.error(`✗ ${shot.name} — ${reason}`);
       } finally {
+        if (shot.restore && page) {
+          try {
+            await shot.restore(page, ctx);
+          } catch (err) {
+            // A failed restore leaves org state behind that later shots can
+            // photograph — surface it as this shot's failure.
+            const reason =
+              err instanceof Error ? err.message.split('\n')[0] : String(err);
+            failures.push({ name: shot.name, reason: `restore: ${reason}` });
+            console.error(`✗ ${shot.name} restore — ${reason}`);
+          }
+        }
         await context.close();
       }
     }

@@ -26,6 +26,7 @@ import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_CHAT_PROMPTS,
+  DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -73,6 +74,12 @@ export interface Shot {
   readonly sanitize?: (page: Page, ctx: ShotContext) => Promise<void>;
   /** Element crop; omit for the full viewport. */
   readonly capture?: (page: Page, ctx: ShotContext) => Locator;
+  /**
+   * Put back org state that `prepare` changed and other shots would
+   * otherwise photograph (a setting that shows up on every chat screen).
+   * Runs after the capture, and after a failed one too.
+   */
+  readonly restore?: (page: Page, ctx: ShotContext) => Promise<void>;
   /** Viewport override (default 1440×900). */
   readonly viewport?: { width: number; height: number };
 }
@@ -90,6 +97,36 @@ const chatThreadRoute = (ctx: ShotContext, prompt: string): string => {
 };
 
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
+
+/** The Confidentiality notice section on Governance > Policies & Limits. */
+const dataNoticeSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.dataNotice.title'),
+    exact: true,
+  });
+
+const dataNoticeSwitch = (page: Page): Locator =>
+  dataNoticeSection(page).getByRole('switch', {
+    name: t('governance.dataNotice.enabledLabel'),
+    exact: true,
+  });
+
+/** Flip the notice switch and wait for its instant save to land. */
+async function setDataNotice(page: Page, on: boolean): Promise<void> {
+  const toggle = dataNoticeSwitch(page);
+  await expect(toggle).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
+  if ((await toggle.isChecked()) === on) return;
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response
+        .url()
+        .includes('/governance/policies/data_classification_notice'),
+  );
+  await toggle.click();
+  expect((await saved).ok()).toBe(true);
+  await expect(toggle).toBeChecked({ checked: on });
+}
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
 
 /**
@@ -927,6 +964,72 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    // Governance > Policies & Limits — the chat confidentiality notice
+    // switched on, its English text saved with a German translation, and
+    // French left untranslated so its tab shows the pill. The notice goes
+    // back off afterwards: left on, it would appear under every chat shot's
+    // composer.
+    name: 'governance-confidentiality-notice',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    prepare: async (page) => {
+      const section = dataNoticeSection(page);
+      await section.scrollIntoViewIfNeeded();
+      await setDataNotice(page, true);
+      const texts = [
+        [t('languageSwitcher.locales.en'), DEMO_DATA_NOTICE.en],
+        [t('languageSwitcher.locales.de'), DEMO_DATA_NOTICE.de],
+        [t('languageSwitcher.locales.fr'), ''],
+      ] as const;
+      let changed = false;
+      for (const [language, text] of texts) {
+        await section
+          .getByRole('tab', { name: new RegExp(`^${language}`) })
+          .click();
+        const field = section.getByRole('textbox', {
+          // The e2e resolver does not interpolate; fill the one placeholder.
+          name: t('governance.dataNotice.textLabel').replace(
+            '{language}',
+            language,
+          ),
+          exact: true,
+        });
+        if ((await field.inputValue()) !== text) {
+          await field.fill(text);
+          changed = true;
+        }
+      }
+      if (changed) {
+        const save = page.getByRole('button', {
+          name: t('common.actions.save'),
+          exact: true,
+        });
+        await expect(save).toBeEnabled();
+        await save.click();
+        await expect(
+          page.getByRole('button', {
+            name: t('common.actions.saved'),
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
+      await section
+        .getByRole('tab', {
+          name: new RegExp(`^${t('languageSwitcher.locales.en')}`),
+        })
+        .click();
+      await section.scrollIntoViewIfNeeded();
+    },
+    readyWhen: (page) =>
+      dataNoticeSection(page).getByRole('tab', {
+        name: new RegExp(
+          `^${t('languageSwitcher.locales.fr')}.*${t('common.localeTabs.untranslated')}`,
+        ),
+      }),
+    capture: (page) => dataNoticeSection(page),
+    restore: (page) => setDataNotice(page, false),
   },
   {
     name: 'settings-sandboxes',
