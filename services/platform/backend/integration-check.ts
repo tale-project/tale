@@ -36742,7 +36742,7 @@ async function checkAskAnswer(
 async function checkChatThreadSurface(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const post = async (route: string, body?: unknown): Promise<Response> =>
@@ -37469,6 +37469,164 @@ async function checkChatThreadSurface(
       racedPlaceholder[0]?.status === 'failed' &&
       racedGensAfter[0]?.count === '0',
     `wins=${wins} (want 1), busy=${busyLosses} (want 1), generations=${racedGens[0]?.count} (want 1), rows=${racedRows[0]?.count} (want 2), placeholderAfterEnd=${racedPlaceholder.map((row) => row.status).join(',')} (want failed), genAfterEnd=${racedGensAfter[0]?.count} (want 0)`,
+  );
+
+  // Budget holds: a live turn holds what it may spend on its generation row,
+  // and an organization's budget admissions queue behind one row — so of two
+  // opens racing a cap with room for one, exactly one is admitted, whether
+  // it opens READ COMMITTED (the app lane) or SERIALIZABLE (the REST lane's
+  // scoped open). The spend belongs to a holder no other lane books usage
+  // for, so nothing settling in the background can move the cap mid-race.
+  const { assertChatTurnBudget } =
+    await import('./domains/chat/budget-admission.ts');
+  const budgetHolder = `itest-budget-holder-${Date.now()}`;
+  const holderSpend = { userId: budgetHolder, tokens: 1_500, costCents: 0.25 };
+  const priorBudgetPolicy = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/governance/policies/budgets?orgId=${orgId}`),
+    );
+  const budgetRace = [
+    await mkThread({ title: 'Budget race A' }),
+    await mkThread({ title: 'Budget race B' }),
+  ];
+  let budgetPolicySaved = false;
+  let raceWins = 0;
+  let raceRefusals = 0;
+  let heldRow:
+    | { userId: string | null; tokens: string; costCents: number }
+    | undefined;
+  let loserTrace = '';
+  let doorRefusedWhileHeld = false;
+  let admittedAfterRelease = false;
+  let admissionRows = '';
+  try {
+    budgetPolicySaved = (
+      await post(`/api/app/governance/policies/budgets?orgId=${orgId}`, {
+        config: {
+          enabled: true,
+          rules: [
+            {
+              scope: 'user',
+              scopeId: budgetHolder,
+              period: 'daily',
+              maxRequests: 1,
+            },
+          ],
+        },
+      })
+    ).ok;
+    const opens = await Promise.allSettled([
+      createPgTurnStore(sql).beginTurn({
+        organizationId: orgId,
+        threadId: budgetRace[0] ?? '',
+        userParts: [{ type: 'text', text: 'the app lane, under the cap' }],
+        spend: holderSpend,
+      }),
+      createPgTurnStore(sql, {
+        scope: { userId: ctx.userId, projectId: null },
+      }).beginTurn({
+        organizationId: orgId,
+        threadId: budgetRace[1] ?? '',
+        userParts: [{ type: 'text', text: 'the REST lane, under the cap' }],
+        spend: holderSpend,
+      }),
+    ]);
+    raceWins = opens.filter((open) => open.status === 'fulfilled').length;
+    raceRefusals = opens.filter(
+      (open) =>
+        open.status === 'rejected' &&
+        open.reason instanceof Error &&
+        open.reason.name === 'ChatBudgetExceededError',
+    ).length;
+    const winnerIndex = opens[1]?.status === 'fulfilled' ? 1 : 0;
+    const winnerThread = budgetRace[winnerIndex] ?? '';
+    const loserThread = budgetRace[1 - winnerIndex] ?? '';
+    heldRow = (
+      await sql<{ userId: string | null; tokens: string; costCents: number }[]>`
+        SELECT user_id AS "userId", reserved_tokens::text AS tokens,
+               reserved_cost_cents AS "costCents"
+        FROM app.generations WHERE thread_id = ${winnerThread}
+      `
+    )[0];
+    loserTrace =
+      (
+        await sql<{ rows: string }[]>`
+          SELECT ((SELECT count(*) FROM app.messages WHERE thread_id = ${loserThread})
+                + (SELECT count(*) FROM app.generations WHERE thread_id = ${loserThread}))::text
+                 AS rows
+        `
+      )[0]?.rows ?? '';
+    // The door's early answer counts the hold as well.
+    doorRefusedWhileHeld = await assertChatTurnBudget(sql, {
+      organizationId: orgId,
+      userId: budgetHolder,
+    }).then(
+      () => false,
+      (error: unknown) =>
+        error instanceof Error && error.name === 'ChatBudgetExceededError',
+    );
+    // The turn settles without booking anything: its hold goes with its row,
+    // and the next open fits under the cap again.
+    await createPgTurnStore(sql).endGeneration({
+      organizationId: orgId,
+      threadId: winnerThread,
+    });
+    admittedAfterRelease = await createPgTurnStore(sql)
+      .beginTurn({
+        organizationId: orgId,
+        threadId: loserThread,
+        userParts: [{ type: 'text', text: 'after the hold was released' }],
+        spend: holderSpend,
+      })
+      .then(
+        () => true,
+        (error: unknown) => {
+          console.warn(
+            '[itest] the open after the hold was released was refused:',
+            error,
+          );
+          return false;
+        },
+      );
+    admissionRows =
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.budget_admissions
+          WHERE org_id = ${orgId}
+        `
+      )[0]?.count ?? '';
+  } finally {
+    for (const threadId of budgetRace) {
+      await createPgTurnStore(sql).endGeneration({
+        organizationId: orgId,
+        threadId,
+      });
+    }
+    await post(`/api/app/governance/policies/budgets?orgId=${orgId}`, {
+      config:
+        priorBudgetPolicy.success && priorBudgetPolicy.data.policy !== null
+          ? priorBudgetPolicy.data.policy.config
+          : { enabled: false, rules: [] },
+    });
+  }
+  record(
+    'budget holds: of two opens racing a cap with room for one, one is admitted and holds its spend until it settles',
+    budgetPolicySaved &&
+      raceWins === 1 &&
+      raceRefusals === 1 &&
+      heldRow?.userId === budgetHolder &&
+      heldRow.tokens === '1500' &&
+      heldRow.costCents === 0.25 &&
+      loserTrace === '0' &&
+      doorRefusedWhileHeld &&
+      admittedAfterRelease &&
+      admissionRows === '1',
+    `policy saved=${budgetPolicySaved}, admitted=${raceWins} (want 1), budget refusals=${raceRefusals} (want 1), hold=${JSON.stringify(heldRow)} (want the holder, 1500 tokens, 0.25 cents), loser rows=${loserTrace} (want 0), door refused while held=${doorRefusedWhileHeld}, admitted after release=${admittedAfterRelease}, admission rows=${admissionRows} (want 1)`,
   );
 }
 

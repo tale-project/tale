@@ -288,6 +288,11 @@ export interface TurnStore {
     /** Older history was dropped assembling this turn's context — recorded
      * silently on the reply row for telemetry; never rendered. */
     truncation?: { droppedMessages: number };
+    /** What the turn may spend in its first round. A host that enforces
+     * budget caps holds it for as long as the generation row lives, and
+     * refuses the open when a cap that binds the sender is already reached,
+     * counting what every other live turn holds. */
+    spend?: TurnSpend;
   }): Promise<{
     userMessage?: { id: string; sequence: number };
     /** The placeholder the turn streams into. */
@@ -299,6 +304,18 @@ export interface TurnStore {
     organizationId: string;
     threadId: string;
   }): Promise<void>;
+}
+
+/** What an opening turn may spend, on whose behalf. An estimate, not a
+ * bill: the prompt as assembled plus the output reserve, at the model's
+ * catalog rates (0 cents for a model the catalog does not price). The
+ * booked usage replaces it once the turn settles. */
+export interface TurnSpend {
+  readonly userId: string;
+  /** The API key that authenticated the turn, when one did. */
+  readonly apiKeyId?: string;
+  readonly tokens: number;
+  readonly costCents: number;
 }
 
 /** The one sentence every lane answers a concurrent send with. */
@@ -1156,6 +1173,20 @@ export async function runTurn(
     ...(context.truncation !== undefined
       ? { truncation: { droppedMessages: context.truncation.droppedMessages } }
       : {}),
+    // The first round's worst case — the prompt as assembled plus the output
+    // reserve — so parallel turns cannot all pass a cap the booked usage
+    // alone says has room.
+    spend: {
+      userId: request.userId,
+      ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+      tokens:
+        context.estimatedTokens + (request.budget?.reserveOutputTokens ?? 0),
+      costCents: estimateCostCents(
+        context.estimatedTokens,
+        request.budget?.reserveOutputTokens ?? 0,
+        request.model.pricing,
+      ),
+    },
   });
   const placeholder = opened.assistantMessage;
 

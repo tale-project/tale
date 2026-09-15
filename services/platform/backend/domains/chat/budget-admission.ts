@@ -6,6 +6,10 @@ import {
   findBudgetViolation,
   loadBudgetSubject,
 } from '../governance/budget-gate.ts';
+import {
+  lockBudgetAdmission,
+  readInFlightReservations,
+} from '../governance/budget-reservations.ts';
 
 /**
  * The chat lane's budget admission. Every chat turn — the app's send,
@@ -13,8 +17,9 @@ import {
  * and a REST send — is measured against the caps that bind its sender
  * before it spends anything: their personal caps, their teams' shared caps,
  * the organization's, and, for a request an API key authenticated, the
- * key's own. A turn over a cap is refused with `BUDGET_EXCEEDED`, which
- * names the cap and when its period resets.
+ * key's own. The measure counts the booked usage plus what every turn still
+ * in flight holds. A turn over a cap is refused with `BUDGET_EXCEEDED`,
+ * which names the cap and when its period resets.
  */
 
 export interface ChatBudgetRefusal {
@@ -84,31 +89,49 @@ export function budgetRetryAfterSeconds(
   return Math.max(1, Math.ceil((resetsAt - now) / 1000));
 }
 
+/** Who a chat turn spends for. */
+export interface ChatTurnSender {
+  organizationId: string;
+  userId: string;
+  apiKeyId?: string;
+}
+
 /**
- * Refuse the turn when any cap that binds the sender is already reached.
- * The sender's teams and role are read at call time, so a worker firing a
- * parked or REST send measures them as they are now.
+ * Refuse the turn when any cap that binds the sender is already reached,
+ * counting what every turn in flight holds. The sender's teams and role are
+ * read at call time, so a worker firing a parked or REST send measures them
+ * as they are now. On its own this is the early answer a door gives before
+ * anything runs; the guard is the open's `admitChatTurnSpend`.
  */
 export async function assertChatTurnBudget(
   sql: Sql | TransactionSql,
-  args: {
-    organizationId: string;
-    userId: string;
-    apiKeyId?: string;
-    now?: number;
-  },
+  args: ChatTurnSender & { now?: number },
 ): Promise<void> {
   const subject = await loadBudgetSubject(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
   });
-  const violation = await findBudgetViolation(
-    sql,
-    subject,
-    args.now !== undefined ? { now: args.now } : {},
-  );
+  const violation = await findBudgetViolation(sql, subject, {
+    reservations: await readInFlightReservations(sql, subject),
+    ...(args.now !== undefined ? { now: args.now } : {}),
+  });
   if (violation !== null) {
     throw new ChatBudgetExceededError(toChatBudgetRefusal(violation));
   }
+}
+
+/**
+ * The admission itself, first in the transaction that opens the turn: the
+ * organization's budget-admission lock, then the measure. It either refuses
+ * — the open rolls back with nothing written — or returns with the lock
+ * still held, so the open writes this turn's hold on its generation row
+ * before the next admission can read the holds.
+ */
+export async function admitChatTurnSpend(
+  tx: TransactionSql,
+  sender: ChatTurnSender,
+): Promise<void> {
+  await lockBudgetAdmission(tx, sender.organizationId);
+  await assertChatTurnBudget(tx, sender);
 }

@@ -1,17 +1,30 @@
 /**
  * The chat lane's budget admission: the sender is measured as they are now
- * (teams, role, the authenticating key), and a reached cap refuses with
+ * (teams, role, the authenticating key) against the booked usage plus what
+ * the turns in flight hold, and a reached cap refuses with
  * `BUDGET_EXCEEDED`, naming the cap and when its period resets. The gate's
- * own evaluation is covered in `governance/budget-gate.test.ts`.
+ * own evaluation is covered in `governance/budget-gate.test.ts`, the holds
+ * in `governance/budget-reservations.test.ts`.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BudgetViolation } from '../governance/budget-gate.ts';
+import type {
+  BudgetReservations,
+  BudgetViolation,
+} from '../governance/budget-gate.ts';
+
+const HOLDS: BudgetReservations = {
+  org: { costCents: 300, tokens: 5_000, requests: 2 },
+  user: { costCents: 100, tokens: 2_000, requests: 1 },
+  teams: {},
+};
 
 const gate = vi.hoisted(() => ({
   violation: null as BudgetViolation | null,
   subjects: [] as unknown[],
+  options: [] as unknown[],
+  order: [] as string[],
 }));
 
 vi.mock('../governance/budget-gate.ts', () => ({
@@ -19,19 +32,39 @@ vi.mock('../governance/budget-gate.ts', () => ({
     async (
       _sql: unknown,
       args: { organizationId: string; userId: string; apiKeyId?: string },
-    ) => ({ ...args, userTeamIds: ['team_1'], userRole: 'member' }),
+    ) => {
+      gate.order.push('subject');
+      return { ...args, userTeamIds: ['team_1'], userRole: 'member' };
+    },
   ),
-  findBudgetViolation: vi.fn(async (_sql: unknown, subject: unknown) => {
-    gate.subjects.push(subject);
-    return gate.violation;
+  findBudgetViolation: vi.fn(
+    async (_sql: unknown, subject: unknown, options: unknown) => {
+      gate.order.push('measure');
+      gate.subjects.push(subject);
+      gate.options.push(options);
+      return gate.violation;
+    },
+  ),
+}));
+
+vi.mock('../governance/budget-reservations.ts', () => ({
+  lockBudgetAdmission: vi.fn(async () => {
+    gate.order.push('lock');
+  }),
+  readInFlightReservations: vi.fn(async () => {
+    gate.order.push('holds');
+    return HOLDS;
   }),
 }));
 
 const {
+  admitChatTurnSpend,
   assertChatTurnBudget,
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
 } = await import('./budget-admission.ts');
+const { lockBudgetAdmission } =
+  await import('../governance/budget-reservations.ts');
 
 const sql = (() => Promise.resolve([])) as never;
 const RESETS_AT = Date.UTC(2026, 8, 16);
@@ -39,6 +72,9 @@ const RESETS_AT = Date.UTC(2026, 8, 16);
 beforeEach(() => {
   gate.violation = null;
   gate.subjects = [];
+  gate.options = [];
+  gate.order = [];
+  vi.mocked(lockBudgetAdmission).mockClear();
 });
 
 describe('assertChatTurnBudget', () => {
@@ -54,6 +90,18 @@ describe('assertChatTurnBudget', () => {
         userRole: 'member',
       },
     ]);
+  });
+
+  it('counts what the turns in flight hold on top of the booked usage', async () => {
+    await assertChatTurnBudget(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+    expect(gate.options).toEqual([
+      expect.objectContaining({ reservations: HOLDS }),
+    ]);
+    // The early answer takes no lock — only the open's admission does.
+    expect(lockBudgetAdmission).not.toHaveBeenCalled();
   });
 
   it('measures a keyed turn against the key that authenticated it', async () => {
@@ -125,6 +173,33 @@ describe('assertChatTurnBudget', () => {
       "Usage limit reached. The organization's monthly request limit is used up until 2026-09-16T00:00:00.000Z.",
       "Usage limit reached. This API key's monthly request limit is used up until 2026-09-16T00:00:00.000Z.",
     ]);
+  });
+});
+
+describe('admitChatTurnSpend', () => {
+  it('takes the organization’s admission lock before it reads the holds', async () => {
+    await admitChatTurnSpend(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      apiKeyId: 'key_1',
+    });
+    expect(lockBudgetAdmission).toHaveBeenCalledWith(sql, 'org_1');
+    expect(gate.order).toEqual(['lock', 'subject', 'holds', 'measure']);
+  });
+
+  it('refuses with the cap, so the open rolls back', async () => {
+    gate.violation = {
+      scope: 'user',
+      code: 'REQUEST_LIMIT',
+      period: 'daily',
+      used: 10,
+      limit: 10,
+      reason: 'Request limit reached',
+      resetsAt: RESETS_AT,
+    };
+    await expect(
+      admitChatTurnSpend(sql, { organizationId: 'org_1', userId: 'user_1' }),
+    ).rejects.toBeInstanceOf(ChatBudgetExceededError);
   });
 });
 

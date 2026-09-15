@@ -67,6 +67,15 @@ const SUBJECT = {
   userRole: 'member',
 };
 
+/** Cost holds of the turns in flight, as `readInFlightReservations` answers
+ * them for the org and the subject. */
+function holds(orgCents: number, userCents: number) {
+  return {
+    org: { costCents: orgCents, tokens: 0, requests: 0 },
+    user: { costCents: userCents, tokens: 0, requests: 0 },
+  };
+}
+
 beforeEach(() => {
   policy.config = null;
 });
@@ -76,7 +85,7 @@ describe('resolveTurnAllowance', () => {
     const allowance = await resolveTurnAllowance(ledger({}), {
       ...SUBJECT,
       defaultCents: 500,
-      reserved: { orgCents: 0, userCents: 0 },
+      reservations: holds(0, 0),
     });
     expect(allowance).toEqual({ allowed: true, budgetCents: 500 });
   });
@@ -92,7 +101,7 @@ describe('resolveTurnAllowance', () => {
         ...SUBJECT,
         defaultCents: 500,
         // Two other turns in flight hold 700 cents between them.
-        reserved: { orgCents: 700, userCents: 0 },
+        reservations: holds(700, 0),
       },
     );
     // 10_000 − 9_000 − 700 = 300 < the 500 default.
@@ -109,7 +118,7 @@ describe('resolveTurnAllowance', () => {
       {
         ...SUBJECT,
         defaultCents: 500,
-        reserved: { orgCents: 400, userCents: 0 },
+        reservations: holds(400, 0),
       },
     );
     expect(allowance.allowed).toBe(false);
@@ -141,7 +150,7 @@ describe('resolveTurnAllowance', () => {
       {
         ...SUBJECT,
         defaultCents: 500,
-        reserved: { orgCents: 5_000, userCents: 200 },
+        reservations: holds(5_000, 200),
       },
     );
     // 2_000 − 1_500 − 200 = 300 (the org has 55_000 left).
@@ -158,7 +167,7 @@ describe('resolveTurnAllowance', () => {
       {
         ...SUBJECT,
         defaultCents: 500,
-        reserved: { orgCents: 0, userCents: 0 },
+        reservations: holds(0, 0),
       },
     );
     expect(allowance.allowed).toBe(false);
@@ -188,7 +197,7 @@ describe('resolveTurnAllowance', () => {
       {
         ...SUBJECT,
         defaultCents: 500,
-        reserved: { orgCents: 0, userCents: 0 },
+        reservations: holds(0, 0),
       },
     );
     expect(allowance).toEqual({ allowed: true, budgetCents: 150 });

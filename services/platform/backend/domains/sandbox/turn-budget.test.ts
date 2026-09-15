@@ -21,6 +21,17 @@ const gate = vi.hoisted(() => ({
 
 vi.mock('../governance/budget-gate.ts', () => gate);
 
+const HOLDS = {
+  org: { costCents: 700, tokens: 0, requests: 2 },
+  user: { costCents: 200, tokens: 0, requests: 1 },
+  teams: {},
+};
+const holds = vi.hoisted(() => ({
+  lockBudgetAdmission: vi.fn(async () => undefined),
+  readInFlightReservations: vi.fn(),
+}));
+vi.mock('../governance/budget-reservations.ts', () => holds);
+
 const { reserveTurnBudget } = await import('./turn-budget.ts');
 
 interface Statement {
@@ -53,6 +64,7 @@ const ARGS = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  holds.readInFlightReservations.mockResolvedValue(HOLDS);
 });
 
 describe('reserveTurnBudget', () => {
@@ -65,10 +77,6 @@ describe('reserveTurnBudget', () => {
       {
         match: 'FROM app.project_agent_runs r',
         rows: [{ startedBy: 'user-1', agentName: 'Alice' }],
-      },
-      {
-        match: 'coalesce(sum(budget_cents), 0)',
-        rows: [{ orgCents: 700, userCents: 200 }],
       },
     ]);
 
@@ -91,18 +99,20 @@ describe('reserveTurnBudget', () => {
         userTeamIds: ['team-1'],
         userRole: 'member',
         defaultCents: 500,
-        reserved: { orgCents: 700, userCents: 200 },
+        reservations: HOLDS,
       }),
     );
-    // The reservation sum excludes this very op and only counts unsettled
-    // reservations.
-    const sum = statements.find((s) =>
-      s.text.includes('coalesce(sum(budget_cents), 0)'),
+    // The holds are read under the budget-admission lock the chat lane's
+    // opens share, and leave this very op out.
+    expect(holds.lockBudgetAdmission).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
     );
-    expect(sum?.text).toContain(
-      'budget_cents IS NOT NULL AND spend_settled_at_ms IS NULL',
+    expect(holds.readInFlightReservations).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-1' }),
+      { op: { sessionId: 'pa-alice', execId: 'exec-1' } },
     );
-    expect(sum?.text).toContain('AND NOT (session_id = ? AND exec_id = ?)');
     // The op row carries the reservation and the attribution.
     const upsert = statements.find((s) =>
       s.text.includes('INSERT INTO app.sandbox_session_ops'),

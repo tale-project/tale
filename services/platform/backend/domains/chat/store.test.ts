@@ -24,6 +24,21 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
   getProviderCatalog,
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+const budget = vi.hoisted(() => ({
+  budgetPolicyActive: vi.fn(
+    async (_sql: unknown, _organizationId: string): Promise<boolean> => false,
+  ),
+  admitChatTurnSpend: vi.fn(
+    async (_tx: unknown, _sender: unknown): Promise<void> => {},
+  ),
+}));
+vi.mock('../governance/budget-gate.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../governance/budget-gate.ts')>()),
+  budgetPolicyActive: budget.budgetPolicyActive,
+}));
+vi.mock('./budget-admission.ts', () => ({
+  admitChatTurnSpend: budget.admitChatTurnSpend,
+}));
 
 import { ThreadBusyError } from '../../../lib/chat/turn.ts';
 import {
@@ -356,6 +371,77 @@ describe('createPgTurnStore.beginTurn', () => {
     expect(
       f.tx.some((s) => s.text.includes("generation_status = 'generating'")),
     ).toBe(false);
+  });
+
+  const SPEND = {
+    userId: 'user_1',
+    apiKeyId: 'key_1',
+    tokens: 4_096.4,
+    costCents: 12.5,
+  };
+
+  it('writes the turn’s hold — who spends, what it may spend — on its generation row', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).beginTurn({ ...OPEN, spend: SPEND });
+
+    const claim = f.tx.find((statement) =>
+      statement.text.includes('INSERT INTO app.generations'),
+    );
+    expect(claim?.text).toContain('user_id, api_key_id, reserved_cost_cents,');
+    expect(claim?.values).toEqual(
+      expect.arrayContaining(['user_1', 'key_1', 12.5, 4_097]),
+    );
+    // No budget policy is on: nothing to serialize, no admission.
+    expect(budget.budgetPolicyActive).toHaveBeenCalledWith(f.sql, 'org_1');
+    expect(budget.admitChatTurnSpend).not.toHaveBeenCalled();
+  });
+
+  it('admits the open first, inside its transaction, when a budget policy is on', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    let statementsBeforeAdmission = -1;
+    budget.admitChatTurnSpend.mockImplementationOnce(async () => {
+      statementsBeforeAdmission = f.tx.length;
+    });
+
+    await createPgTurnStore(f.sql).beginTurn({ ...OPEN, spend: SPEND });
+
+    expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      apiKeyId: 'key_1',
+    });
+    // Before any of the open's own statements: its lock orders first.
+    expect(statementsBeforeAdmission).toBe(0);
+    expect(f.transactions).toEqual(['commit']);
+  });
+
+  it('rolls the whole open back when the admission refuses', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    budget.admitChatTurnSpend.mockRejectedValueOnce(
+      new Error('BUDGET_EXCEEDED'),
+    );
+    const f = fakeChatSql();
+
+    await expect(
+      createPgTurnStore(f.sql).beginTurn({ ...OPEN, spend: SPEND }),
+    ).rejects.toThrow('BUDGET_EXCEEDED');
+
+    expect(f.transactions).toEqual(['rollback']);
+    expect(f.tx.some((statement) => statement.text.includes('INSERT'))).toBe(
+      false,
+    );
+  });
+
+  it('asks nothing of the budget when the open names no spend', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).beginTurn(OPEN);
+
+    expect(budget.budgetPolicyActive).not.toHaveBeenCalled();
+    const claim = f.tx.find((statement) =>
+      statement.text.includes('INSERT INTO app.generations'),
+    );
+    expect(claim?.values.slice(-4)).toEqual([null, null, 0, 0]);
   });
 });
 

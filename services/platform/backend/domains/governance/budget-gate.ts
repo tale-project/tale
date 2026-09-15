@@ -157,6 +157,21 @@ export async function loadBudgetSubject(
   };
 }
 
+/** Whether the organization's budget policy is on with at least one rule —
+ * when it is not, no cap binds anyone and an admission has nothing to
+ * serialize. */
+export async function budgetPolicyActive(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  const config = await readGovernancePolicyForOrg(
+    sql,
+    organizationId,
+    'budgets',
+  );
+  return config !== null && config.enabled && config.rules.length > 0;
+}
+
 /** Spend that work still in flight has claimed but not booked yet. */
 export interface ReservedSpend {
   costCents: number;
@@ -512,7 +527,7 @@ export type TurnAllowance =
  * The gateway allowance a managed turn may be minted with: the deployment's
  * per-turn default, capped by what remains under every cost rule that binds
  * the subject — after the spend already booked this period AND the
- * reservations of every turn still in flight (`reserved`), so concurrent
+ * holds of every other turn still in flight (`reservations`), so concurrent
  * turns sizing themselves off the same balance cannot collectively overshoot
  * it. A token or request cap that is already reached refuses outright (a
  * turn is one ledger request). Refused when less than one cent remains.
@@ -521,13 +536,12 @@ export async function resolveTurnAllowance(
   sql: Sql | TransactionSql,
   args: OrgBudgetSubject & {
     defaultCents: number;
-    reserved: { orgCents: number; userCents: number };
+    /** What every other turn in flight holds, per bucket — chat turns and
+     * managed turns alike (`readInFlightReservations`). */
+    reservations: BudgetReservations;
   },
 ): Promise<TurnAllowance> {
-  const reservations: BudgetReservations = {
-    user: { costCents: args.reserved.userCents, tokens: 0, requests: 0 },
-    org: { costCents: args.reserved.orgCents, tokens: 0, requests: 0 },
-  };
+  const { reservations } = args;
   const now = Date.now();
   let allowance = args.defaultCents;
   for (const { period, limits } of await applicableLimitsByPeriod(sql, args)) {
