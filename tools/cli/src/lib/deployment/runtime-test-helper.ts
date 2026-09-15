@@ -157,6 +157,15 @@ export class RuntimeDockerFixture {
   variantTag: string | null = null;
   upFailure = false;
   onUp: (() => void) | null = null;
+  /**
+   * A running service Docker reports as `status` for `reads` more
+   * `container inspect` calls before a probe passes: the stale health a
+   * snapshot's pause leaves behind. `reads: Infinity` never recovers.
+   */
+  staleHealth = new Map<
+    string,
+    { status: 'unhealthy' | 'starting'; reads: number }
+  >();
   imageMetadata = new Map<string, Record<string, unknown>>();
   constructor(readonly fixture: RuntimeFixture) {}
 
@@ -296,8 +305,19 @@ export class RuntimeDockerFixture {
       );
     if (args[0] === 'ps')
       return ok(this.containers.map((container) => container.Id).join('\n'));
-    if (args[0] === 'container' && args[1] === 'inspect')
+    if (args[0] === 'container' && args[1] === 'inspect') {
+      for (const container of this.containers) {
+        const service = (container.Config as { Labels: Record<string, string> })
+          .Labels['com.docker.compose.service'];
+        const stale = this.staleHealth.get(service);
+        const state = container.State as { Health?: { Status: string } };
+        if (!stale || !state.Health) continue;
+        state.Health.Status = stale.reads > 0 ? stale.status : 'healthy';
+        if (stale.reads > 0) stale.reads -= 1;
+        else this.staleHealth.delete(service);
+      }
       return ok(this.containers);
+    }
     if (args[0] === 'volume' && args[1] === 'ls')
       return ok(this.volumes.join('\n'));
     if (args[0] === 'tag') {
@@ -308,6 +328,20 @@ export class RuntimeDockerFixture {
     }
     if (args[0] === 'compose' && args.includes('config')) return ok();
     if (args[0] === 'compose' && args.includes('up')) {
+      // Compose checks the health of the running dependencies before it
+      // starts anything, and refuses at once when one reads unhealthy.
+      const unhealthy = this.containers.find(
+        (container) =>
+          (container.State as { Health?: { Status: string } }).Health
+            ?.Status === 'unhealthy',
+      );
+      if (unhealthy)
+        return {
+          success: false,
+          stdout: '',
+          stderr: `dependency failed to start: container ${String(unhealthy.Name).slice(1)} is unhealthy`,
+          exitCode: 1,
+        };
       this.installContainers(
         parse(
           readFileSync(

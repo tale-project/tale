@@ -429,7 +429,45 @@ async function inspectSandboxNetwork(
   return true;
 }
 
-function healthy(
+/** Whether the service's declaration makes Docker keep health evidence. */
+function healthRequired(
+  container: RuntimeContainer,
+  compose: ComposeDocument,
+): boolean {
+  const service = container.Config.Labels?.['com.docker.compose.service'];
+  const check = service && compose.services[service]?.healthcheck;
+  const disabled =
+    typeof check === 'object' &&
+    check !== null &&
+    (('disable' in check && check.disable === true) ||
+      ('test' in check &&
+        Array.isArray(check.test) &&
+        check.test.length === 1 &&
+        check.test[0] === 'NONE'));
+  return check !== undefined && !disabled;
+}
+
+function reportsHealthy(
+  container: RuntimeContainer,
+  compose: ComposeDocument,
+): boolean {
+  return (
+    (!healthRequired(container, compose) &&
+      container.State.Health === undefined) ||
+    container.State.Health?.Status === 'healthy'
+  );
+}
+
+/**
+ * Whether every managed service runs as its declared container and image,
+ * with the health evidence its declaration requires: the state `compose up`
+ * converges to. The health STATUS is deliberately not part of it. Compose
+ * never recreates a running container for its health; it only refuses to
+ * start the dependants of one that reads unhealthy, which a snapshot's pause
+ * leaves behind until the next probe. That is waited out, not handed to
+ * Compose.
+ */
+function converged(
   containers: RuntimeContainer[],
   bundle: RuntimeBundle,
   compose: ComposeDocument,
@@ -439,21 +477,11 @@ function healthy(
     containers.every((container) => {
       const service = container.Config.Labels?.['com.docker.compose.service'];
       const expectedName = service && compose.services[service]?.container_name;
-      const check = service && compose.services[service]?.healthcheck;
-      const disabled =
-        typeof check === 'object' &&
-        check !== null &&
-        (('disable' in check && check.disable === true) ||
-          ('test' in check &&
-            Array.isArray(check.test) &&
-            check.test.length === 1 &&
-            check.test[0] === 'NONE'));
-      const healthRequired = check !== undefined && !disabled;
       return (
         container.State.Running &&
         (expectedName === undefined || container.Name === `/${expectedName}`) &&
-        ((!healthRequired && container.State.Health === undefined) ||
-          container.State.Health?.Status === 'healthy') &&
+        (!healthRequired(container, compose) ||
+          container.State.Health !== undefined) &&
         bundle.images.some(
           (image) =>
             image.services.includes(
@@ -462,6 +490,17 @@ function healthy(
         )
       );
     })
+  );
+}
+
+function healthy(
+  containers: RuntimeContainer[],
+  bundle: RuntimeBundle,
+  compose: ComposeDocument,
+): boolean {
+  return (
+    converged(containers, bundle, compose) &&
+    containers.every((container) => reportsHealthy(container, compose))
   );
 }
 
@@ -674,7 +713,9 @@ export async function applyRuntime(
     receipt.bundleSha256 !== identity ||
     receipt.inputSha256 !== inputSha256 ||
     !networkExists ||
-    !healthy(containers, bundle, compose) ||
+    // A converged runtime that only reads unhealthy or starting is awaited
+    // below: Compose would change nothing, only refuse its dependants.
+    !converged(containers, bundle, compose) ||
     installedFiles.some(
       (file) => currentHash(targetPath(options, file)) !== hash(planned[file]),
     );
