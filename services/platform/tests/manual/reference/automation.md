@@ -318,6 +318,30 @@ and `backend/domains/configuration-writes.test.ts` plus the provider/credential 
 `packages/shared/src/schemas/` owns the common schema tests and the node-free import guard.
 These suites do not prove inference hardware, actual model quality or production readiness.
 
+Additional site origins are covered by `packages/shared/src/utils/site-urls.test.ts`
+(parsing and exact matching), `backend/core/lib/helpers/public_origin.test.ts` and
+`backend/auth/auth.origins.test.ts` (the request's public origin and the trusted origins),
+`server.test.ts` (the SPA's `SITE_URL` and the OpenAPI servers from the proxied `Host` and
+forwarded scheme), `backend/core/lib/storage/browser_facing.test.ts`, `object_store.test.ts`
+and `backend/domains/files/routes.upload.test.ts` (uploads and downloads signed for the
+requesting site origin, never a foreign one), `lib/org-storage-origins.test.ts` (the CSP
+storage sources), and `tools/cli/src/lib/compose/services/compose-parity.test.ts` (the
+proxy's trust of an external TLS terminator, rendered from its entrypoint for every TLS
+mode). These tests do not prove certificates, DNS, cookies in a real browser, identity
+provider or connector callbacks, or a real terminator's forwarding; the origins suite does.
+
+Managed additional origins are covered by `tools/cli/src/lib/deployment/inputs.test.ts`,
+`fresh-inputs.test.ts`, `runtime-env.test.ts`, `runtime-apply.test.ts`,
+`runtime-observe.test.ts`, `runtime-prepare.test.ts`, `prepare-config.test.ts` and
+`apply.test.ts` in the same directory, with `tools/cli/src/lib/config/ensure-env.test.ts`
+for the shared Let's Encrypt rule. They verify environment-reference resolution, refusal
+of duplicates, the primary origin, ports, unusable and (under Let's Encrypt) local
+hostnames, the managed runtime variable (written when declared, removed when not, refused
+as an `environment` entry), unchanged receipt input and environment bytes without the
+field, adoption and ready-state comparison, the proxy capability marker, and native
+identity on the primary origin. They do not prove DNS, certificates or a real TLS
+terminator.
+
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and
   leaves the stack in its end state.

@@ -20,6 +20,7 @@ import { prepareDeployment } from './prepare';
 import { applyRuntime, prepareRuntime } from './runtime';
 import { activateRuntimeConfiguration } from './runtime-apply';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
+import { parseRuntimeEnvironment } from './runtime-env';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -41,8 +42,14 @@ afterEach(() => {
 
 /** Real Git, staging, manifests, state files and lock; only the Docker boundary
  * and backup I/O are simulated. Native HTTP has its own subprocess suite. */
-async function create(legacy = false, identity = true) {
-  const fixture = runtimeFixture();
+async function create(
+  legacy = false,
+  identity = true,
+  additionalOrigins?: string[],
+) {
+  const fixture = runtimeFixture({
+    trustsTerminator: additionalOrigins !== undefined,
+  });
   fixtures.push(fixture);
   const docker = new RuntimeDockerFixture(fixture);
   const configurationDocker = new ConfigurationDockerFixture(docker);
@@ -64,6 +71,7 @@ async function create(legacy = false, identity = true) {
     origin: fixture.options.origin,
     tlsMode: 'external',
     runtime: { revision: fixture.revision },
+    ...(additionalOrigins ? { additionalOrigins } : {}),
     ...(identity
       ? {
           identity: {
@@ -343,6 +351,55 @@ describePosix('fresh native receipt custody', () => {
     await expect(run.apply()).rejects.toThrow('container prefix');
     expect(run.docker.calls).toEqual([]);
     expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+  });
+
+  test('declared additional origins reach the runtime while the native identity keeps the primary origin', async () => {
+    const run = await create(false, true, ['https://portal.partner.example']);
+    const runtime = run.dependencies.runtime!;
+    const seen: unknown[] = [];
+    run.dependencies.runtime = async (options) => {
+      seen.push(options.additionalOrigins);
+      return runtime(options);
+    };
+    const exec = run.dependencies.exec!;
+    let provision: Record<string, unknown> = {};
+    run.dependencies.exec = async (command, args, options) => {
+      if (args.includes('provision'))
+        provision = JSON.parse(options?.stdin ?? '{}');
+      return exec(command, args, options);
+    };
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    expect(seen).toEqual([
+      ['https://portal.partner.example'],
+      ['https://portal.partner.example'],
+    ]);
+    expect(provision.origin).toBe(run.spec.origin);
+    expect(JSON.stringify(provision)).not.toContain('portal.partner.example');
+    expect(
+      parseRuntimeEnvironment(
+        readFileSync(
+          join(run.fixture.options.stateDirectory, 'src/.env'),
+          'utf8',
+        ),
+        'compose',
+      ).ADDITIONAL_SITE_URLS,
+    ).toBe('https://portal.partner.example');
+  });
+
+  test('a deployment without additional origins hands the runtime none', async () => {
+    const run = await create();
+    const runtime = run.dependencies.runtime!;
+    run.dependencies.runtime = async (options) => {
+      expect(options).not.toHaveProperty('additionalOrigins');
+      return runtime(options);
+    };
+    await run.apply();
+    expect(
+      readFileSync(
+        join(run.fixture.options.stateDirectory, 'src/.env'),
+        'utf8',
+      ),
+    ).not.toContain('ADDITIONAL_SITE_URLS');
   });
 
   test('late owner, managed credentials and explicit attestation must match before ready; recovery and replay retain exact artifact proof', async () => {

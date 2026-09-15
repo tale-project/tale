@@ -5,6 +5,7 @@ import { isValidProjectKey } from '@tale/shared/utils/project-key';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { platformConfigurationSchema } from '../config/platform-model';
 import {
   gitSha,
@@ -13,7 +14,7 @@ import {
   sha,
   slug,
 } from '../config/releases/model';
-import { containerPrefixSchema } from './runtime-model';
+import { containerPrefixSchema, isManagedOrigin } from './runtime-model';
 
 const text = z
   .string()
@@ -102,6 +103,11 @@ const deploymentFields = z.strictObject({
     containerPrefix: containerPrefixSchema.optional(),
   }),
   origin,
+  /** Other HTTPS origins the same instance answers on, written to the runtime's
+   * managed `ADDITIONAL_SITE_URLS`. The native identity — account and
+   * organization bindings, client journals, the OIDC issuer, passkeys and
+   * email links — stays on `origin`. */
+  additionalOrigins: z.array(origin).min(1).max(16).optional(),
   tlsMode: z.enum(['external', 'letsencrypt']),
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
@@ -151,6 +157,39 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         message:
           'Origin migration requires a different source origin and retained fresh identity',
         path: ['identity', 'migrateOriginFrom'],
+      });
+    // An additional origin may equal `identity.migrateOriginFrom`: serving the
+    // previous hostname keeps its links and sessions working during a move.
+    const additionalOrigins = spec.additionalOrigins ?? [];
+    for (const [index, entry] of additionalOrigins.entries()) {
+      if (entry === spec.origin)
+        context.addIssue({
+          code: 'custom',
+          message: 'Additional origin repeats the primary origin',
+          path: ['additionalOrigins', index],
+        });
+      else if (additionalOrigins.indexOf(entry) !== index)
+        context.addIssue({
+          code: 'custom',
+          message: 'Duplicate additional origin',
+          path: ['additionalOrigins', index],
+        });
+      if (!isManagedOrigin(entry))
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Additional origin needs a DNS or IPv4 hostname on the default HTTPS port',
+          path: ['additionalOrigins', index],
+        });
+    }
+    for (const issue of validateAdditionalSiteUrls({
+      additionalSiteUrls: additionalOrigins.join(','),
+      tlsMode: spec.tlsMode,
+    }))
+      context.addIssue({
+        code: 'custom',
+        message: issue.message,
+        path: ['additionalOrigins'],
       });
     if (spec.identity?.emailVerification && spec.identity.bootstrap !== 'fresh')
       context.addIssue({
@@ -252,6 +291,11 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
 // The finished bundle deliberately has the narrower schema above.
 const deploymentInputSchema = deploymentFields.extend({
   origin: z.union([origin, environmentReference]),
+  additionalOrigins: z
+    .array(z.union([origin, environmentReference]))
+    .min(1)
+    .max(16)
+    .optional(),
   identity: identity
     .extend({
       nativeClients: z
@@ -303,6 +347,13 @@ export function resolveDeploymentSpec(
   return deploymentSpecSchema.parse({
     ...spec,
     origin: resolveValue(spec.origin, environment),
+    ...(spec.additionalOrigins === undefined
+      ? {}
+      : {
+          additionalOrigins: spec.additionalOrigins.map((entry) =>
+            resolveValue(entry, environment),
+          ),
+        }),
     identity: spec.identity && {
       ...spec.identity,
       nativeClients: spec.identity.nativeClients.map((client) =>

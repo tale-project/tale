@@ -187,6 +187,126 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(receipt().phase).toBe('ready');
   });
 
+  test('additional origins join the receipt input only when declared, and removing them rolls the variable back', async () => {
+    const { fixture, docker, apply, receipt } = await create(true);
+    // The input shape every receipt recorded before additional origins existed.
+    const input = (extra: Record<string, unknown>) =>
+      hash(
+        JSON.stringify({
+          stateDirectory: fixture.options.stateDirectory,
+          composeProject: fixture.options.composeProject,
+          name: fixture.options.name,
+          origin: fixture.options.origin,
+          ...extra,
+          tlsMode: fixture.options.tlsMode,
+          tlsEmail: '',
+          environment: [],
+        }),
+      );
+    const env = () =>
+      parseRuntimeEnvironment(
+        readFileSync(join(fixture.options.stateDirectory, 'src/.env'), 'utf8'),
+        'compose',
+      );
+    await apply();
+    expect(receipt().inputSha256).toBe(input({}));
+    expect(env().ADDITIONAL_SITE_URLS).toBeUndefined();
+    const declared = {
+      ...fixture.options,
+      additionalOrigins: [
+        'https://desk.partner.example',
+        'https://old.native.example',
+      ],
+    };
+    expect(await applyRuntime(declared, docker.dependencies())).toMatchObject({
+      changed: true,
+      regeneratedSecrets: [],
+    });
+    expect(receipt()).toMatchObject({
+      phase: 'ready',
+      inputSha256: input({ additionalOrigins: declared.additionalOrigins }),
+    });
+    expect(env().ADDITIONAL_SITE_URLS).toBe(
+      'https://desk.partner.example,https://old.native.example',
+    );
+    docker.calls = [];
+    expect(await applyRuntime(declared, docker.dependencies())).toMatchObject({
+      changed: false,
+    });
+    expect(mutations(docker)).toEqual([]);
+    expect(await apply()).toMatchObject({
+      changed: true,
+      regeneratedSecrets: [],
+    });
+    expect(receipt().inputSha256).toBe(input({}));
+    expect(env().ADDITIONAL_SITE_URLS).toBeUndefined();
+  });
+
+  test('refuses invalid additional origins before any Docker call', async () => {
+    const { fixture, docker } = await create();
+    for (const additionalOrigins of [
+      [],
+      [fixture.options.origin],
+      ['https://desk.partner.example', 'https://desk.partner.example'],
+      ['https://desk.partner.example:8443'],
+    ]) {
+      docker.calls = [];
+      await expect(
+        applyRuntime(
+          { ...fixture.options, additionalOrigins },
+          docker.dependencies(),
+        ),
+      ).rejects.toThrow('additional origins');
+      expect(docker.calls).toEqual([]);
+    }
+    await expect(
+      applyRuntime(
+        {
+          ...fixture.options,
+          tlsMode: 'letsencrypt',
+          tlsEmail: 'ops@native.example.invalid',
+          additionalOrigins: ['https://desk.local'],
+        },
+        docker.dependencies(),
+      ),
+    ).rejects.toThrow('additional origins');
+  });
+
+  test('adopts an unmanaged stack only for the additional origins its environment already serves', async () => {
+    const { fixture, docker, receipt } = await create(true);
+    const envPath = join(fixture.options.stateDirectory, 'src/.env');
+    writeFileSync(
+      envPath,
+      `${readFileSync(envPath, 'utf8')}ADDITIONAL_SITE_URLS=https://desk.partner.example\n`,
+    );
+    for (const additionalOrigins of [
+      undefined,
+      ['https://other.partner.example'],
+    ]) {
+      docker.calls = [];
+      await expect(
+        applyRuntime(
+          {
+            ...fixture.options,
+            ...(additionalOrigins ? { additionalOrigins } : {}),
+          },
+          docker.dependencies(),
+        ),
+      ).rejects.toThrow('origin or TLS identity differs');
+      expect(mutations(docker)).toEqual([]);
+    }
+    expect(
+      await applyRuntime(
+        {
+          ...fixture.options,
+          additionalOrigins: ['https://desk.partner.example'],
+        },
+        docker.dependencies(),
+      ),
+    ).toMatchObject({ existing: true, changed: true });
+    expect(receipt().phase).toBe('ready');
+  });
+
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {
     const fresh = await create();
     expect(await fresh.apply(true)).toMatchObject({

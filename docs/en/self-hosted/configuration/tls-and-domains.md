@@ -52,9 +52,12 @@ Set `TLS_MODE=external` when another proxy terminates TLS, while keeping the bro
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
 TLS_MODE=external
+TRUSTED_PROXIES=10.20.0.0/16
 ```
 
-Tale's Caddy instance serves HTTP inside this arrangement. Keep that hop private, preserve the intended host, and configure forwarded client information only through trusted proxies. Verify sign-in callbacks, secure cookies, uploads, and streaming through the complete path. A custom certificate installed on the upstream proxy is independent of Tale's TLS mode.
+Tale's Caddy instance serves HTTP inside this arrangement, so your proxy has to report how the browser connected. Forward the original `Host` header and send `X-Forwarded-Proto: https`; Tale uses both to keep each browser on the origin it opened. Caddy accepts forwarded headers only from the addresses in `TRUSTED_PROXIES`: CIDR ranges separated by spaces, or `private_ranges` for every private and loopback address, which is the default when the variable is unset. Set it to the range your proxy connects from. The proxy refuses to start on any other value, and the other TLS modes ignore the variable.
+
+Keep the HTTP hop private. The proxy container publishes port 80, so allow only your TLS proxy to reach it: a client inside a trusted range could otherwise claim an HTTPS connection it never made. Verify sign-in callbacks, secure cookies, uploads, and streaming through the complete path. A custom certificate installed on the upstream proxy is independent of Tale's TLS mode.
 
 If you maintain a custom Tale proxy image and Caddyfile instead, mount your certificate and private key read-only and configure Caddy's `tls <cert-file> <key-file>` directive yourself. Merely mounting the files or setting `TLS_MODE=external` does not make Caddy load them. The custom configuration must retain Tale's routes, health behavior, and metrics protection.
 
@@ -80,6 +83,8 @@ An origin has a scheme, host, and optional port, but no path. Caddy serves the l
 
 Tale accepts only configured origins when deriving browser-facing URLs; an unrecognized host falls back to `SITE_URL`. Do not use that fallback as a domain-configuration shortcut.
 
+In a managed deployment, declare these origins as `additionalOrigins` in the deployment specification instead of editing the runtime environment; see [Serve additional origins](/self-hosted/install/cli-install#managed-additional-origins). The CLI manages `ADDITIONAL_SITE_URLS` there and keeps the native identity on the primary origin.
+
 ### Keep canonical settings stable
 
 | Setting | Why the canonical domain matters |
@@ -88,7 +93,7 @@ Tale accepts only configured origins when deriving browser-facing URLs; an unrec
 | SAML SP entity ID | The identity provider identifies one stable service provider. |
 | SCIM resource locations | Directory synchronization needs stable resource URLs. |
 | Passkeys | Credentials are bound to a relying-party domain and do not transfer automatically between domains. |
-| Public object-storage endpoint | Presigned URLs use its configured origin; review it when changing domains. |
+| Public object-storage endpoint | Background work signs file links for this endpoint. A link handed to a browser uses the domain the browser is on when the endpoint is one of this deployment's origins; review a separate file host when changing domains. |
 
 ### Register every provider callback
 

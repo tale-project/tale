@@ -1129,6 +1129,9 @@ export async function runSendMessageJob(
               sql,
               { organizationId: payload.organizationId },
               att.storageRef,
+              // A queued send has no browser request: the connector fetches
+              // the link from the configured public endpoint.
+              null,
             ),
           })),
         );

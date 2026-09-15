@@ -11,6 +11,7 @@ import {
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -154,6 +155,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         deps.sql,
         { organizationId: c.get('orgId') },
         body.data,
+        publicOrigin(c.req.raw),
       );
       await recordUploadIntent(deps.sql, {
         organizationId: c.get('orgId'),
@@ -448,6 +450,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgId = c.get('orgId');
     const viewer = await viewerOf(c);
+    const requestOrigin = publicOrigin(c.req.raw);
     const seen = new Set<string>();
     const urls: { fileId: string; url: string | null }[] = [];
     for (const fileId of body.data.fileIds) {
@@ -467,6 +470,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                   deps.sql,
                   { organizationId: orgId },
                   meta.storageRef,
+                  requestOrigin,
                 ),
         });
       } catch (error) {
@@ -497,6 +501,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         deps.sql,
         { organizationId: c.get('orgId') },
         ref,
+        publicOrigin(c.req.raw),
         filename !== undefined && filename !== '' ? { filename } : {},
       );
       return c.redirect(url, 302);
@@ -538,6 +543,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         deps.sql,
         { organizationId: orgId },
         meta.storageRef,
+        publicOrigin(c.req.raw),
       );
       return c.json({ url });
     } catch (error) {

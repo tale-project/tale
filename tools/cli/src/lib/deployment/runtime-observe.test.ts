@@ -15,7 +15,7 @@ afterEach(() => {
   for (const f of fixtures.splice(0))
     rmSync(f.directory, { recursive: true, force: true });
 });
-async function ready() {
+async function ready(additionalOrigins?: string[]) {
   const f = runtimeFixture();
   fixtures.push(f);
   const docker = new RuntimeDockerFixture(f);
@@ -28,7 +28,10 @@ async function ready() {
     },
     docker.dependencies(),
   );
-  await applyRuntime(f.options, docker.dependencies());
+  await applyRuntime(
+    { ...f.options, ...(additionalOrigins ? { additionalOrigins } : {}) },
+    docker.dependencies(),
+  );
   docker.calls = [];
   return { f, docker };
 }
@@ -55,6 +58,31 @@ describe.skipIf(process.platform === 'win32')(
             (c.args[0] !== 'network' || c.args[1] === 'inspect'),
         ),
       ).toBe(true);
+    });
+    test('observes a ready runtime only for exactly the additional origins it serves', async () => {
+      const declared = ['https://desk.partner.example'];
+      const { f, docker } = await ready(declared);
+      expect(
+        (
+          await observeReadyRuntime(
+            { ...f.options, additionalOrigins: declared },
+            docker.dependencies(),
+          )
+        ).revision,
+      ).toBe(f.revision);
+      for (const additionalOrigins of [
+        undefined,
+        ['https://other.partner.example'],
+      ])
+        await expect(
+          observeReadyRuntime(
+            {
+              ...f.options,
+              ...(additionalOrigins ? { additionalOrigins } : {}),
+            },
+            docker.dependencies(),
+          ),
+        ).rejects.toThrow('origin differs');
     });
     test.each([
       'pending',

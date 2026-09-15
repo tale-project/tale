@@ -1008,6 +1008,54 @@ describe('GET /openapi.json', () => {
     ]);
   });
 
+  // Behind the edge the request URL is the internal upstream; the browser's
+  // origin is the proxied Host plus the scheme the edge forwards. An external
+  // TLS terminator's `https` must survive that hop (the proxy's
+  // `trusted_proxies`), or every additional https origin reads as foreign.
+  test('binds servers to the proxied host when the edge forwards https', async () => {
+    const app = createApp(
+      {
+        ...baseEnv,
+        SITE_ORIGINS: [
+          'https://tale.example.com',
+          'https://tale.partner.example',
+        ],
+      },
+      { openapiDocument: () => Promise.resolve(document) },
+    );
+    const res = await app.fetch(
+      new Request('http://platform:3000/openapi.json', {
+        headers: { host: 'tale.partner.example', 'x-forwarded-proto': 'https' },
+      }),
+    );
+    const body = (await res.json()) as { servers: unknown };
+    expect(body.servers).toEqual([
+      { url: 'https://tale.partner.example', description: 'This deployment' },
+    ]);
+  });
+
+  test('falls back to the canonical origin when the edge forwards plain http', async () => {
+    const app = createApp(
+      {
+        ...baseEnv,
+        SITE_ORIGINS: [
+          'https://tale.example.com',
+          'https://tale.partner.example',
+        ],
+      },
+      { openapiDocument: () => Promise.resolve(document) },
+    );
+    const res = await app.fetch(
+      new Request('http://platform:3000/openapi.json', {
+        headers: { host: 'tale.partner.example', 'x-forwarded-proto': 'http' },
+      }),
+    );
+    const body = (await res.json()) as { servers: unknown };
+    expect(body.servers).toEqual([
+      { url: 'https://tale.example.com', description: 'This deployment' },
+    ]);
+  });
+
   test('answers the JSON 404 when no document was built', async () => {
     const app = createApp(baseEnv, {
       openapiDocument: () => Promise.resolve(null),
@@ -1015,6 +1063,65 @@ describe('GET /openapi.json', () => {
     const res = await app.fetch(new Request('http://localhost/openapi.json'));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
+  });
+});
+
+/**
+ * The SPA shell hands the page its own origin as `SITE_URL` — the SSO doors,
+ * OAuth starts, TTS audio and the silent-SSO origin check build on it. Behind
+ * the proxy that origin is the proxied Host plus the forwarded scheme, so an
+ * additional origin reached through an external TLS terminator keeps its
+ * visitors only when the terminator's `https` arrives intact.
+ */
+describe('SPA shell SITE_URL', () => {
+  const indexHtml =
+    "<!doctype html><html><head></head><body><script>window.__ENV__ = '__ENV_PLACEHOLDER__';</script></body></html>";
+
+  async function siteUrlFor(headers: Record<string, string>) {
+    const app = createApp(
+      {
+        ...baseEnv,
+        SITE_ORIGINS: [
+          'https://tale.example.com',
+          'https://tale.partner.example',
+        ],
+      },
+      { indexHtml },
+    );
+    const res = await app.fetch(
+      new Request('http://platform:3000/', { headers }),
+    );
+    expect(res.status).toBe(200);
+    const injected = /window\.__ENV__ = (\{[^<]*\});/.exec(await res.text());
+    const env = JSON.parse(injected?.[1] ?? '{}') as { SITE_URL?: unknown };
+    return env.SITE_URL;
+  }
+
+  test('is the additional origin the edge forwarded as https', async () => {
+    expect(
+      await siteUrlFor({
+        host: 'tale.partner.example',
+        'x-forwarded-proto': 'https',
+      }),
+    ).toBe('https://tale.partner.example');
+  });
+
+  test('stays canonical when the same host arrives as plain http', async () => {
+    expect(
+      await siteUrlFor({
+        host: 'tale.partner.example',
+        'x-forwarded-proto': 'http',
+      }),
+    ).toBe('https://tale.example.com');
+  });
+
+  test('stays canonical for a host outside the configured origins', async () => {
+    expect(
+      await siteUrlFor({
+        host: 'tale.elsewhere.example',
+        'x-forwarded-proto': 'https',
+      }),
+    ).toBe('https://tale.example.com');
   });
 });
 

@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
+
 import * as logger from '../../utils/logger';
 import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
 import { generateGatewayAdminPassword } from '../crypto/gateway-password';
@@ -53,6 +55,46 @@ export function isLocalHostname(host: string): boolean {
   const v6 = h.replace(/^\[|\]$/g, '');
   if (v6.includes(':') && /^[0-9a-f:]+$/.test(v6)) return true;
   return false;
+}
+
+/**
+ * Pure validation of `ADDITIONAL_SITE_URLS` — the extra domains one
+ * deployment is served on, from a `.env` or from a managed specification's
+ * `additionalOrigins`. A malformed entry is BLOCKING: the backend refuses to
+ * boot on it, so catching it early turns a crash-looping deploy into a
+ * message before anything is touched. Empty/unset is always fine (the
+ * single-domain default).
+ *
+ * A `letsencrypt` deployment additionally needs each additional hostname to
+ * be public — Caddy asks the ACME CA for a certificate per site address, and
+ * a localhost/IP entry fails that challenge.
+ */
+export function validateAdditionalSiteUrls(config: {
+  additionalSiteUrls: string | undefined;
+  tlsMode: string | undefined;
+}): { message: string }[] {
+  let origins: string[];
+  try {
+    origins = parseAdditionalSiteUrls(config.additionalSiteUrls);
+  } catch (error) {
+    return [
+      { message: error instanceof Error ? error.message : String(error) },
+    ];
+  }
+  if (config.tlsMode !== 'letsencrypt') return [];
+  const issues: { message: string }[] = [];
+  for (const origin of origins) {
+    const host = new URL(origin).hostname;
+    if (isLocalHostname(host)) {
+      issues.push({
+        message:
+          `TLS_MODE=letsencrypt cannot issue a certificate for "${host}" in ADDITIONAL_SITE_URLS. ` +
+          "Let's Encrypt needs a public domain for every address the proxy serves. " +
+          'Remove the entry, or use TLS_MODE=selfsigned / TLS_MODE=external.',
+      });
+    }
+  }
+  return issues;
 }
 
 /**

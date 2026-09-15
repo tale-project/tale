@@ -23,8 +23,13 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
 });
-function create(containerPrefix?: string) {
-  const fixture = runtimeFixture();
+function create(
+  containerPrefix?: string,
+  declared: { additionalOrigins?: string[]; trustsTerminator?: boolean } = {},
+) {
+  const fixture = runtimeFixture({
+    trustsTerminator: declared.trustsTerminator,
+  });
   fixtures.push(fixture);
   const docker = new RuntimeDockerFixture(fixture);
   const prepare = () =>
@@ -35,6 +40,7 @@ function create(containerPrefix?: string) {
         output: fixture.options.bundleDirectory,
         platform: 'linux/amd64',
         containerPrefix,
+        additionalOrigins: declared.additionalOrigins,
       },
       docker.dependencies(),
     );
@@ -104,6 +110,50 @@ describe('committed source runtime preparation', () => {
     expect(() => readRuntimeBundle(fixture.options.bundleDirectory)).toThrow(
       'container name',
     );
+  });
+
+  test('refuses additional origins from a proxy source that cannot trust an external TLS terminator', async () => {
+    const { fixture, docker, prepare } = create(undefined, {
+      additionalOrigins: ['https://desk.partner.example'],
+    });
+    await expect(prepare()).rejects.toThrow(
+      'Runtime does not serve additional origins',
+    );
+    expect(docker.calls).toHaveLength(0);
+    expect(readdirSync(fixture.directory)).not.toContain('bundle');
+  });
+
+  test('prepares additional origins from a proxy that trusts the terminator without changing the runtime bundle', async () => {
+    const { fixture, docker, prepare } = create(undefined, {
+      additionalOrigins: ['https://desk.partner.example'],
+      trustsTerminator: true,
+    });
+    const bundle = await prepare();
+    expect(bundle).not.toHaveProperty('additionalOrigins');
+    expect(
+      readRuntimeBundle(fixture.options.bundleDirectory).contents[
+        'Caddyfile.production'
+      ].toString(),
+    ).toContain('# TRUSTED_PROXIES_PLACEHOLDER');
+    const bytes = readFileSync(
+      join(fixture.options.bundleDirectory, 'runtime.json'),
+    );
+    // The same output admits a preparation without the declaration only
+    // because every prepared byte is identical.
+    expect(
+      await prepareRuntime(
+        {
+          repoRoot: fixture.repoRoot,
+          revision: fixture.revision,
+          output: fixture.options.bundleDirectory,
+          platform: 'linux/amd64',
+        },
+        docker.dependencies(),
+      ),
+    ).toEqual(bundle);
+    expect(
+      readFileSync(join(fixture.options.bundleDirectory, 'runtime.json')),
+    ).toEqual(bytes);
   });
 
   test('uses committed blobs, produces only exact digest-pinned production files', async () => {

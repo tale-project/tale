@@ -7,7 +7,8 @@ set -e
 # This script:
 # 1. Validates required environment variables (HOST, SITE_URL)
 # 2. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
-# 3. Ensures self-signed CA certificates are readable by other containers
+# 3. Trusts the TLS-terminating proxy's forwarded headers (TLS_MODE=external)
+# 4. Ensures self-signed CA certificates are readable by other containers
 # ============================================================================
 
 # ============================================================================
@@ -157,6 +158,62 @@ if echo "${SITE_URL}" | grep -qi '^https://'; then
 else
   sed -i "/# HSTS_PLACEHOLDER/d" "$CADDYFILE"
 fi
+
+# ----------------------------------------------------------------------------
+# Trusted proxies — the external TLS terminator
+# ----------------------------------------------------------------------------
+# In `external` mode another proxy terminated TLS and this Caddy serves plain
+# HTTP, so the scheme the browser used reaches it only as that proxy's
+# X-Forwarded-Proto — which Caddy honours only from a peer it trusts. Trusting
+# nobody, every lane forwarded `http`, and the platform could never recognise
+# an additional https origin. TRUSTED_PROXIES names the peers: CIDR ranges
+# separated by whitespace, or `private_ranges` (Caddy's shorthand for every
+# private and loopback range, the default). Port 80 is published, so that
+# trust is only as private as the network in front of it. Strict mode reads
+# X-Forwarded-For right to left, so a client cannot pick its own address.
+# Every other mode terminates TLS in this Caddy: the placeholder is deleted
+# and no peer is trusted. awk rather than `sed -i`: the CLI's compose-parity
+# test renders this block on developer machines, whose `sed -i` differs.
+# BEGIN trusted-proxies
+if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
+  IPV4_OCTET='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+  IPV4_CIDR="^(${IPV4_OCTET}\\.){3}${IPV4_OCTET}/(3[0-2]|[12]?[0-9])\$"
+  IPV6_CIDR='^[0-9A-Fa-f]{0,4}(:[0-9A-Fa-f]{0,4}){2,7}/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$'
+  TRUSTED_PROXY_RANGES=""
+  # No pathname expansion while splitting: a `*` must be refused, not globbed.
+  set -f
+  for range in ${TRUSTED_PROXIES:-private_ranges}; do
+    if [ "$range" != "private_ranges" ] &&
+      ! printf '%s\n' "$range" | grep -Eq "$IPV4_CIDR" &&
+      ! printf '%s\n' "$range" | grep -Eq "$IPV6_CIDR"; then
+      echo "Error: TRUSTED_PROXIES entry '${range}' must be a CIDR range (e.g. 10.0.0.0/8) or private_ranges." >&2
+      echo "  List the address ranges your TLS-terminating proxy connects from, separated by spaces." >&2
+      exit 1
+    fi
+    TRUSTED_PROXY_RANGES="${TRUSTED_PROXY_RANGES:+${TRUSTED_PROXY_RANGES} }${range}"
+  done
+  set +f
+  # A value of whitespace alone names nothing — the same as leaving it unset.
+  TRUSTED_PROXY_RANGES="${TRUSTED_PROXY_RANGES:-private_ranges}"
+  echo "  Trusted proxies: ${TRUSTED_PROXY_RANGES}"
+  awk -v ranges="$TRUSTED_PROXY_RANGES" '
+    /^[[:space:]]*#[[:space:]]*TRUSTED_PROXIES_PLACEHOLDER[[:space:]]*$/ {
+      match($0, /^[[:space:]]*/)
+      indent = substr($0, 1, RLENGTH)
+      print indent "trusted_proxies static " ranges
+      print indent "trusted_proxies_strict"
+      next
+    }
+    { print }
+  ' "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
+else
+  if [ -n "${TRUSTED_PROXIES:-}" ]; then
+    echo "  TRUSTED_PROXIES ignored: TLS_MODE=${TLS_MODE:-selfsigned} terminates TLS in this proxy."
+  fi
+  awk '!/^[[:space:]]*#[[:space:]]*TRUSTED_PROXIES_PLACEHOLDER[[:space:]]*$/' \
+    "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
+fi
+# END trusted-proxies
 
 # Replace SITE_ORIGIN in the Caddyfile with the deployment's address list —
 # SITE_URL plus every ADDITIONAL_SITE_URLS entry, comma-separated, which is
@@ -311,7 +368,9 @@ BACKEND_BLOCK=$(cat <<EOF
 	# Uploads and downloads run browser↔store directly: the store, not Node,
 	# answers the Range requests media seeking needs. The store itself is
 	# internal-only, so the backend signs browser-facing URLs against
-	# OBJECT_STORE_PUBLIC_ENDPOINT (this origin) and they arrive here.
+	# OBJECT_STORE_PUBLIC_ENDPOINT — moved onto the site origin the request
+	# came from, when that endpoint is itself a site origin — and they arrive
+	# here, on whichever address of this block the browser used.
 	#
 	# The path is LITERALLY the bucket name and is NOT stripped: SigV4 covers
 	# the host and the path, so rewriting either would break every signature.

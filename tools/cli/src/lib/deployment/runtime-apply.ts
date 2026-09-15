@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
+import { splitSiteUrlList } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
 import { BACKUP_VOLUME } from '../backup/constants';
+import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { runtimeCommand, runtimeSleep } from './runtime-command';
 import {
   activateConfiguration,
@@ -19,6 +21,7 @@ import {
 import {
   atomicRuntimeFile,
   hash,
+  isManagedOrigin,
   readRegular,
   readRuntimeBundle,
   requireRuntime,
@@ -117,6 +120,20 @@ function targetPath(options: ApplyRuntimeOptions, file: string): string {
     file === 'secrets.env' ? file : `src/${file}`,
   );
 }
+/** Whether a runtime environment serves exactly the declared additional
+ * origins. The list is managed, so any other value — or one left behind
+ * without a declaration — is drift; order and repetition carry no meaning. */
+function sameAdditionalOrigins(
+  environment: Record<string, string>,
+  declared: readonly string[] | undefined,
+): boolean {
+  const serving = new Set(splitSiteUrlList(environment.ADDITIONAL_SITE_URLS));
+  const wanted = new Set(declared);
+  return (
+    serving.size === wanted.size &&
+    [...wanted].every((origin) => serving.has(origin))
+  );
+}
 function receiptInput(options: ApplyRuntimeOptions): string {
   return hash(
     JSON.stringify({
@@ -124,6 +141,11 @@ function receiptInput(options: ApplyRuntimeOptions): string {
       composeProject: options.composeProject,
       name: options.name,
       origin: options.origin,
+      // Present only when declared, so every receipt recorded without
+      // additional origins keeps its exact input hash.
+      ...(options.additionalOrigins?.length
+        ? { additionalOrigins: options.additionalOrigins }
+        : {}),
       tlsMode: options.tlsMode,
       tlsEmail: options.tlsEmail ?? '',
       environment: Object.entries(options.environment ?? {}).sort(([a], [b]) =>
@@ -182,20 +204,28 @@ function validateOptions(options: ApplyRuntimeOptions): void {
       /^[a-z0-9][a-z0-9-]{0,62}$/.test(options.name),
     'Invalid runtime instance or Compose project.',
   );
-  let origin: URL;
-  try {
-    origin = new URL(options.origin);
-  } catch {
-    requireRuntime(false, 'Invalid managed runtime origin.');
-  }
   requireRuntime(
-    origin.protocol === 'https:' &&
-      !origin.username &&
-      !origin.password &&
-      origin.origin === options.origin &&
-      !origin.port &&
-      /^[a-z0-9.-]+$/.test(origin.hostname),
+    URL.canParse(options.origin),
+    'Invalid managed runtime origin.',
+  );
+  requireRuntime(
+    isManagedOrigin(options.origin),
     'Managed production runtime requires a canonical HTTPS origin.',
+  );
+  const additionalOrigins = options.additionalOrigins;
+  requireRuntime(
+    additionalOrigins === undefined ||
+      (additionalOrigins.length > 0 &&
+        additionalOrigins.length <= 16 &&
+        new Set(additionalOrigins).size === additionalOrigins.length &&
+        additionalOrigins.every(
+          (entry) => entry !== options.origin && isManagedOrigin(entry),
+        ) &&
+        validateAdditionalSiteUrls({
+          additionalSiteUrls: additionalOrigins.join(','),
+          tlsMode: options.tlsMode,
+        }).length === 0),
+    'Managed runtime additional origins must be distinct canonical HTTPS origins its TLS mode can serve.',
   );
   requireRuntime(
     options.tlsMode === 'external' || options.tlsMode === 'letsencrypt',
@@ -558,7 +588,8 @@ export async function applyRuntime(
       requireRuntime(
         environment.SITE_URL === options.origin &&
           environment.HOST === new URL(options.origin).hostname &&
-          environment.TLS_MODE === options.tlsMode,
+          environment.TLS_MODE === options.tlsMode &&
+          sameAdditionalOrigins(environment, options.additionalOrigins),
         'Existing runtime origin or TLS identity differs from the requested adoption.',
       );
       requireRuntime(
@@ -859,7 +890,8 @@ async function observeReadyState(
   requireRuntime(
     environment.SITE_URL === options.origin &&
       environment.HOST === new URL(options.origin).hostname &&
-      environment.TLS_MODE === options.tlsMode,
+      environment.TLS_MODE === options.tlsMode &&
+      sameAdditionalOrigins(environment, options.additionalOrigins),
     'Managed runtime origin differs from the credential export target.',
   );
   const destination = await runtimeCommand(

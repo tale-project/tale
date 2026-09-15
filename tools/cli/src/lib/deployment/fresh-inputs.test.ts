@@ -72,6 +72,27 @@ test('origin migration requires an explicit different HTTPS source and retained 
     ).toBe(false);
 });
 
+test('an additional origin may keep the migrated-from origin answering during a move', () => {
+  const identity = {
+    ...spec.identity,
+    migrateOriginFrom: 'https://old.example.org',
+  };
+  const moved = deploymentSpecSchema.parse({
+    ...spec,
+    identity,
+    additionalOrigins: ['https://old.example.org'],
+  });
+  expect(moved.additionalOrigins).toEqual(['https://old.example.org']);
+  expect(moved.identity?.migrateOriginFrom).toBe('https://old.example.org');
+  expect(
+    deploymentSpecSchema.safeParse({
+      ...spec,
+      identity,
+      additionalOrigins: [spec.origin],
+    }).success,
+  ).toBe(false);
+});
+
 test('operator email attestation is explicit and restricted to fresh identity declarations', () => {
   const selected = {
     ...spec,

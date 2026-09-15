@@ -112,6 +112,9 @@ export async function toDocumentItems(
   sql: Sql,
   organizationId: string,
   rows: readonly DocumentRow[],
+  /** The origin the browser's request arrived on (`publicOrigin(req)`),
+   * which each row's file link is signed for (`getFileUrl`). */
+  requestOrigin: string | null,
 ): Promise<DocumentItemView[]> {
   if (rows.length === 0) return [];
 
@@ -171,7 +174,10 @@ export async function toDocumentItems(
   await Promise.all(
     refs.map(async (ref) => {
       try {
-        urlByRef.set(ref, await getFileUrl(sql, { organizationId }, ref));
+        urlByRef.set(
+          ref,
+          await getFileUrl(sql, { organizationId }, ref, requestOrigin),
+        );
       } catch (error) {
         // A row whose blob store is unreachable renders without a URL.
         console.warn('[documents] presign failed for', ref, error);

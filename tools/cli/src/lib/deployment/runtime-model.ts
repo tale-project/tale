@@ -89,6 +89,8 @@ export interface PrepareRuntimeOptions {
   platform: RuntimePlatform;
   /** Visible singleton container names only; persistent deployment identity stays unchanged. */
   containerPrefix?: string;
+  /** Declared additional origins: the source's proxy must be able to serve them. */
+  additionalOrigins?: readonly string[];
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -96,6 +98,8 @@ export interface ApplyRuntimeOptions {
   composeProject: string;
   name: string;
   origin: string;
+  /** Other origins the instance serves (`ADDITIONAL_SITE_URLS`); absent means none. */
+  additionalOrigins?: readonly string[];
   tlsMode: 'external' | 'letsencrypt';
   tlsEmail?: string;
   environment?: Record<string, string>;
@@ -117,6 +121,24 @@ export function requireRuntime(
   message: string,
 ): asserts condition {
   if (!condition) throw preconditionError(message);
+}
+
+/**
+ * An origin the managed proxy serves as a site address: canonical HTTPS (no
+ * credentials, path or trailing slash) on the default port, with a DNS or IPv4
+ * hostname. The primary origin and every additional origin share this rule.
+ */
+export function isManagedOrigin(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return (
+    url.protocol === 'https:' &&
+    !url.username &&
+    !url.password &&
+    url.origin === value &&
+    !url.port &&
+    /^[a-z0-9.-]+$/.test(url.hostname)
+  );
 }
 
 export function readRegular(file: string): Buffer {

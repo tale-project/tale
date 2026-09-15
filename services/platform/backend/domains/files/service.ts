@@ -137,17 +137,25 @@ export async function createRestUploadHandoff(
      * out with agree (the store's default is half the intent's). */
     expiresInSec?: number;
   },
+  /** The origin the caller's request arrived on (`publicOrigin(req)`): the
+   * PUT is signed for it when it is one of the deployment's site origins
+   * (`browserFacing`), and `null` keeps the configured public endpoint. */
+  requestOrigin: string | null,
 ): Promise<UploadHandoff> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = buildObjectKey(store, orgSlug);
-  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
-    ...(args.contentType !== undefined && args.contentType !== ''
-      ? { contentType: args.contentType }
-      : {}),
-    ...(args.expiresInSec !== undefined
-      ? { expiresInSec: args.expiresInSec }
-      : {}),
-  });
+  const uploadUrl = await s3PresignPutUrl(
+    browserFacing(store, requestOrigin),
+    key,
+    {
+      ...(args.contentType !== undefined && args.contentType !== ''
+        ? { contentType: args.contentType }
+        : {}),
+      ...(args.expiresInSec !== undefined
+        ? { expiresInSec: args.expiresInSec }
+        : {}),
+    },
+  );
   return { storageRef: encodeS3Ref(key), uploadUrl };
 }
 
@@ -341,11 +349,18 @@ export async function getFileMetadataByIdOrRef(
  * presigns with `response-content-disposition: attachment` so the browser
  * saves under the real name (object keys are `<org>/<uuid>`, nameless by
  * design); omit it for inline rendering.
+ *
+ * `requestOrigin` is the origin the browser's request arrived on
+ * (`publicOrigin(req)`): the link is signed for it when it is one of the
+ * deployment's site origins, so it stays same-origin on every domain. A
+ * caller with no browser request (a background job) passes `null` and gets
+ * the configured public endpoint.
  */
 export async function getFileUrl(
   sql: Sql,
   scope: { organizationId: string },
   storageRef: string,
+  requestOrigin: string | null,
   opts: { filename?: string } = {},
 ): Promise<string> {
   const { key, store } = await requireOrgStoreForRef(
@@ -353,8 +368,8 @@ export async function getFileUrl(
     scope.organizationId,
     storageRef,
   );
-  // Handed to the browser, so signed against the origin it can reach.
-  return s3PresignGetUrl(browserFacing(store), key, {
+  // Handed to the browser, so signed against the origin it is on.
+  return s3PresignGetUrl(browserFacing(store, requestOrigin), key, {
     ...(opts.filename !== undefined && { filename: opts.filename }),
   });
 }

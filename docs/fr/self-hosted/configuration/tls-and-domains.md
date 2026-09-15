@@ -52,9 +52,12 @@ Définis `TLS_MODE=external` lorsqu’un autre proxy termine TLS, tout en gardan
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
 TLS_MODE=external
+TRUSTED_PROXIES=10.20.0.0/16
 ```
 
-Dans ce montage, Caddy sert HTTP en interne. Garde cette liaison privée, préserve l’hôte attendu et n’accepte les informations client transférées que par des proxys de confiance. Vérifie les retours de connexion, cookies sécurisés, imports et flux sur le chemin complet. Un certificat installé sur le proxy amont est indépendant du mode TLS de Tale.
+Dans ce montage, Caddy sert HTTP en interne ; ton proxy doit donc lui indiquer comment le navigateur s’est connecté. Transmets l’en-tête `Host` d’origine et envoie `X-Forwarded-Proto: https` : Tale s’appuie sur les deux pour garder chaque navigateur sur l’origine qu’il a ouverte. Caddy n’accepte les en-têtes transférés que depuis les adresses listées dans `TRUSTED_PROXIES` : des plages CIDR séparées par des espaces, ou `private_ranges` pour toutes les adresses privées et de bouclage, valeur par défaut si la variable n’est pas définie. Indique la plage depuis laquelle ton proxy se connecte. Toute autre valeur empêche le proxy de démarrer ; les autres modes TLS ignorent cette variable.
+
+Garde cette liaison HTTP privée. Le conteneur proxy publie le port 80 : n’en autorise l’accès qu’à ton proxy TLS, sinon un client situé dans une plage de confiance pourrait se prévaloir d’une connexion HTTPS qu’il n’a jamais établie. Vérifie les retours de connexion, cookies sécurisés, imports et flux sur le chemin complet. Un certificat installé sur le proxy amont est indépendant du mode TLS de Tale.
 
 Si tu maintiens plutôt une image de proxy Tale et un Caddyfile personnalisés, monte certificat et clé privée en lecture seule, puis configure la directive Caddy `tls <cert-file> <key-file>`. Monter les fichiers ou définir `TLS_MODE=external` ne les charge pas automatiquement. Ta configuration doit conserver les routes Tale, les sondes et la protection des métriques.
 
@@ -80,6 +83,8 @@ Une origine comprend un schéma, un hôte et éventuellement un port, sans chemi
 
 Tale n’accepte que les origines configurées pour construire les URL publiques. Un hôte inconnu retombe sur `SITE_URL`. N’utilise pas ce repli à la place d’une configuration de domaine.
 
+Pour un déploiement géré, déclare ces origines dans `additionalOrigins` de la spécification de déploiement plutôt que de modifier l’environnement du runtime ; voir [Servir des origines supplémentaires](/fr/self-hosted/install/cli-install#managed-additional-origins). La CLI y gère `ADDITIONAL_SITE_URLS` et conserve l’identité native sur l’origine principale.
+
 ### Garder les paramètres canoniques stables
 
 | Paramètre | Pourquoi le domaine principal compte |
@@ -88,7 +93,7 @@ Tale n’accepte que les origines configurées pour construire les URL publiques
 | Entity ID du SP SAML | Le fournisseur d’identité connaît un identifiant stable du service. |
 | Adresses des ressources SCIM | La synchronisation d’annuaire a besoin d’URL stables. |
 | Passkeys | Les identifiants sont liés au domaine de la partie de confiance et ne passent pas automatiquement d’un domaine à l’autre. |
-| Point d’accès public du stockage objet | Les URL présignées utilisent son origine configurée ; revois-la lors d’un changement de domaine. |
+| Point d’accès public du stockage objet | Les tâches en arrière-plan signent les liens de fichiers pour ce point d’accès. Un lien remis au navigateur utilise le domaine sur lequel il se trouve lorsque ce point d’accès est l’une des origines du déploiement ; revois un hôte de fichiers distinct lors d’un changement de domaine. |
 
 ### Enregistrer chaque callback fournisseur
 

@@ -16,6 +16,7 @@ import {
   externalKeySchema,
 } from '../../lib/shared/utils/external-key.ts';
 import { hasForbiddenNameChar } from '../../lib/shared/utils/plain-name.ts';
+import { publicOrigin } from '../core/lib/helpers/public_origin.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {
   assertUploadSizeAllowedForOrg,
@@ -866,6 +867,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               : {}),
             expiresInSec: REST_UPLOAD_INTENT_TTL_MS / 1000,
           },
+          publicOrigin(c.req.raw),
         );
         await tx`
           INSERT INTO app.rest_upload_intents (

@@ -17,7 +17,7 @@ import {
   type RuntimeDependencies,
 } from './runtime-model';
 
-export function runtimeFixture() {
+export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
   const repoRoot = join(directory, 'repo');
   mkdirSync(join(repoRoot, 'services/proxy'), { recursive: true });
@@ -103,8 +103,14 @@ export function runtimeFixture() {
     SANDBOX_BUILDKITD_MIRROR_IMAGE:
       '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
   };
+  // A proxy source from before or after the external-terminator trust fix:
+  // only the latter carries the placeholder additional origins depend on.
   const caddy =
-    '{\n default_sni {$HOST:localhost}\n}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
+    '{\n default_sni {$HOST:localhost}\n' +
+    (proxy.trustsTerminator
+      ? ' servers {\n  # TRUSTED_PROXIES_PLACEHOLDER\n }\n'
+      : '') +
+    '}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
   writeFileSync(join(repoRoot, 'compose.yml'), stringify(source));
   writeFileSync(join(repoRoot, 'services/proxy/Caddyfile'), caddy);
   const git = (...args: string[]) =>

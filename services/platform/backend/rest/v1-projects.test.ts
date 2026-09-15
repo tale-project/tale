@@ -984,6 +984,8 @@ describe('POST /projects/{id}/uploads', () => {
       expect.anything(),
       { organizationId: 'org-1' },
       { contentType: 'text/csv', expiresInSec: 1800 },
+      // The origin the request arrived on, which the PUT is signed for.
+      expect.any(String),
     );
   });
 

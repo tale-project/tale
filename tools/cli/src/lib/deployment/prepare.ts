@@ -70,6 +70,7 @@ export async function prepareDeployment(
         revision: runtimeRequest.revision,
         platform: spec.runtime.platform,
         containerPrefix: spec.runtime.containerPrefix,
+        additionalOrigins: spec.additionalOrigins,
         output: join(output, 'runtime'),
       });
       for (const config of spec.configs) {

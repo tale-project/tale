@@ -40,6 +40,7 @@ import {
   type ObjectStorageConnectionFile,
   type ObjectStorageConnectionSecrets,
 } from '../../object_storage/file_utils';
+import { siteOrigins } from '../helpers/public_origin';
 
 /** An S3-compatible bucket: the org's own (physical isolation) or the
  * deployment default's. */
@@ -338,7 +339,7 @@ export function invalidateOrgObjectStore(orgSlug: string): void {
  * (S3 keys may contain `/`, which stays a separator).
  */
 /**
- * The same store, addressed the way a BROWSER can reach it.
+ * The same store, addressed the way a BROWSER on `requestOrigin` can reach it.
  *
  * Presigned URLs are handed to the browser on purpose — the transfer goes
  * direct, and the store (not Node) answers the Range requests media seeking
@@ -347,16 +348,53 @@ export function invalidateOrgObjectStore(orgSlug: string): void {
  * covers host and path and the proxy rewrites neither, so the signature still
  * verifies at the store.
  *
+ * A deployment served from several origins publishes the bucket path on every
+ * one of them, so the published endpoint moves onto the origin the request
+ * arrived on (`publicOrigin(req)`) when both are configured site origins:
+ * uploads, previews and media stay same-origin wherever the browser is,
+ * instead of crossing to the canonical host without its session. A separate
+ * file host, an origin outside the configured set, and a caller with no
+ * browser request (`null`) keep the configured endpoint.
+ *
  * A connection with no `publicEndpoint` — every BYO bucket, whose endpoint is
  * already public — is returned unchanged.
  */
-export function browserFacing(store: S3ObjectStore): S3ObjectStore {
+export function browserFacing(
+  store: S3ObjectStore,
+  requestOrigin: string | null,
+): S3ObjectStore {
   const publicEndpoint = store.config.publicEndpoint;
   if (!publicEndpoint) return store;
   return {
     ...store,
-    config: { ...store.config, endpoint: publicEndpoint },
+    config: {
+      ...store.config,
+      endpoint: endpointForOrigin(publicEndpoint, requestOrigin),
+    },
   };
+}
+
+/**
+ * `publicEndpoint` moved onto `requestOrigin`, its path kept, when both name
+ * configured site origins — otherwise `publicEndpoint` itself.
+ */
+function endpointForOrigin(
+  publicEndpoint: string,
+  requestOrigin: string | null,
+): string {
+  if (requestOrigin === null || !URL.canParse(publicEndpoint)) {
+    return publicEndpoint;
+  }
+  const endpoint = new URL(publicEndpoint);
+  const origins = siteOrigins();
+  if (
+    endpoint.origin === requestOrigin ||
+    !origins.includes(endpoint.origin) ||
+    !origins.includes(requestOrigin)
+  ) {
+    return publicEndpoint;
+  }
+  return `${requestOrigin}${endpoint.pathname.replace(/\/+$/, '')}`;
 }
 
 export function objectUrl(store: S3ObjectStore, key: string): string {

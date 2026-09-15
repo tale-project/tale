@@ -217,6 +217,7 @@ describe('projectConversationForView', () => {
       sql,
       conversation('c1', 'ct-1'),
       thread,
+      'https://tale.partner.example',
     );
 
     expect(
@@ -234,6 +235,7 @@ describe('projectConversationForView', () => {
       sql,
       { organizationId: ORG },
       's3:o1/cv',
+      'https://tale.partner.example',
     );
     // The caller's rows are answered raw alongside the item: untouched.
     expect(thread[0]?.metadata).toEqual({ attachments: [attachment] });

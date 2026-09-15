@@ -197,6 +197,60 @@ describe('managed runtime credential adoption', () => {
     ).toEqual({ TEST: 'literal $HOME $(not-run)', QUOTE: "a'b" });
   });
 
+  test('writes declared additional origins and removes them once the declaration is gone', async () => {
+    const { fixture, legacy } = await create();
+    const envPath = join(fixture.options.stateDirectory, 'src/.env');
+    const declared = {
+      ...fixture.options,
+      additionalOrigins: [
+        'https://desk.partner.example',
+        'https://old.native.example',
+      ],
+    };
+    const written = prepareRuntimeEnvironment(declared, fixture.revision, true);
+    expect(
+      parseRuntimeEnvironment(written.environment, 'compose')
+        .ADDITIONAL_SITE_URLS,
+    ).toBe('https://desk.partner.example,https://old.native.example');
+    writeFileSync(envPath, written.environment);
+    expect(
+      prepareRuntimeEnvironment(declared, fixture.revision, true).environment,
+    ).toBe(written.environment);
+    const removed = prepareRuntimeEnvironment(
+      fixture.options,
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(removed.environment, 'compose')
+        .ADDITIONAL_SITE_URLS,
+    ).toBeUndefined();
+    expect(removed.secrets).toBe(legacy.secrets);
+  });
+
+  test('an environment an older CLI wrote stays byte-for-byte without a declaration', async () => {
+    const { fixture } = await create();
+    const envPath = join(fixture.options.stateDirectory, 'src/.env');
+    const first = prepareRuntimeEnvironment(
+      fixture.options,
+      fixture.revision,
+      true,
+    );
+    expect(first.environment).not.toContain('ADDITIONAL_SITE_URLS');
+    writeFileSync(envPath, first.environment);
+    expect(
+      prepareRuntimeEnvironment(fixture.options, fixture.revision, true)
+        .environment,
+    ).toBe(first.environment);
+    // An empty assignment already means none: neither refused nor rewritten.
+    const empty = `${first.environment}ADDITIONAL_SITE_URLS=""\n`;
+    writeFileSync(envPath, empty);
+    expect(
+      prepareRuntimeEnvironment(fixture.options, fixture.revision, true)
+        .environment,
+    ).toBe(empty);
+  });
+
   test('carries declared optional analytics configuration through the runtime environment', async () => {
     const { fixture } = await create();
     const analytics = {
@@ -252,6 +306,7 @@ describe('managed runtime credential adoption', () => {
     'PLATFORM_SHARED_CONFIG',
     'SANDBOX_RUNTIME_IMAGE',
     'DB_PASSWORD',
+    'ADDITIONAL_SITE_URLS',
   ])('does not accept %s through runtime overrides', async (key) => {
     const { fixture } = await create();
     expect(() =>

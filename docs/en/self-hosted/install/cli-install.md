@@ -197,6 +197,26 @@ Adding, changing or removing a prefix recreates containers and can briefly inter
 
 Run one complete managed runtime per Docker daemon. A name prefix does not allocate separate ports, sandbox networks or host workspaces.
 
+#### Serve additional origins {#managed-additional-origins}
+
+Declare `additionalOrigins` when the same instance also answers on other HTTPS origins, such as a partner domain or the previous hostname during a move. Each entry is a bare HTTPS origin on the default port, or an environment reference that preparation resolves to one. List 1 to 16 distinct origins; none may repeat `origin`.
+
+```json
+{
+  "origin": "https://desk.example.org",
+  "additionalOrigins": [
+    "https://desk.partner.example",
+    { "env": "TALE_EXTRA_ORIGIN" }
+  ]
+}
+```
+
+The CLI writes the list to the runtime's `ADDITIONAL_SITE_URLS` and manages that variable, so an `environment` entry cannot set it. Every origin is a full entry point with its own sessions, file links, sign-in doors and connector callbacks. With `tlsMode: "letsencrypt"`, the proxy obtains a certificate for each origin, and local hostnames or IP addresses are refused. With `tlsMode: "external"`, your TLS proxy must forward each origin's original `Host` and send `X-Forwarded-Proto: https` from an address the Tale proxy trusts. When that address range is narrower than the private ranges, set `TRUSTED_PROXIES` through an `environment` reference.
+
+The native identity stays on `origin`: account and organization bindings, client journals, the OIDC issuer, passkeys and email links use it alone. An entry may equal `identity.migrateOriginFrom` to keep the previous hostname answering while a migration completes.
+
+Preparation refuses a runtime revision whose proxy cannot trust an external TLS terminator and reports `Runtime does not serve additional origins`. Adding, changing or removing the list recreates the services that read it. After you remove the declaration, applying the next bundle removes the variable. Register each origin's callback URLs with your identity and connector providers, and plan DNS and certificates with [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once).
+
 #### Prepare, verify, and apply the bundle
 
 Set `TALE_DEPLOY_SPEC` to that JSON file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.

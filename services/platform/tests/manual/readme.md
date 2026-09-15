@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-602 boxes across 20 suites. Every suite declares the ID prefix its
+614 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -48,6 +48,7 @@ directory and greppable as one token.
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 17 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav, breadcrumbs, command palette, changelog, page-loads | 25 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 28 |
+| [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 13 |
 | [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads | 31 |
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, mobile save bar | 16 |
@@ -104,6 +105,7 @@ Change-scoped, by area:
 | org metrics tabs: usage | [metrics](suites/metrics.md) (`MET-`) |
 | side-nav | [navigation](suites/navigation.md) (`NAV-`) |
 | the notification bell + panel | [notifications](suites/notifications.md) (`NOTIF-`) |
+| one deployment on several origins | [origins](suites/origins.md) (`ORIGIN-`) |
 | cold load | [performance](suites/performance.md) (`PERF-`) |
 | projects | [projects](suites/projects.md) (`PROJ-`) |
 | mobile viewport | [responsive](suites/responsive.md) (`RESP-`) |

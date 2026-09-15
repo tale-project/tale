@@ -1187,6 +1187,9 @@ export async function presignMessageAttachments(
   sql: Sql,
   organizationId: string,
   messages: ConversationMessageRow[],
+  /** The origin the viewer's request arrived on (`publicOrigin(req)`), which
+   * each download link is signed for (`getFileUrl`). */
+  requestOrigin: string | null,
 ): Promise<ConversationMessageRow[]> {
   return Promise.all(
     messages.map(async (message) => {
@@ -1202,6 +1205,7 @@ export async function presignMessageAttachments(
               sql,
               { organizationId },
               raw.storageId,
+              requestOrigin,
             );
             // Presigning does NOT prove the object is there — it signs a
             // path. Without this the message keeps offering a download that
@@ -1256,11 +1260,14 @@ export async function projectConversationForView(
   sql: Sql,
   conversation: ConversationRow,
   messages: ConversationMessageRow[],
+  /** The origin the viewer's request arrived on (`publicOrigin(req)`). */
+  requestOrigin: string | null,
 ): Promise<Record<string, unknown>> {
   const presigned = await presignMessageAttachments(
     sql,
     conversation.organizationId,
     messages,
+    requestOrigin,
   );
   const contactById = await loadContactsById(
     sql,

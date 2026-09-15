@@ -429,10 +429,12 @@ function getEnvConfig(): EnvConfig {
 //     under the CDN prohibition above. Sourced live from config (see
 //     `lib/org-storage-origins.ts`), never from env.
 //
-// All OTHER backend traffic — including deployment-default storage uploads
-// and downloads — flows same-origin through Caddy (`/api/*`), so `'self'`
-// covers it. The one exception is the org BYO object-storage lane above:
-// the upload door
+// All OTHER backend traffic flows same-origin through Caddy (`/api/*`), so
+// `'self'` covers it. Deployment-default storage uploads and downloads do
+// too: their presigned URLs are signed for the site origin the browser is on
+// (`browserFacing` in `backend/core/lib/storage/object_store.ts`) and reach
+// the store through the proxy's `/<bucket>/*` lane on that same origin. The
+// one exception is the org BYO object-storage lane above: the upload door
 // hands the browser a presigned PUT addressed directly at the org's
 // endpoint, deliberately bypassing the platform so multi-hundred-MB blobs
 // never transit (or OOM) the server. SITE_URL hostname determines
@@ -549,6 +551,12 @@ export interface CreateAppOptions {
    * reads the built `dist/openapi.json` once.
    */
   openapiDocument?: () => Promise<Record<string, unknown> | null>;
+  /**
+   * Test seam for the SPA shell template the fallback route renders.
+   * Production reads the built `dist/index.html` (once, outside dev hot
+   * reload).
+   */
+  indexHtml?: string;
 }
 
 let openapiDocumentPromise: Promise<Record<string, unknown> | null> | null =
@@ -1000,8 +1008,8 @@ export function createApp(
       }
     }
 
-    let template = indexHtmlTemplate;
-    if (template === null || DEV_HOT_RELOAD) {
+    let template = opts.indexHtml ?? indexHtmlTemplate;
+    if (template === null || (DEV_HOT_RELOAD && opts.indexHtml === undefined)) {
       const indexFile = Bun.file(join(distDir, 'index.html'));
       if (!(await indexFile.exists())) {
         console.error(`Missing dist/index.html in ${distDir}`);

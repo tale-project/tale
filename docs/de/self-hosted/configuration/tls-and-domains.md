@@ -52,9 +52,12 @@ Setze `TLS_MODE=external`, wenn ein anderer Proxy TLS beendet. Behalte die öffe
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
 TLS_MODE=external
+TRUSTED_PROXIES=10.20.0.0/16
 ```
 
-Tales Caddy-Instanz stellt in diesem Aufbau intern HTTP bereit. Halte diese Verbindung privat, erhalte den vorgesehenen Host und akzeptiere weitergeleitete Client-Informationen nur von vertrauenswürdigen Proxys. Prüfe Anmeldung, sichere Cookies, Uploads und Streaming über den vollständigen Weg. Ein Zertifikat auf dem vorgeschalteten Proxy ist unabhängig von Tales TLS-Modus.
+Tales Caddy-Instanz stellt in diesem Aufbau intern HTTP bereit. Dein Proxy muss ihr deshalb mitteilen, wie der Browser verbunden ist: Leite den ursprünglichen `Host`-Header weiter und sende `X-Forwarded-Proto: https`. Anhand beider Werte hält Tale jeden Browser auf dem Ursprung, den er geöffnet hat. Caddy übernimmt weitergeleitete Header nur von den Adressen in `TRUSTED_PROXIES`: durch Leerzeichen getrennte CIDR-Bereiche oder `private_ranges` für alle privaten und Loopback-Adressen. Das gilt auch als Standard, wenn die Variable fehlt. Trage den Bereich ein, aus dem dein Proxy die Verbindung aufbaut. Andere Werte verhindern den Start des Proxys; die übrigen TLS-Modi ignorieren die Variable.
+
+Halte die HTTP-Verbindung privat. Der Proxy-Container veröffentlicht Port 80. Erlaube dort nur deinem TLS-Proxy den Zugriff, sonst könnte ein Client aus einem vertrauenswürdigen Bereich eine HTTPS-Verbindung vorgeben, die es nie gab. Prüfe Anmeldung, sichere Cookies, Uploads und Streaming über den vollständigen Weg. Ein Zertifikat auf dem vorgeschalteten Proxy ist unabhängig von Tales TLS-Modus.
 
 Wenn du stattdessen ein eigenes Tale-Proxy-Image mit eigener Caddyfile verwaltest, binde Zertifikat und privaten Schlüssel nur lesbar ein und konfiguriere Caddys Direktive `tls <cert-file> <key-file>`. Ein Mount oder `TLS_MODE=external` allein lädt die Dateien nicht. Die eigene Konfiguration muss Tales Routen, Zustandsprüfungen und Metrikschutz erhalten.
 
@@ -80,6 +83,8 @@ Ein Ursprung besteht aus Schema, Host und optionalem Port, aber keinem Pfad. Cad
 
 Beim Ableiten öffentlicher URLs akzeptiert Tale nur konfigurierte Ursprünge. Ein unbekannter Host fällt auf `SITE_URL` zurück. Verwende diesen Rückfall nicht als Ersatz für die Domainkonfiguration.
 
+Bei einem verwalteten Deployment deklarierst du diese Ursprünge als `additionalOrigins` in der Deployment-Spezifikation, statt die Laufzeitumgebung zu bearbeiten; siehe [Zusätzliche Ursprünge bedienen](/de/self-hosted/install/cli-install#managed-additional-origins). Die CLI verwaltet dort `ADDITIONAL_SITE_URLS` und belässt die native Identität beim primären Ursprung.
+
 ### Kanonische Einstellungen stabil halten
 
 | Einstellung | Warum die Hauptdomain wichtig ist |
@@ -88,7 +93,7 @@ Beim Ableiten öffentlicher URLs akzeptiert Tale nur konfigurierte Ursprünge. E
 | SAML-SP-Entity-ID | Der Identitätsanbieter kennt einen stabilen Dienstanbieter. |
 | SCIM-Ressourcenadressen | Verzeichnissynchronisierung braucht stabile URLs. |
 | Passkeys | Zugangsdaten sind an eine Relying-Party-Domain gebunden und wechseln nicht automatisch zwischen Domains. |
-| Öffentlicher Objektspeicher-Endpunkt | Vorsignierte URLs nutzen dessen konfigurierten Ursprung; prüfe ihn beim Domainwechsel. |
+| Öffentlicher Objektspeicher-Endpunkt | Hintergrundaufgaben signieren Dateilinks für diesen Endpunkt. Ein Link für den Browser nutzt die Domain, auf der dieser gerade ist, wenn der Endpunkt einer der Ursprünge dieses Deployments ist; prüfe einen separaten Datei-Host beim Domainwechsel. |
 
 ### Alle Anbieter-Callbacks registrieren
 

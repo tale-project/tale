@@ -81,6 +81,28 @@ describe('originsForConnection', () => {
 });
 
 describe('collectOrgObjectStorageOrigins', () => {
+  test("takes the deployment default tree's published endpoint, never its internal one", () => {
+    // The env-seeded `default` tree names the bundled store twice: the
+    // internal endpoint the backend dials and the public one a browser
+    // reaches (SITE_URL by default). Only the latter is a CSP source.
+    const dir = makeConfigDir();
+    writeOrgConnection(
+      dir,
+      'default',
+      JSON.stringify({
+        region: 'us-east-1',
+        endpoint: 'http://object-store:9000',
+        publicEndpoint: 'https://tale.example.com',
+        bucket: 'tale-blobs',
+        forcePathStyle: true,
+        managedBy: 'env',
+      }),
+    );
+    expect(collectOrgObjectStorageOrigins(dir)).toEqual([
+      'https://tale.example.com',
+    ]);
+  });
+
   test('collects, dedupes and sorts origins across orgs', () => {
     const dir = makeConfigDir();
     writeOrgConnection(

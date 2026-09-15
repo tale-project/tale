@@ -31,6 +31,7 @@ const MANAGED_KEYS = new Set<string>([
   ...RUNTIME_SECRET_KEYS,
   'HOST',
   'SITE_URL',
+  'ADDITIONAL_SITE_URLS',
   'TLS_MODE',
   'TLS_EMAIL',
   'VERSION',
@@ -59,7 +60,6 @@ const TOPOLOGY_KEYS = new Set([
   'OBJECT_STORE_FORCE_PATH_STYLE',
   'SANDBOX_HTTP_API_BASE_URL',
   'BASE_PATH',
-  'ADDITIONAL_SITE_URLS',
   'DOCS_URL',
 ]);
 
@@ -223,6 +223,9 @@ export function prepareRuntimeEnvironment(
     ...extras,
     HOST: origin.hostname,
     SITE_URL: options.origin,
+    ...(options.additionalOrigins?.length
+      ? { ADDITIONAL_SITE_URLS: options.additionalOrigins.join(',') }
+      : {}),
     TLS_MODE: options.tlsMode,
     TLS_EMAIL: options.tlsEmail ?? '',
     PULL_POLICY: 'never',
@@ -237,6 +240,12 @@ export function prepareRuntimeEnvironment(
       extras.METRICS_BEARER_TOKEN ?? previous.METRICS_BEARER_TOKEN ?? '',
     SANDBOX_URL: 'http://sandbox:8003',
   };
+  // The declaration is the list's only source. Without one, a value an earlier
+  // declaration wrote is removed, so dropping `additionalOrigins` and applying
+  // again takes the extra origins away; an empty assignment an older stack
+  // carried already means none and stays byte-for-byte.
+  if (!options.additionalOrigins?.length && environment.ADDITIONAL_SITE_URLS)
+    delete environment.ADDITIONAL_SITE_URLS;
   for (const key of RUNTIME_SECRET_KEYS) {
     if (key !== 'TALE_BOOTSTRAP_PASSWORD')
       environment[key] = secrets[key] ?? '';
