@@ -15,6 +15,7 @@ import type {
 } from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
+import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
 import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
@@ -340,6 +341,31 @@ describe('handler responses validate against the spec', () => {
     request: string;
     spec: [path: string, method: string, status: string];
   }[] = [
+    {
+      // `capabilities` admits no undeclared key, so a gate the handler
+      // answers and the schema does not name fails here.
+      name: 'GET /me',
+      routes: () =>
+        createCoreRoutes({
+          sql: fakeSql(
+            [
+              {
+                organizationId: 'org-1',
+                role: 'admin',
+                name: 'Acme',
+                slug: 'acme',
+              },
+            ],
+            (text) =>
+              text.includes('FROM "apikey"')
+                ? [{ id: 'key-1', name: 'Billing sync', expiresAt: null }]
+                : undefined,
+          ),
+        }),
+      rows: [],
+      request: '/me',
+      spec: ['/api/v1/me', 'get', '200'],
+    },
     {
       name: 'GET /contacts',
       routes: () => createCoreRoutes({ sql: fakeSql([contact, contact]) }),
@@ -1844,6 +1870,44 @@ describe('the contract version moves with the contract', () => {
 
   it('states the version as semver and names it in the API_CONTRACT_VERSION constant', () => {
     expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+/**
+ * The delegated notification export names its capability where a client
+ * reads it — the export's description and 403, and
+ * `Me.capabilities.notificationExport` — so the slug the document prints
+ * must be one the competence register grants: a renamed capability would
+ * otherwise send an operator to grant a slug the register refuses.
+ */
+describe('the notification export capability in the published document', () => {
+  const slug = 'tale:notifications.export';
+  const sync = paths['/api/v1/notifications/sync'].get as {
+    description: string;
+    responses: Record<string, { description: string }>;
+  };
+  const me = (spec.components as { schemas: Record<string, Json> }).schemas
+    .Me as {
+    properties: {
+      capabilities: {
+        required: string[];
+        properties: Record<string, { description: string }>;
+      };
+    };
+  };
+
+  it('names a capability the competence register grants', () => {
+    expect(PLATFORM_CAPABILITIES).toContain(slug);
+    expect(sync.description).toContain(slug);
+    expect(sync.responses['403'].description).toContain(slug);
+  });
+
+  it('declares the /me pre-flight beside the other capabilities', () => {
+    const { capabilities } = me.properties;
+    expect(capabilities.required).toContain('notificationExport');
+    expect(capabilities.properties.notificationExport.description).toContain(
+      slug,
+    );
   });
 });
 

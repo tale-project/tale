@@ -92,5 +92,13 @@
  * `limit`, `resetsAt`) beside `Retry-After`; a cap reached after the 202
  * settles the reply with errorCode `budget_exceeded`; and a keyed turn's
  * usage counts against the key's own caps.
+ *
+ * 1.14.0 — 2026-09-16: the notification export can be delegated without an
+ * admin seat — a member holding a live `tale:notifications.export`
+ * capability (a competence-register grant an organization admin makes and
+ * revokes: organization-scoped, optionally expiring, revoked with the
+ * membership) passes `GET /api/v1/notifications/sync`, whose 403
+ * `ROLE_FORBIDDEN` names the capability; `GET /api/v1/me` answers
+ * `capabilities.notificationExport`.
  */
-export const API_CONTRACT_VERSION = '1.13.0';
+export const API_CONTRACT_VERSION = '1.14.0';

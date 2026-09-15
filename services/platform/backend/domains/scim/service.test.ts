@@ -411,6 +411,17 @@ describe('deprovisionUser — the membership cascade', () => {
     // The cascade rides the same transaction, after the member row.
     expect(memberAt).toBeGreaterThanOrEqual(0);
     expect(teamsAt).toBeGreaterThan(memberAt);
+    // The member's platform-capability grants end with it — stamped revoked,
+    // never deleted — so the IdP's next POST re-attaching the user brings no
+    // delegated right back.
+    const all = writes(queries);
+    const revokeAt = all.findIndex((q) =>
+      q.text.startsWith('UPDATE app.competence_records'),
+    );
+    expect(all[revokeAt]?.values).toEqual([expect.any(Number), 'org-1', 'u-1']);
+    expect(revokeAt).toBeGreaterThan(
+      all.findIndex((q) => q.text.startsWith('DELETE FROM "member"')),
+    );
   });
 
   it('cascades nothing for a member it refuses to remove', async () => {

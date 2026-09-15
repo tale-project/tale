@@ -176,14 +176,14 @@ function productRow(n: number) {
 }
 
 /** The core routes behind a stub door that sets the request variables. */
-function mount(sql: Sql, apiKeyId = 'key-1') {
+function mount(sql: Sql, apiKeyId = 'key-1', role = 'admin') {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'admin');
+    c.set('role', role);
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
     c.set('apiKeyId', apiKeyId);
@@ -246,11 +246,13 @@ describe('GET /me capabilities', () => {
     expect((await me()).capabilities).toEqual({
       deploymentEditor: false,
       developer: true,
+      notificationExport: true,
     });
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
     expect((await me()).capabilities).toEqual({
       deploymentEditor: false,
       developer: true,
+      notificationExport: true,
     });
   });
 
@@ -260,7 +262,54 @@ describe('GET /me capabilities', () => {
     expect((await me()).capabilities).toEqual({
       deploymentEditor: true,
       developer: true,
+      notificationExport: true,
     });
+  });
+});
+
+/**
+ * `GET /me` answers the notification export's gate as
+ * `capabilities.notificationExport` — the very function the export door runs
+ * (v1-notifications.ts) — so a mirror worker an admin delegated the export to
+ * confirms its grant before its first page. An admin's answer reads nothing
+ * more (the two queries counted above).
+ */
+describe('GET /me notificationExport', () => {
+  const meAs = async (role: string, grants: object[]) => {
+    const { sql, queries } = fakeSql(
+      [{ organizationId: 'org-1', role, name: 'Acme', slug: 'acme' }],
+      (text) =>
+        text.includes('FROM app.competence_records')
+          ? grants
+          : answerKeyRow(keyRow())(text),
+    );
+    const res = await mount(sql, 'key-1', role).request('http://localhost/me');
+    expect(res.status).toBe(200);
+    const body: { capabilities: { notificationExport: boolean } } =
+      await res.json();
+    return { exportable: body.capabilities.notificationExport, queries };
+  };
+
+  it('is false for a developer without a grant, read for the key holder in this organization', async () => {
+    const { exportable, queries } = await meAs('developer', []);
+    expect(exportable).toBe(false);
+    const read = queries.find((q) =>
+      q.text.includes('FROM app.competence_records'),
+    );
+    expect(read?.values).toEqual([
+      'org-1',
+      'user-1',
+      'tale:notifications.export',
+    ]);
+  });
+
+  it('is true for a member holding a live grant, and false once it expired', async () => {
+    const live = { expiresAt: null, revokedAt: null };
+    expect((await meAs('developer', [live])).exportable).toBe(true);
+    const later = { expiresAt: Date.now() + 3_600_000, revokedAt: null };
+    expect((await meAs('member', [later])).exportable).toBe(true);
+    const expired = { expiresAt: Date.now() - 1, revokedAt: null };
+    expect((await meAs('developer', [expired])).exportable).toBe(false);
   });
 });
 

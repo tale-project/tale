@@ -214,16 +214,18 @@ export function evaluateCredentialResetAuthority(args: {
  * Remove every per-org trace of a membership BESIDES the member row: the
  * user's teamMember rows in the org's teams (what Better Auth's own
  * deleteMember does when teams are enabled — a raw DELETE FROM "member"
- * does not), the SSO team-sync provenance for them (migration 0071) and
- * the per-org preference row. Each caller deletes the member row itself —
- * it has its own guard and audit — and runs this in the same transaction.
+ * does not), the SSO team-sync provenance for them (migration 0071), the
+ * per-org preference row, and the member's live platform-capability
+ * grants. Each caller deletes the member row itself — it has its own guard
+ * and audit — and runs this in the same transaction.
  *
  * Without the cascade a member removed by an admin or de-provisioned by
  * SCIM kept their teamMember rows: a later re-add (or the IdP's next POST,
  * which re-attaches the existing user) put them straight back into every
  * team-scoped document, project and task they used to see, with no one
  * re-asserting the membership; in between, SCIM Group reads listed a user
- * GET /Users/:id 404ed, which IdPs flag as drift.
+ * GET /Users/:id 404ed, which IdPs flag as drift. A capability grant would
+ * come back the same way, carrying a right no admin re-granted.
  *
  * Answers the ids of the teams the user was removed from, so a caller that
  * emits realtime hints can invalidate those teams' member lists the way the
@@ -249,6 +251,18 @@ export async function removeMembershipCascade(
   await tx`
     DELETE FROM app.user_preferences
     WHERE org_id = ${organizationId} AND user_id = ${userId}
+  `;
+  // A platform capability (a `tale:` grant in the competence register,
+  // domains/governance/competence.ts) delegates a right the membership
+  // carried, so it ends with the membership: stamped revoked, never deleted
+  // — the register is the trail. The literal is the register's
+  // PLATFORM_CAPABILITY_PREFIX (its test pins the two together; importing
+  // it here would close an import cycle).
+  await tx`
+    UPDATE app.competence_records
+    SET revoked_at_ms = ${Date.now()}, revoked_by = 'system'
+    WHERE org_id = ${organizationId} AND user_id = ${userId}
+      AND revoked_at_ms IS NULL AND competence LIKE 'tale:%'
   `;
   return { teamIds: [...new Set(left.map((row) => row.teamId))] };
 }

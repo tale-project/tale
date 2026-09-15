@@ -14,6 +14,7 @@ import { isAdminRole } from '../auth/membership';
 import { mirrorMessage } from '../core/notifications/mirror_message';
 import { orgNotificationLinkSchema } from '../core/notifications/org_notification_link';
 import { listMyNotifications } from '../domains/collab/service';
+import { holdsCapability } from '../domains/governance/competence';
 import { listNotifications } from '../domains/notifications/service';
 import {
   formatKeysetCursor,
@@ -60,16 +61,57 @@ function sourceRow(
   };
 }
 
-/** Read-only, organization-admin export of each verified member's own bell. */
+/**
+ * Whether the caller may export members' notifications — the export door's
+ * gate, and `GET /me`'s `capabilities.notificationExport`, so the pre-flight
+ * answers exactly what the door decides. An owner or admin exports by role.
+ * Any other member exports only through a live `tale:notifications.export`
+ * grant an admin made in the competence register
+ * (domains/governance/competence.ts): organization-scoped, audited,
+ * optionally expiring, revocable and revoked with the membership. That is
+ * the least a mirror worker needs, where an admin seat would also carry
+ * member management, SSO and SCIM administration, and password resets. A
+ * disabled seat never exports, whatever it holds.
+ */
+export async function mayExportNotifications(
+  sql: Sql,
+  caller: { organizationId: string; userId: string; role: string },
+  now: number,
+): Promise<boolean> {
+  if (isAdminRole(caller.role)) return true;
+  if (caller.role.toLowerCase() === 'disabled') return false;
+  return holdsCapability(
+    sql,
+    caller.organizationId,
+    caller.userId,
+    'tale:notifications.export',
+    now,
+  );
+}
+
+/** Read-only export of each verified member's own bell, for an organization
+ * admin or a member an admin delegated it to (`mayExportNotifications`). */
 export function createNotificationRestRoutes(deps: {
   sql: Sql;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
   app.get('/notifications/sync', async (c) => {
-    if (!isAdminRole(c.get('role')))
+    // The gate runs before the query is parsed and before any member row is
+    // read: a caller without the right learns nothing about the members.
+    const allowed = await mayExportNotifications(
+      deps.sql,
+      {
+        organizationId: c.get('organizationId'),
+        userId: c.get('userId'),
+        role: c.get('role'),
+      },
+      Date.now(),
+    );
+    if (!allowed)
       return c.json(
         {
-          error: 'Notification export requires an organization administrator.',
+          error:
+            'Notification export requires an organization owner or admin, or the "tale:notifications.export" capability granted by one.',
           code: 'ROLE_FORBIDDEN',
         },
         403,

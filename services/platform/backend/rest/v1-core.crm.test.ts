@@ -139,8 +139,13 @@ describe('GET /me', () => {
         { id: 'org-2', slug: 'beta', name: 'Beta', role: 'member' },
       ],
       // A plain org admin is no instance admin: the deployment editor stays
-      // closed (the capability's own cases live in v1-core.test.ts).
-      capabilities: { deploymentEditor: false, developer: true },
+      // closed, while the notification export is the role's own (the
+      // capabilities' own cases live in v1-core.test.ts).
+      capabilities: {
+        deploymentEditor: false,
+        developer: true,
+        notificationExport: true,
+      },
       // The key that made the request, by the id the door stashed — its
       // expiry as epoch milliseconds (the key's own cases live in
       // v1-core.test.ts).
