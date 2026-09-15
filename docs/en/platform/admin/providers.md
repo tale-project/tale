@@ -15,7 +15,7 @@ Connect an AI provider before asking Tale to run chats or agents. Under **Settin
 
 1. Select **Add credential** and choose the provider. The catalog shows configured providers first; choosing one again adds another credential.
 2. Choose an **Authentication method** if the provider offers more than one.
-3. Enter a **Name** that identifies the purpose, such as `Production key` or `Finance team`, and fill in that method's required fields.
+3. Check the **Name**. It starts as the provider's name, with a number added when another credential for that provider already uses it: `OpenRouter`, then `OpenRouter 2`. A name that identifies the purpose, such as `Production key` or `Finance team`, makes several credentials for one provider easier to tell apart. Fill in that method's required fields.
 4. Review **Model allowlist**. For a provider with a catalog, leaving it empty allows the credential to use that catalog. Providers without a catalog need explicit model IDs.
 5. Select **Add credential**. Check the new row and make it the default for that provider when ordinary requests should use it.
 

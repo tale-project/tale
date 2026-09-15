@@ -134,11 +134,13 @@ test.describe('core settings', () => {
     await search.clear();
     await expect(anthropic).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
-    // Picking a vendor advances to the setup step; dismiss without creating.
+    // Picking a vendor advances to the setup step, already named after the
+    // vendor (a fresh org holds no name to number past). Escape closes it with
+    // no discard prompt: the suggestion is nothing the operator typed.
     await anthropic.click();
     await expect(
       dialog.getByRole('textbox', { name: t('settings.credentials.name') }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    ).toHaveValue(SHIPPED_PROVIDER_DISPLAY_NAME, { timeout: TIMEOUT.VISIBLE });
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
@@ -185,7 +187,9 @@ test.describe('core settings', () => {
     await github.click();
     await expect(
       dialog.getByRole('textbox', { name: t('settings.credentials.name') }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    ).toHaveValue(SHIPPED_CONNECTOR_DISPLAY_NAME, {
+      timeout: TIMEOUT.VISIBLE,
+    });
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });

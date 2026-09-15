@@ -41,7 +41,7 @@ Select **Add credential**, search for the service and choose its card. Connector
 
 </Frame>
 
-Give the credential a name that identifies its purpose, such as `Support inbox` or `Release bot`. Use the external service’s credentials, not a Tale API key. For OAuth, complete the provider consent flow and check the returned account. If consent cannot start, an administrator may need to configure its OAuth app first.
+The **Name** field starts with the connector’s name. When you add several accounts for the same service, change it to one that identifies the purpose, such as `Support inbox` or `Release bot`. Use the external service’s credentials, not a Tale API key. For OAuth, complete the provider consent flow and check the returned account. If consent cannot start, an administrator may need to configure its OAuth app first.
 
 Confluence and Shopify require an **Instance URL** per credential. Use the Atlassian site origin or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
 

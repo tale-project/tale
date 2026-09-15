@@ -8,7 +8,7 @@ Hinterlege Connector-Zugangsdaten, damit Tale Dienste wie Postfächer, Dateiabla
 ## Ein Konto verbinden
 
 1. Wähle **Zugangsdaten hinzufügen** und den Connector. Bereits konfigurierte Connectors stehen zuerst und können weitere Zugangsdaten erhalten.
-2. Gib unter **Name** einen Namen an, der beim Erstellen von Automatisierungen verständlich ist, etwa `Support-Postfach` oder `EU-Shop`.
+2. Prüfe das Feld **Name**. Es enthält bereits den Namen des Connectors. Heißen andere Zugangsdaten dieses Connectors schon so, hängt Tale eine Zahl an: `GitHub`, dann `GitHub 2`. Ein Name wie `Support-Postfach` oder `EU-Shop` ist beim Erstellen von Automatisierungen leichter zu erkennen. OAuth-Verbindungen verwenden dieses Feld nicht.
 3. Fülle die angebotene Authentifizierungsmethode aus. Bei OAuth wählst du **Verbinden** und erteilst den Zugriff beim Anbieter.
 4. Schließe das Formular ab und prüfe den neuen Eintrag mit Connector, Konto oder Instanz und Status.
 

@@ -8,7 +8,7 @@ Ajoute des identifiants de connecteur pour que Tale utilise une messagerie, un e
 ## Connecter un compte
 
 1. Sélectionne **Ajouter des identifiants**, puis le connecteur. Les connecteurs déjà configurés apparaissent en premier et peuvent recevoir d’autres identifiants.
-2. Renseigne un **Nom** reconnaissable pour la personne qui prépare l’automatisation, comme `Boîte support` ou `Boutique UE`.
+2. Vérifie le champ **Nom**. Il est prérempli avec le nom du connecteur, suivi d’un numéro si d’autres identifiants de ce connecteur portent déjà ce nom : `GitHub`, puis `GitHub 2`. Un nom comme `Boîte support` ou `Boutique UE` est plus facile à reconnaître pour la personne qui prépare l’automatisation. Les connexions OAuth n’utilisent pas ce champ.
 3. Complète la méthode d’authentification proposée. Pour OAuth, sélectionne **Connecter** et autorise l’accès chez le fournisseur.
 4. Termine le formulaire, puis vérifie la ligne créée : connecteur, compte ou instance, et statut.
 

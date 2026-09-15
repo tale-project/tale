@@ -41,7 +41,7 @@ Choisis **Ajouter des identifiants**, recherche le service et ouvre sa carte. Le
 
 </Frame>
 
-Nomme les identifiants selon leur usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, termine le consentement chez le fournisseur et vérifie le compte retourné. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
+Le champ **Nom** est prérempli avec le nom du connecteur. Si tu ajoutes plusieurs comptes pour le même service, remplace-le par un nom qui indique l’usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, termine le consentement chez le fournisseur et vérifie le compte retourné. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
 
 Confluence et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
 

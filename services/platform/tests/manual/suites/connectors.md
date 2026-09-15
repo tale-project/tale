@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 30 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -94,16 +94,21 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   Step 2 titled `settings.credentials.addTitle` with description naming GitHub
   (`settings.credentials.addDescription`), a back control
   (`common.actions.back`), **Name** (+ help `settings.credentials.nameHelp`)
-  and a masked **Token** field (`settings.connectors.dialog.token`). Fill both
-  → **Add credential** (`settings.credentials.create`) → toast
-  `settings.credentials.createdToast`; the row appears with method **Token**
-  and — as the connector's first credential — the **Default** badge
+  already filled with **GitHub**, and a masked **Token** field
+  (`settings.connectors.dialog.token`). Fill the token → **Add credential**
+  (`settings.credentials.create`) → toast `settings.credentials.createdToast`;
+  the row appears named **GitHub** with method **Token** and — as the
+  connector's first credential — the **Default** badge
   (`settings.credentials.default`). The typed secret appears nowhere
   afterwards.
 - [ ] `CONN-F5` · **Configured leads the picker** — With the GitHub credential
   from CONN-F4, reopen **Add credential** → GitHub leads the list with a
   **Configured** badge (`settings.credentials.catalog.configured`); the rest
   follow alphabetically — not one flat A–Z list with no prioritization.
+- [ ] `CONN-F5a` · **A second credential is numbered** — From CONN-F5's picker
+  → **GitHub** → **Name** arrives as **GitHub 2**, numbered past the
+  **GitHub** row rather than repeating it; Escape closes the untouched step
+  with no discard prompt.
 - [ ] `CONN-F6` · **Per-credential instance URL** — Picker → **Confluence** →
   name + username + password → An extra required **Instance URL** field
   (`settings.connectors.dialog.endpointUrl`) with Atlassian help copy
@@ -194,10 +199,12 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
 
 ## Boundary & error tests
 
-- [ ] `CONN-B1` · **Submit gating + dirty guard** — Step 2: fill only the
-  name; then try to close the dialog → **Add credential** stays disabled until
-  the method's secret fields and every required config field are supplied
-  (whitespace does not count). Closing with typed material prompts
+- [ ] `CONN-B1` · **Submit gating + dirty guard** — Step 2: keep the suggested
+  name and fill nothing else, then clear the name; type into a field and try
+  to close the dialog → **Add credential** stays disabled until the name, the
+  method's secret fields and every required config field are supplied
+  (whitespace does not count). Closing the untouched step asks nothing;
+  closing with typed material — an edited name included — prompts
   `common.discardChangesConfirm` before discarding.
 - [ ] `CONN-B2` · **Non-numeric port** — imap-smtp form: type `abc` into
   **IMAP port**, complete the rest, submit → The server refuses and the dialog
