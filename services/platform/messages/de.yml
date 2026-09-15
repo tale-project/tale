@@ -6507,6 +6507,14 @@ tasks:
     reordered: Neu sortiert
     statusChanged: Status geändert
     assigneeChanged: Zuständigkeit geändert
+    titleChanged: Titel geändert
+    descriptionChanged: Beschreibung geändert
+    priorityChanged: Priorität geändert
+    labelsChanged: Labels geändert
+    attachmentsChanged: Anhänge geändert
+    startDateChanged: Startdatum geändert
+    dueDateChanged: Fälligkeitsdatum geändert
+    reviewerChanged: Reviewer geändert
     commentAdded: Kommentar hinzugefügt
     dependencyAdded: Abhängigkeit hinzugefügt
     dependencyRemoved: Abhängigkeit entfernt

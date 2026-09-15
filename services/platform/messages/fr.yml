@@ -6616,6 +6616,14 @@ tasks:
     reordered: Réordonné
     statusChanged: Statut modifié
     assigneeChanged: Responsable modifié
+    titleChanged: Titre modifié
+    descriptionChanged: Description modifiée
+    priorityChanged: Priorité modifiée
+    labelsChanged: Étiquettes modifiées
+    attachmentsChanged: Pièces jointes modifiées
+    startDateChanged: Date de début modifiée
+    dueDateChanged: Échéance modifiée
+    reviewerChanged: Relecteur modifié
     commentAdded: Commentaire ajouté
     dependencyAdded: Dépendance ajoutée
     dependencyRemoved: Dépendance supprimée

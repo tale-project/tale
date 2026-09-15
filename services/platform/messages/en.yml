@@ -6594,6 +6594,14 @@ tasks:
     reordered: Reordered
     statusChanged: Status changed
     assigneeChanged: Assignee changed
+    titleChanged: Title changed
+    descriptionChanged: Description changed
+    priorityChanged: Priority changed
+    labelsChanged: Labels changed
+    attachmentsChanged: Attachments changed
+    startDateChanged: Start date changed
+    dueDateChanged: Due date changed
+    reviewerChanged: Reviewer changed
     commentAdded: Comment added
     dependencyAdded: Dependency added
     dependencyRemoved: Dependency removed

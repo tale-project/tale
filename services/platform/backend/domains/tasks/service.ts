@@ -1198,6 +1198,73 @@ export interface UpdateTaskArgs {
   reviewerUserId?: string | null;
 }
 
+/**
+ * The single seat of the field-key → activity-action vocabulary. Each entry
+ * maps a key in {@link updateTask}'s `newState` map to the action name
+ * stored on the row, mirroring the existing `status.changed` /
+ * `assignee.changed` naming. Keys not listed here have no activity
+ * counterpart (the audit row still records them).
+ */
+const EDIT_ACTIVITY_ACTION: Record<string, string> = {
+  title: 'title.changed',
+  description: 'description.changed',
+  priority: 'priority.changed',
+  labelIds: 'labels.changed',
+  attachments: 'attachments.changed',
+  startDate: 'startDate.changed',
+  dueDate: 'dueDate.changed',
+  reviewerUserId: 'reviewer.changed',
+};
+
+/**
+ * Resolve a set of label ids to their catalog names in the same order.
+ * Used by {@link updateTask} to turn a `labels.changed` row's id arrays
+ * into something a reader can parse at a glance ("Bug, Feature" instead
+ * of "lbl_3f7c, lbl_1a2b"). An id the catalog no longer has falls back
+ * to its raw id — the stale row will read like the rest of the timeline
+ * a getter pulls in a flaky data shape.
+ */
+async function resolveLabelNames(
+  tx: TransactionSql,
+  projectId: string,
+  ids: readonly string[],
+): Promise<string> {
+  if (ids.length === 0) return '';
+  const rows = await tx<{ id: string; name: string }[]>`
+    SELECT id, name FROM app.task_labels
+    WHERE project_id = ${projectId} AND id = ANY(${[...ids]})
+  `;
+  const nameById = new Map(rows.map((row) => [row.id, row.name]));
+  return ids.map((id) => nameById.get(id) ?? id).join(', ');
+}
+
+function stringifyEditScalar(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  // The `previousState` / `newState` maps hold the typed columns (strings,
+  // numbers, string arrays). Anything else would be a programming error,
+  // and we want the linter's `no-base-to-string` rule to stay satisfied.
+  if (Array.isArray(value))
+    return value.map((entry) => String(entry)).join(', ');
+  return '';
+}
+
+/**
+ * Resolve one activity value side (previous or new) of a `previousState` /
+ * `newState` field already guarded by an updateTask diff. The mapping
+ * mirrors {@link EDIT_ACTIVITY_ACTION}: the same keys appear here, with
+ * the exception that `null` and `undefined` both stringify to '' (the
+ * timeline's "cleared" sentinel). The `labels.changed` action is
+ * computed separately — its values are arrays of CATALOG ids that need a
+ * name lookup before the timeline can render them; see the labels branch
+ * in `updateTask` itself.
+ */
+function stringifyEditValue(action: string, value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return stringifyEditScalar(value);
+}
+
 export async function updateTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1214,8 +1281,10 @@ export async function updateTask(
   let title = task.title;
   if (args.title !== undefined) {
     title = validateTitle(args.title);
-    previousState.title = task.title;
-    newState.title = title;
+    if (title !== task.title) {
+      previousState.title = task.title;
+      newState.title = title;
+    }
   }
   let description = task.description;
   if (args.description !== undefined) {
@@ -1223,14 +1292,21 @@ export async function updateTask(
       args.description === null
         ? null
         : (validateDescription(args.description) ?? null);
-    previousState.description = task.description;
-    newState.description = description;
+    if (description !== task.description) {
+      previousState.description = task.description;
+      newState.description = description;
+    }
   }
   let priority = task.priority;
   if (args.priority !== undefined) {
     priority = args.priority;
-    previousState.priority = task.priority;
-    newState.priority = priority;
+    // Diff guard: `priority: null → null` or `priority: 'p0' → 'p0'` is a
+    // no-op (it can happen when the picker re-sends the same value on blur);
+    // skip the audit / activity row.
+    if (priority !== task.priority) {
+      previousState.priority = task.priority;
+      newState.priority = priority;
+    }
   }
   // Attachments: the NEW refs must be the caller's own uploads; the refs
   // the list drops go to the blob release seam once the row no longer
@@ -1267,26 +1343,41 @@ export async function updateTask(
         names: args.labels,
         createdBy: auth.userId,
       })) ?? [];
-    previousState.labelIds = task.labelIds;
-    newState.labelIds = labelIds;
+    // Skip the no-op: a re-save that sends the same set of labels leaves
+    // both the audit row's diff and the activity timeline's `labels.changed`
+    // empty — only an actual add / remove / reorder earns a row.
+    const sortedBefore = [...task.labelIds].sort();
+    const sortedAfter = [...labelIds].sort();
+    if (
+      sortedBefore.length !== sortedAfter.length ||
+      sortedBefore.some((id, index) => id !== sortedAfter[index])
+    ) {
+      previousState.labelIds = task.labelIds;
+      newState.labelIds = labelIds;
+    }
   }
   const startDate =
     args.startDate === undefined ? task.startDate : args.startDate;
   const dueDate = args.dueDate === undefined ? task.dueDate : args.dueDate;
   assertScheduleOrder(startDate, dueDate);
-  if (args.startDate !== undefined) {
+  if (args.startDate !== undefined && startDate !== task.startDate) {
     previousState.startDate = task.startDate;
     newState.startDate = startDate;
   }
-  if (args.dueDate !== undefined) {
+  if (args.dueDate !== undefined && dueDate !== task.dueDate) {
     previousState.dueDate = task.dueDate;
     newState.dueDate = dueDate;
   }
   let reviewerUserId = task.reviewerUserId;
   if (args.reviewerUserId !== undefined) {
     reviewerUserId = args.reviewerUserId;
-    previousState.reviewerUserId = task.reviewerUserId;
-    newState.reviewerUserId = reviewerUserId;
+    // Same diff guard as labels: clearing an already-cleared reviewer (or
+    // re-selecting the same one) is a no-op and earns no audit or activity
+    // row.
+    if (reviewerUserId !== task.reviewerUserId) {
+      previousState.reviewerUserId = task.reviewerUserId;
+      newState.reviewerUserId = reviewerUserId;
+    }
   }
   // A NEW designee (not a clear, not a re-select) is about to be subscribed
   // and belled: only a live member of THIS org can be on the hook — the
@@ -1342,12 +1433,41 @@ export async function updateTask(
   if (droppedRefs.length > 0) {
     await releaseUnlistedTaskBlobRefs(tx, auth.organizationId, droppedRefs);
   }
-  await recordActivity(tx, {
-    task,
-    actorType: 'user',
-    actorId: auth.userId,
-    action: 'updated',
-  });
+  // One activity row PER CHANGED FIELD. The legacy single `action:
+  // 'updated'` row stays in the schema for back-compat with anything
+  // already in `task_activity`; new edits bypass it. The audit row keeps
+  // a single entry per `updateTask` call with the full diff — the
+  // product-facing timeline just gets one line per hand a reader can scan
+  // on the modal, the way `status.changed` and `assignee.changed` already
+  // do.
+  for (const [field, action] of Object.entries(EDIT_ACTIVITY_ACTION)) {
+    const newValue = newState[field];
+    if (newValue === undefined) continue;
+    const previousValue = previousState[field];
+    let toValue = stringifyEditValue(action, newValue);
+    let fromValue = stringifyEditValue(action, previousValue);
+    if (action === 'labels.changed') {
+      const fromIds: readonly string[] = Array.isArray(previousValue)
+        ? previousValue
+        : [];
+      const toIds: readonly string[] = Array.isArray(newValue) ? newValue : [];
+      const [fromNames, toNames] = await Promise.all([
+        resolveLabelNames(tx, task.projectId, fromIds),
+        resolveLabelNames(tx, task.projectId, toIds),
+      ]);
+      fromValue = fromNames;
+      toValue = toNames;
+    }
+    if (fromValue === toValue) continue;
+    await recordActivity(tx, {
+      task,
+      actorType: 'user',
+      actorId: auth.userId,
+      action,
+      fromValue,
+      toValue,
+    });
+  }
   await createAuditLog(
     tx,
     taskAudit(auth, { id: task.id, title }, TASK_AUDIT_ACTIONS.updated, {
