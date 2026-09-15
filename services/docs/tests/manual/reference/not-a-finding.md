@@ -29,11 +29,12 @@ with the shared manual-test shape; the guides it replaced had no such list.
   durchsuchen** / **Rechercher dans la documentation** are longer than that —
   they ellipsize by design (`@tale/ui` `docs-search-trigger.tsx`). The control's
   accessible name is the full **Open search** either way.
-- **The docs ship the theme switcher even though they default to light.**
-  `AppShell theme={{ defaultTheme: 'light' }}` sets the *default*, not a lock:
-  a reader may still pick Dark, and every docs surface is built from tokens
-  that theme. An app-language docs page in dark mode is not a finding —
-  a hardcoded colour that fails to theme is (`A11Y-A6`).
+- **A first visit can open in dark mode.** With nothing saved, the docs follow
+  the operating system's theme (the same `'system'` default as the
+  design-system guide), so a reader whose OS is dark sees dark pages until they
+  pick Light in the footer's theme switch. An app-language docs page in dark
+  mode is not a finding — a hardcoded colour that fails to theme is
+  (`A11Y-A6`).
 
 ## Known benign console output
 

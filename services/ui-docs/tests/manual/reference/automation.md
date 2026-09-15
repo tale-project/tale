@@ -17,6 +17,7 @@ a spec failure and belongs in the gate, not in a round.
 | The body after the first example still renders (≥ 6 Code toggles, the closing `h2`) | `tests/e2e/specs/smoke.spec.ts` › documentation page | — |
 | The outline rail appears at desktop width | `tests/e2e/specs/smoke.spec.ts` › documentation page | scroll-spy walking, click-to-scroll (`DOCS-6`) |
 | The theme switcher flips the document theme | `tests/e2e/specs/smoke.spec.ts` › documentation page | every surface re-skinning from tokens, persistence across reload (`DOCS-10`, `HOME-4`) |
+| With nothing saved the theme follows the OS (**System** checked); a picked theme wins and survives a reload | `tests/e2e/specs/smoke.spec.ts` › documentation page | — |
 | `/docs` redirects to the first page in nav order | `tests/e2e/specs/smoke.spec.ts` › routing | — |
 | An unknown page renders the 404 with a way back | `tests/e2e/specs/smoke.spec.ts` › routing | the real `404` status on the built server ([seo.md](../suites/seo.md) `SEO-8`) |
 | ⌘K opens the palette and finds a component page | `tests/e2e/specs/smoke.spec.ts` › search | grouping, snippets, keyboard order, recents, empty state ([search.md](../suites/search.md)) |

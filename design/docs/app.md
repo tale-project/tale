@@ -75,9 +75,10 @@ won't theme.
 
 ## Docs follow the app
 
-[`services/docs`](../../services/docs/) uses the **same app language and `@tale/ui`**. It defaults
-to light mode and lets readers choose a theme. Use the same components, tokens, and interaction
-conventions, and verify both light and dark appearances. Page _content_ rules live in the
+[`services/docs`](../../services/docs/) uses the **same app language and `@tale/ui`**. Both
+documentation sites work the same way: the theme follows the reader's operating system until they
+pick Light, Dark or System from the footer's theme switch, and that choice is saved. Use the same
+components, tokens, and interaction conventions, and verify both light and dark appearances. Page _content_ rules live in the
 [`write-docs`](../../.agents/skills/write-docs/SKILL.md) skill; this is only the visual layer.
 
 Both documentation sites — `services/docs` and the `/docs/*` pages of `services/ui-docs` — render

@@ -58,7 +58,8 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
 - [ ] `A11Y-A6` · **Theme switch** — Footer theme switcher: **Switch theme**
   (`themeSwitcher.ariaLabel`) → **Dark**, reload → Semantics: labelled control
   with **Light**/**Dark**/**System** options (`themeSwitcher.*`), current
-  option programmatically marked; the choice persists
+  option programmatically marked (**System** until a reader picks one); the
+  choice persists
   (`localStorage['tale-theme']`); contrast spot-checks (body ≥ 4.5:1, muted
   text ≥ 4.5:1, code tokens ≥ 4.5:1) pass in **both** themes.
 - [ ] `A11Y-A7` · **Phone drawer** — ≤ 767 px: the bar's **Open navigation
