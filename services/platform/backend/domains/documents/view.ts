@@ -1,6 +1,11 @@
 import type { Sql } from 'postgres';
 
 import { getFileUrl } from '../files/service.ts';
+import {
+  loadSyncHealthIndex,
+  type SyncHealthIndex,
+  type SyncHealthView,
+} from '../onedrive/sync-health.ts';
 import type { DocumentRow } from './service.ts';
 
 /**
@@ -41,6 +46,9 @@ export interface DocumentItemView {
   uploadedAt: number;
   syncConfigId?: string;
   isDirectlySelected?: boolean;
+  /** The health of the sync a directly-picked file runs under — a file
+   * synced as part of a folder shows it on the folder row instead. */
+  syncHealth?: SyncHealthView;
   url?: string;
   ragStatus?: string;
   ragIndexedAt?: number;
@@ -122,6 +130,20 @@ export async function toDocumentItems(
     for (const user of users) {
       if (user.name !== null) userNames.set(user.id, user.name);
     }
+  }
+
+  // A directly-picked synced file carries its config's health (a folder
+  // member's folder row does); one read for the whole page, only when a
+  // row needs it.
+  let syncHealth: SyncHealthIndex | null = null;
+  if (
+    rows.some(
+      (row) =>
+        row.metadata?.isDirectlySelected === true &&
+        typeof row.metadata.syncConfigId === 'string',
+    )
+  ) {
+    syncHealth = await loadSyncHealthIndex(sql, organizationId);
   }
 
   // RAG projection from file_metadata (canonical owner), one query.
@@ -219,6 +241,10 @@ export async function toDocumentItems(
     if (syncConfigId !== undefined) view.syncConfigId = syncConfigId;
     if (typeof isDirectlySelected === 'boolean') {
       view.isDirectlySelected = isDirectlySelected;
+    }
+    if (isDirectlySelected === true && syncConfigId !== undefined) {
+      const health = syncHealth?.byConfigId.get(syncConfigId);
+      if (health !== undefined) view.syncHealth = health;
     }
     const url = row.fileRef !== null ? urlByRef.get(row.fileRef) : undefined;
     if (url !== undefined) view.url = url;

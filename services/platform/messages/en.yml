@@ -2275,6 +2275,34 @@ documents:
     sharePoint: SharePoint
     sharePointSynced: SharePoint (synced)
     uploaded: Upload
+    googleDriveSynced: Google Drive (synced)
+  syncHealth:
+    badge:
+      failed: Sync failed
+      needsReauth: Reconnect needed
+    dialog:
+      failedTitle: Sync failed
+      failedDescription: >-
+        The last sync of "{name}" did not go through. Tale retries about every
+        15 minutes and clears this notice as soon as a run succeeds.
+      needsReauthTitle: '{provider} access expired'
+      needsReauthDescription: >-
+        Tale can no longer reach {provider} with the account that syncs
+        "{name}". The files synced so far stay in place; nothing new arrives
+        until that account is reconnected.
+      failingSince: Failing since {time}
+      syncedBy: Synced with the account of {ownerName}
+      syncedByUnknown: Synced with the account of a member who has since left
+      errorDetails: Error details
+      ownerNextStep: >-
+        Reconnect your account to resume syncing. The next run picks it up
+        within 15 minutes.
+      otherNextStep: >-
+        Ask {ownerName} to reconnect. A member who can import documents can
+        also start a new sync import of this item to take the sync over.
+      otherNextStepUnknown: >-
+        Start a new sync import of this item to take the sync over — the
+        account it ran under is gone.
   comparison:
     title: Compare documents
     description: Pick two files to see what changed between them.
@@ -6322,6 +6350,10 @@ inbox:
   agentQuestionAsked: Agent needs your answer
   agentQuestionAskedBody: '{name} paused with a question on "{title}": {question}'
   agentQuestionAskedNoTaskBody: '{name} paused with a question: {question}'
+  cloudSyncFailed: Cloud sync failing
+  cloudSyncFailedBody: 'Syncing "{itemName}" from {provider} has been failing for over an hour ({reason}). Tale keeps retrying every 15 minutes.'
+  cloudSyncNeedsReauth: Cloud sync needs reconnecting
+  cloudSyncNeedsReauthBody: 'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.

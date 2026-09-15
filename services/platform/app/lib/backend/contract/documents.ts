@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { DocumentSyncHealth } from '@/types/documents';
+
 export interface DocumentsContract {
   'documents/actions:retryRagIndexing': {
     kind: 'action';
@@ -158,6 +160,7 @@ export interface DocumentsContract {
       sourceMode?: 'auto' | 'manual';
       uploadedAt?: number;
       syncConfigId?: string;
+      syncHealth?: DocumentSyncHealth;
       isDirectlySelected?: boolean;
       teamIds?: string[];
       createdByName?: string;
@@ -228,6 +231,7 @@ export interface DocumentsContract {
         sourceMode?: 'auto' | 'manual';
         uploadedAt?: number;
         syncConfigId?: string;
+        syncHealth?: DocumentSyncHealth;
         isDirectlySelected?: boolean;
         teamIds?: string[];
         createdByName?: string;
@@ -292,6 +296,7 @@ export interface DocumentsContract {
         sourceMode?: 'auto' | 'manual';
         uploadedAt?: number;
         syncConfigId?: string;
+        syncHealth?: DocumentSyncHealth;
         isDirectlySelected?: boolean;
         teamIds?: string[];
         createdByName?: string;

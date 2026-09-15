@@ -2350,9 +2350,39 @@ documents:
     webDav: WebDAV
     oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisiert)
+    googleDriveSynced: Google Drive (synchronisiert)
     sharePoint: SharePoint
     sharePointSynced: SharePoint (synchronisiert)
     uploaded: Upload
+  syncHealth:
+    badge:
+      failed: Sync-Fehler
+      needsReauth: Neu verbinden
+    dialog:
+      failedTitle: Synchronisierung fehlgeschlagen
+      failedDescription: >-
+        Die letzte Synchronisierung von „{name}“ ist fehlgeschlagen. Tale
+        versucht es etwa alle 15 Minuten erneut und entfernt diesen Hinweis,
+        sobald ein Durchlauf gelingt.
+      needsReauthTitle: Zugriff auf {provider} abgelaufen
+      needsReauthDescription: >-
+        Tale erreicht {provider} mit dem Konto, das „{name}“ synchronisiert,
+        nicht mehr. Die bisher synchronisierten Dateien bleiben erhalten;
+        Neues kommt erst an, wenn dieses Konto erneut verbunden ist.
+      failingSince: Fehlgeschlagen seit {time}
+      syncedBy: Synchronisiert über das Konto von {ownerName}
+      syncedByUnknown: Synchronisiert über das Konto eines Mitglieds, das inzwischen gegangen ist
+      errorDetails: Fehlerdetails
+      ownerNextStep: >-
+        Verbinde dein Konto erneut, um die Synchronisierung fortzusetzen. Der
+        nächste Durchlauf nimmt sie innerhalb von 15 Minuten wieder auf.
+      otherNextStep: >-
+        Bitte {ownerName}, das Konto erneut zu verbinden. Wer Dokumente
+        importieren darf, kann die Synchronisierung auch mit einem neuen
+        Synchronisierungsimport dieses Elements übernehmen.
+      otherNextStepUnknown: >-
+        Übernimm die Synchronisierung mit einem neuen Synchronisierungsimport
+        dieses Elements — das Konto, unter dem sie lief, gibt es nicht mehr.
   comparison:
     title: Dokumente vergleichen
     description: Wähle zwei Dateien, um die Unterschiede zu sehen.
@@ -6226,6 +6256,10 @@ inbox:
   agentQuestionAsked: Agent braucht deine Antwort
   agentQuestionAskedBody: '{name} hat eine Frage zu "{title}" und wartet auf dich: {question}'
   agentQuestionAskedNoTaskBody: '{name} hat eine Frage und wartet auf dich: {question}'
+  cloudSyncFailed: Cloud-Synchronisierung schlägt fehl
+  cloudSyncFailedBody: 'Die Synchronisierung von "{itemName}" aus {provider} schlägt seit über einer Stunde fehl ({reason}). Tale versucht es weiterhin alle 15 Minuten.'
+  cloudSyncNeedsReauth: Cloud-Synchronisierung muss neu verbunden werden
+  cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
   email:
     cta: In Tale öffnen
     footer:

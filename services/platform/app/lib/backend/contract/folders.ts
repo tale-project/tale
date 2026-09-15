@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { DocumentSyncHealth } from '@/types/documents';
+
 export interface FoldersContract {
   'folders/mutations:createFolder': {
     kind: 'mutation';
@@ -60,7 +62,7 @@ export interface FoldersContract {
         parentId?: string;
         organizationId: string;
         name: string;
-      } & { syncConfigId: undefined | string }
+      } & { syncConfigId: undefined | string; sync?: DocumentSyncHealth }
     >;
   };
 }

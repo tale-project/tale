@@ -56,6 +56,10 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // follow-up question rewrites the unread ask row instead of stacking a
   // second card next to it.
   agent_escalation: 'question',
+  // Whether the member's cloud sync works: an escalation from "failing" to
+  // "reconnect needed" rewrites the unread row — the fix changed, the sync
+  // is still the one thing that is broken.
+  cloud_sync_failed: 'sync',
   // Deliberately absent — each carries its own content, so each is its own row:
   // mention, task_commented, conversation_message.
 };
@@ -98,6 +102,9 @@ function coalesceSubject(args: {
   const documentId = args.params?.documentId;
   if (typeof documentId === 'string') return `document:${documentId}`;
   if (args.resourceType === 'document') return `document:${args.resourceId}`;
+  if (args.resourceType === 'sync_config') {
+    return `sync_config:${args.resourceId}`;
+  }
   // A dimension we can't tie to a subject would collapse unrelated rows
   // together, so it collapses nothing instead.
   return null;

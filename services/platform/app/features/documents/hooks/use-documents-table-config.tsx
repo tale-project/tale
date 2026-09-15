@@ -23,6 +23,7 @@ import type { DocumentItem } from '@/types/documents';
 import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
+import { SyncHealthBadge } from '../components/sync-health-badge';
 
 type DocumentsT = ReturnType<typeof useT>['t'];
 
@@ -64,7 +65,10 @@ function getSourceInfo(
   }
   if (sourceProvider === 'google_drive') {
     return {
-      title: t('sourceType.googleDrive'),
+      title:
+        sourceMode === 'auto'
+          ? t('sourceType.googleDriveSynced')
+          : t('sourceType.googleDrive'),
       Icon: GoogleDriveIcon,
     };
   }
@@ -184,12 +188,27 @@ export function useDocumentsTableConfig({
             {tTables('headers.source')}
           </span>
         ),
-        size: 96,
+        // Wide enough for the sync-health badge ("Reconnect needed" + dot),
+        // which used to spill into the RAG status column at 96.
+        size: 150,
         meta: {
           headerLabel: tTables('headers.source'),
           align: 'center' as const,
         },
         cell: ({ row }) => {
+          // A sync that stopped working outranks its source label: the badge
+          // says so and opens the reason + the way back.
+          const health = row.original.syncHealth;
+          if (health?.status === 'failed') {
+            return (
+              <div className="flex justify-center">
+                <SyncHealthBadge
+                  health={health}
+                  itemName={row.original.name ?? ''}
+                />
+              </div>
+            );
+          }
           const source = getSourceInfo(
             row.original.sourceProvider,
             row.original.sourceMode,

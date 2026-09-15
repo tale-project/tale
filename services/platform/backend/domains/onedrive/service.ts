@@ -31,6 +31,13 @@ import {
 import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
+import {
+  decideFailureNotification,
+  emitSyncRunHints,
+  notifyOwnerOfSyncFailure,
+  resolveSyncItemListingFolderId,
+  settleSyncRecovery,
+} from './sync-health.ts';
 
 /**
  * OneDrive Knowledge sync — the 0.5 twin of `convex/onedrive`: the
@@ -81,6 +88,11 @@ export interface SyncConfigRow {
   lastSyncAt: number | null;
   lastSyncStatus: string | null;
   errorMessage: string | null;
+  /** First failed run of the open failure episode (`sync-health.ts`);
+   * null while the config is healthy. */
+  errorSince: number | null;
+  /** When the owner was told about the open episode; null until then. */
+  failureNotifiedAt: number | null;
 }
 
 const CONFIG_COLUMNS = `
@@ -89,7 +101,9 @@ const CONFIG_COLUMNS = `
   item_path AS "itemPath", target_bucket AS "targetBucket",
   storage_prefix AS "storagePrefix", team_id AS "teamId", status,
   last_sync_at_ms::float8 AS "lastSyncAt",
-  last_sync_status AS "lastSyncStatus", error_message AS "errorMessage"
+  last_sync_status AS "lastSyncStatus", error_message AS "errorMessage",
+  error_since_ms::float8 AS "errorSince",
+  failure_notified_at_ms::float8 AS "failureNotifiedAt"
 `;
 
 /** The provider seam the generic sync engine runs over. Fetchers are the
@@ -280,6 +294,10 @@ export async function updateSyncConfigStatusRow(
     lastSyncAt?: number;
     lastSyncStatus?: string;
     errorMessage?: string | null;
+    /** The failure episode (`sync-health.ts`): a failed run opens or keeps
+     * it, a successful run clears both; `undefined` leaves them alone. */
+    errorSince?: number | null;
+    failureNotifiedAt?: number | null;
   },
 ): Promise<void> {
   await db`
@@ -288,6 +306,8 @@ export async function updateSyncConfigStatusRow(
       last_sync_at_ms = ${args.lastSyncAt !== undefined ? args.lastSyncAt : db.unsafe('last_sync_at_ms')},
       last_sync_status = ${args.lastSyncStatus !== undefined ? args.lastSyncStatus : db.unsafe('last_sync_status')},
       error_message = ${args.errorMessage !== undefined ? args.errorMessage : db.unsafe('error_message')},
+      error_since_ms = ${args.errorSince !== undefined ? args.errorSince : db.unsafe('error_since_ms')},
+      failure_notified_at_ms = ${args.failureNotifiedAt !== undefined ? args.failureNotifiedAt : db.unsafe('failure_notified_at_ms')},
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.configId}
       AND (${args.organizationId ?? null}::text IS NULL
@@ -393,7 +413,25 @@ export async function stopSyncForTrashedDocument(
 
 export type GraphTokenResult =
   | { success: true; token: string }
-  | { success: false; error: string };
+  | {
+      success: false;
+      error: string;
+      /** The grant is dead — only a new consent (or a re-import under
+       * another member's account) resumes the sync. */
+      needsReauth?: boolean;
+    };
+
+/**
+ * A run refused for want of a usable grant. Its own class so the engine can
+ * tell "reconnect" (the owner's move) from "retry" (the vendor's, or an
+ * operator's) when it stamps the outcome and decides whom to tell.
+ */
+export class SyncAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncAuthError';
+  }
+}
 
 /**
  * Resolve a Microsoft Graph token for Knowledge OneDrive/SharePoint from the
@@ -416,6 +454,7 @@ export async function resolveGraphTokenForUser(
     success: false,
     error:
       'OneDrive is not authorized for importing. Connect Microsoft 365 from Documents.',
+    needsReauth: true,
   };
 }
 
@@ -1359,9 +1398,10 @@ export async function syncOneConfigWith(
     userId: config.userId,
   });
   if (!token.success) {
-    throw new Error(
-      `No valid ${adapter.displayName} token for the config owner: ${token.error}`,
-    );
+    const message = `No valid ${adapter.displayName} token for the config owner: ${token.error}`;
+    throw token.needsReauth === true
+      ? new SyncAuthError(message)
+      : new Error(message);
   }
 
   if (config.itemType === 'folder') {
@@ -1509,16 +1549,29 @@ export async function runSyncConfigJobWith(
 ): Promise<void> {
   // Claim fence: a second job for the same config no-ops while a fresh run
   // is in flight; a stale 'running' stamp (crashed worker) is reclaimable.
-  const claimed = await sql<{ id: string }[]>`
+  // The claim overwrites the previous run's outcome with the run marker, so
+  // it hands that outcome back (the CTE reads the statement's snapshot):
+  // the failure lane needs it to tell a repeat of the same failure from an
+  // escalation — after the claim the row itself only ever says 'running'.
+  const claimed = await sql<
+    { id: string; previousSyncStatus: string | null }[]
+  >`
+    WITH previous AS (
+      SELECT last_sync_status FROM ${sql.unsafe(adapter.configTable)}
+      WHERE id = ${payload.configId} AND org_id = ${payload.organizationId}
+    )
     UPDATE ${sql.unsafe(adapter.configTable)} SET
       last_sync_status = 'running', updated_at_ms = ${Date.now()}
     WHERE id = ${payload.configId} AND org_id = ${payload.organizationId}
       AND status IN ('active', 'error')
       AND (last_sync_status IS DISTINCT FROM 'running'
            OR updated_at_ms < ${Date.now() - SYNC_CLAIM_STALE_MS})
-    RETURNING id
+    RETURNING id,
+      (SELECT last_sync_status FROM previous) AS "previousSyncStatus"
   `;
-  if (claimed.length === 0) return;
+  const claim = claimed[0];
+  if (claim === undefined) return;
+  const previousSyncStatus = claim.previousSyncStatus ?? null;
   const config = await getSyncConfigRow(
     sql,
     adapter.configTable,
@@ -1543,8 +1596,12 @@ export async function runSyncConfigJobWith(
   }, opts.heartbeatMs ?? SYNC_CLAIM_HEARTBEAT_MS);
   heartbeat.unref();
 
+  // An open failure episode ends only with a run that reaches the source
+  // again — a re-import that reactivated the row kept it open on purpose.
+  const recovering = config.errorSince !== null || config.status === 'error';
   try {
     const result = await syncOneConfigWith(sql, adapter, config);
+    const contentChanged = result.created > 0 || result.deleted > 0;
     if (result.sourceDeleted === true) {
       await updateSyncConfigStatusRow(sql, adapter.configTable, {
         configId: config.id,
@@ -1553,6 +1610,15 @@ export async function runSyncConfigJobWith(
         lastSyncAt: Date.now(),
         lastSyncStatus: 'source-deleted',
         errorMessage: null,
+        errorSince: null,
+        failureNotifiedAt: null,
+      });
+      if (recovering) await settleSyncRecovery(sql, ownerOf(config));
+      // The mirrors and the decoration both went: refresh everything.
+      await emitSyncRunHints(sql, {
+        organizationId: config.organizationId,
+        contentChanged: true,
+        healthChanged: true,
       });
       return;
     }
@@ -1566,19 +1632,88 @@ export async function runSyncConfigJobWith(
           ? `partial: ${result.errorsCount} file(s) failed`
           : 'success',
       errorMessage: null,
+      errorSince: null,
+      failureNotifiedAt: null,
+    });
+    if (recovering) await settleSyncRecovery(sql, ownerOf(config));
+    await emitSyncRunHints(sql, {
+      organizationId: config.organizationId,
+      contentChanged,
+      healthChanged: recovering,
     });
   } catch (error) {
+    const now = Date.now();
+    const needsReauth = error instanceof SyncAuthError;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const decision = decideFailureNotification(
+      {
+        errorSince: config.errorSince,
+        failureNotifiedAt: config.failureNotifiedAt,
+        lastSyncStatus: previousSyncStatus,
+      },
+      { now, needsReauth },
+    );
     await updateSyncConfigStatusRow(sql, adapter.configTable, {
       configId: config.id,
       organizationId: config.organizationId,
       status: 'error',
-      lastSyncAt: Date.now(),
-      lastSyncStatus: 'error',
-      errorMessage: error instanceof Error ? error.message : String(error),
+      lastSyncAt: now,
+      lastSyncStatus: decision.lastSyncStatus,
+      errorMessage,
+      errorSince: decision.errorSince,
+      ...(decision.notify ? { failureNotifiedAt: now } : {}),
+    });
+    if (decision.notify) {
+      // The stamp above already records "told": a bell that fails to write
+      // must not fail the run (pg-boss would re-run the sync) nor be retried
+      // into a second row — it is logged and the badge still shows.
+      try {
+        await notifyOwnerOfSyncFailure(sql, {
+          organizationId: config.organizationId,
+          ownerUserId: config.userId,
+          configId: config.id,
+          provider: adapter.displayName,
+          itemName: config.itemName,
+          needsReauth,
+          errorMessage,
+          hubFolderId: await resolveSyncItemListingFolderId(sql, {
+            organizationId: config.organizationId,
+            itemPath: config.itemPath,
+            itemName: config.itemName,
+          }),
+        });
+      } catch (notifyError) {
+        console.error(
+          `[${adapter.displayName} sync] could not notify the owner of config ${config.id}:`,
+          notifyError instanceof Error ? notifyError.message : notifyError,
+        );
+      }
+    }
+    // The badge flips on the first failure and again when the cause
+    // escalates; a repeat of the same failure changes nothing on screen.
+    await emitSyncRunHints(sql, {
+      organizationId: config.organizationId,
+      contentChanged: false,
+      healthChanged:
+        config.status !== 'error' ||
+        previousSyncStatus !== decision.lastSyncStatus,
     });
   } finally {
     clearInterval(heartbeat);
   }
+}
+
+/** The recovery settle's recipient — the member whose grant runs the sync. */
+function ownerOf(config: SyncConfigRow): {
+  organizationId: string;
+  ownerUserId: string;
+  configId: string;
+} {
+  return {
+    organizationId: config.organizationId,
+    ownerUserId: config.userId,
+    configId: config.id,
+  };
 }
 
 // ---------------------------------------------------- the OneDrive binding

@@ -166,6 +166,12 @@ entries:
   - 'inbox.taskStatusChanged'
   - 'inbox.taskStatusChangedBody'
   - 'inbox.taskStatusChangedByBody'
+  # Cloud-sync failure rows (domains/onedrive/sync-health.ts): the owner's
+  # grant died, or the sync has failed for an hour.
+  - 'inbox.cloudSyncFailed'
+  - 'inbox.cloudSyncFailedBody'
+  - 'inbox.cloudSyncNeedsReauth'
+  - 'inbox.cloudSyncNeedsReauthBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
   # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`

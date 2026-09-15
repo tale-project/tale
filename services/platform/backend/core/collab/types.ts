@@ -50,7 +50,12 @@ export type NotificationType =
   | 'conversation_message'
   // A conversation was assigned to a member by an admin (targeted; the new
   // assignee is notified, mirroring task_assigned). Actionable.
-  | 'conversation_assigned';
+  | 'conversation_assigned'
+  // A OneDrive / Google Drive sync the member owns stopped working — the
+  // grant is dead (only reconnecting resumes it) or the failure has lasted
+  // an hour (`domains/onedrive/sync-health.ts`). One row per episode, marked
+  // read by the run that recovers. Actionable.
+  | 'cloud_sync_failed';
 
 export type NotificationActorType = 'user' | 'agent' | 'system';
 

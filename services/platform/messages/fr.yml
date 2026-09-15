@@ -2374,9 +2374,40 @@ documents:
     webDav: WebDAV
     oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisé)
+    googleDriveSynced: Google Drive (synchronisé)
     sharePoint: SharePoint
     sharePointSynced: SharePoint (synchronisé)
     uploaded: Téléversement
+  syncHealth:
+    badge:
+      failed: Sync en échec
+      needsReauth: À reconnecter
+    dialog:
+      failedTitle: Échec de la synchronisation
+      failedDescription: >-
+        La dernière synchronisation de « {name} » a échoué. Tale réessaie
+        environ toutes les 15 minutes et retire cet avis dès qu’un passage
+        réussit.
+      needsReauthTitle: Accès à {provider} expiré
+      needsReauthDescription: >-
+        Tale n’a plus accès à {provider} avec le compte qui synchronise
+        « {name} ». Les fichiers déjà synchronisés restent en place ; rien de
+        nouveau n’arrive tant que ce compte n’est pas reconnecté.
+      failingSince: En échec depuis {time}
+      syncedBy: Synchronisé avec le compte de {ownerName}
+      syncedByUnknown: Synchronisé avec le compte d’un membre qui a quitté l’organisation
+      errorDetails: Détails de l’erreur
+      ownerNextStep: >-
+        Reconnecte ton compte pour reprendre la synchronisation. Le prochain
+        passage la relance dans les 15 minutes.
+      otherNextStep: >-
+        Demande à {ownerName} de reconnecter son compte. Un membre autorisé à
+        importer des documents peut aussi lancer une nouvelle importation
+        synchronisée de cet élément pour reprendre la synchronisation.
+      otherNextStepUnknown: >-
+        Lance une nouvelle importation synchronisée de cet élément pour
+        reprendre la synchronisation : le compte sous lequel elle tournait
+        n’existe plus.
   comparison:
     title: Comparer des documents
     description: Choisis deux fichiers pour voir ce qui a changé.
@@ -6339,6 +6370,10 @@ inbox:
   agentQuestionAsked: L'agent attend ta réponse
   agentQuestionAskedBody: '{name} attend ta réponse sur « {title} » : {question}'
   agentQuestionAskedNoTaskBody: '{name} attend ta réponse : {question}'
+  cloudSyncFailed: Synchronisation cloud en échec
+  cloudSyncFailedBody: 'La synchronisation de « {itemName} » depuis {provider} échoue depuis plus d’une heure ({reason}). Tale réessaie toutes les 15 minutes.'
+  cloudSyncNeedsReauth: Synchronisation cloud à reconnecter
+  cloudSyncNeedsReauthBody: 'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
