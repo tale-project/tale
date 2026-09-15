@@ -30,6 +30,9 @@ mock.module('../../utils/logger', () => ({
 
 const SHA = 'a'.repeat(64);
 
+/** A volume user as the pause reads it: healthy, probed every 5 s. */
+const HEALTHY_DB = '/p-db healthy 5000000000 10000000000 3';
+
 function ok(stdout = '') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
 }
@@ -129,6 +132,7 @@ describe('createSnapshot', () => {
     ensureVolumesMock.mockResolvedValue(true);
     dockerMock.mockImplementation((...args: string[]) => {
       if (args[0] === 'ps') return Promise.resolve(ok('abc123\n'));
+      if (args[0] === 'container') return Promise.resolve(ok(HEALTHY_DB));
       return Promise.resolve(ok());
     });
     execMock.mockImplementation((_cmd: string, args: string[]) => {
@@ -153,11 +157,16 @@ describe('createSnapshot', () => {
       sizeBytes: 123456,
     });
 
-    // Pause before tar, unpause after.
+    // Pause before tar, unpause after — and read the container's health
+    // again after the unpause, which Docker leaves `unhealthy` until the
+    // next probe.
     const dockerCalls = dockerMock.mock.calls.map((c) => c[0]);
     expect(dockerCalls).toContain('pause');
     expect(dockerCalls).toContain('unpause');
     expect(dockerCalls.indexOf('pause')).toBeLessThan(
+      dockerCalls.indexOf('unpause'),
+    );
+    expect(dockerCalls.lastIndexOf('container')).toBeGreaterThan(
       dockerCalls.indexOf('unpause'),
     );
 
@@ -175,6 +184,7 @@ describe('createSnapshot', () => {
     ensureVolumesMock.mockResolvedValue(true);
     dockerMock.mockImplementation((...args: string[]) => {
       if (args[0] === 'ps') return Promise.resolve(ok('abc123\n'));
+      if (args[0] === 'container') return Promise.resolve(ok(HEALTHY_DB));
       return Promise.resolve(ok());
     });
     execMock.mockResolvedValue({

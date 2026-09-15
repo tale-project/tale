@@ -55,7 +55,7 @@ tale restore
 
 `backup` prints the snapshot result. `restore` without an ID only lists available snapshots, including the recorded version and whether blobs are absent. Record the snapshot ID with your external backup IDs.
 
-The snapshot process pauses containers using each volume while that volume is archived. Uploads, downloads, and database work can stall during the relevant pause; duration depends on data size and host throughput. These are volume-level crash-consistent archives, not an atomic transaction across all stores. For a coordinated recovery point, stop incoming writes and scheduled work or use a maintenance window that also covers external stores.
+The snapshot process pauses containers using each volume while that volume is archived. Uploads, downloads, and database work can stall during the relevant pause; duration depends on data size and host throughput. Docker reports a paused container as `unhealthy` until its next successful health check, so after each archive the snapshot waits until every container that was healthy before the pause reports `healthy` again; this usually takes one health-check interval. If a container does not recover within the retries its health check allows, the snapshot fails. These are volume-level crash-consistent archives, not an atomic transaction across all stores. For a coordinated recovery point, stop incoming writes and scheduled work or use a maintenance window that also covers external stores.
 
 A version-changing `tale deploy`, or a host-config override, takes a snapshot before its mutating steps. Snapshot failure aborts that deployment. `--skip-backup` bypasses this protection; use it only when your recovery plan already provides the required backup.
 
