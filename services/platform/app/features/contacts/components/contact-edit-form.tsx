@@ -16,7 +16,7 @@ import {
 
 export const CONTACT_EDIT_FORM_ID = 'contact-edit';
 
-export function contactFormValues(contact: ContactDoc): ContactFormValues {
+function contactFormValues(contact: ContactDoc): ContactFormValues {
   return {
     name: contact.name || '',
     email: contact.email || '',

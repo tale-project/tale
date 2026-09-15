@@ -58,7 +58,7 @@ type ProductFormData = {
   status: (typeof PRODUCT_STATUSES)[number];
 };
 
-export function productFormValues(product: ProductEditTarget): ProductFormData {
+function productFormValues(product: ProductEditTarget): ProductFormData {
   return {
     name: product.name,
     description: product.description || '',

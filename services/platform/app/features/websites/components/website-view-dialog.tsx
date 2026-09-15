@@ -143,7 +143,6 @@ function WebsiteStatusBadge({ website }: { website: WebsiteDoc }) {
   }
   const status = website.status;
   const labels: Record<string, string> = {
-    idle: t('filter.status.idle'),
     scanning: t('filter.status.scanning'),
     active: t('filter.status.active'),
     error: t('filter.status.error'),
