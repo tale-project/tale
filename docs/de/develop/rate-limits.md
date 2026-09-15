@@ -52,6 +52,8 @@ Entscheide anhand von `code`. `error` beschreibt die Wartezeit als Satz; `reques
 3. Vergrößere bei weiteren Ablehnungen den Abstand exponentiell mit einer Obergrenze und einer zufälligen Streuung. Beispielsweise kann er von einer auf sechzig Sekunden wachsen; eine längere Servervorgabe hat Vorrang.
 4. Behalte bei unterstützten Operationen den ursprünglichen Idempotenzschlüssel. Nach einem Timeout beim Laufstart kann der Lauf bereits angenommen worden sein.
 
+Auch ein Ausgabenlimit antwortet mit `429`, dann mit `code` `BUDGET_EXCEEDED`: Eine Budgetregel, die für den Schlüsselinhaber gilt – seine eigene, die eines Teams, der Organisation oder des API-Schlüssels –, ist ausgeschöpft. Kurzes Warten hilft hier nicht. `Retry-After` nennt die Zeit bis zum Zurücksetzen des Zeitraums, und `data` beschreibt die Grenze: `scope`, `period`, `limitCode`, `used`, `limit` und `resetsAt` in Epoch-Millisekunden. Es wird nichts eingereiht. Pausiere die Arbeit bis `resetsAt` oder bitte eine Person mit Administratorrechten, das Limit unter [Richtlinien & Limits](/de/platform/admin/governance/policies-and-limits) zu erhöhen.
+
 Andere `4xx`-Antworten erfordern meist korrigierte Daten, Zugangsdaten oder Berechtigungen. Behandle nicht jeden Fehler als Limitüberschreitung; nutze das [Fehlermodell](/de/develop/api-reference#fehlermodell).
 
 ## Polling und Wiederholungen planen

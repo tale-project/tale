@@ -51,6 +51,6 @@ Une ancienne date de **Dernière utilisation** ne suffit pas à justifier une r�
 
 Un changement de rôle s’applique aux requêtes suivantes des clés existantes. Désactiver l’adhésion de leur propriétaire retire ses accès ; la clé ne conserve pas le rôle qu’elle avait à sa création.
 
-Les limites de débit REST s’appliquent au propriétaire authentifié de la clé. Plusieurs clés d’une même personne ne donnent pas de quotas de débit distincts. Consulte [les limites de débit](/fr/develop/rate-limits). Une [règle de budget](/fr/platform/admin/governance/policies-and-limits) peut aussi limiter les dépenses de modèles pour une clé précise.
+Les limites de débit REST s’appliquent au propriétaire authentifié de la clé. Plusieurs clés d’une même personne ne donnent pas de quotas de débit distincts. Consulte [les limites de débit](/fr/develop/rate-limits). Une [règle de budget](/fr/platform/admin/governance/policies-and-limits) peut aussi plafonner ce que les requêtes authentifiées par une clé précise peuvent dépenser : leur usage est imputé à la clé, et un envoi au-delà du plafond est refusé avec `429 BUDGET_EXCEEDED`.
 
 Les clés API authentifient les logiciels qui appellent Tale. Les [identifiants des connecteurs](/fr/platform/admin/connectors) servent dans l’autre sens : ils permettent à Tale d’appeler un service externe.

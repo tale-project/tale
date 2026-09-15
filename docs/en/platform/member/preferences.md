@@ -57,7 +57,7 @@ Open **Settings > Usage** to see how much you have used of each limit your organ
 
 </Frame>
 
-- **Your limits** count your own chats, voice output, and agent runs. When one is reached, you can't start more of that work until it resets.
+- **Your limits** count your own chats, voice output, and agent runs. When one is reached, you can't start more of that work until it resets: a message you send then is refused with a notice that names the limit, and it stays in the composer.
 - **Shared limits** count the usage of everyone they cover, such as a team you belong to or the entire organization, so they can be reached before your own limits.
 - **Storage** compares the files you have uploaded with your storage limit. New document uploads are refused once it is reached.
 

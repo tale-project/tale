@@ -51,6 +51,6 @@ Ein altes Datum unter **Zuletzt verwendet** reicht allein nicht als Grund zum Wi
 
 Rollenänderungen gelten bei folgenden Anfragen auch für bestehende Schlüssel. Wird die Mitgliedschaft des Inhabers deaktiviert, endet sein Zugriff. Der Schlüssel behält nicht die Rolle vom Erstellungszeitpunkt.
 
-REST-Ratenlimits gelten für den authentifizierten Schlüsselinhaber. Mehrere Schlüssel derselben Person erhalten keine getrennten Kontingente. Siehe [Ratenlimits](/de/develop/rate-limits). Eine [Budgetregel](/de/platform/admin/governance/policies-and-limits) kann zusätzlich die Modellausgaben eines einzelnen Schlüssels begrenzen.
+REST-Ratenlimits gelten für den authentifizierten Schlüsselinhaber. Mehrere Schlüssel derselben Person erhalten keine getrennten Kontingente. Siehe [Ratenlimits](/de/develop/rate-limits). Eine [Budgetregel](/de/platform/admin/governance/policies-and-limits) kann zusätzlich begrenzen, was mit einem einzelnen Schlüssel authentifizierte Anfragen ausgeben dürfen: Ihre Nutzung wird dem Schlüssel angerechnet, und ein Senden über der Grenze wird mit `429 BUDGET_EXCEEDED` abgelehnt.
 
 API-Schlüssel authentifizieren Software, die Tale aufruft. [Connector-Zugangsdaten](/de/platform/admin/connectors) dienen der Gegenrichtung: Damit ruft Tale einen externen Dienst auf.

@@ -52,6 +52,8 @@ Branche ta logique sur `code`. `error` décrit l’attente dans une phrase et `r
 3. Si les refus continuent, augmente le délai exponentiellement avec une borne et une variation aléatoire. Par exemple, passe d’une à soixante secondes en respectant toujours une attente serveur plus longue.
 4. Conserve la clé d’idempotence initiale pour les opérations qui la prennent en charge. Un timeout au démarrage peut survenir après l’acceptation du travail.
 
+Un plafond de dépenses répond aussi par `429`, avec le `code` `BUDGET_EXCEEDED` : une règle de budget qui s’applique au propriétaire de la clé — la sienne, celle d’une équipe, de l’organisation ou de la clé API — est atteinte. Attendre quelques secondes ne suffit pas. `Retry-After` indique le temps restant avant la réinitialisation de la période, et `data` décrit le plafond : `scope`, `period`, `limitCode`, `used`, `limit` et `resetsAt` en millisecondes epoch. Rien n’est mis en file d’attente ; suspends le travail jusqu’à `resetsAt` ou demande à un administrateur de relever la limite dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+
 Les autres réponses `4xx` nécessitent généralement une correction de requête, d’identifiants ou de droits. Ne traite pas tout échec comme une limite ; consulte le [modèle d’erreur](/fr/develop/api-reference#modele-derreur).
 
 ## Planifier le suivi et les relances
