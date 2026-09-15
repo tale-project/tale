@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { indexDocument } from '../../core/knowledge/indexing.ts';
+import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import { RAG_ERROR_EMBEDDING_PROVIDER_REFUSED } from '../../core/knowledge/rag_error_codes.ts';
 import { indexUploadedFile } from './service.ts';
 
@@ -17,7 +17,9 @@ import { indexUploadedFile } from './service.ts';
  * retries are for.
  */
 
-vi.mock('../../core/knowledge/indexing.ts', () => ({ indexDocument: vi.fn() }));
+vi.mock('../../core/knowledge/indexing.ts', () => ({
+  indexWholeDocument: vi.fn(),
+}));
 vi.mock('../../core/knowledge/embedding.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/knowledge/embedding.ts')
@@ -103,7 +105,7 @@ const providerError = (status: number, body: Record<string, unknown>) =>
   OpenAI.APIError.generate(status, body, undefined, new Headers());
 
 beforeEach(() => {
-  vi.mocked(indexDocument).mockReset();
+  vi.mocked(indexWholeDocument).mockReset();
 });
 
 describe('indexUploadedFile — provider refusals', () => {
@@ -126,7 +128,7 @@ describe('indexUploadedFile — provider refusals', () => {
   ])(
     'ends the job on %s with the cause on the file, never a retry',
     async (_label, error) => {
-      vi.mocked(indexDocument).mockRejectedValue(error);
+      vi.mocked(indexWholeDocument).mockRejectedValue(error);
       const log: Query[] = [];
 
       await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
@@ -136,12 +138,12 @@ describe('indexUploadedFile — provider refusals', () => {
       const write = lastStatusWrite(log);
       expect(write).toContain('failed');
       expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
-      expect(indexDocument).toHaveBeenCalledTimes(1);
+      expect(indexWholeDocument).toHaveBeenCalledTimes(1);
     },
   );
 
   it('keeps throwing on a transient provider failure — that is what the retries are for', async () => {
-    vi.mocked(indexDocument).mockRejectedValue(
+    vi.mocked(indexWholeDocument).mockRejectedValue(
       providerError(503, { error: { message: 'The server is overloaded' } }),
     );
     const log: Query[] = [];
