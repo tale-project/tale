@@ -29,16 +29,20 @@ export function turnErrorToastDescription(
 }
 
 /** Toast copy for a refused send / arena turn — guardrail titles stay as-is,
- * provider failures get a sanitized description. */
+ * a refusal classified with its own description (a reached budget cap, by
+ * its `code`) gets that, and provider failures get a sanitized one. */
 export function turnRefusalToastContent(
   reason: string | undefined,
   t: ChatT,
+  code?: string,
 ): TurnToastContent {
-  const keys = classifyRefusal(reason);
+  const keys = classifyRefusal(reason, code);
   const description =
-    keys.titleKey === 'toast.sendFailed'
-      ? turnErrorToastDescription(reason, t)
-      : undefined;
+    keys.descriptionKey !== undefined
+      ? t(keys.descriptionKey)
+      : keys.titleKey === 'toast.sendFailed'
+        ? turnErrorToastDescription(reason, t)
+        : undefined;
   return {
     titleKey: keys.titleKey,
     ...(description !== undefined ? { description } : {}),

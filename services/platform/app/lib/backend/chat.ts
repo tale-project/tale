@@ -448,6 +448,10 @@ export interface ChatTurnOutcome {
    * blocked reply landed — so the composer must not hand the text back.
    * Absent or false: nothing was written; the client holds the only copy. */
   persisted?: boolean;
+  /** The refusal's stable code when the server names one — a reached budget
+   * cap answers `BUDGET_EXCEEDED` — so the toast is chosen by code rather
+   * than by matching the English reason. */
+  code?: string;
 }
 
 /**
@@ -492,12 +496,14 @@ export async function sendChatTurn(
       status: unknown;
       reason?: unknown;
       persisted?: unknown;
+      code?: unknown;
     };
     if (record.status === 'completed') return { status: 'completed' };
     if (record.status === 'refused') {
       return {
         status: 'refused',
         ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
+        ...(typeof record.code === 'string' ? { code: record.code } : {}),
         persisted: record.persisted === true,
       };
     }
@@ -1102,6 +1108,16 @@ export async function settleArenaPairRequest(
   );
 }
 
+/** One arena column's answer — the same refusal facts a single send gets. */
+export interface ArenaSideOutcome {
+  status: 'completed' | 'refused';
+  reason?: string;
+  /** See `ChatTurnOutcome.persisted`. */
+  persisted?: boolean;
+  /** See `ChatTurnOutcome.code`. */
+  code?: string;
+}
+
 export async function startArenaTurnRequest(
   organizationId: string,
   threadId: string,
@@ -1115,8 +1131,8 @@ export async function startArenaTurnRequest(
     locale?: string;
   },
 ): Promise<{
-  a: { status: 'completed' | 'refused'; reason?: string };
-  b: { status: 'completed' | 'refused'; reason?: string };
+  a: ArenaSideOutcome;
+  b: ArenaSideOutcome;
 }> {
   return backendFetch(
     `/chat/threads/${encodeURIComponent(threadId)}/arena/turn`,

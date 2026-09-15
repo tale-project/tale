@@ -49,6 +49,18 @@ describe('turnRefusalToastContent', () => {
     expect(content.titleKey).toBe('toast.sendFailed');
     expect(content.description).toBe('errorHintAuthError');
   });
+
+  it('describes a budget refusal with its localized hint, never the English sentence', () => {
+    const content = turnRefusalToastContent(
+      'Usage limit reached. Your daily request limit is used up until 2026-09-16T00:00:00.000Z.',
+      t,
+      'BUDGET_EXCEEDED',
+    );
+    expect(content).toEqual({
+      titleKey: 'toast.budgetExceeded',
+      description: 'errorHintBudgetExceeded',
+    });
+  });
 });
 
 describe('turnNamedFailureToastContent', () => {

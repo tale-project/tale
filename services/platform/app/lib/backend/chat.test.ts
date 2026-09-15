@@ -1,13 +1,49 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import {
+  sendChatTurn,
   videoJobsForThreadQuery,
   videoJobsPollInterval,
   videoJobsUnboundQuery,
 } from './chat';
+
+/**
+ * A refusal's toast used to be picked by matching its English sentence; a
+ * reached budget cap now names itself with a code, and the send hands that
+ * code to the caller beside the reason.
+ */
+describe('sendChatTurn', () => {
+  it('hands a refusal’s code to the caller beside its reason', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        {
+          status: 'refused',
+          code: 'BUDGET_EXCEEDED',
+          reason: 'Usage limit reached.',
+          persisted: false,
+          data: { scope: 'user', period: 'daily' },
+        },
+        { status: 429 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(
+        sendChatTurn('org1', 't1', { text: 'hello', modelId: 'model-a' }),
+      ).resolves.toEqual({
+        status: 'refused',
+        reason: 'Usage limit reached.',
+        code: 'BUDGET_EXCEEDED',
+        persisted: false,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 /**
  * An idle chat page used to ask `/video-links/thread/{id}` every two

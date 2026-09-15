@@ -24,6 +24,25 @@ describe('classifyRefusal', () => {
     );
   });
 
+  it('classifies a budget refusal by its code, whatever the sentence says', () => {
+    expect(
+      classifyRefusal(
+        'Daily request cap hit (some other phrasing)',
+        'BUDGET_EXCEEDED',
+      ),
+    ).toEqual({
+      titleKey: 'toast.budgetExceeded',
+      descriptionKey: 'errorHintBudgetExceeded',
+    });
+  });
+
+  it('still matches the phrasing for a code it does not map', () => {
+    expect(
+      classifyRefusal('Message blocked: PII detected', 'CHAT_MODEL_UNKNOWN')
+        .titleKey,
+    ).toBe('toast.piiBlocked');
+  });
+
   it('maps model-access denials', () => {
     expect(
       classifyRefusal('You do not have access to the selected model').titleKey,

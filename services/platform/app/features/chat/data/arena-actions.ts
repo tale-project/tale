@@ -20,11 +20,17 @@ import {
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 
+import { isBudgetRefusalCode } from '../utils/classify-refusal';
+import { invalidateBudgetStanding, useChatQueryClient } from './chat-backend';
+
 interface SideResult {
   readonly status: 'completed' | 'refused';
   readonly reason?: string;
   /** The side's refusal is on its thread's record — see `ChatTurnOutcome`. */
   readonly persisted?: boolean;
+  /** The refusal's stable code when the server names one — see
+   * `ChatTurnOutcome.code`. */
+  readonly code?: string;
 }
 
 export interface ArenaActions {
@@ -59,6 +65,7 @@ export interface ArenaActions {
 }
 
 export function useArenaActions(organizationId: string): ArenaActions {
+  const queryClient = useChatQueryClient();
   const createThread = useCallback(
     async (
       projectId?: string,
@@ -105,14 +112,23 @@ export function useArenaActions(organizationId: string): ArenaActions {
     }): Promise<{ a: SideResult; b: SideResult }> => {
       try {
         const { threadId, ...body } = args;
-        return await startArenaTurnRequest(organizationId, threadId, body);
+        const sides = await startArenaTurnRequest(
+          organizationId,
+          threadId,
+          body,
+        );
+        // A reached cap refuses the pair: the banner learns it now.
+        if ([sides.a, sides.b].some((side) => isBudgetRefusalCode(side.code))) {
+          invalidateBudgetStanding(queryClient, organizationId);
+        }
+        return sides;
       } catch (error) {
         console.error('[arena] the fanned turn failed', error);
         const failed: SideResult = { status: 'refused' };
         return { a: failed, b: failed };
       }
     },
-    [organizationId],
+    [organizationId, queryClient],
   );
 
   const settle = useCallback(
