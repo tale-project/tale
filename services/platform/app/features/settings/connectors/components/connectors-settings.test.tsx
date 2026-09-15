@@ -271,6 +271,17 @@ async function pickConnector(
   return dialog;
 }
 
+/** Replace the name the setup step suggests with the test's own. */
+async function rename(
+  user: Awaited<ReturnType<typeof render>>['user'],
+  form: ReturnType<typeof within>,
+  name: string,
+) {
+  const field = form.getByRole('textbox', { name: /^Name/ });
+  await user.clear(field);
+  await user.type(field, name);
+}
+
 describe('ConnectorsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -426,12 +437,24 @@ describe('ConnectorsSettings', () => {
       expect(createCredential).not.toHaveBeenCalled();
     });
 
+    it('suggests the connector’s name, numbered past one that connector already holds', async () => {
+      fixtures.credentials = [
+        ...defaultCredentials,
+        credential({ id: 'cred-3', name: 'GitHub' }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const form = await pickConnector(user, 'GitHub');
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'GitHub 2',
+      );
+    });
+
     it('creates a bearer credential without ever rendering the secret', async () => {
       fixtures.credentials = [];
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       const form = await pickConnector(user, 'GitHub');
 
-      await user.type(form.getByRole('textbox', { name: /^Name/ }), 'CI bot');
+      await rename(user, form, 'CI bot');
       await user.type(
         form.getByLabelText(/^Token/, { selector: 'input' }),
         'ghp_supersecret',
@@ -456,10 +479,6 @@ describe('ConnectorsSettings', () => {
       const form = await pickConnector(user, 'Confluence');
 
       await user.type(
-        form.getByRole('textbox', { name: /^Name/ }),
-        'Docs site',
-      );
-      await user.type(
         form.getByLabelText(/^Username/, { selector: 'input' }),
         'bot@example.com',
       );
@@ -480,7 +499,8 @@ describe('ConnectorsSettings', () => {
         organizationId: 'org-1',
         connectorSlug: 'confluence',
         authMethod: 'basic',
-        name: 'Docs site',
+        // The suggested name, kept.
+        name: 'Confluence',
         username: 'bot@example.com',
         password: 'api-token',
         endpointUrl: 'https://acme.atlassian.net',
@@ -497,10 +517,6 @@ describe('ConnectorsSettings', () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       const form = await pickConnector(user, 'IMAP / SMTP Mailbox');
 
-      await user.type(
-        form.getByRole('textbox', { name: /^Name/ }),
-        'hello@example.com',
-      );
       await user.type(
         form.getByLabelText(/^Username/, { selector: 'input' }),
         'hello@example.com',
@@ -531,7 +547,7 @@ describe('ConnectorsSettings', () => {
         organizationId: 'org-1',
         connectorSlug: 'imap-smtp',
         authMethod: 'basic',
-        name: 'hello@example.com',
+        name: 'IMAP / SMTP Mailbox',
         username: 'hello@example.com',
         password: 'mailbox-secret',
         // imapPort and security are omitted, not sent blank: the server applies
@@ -550,10 +566,6 @@ describe('ConnectorsSettings', () => {
     const { user } = render(<ConnectorsSettings organizationId="org-1" />);
     const form = await pickConnector(user, 'IMAP / SMTP Mailbox');
 
-    await user.type(
-      form.getByRole('textbox', { name: /^Name/ }),
-      'hello@example.com',
-    );
     await user.type(
       form.getByLabelText(/^Username/, { selector: 'input' }),
       'hello@example.com',
@@ -596,7 +608,7 @@ describe('ConnectorsSettings', () => {
       organizationId: 'org-1',
       connectorSlug: 'imap-smtp',
       authMethod: 'basic',
-      name: 'hello@example.com',
+      name: 'IMAP / SMTP Mailbox',
       username: 'hello@example.com',
       password: 'mailbox-secret',
       smtpUsername: 'resend',

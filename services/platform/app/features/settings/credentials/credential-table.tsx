@@ -117,12 +117,6 @@ export function CredentialTable<
     [vendors],
   );
 
-  const inUseKeys = useMemo(
-    () =>
-      new Set(credentials.map((credential) => adapter.vendorKeyOf(credential))),
-    [adapter, credentials],
-  );
-
   const rows = useMemo(() => {
     const all: CredentialTableRow<V, Cred>[] = credentials.map((credential) => {
       const vendorKey = adapter.vendorKeyOf(credential);
@@ -328,7 +322,7 @@ export function CredentialTable<
         <CredentialAddDialog
           organizationId={organizationId}
           vendors={vendors}
-          inUseKeys={inUseKeys}
+          credentials={credentials}
           adapter={adapter}
           open={addOpen}
           onOpenChange={setAddOpen}

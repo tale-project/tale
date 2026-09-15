@@ -10,6 +10,7 @@ import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useId, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { uniqueCredentialName } from '@/lib/shared/utils/credential-name';
 
 import {
   type CredentialAdapter,
@@ -40,7 +41,7 @@ export function CredentialAddDialog<
 >({
   organizationId,
   vendors,
-  inUseKeys,
+  credentials,
   adapter,
   open,
   onOpenChange,
@@ -50,8 +51,12 @@ export function CredentialAddDialog<
   organizationId: string;
   /** The whole shipped catalog, in any order — step one sorts it. */
   vendors: readonly V[];
-  /** `CredentialVendor.key`s the organization already holds a credential for. */
-  inUseKeys: ReadonlySet<string>;
+  /**
+   * The credentials the organization already holds on this surface: their
+   * vendors lead the picker, and their names are what a new credential's
+   * suggested name numbers past.
+   */
+  credentials: readonly Cred[];
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,11 +73,21 @@ export function CredentialAddDialog<
 
   const [vendor, setVendor] = useState<V | null>(null);
   const [method, setMethod] = useState<Method | null>(null);
+  // The name step two opened with, kept beside what the field holds now: an
+  // untouched suggestion is nothing the reader typed, so closing over it has
+  // nothing to discard.
+  const [suggestedName, setSuggestedName] = useState('');
   const [name, setName] = useState('');
   const [draft, setDraft] = useState<Draft>(secret.empty);
   const [extraValue, setExtraValue] = useState<Extra>(extra.empty);
   const [endpointUrl, setEndpointUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const inUseKeys = useMemo(
+    () =>
+      new Set(credentials.map((credential) => adapter.vendorKeyOf(credential))),
+    [adapter, credentials],
+  );
 
   const methods = useMemo(
     () => (vendor === null ? [] : adapter.formMethods(vendor)),
@@ -81,13 +96,14 @@ export function CredentialAddDialog<
   const activeMethod = method ?? methods[0];
 
   const isDirty =
-    name.trim().length > 0 ||
+    name.trim() !== suggestedName.trim() ||
     endpointUrl.length > 0 ||
     secret.isDirty(draft) ||
     extra.isDirty(extraValue, extra.empty());
 
   const clearSetup = useCallback(() => {
     setMethod(null);
+    setSuggestedName('');
     setName('');
     setDraft(secret.empty());
     setExtraValue(extra.empty());
@@ -99,6 +115,23 @@ export function CredentialAddDialog<
     setVendor(null);
     clearSetup();
   }, [clearSetup]);
+
+  // Step two opens already named after the vendor, numbered past the names
+  // its credentials hold ("OpenRouter", then "OpenRouter 2"), so keeping the
+  // suggestion can never collide with a sibling. Taken once, on the pick: the
+  // credential list is live, and a derived suggestion would renumber under
+  // the reader whenever it moved — the credential being saved included.
+  const selectVendor = (next: V) => {
+    const suggestion = uniqueCredentialName(
+      credentials
+        .filter((credential) => adapter.vendorKeyOf(credential) === next.key)
+        .map((credential) => credential.name),
+      next.displayName,
+    );
+    setVendor(next);
+    setSuggestedName(suggestion);
+    setName(suggestion);
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
@@ -222,7 +255,7 @@ export function CredentialAddDialog<
           vendors={vendors}
           inUseKeys={inUseKeys}
           adapter={adapter}
-          onSelect={setVendor}
+          onSelect={selectVendor}
           searchPlaceholder={searchPlaceholder}
           catalogEmpty={catalogEmpty}
         />
