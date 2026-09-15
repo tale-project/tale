@@ -85,6 +85,12 @@ export type HarnessCredential =
         readonly baseUrl: string;
         /** Session virtual key minted at session create. */
         readonly token: string;
+        /** The gateway's per-stream idle budget in milliseconds: how long it
+         * waits for the next upstream byte before it aborts a stream. A CLI
+         * with its own client-side idle watchdog must wait at least this
+         * long, or it gives up on — and sends again — a request the gateway
+         * is still serving. */
+        readonly streamIdleTimeoutMs: number;
       };
     }
   | {

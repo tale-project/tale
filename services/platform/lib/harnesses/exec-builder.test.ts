@@ -350,3 +350,56 @@ describe('claude reasoning levers scope to Claude models', () => {
     expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
   });
 });
+
+describe('claude-code waits for a silent stream as long as the gateway', () => {
+  // On its own the CLI abandons a stream after 300 s without a chunk and
+  // sends the request again while the gateway is still serving the first
+  // one; a managed exec hands it the gateway's own idle budget instead.
+  it('a managed exec carries the gateway budget in milliseconds', () => {
+    const claude = fact('claude-code');
+    expect(
+      buildHarnessExec(claude, managedSpec()).env.CLAUDE_STREAM_IDLE_TIMEOUT_MS,
+    ).toBe(String(GOLDEN_GATEWAY.streamIdleTimeoutMs));
+    const raised = buildHarnessExec(
+      claude,
+      managedSpec({
+        credential: {
+          mode: 'managed',
+          gateway: { ...GOLDEN_GATEWAY, streamIdleTimeoutMs: 1_800_000 },
+        },
+      }),
+    );
+    expect(raised.env.CLAUDE_STREAM_IDLE_TIMEOUT_MS).toBe('1800000');
+  });
+
+  it('a byo exec leaves the CLI on its own default', () => {
+    const exec = buildHarnessExec(fact('claude-code'), {
+      prompt: 'p',
+      model: 'claude-opus-4-6',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+    });
+    expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
+  });
+
+  const others = loadHarnesses().filter((h) => h.slug !== 'claude-code');
+  it.each(others.map((h) => [h.slug, h] as const))(
+    '%s builds the same execs whatever the budget',
+    (_slug, harness) => {
+      for (const { spec } of goldenBattery()) {
+        if (spec.credential.mode !== 'managed') continue;
+        const { gateway } = spec.credential;
+        const withBudget = (streamIdleTimeoutMs: number): HarnessRunSpec => ({
+          ...spec,
+          credential: {
+            mode: 'managed',
+            gateway: { ...gateway, streamIdleTimeoutMs },
+          },
+        });
+        const exec = buildHarnessExec(harness, withBudget(1));
+        expect(exec).toEqual(buildHarnessExec(harness, withBudget(1_800_000)));
+        expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
+      }
+    },
+  );
+});
