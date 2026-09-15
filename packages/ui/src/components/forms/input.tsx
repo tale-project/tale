@@ -14,17 +14,23 @@ import {
   DisabledReasonTooltip,
   hasDisabledReason,
 } from '../overlays/disabled-reason';
+import {
+  FIELD_FOCUS,
+  FIELD_FOCUS_WITHIN,
+  FIELD_INVALID,
+  FIELD_INVALID_WITHIN,
+} from './field-focus';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 const inputVariants = cva(
-  // One height fits all controls (`h-9`) — no size axis.
-  'placeholder:text-muted-foreground flex h-9 w-full text-base transition-[border-color,box-shadow] duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+  // One height fits all (`h-9`). Disabled is a filled muted field
+  // (design-system Input/Text `xZ0I9`), not an opacity wash.
+  'placeholder:text-muted-foreground flex h-9 w-full text-base transition-[border-color,box-shadow] duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)]',
   {
     variants: {
       variant: {
-        default:
-          'bg-input ring-offset-background focus-visible:ring-ring focus-visible:ring-primary rounded-lg border border-transparent px-3 py-2 ring-1 ring-[color:var(--color-border-input)] focus-visible:ring-2 focus-visible:ring-offset-2',
+        default: `bg-input rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 ${FIELD_FOCUS}`,
         unstyled: 'border-0 bg-transparent ring-0 ring-offset-0',
         // Borderless, text-like display for values the user cannot edit in
         // context. Keeps the field's footprint (`h-9` from the base + the same
@@ -391,9 +397,8 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
             {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
             <div
               className={cn(
-                'bg-input ring-offset-background focus-within:ring-primary flex h-9 w-full items-center rounded-lg border border-transparent px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-offset-2',
-                showInvalid &&
-                  'border-destructive focus-within:ring-destructive',
+                `bg-input flex h-9 w-full items-center rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 ${FIELD_FOCUS_WITHIN}`,
+                showInvalid && FIELD_INVALID_WITHIN,
                 showShake && 'animate-shake',
                 className,
               )}
@@ -418,7 +423,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
                   type={inputType}
                   {...sensitiveAttrs}
                   {...disabledAttrs}
-                  className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:text-[color:var(--color-fg-subtle)]"
                   ref={ref}
                   required={required}
                   aria-invalid={showInvalid || undefined}
@@ -496,8 +501,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
               {...disabledAttrs}
               className={cn(
                 inputVariants({ variant: resolvedVariant }),
-                showInvalid &&
-                  'border-destructive focus-visible:ring-destructive',
+                showInvalid && FIELD_INVALID,
                 showShake && 'animate-shake',
                 className,
               )}

@@ -35,18 +35,73 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
-import type {
-  CrawlerChunk,
-  CrawlerPage,
-  CrawlerSearchResult,
+import {
+  PAGE_FAILURE_KINDS,
+  type CrawlerChunk,
+  type CrawlerPage,
+  type CrawlerSearchResult,
 } from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import {
+  classifyScanError,
+  isHollowSiteScan,
+  scanEmptyMessageKey,
+  scanErrorMessageKey,
+} from '../lib/scan-error';
 import { isScanPaused } from '../lib/scan-paused';
 import { WebsiteEditDialog } from './website-edit-dialog';
 
 const PAGE_SIZE = 20;
+
+const FAILURE_KIND_KEYS = {
+  dns_failed: 'pagesDialog.errorKind.dnsFailed',
+  timeout: 'pagesDialog.errorKind.timeout',
+  insecure_public_http: 'pagesDialog.errorKind.insecurePublicHttp',
+  private_ip: 'pagesDialog.errorKind.privateIp',
+  http_error: 'pagesDialog.errorKind.httpError',
+  network_error: 'pagesDialog.errorKind.networkError',
+  render_failed: 'pagesDialog.errorKind.renderFailed',
+  extraction_failed: 'pagesDialog.errorKind.extractionFailed',
+  invalid_url: 'pagesDialog.errorKind.invalidUrl',
+  unsupported_protocol: 'pagesDialog.errorKind.unsupportedProtocol',
+  redirect_missing_location: 'pagesDialog.errorKind.redirectMissingLocation',
+  redirect_limit_exceeded: 'pagesDialog.errorKind.redirectLimitExceeded',
+  response_too_large: 'pagesDialog.errorKind.responseTooLarge',
+  response_too_small: 'pagesDialog.errorKind.responseTooSmall',
+  aborted: 'pagesDialog.errorKind.aborted',
+  tls_error: 'pagesDialog.errorKind.tlsError',
+  unsupported_content: 'pagesDialog.errorKind.unsupportedContent',
+  robots_noindex: 'pagesDialog.errorKind.robotsNoindex',
+} as const satisfies Record<
+  (typeof PAGE_FAILURE_KINDS)[number],
+  `pagesDialog.errorKind.${string}`
+>;
+
+function isFailureKind(kind: string): kind is keyof typeof FAILURE_KIND_KEYS {
+  return Object.hasOwn(FAILURE_KIND_KEYS, kind);
+}
+
+function pageFailureCaption(
+  page: CrawlerPage,
+  t: (key: string, values?: Record<string, unknown>) => string,
+): string | null {
+  if (page.fail_count <= 0) return null;
+  if (page.last_error === null && page.last_error_kind === null) return null;
+  const kind = page.last_error_kind;
+  const reason =
+    kind !== null && isFailureKind(kind)
+      ? t(FAILURE_KIND_KEYS[kind])
+      : (page.last_error ?? t('pagesDialog.errorKind.fallback'));
+  if (page.fail_count > 1) {
+    return t('pagesDialog.lastError', {
+      count: page.fail_count,
+      message: reason,
+    });
+  }
+  return reason;
+}
 
 const statusVariant = {
   active: 'green',
@@ -106,12 +161,25 @@ function PageRow({
     [chunks, isPending, fetchChunks, websiteId, page.url],
   );
 
+  const failedCaption = pageFailureCaption(page, t);
+  const label = page.title || page.url;
+
   const summary = (
     <Stack gap={1} className="min-w-0 flex-1">
       <Heading level={4} size="sm" weight="medium" className="wrap-anywhere">
-        <SkeletonBox>{page.title || page.url}</SkeletonBox>
+        <SkeletonBox>
+          <a
+            href={page.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {label}
+          </a>
+        </SkeletonBox>
       </Heading>
-      {page.title && (
+      {page.title ? (
         <Text variant="caption">
           <a
             href={page.url}
@@ -123,18 +191,24 @@ function PageRow({
             <SkeletonBox>{page.url}</SkeletonBox>
           </a>
         </Text>
-      )}
+      ) : null}
       <Row gap={3} wrap className="text-muted-foreground text-xs">
-        <span>
-          <SkeletonBox>
-            {t('pagesDialog.wordCount', { count: page.word_count })}
-          </SkeletonBox>
-        </span>
-        <span>
-          <SkeletonBox>
-            {t('pagesDialog.chunks', { count: page.chunks_count })}
-          </SkeletonBox>
-        </span>
+        {failedCaption === null ? (
+          <>
+            <span>
+              <SkeletonBox>
+                {t('pagesDialog.wordCount', { count: page.word_count })}
+              </SkeletonBox>
+            </span>
+            <span>
+              <SkeletonBox>
+                {t('pagesDialog.chunks', { count: page.chunks_count })}
+              </SkeletonBox>
+            </span>
+          </>
+        ) : (
+          <Badge variant="destructive">{t('pagesDialog.failed')}</Badge>
+        )}
         {page.last_crawled_at && (
           <span>
             {t('pagesDialog.lastCrawled', {
@@ -143,12 +217,13 @@ function PageRow({
           </span>
         )}
       </Row>
-      {page.fail_count > 0 && page.last_error !== null && (
-        <Text variant="caption" className="text-destructive wrap-anywhere">
-          {t('pagesDialog.lastError', {
-            count: page.fail_count,
-            message: page.last_error,
-          })}
+      {failedCaption !== null && (
+        <Text
+          variant="caption"
+          className="text-muted-foreground wrap-anywhere"
+          title={page.last_error ?? undefined}
+        >
+          {failedCaption}
         </Text>
       )}
     </Stack>
@@ -350,15 +425,19 @@ export function WebsiteViewDialog({
     website.status ||
     t('viewDialog.unknown');
 
-  // Paused (repeated failures to reach the knowledge database) wins over the
-  // stored `error` status — this site stopped retrying and needs a manual
-  // resume, which the notice explains.
-  const statusNotice = paused
-    ? t('viewDialog.scanPausedNotice')
-    : website.status === 'error' &&
-        typeof website.metadata?.lastSyncError === 'string'
+  const lastSyncError =
+    typeof website.metadata?.lastSyncError === 'string'
       ? website.metadata.lastSyncError
       : null;
+  const scanErrorKind =
+    lastSyncError === null ? 'generic' : classifyScanError(lastSyncError);
+  const hollowScan = isHollowSiteScan(website, pages, paused);
+
+  // Paused (repeated failures to reach the knowledge database) wins over the
+  // stored `error` status — this site stopped retrying and needs a manual
+  // resume, which the notice explains. Scan dumps stay on `title`, never in
+  // the facts grid.
+  const statusNotice = paused ? t('viewDialog.scanPausedNotice') : null;
 
   const facts = useMemo<StatGridItem[]>(
     () => [
@@ -486,97 +565,120 @@ export function WebsiteViewDialog({
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     >
-      <EntityViewSection
-        title={t('pagesDialog.title')}
-        meta={
-          <>
-            {website.crawledPageCount ?? 0} {t('indexed').toLowerCase()}
-            {failedPageCount > 0 &&
-              ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
-          </>
-        }
-      >
-        <Row gap={2}>
-          <SearchInput
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyDown={handleSearchKeyDown}
-            placeholder={t('pagesDialog.searchPlaceholder')}
-            aria-label={t('pagesDialog.searchPlaceholder')}
-            wrapperClassName="flex-1"
-            className="max-w-none"
+      {hollowScan ? (
+        <div title={lastSyncError ?? undefined}>
+          <EmptyState
+            title={t(scanErrorMessageKey(scanErrorKind))}
+            description={t(scanEmptyMessageKey(scanErrorKind))}
+            className="py-6"
           />
-          <IconButton
-            icon={SearchIcon}
-            variant="secondary"
-            onClick={triggerSearch}
-            disabled={!searchQuery.trim() || isSearching}
-            aria-label={t('pagesDialog.searchPlaceholder')}
-          />
-        </Row>
+        </div>
+      ) : (
+        <EntityViewSection
+          title={t('pagesDialog.title')}
+          meta={
+            <>
+              {website.crawledPageCount ?? 0} {t('indexed').toLowerCase()}
+              {failedPageCount > 0 &&
+                ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
+            </>
+          }
+        >
+          {lastSyncError !== null && !paused ? (
+            <Text
+              variant="caption"
+              className="text-muted-foreground"
+              title={lastSyncError}
+            >
+              {t(scanErrorMessageKey(scanErrorKind))}
+            </Text>
+          ) : null}
+          <Row gap={2}>
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={t('pagesDialog.searchPlaceholder')}
+              aria-label={t('pagesDialog.searchPlaceholder')}
+              wrapperClassName="flex-1"
+              className="max-w-none"
+            />
+            <IconButton
+              icon={SearchIcon}
+              variant="secondary"
+              onClick={triggerSearch}
+              disabled={!searchQuery.trim() || isSearching}
+              aria-label={t('pagesDialog.searchPlaceholder')}
+            />
+          </Row>
 
-        {isSearchMode ? (
-          <Stack gap={2}>
-            {isSearching && (
-              <Row gap={0} justify="center" className="py-4">
-                <Spinner size="sm" />
-              </Row>
-            )}
+          {isSearchMode ? (
+            <Stack gap={2}>
+              {isSearching && (
+                <Row gap={0} justify="center" className="py-4">
+                  <Spinner size="sm" />
+                </Row>
+              )}
 
-            {!isSearching && searchResults.length === 0 && (
-              <EmptyState
-                icon={SearchIcon}
-                title={t('pagesDialog.noSearchResults')}
-                description={t('pagesDialog.noSearchResultsDescription')}
-              />
-            )}
+              {!isSearching && searchResults.length === 0 && (
+                <EmptyState
+                  icon={SearchIcon}
+                  title={t('pagesDialog.noSearchResults')}
+                  description={t('pagesDialog.noSearchResultsDescription')}
+                />
+              )}
 
-            {searchResults.map((result, idx) => (
-              <SearchResultItem
-                key={`${result.url}-${result.chunk_index}-${idx}`}
-                result={result}
-              />
-            ))}
-          </Stack>
-        ) : (
-          <Stack gap={2}>
-            {!isFirstLoad && pages.length === 0 && (
-              <EmptyState
-                icon={FileText}
-                title={t('pagesDialog.noPages')}
-                description={t('pagesDialog.noPagesDescription')}
-              />
-            )}
+              {searchResults.map((result, idx) => (
+                <SearchResultItem
+                  key={`${result.url}-${result.chunk_index}-${idx}`}
+                  result={result}
+                />
+              ))}
+            </Stack>
+          ) : (
+            <Stack gap={2}>
+              {!isFirstLoad && pages.length === 0 && (
+                <EmptyState
+                  icon={FileText}
+                  title={t('pagesDialog.noPages')}
+                  description={t('pagesDialog.noPagesDescription')}
+                />
+              )}
 
-            <Skeletonize loading={isFirstLoad && isPending}>
-              <Stack gap={2}>
-                {(isFirstLoad && isPending
-                  ? [
-                      { ...PLACEHOLDER_PAGE, url: 'placeholder-1' },
-                      { ...PLACEHOLDER_PAGE, url: 'placeholder-2' },
-                      { ...PLACEHOLDER_PAGE, url: 'placeholder-3' },
-                    ]
-                  : pages
-                ).map((page) => (
-                  <PageRow key={page.url} page={page} websiteId={website._id} />
-                ))}
-              </Stack>
-            </Skeletonize>
+              <Skeletonize loading={isFirstLoad && isPending}>
+                <Stack gap={2}>
+                  {(isFirstLoad && isPending
+                    ? [
+                        { ...PLACEHOLDER_PAGE, url: 'placeholder-1' },
+                        { ...PLACEHOLDER_PAGE, url: 'placeholder-2' },
+                        { ...PLACEHOLDER_PAGE, url: 'placeholder-3' },
+                      ]
+                    : pages
+                  ).map((page) => (
+                    <PageRow
+                      key={page.url}
+                      page={page}
+                      websiteId={website._id}
+                    />
+                  ))}
+                </Stack>
+              </Skeletonize>
 
-            {hasMore && (
-              <Row gap={0} justify="center" className="pt-2">
-                <Button
-                  variant="secondary"
-                  onClick={loadMore}
-                  isLoading={isPending}
-                >
-                  {t('pagesDialog.loadMore')}
-                </Button>
-              </Row>
-            )}
-          </Stack>
-        )}
-      </EntityViewSection>
+              {hasMore && (
+                <Row gap={0} justify="center" className="pt-2">
+                  <Button
+                    variant="secondary"
+                    onClick={loadMore}
+                    isLoading={isPending}
+                  >
+                    {t('pagesDialog.loadMore')}
+                  </Button>
+                </Row>
+              )}
+            </Stack>
+          )}
+        </EntityViewSection>
+      )}
     </EntityViewDialog>
   );
 }

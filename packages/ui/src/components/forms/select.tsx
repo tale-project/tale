@@ -11,6 +11,7 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 import { forwardRef, useId } from 'react';
 
+import { FIELD_FOCUS, FIELD_INVALID } from './field-focus';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
@@ -58,8 +59,8 @@ export function selectTriggerClasses({
     // One height fits all controls (`h-9`) — no size axis. Resting edge uses
     // `--color-border-input` (same as Input) — `ring-border` is too faint in
     // light mode and reads as a clipped / borderless field (#1478).
-    'bg-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-primary flex h-9 w-full items-center justify-between rounded-lg border border-transparent px-3 py-2 text-base whitespace-nowrap ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm [&>span]:line-clamp-1',
-    error && 'border-destructive focus-visible:ring-destructive',
+    `bg-input placeholder:text-muted-foreground disabled:bg-bg-elevated disabled:text-muted-foreground flex h-9 w-full items-center justify-between rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base whitespace-nowrap transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed md:text-sm [&>span]:line-clamp-1 ${FIELD_FOCUS}`,
+    error && FIELD_INVALID,
   );
 }
 

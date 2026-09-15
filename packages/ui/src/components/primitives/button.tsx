@@ -293,12 +293,63 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       hasDisabledReason(disabledReason) &&
       !props.asChild;
     const tip = showDisabledReason ? disabledReason : (tooltip ?? title);
+    const triggerRef = React.useRef<HTMLButtonElement>(null);
+    const lastPoint = React.useRef<{ x: number; y: number } | null>(null);
+    const pointerIntent = React.useRef(false);
+    const vetoedHover = React.useRef(false);
+    const mountedAt = React.useRef(
+      typeof performance !== 'undefined' ? performance.now() : 0,
+    );
+    const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+    const isControlled = tooltipOpen !== undefined;
+    const setTriggerRef = React.useCallback(
+      (node: HTMLButtonElement | null) => {
+        triggerRef.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref],
+    );
+    const handleTooltipOpenChange = (next: boolean) => {
+      // Overlay chrome that animates under a stationary pointer fires
+      // pointermove with no cursor delta (and skip-delay can open instantly).
+      // That is not a hover. Keyboard focus still opens the tip.
+      if (
+        next &&
+        !pointerIntent.current &&
+        triggerRef.current !== document.activeElement
+      ) {
+        vetoedHover.current = true;
+        return;
+      }
+      vetoedHover.current = false;
+      if (isControlled) onTooltipOpenChange?.(next);
+      else setUncontrolledOpen(next);
+    };
     const base = (
       <ButtonBase
         {...props}
         aria-label={accessibleName}
         softDisabled={showDisabledReason}
-        ref={ref}
+        ref={setTriggerRef}
+        onPointerMove={(event) => {
+          if (event.pointerType !== 'touch') {
+            const now =
+              typeof performance !== 'undefined' ? performance.now() : 0;
+            const prev = lastPoint.current;
+            lastPoint.current = { x: event.clientX, y: event.clientY };
+            const moved =
+              prev !== null &&
+              (prev.x !== event.clientX || prev.y !== event.clientY);
+            const afterGrace = now - mountedAt.current >= 400;
+            if (moved || afterGrace) pointerIntent.current = true;
+            if (pointerIntent.current && vetoedHover.current && !isControlled) {
+              vetoedHover.current = false;
+              setUncontrolledOpen(true);
+            }
+          }
+          props.onPointerMove?.(event);
+        }}
       />
     );
     // The tooltip Trigger must wrap the REAL button (`ButtonBase` forwards its
@@ -312,8 +363,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         base
       ) : (
         <TooltipPrimitive.Root
-          open={tooltipOpen}
-          onOpenChange={onTooltipOpenChange}
+          open={isControlled ? tooltipOpen : uncontrolledOpen}
+          onOpenChange={handleTooltipOpenChange}
         >
           <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
           <TooltipPrimitive.Portal>

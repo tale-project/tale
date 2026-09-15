@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
+import { Badge, type BadgeProps } from '@tale/ui/badge';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -8,6 +8,15 @@ interface ProductStatusBadgeProps {
   status: string;
   className?: string;
 }
+
+type BadgeVariant = NonNullable<BadgeProps['variant']>;
+
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  active: 'blue',
+  draft: 'slate',
+  inactive: 'yellow',
+  archived: 'slate',
+};
 
 /**
  * Renders a product status as a localized badge. Maps the stored backend value
@@ -20,10 +29,7 @@ export function ProductStatusBadge({
 }: ProductStatusBadgeProps) {
   const { t: tCommon } = useT('common');
   return (
-    <Badge
-      variant={status === 'active' ? 'blue' : 'outline'}
-      className={className}
-    >
+    <Badge variant={STATUS_VARIANT[status] ?? 'outline'} className={className}>
       {tCommon(`status.${status}`, { defaultValue: status })}
     </Badge>
   );

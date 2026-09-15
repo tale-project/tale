@@ -271,6 +271,7 @@ export function ProductCreateDialog({
           <Textarea
             id="description"
             label={tProducts('edit.labels.description')}
+            required={false}
             {...register('description')}
             placeholder={tProducts('edit.descriptionPlaceholder')}
             disabled={isSubmitting}
@@ -293,6 +294,7 @@ export function ProductCreateDialog({
               step="0.01"
               min="0"
               label={tProducts('edit.labels.price')}
+              required={false}
               {...register('price')}
               placeholder={tProducts('edit.pricePlaceholder')}
               disabled={isSubmitting}
@@ -300,6 +302,7 @@ export function ProductCreateDialog({
             <Input
               id="currency"
               label={tProducts('edit.labels.currency')}
+              required={false}
               {...register('currency')}
               placeholder={tProducts('edit.currencyPlaceholder')}
               disabled={isSubmitting}
@@ -313,6 +316,7 @@ export function ProductCreateDialog({
               type="number"
               min="0"
               label={tProducts('edit.labels.stock')}
+              required={false}
               {...register('stock')}
               placeholder={tProducts('edit.stockPlaceholder')}
               disabled={isSubmitting}
@@ -320,6 +324,7 @@ export function ProductCreateDialog({
             <Input
               id="category"
               label={tProducts('edit.labels.category')}
+              required={false}
               {...register('category')}
               placeholder={tProducts('edit.categoryPlaceholder')}
               disabled={isSubmitting}

@@ -6,9 +6,50 @@ import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import {
   engagementPaginatedAdapters,
   engagementReadAdapters,
+  withConvexId,
 } from './engagement';
 
 const ctx = { organizationId: 'org1' };
+
+describe('withConvexId', () => {
+  it('bridges pg id + createdAt onto the Convex-shaped fields tables read', () => {
+    expect(
+      withConvexId({
+        id: 'c1',
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_100_000,
+        locale: null,
+      }),
+    ).toEqual({
+      id: 'c1',
+      _id: 'c1',
+      createdAt: 1_700_000_000_000,
+      _creationTime: 1_700_000_000_000,
+      updatedAt: 1_700_000_100_000,
+      lastUpdated: 1_700_000_100_000,
+      locale: null,
+    });
+  });
+
+  it('does not overwrite an existing _creationTime or lastUpdated', () => {
+    expect(
+      withConvexId({
+        id: 'c1',
+        createdAt: 1,
+        _creationTime: 2,
+        updatedAt: 3,
+        lastUpdated: 4,
+      }),
+    ).toEqual({
+      id: 'c1',
+      _id: 'c1',
+      createdAt: 1,
+      _creationTime: 2,
+      updatedAt: 3,
+      lastUpdated: 4,
+    });
+  });
+});
 
 describe('the bell query keys', () => {
   it('key both bells under the entity the backend emits', () => {

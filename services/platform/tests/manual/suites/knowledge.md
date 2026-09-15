@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 30 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 31 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -36,7 +36,7 @@ records and delete them after.
 > not a direct dialog. Each row's **Open menu** (`common.actions.openMenu`)
 > 3-dot button starts with **View** (`common.actions.view`) for every member;
 > edit/delete follow for writers — contacts expose them only on manually-created
-> rows. Verify every write by reloading the route and reading the row back,
+> rows. A row click opens the same details dialog. Verify every write by reloading the route and reading the row back,
 > never by the toast. Document **indexing** needs the RAG service, which is
 > NOT in the hermetic mock stack, so an uploaded doc lands **Queued** then
 > flips to **Failed** (terminal here) — both are valid hermetic landing
@@ -266,6 +266,24 @@ records and delete them after.
   bold with its consequence underneath (`products.delete.warning`,
   `contacts.deleteWarning`, `websites.delete.warning`,
   `knowledgeEntries.delete.warning`). Documents keep their full-width preview.
+- [ ] `KNOW-F18` · **Website scan failure reason** — Websites → open a site
+  whose table badge is **Error** (`websites.filter.status.error`) after a
+  scan that never started (sandbox/runtime missing, or the crawler refused
+  the host) and that has nothing indexed (`crawledPageCount` 0, no failed
+  pages) → the view keeps that **Error** badge in the header; the body is a
+  teaching empty (`websites.viewDialog.scanError.runtime` +
+  `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
+  `websites.pagesDialog.errorKind.dnsFailed` +
+  `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
+  `websites.viewDialog.scanError.generic` +
+  `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
+  JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow
+  page row (`0 words` / `0 chunks`), search field, or `0 indexed` count.
+  Hover the empty → the dump is on `title`. A site that already has indexed
+  or failed pages keeps the list and a muted caption
+  (`websites.viewDialog.scanError.*`) instead of the empty. Reload
+  `/dashboard/{org}/websites` and reopen → the empty or caption is still
+  the human line.
 
 ## Boundary & error tests
 

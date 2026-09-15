@@ -29,6 +29,11 @@ export interface ViewDialogProps {
   size?: DialogSize;
   /** Actions to display in the header (next to the title) */
   headerActions?: React.ReactNode;
+  /**
+   * Where `headerActions` sit. `end` (default) packs them with Close.
+   * `inline` places them on the title row; Close stays on the far right.
+   */
+  headerActionsPlacement?: 'end' | 'inline';
   /** Back-navigation handler — renders a back control top-left for drill-in sub-views. */
   onBack?: () => void;
   /** Visible + accessible label for the back control (see `onBack`). */
@@ -47,8 +52,11 @@ export interface ViewDialogProps {
 }
 
 /**
- * View dialog for displaying read-only content.
- * Use this for viewing details, information, or content that doesn't require user action.
+ * Catalog view card. `size="default"` (384px) is the house measure —
+ * view and the in-place edit morph share this shell so the backdrop
+ * never blinks. Focus lands on the scroll body (`openAutoFocus=
+ * "container"`) so header Edit/Close don't open a tooltip the pointer
+ * never asked for.
  */
 export function ViewDialog({
   open,
@@ -61,6 +69,7 @@ export function ViewDialog({
   customFooter,
   size,
   headerActions,
+  headerActionsPlacement,
   onBack,
   backLabel,
   headerClassName,
@@ -81,9 +90,11 @@ export function ViewDialog({
       className={cn('max-h-[90vh] overflow-y-auto', className)}
       size={size}
       headerActions={headerActions}
+      headerActionsPlacement={headerActionsPlacement}
       onBack={onBack}
       backLabel={backLabel}
       headerClassName={headerClassName}
+      openAutoFocus="container"
       restoreFocusRef={restoreFocusRef}
     >
       {enableErrorBoundary ? (

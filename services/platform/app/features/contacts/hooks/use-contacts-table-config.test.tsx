@@ -59,6 +59,15 @@ describe('useContactsTableConfig', () => {
     expect(byKey.get('phone')?.enableSorting).toBe(false);
     expect(byKey.get('source')?.enableSorting).toBe(false);
     expect(byKey.get('locale')?.enableSorting).toBe(false);
+    // Locale is an icon column: start-align the header and the empty dash so
+    // they share an edge. Centering floats the dash into the column's middle.
+    expect(
+      (byKey.get('locale')?.meta as { align?: string } | undefined)?.align,
+    ).not.toBe('center');
+    // Name soaks leftover width so locale/Added stay at their declared px.
+    expect(
+      (byKey.get('name')?.meta as { flex?: boolean } | undefined)?.flex,
+    ).toBe(true);
   });
 
   // A contact's name is frequently a raw email — an unbreakable token that, as

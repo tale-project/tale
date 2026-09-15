@@ -249,6 +249,8 @@ export function createSourceColumn<TData extends { source?: string | null }>(
 
 /**
  * Creates a locale column with an icon header and flag emoji display.
+ * Header and cell share start alignment so an empty dash sits under the
+ * icon instead of floating in the middle of a growing column.
  *
  * @example
  * ```tsx
@@ -260,16 +262,19 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
 ): ColumnDef<TData> {
   return {
     accessorKey: 'locale',
-    header: () => <LocaleIcon className="text-muted-foreground size-4" />,
-    size: options?.size ?? 100,
-    // A single flag glyph — center a small bar rather than a full-width one.
-    meta: { align: 'center' },
+    header: () => (
+      <span className="inline-flex items-center">
+        <LocaleIcon className="text-muted-foreground size-4" />
+      </span>
+    ),
+    size: options?.size ?? 72,
+    meta: { skeleton: { type: 'icon' } },
     cell: ({ row }) => {
       const locale = row.original.locale;
       // An unset locale is an unknown fact, not `'en'` — rendering a flag for
       // it would assert a value nobody chose (#2642).
       if (!locale) {
-        return <span className="text-muted-foreground text-base">—</span>;
+        return <span className="text-muted-foreground">—</span>;
       }
       const flag = getCountryFlag(locale);
       return <span className="text-base">{flag}</span>;

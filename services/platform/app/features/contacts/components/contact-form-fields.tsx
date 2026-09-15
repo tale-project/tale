@@ -11,6 +11,7 @@ interface ContactFormFieldsProps {
   register: UseFormRegister<ContactFormValues>;
   errors: FieldErrors<ContactFormValues>;
   disabled?: boolean;
+  autoFocus?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export function ContactFormFields({
   register,
   errors,
   disabled,
+  autoFocus = false,
 }: ContactFormFieldsProps) {
   const { t: tContacts } = useT('contacts');
 
@@ -40,6 +42,7 @@ export function ContactFormFields({
         placeholder={tContacts('namePlaceholder')}
         {...register('name')}
         disabled={disabled}
+        autoFocus={autoFocus}
         errorMessage={errors.name?.message}
       />
 

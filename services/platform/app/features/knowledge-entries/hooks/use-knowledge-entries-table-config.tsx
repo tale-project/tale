@@ -39,6 +39,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         header: tEntity('headers.topic'),
         size: 240,
         meta: {
+          flex: true,
           skeleton: {
             type: 'icon-text',
             icon: <BookOpen className="size-5" />,
@@ -62,15 +63,20 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
       {
         accessorKey: 'content',
         header: tEntity('headers.content'),
+        size: 280,
+        meta: { className: 'overflow-hidden' },
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="caption"
-            truncate
-            className="block max-w-[28rem]"
-          >
-            {row.original.content}
-          </Text>
+          <div className="w-0 min-w-full overflow-hidden">
+            <Text
+              as="span"
+              variant="caption"
+              truncate
+              title={row.original.content}
+              className="block"
+            >
+              {row.original.content}
+            </Text>
+          </div>
         ),
       },
       {
@@ -93,6 +99,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         meta: {
           headerLabel: tTables('headers.status'),
           skeleton: { type: 'badge', badge: { variant: 'blue' } },
+          className: 'overflow-hidden',
         },
         cell: ({ row }) => (
           <RagStatusBadge
@@ -113,14 +120,26 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
             {tEntity('headers.updated')}
           </span>
         ),
-        size: 128,
-        meta: { headerLabel: tEntity('headers.updated'), align: 'right' },
+        size: 208,
+        meta: {
+          headerLabel: tEntity('headers.updated'),
+          align: 'right' as const,
+          // The timestamp + copy control is nowrap; clip at the cell edge so a
+          // long value cannot spill left into Status (preset `long` also
+          // appends a timezone suffix that exceeded the old 128px column).
+          className: 'overflow-hidden',
+        },
         cell: ({ row }) => (
-          <CopyableTimestamp
-            date={row.original.createdAt}
-            preset="long"
-            alignRight
-          />
+          <div className="w-0 min-w-full overflow-hidden">
+            <CopyableTimestamp
+              date={row.original.createdAt}
+              // `medium` skips the timezone suffix in the cell; `title` still
+              // carries the full localized value + zone for hover/copy.
+              preset="medium"
+              customFormat="ll LT"
+              alignRight
+            />
+          </div>
         ),
       },
       createActionsColumn(KnowledgeEntryRowActions, 'entry', {

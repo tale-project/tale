@@ -6933,6 +6933,17 @@ websites:
     scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
       mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
       Datenresidenz und setze die Scans danach fort.
+    scanError:
+      runtime: Der Scan ist nicht gelaufen.
+      notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
+        erneut hinzu.
+      generic: Der letzte Scan ist nicht durchgelaufen.
+    scanEmpty:
+      runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
+      dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
+      notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
+        erneut hinzu.
+      generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
   indexed: Indexiert
@@ -6950,7 +6961,28 @@ websites:
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
+    failed: Fehlgeschlagen
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
+    errorKind:
+      dnsFailed: Host konnte nicht aufgelöst werden.
+      timeout: Die Seite hat nicht rechtzeitig geantwortet.
+      insecurePublicHttp: Unverschlüsselte oder private Weiterleitung abgelehnt.
+      privateIp: Private Adresse abgelehnt.
+      httpError: Die Seite hat mit einem Fehler geantwortet.
+      networkError: Die Seite war nicht erreichbar.
+      renderFailed: Der Browser konnte die Seite nicht darstellen.
+      extractionFailed: Der Seiteninhalt konnte nicht gelesen werden.
+      invalidUrl: Die URL ist ungültig.
+      unsupportedProtocol: Dieses Protokoll ist nicht unterstützt.
+      redirectMissingLocation: Die Weiterleitung hat kein Ziel.
+      redirectLimitExceeded: Zu viele Weiterleitungen.
+      responseTooLarge: Die Seite ist zu groß zum Abrufen.
+      responseTooSmall: Die Seite war leer.
+      aborted: Abruf abgebrochen.
+      tlsError: Das Zertifikat ist nicht vertrauenswürdig.
+      unsupportedContent: Diese Seite ist kein Text, den der Crawler indexieren kann.
+      robotsNoindex: Die Seite hat gebeten, nicht indexiert zu werden.
+      fallback: Seite konnte nicht geladen werden.
   filter:
     status:
       scanning: Wird gescannt

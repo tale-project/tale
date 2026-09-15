@@ -10,6 +10,7 @@ import {
   DisabledReasonTooltip,
   hasDisabledReason,
 } from '../overlays/disabled-reason';
+import { FIELD_FOCUS, FIELD_INVALID } from './field-focus';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
@@ -151,9 +152,10 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
               aria-disabled={softDisabled || undefined}
               readOnly={softDisabled ? true : readOnly}
               className={cn(
-                'bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+                'bg-background placeholder:text-muted-foreground flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)] md:text-sm',
+                FIELD_FOCUS,
                 fillHeight && 'min-h-0 flex-1 resize-none',
-                hasError && 'border-destructive focus-visible:ring-destructive',
+                hasError && FIELD_INVALID,
                 showShake && 'animate-shake',
                 className,
               )}

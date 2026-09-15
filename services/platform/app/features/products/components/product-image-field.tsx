@@ -81,6 +81,7 @@ export function ProductImageField({
       <FileUpload.Root
         id={DROP_ZONE_ID}
         label={tProducts('edit.labels.image')}
+        required={false}
         errorMessage={errorMessage}
       >
         {/* Wrapper is relative so the × button can overlay the zone as a sibling,

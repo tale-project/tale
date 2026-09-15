@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { Button, LinkButton } from './button';
 
@@ -121,6 +121,24 @@ describe('Button', () => {
       // Radix opens the tooltip on trigger focus; content carries role=tooltip.
       const tooltip = await screen.findByRole('tooltip');
       expect(tooltip).toHaveTextContent('Zoom in');
+    });
+
+    it('does not open a tooltip from a stationary pointer when the trigger mounts', async () => {
+      render(
+        <Button size="icon" title="Edit">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      const button = screen.getByRole('button', { name: 'Edit' });
+      // Overlay chrome sliding under the cursor fires pointermove with no
+      // delta — the same event Radix treats as hover.
+      fireEvent.pointerMove(button, {
+        pointerType: 'mouse',
+        clientX: 24,
+        clientY: 24,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(screen.queryByRole('tooltip')).toBeNull();
     });
 
     it('prefers explicit `tooltip` content over `title` for the visible tip', async () => {

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -36,6 +36,22 @@ describe('Dialog', () => {
       }
     });
 
+    it('places header actions and close on the same row', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Item"
+          headerActions={<button type="button">Edit</button>}
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      const edit = screen.getByRole('button', { name: 'Edit' });
+      const close = screen.getByRole('button', { name: 'Close' });
+      expect(edit.parentElement).toBe(close.parentElement);
+    });
+
     it('renders no back control when onBack is absent', () => {
       render(
         <Dialog open onOpenChange={vi.fn()} title="Detail" description="d">
@@ -45,6 +61,80 @@ describe('Dialog', () => {
       expect(
         screen.queryByRole('button', { name: 'Go back' }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('header actions', () => {
+    it('places header actions and close on the same row', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Item"
+          headerActions={<button type="button">Edit</button>}
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      const edit = screen.getByRole('button', { name: 'Edit' });
+      const close = screen.getByRole('button', { name: 'Close' });
+      expect(edit.parentElement).toBe(close.parentElement);
+    });
+
+    it('does not land focus on header actions when openAutoFocus is container', async () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Item"
+          headerActions={<button type="button">Edit</button>}
+          openAutoFocus="container"
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveFocus();
+        expect(screen.getByRole('button', { name: 'Close' })).not.toHaveFocus();
+      });
+    });
+
+    it('top-aligns end-placed actions with the title when a subtitle is present', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Example docs"
+          description="docs.example.com"
+          headerActions={<button type="button">Edit</button>}
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      const title = screen.getByRole('heading', { name: 'Example docs' });
+      const header = title.closest('.justify-between');
+      expect(header).toHaveClass('items-start');
+      expect(header).not.toHaveClass('items-center');
+    });
+
+    it('places inline header actions beside the title, close on the far right', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Ada Lovelace"
+          description="ada.lovelace@example.com"
+          headerActions={<button type="button">Edit</button>}
+          headerActionsPlacement="inline"
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      const title = screen.getByRole('heading', { name: 'Ada Lovelace' });
+      const edit = screen.getByRole('button', { name: 'Edit' });
+      const close = screen.getByRole('button', { name: 'Close' });
+      expect(title.parentElement).toContainElement(edit);
+      expect(edit.parentElement).not.toBe(close.parentElement);
     });
   });
 
