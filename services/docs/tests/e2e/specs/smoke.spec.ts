@@ -5,10 +5,22 @@ import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 /**
  * Docs-site smoke: the app-style chrome renders — the `SubPanel` rail with its
  * search trigger and nav tree, the sticky header row, and the phone drawer.
- * Labels resolve from `messages/en.yml` (en-US pinned).
+ * Labels resolve from `messages/en.yml` (en-US pinned) over the `@tale/ui`
+ * catalog, which owns the shared docs frame's copy.
  */
 
-const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url), {
+  packages: [
+    new URL(
+      '../../../../../packages/ui/src/i18n/messages/global.yml',
+      import.meta.url,
+    ),
+    new URL(
+      '../../../../../packages/ui/src/i18n/messages/en.yml',
+      import.meta.url,
+    ),
+  ],
+});
 
 const PHONE = { width: 393, height: 852 };
 
@@ -20,7 +32,7 @@ test.describe('docs smoke', () => {
     await page.goto('/');
     await expectPageRenders(page);
     await expect(
-      page.getByRole('button', { name: t('nav.openSearch') }).first(),
+      page.getByRole('button', { name: t('docs.openSearch') }).first(),
     ).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -50,6 +62,25 @@ test.describe('docs smoke', () => {
     );
   });
 
+  test('only the open row claims the current page under a locale prefix', async ({
+    page,
+  }) => {
+    // `/de` prefixes every German route, and an active router link sets
+    // `aria-current="page"` by itself: the logo, the Previous card (whose
+    // neighbour is the locale home) and the 404's way back all once claimed
+    // to be the page a reader was on.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/de/get-started/quickstart');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    const current = page.locator('a[aria-current="page"]');
+    await expect(current).toHaveCount(1);
+    await expect(current).toHaveAttribute('href', '/de/get-started/quickstart');
+
+    await page.goto('/de/nope-not-a-page');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.locator('a[aria-current="page"]')).toHaveCount(0);
+  });
+
   test('the header row stays pinned while the article scrolls', async ({
     page,
   }) => {
@@ -67,11 +98,11 @@ test.describe('docs smoke', () => {
   test('search palette opens', async ({ page }) => {
     await page.goto('/');
     await page
-      .getByRole('button', { name: t('nav.openSearch') })
+      .getByRole('button', { name: t('docs.openSearch') })
       .first()
       .click();
     await expect(
-      page.getByPlaceholder(t('nav.searchPlaceholder')),
+      page.getByPlaceholder(t('docs.search.placeholder')),
     ).toBeVisible();
   });
 
@@ -80,16 +111,16 @@ test.describe('docs smoke', () => {
   }) => {
     await page.setViewportSize(PHONE);
     await page.goto('/');
-    const menu = page.getByRole('button', { name: t('nav.openMenu') });
+    const menu = page.getByRole('button', { name: t('docs.openMenu') });
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
     const drawer = page.getByRole('dialog');
     await expect(drawer).toBeVisible();
     await expect(
-      drawer.getByRole('button', { name: t('nav.closeMenu') }),
+      drawer.getByRole('button', { name: t('docs.closeMenu') }),
     ).toBeVisible();
     await expect(
-      drawer.getByRole('button', { name: t('nav.openSearch') }),
+      drawer.getByRole('button', { name: t('docs.openSearch') }),
     ).toBeVisible();
     // One Escape dismisses it — no tooltip layer in the way — and focus lands
     // back on the control that opened it.
@@ -111,7 +142,7 @@ test.describe('docs smoke', () => {
   }) => {
     await page.setViewportSize(PHONE);
     await page.goto('/');
-    await page.getByRole('button', { name: t('nav.openMenu') }).click();
+    await page.getByRole('button', { name: t('docs.openMenu') }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     // The panel is `md:hidden`, but the overlay Radix portals is not: left
     // open, it would dim the desktop page and swallow every click.

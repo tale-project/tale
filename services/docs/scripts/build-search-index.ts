@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import {
   buildSearchIndex,
   stripMarkdown,
-} from '../app/features/search/build-index';
+} from '@tale/ui/search/static-index/build';
+
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));

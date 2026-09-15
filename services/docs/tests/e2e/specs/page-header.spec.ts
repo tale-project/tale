@@ -5,6 +5,18 @@ import { collectConsoleErrors } from '@tale/e2e/smoke';
 for (const locale of ['en', 'de', 'fr'] as const) {
   const { t } = createI18n(
     new URL(`../../../messages/${locale}.yml`, import.meta.url),
+    {
+      packages: [
+        new URL(
+          '../../../../../packages/ui/src/i18n/messages/global.yml',
+          import.meta.url,
+        ),
+        new URL(
+          `../../../../../packages/ui/src/i18n/messages/${locale}.yml`,
+          import.meta.url,
+        ),
+      ],
+    },
   );
   const prefix = locale === 'en' ? '' : `/${locale}`;
   const releasePath = `${prefix}/self-hosted/configuration/config-releases`;
@@ -19,7 +31,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
         await page.keyboard.press('Tab');
         await expect(
-          page.getByRole('link', { name: t('nav.skipToMain') }),
+          page.getByRole('link', { name: t('docs.skipToMain') }),
         ).toBeFocused();
         await page.keyboard.press('Enter');
         await expect(page.getByRole('main')).toBeFocused();
@@ -116,6 +128,40 @@ for (const locale of ['en', 'de', 'fr'] as const) {
           .getByRole('navigation', { name: t('docs.breadcrumbs') })
           .locator('[aria-current="page"]'),
       ).toHaveCount(1);
+    });
+
+    test('keeps the header strip on the rail logo row line', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto(releasePath);
+      // The strip carries page actions; it must stay the rail's `h-13` bar,
+      // border included, so the two bottom borders meet as one line.
+      await expect(
+        page.getByRole('navigation', { name: t('docs.breadcrumbs') }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('navigation', { name: t('nav.sidebarAriaLabel') }),
+      ).toBeVisible();
+      const bars = await page.evaluate(
+        ([trailLabel, railLabel]) => {
+          const trail = document.querySelector(
+            `nav[aria-label="${trailLabel}"]`,
+          );
+          const rail = document.querySelector(`nav[aria-label="${railLabel}"]`);
+          const strip = trail?.parentElement?.getBoundingClientRect();
+          const row = rail?.firstElementChild?.getBoundingClientRect();
+          return strip && row
+            ? {
+                strip: [strip.height, strip.bottom],
+                row: [row.height, row.bottom],
+              }
+            : null;
+        },
+        [t('docs.breadcrumbs'), t('nav.sidebarAriaLabel')] as const,
+      );
+      expect(bars).not.toBeNull();
+      expect(bars?.strip).toEqual(bars?.row);
     });
 
     test('preserves the desktop breadcrumb and actions row', async ({
