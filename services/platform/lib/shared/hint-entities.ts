@@ -32,9 +32,12 @@ export const VIDEO_LINK_HINT_ENTITY = 'video_link';
 
 /**
  * An organization's AI-provider credentials — and everything derived from
- * them: the composer's model catalog is the set of models a credential can
- * serve, so it keys under this entity and a credential write reaches every
- * open composer within a hint round-trip (it used to refetch on every
- * mount instead, twice per chat page).
+ * them. What the credentials can serve is the answer behind the composer's
+ * model catalog, the agent model pickers, the runtime status on the
+ * providers page, the resolved vision model and the embedding
+ * recommendations, so every one of those reads keys under this entity: a
+ * credential write reaches each open one within a hint round-trip. A read
+ * keyed anywhere else keeps its first answer until the page reloads — which
+ * is how a newly added provider stayed invisible to the agent pickers.
  */
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';

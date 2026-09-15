@@ -600,7 +600,4 @@ function invalidateKnowledgeConfig(
 ): void {
   void client.invalidateQueries({ queryKey: ['config', 'org-knowledge'] });
   void client.invalidateQueries({ queryKey: ['config', 'org-embedding'] });
-  void client.invalidateQueries({
-    queryKey: ['config', 'org-embedding-recommendations'],
-  });
 }

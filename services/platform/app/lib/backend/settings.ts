@@ -895,7 +895,15 @@ function invalidateUserPrefs(
   });
 }
 
-function invalidateProviderCredentials(
+/**
+ * The provider-credential entity: the credential list and every read derived
+ * from what the org's providers serve — the composer and agent model pickers,
+ * the runtime status, the resolved vision model, the embedding
+ * recommendations. Credential writes are not the only thing that moves those
+ * answers: a catalog refresh changes the models behind them, and the
+ * model-access and vision-model policies narrow or pick among them.
+ */
+function invalidateProviderReads(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
   ctx: AdapterContext,
@@ -1214,7 +1222,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
             : {}),
         },
       }),
-    invalidate: invalidateProviderCredentials,
+    invalidate: invalidateProviderReads,
   },
   'provider_credentials/actions:updateCredential': {
     run: (args, ctx) =>
@@ -1248,7 +1256,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
           },
         },
       ).then(() => null),
-    invalidate: invalidateProviderCredentials,
+    invalidate: invalidateProviderReads,
   },
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
@@ -1256,7 +1264,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
-    invalidate: invalidateProviderCredentials,
+    invalidate: invalidateProviderReads,
   },
   'provider_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1264,7 +1272,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
         { orgId: requireOrg(args, ctx), body: { isDefault: true } },
       ).then(() => null),
-    invalidate: invalidateProviderCredentials,
+    invalidate: invalidateProviderReads,
   },
   'connector_credentials/actions:createCredential': {
     run: (args, ctx) =>
@@ -1376,6 +1384,12 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
         });
       }
+      if (
+        args.policyType === 'model_access' ||
+        args.policyType === 'vision_model'
+      ) {
+        invalidateProviderReads(client, args, ctx);
+      }
     },
   },
   'governance/restore:restoreSoftDeletedRow': {
@@ -1401,6 +1415,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         '/providers/catalogs/refresh',
         { orgId: requireOrg(args, ctx), body: {} },
       ).then((body) => body.results),
+    invalidate: invalidateProviderReads,
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>

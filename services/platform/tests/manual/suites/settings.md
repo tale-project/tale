@@ -263,6 +263,23 @@ any toggled setting after the run.
   `settings.credentials.deletedToast` and the row is gone; with no default
   left for a vendor the table shows the no-default notice
   (`settings.credentials.noDefault`)
+- [ ] `SET-F22a` · **Provider changes apply without a reload** — On an org
+  whose only provider credential is disabled, open a project's **Agents** tab
+  → **New agent** (`projects.agents.newAgent`) → **Model**
+  (`projects.agents.modelLabel`), which reads
+  `projects.agents.modelSearchEmpty`; in the same tab **Enable**
+  (`settings.credentials.enable`) the credential on the providers page, then
+  revisit each surface without reloading → the **Agent runtimes** rows
+  (`settings.providers.harnesses.title`) trade
+  `settings.providers.harnesses.noDirectCredential` for a model count
+  (`settings.providers.harnesses.modelPool`); the agent **Model** picker
+  lists the provider's models; **Governance → Models** names the model that
+  reads images (`governance.visionModel.resolved.*`, no longer
+  `governance.visionModel.resolvedNone`); **Data residency** offers the
+  credential's embedding model
+  (`settings.dataResidency.orgEmbedding.recommendationBody`). With the
+  **Model** picker open, **Disable** (`settings.credentials.disable`) the
+  credential from a second tab → the open picker empties within seconds.
 - [ ] `SET-F23` · **Vendor filter & search** — On providers: the **Provider**
   filter (`settings.providers.vendorFilterLabel`) and the search field
   (`settings.credentials.searchPlaceholder`); on connectors the same filter is
