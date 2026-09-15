@@ -144,31 +144,20 @@ async function runAcceptedTurn(
   if (
     thread === null ||
     thread.projectId !== payload.expectedProjectId ||
-    thread.kind !== 'direct' ||
-    thread.archived
+    thread.kind !== 'direct'
   )
     return;
-  // A queued send cannot follow an app-side move into another project, or
-  // keep running after project access was revoked or the project archived.
-  // Only readable membership is needed here, just as on the accepting URL.
-  if (payload.expectedProjectId !== null) {
-    const access = await projectChatAccess(sql, {
-      organizationId: payload.organizationId,
-      userId: payload.userId,
-      projectId: payload.expectedProjectId,
-    });
-    if (access !== 'ok') return;
-    const project = await loadProjectOrThrow(sql, payload.expectedProjectId);
-    if (project.archivedAt !== null) return;
-  }
   /** Settle the accepted send WITHOUT a turn: the caller's prompt (its only
    * copy) as the user row when no turn persisted it, then the reply the
    * 202 promised as its terminal row — a failure with its sentence, or the
    * cancel a stop asked for — inside the write-scope check every turn
-   * write makes, so a thread moved meanwhile gets nothing. */
+   * write makes, so a thread moved meanwhile gets nothing. `archived`
+   * widens that check for the one case of a thread (or project) archived
+   * after the send was accepted. */
   const settleWithoutTurn = async (
     outcome: { error: string } | { cancelled: true },
     includeUserMessage: boolean,
+    archived = false,
   ) => {
     try {
       await transactSerializable(sql, async (tx) => {
@@ -177,6 +166,7 @@ async function runAcceptedTurn(
           userId: payload.userId,
           threadId: payload.threadId,
           projectId: payload.expectedProjectId,
+          ...(archived ? { allowArchived: true } : {}),
         });
         if (includeUserMessage) {
           await appendMessageRow(tx, {
@@ -220,6 +210,40 @@ async function runAcceptedTurn(
   };
   const recordFailure = (error: string, includeUserMessage: boolean) =>
     settleWithoutTurn({ error }, includeUserMessage);
+  // The thread was archived after the send was accepted (the app's own
+  // toggle — the REST door refuses an archive while a send is pending): an
+  // archived thread refuses sends, so the promised reply settles
+  // `cancelled` with the prompt kept as the user row — the archive was the
+  // user's own act. The job used to return with nothing written, leaving
+  // the 202's messageId naming a message that never existed and the poll
+  // reading "yours has not started" for good (2026-09-14 evaluation, h2).
+  if (thread.archived) {
+    console.warn(
+      `[rest-turn] thread ${payload.threadId} archived while the send was queued — settled as cancelled, no turn run`,
+    );
+    await settleWithoutTurn({ cancelled: true }, true, true);
+    return;
+  }
+  // A queued send cannot follow an app-side move into another project, or
+  // keep running after project access was revoked; a project archived
+  // after acceptance settles the send the way the thread's archive does.
+  // Only readable membership is needed here, just as on the accepting URL.
+  if (payload.expectedProjectId !== null) {
+    const access = await projectChatAccess(sql, {
+      organizationId: payload.organizationId,
+      userId: payload.userId,
+      projectId: payload.expectedProjectId,
+    });
+    if (access !== 'ok') return;
+    const project = await loadProjectOrThrow(sql, payload.expectedProjectId);
+    if (project.archivedAt !== null) {
+      console.warn(
+        `[rest-turn] project ${payload.expectedProjectId} archived while the send on ${payload.threadId} was queued — settled as cancelled, no turn run`,
+      );
+      await settleWithoutTurn({ cancelled: true }, true, true);
+      return;
+    }
+  }
   // A stop that arrived while this send was still queued: no generation
   // row existed to flag, so the door stamped the reply id this job was to
   // write. The prompt lands beside a cancelled reply and the model is never

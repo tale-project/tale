@@ -83,7 +83,7 @@ Tools liefern außerdem `readOnlyHint`, `destructiveHint`, `idempotentHint` und 
 | `run_automation`      | Ein Automatisierungsdokument direkt gegen die deterministischen Mocks ausführen. |
 | `test_automation`     | Die eigenen Abnahmetests einer Automatisierung ausführen.                |
 | `save_automation`     | Ein Automatisierungsdokument als neue unveränderliche Version speichern. |
-| `get_automation`      | Eine gespeicherte Version lesen (ohne Angabe die neueste).               |
+| `get_automation`      | Eine gespeicherte Version lesen — ohne Angabe die neueste, `version: "deployed"` die live geschaltete (`AUTOMATION_VERSION_UNKNOWN`, solange nichts deployt ist). |
 | `list_automations` | Automatisierungen mit neuester und bereitgestellter Version sowie Installationsprojekten (`projectIds`) auflisten. |
 | `deploy_automation` | Eine gespeicherte Version für Live-Ausführungen bereitstellen. |
 
@@ -94,20 +94,20 @@ Arbeite in dieser Reihenfolge: Grammatik und Katalog lesen, Dokument validieren,
 | Tool             | Was es tut                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `run_deployed` | Die bereitgestellte Version live ausführen und bis zu 30 Sekunden auf Ausgabe, Trace und Effekte warten. Läuft sie weiter, die zurückgegebene `runId` abfragen. |
-| `start_run` | Die bereitgestellte Version im Hintergrund starten; die zurückgegebene Lauf-ID mit `get_run` abfragen. |
+| `start_run` | Die bereitgestellte Version im Hintergrund starten; die zurückgegebene Lauf-ID mit `get_run` abfragen. Nimmt optional einen `idempotencyKey` — den `Idempotency-Key` der REST-Tür, dasselbe Register: derselbe Schlüssel mit denselben Argumenten antwortet mit dem Handle des ersten Laufs und `duplicate: true` und startet nichts, derselbe Schlüssel mit anderen Argumenten wird abgelehnt (`IDEMPOTENCY_KEY_REUSED`). Die HTTP-Kopfzeile `Idempotency-Key` liest dieser Endpoint nicht. |
 | `list_runs` | Sichtbare Läufe einer Automatisierung oder über Projekte hinweg auflisten, neueste zuerst und jeweils mit `projectId`. |
 | `get_run` | Status, Ausgabe, Trace, Effekte und `projectId` eines Laufs lesen. Die ID eines Projektlaufs passt zu `GET /api/v1/projects/{id}/runs/{runId}`. |
 | `cancel_run` | Einen Lauf beim nächsten Übergang zwischen Knoten stoppen. |
-| `list_versions`  | Die unveränderliche Versionshistorie einer Automatisierung.                                                             |
+| `list_versions`  | Die unveränderliche Versionshistorie einer Automatisierung; jede Zeile sagt, ob sie die `deployed` ist, und `deployedVersion` nennt sie neben der Liste (`null`, solange nichts deployt ist).                                                             |
 | `list_triggers` | Triggerbindungen lesen, ohne das Webhook-Geheimnis auszugeben. |
 | `delete_trigger` | Einen Trigger entfernen; Versionen und Laufhistorie bleiben erhalten. |
-| `set_trigger` | Einen Zeitplan-, Webhook- oder Event-Trigger einrichten. |
+| `set_trigger` | Einen Zeitplan-, Webhook- oder Event-Trigger einrichten. Das `token` eines Webhooks wird einmal beantwortet, hier, und nie wieder — bewahr es auf; `deployed` sagt, ob Zustellungen laufen werden: Ein Trigger an einer Automatisierung ohne deployte Version wird gespeichert und löst nichts aus, bis eine deployt ist. |
 
 | Tool | Geeignet für |
 | --- | --- |
 | `run_automation` | Ungespeichertes Dokument mit deterministischen Mocks ausprobieren; `mode: "live"` wird abgelehnt |
 | `run_deployed` | Bereitgestellte Version live ausführen und bis zu 30 Sekunden warten; danach gegebenenfalls die `runId` abfragen |
-| `start_run` | Bereitgestellte Version im Hintergrund starten und mit `get_run` verfolgen |
+| `start_run` | Bereitgestellte Version im Hintergrund starten und mit `get_run` verfolgen; mit `idempotencyKey` wird eine Wiederholung sicher |
 
 Beide Tools für bereitgestellte Versionen verwenden denselben dauerhaften Runner mit denselben Berechtigungsprüfungen und Ausführungsdaten. `start_run` akzeptiert optional `projectId`. Eine projektgebundene Automatisierung darf nur in einem ihrer Installationsprojekte laufen; bei genau einer Bindung kann dieses automatisch gewählt werden. Ohne Bindungen bedeutet eine fehlende Angabe Organisationskontext. Lies `projectIds` aus `list_automations` und die tatsächliche `projectId` aus dem zurückgegebenen Handle, statt die REST-URL zum Abfragen zu erraten.
 
@@ -117,7 +117,7 @@ Beide Tools für bereitgestellte Versionen verwenden denselben dauerhaften Runne
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `search_capabilities` | Bereitgestellte Automatisierungen dieser Organisation nach Name und Beschreibung durchsuchen. |
 | `invoke_capability` | Eine Capability über ihre `id` aufrufen. Ist eine Genehmigung erforderlich, liefert das Tool einen wartenden Genehmigungszustand, statt die Aktion auszuführen. |
-| `get_knowledge` | Passagen aus Dokumenten und gecrawlten Websites der Organisation abrufen. |
+| `get_knowledge` | Passagen aus Dokumenten und gecrawlten Websites der Organisation abrufen. `corpus` ist `private` (Dokumente), `public-web` (gecrawlte Seiten) oder `all`; die REST-Schreibweisen `documents` und `web` gehen auch. `query` ist auf 2000 Zeichen begrenzt. |
 
 Das Capability-Verzeichnis enthält derzeit bereitgestellte Automatisierungen. Integrierte Tools, Connector-Aktionen, Skills und externe MCP-Server gehören nicht dazu. Eine bereitgestellte Automatisierung aufzurufen entspricht derselben Live-Operation wie `run_deployed`. Wenn eine Genehmigung nötig ist, kann der Client anhand von `pending` erklären, dass zuerst ein Mensch entscheiden muss.
 
@@ -137,13 +137,13 @@ Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.dev
 | Ergebnis | Umgang damit |
 | --- | --- |
 | JSON-RPC `-32601` | Unbekannte Methode korrigieren |
-| JSON-RPC `-32602` | Tool-Name oder Argumente anhand von `tools/list` korrigieren |
+| JSON-RPC `-32602` | Tool-Name oder Argumente anhand von `tools/list` korrigieren; ein Wert außerhalb einer aufgezählten Menge wird abgelehnt, und die Meldung nennt die Menge |
 | Tool-Ergebnis mit `isError: true` | Stabilen `code`, erklärenden `error` und Handlungshinweis `hint` im Textinhalt lesen; `data` kann Feldprobleme enthalten |
 | `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` auswerten, obwohl `isError` false bleibt |
 | Capability mit `pending` | Normales Genehmigungsergebnis; weder als fertig noch als erneut zu versuchenden Fehler behandeln |
 | Capability mit `refused` | Fehlerergebnis; die genannte Ursache beheben |
 
-Zu den Tool-Codes gehören `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` und `NOT_SUPPORTED`. Letzterer bedeutet, dass der Host den Vorgang für Läufe, Versionen oder Trigger nicht unterstützt. Plattformfehler behalten ihren eigenen Code, Hinweis und gegebenenfalls Daten; fehlender Entwicklerzugriff liefert etwa `FORBIDDEN_DEVELOPER_SETTINGS`.
+Zu den Tool-Codes gehören `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` und `NOT_SUPPORTED`. Letzterer bedeutet, dass der Host den Vorgang für Läufe, Versionen oder Trigger nicht unterstützt. `start_run` lehnt einen wiederverwendeten `idempotencyKey` mit anderen Argumenten als `IDEMPOTENCY_KEY_REUSED` ab; `invoke_capability` lehnt eine ID, die das Register nicht führt — eine nur gespeicherte Automatisierung steht nicht darin —, als `CAPABILITY_NOT_FOUND` ab und Eingaben, die ihr Schema zurückweist, als `CAPABILITY_INPUT_INVALID`; `get_knowledge` reicht die eigenen Codes der Wissens-Tür durch (`KNOWLEDGE_UNAVAILABLE`, wenn die Suche selbst fehlgeschlagen ist). Plattformfehler behalten ihren eigenen Code, Hinweis und gegebenenfalls Daten; fehlender Entwicklerzugriff liefert etwa `FORBIDDEN_DEVELOPER_SETTINGS`.
 
 Ein unbekannter Automatisierungsname ist auch bei `list_versions`, `list_runs` und `list_triggers` ein Fehler. Eine leere Liste bedeutet, dass eine vorhandene Automatisierung keine passenden Einträge hat. Ungültige Dokumente für Tools, die ein gültiges Dokument benötigen, fehlgeschlagene Suchen und fehlende Bereitstellungen setzen `isError: true`. Nur das Validierungstool meldet ein ungültiges Dokument als normales Prüfergebnis.
 

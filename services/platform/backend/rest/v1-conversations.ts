@@ -15,6 +15,8 @@ import {
   apiSourceSchema,
   claimApiDeliveries,
   failApiDelivery,
+  API_CONTACT_STATUSES,
+  listApiConversations,
   listApiDeliveries,
   retryApiDeliveryForSource,
   synchronizeConversation,
@@ -91,6 +93,54 @@ export function createConversationRestRoutes(deps: {
           query.source,
           query.externalId,
         ),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+  /**
+   * Every conversation this key user mirrored under a source — the
+   * reconciliation read the mirror had none of (2026-09-14 evaluation,
+   * h6). Newest first; the cursor is signed under the source, so one
+   * source's page never redeems on another's; `contactStatus` narrows
+   * (`trashed` finds the mirrors a deleted contact froze).
+   */
+  app.get('/conversations', async (c) => {
+    const query = readQuery(c, {
+      source: apiSourceSchema,
+      contactStatus: z.enum(API_CONTACT_STATUSES).optional(),
+      ...PAGE_QUERY,
+    });
+    if (query instanceof Response) return query;
+    const list = `conversations:${query.source}`;
+    const cursor = readKeysetCursor(c, list);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 50, max: 200 });
+    if (limit instanceof Response) return limit;
+    try {
+      const result = await listApiConversations(
+        deps.sql,
+        viewer(c),
+        query.source,
+        {
+          ...(query.contactStatus === undefined
+            ? {}
+            : { contactStatus: query.contactStatus }),
+          cursor,
+          limit,
+        },
+      );
+      return c.json({
+        conversations: result.conversations,
+        isDone: result.nextCursor === null,
+        continueCursor:
+          result.nextCursor === null
+            ? ''
+            : mintCursor(
+                c,
+                list,
+                formatKeysetCursor(result.nextCursor.at, result.nextCursor.id),
+              ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);

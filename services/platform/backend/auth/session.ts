@@ -29,7 +29,19 @@ export function requireSession<E extends AuthEnv>(
       headers: c.req.raw.headers,
     });
     if (!bundle) {
-      return c.json({ error: 'unauthorized' }, 401);
+      // The one flat envelope every door speaks — `code` beside the
+      // sentence — where the session doors used to answer a bare
+      // `{"error":"unauthorized"}` a client branching on `code` could not
+      // read (2026-09-14 evaluation, h8).
+      return c.json(
+        {
+          error:
+            'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+          code: 'UNAUTHORIZED',
+        },
+        401,
+        { 'cache-control': 'no-store' },
+      );
     }
     c.set('sessionBundle', bundle);
     return next();

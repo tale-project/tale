@@ -34,6 +34,7 @@ import type {
   CorpusLegQuery,
   CorpusReader,
 } from '../../../lib/knowledge/retrieve';
+import { stripControlCharacters } from '../../../lib/knowledge/sanitize-text';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   PUBLIC_WEB_SCHEMA,
@@ -49,6 +50,7 @@ import {
   isUndefinedSchema,
   isUndefinedTable,
   markBm25Unavailable,
+  hnswIterativeScanAvailable,
 } from './pool';
 
 /** Values postgres.js accepts as positional parameters. */
@@ -116,6 +118,7 @@ export class DocumentCorpusReader implements CorpusReader {
       WHERE c.id @@@ paradedb.match('chunk_content', $1)
         AND c.org_slug = $2
         AND d.status = 'completed'
+        AND NOT c.passage_repeat
         ${scope.clause}
       ORDER BY score DESC
       LIMIT $${3 + scope.params.length}
@@ -130,7 +133,7 @@ export class DocumentCorpusReader implements CorpusReader {
 
   async dense(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
-  ): Promise<readonly KnowledgeHit[]> {
+  ): Promise<readonly KnowledgeHit[] | null> {
     const scope = this.scope(query, 2);
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
@@ -148,16 +151,39 @@ export class DocumentCorpusReader implements CorpusReader {
       WHERE c.embedding IS NOT NULL
         AND c.org_slug = $2
         AND d.status = 'completed'
+        AND NOT c.passage_repeat
         ${scope.clause}
       ORDER BY c.embedding <=> $1::vector
       LIMIT $${3 + scope.params.length}
     `;
-    return this.runDense(statement, [
-      JSON.stringify(query.embedding),
-      this.orgSlug,
-      ...scope.params,
+    // The scope's size decides the plan (see `runDenseLeg`): the same
+    // predicates, no ORDER BY, no vector.
+    const scopeCount = this.scope(query, 1);
+    const countStatement = `
+      SELECT count(*)::text AS n
+      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+      JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+        ON d.id = c.document_id AND d.org_slug = c.org_slug
+      WHERE c.embedding IS NOT NULL
+        AND c.org_slug = $1
+        AND d.status = 'completed'
+        AND NOT c.passage_repeat
+        ${scopeCount.clause}
+    `;
+    return this.runDense(
+      statement,
+      [
+        JSON.stringify(query.embedding),
+        this.orgSlug,
+        ...scope.params,
+        query.limit,
+      ],
+      {
+        statement: countStatement,
+        params: [this.orgSlug, ...scopeCount.params],
+      },
       query.limit,
-    ]);
+    );
   }
 
   /**
@@ -247,8 +273,13 @@ export class DocumentCorpusReader implements CorpusReader {
   private runDense(
     statement: string,
     params: SqlParam[],
-  ): Promise<readonly KnowledgeHit[]> {
-    return runDenseLeg(this.sql, this.corpus, statement, params);
+    scopeCount: { statement: string; params: SqlParam[] },
+    pool: number,
+  ): Promise<readonly KnowledgeHit[] | null> {
+    return runDenseLeg(this.sql, this.corpus, statement, params, {
+      scopeCount,
+      pool,
+    });
   }
 }
 
@@ -284,12 +315,25 @@ export class WebCorpusReader implements CorpusReader {
 
   async dense(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
-  ): Promise<readonly KnowledgeHit[]> {
+  ): Promise<readonly KnowledgeHit[] | null> {
     return runDenseLeg(
       this.sql,
       this.corpus,
       webCorpusStatement(RANKING.vector),
       [JSON.stringify(query.embedding), this.orgSlug, query.limit],
+      {
+        scopeCount: {
+          statement: `
+            SELECT count(*)::text AS n
+            FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+            JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+              ON m.domain = c.domain AND m.org_slug = $1
+            WHERE c.embedding IS NOT NULL
+          `,
+          params: [this.orgSlug],
+        },
+        pool: query.limit,
+      },
     );
   }
 }
@@ -427,26 +471,67 @@ async function runKeywordLeg(
 }
 
 /**
- * Run the dense leg. A corpus that does not exist yet is an empty result, not a
- * failure — an organization that has never indexed anything should get "nothing
- * found", not an error.
+ * Chunks in scope at or under which the dense leg runs as an EXACT scan — a
+ * sort over the scoped rows (about 13 ms at 4,500 rows of 1,536 dimensions)
+ * instead of the approximate index. The index is shared by every
+ * organization's rows and filtered AFTER it is scanned, so for a small scope
+ * its candidate list is spent on rows the filters reject — down to none —
+ * and a cluster of identical vectors (an 8 MiB file of one repeated line)
+ * crowds out strictly nearer passages (2026-09-14 evaluation, h4). Below this
+ * bound the index is not worth its failure mode.
+ */
+const EXACT_DENSE_SCAN_MAX_CHUNKS = 5_000;
+
+/** pgvector's ceiling for `hnsw.ef_search`. */
+const HNSW_EF_SEARCH_MAX = 1_000;
+
+/**
+ * Run the dense leg under the plan the scope's size calls for: exact for a
+ * small scope; an iterative index scan sized to the candidate pool for a
+ * large one, where the database supports it; the plain approximate scan
+ * otherwise. A corpus that does not exist yet, or that predates a column
+ * this release selects, answers `null` — "could not run", which the
+ * diagnostics name as `dense: false` — never a failure: an organization that
+ * has never indexed anything should get "nothing found", not an error.
  */
 async function runDenseLeg(
   sql: Sql,
   corpus: Exclude<KnowledgeCorpus, 'all'>,
   statement: string,
   params: SqlParam[],
-): Promise<readonly KnowledgeHit[]> {
+  plan: { scopeCount: { statement: string; params: SqlParam[] }; pool: number },
+): Promise<readonly KnowledgeHit[] | null> {
   try {
+    const counted = await sql.unsafe<{ n: string }[]>(
+      plan.scopeCount.statement,
+      plan.scopeCount.params,
+    );
+    const inScope = Number(counted[0]?.n ?? 0);
+    if (inScope <= EXACT_DENSE_SCAN_MAX_CHUNKS) {
+      const rows = await sql.begin(async (tx) => {
+        await tx.unsafe('SET LOCAL enable_indexscan = off');
+        return tx.unsafe<CorpusRow[]>(statement, params);
+      });
+      return toHits(rows, corpus);
+    }
+    if (await hnswIterativeScanAvailable(sql)) {
+      const efSearch = Math.min(Math.max(plan.pool, 40), HNSW_EF_SEARCH_MAX);
+      const rows = await sql.begin(async (tx) => {
+        await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'");
+        await tx.unsafe(`SET LOCAL hnsw.ef_search = ${efSearch}`);
+        return tx.unsafe<CorpusRow[]>(statement, params);
+      });
+      return toHits(rows, corpus);
+    }
     return toHits(await sql.unsafe<CorpusRow[]>(statement, params), corpus);
   } catch (err) {
     if (isUndefinedTable(err)) {
       logger.info(`the ${corpus} corpus is not created yet on this database`);
-      return [];
+      return null;
     }
     if (isUndefinedColumn(err)) {
       logger.warn(missingColumnRemedy(corpus, err));
-      return [];
+      return null;
     }
     throw err;
   }
@@ -463,7 +548,9 @@ function toHits(
       corpus,
       // `chunk_content` already carries the contextual header, so a passage
       // read on its own still says which document and section it came from.
-      text: row.chunk_content,
+      // Rows indexed before the extractor dropped control characters still
+      // carry them — the wire never does.
+      text: stripControlCharacters(row.chunk_content),
       chunkIndex: row.chunk_index,
       ...(row.hit_offset !== null && row.hit_offset !== undefined
         ? { offset: Number(row.hit_offset) }

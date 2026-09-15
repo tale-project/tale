@@ -14,6 +14,8 @@ import type {
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
+import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
+import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
@@ -1894,5 +1896,101 @@ describe('validated reads in the published document', () => {
       };
       expect(ok.headers?.ETag, path).toBeUndefined();
     }
+  });
+});
+
+describe('the shapes the 2026-09-14 round-h evaluation found generated clients tripping on', () => {
+  const walk = (
+    node: unknown,
+    visit: (value: Record<string, unknown>, at: string) => void,
+    at = '$',
+  ): void => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, visit, `${at}[${index}]`));
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a non-null, non-array object
+    const record = node as Record<string, unknown>;
+    visit(record, at);
+    for (const [key, value] of Object.entries(record)) {
+      walk(value, visit, `${at}.${key}`);
+    }
+  };
+
+  it('lists null in every nullable enum — OAS 3.0 widens the type, never the enum', () => {
+    let seen = 0;
+    walk(spec, (value, at) => {
+      if (value.nullable === true && Array.isArray(value.enum)) {
+        seen += 1;
+        expect(value.enum, at).toContain(null);
+      }
+    });
+    expect(seen).toBeGreaterThan(5);
+  });
+
+  it('names the created resource in Location on every 201 that creates one addressable resource', () => {
+    const located: string[] = [];
+    const unlocated: string[] = [];
+    for (const [path, operations] of Object.entries(paths)) {
+      for (const [method, op] of Object.entries(operations)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        const created = (op.responses as Record<string, Json>)['201'] as
+          | { headers?: Record<string, Json> }
+          | undefined;
+        if (created === undefined) continue;
+        (created.headers?.Location === undefined ? unlocated : located).push(
+          `${method.toUpperCase()} ${path}`,
+        );
+      }
+    }
+    expect(located.sort()).toEqual([
+      'POST /api/v1/contacts',
+      'POST /api/v1/documents',
+      'POST /api/v1/knowledge-entries',
+      'POST /api/v1/products',
+      'POST /api/v1/projects',
+      'POST /api/v1/projects/{id}/agents',
+      'POST /api/v1/projects/{id}/files',
+      'POST /api/v1/projects/{id}/folders',
+      'POST /api/v1/projects/{id}/tasks',
+      'POST /api/v1/projects/{id}/threads',
+      'POST /api/v1/threads',
+      'POST /api/v1/websites',
+      'PUT /api/v1/skills/{slug}',
+    ]);
+    // The creates with nothing to point at: many rows, a row with no read
+    // of its own, or an install answering the project's automation view.
+    expect(unlocated.sort()).toEqual([
+      'POST /api/v1/browser-sessions/import',
+      'POST /api/v1/contacts/bulk',
+      'POST /api/v1/projects/{id}/automations/{name}',
+      'POST /api/v1/projects/{id}/tasks/{taskId}/comments',
+    ]);
+  });
+
+  it('declares the vocabulary of every enum query filter the handlers validate', () => {
+    const enumOf = (path: string, name: string) => {
+      const parameters = (paths[path]?.get?.parameters ?? []) as {
+        name: string;
+        schema?: { enum?: unknown[] };
+      }[];
+      return parameters.find((parameter) => parameter.name === name)?.schema
+        ?.enum;
+    };
+    expect(enumOf('/api/v1/conversations', 'contactStatus')).toEqual([
+      ...API_CONTACT_STATUSES,
+    ]);
+    expect(enumOf('/api/v1/products', 'status')).toEqual([...PRODUCT_STATUSES]);
+    expect(enumOf('/api/v1/websites', 'scanInterval')).toEqual([
+      '60m',
+      '6h',
+      '12h',
+      '1d',
+      '5d',
+      '7d',
+      '30d',
+    ]);
+    expect(enumOf('/api/v1/websites', 'status')).not.toContain('idle');
   });
 });

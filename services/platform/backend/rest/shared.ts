@@ -8,6 +8,7 @@ import { z, type ZodError } from 'zod';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
+import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import {
@@ -1016,9 +1017,24 @@ export function invalidQueryFromSchema(
  * ("must not be blank") rather than zod's "Too small: expected string to
  * have >=1 characters", which reports the length AFTER the trim as if it
  * were what the caller sent. The value the route reads is the trimmed one.
+ * Blank is judged by {@link hasVisibleText}, not by the trim alone: a value
+ * of zero-width spaces, joiners or bidi marks survives `trim()` and used to
+ * pass as content — on the chat send, a billed turn answering an empty
+ * prompt (2026-09-14 evaluation, h2). The refusal never rewrites the value.
  */
 export function nonBlank(max = 256) {
-  return z.string().trim().min(1, 'must not be blank').max(max);
+  return (
+    z
+      .string()
+      .trim()
+      .min(1, 'must not be blank')
+      .max(max)
+      // `''` is the length check's issue already — one sentence, not two.
+      .refine(
+        (value) => value === '' || hasVisibleText(value),
+        'must not be blank',
+      )
+  );
 }
 
 /** The `{cursor, limit}` pair every paginated list takes, for `readQuery`:

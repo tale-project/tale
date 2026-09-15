@@ -33,6 +33,7 @@ import {
 } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { ContactError } from '../contacts/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { checkTtsBudget } from '../tts/service.ts';
 import {
@@ -596,6 +597,10 @@ export function createGovernanceRoutes(deps: {
       return c.json({ ok: true });
     } catch (error) {
       if (error instanceof TrashError) {
+        return c.json({ error: error.code }, error.status);
+      }
+      // A contact restore refused by the directory's uniqueness rule.
+      if (error instanceof ContactError) {
         return c.json({ error: error.code }, error.status);
       }
       throw error;

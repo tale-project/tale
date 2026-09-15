@@ -310,6 +310,11 @@ export interface KnowledgeDiagnostics {
   /** False when the corpus has no BM25 index available and the search ran
    * dense-only. */
   readonly bm25: boolean;
+  /** False when the corpus could not serve the vector leg at all (the
+   * corpus table or a column this release selects is missing) and the search
+   * ran keyword-only — the twin of `bm25`, so a dead leg is never silent
+   * (2026-09-14 evaluation, h4). */
+  readonly dense: boolean;
   /** Reserved for a deployment that installs a reranker — none ships, so
    * this is always false today. */
   readonly reranked: boolean;
@@ -321,8 +326,15 @@ export interface KnowledgeDiagnostics {
    * were dropped and the page was cut to `limit`. Admission runs BEFORE
    * fusion, so a refused candidate never holds a rank. */
   readonly admitted: number;
-  /** Admitted candidates each leg contributed to fusion (counts, keyed by
-   * leg — `documents:keyword`, `documents:dense`, `web:keyword`,
-   * `web:dense`). */
+  /** Admitted candidates each leg that RAN contributed to fusion (counts,
+   * keyed by leg — `documents:keyword`, `documents:dense`, `web:keyword`,
+   * `web:dense`), `0` when it ran and nothing survived admission or the
+   * similarity floor. A leg that could not run is absent and named by
+   * `bm25` / `dense`. */
   readonly legs: Readonly<Record<string, number>>;
 }
+
+/** The longest query a knowledge search takes — the REST body's cap, and
+ * the MCP tools' (which used to relay an unbounded query to the paid
+ * embedding provider; 2026-09-14 evaluation, h9). */
+export const KNOWLEDGE_QUERY_MAX = 2000;

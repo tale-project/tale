@@ -36,7 +36,7 @@ Un commentaire sans mention conserve une note sans déclencher cette action. Le 
 
 Pour une tâche pilotée par une automatisation, mentionne celle qui en est responsable pour demander une nouvelle exécution. Mentionner une autre automatisation ne lui transfère pas la tâche et ne la démarre pas. [Automatisations](/fr/platform/automations/concepts) présente les workflows qui coordonnent plusieurs étapes.
 
-Pour une tâche démarrée par une automatisation, le même workflow ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente pour cette tâche dans le projet. Répéter la demande de démarrage tant qu’elle est active renvoie à l’exécution existante. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
+Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente à la fois, quelle que soit l’automatisation qui l’a démarrée. Répéter une demande de démarrage tant qu’elle est active renvoie à l’exécution existante, même si elle nomme une autre automatisation. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
 
 ## Traiter une attente ou un échec
 
@@ -46,7 +46,7 @@ Pour une tâche démarrée par une automatisation, le même workflow ne peut avo
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
 | L’exécution reste en échec | Lis l’erreur, corrige sa cause, puis utilise **Relancer** pour continuer la conversation. Un agent supprimé ou une limite de temps atteinte demande une intervention. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
-| Automatisation suspendue sur une tâche | Des démarrages trop fréquents ont déclenché la protection. Examine le travail répété avant qu’un changement de statut humain lève la pause. |
+| Deux automatisations se mentionnent sans fin sur une tâche | Il n’y a pas de plafond de cadence par tâche : c’est la règle d’un seul moteur qui arrête une boucle. Annule l’exécution vivante, puis lis la chronologie avant de laisser l’une ou l’autre redémarrer. |
 | Clôture impossible | Termine d’abord les sous-tâches ouvertes. |
 
 Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives après la tentative initiale. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.

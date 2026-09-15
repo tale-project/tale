@@ -409,10 +409,12 @@ function isSafeBundleRelPath(relPath: string): boolean {
   );
 }
 
-/** One file of a bundle with its raw bytes. */
+/** One file of a bundle with its raw bytes and its modification time —
+ * the validator a conditional read compares (2026-09-14 evaluation, h8). */
 export interface SkillBundleAssetBytes {
   readonly path: string;
   readonly content: Buffer;
+  readonly mtimeMs: number;
 }
 
 /**
@@ -457,7 +459,7 @@ export async function readSkillBundleAssetBytes(
   }
   await verifyPathWithinBase(filePath, skillDir);
   const content = await readFile(filePath);
-  return { path: relPath, content };
+  return { path: relPath, content, mtimeMs: Math.floor(stats.mtimeMs) };
 }
 
 /**

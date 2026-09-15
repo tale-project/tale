@@ -30,6 +30,7 @@ import type { LookupFunction } from 'node:net';
 import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
 import { Agent } from 'undici';
 
+import { stripRuntimeLocations } from './error-message-hygiene';
 import type { SafeFetchErrorKind } from './safe-fetch-kinds';
 
 /** The refusal kinds, declared as a runtime list in `./safe-fetch-kinds` so
@@ -56,12 +57,16 @@ function classifyFetchFailure(error: unknown): SafeFetchError {
     error instanceof Error && error.cause instanceof Error
       ? error.cause
       : error;
-  const message =
+  // The human clause only: Node's TLS errors carry the OpenSSL handle and
+  // the toolchain's source path (`rec_layer_s3.c:916`), which no reader of
+  // a page row or a connector log needs (2026-09-14 evaluation, h5).
+  const message = stripRuntimeLocations(
     cause instanceof Error
       ? cause.message
       : typeof cause === 'string' && cause.length > 0
         ? cause
-        : 'unknown';
+        : 'unknown',
+  );
   const rawCode: unknown =
     cause !== null && typeof cause === 'object'
       ? Reflect.get(cause, 'code')
@@ -76,6 +81,55 @@ function classifyFetchFailure(error: unknown): SafeFetchError {
   return new SafeFetchError(
     'network_error',
     `Connection failed: ${message}${code === undefined ? '' : ` (${code})`}`,
+  );
+}
+
+/**
+ * The refusal for an abort during the exchange — the caller's own signal
+ * (`aborted`) or the deadline (`timeout`) — or null when the error is not an
+ * abort. `phase` says whether the deadline fired before the headers or while
+ * the body was still arriving: the body read used to let the reader's
+ * `AbortError` escape raw, so a page slower than its budget was recorded as
+ * a `network_error` "This operation was aborted" instead of the `timeout`
+ * it was (2026-09-14 evaluation, h5).
+ */
+function abortRefusal(
+  error: unknown,
+  callerSignal: AbortSignal | undefined,
+  timeoutMs: number,
+  phase: 'headers' | 'body',
+): SafeFetchError | null {
+  if (
+    !(error instanceof Error) ||
+    (error.name !== 'AbortError' && error.name !== 'TimeoutError')
+  ) {
+    return null;
+  }
+  if (callerSignal?.aborted) {
+    return new SafeFetchError(
+      'aborted',
+      'Request aborted by the caller before it completed',
+    );
+  }
+  return new SafeFetchError(
+    'timeout',
+    phase === 'body'
+      ? `Request timed out after ${timeoutMs}ms while the body was still arriving`
+      : `Request timed out after ${timeoutMs}ms`,
+  );
+}
+
+/** A body read that failed: a refusal of its own passes through, an abort is
+ * the caller's or the deadline's, anything else is the connection. */
+function bodyRefusal(
+  error: unknown,
+  callerSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): SafeFetchError {
+  if (error instanceof SafeFetchError) return error;
+  return (
+    abortRefusal(error, callerSignal, timeoutMs, 'body') ??
+    classifyFetchFailure(error)
   );
 }
 
@@ -627,22 +681,10 @@ async function fetchFollowingRedirects(
       response = await fetch(currentUrl, init);
     } catch (error) {
       if (error instanceof SafeFetchError) throw error;
-      if (
-        error instanceof Error &&
-        (error.name === 'AbortError' || error.name === 'TimeoutError')
-      ) {
-        if (callerSignal?.aborted) {
-          throw new SafeFetchError(
-            'aborted',
-            'Request aborted by the caller before it completed',
-          );
-        }
-        throw new SafeFetchError(
-          'timeout',
-          `Request timed out after ${timeoutMs}ms`,
-        );
-      }
-      throw classifyFetchFailure(error);
+      throw (
+        abortRefusal(error, callerSignal, timeoutMs, 'headers') ??
+        classifyFetchFailure(error)
+      );
     }
 
     if (!REDIRECT_STATUSES.has(response.status)) {
@@ -717,7 +759,12 @@ export async function safeFetch(
       pinned,
       dispatcher,
     );
-    const bodyText = await readBodyWithCap(response, maxResponseBytes);
+    let bodyText: string;
+    try {
+      bodyText = await readBodyWithCap(response, maxResponseBytes);
+    } catch (error) {
+      throw bodyRefusal(error, signal, timeoutMs);
+    }
 
     return {
       status: response.status,
@@ -776,10 +823,16 @@ export async function safeFetchBinary(
       pinned,
       dispatcher,
     );
-    const { buffer, contentType } = await readBinaryBodyWithCap(
-      response,
-      maxResponseBytes,
-    );
+    let buffer: ArrayBuffer;
+    let contentType: string;
+    try {
+      ({ buffer, contentType } = await readBinaryBodyWithCap(
+        response,
+        maxResponseBytes,
+      ));
+    } catch (error) {
+      throw bodyRefusal(error, signal, timeoutMs);
+    }
     const blobType =
       contentType || defaultContentType || 'application/octet-stream';
     const blob = new Blob([buffer], { type: blobType });

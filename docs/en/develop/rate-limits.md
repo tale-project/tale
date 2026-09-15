@@ -22,7 +22,7 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 
 REST execution and upload requests also consume the general budget. For example, a project file needs an upload-handoff request and a file-bind request; each counts against both the general and upload budgets. The larger upload bucket does not allow a user to bypass the general limit.
 
-Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
+Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
 
 MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
 

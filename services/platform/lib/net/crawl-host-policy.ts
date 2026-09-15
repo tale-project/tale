@@ -167,6 +167,16 @@ export function parseCrawlTarget(
       `Only http and https targets can be crawled, not "${scheme}:"`,
     );
   }
+  // The crawler dials https only, so an `http://` target is an instruction
+  // it cannot follow: it used to keep the host and quietly try https,
+  // failing a plaintext-only site with a different transport error each
+  // scan (2026-09-14 evaluation, h5).
+  if (scheme === 'http') {
+    throw new CrawlTargetError(
+      'WEBSITE_DOMAIN_INVALID',
+      'Only https hosts are reached — drop the "http://" prefix or paste the https:// URL; a host that serves plaintext only is out of reach',
+    );
+  }
   let hostname: string;
   try {
     hostname = new URL(scheme === undefined ? `https://${raw}` : raw).hostname;
@@ -176,8 +186,18 @@ export function parseCrawlTarget(
       'The domain is not a hostname or an http(s) URL',
     );
   }
+  // DNS's root label: `example.com.` is `example.com` — WHATWG keeps the
+  // dot, so the two spellings registered as two sites and crawled the same
+  // pages twice (2026-09-14 evaluation, h5). An empty label (`a..b`) names
+  // nothing.
+  hostname = hostname.replace(/\.+$/, '');
   // RFC 1035: a host name is at most 253 characters on the wire.
-  if (hostname === '' || hostname.length > 253 || raw.length > 2048) {
+  if (
+    hostname === '' ||
+    hostname.length > 253 ||
+    raw.length > 2048 ||
+    /(^|\.)\./.test(hostname)
+  ) {
     throw new CrawlTargetError(
       'WEBSITE_DOMAIN_INVALID',
       'The domain is not a hostname or an http(s) URL',

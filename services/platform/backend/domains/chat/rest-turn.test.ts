@@ -260,7 +260,6 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
 
   it.each([
     null,
-    { id: 't-1', kind: 'direct', projectId: null, archived: true },
     { id: 't-1', kind: 'sandbox', projectId: null, archived: false },
   ])(
     'does not spend or write into an unavailable thread: %j',
@@ -272,6 +271,38 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
       expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
     },
   );
+
+  /**
+   * A thread archived after the send was accepted used to make the job
+   * return with nothing written: no user row, no reply under the id the 202
+   * promised, and a poll reading "yours has not started" for good. The
+   * prompt (its only copy) now lands beside a `cancelled` reply, through a
+   * write scope that admits this one settle into the archived thread.
+   */
+  it('settles a send whose thread was archived while it was queued as cancelled, keeping the prompt', async () => {
+    boundary.loadOwnedThread.mockResolvedValue({
+      id: 't-1',
+      kind: 'direct',
+      projectId: null,
+      archived: true,
+    });
+    await runApiTurn(sql, payload);
+    expect(runChatTurn).not.toHaveBeenCalled();
+    expect(boundary.assertThreadWriteScope).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ threadId: 't-1', allowArchived: true }),
+    );
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ role: 'user', text: payload.userText }),
+    );
+    expect(appendAssistantCancelledMessage).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ threadId: 't-1', model: payload.modelId }),
+    );
+    expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
+    expect(statements.some((s) => s.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
 
   it.each(['not_found', 'forbidden'])(
     'does not run when project access changed to %s',
@@ -290,7 +321,7 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
     },
   );
 
-  it('does not run when the project was archived after acceptance', async () => {
+  it('settles the send as cancelled, not run, when the project was archived after acceptance', async () => {
     boundary.loadOwnedThread.mockResolvedValue({
       id: 't-1',
       kind: 'direct',
@@ -300,7 +331,15 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
     boundary.loadProjectOrThrow.mockResolvedValue({ archivedAt: 10 });
     await runApiTurn(sql, { ...payload, expectedProjectId: 'p-a' });
     expect(runChatTurn).not.toHaveBeenCalled();
-    expect(appendMessageRow).not.toHaveBeenCalled();
+    expect(boundary.assertThreadWriteScope).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ projectId: 'p-a', allowArchived: true }),
+    );
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ role: 'user', text: payload.userText }),
+    );
+    expect(appendAssistantCancelledMessage).toHaveBeenCalledTimes(1);
     expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
   });
 

@@ -28,7 +28,13 @@ export function createAutomationsBackend(
   return async (request) => {
     const result = await dispatch(
       'run_deployed',
-      { name: request.automation, input: request.input },
+      {
+        name: request.automation,
+        input: request.input,
+        ...(request.idempotencyKey === undefined
+          ? {}
+          : { idempotencyKey: request.idempotencyKey }),
+      },
       { store: options.store, allowLive: options.allowLive },
     );
     if (
@@ -41,7 +47,13 @@ export function createAutomationsBackend(
         'hint' in result && typeof result.hint === 'string'
           ? result.hint
           : undefined;
-      return { status: 'refused', reason: result.error, hint };
+      // The refusal's stable `code` travels with it — a model branches on
+      // it, as the MCP page promises (2026-09-14 evaluation, h9).
+      const code =
+        'code' in result && typeof result.code === 'string'
+          ? result.code
+          : undefined;
+      return { status: 'refused', reason: result.error, hint, code };
     }
     return { status: 'ok', output: result };
   };

@@ -7,7 +7,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen, FileJson } from 'lucide-react';
-import { lazy, useMemo } from 'react';
+import { lazy } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -96,32 +96,35 @@ export function DeveloperSurfaces() {
   );
 }
 
-function ApiDocsPage() {
-  const swaggerConfig = useMemo(
-    () => ({
-      url: '/openapi.json',
-      docExpansion: 'list' as const,
-      defaultModelsExpandDepth: 1,
-      defaultModelExpandDepth: 2,
-      displayRequestDuration: true,
-      filter: true,
-      showExtensions: true,
-      showCommonExtensions: true,
-      tryItOutEnabled: true,
-      persistAuthorization: true,
-      deepLinking: false,
-      tagsSorter: 'alpha' as const,
-      operationsSorter: 'alpha' as const,
-      requestInterceptor: (req: Record<string, unknown>) => {
-        if (typeof req.url === 'string' && req.url.includes('/api/')) {
-          req.credentials = 'include';
-        }
-        return req;
-      },
-    }),
-    [],
-  );
+/** The rendered reference's configuration — one object for the page's
+ * life, so the (heavy) Swagger UI never re-mounts on a render. */
+export const SWAGGER_UI_OPTIONS = {
+  url: '/openapi.json',
+  docExpansion: 'list' as const,
+  defaultModelsExpandDepth: 1,
+  defaultModelExpandDepth: 2,
+  displayRequestDuration: true,
+  filter: true,
+  showExtensions: true,
+  showCommonExtensions: true,
+  tryItOutEnabled: true,
+  // The key a reader pastes lives in the page's memory only — the docs say
+  // "keep the key behind your own backend", and with persistence on it was
+  // written to localStorage in plaintext on the product origin, restored on
+  // every load, and never cleared (2026-09-14 evaluation, h1).
+  persistAuthorization: false,
+  deepLinking: false,
+  tagsSorter: 'alpha' as const,
+  operationsSorter: 'alpha' as const,
+  requestInterceptor: (req: Record<string, unknown>) => {
+    if (typeof req.url === 'string' && req.url.includes('/api/')) {
+      req.credentials = 'include';
+    }
+    return req;
+  },
+};
 
+function ApiDocsPage() {
   // Prevent TanStack Router from intercepting Swagger UI internal link clicks
   const handleClick = (e: React.MouseEvent) => {
     if (!(e.target instanceof HTMLElement)) return;
@@ -141,7 +144,7 @@ function ApiDocsPage() {
       <DeveloperSurfaces />
       <main className="swagger-ui-standalone">
         <SuspenseBoundary fallback={<SwaggerSkeleton />}>
-          <SwaggerUI {...swaggerConfig} />
+          <SwaggerUI {...SWAGGER_UI_OPTIONS} />
         </SuspenseBoundary>
       </main>
 

@@ -74,7 +74,7 @@ interface Statement {
 
 function fakeTx(
   storedSecrets: string[] = ['REVIEW_TOKEN'],
-  options: { nameTaken?: boolean } = {},
+  options: { nameTaken?: boolean; insertedId?: string } = {},
 ): {
   tx: TransactionSql;
   statements: Statement[];
@@ -85,6 +85,12 @@ function fakeTx(
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
       return Promise.resolve([AGENT]);
+    }
+    if (
+      text.startsWith('INSERT INTO app.project_agents') &&
+      options.insertedId !== undefined
+    ) {
+      return Promise.resolve([{ id: options.insertedId }]);
     }
     // The case-insensitive sibling lookup of the create and the update.
     if (text.includes('lower(name) = ?')) {
@@ -167,6 +173,57 @@ describe('a duplicate agent name is the 409 every other duplicate answers', () =
       status: 409,
     });
     expect(updates(statements)).toEqual([]);
+  });
+});
+
+/**
+ * The harness a project agent runs on is one the platform runs with its
+ * own credentials — the set `GET /api/v1/models` lists under `harnesses`,
+ * read from the config tree. A hard-coded pair stood beside it and the
+ * refusal named nothing (2026-09-14 evaluation, h9).
+ */
+describe('the harness rule is the models door’s eligible set', () => {
+  const create = (tx: TransactionSql, harness: string) =>
+    createProjectAgent(tx, auth, {
+      projectId: 'project-1',
+      name: 'Reviewer',
+      harness,
+      model: 'test-model',
+      skills: [],
+      connectors: [],
+    });
+
+  it('refuses a harness that brings its own credentials, and an unknown one, naming the eligible set', async () => {
+    for (const harness of ['cursor', 'not-a-harness']) {
+      const { tx, statements } = fakeTx();
+      await expect(create(tx, harness)).rejects.toMatchObject({
+        code: 'PROJECT_AGENT_HARNESS_INVALID',
+        status: 400,
+        message: expect.stringContaining('GET /api/v1/models'),
+        data: {
+          harnesses: expect.arrayContaining(['claude-code', 'codex', 'hermes']),
+        },
+      });
+      await expect(create(tx, harness)).rejects.toMatchObject({
+        data: { harnesses: expect.not.arrayContaining(['cursor']) },
+      });
+      expect(
+        statements.some((s) =>
+          s.text.startsWith('INSERT INTO app.project_agents'),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('accepts every managed harness the config tree ships, not only the old pair', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      insertedId: 'agent-9',
+    });
+    await expect(create(tx, 'hermes')).resolves.toBe('agent-9');
+    const inserted = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.project_agents'),
+    );
+    expect(inserted?.values).toContain('hermes');
   });
 });
 

@@ -838,7 +838,16 @@ function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
     if (trigger.kind !== kind && trigger[key] !== undefined) {
       throw new AutomationError(
         'AUTOMATION_TRIGGER_INVALID',
-        `"${key}" belongs to a ${kind} trigger — a ${trigger.kind} trigger does not take it.`,
+        `"${key}" belongs to ${kind} triggers — a ${trigger.kind} trigger does not take it.`,
+        400,
+        {
+          issues: [
+            {
+              path: key,
+              message: `is not a field a ${trigger.kind} trigger takes`,
+            },
+          ],
+        },
       );
     }
   }

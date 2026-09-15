@@ -17,6 +17,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { hasVisibleText } from '@/lib/shared/utils/visible-text';
 
 export function MessageEditForm({
   initialText,
@@ -52,7 +53,7 @@ export function MessageEditForm({
   }, [autoResize]);
 
   const trimmed = text.trim();
-  const canSend = trimmed.length > 0 && trimmed !== initialText.trim();
+  const canSend = hasVisibleText(trimmed) && trimmed !== initialText.trim();
 
   const submit = () => {
     if (!canSend) return;

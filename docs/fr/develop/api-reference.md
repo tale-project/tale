@@ -107,7 +107,9 @@ Les routes de lecture existantes acceptent `HEAD`, avec la taille du `GET` non c
 
 La surface REST de production est destinée aux appels serveur à serveur et n'active pas CORS. Conserve les clés API dans ton propre backend. Le JSON de statut sans clé est une surface distincte avec CORS.
 
-Chaque réponse API contient `X-Request-Id`. Pour relier un appel aux logs, envoie jusqu'à 255 caractères parmi lettres, chiffres, `_`, `-` et `=`. Une valeur invalide est remplacée par un UUID neuf ; la réponse indique la valeur réellement utilisée. Les réponses `429`, `500`, `413` et `414` ajoutent aussi `requestId` à l'enveloppe JSON.
+Chaque réponse API contient `X-Request-Id`. Pour relier un appel aux logs, envoie jusqu'à 255 caractères parmi lettres, chiffres, `_`, `-` et `=`. Une valeur invalide est remplacée par un UUID neuf ; la réponse indique la valeur réellement utilisée. Les réponses `429`, `500`, `413` et `414` ajoutent aussi `requestId` à l'enveloppe JSON. Deux refus font exception, parce que l’analyseur HTTP du frontal y répond avant qu’une requête existe à journaliser : le `431` nu pour des en-têtes au-delà du budget de 64 Kio et le `400` nu pour un caractère de contrôle dans une valeur d’en-tête ne portent ni `X-Request-Id`, ni enveloppe, ni `X-Tale-Api-Version` — il n’y a rien à citer, et c’est la requête elle-même qu’il faut changer.
+
+`Idempotency-Key` n’est lu que par les opérations qui déclarent l’en-tête — un démarrage d’exécution, un envoi de chat ; le document OpenAPI les liste, et les portes webhook le lisent comme id de livraison selon leur propre règle. Toute autre opération ignore l’en-tête : sa garantie au-plus-une-fois est la clé naturelle que nomme son corps — l’`externalId` d’un contact, le `(externalSystem, externalId)` d’une tâche, l’`externalItemId` d’un projet. Un `Expect: 100-continue` obtient un `100 Continue` du frontal dès qu’il commence à transmettre le corps ; le verdict de la plateforme — un `413` pour une longueur déclarée au-delà du plafond — arrive quand même avant qu’un octet du corps soit lu.
 
 Les réponses de `/api/v1` et des webhooks portent `X-Tale-Api-Version` ; voir [Versionnage](#versionnage). Les routes sans clé `/api/health`, `/status`, `/status.json` et `/openapi.json` n'implémentent pas ce contrat et n'ont pas cet en-tête.
 
@@ -115,7 +117,7 @@ Les réponses de `/api/v1` et des webhooks portent `X-Tale-Api-Version` ; voir [
 
 L’URL, paramètres de requête compris, est limitée à 32 Kio ; au-delà, elle reçoit `414 URI_TOO_LONG` avant recherche de route. Le proxy accorde 64 Kio aux en-têtes. HTTP/1.1 laisse quelques Kio de marge avant un `431` sans enveloppe ; une URL de 66 Kio peut donc atteindre la plateforme et recevoir `414`. HTTP/2 applique exactement la limite en fermant la connexion sans réponse.
 
-Les caractères de contrôle inférieurs à 0x20, sauf tabulation, et DEL dans les en-têtes sont refusés avant la plateforme : HTTP/1.1 renvoie un `400` en texte brut ; HTTP/2 réinitialise le flux ou ferme une connexion portant un corps.
+Les caractères de contrôle inférieurs à 0x20, sauf tabulation, et DEL dans les en-têtes sont refusés avant la plateforme : HTTP/1.1 renvoie un `400` en texte brut, sans `X-Request-Id` ; HTTP/2 réinitialise le flux ou ferme une connexion portant un corps.
 
 Pour un corps dont la longueur déclarée dépasse la limite, le proxy HTTP/1.1 peut évacuer jusqu'à 256 Kio avant de transmettre le refus, bien que la plateforme ne lise rien. Si le corps finit avant sa longueur déclarée, HTTP/2 renvoie `400 BODY_LENGTH_MISMATCH`, sauf si le `413` de dépassement est arrivé en premier. HTTP/1.1 attend les octets manquants jusqu'au délai de 15 minutes.
 
@@ -224,19 +226,21 @@ La suppression d’une organisation supprime aussi ses clients et leurs consente
 
 Pour une ressource de projet sous `/api/v1`, place l’ID du projet dans son URL. Ces corps de requête n’acceptent pas `projectId` : les schémas stricts le refusent avec **400**. La ressource doit appartenir au projet nommé et être visible pour le détenteur de la clé ; sinon, l’appel donne **404**. Les réponses peuvent contenir `projectId` comme métadonnée. Les catalogues de l’organisation, comme les définitions d’automatisations et les bundles de skills, gardent leurs chemins d’organisation.
 
+Chaque **201** qui crée une ressource adressable porte `Location` — le chemin propre de la ressource, relatif à l’URL de la requête —, si bien qu’un client générique la suit quelle que soit la forme du corps (`{id}` pour un contact, `{project}` pour un projet, `{task}` pour une tâche) ; l’import en masse de contacts en crée plusieurs et n’en porte aucune.
+
 | Ressource | Chemin et portée |
 | --- | --- |
 | Automatisations | `/api/v1/automations/...`<br>Consulter les définitions, versions, déclencheurs et projets associés ; supprimer une définition ; démarrer et lister les exécutions sans projet. |
 | Automatisations du projet | `/api/v1/projects/{id}/automations/...`<br>Lister, installer ou désinstaller les automatisations ; démarrer et lister leurs exécutions dans ce projet. |
 | Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}`. |
 | Fils de conversation | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...`<br>Gérer les chats du détenteur de la clé, dans un projet ou sans projet : lister, créer, lire, archiver, restaurer et supprimer ; envoyer un message, suivre ou annuler son tour. |
-| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs. |
+| Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les harness de code sur lesquels un agent de projet peut tourner. |
 | Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. |
-| Skills | `/api/v1/skills/...`<br>Lister, lire, créer, modifier ou supprimer les bundles de l’organisation ; lire leurs fichiers ; protéger une écriture avec `If-Match`. |
+| Skills | `/api/v1/skills/...`<br>Lister, lire, créer, modifier ou supprimer les bundles de l’organisation ; lire leurs fichiers — une lecture validée (`ETag` et `Last-Modified` sur les octets ; `If-None-Match` / `If-Modified-Since` répondent **304**) ; protéger une écriture avec `If-Match`. Un skill n’a pas d’historique de versions sur cette surface : la lecture répond le bundle courant, rien d’autre. |
 | Entrées de connaissances | `/api/v1/knowledge-entries/...`<br>Lister avec `?topic=` et `?status=`, créer, remplacer ou supprimer une entrée ; lire l’historique d’un sujet avec `GET .../{id}/versions`. |
 | Recherche de connaissances | `POST /api/v1/projects/{id}/knowledge/search` ou `POST /api/v1/knowledge/search`<br>Rechercher dans les fichiers indexés d’un projet, ou dans les documents visibles de la base de connaissances hors projet et les sites web. |
 | Documents | `/api/v1/documents/...`<br>Créer, lire, modifier et supprimer les documents de la base de connaissances ; télécharger leur contenu avec `GET .../content` ; relancer l’indexation avec `POST .../retry-indexing`. Les fichiers de projet ont leurs propres routes. |
-| Sites web | `/api/v1/websites/...`<br>Créer, lire, modifier et supprimer les sources web ; consulter leurs pages avec `.../pages`, les synchroniser avec `.../sync` et y rechercher du contenu avec `.../search`. |
+| Sites web | `/api/v1/websites/...`<br>Créer, lire, modifier et supprimer les sources web ; consulter leurs pages avec `.../pages`, les synchroniser avec `.../sync` et y rechercher du contenu avec `.../search`. La découverte respecte les règles `Disallow` du `robots.txt` sur chaque chemin par lequel une URL peut entrer — les URL listées exceptées — et une page qu’une règle couvre quitte l’index à l’analyse suivante ; les compteurs de pages sont posés par la synchronisation corpus → ligne (`metadata.lastStatusSyncAt` dit quand, `POST .../sync` la force) et `lastScannedAt` est la fin de la dernière analyse ; `POST /api/v1/websites` refuse un domaine en `http://` (`WEBSITE_DOMAIN_INVALID` — le crawler ne compose qu’en https) et laisse tomber un point final ; le `lastError` d’une page est une ligne qui nomme la cause, jamais le journal d’appels d’un framework. |
 | Sessions de navigateur | `/api/v1/browser-sessions/...`<br>Consulter une liste masquée, importer avec `POST .../import` et révoquer avec `DELETE .../{id}` les sessions utilisées pour l’[ingestion vidéo](/fr/self-hosted/configuration/video-ingestion). |
 | Produits | `/api/v1/products/...`<br>Créer, lire, modifier et supprimer les entrées du catalogue produit. |
 | Contacts | `/api/v1/contacts/...`<br>Créer, lire, modifier et supprimer les contacts ; importer un ensemble avec `POST /api/v1/contacts/bulk`. |
@@ -265,7 +269,7 @@ Si ta modification dépend de la dernière ligne lue, transmets son `updatedAt` 
 
 Pour les documents du centre, `If-Match` protège aussi la représentation lue : envoie l’`ETag` fort reçu lors du `GET`. La comparaison se fait dans la transaction d’écriture du document. Un tag qui ne correspond plus donne `412 PRECONDITION_FAILED`, avec le tag courant dans `data.etag`, sans écriture. Une liste de tags ou `*` est acceptée ; un tag faible `W/` ne correspond jamais. Le tag couvre toute la réponse, y compris `indexing` : l’avancement de l’indexation peut le changer sans modifier le `updatedAt` de la ligne du document.
 
-Un `PATCH` réussi sur un contact, produit, document ou site renvoie `200` avec la ressource actualisée. Pour les contacts, produits, documents et projets, si toutes les valeurs enregistrées restent identiques, aucune écriture n’a lieu et `updatedAt` est conservé. Les préconditions sont vérifiées d’abord : un corps sans changement ne contourne pas un `expectedUpdatedAt` ou un `If-Match` périmé.
+Un `PATCH` réussi sur un contact, produit, document ou site renvoie `200` avec la ressource actualisée ; un `PATCH` de document porte aussi l’`ETag` de la nouvelle représentation, la valeur que le prochain `If-Match` envoie. Pour les contacts, produits, documents et projets, si toutes les valeurs enregistrées restent identiques, aucune écriture n’a lieu et `updatedAt` est conservé. Les préconditions sont vérifiées d’abord : un corps sans changement ne contourne pas un `expectedUpdatedAt` ou un `If-Match` périmé.
 
 ### Modifier contacts, produits et identité des sites
 
@@ -274,7 +278,7 @@ Les espaces en début et fin de chaîne sont supprimés. L’`email` d’un cont
 - Même `email` ou `externalId` de contact : **409**, `CONTACT_DUPLICATE_EMAIL` ou `CONTACT_DUPLICATE_EXTERNAL_ID`.
 - Même `name` de produit, sans distinction de casse, ou même `externalId` : **409**, `DUPLICATE_PRODUCT_NAME` ou `DUPLICATE_PRODUCT_EXTERNAL_ID`.
 
-La valeur `null` efface un champ facultatif. Sur `PATCH`, une chaîne vide produit le même effet. Un champ requis vide, comme le `name` d’un produit, donne **400**, `INVALID_BODY`. À la création ou à l’import en masse, une chaîne vide est traitée comme un champ omis, ce qui permet de reprendre les cellules vides d’un CSV.
+La valeur `null` efface un champ facultatif. Sur `PATCH`, une chaîne vide produit le même effet. Un champ requis vide, comme le `name` d’un produit, donne **400**, `INVALID_BODY`. À la création ou à l’import en masse, une chaîne vide — ou `null` — est traitée comme un champ omis, ce qui permet de reprendre les cellules vides d’un CSV ou un export JSON (le document OpenAPI déclare pour cette raison les champs facultatifs de la création comme nullables).
 
 Un import de contacts doit contenir au moins une ligne : `contacts: []` donne **400**, `INVALID_BODY`. Un contact doit garder au moins un identifiant parmi `name`, `email` et `externalId`. Effacer le dernier donne **400**, `CONTACT_IDENTITY_REQUIRED`.
 
@@ -302,9 +306,9 @@ Le `domain` d’un site web est immuable. `PATCH /api/v1/websites/{id}` accepte 
 
 Une exception permet d’étendre une liste d’URL existante : si le site est déjà de type liste et que le domaine est écrit exactement de la même manière, l’ajout répond **200** avec l’ID existant. Envoyer une liste à un site configuré pour une exploration complète donne **409**, sans changer son type ni lancer d’exploration. Vérifie `kind` avant l’appel et utilise la forme du domaine indiquée dans le **409**.
 
-Le `status` d’un site décrit le cycle de son exploration. `GET /api/v1/websites?status=` accepte `idle`, `scanning`, `active`, `error` ou `deleting` ; une autre valeur donne `400 INVALID_QUERY`. `active` signifie qu’après l’exploration terminée, au moins une page est enregistrée, sans garantir leur actualisation à toutes. `error` signale une exploration en échec ou l’absence de pages enregistrées après les tentatives de récupération ; consulte `metadata.lastSyncError`.
+Le `status` d’un site décrit le cycle de son exploration. `GET /api/v1/websites?status=` accepte `scanning` (un site enregistré commence ici), `active`, `error` ou `deleting` ; une autre valeur donne `400 INVALID_QUERY`, comme `?scanInterval=` hors de ses sept valeurs. `active` signifie qu’après l’exploration terminée, au moins une page est enregistrée, sans garantir leur actualisation à toutes. `error` signale une exploration en échec ou l’absence de pages enregistrées après les tentatives de récupération ; consulte `metadata.lastSyncError`.
 
-Le `lastErrorKind` d’une page distingue notamment réseau ou TLS (`network_error`, `tls_error`), cible refusée (`private_ip`), échec HTTP (`http_error`), extraction ou rendu en échec, contenu impossible à convertir en texte (`unsupported_content`) et refus par `X-Robots-Tag: noindex` (`robots_noindex`). Une actualisation ratée peut conserver l’ancien contenu indexé. Lis donc les erreurs de pages en plus du statut du site.
+Le `lastErrorKind` d’une page distingue notamment réseau ou TLS (`network_error`, `tls_error`), cible refusée (`private_ip`), échec HTTP (`http_error`), extraction ou rendu en échec, contenu impossible à convertir en texte (`unsupported_content`) et le refus `robots_noindex` — l’origine a répondu `X-Robots-Tag: noindex` ou la page porte une balise `<meta name="robots" content="noindex">`. Une actualisation ratée peut conserver l’ancien contenu indexé. Lis donc les erreurs de pages en plus du statut du site.
 
 `POST /api/v1/websites/{id}/search` cherche des mots-clés dans les passages enregistrés de ce site. Son `score` BM25 n’a pas de plafond et se compare uniquement au sein d’une réponse. Sans ParadeDB, l’instance recherche des sous-chaînes et renvoie `0` pour chaque résultat. Pour la similarité sémantique et `minSimilarity`, utilise `POST /api/v1/knowledge/search` avec `corpus: "web"`. Cette route cherche dans le corpus web visible, pas dans un seul site choisi.
 
@@ -328,7 +332,7 @@ Protège une modification ou une suppression avec `If-Match` et le dernier `etag
 
 Pour créer uniquement, envoie `If-None-Match: *`. Si le bundle existe déjà, la réponse est **412**, `SKILL_EXISTS`, sans écriture.
 
-`GET /api/v1/skills/{slug}/files/{path}` renvoie les octets bruts d’un fichier, `SKILL.md` compris, avec son nom dans `Content-Disposition`. Reprends `path` depuis `files[].path` ; les barres obliques peuvent rester `/` ou être encodées `%2F`. Un chemin absent de la liste donne **404**, `SKILL_FILE_NOT_FOUND`. Un bundle refusé par la validation des fichiers, par exemple à cause d’un lien symbolique ou d’un fichier dépassant 4 Mio lors de la préparation, donne **422**, `SKILL_MALFORMED`.
+`GET /api/v1/skills/{slug}/files/{path}` renvoie les octets bruts d’un fichier, `SKILL.md` compris, avec son nom dans `Content-Disposition`. Reprends `path` depuis `files[].path` ; les barres obliques peuvent rester `/` ou être encodées `%2F`. La lecture est validée : l’`ETag` est celui des octets du fichier, `Last-Modified` sa date de modification, et `If-None-Match` ou `If-Modified-Since` répond **304**. Un chemin absent de la liste donne **404**, `SKILL_FILE_NOT_FOUND`. Un bundle refusé par la validation des fichiers, par exemple à cause d’un lien symbolique ou d’un fichier dépassant 4 Mio lors de la préparation, donne **422**, `SKILL_MALFORMED`.
 
 Les segments `../` et `%2e%2e/` sont interceptés avant la route. La réponse est alors **404**, `NOT_FOUND`, avec un `X-Request-Id` propre à cette couche et sans `X-Tale-Api-Version`. Si les barres obliques sont aussi encodées (`%2e%2e%2f…`), la requête atteint la route et reçoit `SKILL_FILE_NOT_FOUND`.
 
@@ -370,9 +374,9 @@ Les fichiers préparés par `POST /api/v1/conversations/uploads` n’ont pas d�
 
 Tous les corps de conversation sont stricts. Une clé inconnue, y compris dans un message ou une pièce jointe, donne **400**, `INVALID_BODY`, avec le nom de cette clé.
 
-`GET /api/v1/conversations/sync` renvoie aussi l’`externalContactId` lié et `contactStatus` : `active`, `trashed` ou `missing`. La liaison conserve l’ID du contact initial. Supprimer ce contact l’envoie à la corbeille et libère son e-mail et son identifiant externe ; un nouveau contact portant ces identifiants ne récupère jamais l’ancien historique.
+`GET /api/v1/conversations/sync` renvoie aussi l’`externalContactId` lié, le `contactId` de la ligne liée et `contactStatus` : `active`, `trashed` ou `missing`. La liaison conserve la ligne du contact initial. Supprimer ce contact l’envoie à la corbeille et libère son e-mail et son identifiant externe ; un nouveau contact portant ces identifiants ne récupère jamais l’ancien historique. Un contact dont le CRM a changé la clé (un `PATCH` de son `externalId`) garde en revanche ses conversations : un instantané qui nomme l’id courant s’applique et le reçu le suit, tandis que l’id qu’il ne porte plus répond **409** `CONVERSATION_CONTACT_CONFLICT` en nommant l’id auquel la conversation est liée. `GET /api/v1/conversations?source=` liste chaque conversation que tu as reflétée sous une source — `conversationId`, `externalId`, `externalContactId`, `contactId`, `contactStatus`, `version`, `sourceDeleted`, `status`, `subject` —, la plus récente d’abord, en page keyset sous `conversations` (la même boucle `?cursor=` que pour chaque liste), et `?contactStatus=trashed` retrouve les miroirs qu’un contact supprimé a gelés.
 
-Un instantané de contenu plus récent destiné au contact supprimé donne `409 CONVERSATION_CONTACT_TRASHED`. Restaure le contact dans l’application avant d’envoyer du contenu, ou ferme le miroir avec `deleted: true` et une version égale ou supérieure. Les versions anciennes restent ignorées, et les répétitions de même version suivent toujours les règles ci-dessus : la suppression ne transforme pas chaque répétition en erreur.
+Un instantané de contenu plus récent destiné au contact supprimé donne `409 CONVERSATION_CONTACT_TRASHED`. Restaure le contact — avec `POST /api/v1/contacts/{id}/restore`, qui applique la règle de la création (un contact vivant qui a pris entre-temps son e-mail ou son `externalId` refuse la restauration avec le **409** de la création), ou depuis la corbeille de l’application — avant d’envoyer du contenu, ou ferme le miroir avec `deleted: true` et une version égale ou supérieure ; un miroir fermé n’est pas rouvert par la restauration, un instantané de contenu ultérieur répond donc le même 409 tant que le contact reste dans la corbeille. Les versions anciennes restent ignorées, et les répétitions de même version suivent toujours les règles ci-dessus : la suppression ne transforme pas chaque répétition en erreur.
 
 ### Créer des connaissances indexées et des documents du centre
 
@@ -508,7 +512,7 @@ Chaque agent appartient à un projet. L’ID du projet est obligatoire dans l’
 | Enregistrer toute la configuration | `PUT /api/v1/projects/{id}/agents/{agentId}`    | `200 {agent}`  |
 | Supprimer                          | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204`          |
 
-Choisis un projet existant et un modèle que le harness choisi peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
+Choisis un projet existant, un harness que `GET /api/v1/models` liste sous `harnesses` — ceux que la plateforme fait tourner avec ses propres identifiants — et un modèle qu’il peut utiliser. Cet exemple crée un agent Claude Code et relit sa configuration ; il ne lance aucune tâche.
 
 ```bash
 : "${BASE:?Set BASE to your Tale origin}"
@@ -540,7 +544,7 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 ### Enregistrer la configuration complète d’un agent
 
-`POST` et `PUT` exigent `name`, `harness`, `model`, `skills` et `connectors`. `modelProvider`, `tools`, `secrets` et `instructions` sont facultatifs.
+`POST` et `PUT` exigent `name`, `harness`, `model`, `skills` et `connectors` ; un `harness` hors de l’ensemble admis répond **400**, `PROJECT_AGENT_HARNESS_INVALID`, avec l’ensemble dans `data.harnesses`. `modelProvider`, `tools`, `secrets` et `instructions` sont facultatifs.
 
 `PUT` remplace toute la configuration d’un agent existant. Omettre le fournisseur ou les instructions les remet à `null` ; omettre les outils ou les secrets vide ces listes. Cette opération ne crée pas d’agent si l’ID n’existe pas.
 
@@ -814,7 +818,7 @@ Si `lastMessageId` correspond à l’ID conservé, `lastStatus` décrit le résu
 
 Interroge le statut toutes les deux à cinq secondes. Fixe un délai par requête, par exemple 30 secondes, et une durée maximale distincte pour ta boucle. Le serveur n’impose pas de durée totale fixe au tour. Il abandonne une requête au fournisseur après 180 secondes sans activité ; chaque octet reçu, raisonnement compris, remet ce délai à zéro. Un raisonnement poussé peut donc garder le tour actif sans texte de réponse visible. Pour l’arrêter, appelle `DELETE .../generation` au lieu de simplement cesser le suivi.
 
-Pour recevoir uniquement les nouveaux caractères, envoie `?since=<textLength>` et `?reasoningSince=<reasoningLength>` à partir des longueurs précédentes. `textOffset` et `reasoningOffset` indiquent le début de chaque fragment. Si un offset est inférieur à celui demandé, le flux a été réinitialisé après une étape d’outils : remplace le contenu conservé au lieu d’ajouter le fragment.
+Pour recevoir uniquement ce qui est arrivé depuis, envoie `?since=<textLength>` et `?reasoningSince=<reasoningLength>` à partir des longueurs précédentes. L’unité est l’unité de code UTF-16 — le `String.length` de JavaScript, un emoji comptant deux ; pas le point de code —, renvoie donc les longueurs que l’interrogation a répondues plutôt que de compter les caractères toi-même. `textOffset` et `reasoningOffset` indiquent le début de chaque fragment : la valeur que tu as envoyée, un de moins quand elle aurait coupé une paire de substitution (le fragment renvoie alors le caractère entier), ou 0 quand une étape d’outils réglée a remis le flux à zéro. Réassemble par une seule règle, `held = held.slice(0, textOffset) + text`, et aucun des trois cas n’a besoin d’un traitement à part.
 
 Si la connexion coupe avant réception du **202**, consulte `.../generation`. Les états `queued` et `streaming` indiquent un tour actif, mais ne suffisent pas à identifier une demande dont tu as perdu l’ID. Vérifie le dernier message utilisateur et son `content`, ou rejoue la demande avec sa clé d’idempotence pour retrouver le même `messageId`.
 
@@ -855,7 +859,7 @@ Les listes, détails, messages et statuts sont limités aux fils du détenteur d
 
 ### Lire langue, état, consommation et parties du message
 
-Les espaces en début et fin de `content` sont supprimés avant validation. Un prompt vide donne **400** sans consommer de tour.
+Les espaces en début et fin de `content` sont supprimés avant validation. Un prompt vide — rien que des blancs et des caractères de format invisibles, comme les espaces sans chasse — donne **400** sans consommer de tour (du Markdown qui ne rend rien, un bloc de code vide par exemple, reste un prompt).
 
 `locale` accepte une balise BCP 47, comme `de` ou `en-GB`. Elle demande une langue de réponse, indépendamment de celle du prompt. Cette consigne est ajoutée aux instructions système et au message, mais le modèle peut ne pas la respecter. Aucune propriété de la réponse ne signale cet écart. Si la langue est une exigence de ton application, vérifie le texte reçu et prévois sa correction.
 
@@ -893,7 +897,7 @@ Seul le dernier cas se résout en attendant `idle` avant de réessayer. Les deux
 
 ### Renommer, archiver, supprimer ou arrêter un fil
 
-`PATCH .../threads/{threadId}` accepte `{ "archived": true }` pour archiver, `false` pour restaurer, ou `{ "title": "Q3 review" }` pour renommer. Fournis au moins l’un de ces champs. Le titre, nettoyé de ses espaces en début et fin, doit contenir de 1 à 120 caractères à la création comme au renommage. Sans titre initial, l’assistant nomme le fil après le premier message ; le résultat figure toujours dans `title`.
+`PATCH .../threads/{threadId}` accepte `{ "archived": true }` pour archiver, `false` pour restaurer, ou `{ "title": "Q3 review" }` pour renommer. Un fil dont le tour tourne, ou dont l’envoi attend encore, refuse l’archivage avec **409** `CHAT_TURN_IN_PROGRESS`, comme la suppression — annule d’abord ; restaurer et renommer restent ouverts en plein tour. Fournis au moins l’un de ces champs. Le titre, nettoyé de ses espaces en début et fin, doit contenir de 1 à 120 caractères à la création comme au renommage. Sans titre initial, l’assistant nomme le fil après le premier message ; le résultat figure toujours dans `title`.
 
 L’archivage renseigne `archivedAt` et conserve `updatedAt`, qui suit l’activité des messages. Pour détecter archivage et restauration, une synchronisation doit donc lire `archived` et `archivedAt`, pas uniquement `updatedAt`.
 
@@ -933,7 +937,7 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 Le corps exige `query`, dont les espaces en début et fin sont supprimés avant validation. Il accepte `limit` de 1 à 50, avec 10 par défaut, et `minSimilarity` de 0 à 1.
 
-`limit` détermine le nombre de résultats retournés. Tale recherche dans un ensemble plus large de candidats, vérifie leur accès et l’état de leur document avant de fusionner les classements, puis sélectionne les premiers résultats. Un candidat inaccessible n’occupe donc aucun rang. `limit: 1` retourne le meilleur passage accessible, sans limiter la recherche initiale à un seul candidat.
+`limit` détermine le nombre de résultats retournés. Tale recherche dans un ensemble plus large de candidats, vérifie leur accès et l’état de leur document avant de fusionner les classements, puis sélectionne les premiers résultats. Un candidat inaccessible n’occupe donc aucun rang. `limit: 1` retourne le meilleur passage accessible, sans limiter la recherche initiale à un seul candidat. À `fusedScore` égal, un passage que la branche par mots-clés a classé passe avant un passage que seule la branche vectorielle a trouvé, puis la plus petite identité de ligne — un terme exact est une preuve plus forte qu’un plus proche voisin.
 
 `minSimilarity` filtre uniquement la recherche vectorielle avant fusion. Cette API n’applique aucun seuil par défaut : sans ce champ, elle peut renvoyer des passages dont la similarité est faible. La recherche par mots-clés n’a pas ce seuil.
 
@@ -943,7 +947,7 @@ Les résultats sont ordonnés par `fusedScore`. Ce score combine les classements
 
 Les autres champs permettent d’examiner pourquoi un passage a été retenu :
 
-- `similarity` contient la similarité cosinus de la branche vectorielle, sur l’échelle 0..1 du modèle d’embedding. Il vaut `null` si seule la recherche par mots-clés a trouvé le passage.
+- `similarity` contient la similarité cosinus de la branche vectorielle, sur l’échelle 0..1 du modèle d’embedding. Il vaut `null` si seule la recherche par mots-clés a trouvé le passage — garde ces résultats, une correspondance exacte d’identifiant ou d’expression est une preuve plus forte que n’importe quel cosinus (en code : `hits.filter(h => h.similarity === null ? h.keywordScore !== null : h.similarity >= floor)`).
 - `keywordScore` contient le score BM25, non borné. Il vaut `null` si seule la recherche vectorielle a trouvé le passage.
 - `matchedLegs` indique les branches correspondantes : `documents:keyword`, `documents:dense`, `web:keyword` ou `web:dense` selon le corpus recherché.
 - `legs` est leur nombre : par exemple 2 si les branches par mots-clés et vectorielle ont toutes deux retenu le passage.
@@ -956,7 +960,7 @@ Chaque résultat inclut le passage et sa `source`. Pour un document, `source.doc
 - Si `source.projectId` vaut `null`, lis le document avec `GET /api/v1/documents/{id}`.
 - Pour un fichier de projet, utilise les routes du projet, comme `GET /api/v1/projects/{projectId}/files/{documentId}/content` ou `DELETE .../files/{documentId}`. La route `/api/v1/documents/{id}` répond **404** pour ce fichier.
 
-`diagnostics.cached` et `diagnostics.reranked` sont réservés aux déploiements qui installent un cache sémantique ou un reclassement des résultats. Aucun des deux n’est fourni dans cette version ; ces valeurs restent donc `false`.
+`diagnostics.cached` et `diagnostics.reranked` sont réservés aux déploiements qui installent un cache sémantique ou un reclassement des résultats. Aucun des deux n’est fourni dans cette version ; ces valeurs restent donc `false`. `diagnostics.legs` nomme chaque branche qui a tourné avec les candidats admis qu’elle a apportés — `0` quand elle a tourné sans que rien survive (`documents:dense: 0` est une branche vectorielle qui n’a rien trouvé dans le périmètre, jamais une branche absente) —, et `diagnostics.dense` ne vaut `false` que quand le corpus n’a pas pu servir la branche vectorielle du tout, comme `diagnostics.bm25` pour l’index par mots-clés. Les passages ne portent aucun caractère de contrôle hors tabulation, saut de ligne et retour chariot, et un passage répété au sein d’un même document — un export d’une seule ligne, un rapport issu d’un gabarit — est indexé une fois, par sa première occurrence, si bien qu’un fichier plein de doublons n’encombre pas la branche vectorielle et ne classe pas ses copies une par une.
 
 Les erreurs d’embedding demandent des traitements distincts :
 
@@ -1329,9 +1333,9 @@ Le démarrage exige l’accès en édition à un projet actif et une tâche acti
 
 L’exécution reçoit la tâche dans `{task: ...}`. Aucune capacité développeur supplémentaire n’est requise pour ce démarrage. Le journal l’attribue à la clé utilisée. Suis ensuite `GET /api/v1/projects/{id}/runs/{runId}` avec `runId` ; `executionId` est son ancien alias déprécié.
 
-Une réponse **200** ne prouve pas qu’une nouvelle exécution a commencé. Lis `started`. Si la réponse contient `started: false` et `reason: "already_running"`, elle fournit le `runId` de l’exécution déjà en cours : suis celle-ci.
+Une réponse **200** ne prouve pas qu’une nouvelle exécution a commencé. Lis `started`. Si la réponse contient `started: false` et `reason: "already_running"`, elle fournit le `runId` de l’exécution déjà en cours — une tâche ne tient qu’une exécution vivante à la fois, quelle que soit l’automatisation qui l’a démarrée, cette exécution peut donc appartenir à une autre automatisation (son `name` dit laquelle) : suis celle-ci. Un workflow lié à d’autres projets répond **403**, `AUTOMATION_PROJECT_FORBIDDEN`.
 
-`workflowSlug` doit désigner une automatisation existante et déployée. Sinon, la route renvoie respectivement **404**, `AUTOMATION_NOT_FOUND`, ou **409**, `AUTOMATION_NOT_DEPLOYED`, en nommant l’automatisation. Ce sont les mêmes exigences que pour l’attribution d’une tâche avec `automationSlug`.
+`workflowSlug` nomme l’automatisation telle que `GET /api/v1/automations` la liste — la forme avec `/` (`billing/dunning`), jamais l’orthographe `__` du chemin d’URL — et doit désigner une automatisation existante et déployée. Sinon, la route renvoie respectivement **404**, `AUTOMATION_NOT_FOUND`, ou **409**, `AUTOMATION_NOT_DEPLOYED`, en nommant l’automatisation. Ce sont les mêmes exigences que pour l’attribution d’une tâche avec `automationSlug`.
 
 Ces vérifications précèdent la facturation du budget de démarrage. `reason: "not_started"` couvre le cas résiduel où le déploiement disparaît entre la vérification et le démarrage.
 
@@ -1440,7 +1444,7 @@ Un instantané de contenu plus récent lié à un contact dans la corbeille donn
 | --- | --- |
 | **414** | l’URL, chemin et chaîne de requête compris, dépasse 32 Kio : `URI_TOO_LONG`. L’enveloppe contient un `requestId`. |
 | **408** | la réception complète des en-têtes et du corps a dépassé 15 minutes : `REQUEST_TIMEOUT`. La réponse contient un nouveau `requestId`, car la requête expirée n’en avait pas encore reçu. La connexion est fermée ; utilise une connexion plus rapide ou des transferts plus petits pour réessayer. |
-| **431** | les en-têtes dépassent ensemble le plafond de 64 Kio du serveur frontal. En HTTP/1.1, la réponse n’a pas d’enveloppe JSON. Le frontal tolère quelques Kio de marge : une URL ou un en-tête légèrement trop long peut encore atteindre la plateforme et y être refusé selon ses règles. Une URL de 66 Kio reçoit ainsi **414**. En HTTP/2, le plafond de 64 Kio est strict et son dépassement entraîne la fermeture de la connexion. |
+| **431** | les en-têtes dépassent ensemble le plafond de 64 Kio du serveur frontal. En HTTP/1.1, la réponse n’a ni enveloppe JSON ni `X-Request-Id` — l’analyseur du frontal l’écrit avant qu’une route tourne. Le frontal tolère quelques Kio de marge : une URL ou un en-tête légèrement trop long peut encore atteindre la plateforme et y être refusé selon ses règles. Une URL de 66 Kio reçoit ainsi **414**. En HTTP/2, le plafond de 64 Kio est strict et son dépassement entraîne la fermeture de la connexion. |
 | **500** | une erreur interne est survenue : `INTERNAL_ERROR`. Fournis le `requestId` de l’enveloppe lorsque tu la signales. |
 | **503** | une dépendance nécessaire est indisponible. Cela comprend le fournisseur d’embedding (`EMBEDDING_UPSTREAM_ERROR`, avec `Retry-After`), le stockage d’un téléchargement (`OBJECT_STORE_UNAVAILABLE`, avec `Retry-After`), un stockage non configuré (`OBJECT_STORE_UNCONFIGURED`) ou une purge inachevée (`PURGE_INCOMPLETE`). `KNOWLEDGE_ENTRY_STORE_TIMEOUT` signifie que le stockage a accepté l’écriture d’une entrée de connaissances sans répondre dans les 30 secondes ; aucun enregistrement n’est créé. Réessaie avec un délai croissant. |
 | **502**, **503**, **504** | le serveur frontal ne peut pas joindre la plateforme, par exemple pendant son redémarrage : `UPSTREAM_UNAVAILABLE`. Il fournit `Retry-After` et un nouveau `requestId`, sans `X-Tale-Api-Version`. Ce comportement concerne les routes destinées aux programmes : `/api/*`, `/events`, `/status.json`, `/openapi.json` et `/.well-known/*`. Une navigation dans le navigateur reçoit la page de maintenance. Réessaie avec un délai croissant. |

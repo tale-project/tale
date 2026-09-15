@@ -83,7 +83,7 @@ Les outils exposent aussi `readOnlyHint`, `destructiveHint`, `idempotentHint` et
 | `run_automation` | Exécuter un document avec les mocks déterministes. |
 | `test_automation`     | Lancer les tests d'acceptation propres à une automatisation.         |
 | `save_automation`     | Enregistrer un document comme nouvelle version immuable.             |
-| `get_automation`      | Lire une version enregistrée (la dernière sans précision).           |
+| `get_automation`      | Lire une version enregistrée — la dernière sans précision, `version: "deployed"` pour celle qui est en ligne (`AUTOMATION_VERSION_UNKNOWN` tant que rien n’est déployé). |
 | `list_automations`    | Les automatisations de l'organisation avec leur dernière version, leur version déployée et les projets où chacune est installée (`projectIds`). |
 | `deploy_automation` | Déployer une version enregistrée pour les exécutions réelles. |
 
@@ -94,20 +94,20 @@ Suis cet ordre : lire la grammaire et le catalogue, valider le document, l'exéc
 | Outil            | Ce qu'il fait                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | `run_deployed` | Exécuter la version déployée et attendre jusqu'à 30 secondes sa sortie, sa trace et ses effets. Si elle continue, suivre le `runId` renvoyé. |
-| `start_run` | Démarrer la version déployée en arrière-plan, puis suivre l'identifiant renvoyé avec `get_run`. |
+| `start_run` | Démarrer la version déployée en arrière-plan, puis suivre l'identifiant renvoyé avec `get_run`. Prend un `idempotencyKey` facultatif — l’`Idempotency-Key` de la porte REST, le même registre : la même clé avec les mêmes arguments répond la poignée de la première exécution avec `duplicate: true` et ne démarre rien, la même clé avec d’autres arguments est refusée (`IDEMPOTENCY_KEY_REUSED`). L’en-tête HTTP `Idempotency-Key` n’est pas lu sur cet endpoint. |
 | `list_runs` | Lister les exécutions accessibles d'une automatisation ou de plusieurs projets, les plus récentes d'abord, avec leur `projectId`. |
 | `get_run` | Lire le statut, la sortie, la trace, les effets et le `projectId`. L'identifiant d'une exécution de projet s'utilise aussi dans `GET /api/v1/projects/{id}/runs/{runId}`. |
 | `cancel_run` | Arrêter une exécution lors du prochain passage d'un nœud à l'autre. |
-| `list_versions`  | L'historique de versions immuable d'une automatisation.                                                        |
+| `list_versions`  | L'historique de versions immuable d'une automatisation ; chaque ligne dit si elle est la version `deployed`, et `deployedVersion` la nomme à côté de la liste (`null` tant que rien n’est déployé).                                                        |
 | `list_triggers` | Lire les déclencheurs sans révéler le secret du webhook. |
 | `delete_trigger` | Supprimer le déclencheur ; conserver les versions et l'historique des exécutions. |
-| `set_trigger` | Configurer un déclencheur planifié, webhook ou événement. |
+| `set_trigger` | Configurer un déclencheur planifié, webhook ou événement. Le `token` d’un webhook est répondu une fois, ici, et plus jamais — conserve-le ; `deployed` dit si les livraisons tourneront : un déclencheur lié à une automatisation sans version déployée est enregistré et ne déclenche rien tant qu’une version n’est pas déployée. |
 
 | Outil | Quand le choisir |
 | --- | --- |
 | `run_automation` | Essayer un document non enregistré avec les mocks déterministes ; `mode: "live"` est refusé |
 | `run_deployed` | Exécuter réellement la version déployée et attendre jusqu'à 30 secondes ; suivre ensuite le `runId` si elle continue |
-| `start_run` | Démarrer la version déployée en arrière-plan puis suivre `get_run` |
+| `start_run` | Démarrer la version déployée en arrière-plan puis suivre `get_run` ; passe `idempotencyKey` pour qu’une répétition soit sûre |
 
 Les deux outils de version déployée utilisent le même moteur durable, avec les mêmes contrôles d'accès et traces d'exécution. `start_run` accepte un `projectId` facultatif. Une automatisation liée à des projets doit s'exécuter dans un projet où elle est installée ; une liaison unique peut être choisie automatiquement. Sans liaison, omettre le champ sélectionne le périmètre de l'organisation. Lis `projectIds` dans `list_automations` et le véritable `projectId` du résultat au lieu de deviner l'URL REST de suivi.
 
@@ -117,7 +117,7 @@ Les deux outils de version déployée utilisent le même moteur durable, avec le
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `search_capabilities` | Rechercher les automatisations déployées de l'organisation par nom et description. |
 | `invoke_capability` | Appeler une capacité par son `id`. Si une approbation est nécessaire, renvoyer son état en attente au lieu d'exécuter l'action. |
-| `get_knowledge` | Récupérer des passages des documents et sites web explorés de l'organisation. |
+| `get_knowledge` | Récupérer des passages des documents et sites web explorés de l'organisation. `corpus` vaut `private` (documents), `public-web` (pages explorées) ou `all` ; les orthographes REST `documents` et `web` sont acceptées aussi. `query` est plafonné à 2000 caractères. |
 
 Le registre de capacités contient actuellement les automatisations déployées. Il n'inclut ni outils intégrés, ni actions de connecteurs, ni skills, ni serveurs MCP externes. Appeler une automatisation déployée correspond à la même opération réelle que `run_deployed`. Si une approbation est nécessaire, le résultat `pending` permet au client d'expliquer qu'une personne doit décider avant la poursuite.
 
@@ -137,13 +137,13 @@ Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabiliti
 | Résultat | Traitement |
 | --- | --- |
 | JSON-RPC `-32601` | Corriger la méthode inconnue |
-| JSON-RPC `-32602` | Corriger le nom de l'outil ou ses arguments à partir de `tools/list` |
+| JSON-RPC `-32602` | Corriger le nom de l'outil ou ses arguments à partir de `tools/list` ; une valeur hors d’un ensemble énuméré est refusée et le message nomme l’ensemble |
 | Résultat avec `isError: true` | Lire le `code` stable, l'`error` explicative et le `hint` dans le texte ; `data` peut détailler les champs invalides |
 | `validate_automation` avec `valid: false` | Verdict normal de validation ; examiner `errors`, même si `isError` reste false |
 | Capacité avec `pending` | Résultat normal d'approbation ; ni une fin d'exécution, ni un échec à relancer |
 | Capacité avec `refused` | Résultat d'erreur ; corriger la cause indiquée |
 
-Les codes de refus comprennent `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` et `NOT_SUPPORTED`. Ce dernier indique que l'hôte ne prend pas en charge l'opération sur les exécutions, versions ou déclencheurs. Les erreurs de plateforme conservent leur code, leur conseil et leurs données éventuelles ; par exemple, l'absence d'accès développeur renvoie `FORBIDDEN_DEVELOPER_SETTINGS`.
+Les codes de refus comprennent `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` et `NOT_SUPPORTED`. Ce dernier indique que l'hôte ne prend pas en charge l'opération sur les exécutions, versions ou déclencheurs. `start_run` refuse un `idempotencyKey` réutilisé avec d’autres arguments par `IDEMPOTENCY_KEY_REUSED` ; `invoke_capability` refuse un id que le registre ne tient pas — une automatisation seulement enregistrée n’y est pas — par `CAPABILITY_NOT_FOUND` et une entrée que son schéma rejette par `CAPABILITY_INPUT_INVALID` ; `get_knowledge` transmet les codes propres de la porte des connaissances (`KNOWLEDGE_UNAVAILABLE` quand la recherche elle-même a échoué). Les erreurs de plateforme conservent leur code, leur conseil et leurs données éventuelles ; par exemple, l'absence d'accès développeur renvoie `FORBIDDEN_DEVELOPER_SETTINGS`.
 
 Un nom d'automatisation inconnu est aussi une erreur pour `list_versions`, `list_runs` et `list_triggers`. Une liste vide signifie qu'une automatisation existante n'a pas d'éléments correspondants. Un document invalide soumis à un outil qui exige un document valide, une recherche échouée ou un déploiement absent produisent `isError: true`. Seul l'outil de validation présente un document invalide comme son verdict normal.
 

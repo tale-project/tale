@@ -218,6 +218,12 @@ records and delete them after.
   stored. Re-list the same three URLs → the two reasons persist and their
   attempt counts grow. Then register a whole site whose only page answers
   `500` → after the scan its **Status** reads **Error** (not **Active**).
+- [ ] `KNOW-F15` · **Meta-noindex page** — Websites → **Add website** for a site
+  whose HTML page carries `<meta name="robots" content="noindex">` (the render
+  lane must run, so an HTML page, not a text file) → After the scan the page row
+  shows the skipped reason `robots_noindex` with no chunks, and a search for its
+  words returns nothing from it; a page whose noindex arrives as the
+  `X-Robots-Tag` header reads the same.
 
 ## Boundary & error tests
 

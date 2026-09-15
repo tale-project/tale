@@ -41,7 +41,7 @@ import {
  *    system owns the open/closed lifecycle. It drives the REST
  *    `POST /api/v1/projects/{id}/tasks` door and, later, the sandbox `task_upsert` tool.
  *  - {@link startWorkflowForTask} starts a DEPLOYED automation with the task
- *    as its subject input — one live run per (automation, task), attributed
+ *    as its subject input — one live run per task, attributed
  *    to the task's project.
  *  - {@link resolveSetupFolderId} is the desks' binding convention: the
  *    Setup folder a folder-driven intake names, resolved to the id that
@@ -541,29 +541,35 @@ export async function upsertTaskByExternalRef(
   return { taskId, created: true };
 }
 
-/** The per-(org, automation, task) start mutex — see {@link startWorkflowForTask}. */
+/** The per-(org, task) start mutex — see {@link startWorkflowForTask}. The
+ * automation's name used to be part of the key, and of the rule
+ * (2026-09-14 evaluation, round h, S2-3). */
 export function taskWorkflowStartLockKey(
   organizationId: string,
-  workflowSlug: string,
   taskId: string,
 ): string {
-  return `task-workflow-start:${organizationId}:${workflowSlug}:${taskId}`;
+  return `task-workflow-start:${organizationId}:${taskId}`;
 }
 
 /**
  * Start a DEPLOYED automation with the task as its subject input. One live
- * run per (automation, task); the run is attributed to the task's project —
+ * run per TASK, whichever automation started it — "one engine per task": a
+ * task with a live run refuses a second one, and the caller is handed the
+ * live run, which may belong to another automation (its `name` says which).
+ * The rule used to be keyed per (automation, task), so a second automation
+ * slipped past it and two engines mutated one card at once (2026-09-14
+ * evaluation, round h, S2-3). The run is attributed to the task's project —
  * org-level automations included — which is what the task modal's live-run
  * lookup and the project run log key on.
  *
  * The guard is atomic: the live-run lookup and the insert share one
- * transaction that first takes a pg advisory xact lock on the (org,
- * automation, task) key, so two doors racing for one task (a board Start
- * beside an @mention, two mention jobs, two REST calls) serialize — the
- * second sees the first's committed run and answers it as `alreadyRunning`
- * — where the plain SELECT-then-INSERT let both through to two metered
- * runs. Every api replica shares the database, which is what makes the lock
- * hold across replicas.
+ * transaction that first takes a pg advisory xact lock on the (org, task)
+ * key, so two doors racing for one task (a board Start beside an @mention,
+ * two mention jobs, two REST calls) serialize — the second sees the first's
+ * committed run and answers it as `alreadyRunning` — where the plain
+ * SELECT-then-INSERT let both through to two metered runs. Every api
+ * replica shares the database, which is what makes the lock hold across
+ * replicas.
  *
  * Not-deployed answers `null` (the callers' "not started"); every OTHER
  * failure propagates — a caught-all `null` used to make the queue's
@@ -603,10 +609,10 @@ export async function startWorkflowForTask(
 /** Start inside the caller's transaction so a REST project/task scope
  * check and the run insertion share the same authorization boundary.
  *
- * Three layers keep one live run per (automation, task): the advisory lock
- * serialises racing doors, the live-run probe answers `alreadyRunning` on the
- * fast path, and the `automation_runs_one_live_per_task` unique index is the
- * guarantee neither of the first two can give alone — a check-then-act probe
+ * Three layers keep one live run per task: the advisory lock serialises
+ * racing doors, the live-run probe answers `alreadyRunning` on the fast
+ * path, and the `automation_runs_one_live_per_task_subject` unique index is
+ * the guarantee neither of the first two can give alone — a check-then-act probe
  * cannot see a commit its snapshot predates, so under a frozen (SERIALIZABLE)
  * snapshot several racers each read "no live run". When the index catches the
  * loser's insert it surfaces as a plain unique violation (reconciled here by
@@ -619,13 +625,15 @@ export async function startWorkflowForTaskInTx(
 ): Promise<{ runId: string; alreadyRunning: boolean } | null> {
   await tx`
     SELECT pg_advisory_xact_lock(
-      hashtext(${taskWorkflowStartLockKey(args.organizationId, args.workflowSlug, args.task.id)})
+      hashtext(${taskWorkflowStartLockKey(args.organizationId, args.task.id)})
     )
   `;
+  // Any live run whose subject is this task — no name filter: the rule is
+  // per task, and the winner may be another automation's run.
   const liveRun = async (): Promise<string | undefined> => {
     const rows = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
-      WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
+      WHERE org_id = ${args.organizationId}
         AND project_id = ${args.task.projectId}
         AND status IN ('queued', 'running', 'waiting')
         AND input->'task'->>'id' = ${args.task.id}

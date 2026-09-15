@@ -101,7 +101,6 @@ export function WebsitesTable({
         key: 'status',
         title: tTables('headers.status'),
         options: [
-          { value: 'idle', label: tWebsites('filter.status.idle') },
           { value: 'scanning', label: tWebsites('filter.status.scanning') },
           { value: 'active', label: tWebsites('filter.status.active') },
           { value: 'error', label: tWebsites('filter.status.error') },

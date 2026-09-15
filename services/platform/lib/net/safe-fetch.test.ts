@@ -320,6 +320,66 @@ describe('lib/net/safe-fetch resolution guard', () => {
   // failed')` with the cause on `error.cause`; the refusal used to repeat
   // the wrapper's text ("fetch failed: fetch failed") and file an expired
   // certificate as a transient `network_error` (2026-09-14 eval, g4-4).
+  /**
+   * The deadline used to be mapped only around `fetch()` (the headers): a
+   * body that stalled past it rejected the reader with a raw `AbortError`
+   * that surfaced as `network_error` "This operation was aborted" — never
+   * the `timeout` the contract names (2026-09-14 evaluation, h5).
+   */
+  it('reports a deadline that fires while the body is still arriving as a timeout, on both readers', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    const stalled = (init: { signal: AbortSignal }) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('partial'));
+            init.signal.addEventListener('abort', () => {
+              const error = new Error('This operation was aborted');
+              error.name = 'AbortError';
+              controller.error(error);
+            });
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/plain' } },
+      );
+    vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stub is given the init it built
+      Promise.resolve(stalled(init as { signal: AbortSignal })),
+    );
+    await expect(
+      safeFetch(`${ORIGIN}/drip`, { timeoutMs: 50 }),
+    ).rejects.toMatchObject({
+      kind: 'timeout',
+      message: expect.stringContaining('body was still arriving'),
+    });
+    await expect(
+      safeFetchBinary(`${ORIGIN}/drip`, { timeoutMs: 50 }),
+    ).rejects.toMatchObject({ kind: 'timeout' });
+  });
+
+  it('strips the OpenSSL handle and source path from a TLS failure message', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(
+          new Error(
+            'C08C3904E37E0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:../deps/openssl/openssl/ssl/record/rec_layer_s3.c:916:SSL alert number 40',
+          ),
+          { code: 'ERR_SSL_SSL_TLS_ALERT_HANDSHAKE_FAILURE' },
+        ),
+      }),
+    );
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'tls_error',
+      message:
+        'TLS handshake failed: SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:SSL alert number 40 (ERR_SSL_SSL_TLS_ALERT_HANDSHAKE_FAILURE)',
+    });
+  });
+
   it('names a certificate failure as tls_error, with the cause code', async () => {
     answering({
       'site.example.com': [{ address: '93.184.216.34', family: 4 }],

@@ -145,6 +145,38 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
     expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
+  /**
+   * The rule is per TASK: a live run of another automation on the same task
+   * is the run a start reuses. The probe used to filter by the automation's
+   * name, so a second automation slipped past the guard and two engines
+   * mutated one card at once (2026-09-14 evaluation, round h, S2-3).
+   */
+  it('answers another automation’s live run on the task — the probe carries no name filter', async () => {
+    const { sql, statements } = fakeDb((text) =>
+      text.includes('SELECT id FROM app.automation_runs')
+        ? [{ id: 'run-of-other-automation' }]
+        : [],
+    );
+    await expect(
+      startWorkflowForTask(sql, {
+        organizationId: 'org-1',
+        task,
+        workflowSlug: 'triage',
+        startedByUserId: 'u-1',
+      }),
+    ).resolves.toEqual({
+      runId: 'run-of-other-automation',
+      alreadyRunning: true,
+    });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    const probe = statements.find((text) =>
+      text.includes('SELECT id FROM app.automation_runs'),
+    );
+    expect(probe).toBeDefined();
+    expect(probe).not.toContain('name =');
+    expect(probe).toContain("input->'task'->>'id' = ?");
+  });
+
   it('does not reuse a live task run attributed to another project', async () => {
     vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
     const { tx } = fakeDb((text, values) =>
@@ -202,12 +234,12 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
     ).rejects.toBe(refusal);
   });
 
-  it('keys the lock per (org, automation, task)', () => {
-    expect(taskWorkflowStartLockKey('org-1', 'triage', 't-1')).toBe(
-      'task-workflow-start:org-1:triage:t-1',
+  it('keys the lock per (org, task) — every automation contends for the same task', () => {
+    expect(taskWorkflowStartLockKey('org-1', 't-1')).toBe(
+      'task-workflow-start:org-1:t-1',
     );
-    expect(taskWorkflowStartLockKey('org-1', 'triage', 't-2')).not.toBe(
-      taskWorkflowStartLockKey('org-1', 'triage', 't-1'),
+    expect(taskWorkflowStartLockKey('org-1', 't-2')).not.toBe(
+      taskWorkflowStartLockKey('org-1', 't-1'),
     );
   });
 });

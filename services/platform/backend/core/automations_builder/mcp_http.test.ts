@@ -821,6 +821,49 @@ describe('protocol errors', () => {
     });
   });
 
+  it('names the allowed values when an enum argument misses them (-32602)', async () => {
+    // A model reading its own error could not self-correct from "must be
+    // equal to one of the allowed values" (2026-09-14 evaluation, h9).
+    const { payload } = await call({
+      jsonrpc: '2.0',
+      id: 14,
+      method: 'tools/call',
+      params: {
+        name: 'get_knowledge',
+        arguments: { query: 'x', corpus: 'h8h9' },
+      },
+    });
+    expect(payload.error).toMatchObject({
+      code: -32602,
+      message: expect.stringContaining(
+        'must be one of "private", "public-web", "all", "documents", "web"',
+      ),
+    });
+  });
+
+  it('refuses a trigger key of another kind by name, through the kind’s own shape (-32602)', async () => {
+    const { payload } = await call({
+      jsonrpc: '2.0',
+      id: 15,
+      method: 'tools/call',
+      params: {
+        name: 'set_trigger',
+        arguments: {
+          name: 'billing/dunning',
+          trigger: {
+            kind: 'schedule',
+            cron: '0 3 * * *',
+            event: 'contact.created',
+          },
+        },
+      },
+    });
+    expect(payload.error).toMatchObject({
+      code: -32602,
+      message: expect.stringContaining('unexpected property "event"'),
+    });
+  });
+
   it('refuses a tools/call without a name (-32602)', async () => {
     const { payload } = await call({
       jsonrpc: '2.0',

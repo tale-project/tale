@@ -290,7 +290,13 @@ export async function readSkillBundleForViewer(args: {
 export type SkillAssetRead =
   | { readonly kind: 'no-skill' }
   | { readonly kind: 'no-file' }
-  | { readonly kind: 'asset'; readonly path: string; readonly content: Buffer };
+  | {
+      readonly kind: 'asset';
+      readonly path: string;
+      readonly content: Buffer;
+      /** The file's modification time, epoch ms — its `Last-Modified`. */
+      readonly mtimeMs: number;
+    };
 
 export async function readSkillAssetForViewer(args: {
   orgSlug: string;
@@ -305,7 +311,12 @@ export async function readSkillAssetForViewer(args: {
     readSkillBundleAssetBytes(args.orgSlug, args.slug, args.path),
   );
   if (asset === null) return { kind: 'no-file' };
-  return { kind: 'asset', path: asset.path, content: asset.content };
+  return {
+    kind: 'asset',
+    path: asset.path,
+    content: asset.content,
+    mtimeMs: asset.mtimeMs,
+  };
 }
 
 /**

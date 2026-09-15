@@ -166,7 +166,7 @@ describe('assertTriggerValid', () => {
         expect(refusal.code).toBe('AUTOMATION_TRIGGER_INVALID');
         expect(refusal.status).toBe(400);
         expect(refusal.message).toBe(
-          `"${key}" belongs to a ${owner} trigger — a ${trigger.kind} trigger does not take it.`,
+          `"${key}" belongs to ${owner} triggers — a ${trigger.kind} trigger does not take it.`,
         );
       }
     },

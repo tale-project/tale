@@ -47,7 +47,10 @@ export function requireOrgMember<E extends OrgEnv>(
   return async (c, next) => {
     const orgId = c.req.query('orgId');
     if (!orgId) {
-      return c.json({ error: 'orgId is required' }, 400);
+      return c.json(
+        { error: '"orgId" is required', code: 'INVALID_QUERY' },
+        400,
+      );
     }
     try {
       const member = await requireOrganizationMember(

@@ -77,6 +77,7 @@ describe('searchKnowledge live document validation', () => {
         ]),
         diagnostics: {
           bm25: true,
+          dense: true,
           reranked: false,
           cached: true,
           admitted: 2,
