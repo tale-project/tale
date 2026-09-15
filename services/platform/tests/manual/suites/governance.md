@@ -229,13 +229,15 @@ select lists only the current admin's keys (`useApiKeys`).
 - [ ] `GOV-F19` · **Confidentiality notice** — `policies-limits` → in
   **Confidentiality notice** (`governance.dataNotice.title`) turn the switch
   (`governance.dataNotice.enabledLabel`) on — it saves instantly — type a text
-  under **English** (`global.languages.en`) → **Save**
-  (`common.actions.save`) → reload → The switch is still on and **English**
-  holds the text; the empty **Deutsch** (`global.languages.de`) field's
-  placeholder shows that English text; a text over 280 characters is refused
-  with `governance.dataNotice.charLimitExceeded`; turning the switch off hides
-  the three fields and turning it on again brings the saved text back. Turn it
-  off to restore.
+  in the **English** language tab (`common.localeTabs.default` beside it) →
+  **Save** (`common.actions.save`) → reload → The switch is still on and the
+  **English** tab holds the text; the **Deutsch** tab carries the
+  **untranslated** pill (`common.localeTabs.untranslated`) and its empty
+  field's placeholder shows that English text; a text over 280 characters puts
+  a red dot on its tab, keeps **Save** disabled and, once the field is left,
+  shows `governance.dataNotice.charLimitExceeded`; turning the switch off hides
+  the tabs and turning it on again brings the saved text back. Turn it off to
+  restore.
 
 ## Boundary & error tests
 
