@@ -2,11 +2,12 @@
 
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
+import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 
@@ -28,10 +29,14 @@ interface DataNoticePolicyEditorProps {
   organizationId: string;
 }
 
-/** The languages the app ships — one text field each. */
+/** The languages the app ships — one tab each, English first as the source. */
 const NOTICE_LOCALES = ['en', 'de', 'fr'] as const;
 type NoticeLocale = (typeof NOTICE_LOCALES)[number];
 type DataNoticeForm = Record<NoticeLocale, string>;
+
+function toNoticeLocale(locale: string): NoticeLocale | undefined {
+  return NOTICE_LOCALES.find((candidate) => candidate === locale);
+}
 
 /**
  * The stored config with `enabled` and the three languages' text replaced.
@@ -68,7 +73,8 @@ function buildConfig(
 // layout once, always, wrapped in `<Skeletonize>`; the skeleton-aware
 // `<Switch>`/`<Textarea>` leaves mask themselves while loading. The route
 // loader warms `data_classification_notice`, so warm navigations skip the
-// skeleton. The texts save through the settings header's Save/Discard cluster
+// skeleton. The texts — one language tab each, through the shared
+// `LocaleTabs` — save through the settings header's Save/Discard cluster
 // (registered via the editor group); the toggle saves instantly.
 // =============================================================================
 export function DataNoticePolicyEditor({
@@ -76,6 +82,7 @@ export function DataNoticePolicyEditor({
 }: DataNoticePolicyEditorProps) {
   const { t } = useT('governance');
   const { t: tGlobal } = useT('global');
+  const [editingLocale, setEditingLocale] = useState<NoticeLocale>('en');
   // The platform default in each language, for the placeholders: the bundles
   // for every shipped language are loaded, so a fixed-language `t` resolves.
   const { i18n } = useTranslation();
@@ -162,11 +169,35 @@ export function DataNoticePolicyEditor({
     formState: { errors },
   } = editor.form;
 
+  // Every language's text, re-read on each keystroke: the tabs mark the
+  // languages without their own text. Undefined until the form first adopts
+  // the loaded values.
+  const texts: Partial<DataNoticeForm> = watch();
+  const hasOwnText = (locale: string) => {
+    const field = toNoticeLocale(locale);
+    // No "untranslated" pill before the texts are known.
+    return (
+      isLoading || (field !== undefined && (texts[field] ?? '').trim() !== '')
+    );
+  };
+
+  // The save controls stay disabled while any language is invalid, and the
+  // reason may sit in a hidden panel: its tab carries the error mark. The
+  // length is checked directly because a field's message appears only once
+  // it has been left.
+  const hasTextError = (locale: string) => {
+    const field = toNoticeLocale(locale);
+    return (
+      field !== undefined &&
+      (errors[field] !== undefined ||
+        (texts[field] ?? '').length > DATA_NOTICE_MAX_CHARS)
+    );
+  };
+
   // Each placeholder shows what that language's readers see while its field
   // is empty: the English text when there is one, else the platform default
   // in their language — the chain the chat itself resolves.
-  // Undefined until the form first adopts the loaded values.
-  const englishText = (watch('en') ?? '').trim();
+  const englishText = (texts.en ?? '').trim();
   const placeholderFor = (locale: NoticeLocale) =>
     resolveDataNoticeMessage(
       englishText === '' ? {} : { en: englishText },
@@ -201,19 +232,36 @@ export function DataNoticePolicyEditor({
             >
               <Stack gap={4}>
                 <Text variant="muted">{t('dataNotice.textsHint')}</Text>
-                {NOTICE_LOCALES.map((locale) => (
-                  // The settings control column, like every other field on
-                  // the page: labels of different widths still leave the
-                  // three fields aligned with each other.
-                  <Textarea
-                    key={locale}
-                    label={tGlobal(`languages.${locale}`)}
-                    placeholder={placeholderFor(locale)}
-                    errorMessage={errors[locale]?.message}
-                    counterMax={DATA_NOTICE_MAX_CHARS}
-                    {...register(locale)}
-                  />
-                ))}
+                <LocaleTabs
+                  defaultLocale="en"
+                  locales={NOTICE_LOCALES}
+                  editingLocale={editingLocale}
+                  onEditingLocaleChange={(locale) => {
+                    const next = toNoticeLocale(locale);
+                    if (next !== undefined) setEditingLocale(next);
+                  }}
+                  hasTranslation={hasOwnText}
+                  hasError={hasTextError}
+                  listAriaLabel={t('dataNotice.languagesLabel')}
+                  renderPanel={(locale) => {
+                    const field = toNoticeLocale(locale);
+                    if (field === undefined) return null;
+                    return (
+                      <Textarea
+                        aria-label={t('dataNotice.textLabel', {
+                          language: tGlobal(`languages.${field}`),
+                        })}
+                        // The tab strip names the language; the text spans
+                        // the section rather than the 20rem control column.
+                        wideControl
+                        placeholder={placeholderFor(field)}
+                        errorMessage={errors[field]?.message}
+                        counterMax={DATA_NOTICE_MAX_CHARS}
+                        {...register(field)}
+                      />
+                    );
+                  }}
+                />
               </Stack>
             </fieldset>
           </form>

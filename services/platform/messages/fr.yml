@@ -3043,6 +3043,8 @@ governance:
       le texte anglais s'affiche, ou l'avis par défaut si l'anglais est vide
       lui aussi.
     charLimitExceeded: Utilise {max} caractères au maximum
+    languagesLabel: Langues de l'avis
+    textLabel: Texte de l'avis ({language})
     saveFailed: Échec de l'enregistrement de l'avis de confidentialité
   personalization:
     enabledLabel: Activé pour cette organisation

@@ -2876,6 +2876,8 @@ governance:
       Members see the text for their language. A language left empty shows
       the English text, or the default notice when English is empty too.
     charLimitExceeded: Use {max} characters or fewer
+    languagesLabel: Notice languages
+    textLabel: Notice text ({language})
     saveFailed: Couldn't save the confidentiality notice
   personalization:
     enabledLabel: Enabled for this organization

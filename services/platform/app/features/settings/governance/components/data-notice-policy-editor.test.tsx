@@ -73,6 +73,15 @@ function renderWithSaveBar() {
   return { ...utils, capture };
 }
 
+/** The text field for one language, named by its tab's language. */
+function noticeText(language: 'English' | 'Deutsch' | 'Français') {
+  return screen.getByRole('textbox', { name: `Notice text (${language})` });
+}
+
+function languageTab(language: 'English' | 'Deutsch' | 'Français') {
+  return screen.getByRole('tab', { name: new RegExp(language) });
+}
+
 function noticeSwitch() {
   return screen.getByRole('switch', {
     name: 'Show the confidentiality notice in chat',
@@ -123,42 +132,54 @@ describe('DataNoticePolicyEditor', () => {
       state.config = { enabled: true, version: 1 };
     });
 
-    it('offers one text per shipped language, named by the language', () => {
-      render(<DataNoticePolicyEditor organizationId="org-1" />);
+    it('edits one language at a time in the shared language tabs, English first', async () => {
+      const { user } = render(
+        <DataNoticePolicyEditor organizationId="org-1" />,
+      );
 
       expect(noticeSwitch()).toBeChecked();
       expect(
-        screen.getByRole('textbox', { name: 'English' }),
+        screen.getByRole('tablist', { name: 'Notice languages' }),
       ).toBeInTheDocument();
-      expect(
-        screen.getByRole('textbox', { name: 'Deutsch' }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('textbox', { name: 'Français' }),
-      ).toBeInTheDocument();
+      expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+        'English(default)',
+        'Deutschuntranslated',
+        'Françaisuntranslated',
+      ]);
+      expect(languageTab('English')).toHaveAttribute('aria-selected', 'true');
+
+      await user.click(languageTab('Deutsch'));
+
+      expect(languageTab('Deutsch')).toHaveAttribute('aria-selected', 'true');
+      expect(noticeText('Deutsch')).toBeInTheDocument();
+    });
+
+    it('drops the untranslated mark once a language has its own text', () => {
+      render(<DataNoticePolicyEditor organizationId="org-1" />);
+
+      fireEvent.change(noticeText('Deutsch'), {
+        target: { value: 'Füge keine Kundennamen ein.' },
+      });
+
+      expect(languageTab('Deutsch')).toHaveTextContent(/^Deutsch$/);
+      expect(languageTab('Français')).toHaveTextContent('untranslated');
     });
 
     it("previews each language's default notice while its field is empty", () => {
       render(<DataNoticePolicyEditor organizationId="org-1" />);
 
-      expect(screen.getByRole('textbox', { name: 'English' })).toHaveAttribute(
-        'placeholder',
-        DEFAULT_EN,
-      );
-      expect(screen.getByRole('textbox', { name: 'Deutsch' })).toHaveAttribute(
-        'placeholder',
-        DEFAULT_DE,
-      );
+      expect(noticeText('English')).toHaveAttribute('placeholder', DEFAULT_EN);
+      expect(noticeText('Deutsch')).toHaveAttribute('placeholder', DEFAULT_DE);
     });
 
     it('previews the English text in the empty languages once there is one', () => {
       render(<DataNoticePolicyEditor organizationId="org-1" />);
 
-      fireEvent.change(screen.getByRole('textbox', { name: 'English' }), {
+      fireEvent.change(noticeText('English'), {
         target: { value: 'Mind the client data.' },
       });
 
-      expect(screen.getByRole('textbox', { name: 'Deutsch' })).toHaveAttribute(
+      expect(noticeText('Deutsch')).toHaveAttribute(
         'placeholder',
         'Mind the client data.',
       );
@@ -172,10 +193,10 @@ describe('DataNoticePolicyEditor', () => {
       };
       const { capture } = renderWithSaveBar();
 
-      fireEvent.change(screen.getByRole('textbox', { name: 'English' }), {
+      fireEvent.change(noticeText('English'), {
         target: { value: '  Mind the client data.  ' },
       });
-      fireEvent.change(screen.getByRole('textbox', { name: 'Français' }), {
+      fireEvent.change(noticeText('Français'), {
         target: { value: '' },
       });
       expect(capture.current?.isDirty).toBe(true);
@@ -195,23 +216,27 @@ describe('DataNoticePolicyEditor', () => {
       });
     });
 
-    it('refuses a text over the 280-character cap', async () => {
+    it('refuses a text over the 280-character cap and marks its language', async () => {
       const { capture } = renderWithSaveBar();
 
-      fireEvent.change(screen.getByRole('textbox', { name: 'English' }), {
+      // Over the cap in a tab that is not the one on screen.
+      fireEvent.change(noticeText('Français'), {
         target: { value: 'x'.repeat(281) },
       });
+
+      expect(capture.current?.isValid).toBe(false);
+      expect(
+        screen.getByRole('tab', { name: /Français.*has an error/ }),
+      ).toBeInTheDocument();
+      expect(languageTab('English')).not.toHaveTextContent('has an error');
+
       await act(async () => {
         // The save bar reports a refused validation as a rejected save.
         await expect(capture.current?.save()).rejects.toThrow(
           'VALIDATION_FAILED',
         );
       });
-
       expect(mutateAsync).not.toHaveBeenCalled();
-      expect(
-        await screen.findByText('Use 280 characters or fewer'),
-      ).toBeInTheDocument();
     });
   });
 
@@ -221,7 +246,7 @@ describe('DataNoticePolicyEditor', () => {
     const { capture } = renderWithSaveBar();
 
     expect(noticeSwitch()).toBeDisabled();
-    expect(screen.getByRole('textbox', { name: 'English' })).toBeDisabled();
+    expect(noticeText('English')).toBeDisabled();
     expect(capture.current).toBeNull();
   });
 

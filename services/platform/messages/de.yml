@@ -2975,6 +2975,8 @@ governance:
       erscheint der englische Text oder, wenn auch dieser leer ist, der
       Standardhinweis.
     charLimitExceeded: Verwende höchstens {max} Zeichen
+    languagesLabel: Sprachen des Hinweises
+    textLabel: Hinweistext ({language})
     saveFailed: Vertraulichkeitshinweis konnte nicht gespeichert werden
   personalization:
     enabledLabel: Für diese Organisation aktiviert
