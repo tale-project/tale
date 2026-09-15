@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -277,8 +277,14 @@ export function DocumentsTable({
     [navigate, organizationId, query],
   );
 
+  // Where focus goes when the preview closes if its opener is gone: the row
+  // menu's trigger for a preview opened from the menu's View, whose item
+  // unmounts; nothing for a row or name click, which keep their opener.
+  const previewOpenerRef = useRef<HTMLElement | null>(null);
+
   const openPreview = useCallback(
-    (id: string) => {
+    (id: string, opener: HTMLElement | null = null) => {
+      previewOpenerRef.current = opener;
       void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
@@ -348,6 +354,7 @@ export function DocumentsTable({
   const { columns, stickyLayout, pageSize, searchPlaceholder } =
     useDocumentsTableConfig({
       onDocumentClick: handleDocumentClick,
+      onDocumentView: openPreview,
       onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,
@@ -435,6 +442,7 @@ export function DocumentsTable({
         onOpenChange={(open) => !open && closePreview()}
         documentId={docId ?? undefined}
         fileName={previewFileName ?? undefined}
+        restoreFocusRef={previewOpenerRef}
       />
     </>
   );

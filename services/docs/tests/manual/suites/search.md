@@ -11,9 +11,9 @@ empty/short/no-result states, and the recent-searches store.
 
 | Surface       | Where                                                                                        |
 | ------------- | -------------------------------------------------------------------------------------------- |
-| Trigger       | **Open search** (`nav.openSearch`) — the rail's field from `md` up, the phone bar's icon and the drawer's field below |
-| Shortcut      | **Cmd/Ctrl+K** anywhere (`app/routes/__root.tsx`)                                            |
-| Dialog        | `app/features/search/dialog.tsx` → `@tale/ui` `SearchCommand`                                |
+| Trigger       | **Open search** (`docs.openSearch`) — the rail's field from `md` up, the phone bar's icon and the drawer's field below |
+| Shortcut      | **Cmd/Ctrl+K** anywhere (the shared `DocsLayout`)                                            |
+| Dialog        | `@tale/ui/docs/docs-search-dialog` → `@tale/ui` `SearchCommand`                              |
 | Index         | `{base}/search-index-{locale}.json` (static, built per locale)                               |
 | Recents store | `localStorage['tale.docs.recentSearches.v1']`                                                |
 
@@ -23,20 +23,21 @@ Bring the site up per [SETUP.md](../setup.md) — either mode (mode B builds the
 index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
 
 > **Agent note**: the dialog is lazy-loaded — the first open may take a beat.
-> Strings resolve from the `search.*` namespace in
-> `services/docs/messages/{locale}.yml` (the docs keys override the `@tale/ui`
-> defaults). Assert navigation by URL commit, not by result-row styling.
+> Strings resolve from `packages/ui/src/i18n/messages/{locale}.yml`: the
+> documentation copy (title, placeholder, empty state and its hints) from
+> `docs.search.*`, everything else from the palette's `search.*`. Assert
+> navigation by URL commit, not by result-row styling.
 
 ## Functional tests
 
 - [ ] `SEARCH-F1` · **Open + close** — Click **Open search**
-  (`nav.openSearch`); then press **Esc**; then press **Cmd/Ctrl+K** → The
-  dialog opens with the **Search documentation…** input (`search.placeholder`)
+  (`docs.openSearch`); then press **Esc**; then press **Cmd/Ctrl+K** → The
+  dialog opens with the **Search documentation…** input (`docs.search.placeholder`)
   focused; Esc closes it; the shortcut opens it from any page and closes it
   again when pressed while open.
 - [ ] `SEARCH-F2` · **Empty state** — Open the dialog, type nothing → Shows
-  **Start typing to search the docs.** (`search.empty`) + hint
-  (`search.emptyHint`) — or **Recent searches** once SEARCH-F5 has history.
+  **Start typing to search the docs.** (`docs.search.empty`) + hint
+  (`docs.search.emptyHint`) — or **Recent searches** once SEARCH-F5 has history.
 - [ ] `SEARCH-F3` · **Results + select** — Type `quickstart` → Result rows
   from the index appear (match highlighting); a result count matching
   `search.results` is announced; **Enter** (or click) on the top hit commits
@@ -53,7 +54,7 @@ index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
 - [ ] `SEARCH-F6` · **Locale index** — On `{base}/de`, open search and type a
   German term from a translated page (e.g. `Schnellstart`) → Hits come from
   the **German** index (`search-index-de.json`) and link into `/de/…` pages;
-  the dialog strings render German (`messages/de.yml` `search.*`)
+  the dialog strings render German (`@tale/ui` `de.yml` `docs.search.*` / `search.*`)
 - [ ] `SEARCH-F7` · **Index freshness** — Search `workforce` (a term only on
   pages removed in the content revamp — their old slugs live in
   `docs/redirects.json`); then search `episode` → No hit lands on a dead page

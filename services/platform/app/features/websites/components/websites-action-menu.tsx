@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
-import { AddWebsiteDialog } from './website-add-dialog';
+import { WebsiteCreateDialog } from './website-create-dialog';
 
 interface WebsitesActionMenuProps {
   organizationId: string;
@@ -42,7 +42,7 @@ export function WebsitesActionMenu({
         icon={Plus}
         onClick={handleAddClick}
       />
-      <AddWebsiteDialog
+      <WebsiteCreateDialog
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
         organizationId={organizationId}

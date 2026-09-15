@@ -38,6 +38,11 @@ interface EntityDeleteDialogProps<TEntity> {
   translations: EntityDeleteTranslations;
   /** Optional callback after successful deletion */
   onSuccess?: () => void;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. the row menu item that opened the dialog).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -70,6 +75,7 @@ export function EntityDeleteDialog<TEntity>({
   deleteMutation,
   translations,
   onSuccess,
+  restoreFocusRef,
 }: EntityDeleteDialogProps<TEntity>) {
   const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -138,6 +144,7 @@ export function EntityDeleteDialog<TEntity>({
       description={description}
       isDeleting={isDeleting}
       onDelete={handleDelete}
+      restoreFocusRef={restoreFocusRef}
     />
   );
 }

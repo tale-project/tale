@@ -50,6 +50,13 @@ const dialogContentVariants = cva(
         // so it reads at the same width as the equivalent settings page instead
         // of sprawling to `wide`.
         '3xl': 'md:max-w-3xl',
+        // The record measure: one record's details, create, and edit dialogs
+        // share this width AND a minimum height, so opening a record, moving
+        // on to its edit form, or stepping through a create wizard never
+        // resizes the frame. The minimum applies from `md` only — the mobile
+        // bottom sheet stays sized to its content — and yields to short
+        // viewports.
+        entity: 'md:min-h-[min(34rem,90dvh)] md:max-w-md',
         wide: 'md:w-[95vw] md:max-w-[1100px]',
       },
     },

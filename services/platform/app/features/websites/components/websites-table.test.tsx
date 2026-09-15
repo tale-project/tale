@@ -59,7 +59,7 @@ vi.mock('../hooks/use-websites-table-config', () => ({
 }));
 
 vi.mock('./website-view-dialog', () => ({
-  ViewWebsiteDialog: () => null,
+  WebsiteViewDialog: () => null,
 }));
 
 vi.mock('./websites-action-menu', () => ({

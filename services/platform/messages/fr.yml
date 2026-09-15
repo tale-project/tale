@@ -1836,12 +1836,14 @@ contacts:
     expectedColumns: 'Colonnes attendues : email, name, locale'
   addButton: Ajouter un contact
   editContact: Modifier le contact
+  editDescription: Mettre à jour les informations du contact.
   deleteContact: Supprimer le contact
   importMenu:
     fromDevice: Depuis ton appareil
     manualEntry: Saisie manuelle
   create:
     title: Ajouter un contact
+    description: Saisis l'adresse email, le nom, le numéro de téléphone et la locale du contact.
     success: Contact créé
     error: Échec de la création du contact
     duplicateEmail: Un contact avec cette adresse email existe déjà
@@ -1908,6 +1910,10 @@ dialogs:
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
+  contactInfo:
+    title: Détails du contact
+    description: Voir toutes les informations sur ce contact
+    contactId: ID du contact
   selectConversation: Sélectionner la conversation
 documents:
   entityLabel: documents
@@ -4036,7 +4042,9 @@ knowledgeEntries:
   searchPlaceholder: Rechercher des entrées de connaissances
   addButton: Ajouter une entrée
   addEntry: Ajouter une entrée de connaissances
+  addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
   editEntry: Modifier l'entrée de connaissances
+  editDescription: Mettre à jour les informations de l'entrée de connaissances.
   adding: Ajout en cours...
   saving: Enregistrement...
   topic: Sujet
@@ -4066,8 +4074,13 @@ knowledgeEntries:
     deleteError: Échec de la suppression de l'entrée de connaissances
   delete:
     title: Supprimer l'entrée de connaissances
-    confirmation: Supprimer cette entrée ? Les agents ne pourront plus la retrouver dans la base de connaissances.
+    confirmation: Supprimer « {name} » ?
+    warning: Les agents ne pourront plus retrouver cette entrée dans la base de connaissances.
   viewDialog:
+    title: Détails de l'entrée de connaissances
+    description: Voir toutes les informations sur cette entrée de connaissances
+    updated: Mis à jour
+    entryId: ID de l'entrée
     history: Historique des versions
     versionCount: '{count, plural, one {# version précédente} other {# versions
       précédentes}}'
@@ -4592,6 +4605,7 @@ products:
   noneImported: Aucun produit n'a été importé
   edit:
     title: Modifier le produit
+    description: Mettre à jour les informations du produit.
     namePlaceholder: Saisir le nom du produit
     descriptionPlaceholder: Saisir la description du produit
     categoryPlaceholder: Électronique, Vêtements, etc.
@@ -4653,19 +4667,21 @@ products:
       unknown: Une erreur inattendue s'est produite
   actions:
     deleteFailed: Échec de la suppression du produit
-    deleteSuccess: Produit supprimé avec succès
   delete:
     title: Supprimer le produit
-    confirmation: Es-tu sûr de vouloir supprimer {name} ?
+    confirmation: Supprimer « {name} » ?
     thisProduct: ce produit
     warning: Toutes les relations et données associées seront définitivement supprimées.
   view:
+    title: Détails du produit
+    description: Voir toutes les informations sur ce produit
     labels:
       price: Prix
       stock: Stock
       category: Catégorie
       lastUpdated: Dernière mise à jour
       tags: Tags
+      fullDescription: Description complète
       source: Source
       productId: ID du produit
 questions:
@@ -6952,7 +6968,9 @@ websites:
   searchPlaceholder: Rechercher des sites web
   addButton: Ajouter un site web
   addWebsite: Ajouter un site web
+  addDescription: Indexe un site web entier ou une liste de pages, et choisis la fréquence d'analyse.
   editWebsite: Modifier le site web
+  editDescription: Mettre à jour les informations du site web.
   urlPlaceholder: exemple.com
   scanIntervalPlaceholder: Sélectionner l'intervalle d'analyse
   domain: Domaine
@@ -6994,7 +7012,15 @@ websites:
     deleteError: Échec de la suppression du site web
   adding: Ajout en cours...
   viewDialog:
+    title: Détails du site web
+    status: Statut
+    scanInterval: Intervalle d'analyse
+    lastScanned: Dernière analyse
     notScannedYet: Pas encore analysé
+    description: Voir toutes les informations sur ce site web
+    descriptionField: Description
+    created: Créé
+    websiteId: ID du site web
     unknown: Inconnu
     scanPausedNotice: L'analyse est suspendue après plusieurs échecs d'accès à
       la base de connaissances. Vérifie la connexion sous Paramètres →
@@ -7014,7 +7040,6 @@ websites:
   indexed: Indexé
   pagesDialog:
     title: Pages du site web
-    listTitle: Pages
     noPages: Aucune page explorée pour le moment
     noPagesDescription: Lance un scan de ce site — les pages explorées apparaissent ici.
     loadMore: Charger plus
@@ -7064,7 +7089,8 @@ websites:
       7d: Tous les 7 jours
       30d: Tous les 30 jours
   delete:
-    confirmation: Es-tu sûr de vouloir supprimer ce site web ? Cette action est irréversible.
+    confirmation: Supprimer « {name} » ?
+    warning: Cette action est irréversible.
     title: Supprimer le site web
 projects:
   title: Projets

@@ -7,10 +7,4 @@
 # across files, enum-driven dispatch, etc.) — or when a static key is consumed
 # from outside this service's scanned source tree.
 
-entries:
-  # --- the search palette consumes its keys from @tale/ui's SearchCommand ---
-  # `search.*` is resolved by `useSearchCommandLabels` inside
-  # packages/ui/src/components/search/, but the scanner only walks services/docs/.
-  # Docs ships its own copy to override the generic labels (e.g. the title is
-  # "Search documentation", not "Search").
-  - 'search'
+entries: []

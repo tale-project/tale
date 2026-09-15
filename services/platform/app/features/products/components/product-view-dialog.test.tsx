@@ -46,81 +46,18 @@ describe('ProductViewDialog', () => {
     canWrite.current = true;
   });
 
-  it('titles the dialog with the product name and skips the filler subtitle', () => {
+  it('names the product in the shared record details', () => {
     render(<ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />);
 
-    const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
-    expect(dialog).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Product details' });
     expect(
-      screen.queryByRole('dialog', { name: 'Product details' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('View all information about this product'),
-    ).not.toBeInTheDocument();
+      within(dialog).getByRole('heading', { name: 'Draft gadget' }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText('Draft')).toBeInTheDocument();
-  });
-
-  it('gives last updated the full row so the timestamp stays on one line', () => {
-    render(
-      <ProductViewDialog
-        isOpen
-        onClose={vi.fn()}
-        product={{ ...PRODUCT, lastUpdated: Date.parse('2026-09-14T11:11:00') }}
-      />,
-    );
-
-    const item = screen.getByText('Last updated').closest('.col-span-2');
-    expect(item).toBeInTheDocument();
-    expect(item?.querySelector('.whitespace-nowrap')).toBeInTheDocument();
-  });
-
-  it('does not render a placeholder image or repeat the name in the body', () => {
-    render(<ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />);
-
-    const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
-    expect(within(dialog).queryByRole('img')).not.toBeInTheDocument();
-    expect(within(dialog).getAllByText('Draft gadget')).toHaveLength(1);
-  });
-
-  it('shows the description once, next to the image when both exist', () => {
-    render(
-      <ProductViewDialog
-        isOpen
-        onClose={vi.fn()}
-        product={{
-          ...PRODUCT,
-          description: 'A compact travel kettle.',
-          imageUrl: 'https://example.com/kettle.jpg',
-        }}
-      />,
-    );
-
-    const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
-    expect(
-      within(dialog).getAllByText('A compact travel kettle.'),
-    ).toHaveLength(1);
-    expect(
-      within(dialog).queryByText('Full description'),
-    ).not.toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('img', { name: 'Draft gadget' }),
-    ).toBeInTheDocument();
-  });
-
-  it('exposes a copyable product id', () => {
-    render(<ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />);
-
-    const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
     expect(within(dialog).getByText('Product ID')).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', {
-        name: /Product ID.*a2d88d57-5efd-472b-845b-7a4552762dca/,
-      }),
-    ).toBeInTheDocument();
   });
 
   it('offers Edit for a writer without opening the form until they ask', () => {
-    canWrite.current = true;
     render(<ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />);
 
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
@@ -138,7 +75,7 @@ describe('ProductViewDialog', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('swaps the same dialog into the edit form without a second overlay', async () => {
+  it('swaps to the edit dialog on Edit and back to the details on cancel', async () => {
     const onClose = vi.fn();
     const { user } = render(
       <ProductViewDialog isOpen onClose={onClose} product={PRODUCT} />,
@@ -146,37 +83,22 @@ describe('ProductViewDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
+    const editDialog = await screen.findByRole('dialog', {
+      name: 'Edit product',
+    });
     expect(onClose).not.toHaveBeenCalled();
-    const dialogs = screen.getAllByRole('dialog');
-    expect(dialogs).toHaveLength(1);
-    expect(dialogs[0]).toHaveAccessibleName('Edit product');
-    expect(dialogs[0]).toHaveClass('md:max-w-[24rem]');
-    expect(
-      screen.queryByRole('dialog', { name: 'Draft gadget' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Product name')).toHaveValue('Draft gadget');
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Required fields are marked/),
-    ).not.toBeInTheDocument();
-    expect(screen.getAllByText('(optional)').length).toBeGreaterThan(0);
-  });
-
-  it('returns to the view on Cancel without closing the overlay', async () => {
-    const onClose = vi.fn();
-    const { user } = render(
-      <ProductViewDialog isOpen onClose={onClose} product={PRODUCT} />,
+    expect(within(editDialog).getByLabelText('Product name')).toHaveValue(
+      'Draft gadget',
     );
 
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Draft gadget' })).toHaveClass(
-      'md:max-w-[24rem]',
+    await user.click(
+      within(editDialog).getByRole('button', { name: 'Cancel' }),
     );
-    expect(screen.queryByLabelText('Product name')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Product details' }),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('does not render content when closed', () => {
@@ -189,7 +111,6 @@ describe('ProductViewDialog', () => {
 
   describe('accessibility', () => {
     it('passes axe audit', async () => {
-      canWrite.current = true;
       const { container } = render(
         <ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />,
       );

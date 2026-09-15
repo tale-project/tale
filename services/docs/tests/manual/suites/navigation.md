@@ -7,8 +7,10 @@ Exercise every way a reader moves through the docs — the navigation rail
 previous/next cards, the on-page outline with scroll-spy, the back-to-top
 button, the phone drawer, the styled 404 with did-you-mean suggestions, the
 moved-page redirects (`docs/redirects.json`), and the PWA layer (offline shell
-+ service-worker update banner). Search has its own guide
-([search.md](search.md)).
++ service-worker update banner). The frame is the shared `@tale/ui/docs/*`
+family the design-system guide renders too; this site feeds it through
+`app/routes/__root.tsx` and `lib/content/nav-sections.ts`. Search has its own
+guide ([search.md](search.md)).
 
 ## Scope & routes
 
@@ -120,8 +122,8 @@ this guide focuses on **behaviour**, not link rot.
   stays put beside it, and there is exactly **one** horizontal line under the
   strip — it meets the rail's logo-row line without a step or a double border.
 - [ ] `NAV-F14` · **Phone drawer** — ≤ 767 px: tap **Open navigation menu**
-  (`nav.openMenu`) → A left drawer slides in over a dimmed page carrying the
-  logo, **Close navigation menu** (`nav.closeMenu`), the search field and the
+  (`docs.openMenu`) → A left drawer slides in over a dimmed page carrying the
+  logo, **Close navigation menu** (`docs.closeMenu`), the search field and the
   full tree; the page behind does not scroll; one **Esc** closes it and focus
   returns to the menu button; choosing a page closes it and navigates; growing
   the window past 768 px with it open leaves a clickable page, not a scrim.
@@ -134,10 +136,10 @@ this guide focuses on **behaviour**, not link rot.
 
 - [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/basicz` (typo) →
   The styled 404 renders **inside the docs shell**: heading **Page not found**
-  (`docs.notFoundTitle`), body `docs.notFoundBody`, a **Did you mean** list
-  (`docs.notFoundSuggestions`) whose Levenshtein-closest suggestion includes
+  (`docs.notFound.title`), body `docs.notFound.body`, a **Did you mean** list
+  (`docs.notFound.suggestions`) whose Levenshtein-closest suggestion includes
   `platform/chat/basics`, and a **Back to docs home** button
-  (`docs.notFoundBackHome`)
+  (`docs.notFound.backHome`)
 - [ ] `NAV-B2` · **Deep garbage URL** — Open `{base}/x/y/z/deep/garbage` →
   Same 404 page; suggestions still render (fallback list); no crash, no blank
   screen.

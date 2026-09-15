@@ -85,7 +85,7 @@ let openPool: PoolFactory = (rawUrl, options) => {
   // `buildConnectionUrl`. See `backend/db/ssl.ts`.
   const { url, ssl } = resolvePostgresConnection(rawUrl);
   return postgres(url, {
-    max: options?.session ? 1 : poolMax(),
+    max: options?.session ? 1 : knowledgePoolMax(),
     ssl,
     idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,
@@ -161,7 +161,11 @@ export function defaultKnowledgeUrl(): string {
   return `postgresql://tale:${password}@knowledge-db:5432/tale_knowledge`;
 }
 
-function poolMax(): number {
+/** Connections one process opens to a corpus database (`KNOWLEDGE_DB_POOL_MAX`,
+ * default 10). Every indexing job takes one while it commits a slice, so a
+ * worker allowed more concurrent jobs than this queues on the pool — the boot
+ * log says so (`main.ts`). */
+export function knowledgePoolMax(): number {
   const raw = process.env.KNOWLEDGE_DB_POOL_MAX;
   const parsed = raw ? Number(raw) : Number.NaN;
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;

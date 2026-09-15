@@ -683,9 +683,13 @@ function AutomationEditorScope({
           a workbench, not a form — the canvas and its inspector are a
           two-column grid, and constraining them to the settings measure would
           stack everything into one 48rem column and make the graph
-          unreadable. `min-h-0 flex-1` hands the grid the height the header
-          and tab strip leave, so the workbench fills the window. */}
-      <ContentArea className="min-h-0 flex-1" gap={4}>
+          unreadable. From `lg` up, `flex-1 lg:min-h-0` hands the grid the
+          height the header and tab strip leave, so the workbench fills the
+          window. Below `lg` the canvas and inspector stack, and this area
+          grows with them so the page scrolls: held to the window, the stack
+          would squeeze the canvas row under the canvas's own floor and clip
+          the zoom controls in its bottom corner. */}
+      <ContentArea className="flex-1 lg:min-h-0" gap={4}>
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead. */}

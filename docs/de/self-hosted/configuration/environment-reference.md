@@ -63,6 +63,7 @@ Tale verwendet `tale_app` für Anwendungsdaten und `tale_knowledge` für Textabs
 | `DATABASE_POOL_MAX`                       | `10`                                                                | **Optional.** Verbindungen, die ein Backend-Prozess zur operativen Datenbank öffnet. Jede Replik von `backend-api` und `backend-worker` kostet das doppelt — einmal der App-Pool, einmal die Job-Queue. Diese Zahl prüfst du gegen `max_connections` eines verwalteten Postgres. |
 | `POSTGRES_CA_FILE`                        | nicht gesetzt                                                       | **Optional.** Pfad zu einem PEM-Bundle, dem **jede** Postgres-Verbindung vertraut: operative Datenbank, Wissens-Korpus und die Datenbanken, die Organisationen selbst mitbringen. Nötig, sobald eine URL `sslmode=verify-ca` oder `verify-full` gegen einen Anbieter verlangt, dessen Root Node nicht mitliefert — Amazon RDS ist der übliche Fall. Nutzen mehrere Datenbanken verschiedene Anbieter, häng ihre Roots in einer Datei aneinander. |
 | `KNOWLEDGE_DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | Verbindungs-URL des Standard-Wissenskorpus. Eine andere URL wählt eine andere Datenbank; vorhandene Textabschnitte und Vektoren werden nicht übertragen. |
+| `KNOWLEDGE_DB_POOL_MAX` | `10` | **Optional.** Verbindungen, die ein Backend-Prozess zum Wissenskorpus öffnet. Jeder Indexierungsjob belegt eine, während er einen Block Textabschnitte festschreibt — erlaubt `WORKER_CONCURRENCY` mehr gleichzeitige Jobs als das, warten sie auf den Pool; erhöhe beide zusammen. Wie `DATABASE_POOL_MAX` zählt der Wert je Replik gegen `max_connections` der Korpus-Datenbank. |
 | `KNOWLEDGE_DB_NAME` | `tale_knowledge` | Name der Wissensdatenbank, die die mitgelieferte Datenbankinitialisierung erstellt. |
 | `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | `1073741824`                                                        | **Optional.** Größter BM25-Suchindex (in Bytes), den das Backend beim Start synchron neu aufbaut, wenn es ihn beschädigt vorfindet; einen größeren baut ein Hintergrundjob neu auf, während Schreibzugriffe auf diesen Korpus abgewiesen werden. Siehe [Container-Architektur](/de/self-hosted/operate/container-architecture). |
 | `KNOWLEDGE_INDEX_REPAIR_DISABLED` | nicht gesetzt | `1` oder `true` deaktiviert die automatische BM25-Prüfung und Reparatur beim Start. Beschädigungen bleiben bestehen; fehlgeschlagene Abfragen oder Schreibzugriffe brauchen eine Untersuchung und kontrollierte Reparatur. |
@@ -223,13 +224,14 @@ Re-Ranking ist standardmäßig deaktiviert. Setze zum Aktivieren `RAG_RERANKING_
 
 ## Deployment-Topologie
 
-Diese Werte bestimmen Replikate je Anwendungsrolle eines Workspace-Deployments. `tale deploy` liest sie aus der Projektumgebung und begrenzt Werte mit einer Warnung auf den unterstützten Bereich.
+Diese Werte prägen die Anwendungsrollen eines Workspace-Deployments: die Replikatzahlen, die `tale deploy` aus der Projektumgebung liest und mit einer Warnung auf den unterstützten Bereich begrenzt, und wie viel Arbeit ein einzelnes Worker-Replikat gleichzeitig übernimmt.
 
 | Name                           | Default | Beschreibung                                                                                             |
 | ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
 | `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas des Web-Tiers, der die App-Shell ausliefert. Bereich `1`–`16`.                                    |
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas der API — jede Anwendungstür, Auth und der Hint-Stream. Bereich `1`–`16`.                         |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas des Job-Runners: Ingest, Crawls, Automations, Agent-Turns. Bereich `1`–`16`.                      |
+| `WORKER_CONCURRENCY`           | `5`     | Jobs, die ein `backend-worker`-Replikat gleichzeitig ausführt — Ingest, Crawls, Automations und Agent-Turns teilen sich diese Zahl. Der Worker-Prozess liest sie selbst; Bereich `1`–`64`. Stell zuerst diesen Wert höher, bevor du Worker-Replikate hinzufügst, wenn ein Rückstand wächst. Jeder laufende Indexierungsjob schreibt über den Wissens-Pool, also erhöhe `KNOWLEDGE_DB_POOL_MAX` mit. |
 
 Bei einem Workspace-Deployment laufen vorübergehend beide Farben. Plane Kapazität für diese Überschneidung. Erhöhe die Rolle, deren gemessene Last den Engpass bildet. Mehr Replikate brauchen auch mehr Datenbankverbindungen und Arbeitsspeicher. Siehe [Upgrades](/de/self-hosted/operate/upgrades).
 

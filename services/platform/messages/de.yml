@@ -1826,12 +1826,14 @@ contacts:
     expectedColumns: 'Erwartete Spalten: email, name, locale'
   addButton: Kontakt hinzufügen
   editContact: Kontakt bearbeiten
+  editDescription: Kontaktinformationen aktualisieren.
   deleteContact: Kontakt löschen
   importMenu:
     fromDevice: Von deinem Gerät
     manualEntry: Manuelle Eingabe
   create:
     title: Kontakt hinzufügen
+    description: Gib E-Mail-Adresse, Name, Telefonnummer und Sprache des Kontakts ein.
     success: Kontakt erstellt
     error: Kontakt konnte nicht erstellt werden
     duplicateEmail: Ein Kontakt mit dieser E-Mail existiert bereits
@@ -1899,6 +1901,10 @@ dialogs:
   thisMember: dieses Mitglied
   confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden
+  contactInfo:
+    title: Kontaktdetails
+    description: Alle Informationen zu diesem Kontakt anzeigen
+    contactId: Kontakt-ID
   selectConversation: Konversation auswählen
 documents:
   entityLabel: Dokumente
@@ -3969,7 +3975,9 @@ knowledgeEntries:
   searchPlaceholder: Wissenseinträge durchsuchen
   addButton: Eintrag hinzufügen
   addEntry: Wissenseintrag hinzufügen
+  addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
   editEntry: Wissenseintrag bearbeiten
+  editDescription: Informationen zum Wissenseintrag aktualisieren.
   adding: Wird hinzugefügt...
   saving: Wird gespeichert...
   topic: Thema
@@ -4000,8 +4008,13 @@ knowledgeEntries:
     deleteError: Wissenseintrag konnte nicht gelöscht werden
   delete:
     title: Wissenseintrag löschen
-    confirmation: Diesen Eintrag löschen? Agenten können ihn danach nicht mehr in der Wissensdatenbank finden.
+    confirmation: '{name} löschen?'
+    warning: Agenten finden den Eintrag danach nicht mehr in der Wissensdatenbank.
   viewDialog:
+    title: Details zum Wissenseintrag
+    description: Alle Informationen zu diesem Wissenseintrag anzeigen
+    updated: Aktualisiert
+    entryId: Eintrags-ID
     history: Versionsverlauf
     versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
     superseded: Ersetzt
@@ -4514,6 +4527,7 @@ products:
   noneImported: Es wurden keine Produkte importiert
   edit:
     title: Produkt bearbeiten
+    description: Produktinformationen aktualisieren.
     namePlaceholder: Produktname eingeben
     descriptionPlaceholder: Produktbeschreibung eingeben
     categoryPlaceholder: Elektronik, Kleidung usw.
@@ -4577,19 +4591,21 @@ products:
       unknown: Ein unerwarteter Fehler ist aufgetreten
   actions:
     deleteFailed: Produkt konnte nicht gelöscht werden
-    deleteSuccess: Produkt gelöscht
   delete:
     title: Produkt löschen
-    confirmation: '„{name}" löschen? Alle zugehörigen Daten werden dauerhaft entfernt.'
+    confirmation: '{name} löschen?'
     thisProduct: dieses Produkt
     warning: Alle zugehörigen Beziehungen und Daten werden dauerhaft entfernt.
   view:
+    title: Produktdetails
+    description: Alle Informationen zu diesem Produkt anzeigen
     labels:
       price: Preis
       stock: Bestand
       category: Kategorie
       lastUpdated: Zuletzt aktualisiert
       tags: Tags
+      fullDescription: Vollständige Beschreibung
       source: Quelle
       productId: Produkt-ID
 questions:
@@ -6845,7 +6861,9 @@ websites:
   searchPlaceholder: Websites suchen
   addButton: Website hinzufügen
   addWebsite: Website hinzufügen
+  addDescription: Indexiere eine ganze Website oder eine Liste von Seiten und wähle, wie oft sie gescannt wird.
   editWebsite: Website bearbeiten
+  editDescription: Website-Informationen aktualisieren.
   urlPlaceholder: example.com
   scanIntervalPlaceholder: Scan-Intervall auswählen
   domain: Domain
@@ -6887,7 +6905,15 @@ websites:
     deleteError: Website konnte nicht gelöscht werden
   adding: Füge hinzu...
   viewDialog:
+    title: Website-Details
+    status: Status
+    scanInterval: Scan-Intervall
+    lastScanned: Zuletzt gescannt
     notScannedYet: Noch nicht gescannt
+    description: Alle Informationen zu dieser Website anzeigen
+    descriptionField: Beschreibung
+    created: Erstellt
+    websiteId: Website-ID
     unknown: Unbekannt
     scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
       mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
@@ -6908,7 +6934,6 @@ websites:
   indexed: Indexiert
   pagesDialog:
     title: Website-Seiten
-    listTitle: Seiten
     noPages: Noch keine Seiten gecrawlt
     noPagesDescription: Starte einen Scan für diese Website — gecrawlte Seiten erscheinen hier.
     loadMore: Mehr laden
@@ -6958,7 +6983,8 @@ websites:
       7d: Alle 7 Tage
       30d: Alle 30 Tage
   delete:
-    confirmation: Diese Website löschen? Das lässt sich nicht rückgängig machen.
+    confirmation: '{name} löschen?'
+    warning: Das lässt sich nicht rückgängig machen.
     title: Website löschen
 projects:
   title: Projekte

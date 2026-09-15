@@ -29,7 +29,7 @@ bun run --filter @tale/docs build:search-index
 | Site labels | `services/docs/messages/{en,de,fr,de-CH}.yml`, merged over shared `packages/ui/src/i18n/messages/` |
 | Supported Markdown components | [`registry.tsx`](../../packages/ui/src/markdown/components/registry.tsx) |
 | Screenshots and demo data | [`docs-screenshots`](../platform/tests/docs-screenshots/README.md) |
-| Rendered page layout | `services/docs/app/components/docs/` |
+| Rendered page layout | [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/), shared with [ui-docs](../ui-docs/README.md) |
 
 Read the [docs contract](../../docs/AGENTS.md), [writing skill](../../.agents/skills/write-docs/SKILL.md), and [translation skill](../../.agents/skills/write-translations/SKILL.md) before authoring. Write each page for a concrete reader task. Confirm product instructions in the running platform and add screenshots through the capture pipeline.
 
@@ -37,21 +37,24 @@ Keep English, German, and French pages in sync. Swiss German message overrides a
 
 ## The page layout
 
-The reader follows a navigation rail, breadcrumb header, article, and section outline. These
-components use the app design language from `@tale/ui`; the site supports light and dark themes.
-The root layout lives in `app/routes/__root.tsx`, with its parts in `app/components/docs/`:
+The reader follows a navigation rail, breadcrumb header, article, and section outline. The frame
+is the shared `@tale/ui/docs/*` family, which the [design-system guide](../ui-docs/README.md)
+renders too, so a change to it lands on both sites. It uses the app design language; the site
+supports light and dark themes. This workspace feeds the frame its content:
 
 | Part | Responsibility |
 | --- | --- |
-| `docs-nav-rail.tsx`, `docs-nav-tree.tsx` | Render `docs/nav.json` using `SubPanel` rows and disclosures; the same tree serves the desktop rail and phone drawer. |
-| `docs-mobile-nav.tsx` | Provide the phone header, search action, and navigation drawer. |
-| `docs-page-header.tsx` | Keep breadcrumbs and page actions visible; its current-page marker does not add a second `h1`. |
-| `docs-toc.tsx` | Show the section outline as a rail on wide screens or a disclosure above the article. |
-| `docs-prev-next.tsx`, `docs-footer.tsx` | Provide neighboring pages, language and theme controls, and text-export links. |
+| `app/routes/__root.tsx` | Mount `DocsLayout` with this site’s navigation, search index, footer copy, locale, and offline update banner. |
+| `lib/content/nav-sections.ts` | Resolve `docs/nav.json` into translated rail sections, neighboring pages, and search-result ancestors. |
+| `app/pages/docs-page.tsx` | Render `DocsHeader` with breadcrumbs and page actions, then `DocsArticle` with the single `h1`, body, outline, neighbors, and edit link. |
+| `app/pages/not-found-page.tsx` | Rank the closest pages for `DocsNotFound`. |
+| `app/components/docs/` | Keep the docs-only pieces: image and video source rebasing and the offline update banner. |
 
-Use shared tokens and controls when changing this layout. Read the
-[design contract](../../design/docs/README.md) and verify keyboard access, the single article
-`h1`, hidden duplicate navigation, both themes, and narrow-width wrapping.
+Change the shared parts in [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/)
+and check both sites. Read the [design contract](../../design/docs/README.md) and verify keyboard
+access, the single article `h1`, hidden duplicate navigation, both themes, and narrow-width
+wrapping. From `md` up, the header strip and the rail’s logo row end on one line whether or not
+the strip holds actions; `bun run --filter @tale/ui test:browser` measures it in Chromium.
 
 ## Verify a change
 

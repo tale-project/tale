@@ -184,9 +184,11 @@ describe('Product row actions: delete', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Delete product' });
-    expect(
-      within(dialog).getByText(/Delete "Acme Widget"\?/),
-    ).toBeInTheDocument();
+    // The confirmation names the product and states what deleting removes.
+    expect(within(dialog).getByText('Acme Widget')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(
+      'Delete Acme Widget?All related relationships and data will be permanently removed.',
+    );
     await checkAccessibility(dialog);
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

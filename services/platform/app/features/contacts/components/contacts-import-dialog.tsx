@@ -186,6 +186,7 @@ export function ImportContactsDialog({
     <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
+      size="entity"
       title={tContacts('import.uploadContacts')}
       submitText={tContacts('import.import')}
       submittingText={tCommon('actions.importing')}

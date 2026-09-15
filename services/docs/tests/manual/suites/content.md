@@ -1,6 +1,6 @@
 # Content rendering
 
-> **Prefix** `CONT-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `CONT-` · **Reset** none · **Cost** 30 boxes
 
 Exercise how a docs page renders and what a reader can do with it —
 syntax-highlighted code blocks with copy buttons, heading deep links (anchor +
@@ -30,8 +30,8 @@ Representative pages for each component family:
 
 Renderer: `app/pages/docs-page.tsx` → shared `@tale/ui` markdown stack
 (`RoutedMarkdown`, `highlighted-code.tsx`, `anchored-heading.tsx`, component
-registry `packages/ui/src/markdown/components/registry.tsx`) +
-`app/features/page-actions/page-actions.tsx`. Images and videos go through the
+registry `packages/ui/src/markdown/components/registry.tsx`) inside the shared
+`@tale/ui/docs/*` frame (`DocsHeader` + `PageActions`, `DocsArticle`). Images and videos go through the
 docs-specific overrides `app/components/docs/docs-image.tsx` /
 `docs-video.tsx`, which rebase root-absolute srcs (`/images/…`, `/videos/…`)
 onto the deploy base path (`rebaseImageSrc`) — under mode A every asset URL
@@ -161,6 +161,13 @@ clipboard permission.
   images page and a videos page; zoom an image → Images and the video player
   shrink to the column (no horizontal scroll); the zoom lightbox still opens,
   fits the viewport, and closes cleanly.
+- [ ] `CONT-B4` · **Print preview** — Open the install quickstart and the
+  browser's print preview (Cmd/Ctrl+P) at desktop width → Only the reading
+  surface prints: the breadcrumb trail, the title, the description and
+  metadata, and the body with its figures; the rail, the phone bar, the page
+  actions, both outline copies, the neighbour cards, **Edit on GitHub**, the
+  footer and **Back to top** are absent (`print:hidden` in the shared
+  `@tale/ui/docs/*` frame).
 
 ## Accessibility (WCAG 2.1 AA)
 

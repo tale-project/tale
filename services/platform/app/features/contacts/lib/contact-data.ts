@@ -17,7 +17,21 @@ export function isContactDoc(contact: ContactData): contact is ContactDoc {
 
 /** Placeholder email a contact record carries when it has no real address
  *  (e.g. a conversation whose sender couldn't be resolved). */
-export const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
+const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
+
+/**
+ * Whether a contact is the organization's own record to edit or delete: one a
+ * person typed in or uploaded. Synced and conversation contacts belong to
+ * their source, which would overwrite a local change.
+ */
+export function isEditableContact(contact: ContactDoc): boolean {
+  return contact.source === 'manual_import' || contact.source === 'file_upload';
+}
+
+/** Whether the contact has a real address to compose an email to. */
+export function canEmailContact(contact: ContactData): boolean {
+  return Boolean(contact.email && contact.email !== UNKNOWN_CONTACT_EMAIL);
+}
 
 /**
  * Localized-casing label for a contact's `source` enum (e.g. `manual_import`

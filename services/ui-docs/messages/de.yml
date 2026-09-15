@@ -5,7 +5,6 @@ nav:
   homeAriaLabel: Startseite des Tale Design-Systems
   skipToMain: Zum Hauptinhalt springen
   sidebarAriaLabel: Dokumentation des Design-Systems
-  openSearch: Suche öffnen
   openMenu: Navigationsmenü öffnen
   closeMenu: Navigationsmenü schließen
   docs: Doku
@@ -18,27 +17,7 @@ nav:
     patterns: Muster
     marketingUi: Marketing UI
 docs:
-  onThisPage: Auf dieser Seite
-  breadcrumbs: Brotkrumennavigation
   home: Doku
-  editOnGithub: Diese Seite auf GitHub bearbeiten
-  previous: Zurück
-  next: Weiter
-  pagination: Seitennavigation
-  readingTime: '{minutes} Min. Lesezeit'
-  searchTrigger: Suchen
-  notFoundTitle: Seite nicht gefunden
-  notFoundBody: Diese Seite gehört nicht zur Design-System-Doku. Fang bei der
-    Einführung an oder such nach der Komponente, die du brauchst.
-  notFoundBackHome: Zurück zur Einführung
-  pageActions:
-    copyPage: Seite kopieren
-    copied: Kopiert
-    viewMarkdown: Als Markdown anzeigen
-    openIn: Öffnen in
-    openChatGpt: In ChatGPT öffnen
-    openClaude: In Claude öffnen
-    openCursor: In Cursor öffnen
 demo:
   preview: Live-Beispiel
   showCode: Code

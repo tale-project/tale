@@ -12,9 +12,9 @@ the package; this suite proves the wiring on this site.
 
 | Surface     | Route / source                                                                 |
 | ----------- | ------------------------------------------------------------------------------ |
-| Trigger     | the rail's **Search** field, the phone bar's search icon, ⌘K / Ctrl+K          |
-| Dialog      | `app/features/search/dialog.tsx` → `@tale/ui/search`                           |
-| Index       | `app/features/search/build-index.ts`, `public/search-index.json` (git-ignored) |
+| Trigger     | the rail's **Search documentation** field, the phone bar's search icon, ⌘K / Ctrl+K |
+| Dialog      | `@tale/ui/docs/docs-search-dialog` → `@tale/ui/search`                         |
+| Index       | `@tale/ui/search/static-index/build`, `public/search-index.json` (git-ignored) |
 
 ## Preconditions
 
@@ -26,8 +26,8 @@ restart. Any documentation page open, a 1440×900 viewport.
 
 - [ ] `SEARCH-1` · **Press ⌘K (Ctrl+K on Windows/Linux) on a docs page** → the
   palette opens with focus in its input; pressing it again closes it; the
-  rail's **Search** field and, below 768 px, the phone bar's search icon open
-  the same palette.
+  rail's **Search documentation** field and, below 768 px, the phone bar's
+  search icon open the same palette.
 - [ ] `SEARCH-2` · **Type `button`** → results appear grouped by section
   (Components first), each with the page title, its trail and a snippet
   highlighting the term; the Button page is the first hit.

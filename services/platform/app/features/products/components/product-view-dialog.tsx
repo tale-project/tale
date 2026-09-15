@@ -1,110 +1,46 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { CopyableField } from '@tale/ui/copyable-field';
-import { ViewDialog } from '@tale/ui/dialog/view-dialog';
-import { Field } from '@tale/ui/field';
-import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack } from '@tale/ui/layout';
-import { Separator } from '@tale/ui/separator';
-import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { EntityViewDialog } from '@tale/ui/entity/entity-view-dialog';
+import { Row } from '@tale/ui/layout';
+import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Pencil } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { type RefObject, useMemo } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/utils/format/number';
 
-import {
-  ProductEditFields,
-  PRODUCT_EDIT_FORM_ID,
-  useProductEditForm,
-} from './product-edit-form';
+import { ProductEditDialog } from './product-edit-dialog';
 import { ProductImage } from './product-image';
 import { ProductStatusBadge } from './product-status-badge';
 
-interface ViewProductDialogProps {
+interface ProductViewDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  product: {
-    _id: string;
-    organizationId: string;
-    name: string;
-    description?: string;
-    imageUrl?: string;
-    stock?: number;
-    price?: number;
-    currency?: string;
-    category?: string;
-    tags?: string[];
-    status?: string;
-    lastUpdated?: number;
-    metadata?: Record<string, unknown>;
-  };
+  product: ProductDoc;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-/**
- * Product card (row click). The product name is the view title so the type
- * label is not restated; status is a badge on the title row, not a field
- * in the body. Edit morphs in place on `size="default"` — title becomes
- * "Edit product", the badge and pencil hide, Cancel/Save take the footer.
- * Identity chrome (name + Active) does not follow into the form; the form
- * is a form. Row-action Edit still opens the standalone overlay.
- */
 export function ProductViewDialog({
   isOpen,
   onClose,
   product,
-}: ViewProductDialogProps) {
+  restoreFocusRef,
+}: ProductViewDialogProps) {
   const { formatDate, locale } = useFormatDate();
   const { t: tCommon } = useT('common');
   const { t: tProducts } = useT('products');
   const ability = useAbility();
-  const canEdit = ability.can('write', 'knowledgeWrite');
-  const [isEditing, setIsEditing] = useState(false);
-  const {
-    register,
-    errors,
-    isPending,
-    seed,
-    setValue,
-    watch,
-    statusOptions,
-    submit,
-  } = useProductEditForm(product, () => setIsEditing(false));
-
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        seed();
-        setIsEditing(false);
-        onClose();
-      }
-    },
-    [onClose, seed],
-  );
-
-  const startEdit = useCallback(() => {
-    seed();
-    setIsEditing(true);
-  }, [seed]);
-
-  const cancelEdit = useCallback(() => {
-    seed();
-    setIsEditing(false);
-  }, [seed]);
-
-  const hasImage = Boolean(product.imageUrl);
-  const description = product.description?.trim() ?? '';
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const sourceUrl =
-    typeof product.metadata?.url === 'string'
-      ? product.metadata.url
-      : undefined;
+    typeof product.metadata?.url === 'string' ? product.metadata.url : null;
 
-  const statItems = useMemo<StatGridItem[]>(
+  const facts = useMemo<StatGridItem[]>(
     () => [
       ...(product.price !== undefined
         ? [
@@ -150,136 +86,109 @@ export function ProductViewDialog({
         ? [
             {
               label: tProducts('view.labels.lastUpdated'),
-              colSpan: 2 as const,
               value: (
-                <Text className="whitespace-nowrap">
-                  {formatDate(new Date(product.lastUpdated), 'long')}
-                </Text>
+                <Text>{formatDate(new Date(product.lastUpdated), 'long')}</Text>
               ),
             },
           ]
         : []),
+      ...(product.tags && product.tags.length > 0
+        ? [
+            {
+              label: tProducts('view.labels.tags'),
+              value: (
+                <Row gap={2} wrap>
+                  {product.tags.map((tag, index) => (
+                    <Badge key={`${tag}-${index}`} variant="outline">
+                      {tag}
+                    </Badge>
+                  ))}
+                </Row>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
+      ...(product.description
+        ? [
+            {
+              label: tProducts('view.labels.fullDescription'),
+              value: (
+                <Text className="leading-relaxed whitespace-pre-wrap">
+                  {product.description}
+                </Text>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
+      ...(sourceUrl
+        ? [
+            {
+              label: tProducts('view.labels.source'),
+              value: (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 underline hover:text-blue-700"
+                >
+                  {sourceUrl}
+                </a>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
+      {
+        label: tProducts('view.labels.productId'),
+        value: <CopyableField value={product._id} />,
+        colSpan: 2,
+      },
     ],
-    [product, tProducts, tCommon, formatDate, locale],
+    [product, sourceUrl, tProducts, tCommon, formatDate, locale],
   );
 
-  const hasIntro = hasImage || description.length > 0;
-  const headerActions =
-    product.status || canEdit ? (
-      <>
-        {product.status ? <ProductStatusBadge status={product.status} /> : null}
-        {canEdit && !isEditing ? (
-          <IconButton
-            icon={Pencil}
-            size="sm"
-            aria-label={tCommon('actions.edit')}
-            onClick={startEdit}
-          />
-        ) : null}
-      </>
-    ) : undefined;
-
   return (
-    <ViewDialog
+    <EntityViewDialog
       open={isOpen}
-      onOpenChange={handleOpenChange}
-      title={isEditing ? tProducts('edit.title') : product.name}
-      size="default"
-      headerActions={isEditing ? undefined : headerActions}
-      customFooter={
-        isEditing ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={cancelEdit}
-              disabled={isPending}
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              form={PRODUCT_EDIT_FORM_ID}
-              disabled={isPending}
-              isLoading={isPending}
-            >
-              {tCommon('actions.save')}
-            </Button>
-          </>
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={tProducts('view.title')}
+      description={tProducts('view.description')}
+      name={product.name}
+      summary={product.description}
+      badges={
+        product.status ? (
+          <ProductStatusBadge status={product.status} />
         ) : undefined
       }
-    >
-      {isEditing ? (
-        <form
-          id={PRODUCT_EDIT_FORM_ID}
-          onSubmit={submit}
-          className="space-y-4"
-          noValidate
-        >
-          <ProductEditFields
-            register={register}
-            errors={errors}
-            isPending={isPending}
-            setValue={setValue}
-            watch={watch}
-            statusOptions={statusOptions}
-            autoFocus
-          />
-        </form>
-      ) : (
-        <Stack gap={4}>
-          {hasIntro && (
-            <HStack gap={4} className="items-start">
-              {hasImage && product.imageUrl && (
-                <ProductImage
-                  images={[product.imageUrl]}
-                  productName={product.name}
-                  className="size-20 shrink-0 rounded-lg"
+      media={
+        <ProductImage
+          images={product.imageUrl ? [product.imageUrl] : []}
+          productName={product.name}
+          className="size-16 shrink-0 rounded-lg"
+        />
+      }
+      edit={
+        canWrite
+          ? {
+              label: tCommon('actions.edit'),
+              render: ({ onBack, onDone }) => (
+                <ProductEditDialog
+                  isOpen
+                  onClose={onBack}
+                  onSaved={onDone}
+                  restoreFocusRef={restoreFocusRef}
+                  product={product}
                 />
-              )}
-              {description.length > 0 && (
-                <Text className="min-w-0 flex-1 leading-relaxed">
-                  {description}
-                </Text>
-              )}
-            </HStack>
-          )}
-
-          {hasIntro && statItems.length > 0 && <Separator />}
-
-          {statItems.length > 0 && <StatGrid items={statItems} />}
-
-          {product.tags && product.tags.length > 0 && (
-            <Field label={tProducts('view.labels.tags')}>
-              <HStack gap={2} className="flex-wrap">
-                {product.tags.map((tag, index) => (
-                  <Badge key={`${tag}-${index}`} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </HStack>
-            </Field>
-          )}
-
-          {sourceUrl && (
-            <Field label={tProducts('view.labels.source')}>
-              <a
-                href={sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary text-sm break-all underline-offset-2 hover:underline"
-              >
-                {sourceUrl}
-              </a>
-            </Field>
-          )}
-
-          <CopyableField
-            label={tProducts('view.labels.productId')}
-            value={product._id}
-          />
-        </Stack>
-      )}
-    </ViewDialog>
+              ),
+            }
+          : undefined
+      }
+      facts={facts}
+      restoreFocusRef={restoreFocusRef}
+    />
   );
 }

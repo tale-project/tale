@@ -4,8 +4,8 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { Pencil, Play, Trash2 } from 'lucide-react';
-import { useMemo } from 'react';
+import { Eye, Pencil, Play, Trash2 } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
@@ -13,8 +13,9 @@ import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
 import { isScanPaused } from '../lib/scan-paused';
-import { DeleteWebsiteDialog } from './website-delete-dialog';
-import { EditWebsiteDialog } from './website-edit-dialog';
+import { WebsiteDeleteDialog } from './website-delete-dialog';
+import { WebsiteEditDialog } from './website-edit-dialog';
+import { WebsiteViewDialog } from './website-view-dialog';
 
 interface WebsiteRowActionsProps {
   website: WebsiteDoc;
@@ -25,30 +26,37 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const { t } = useT('websites');
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
-  const dialogs = useEntityRowDialogs(['edit', 'delete']);
+  // Dialogs opened from the menu return focus to its trigger: the menu item
+  // that opened them is gone by the time they close.
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
 
   const actions = useMemo(
     () => [
-      // Only offered while the crawler has paused this site (repeated
-      // failures to reach the knowledge database): clears the pause and
-      // starts a scan right away, so the fix is verified immediately.
-      ...(paused
-        ? [
-            {
-              key: 'resume',
-              label: t('resumeScanning'),
-              icon: Play,
-              onClick: () => resumeScanning({ websiteId: website._id }),
-            },
-          ]
-        : []),
+      {
+        key: 'view',
+        label: tCommon('actions.view'),
+        icon: Eye,
+        onClick: dialogs.open.view,
+      },
       {
         key: 'edit',
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
+        visible: canWrite,
+      },
+      {
+        // Only offered while the crawler has paused this site (repeated
+        // failures to reach the knowledge database): clears the pause and
+        // starts a scan right away, so the fix is verified immediately.
+        key: 'resume',
+        label: t('resumeScanning'),
+        icon: Play,
+        onClick: () => resumeScanning({ websiteId: website._id }),
+        visible: canWrite && paused,
       },
       {
         key: 'delete',
@@ -56,29 +64,39 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         icon: Trash2,
         onClick: dialogs.open.delete,
         destructive: true,
+        visible: canWrite,
       },
     ],
-    [tCommon, t, dialogs.open, paused, resumeScanning, website._id],
+    [tCommon, t, dialogs.open, canWrite, paused, resumeScanning, website._id],
   );
-
-  if (!canWrite) return null;
 
   return (
     <>
-      <EntityRowActions actions={actions} />
+      <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
+
+      {dialogs.isOpen.view && (
+        <WebsiteViewDialog
+          isOpen
+          onClose={() => dialogs.setOpen.view(false)}
+          restoreFocusRef={menuTriggerRef}
+          website={website}
+        />
+      )}
 
       {dialogs.isOpen.edit && (
-        <EditWebsiteDialog
-          isOpen={dialogs.isOpen.edit}
+        <WebsiteEditDialog
+          isOpen
           onClose={() => dialogs.setOpen.edit(false)}
+          restoreFocusRef={menuTriggerRef}
           website={website}
         />
       )}
 
       {dialogs.isOpen.delete && (
-        <DeleteWebsiteDialog
-          isOpen={dialogs.isOpen.delete}
+        <WebsiteDeleteDialog
+          isOpen
           onClose={() => dialogs.setOpen.delete(false)}
+          restoreFocusRef={menuTriggerRef}
           website={website}
         />
       )}

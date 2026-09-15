@@ -24,14 +24,14 @@ axe layer in this service's e2e suite** — full-page audits are manual/assisted
 here; shared `@tale/ui` components carry `vitest-axe` coverage.
 
 > **Agent note**: assert structure via DOM scans. Skip link and page actions
-> are i18n-wired (`nav.skipToMain`, `docs.pageActions.*`). The
+> are i18n-wired (`docs.skipToMain`, `docs.pageActions.*`). The
 > shared code-copy and heading-link controls use localized `markdownCopy.*`
 > messages, as checked in [locale.md](locale.md).
 
 ## Functional / structural tests
 
 - [ ] `A11Y-A1` · **Skip link** — On each surface, Tab once from page top →
-  First focusable is the skip link (`nav.skipToMain`; EN **Skip to main
+  First focusable is the skip link (`docs.skipToMain`; EN **Skip to main
   content**); it becomes visible on focus; Enter moves focus into the main
   content.
 - [ ] `A11Y-A2` · **Landmarks** — Query `main, header, footer, nav, aside` →
@@ -58,12 +58,13 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
 - [ ] `A11Y-A6` · **Theme switch** — Footer theme switcher: **Switch theme**
   (`themeSwitcher.ariaLabel`) → **Dark**, reload → Semantics: labelled control
   with **Light**/**Dark**/**System** options (`themeSwitcher.*`), current
-  option programmatically marked; the choice persists
+  option programmatically marked (**System** until a reader picks one); the
+  choice persists
   (`localStorage['tale-theme']`); contrast spot-checks (body ≥ 4.5:1, muted
   text ≥ 4.5:1, code tokens ≥ 4.5:1) pass in **both** themes.
 - [ ] `A11Y-A7` · **Phone drawer** — ≤ 767 px: the bar's **Open navigation
-  menu** (`nav.openMenu`) carries `aria-expanded` and opens a modal drawer
-  holding its own **Close navigation menu** (`nav.closeMenu`) button, the
+  menu** (`docs.openMenu`) carries `aria-expanded` and opens a modal drawer
+  holding its own **Close navigation menu** (`docs.closeMenu`) button, the
   search field and the full tree → Focus moves into the drawer and stays
   trapped there; **one** Esc closes it and focus returns to the menu button;
   choosing a page closes it and navigates; body scroll locks while open.

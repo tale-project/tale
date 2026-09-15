@@ -15,7 +15,7 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import { Download, X, Loader2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { type RefObject, useMemo, useState } from 'react';
 
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
@@ -39,6 +39,8 @@ interface DocumentPreviewDialogProps {
   /** Convex storage ID — used when documentId is not available (e.g. citation source cards). */
   fileId?: string;
   fileName?: string;
+  /** Where focus returns if the opener is gone when the preview closes. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 function SidebarRow({
@@ -202,6 +204,7 @@ export function DocumentPreviewDialog({
   documentId,
   fileId,
   fileName,
+  restoreFocusRef,
 }: DocumentPreviewDialogProps) {
   const { t } = useT('documents');
   const { locale } = useLocale();
@@ -268,6 +271,7 @@ export function DocumentPreviewDialog({
       title={t('preview.title')}
       size="wide"
       hideClose
+      restoreFocusRef={restoreFocusRef}
       className="flex h-[85vh] flex-col gap-0 overflow-hidden border-0 p-0 ring-0 md:p-0"
       customHeader={
         documentId ? (

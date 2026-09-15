@@ -43,17 +43,19 @@ next round a false finding.
   of `content/nav.json`; a section label in the trail is plain text because a
   section has no index page.
 - **Below `md` the page has two rows of chrome.** The phone bar (menu · logo ·
-  search) and, under it, the title strip with the page's `h1` and the theme
-  switcher. The strip is a `div`, so the phone bar is the only `<header>`; the
-  trail's `nav` carries the breadcrumb semantics at every width.
-- **The outline exists only from `xl` (1280 px).** Below that the article
-  keeps its full width and the outline is simply absent — there is no
-  collapsed variant on this site (`BL-1`).
+  search) and, under it, the header strip with the immediate parent, the page
+  name and the page actions. The strip is a `div`, so the phone bar is the only
+  `<header>`; the trail's `nav` carries the breadcrumb semantics at every
+  width.
+- **The outline is a rail only from `xl` (1280 px).** Below that it folds into
+  a collapsed **On this page** disclosure above the title, so the article keeps
+  its full width. Both copies ship in the HTML; the one the stylesheet hides is
+  `aria-hidden`.
 - **A live example that names no demo shows a red box on purpose.**
   `Unknown demo` (`demo.missingTitle`) is the visible failure mode so a rotten
   page cannot render an empty gap; `tests/content.test.ts` keeps it from
   reaching production.
-- **The "Edit this page on GitHub" link targets `main`.** `VITE_UI_DOCS_BRANCH`
+- **The "Edit on GitHub" link targets `main`.** `VITE_UI_DOCS_BRANCH`
   changes it at build time; the dev server always says `main`.
 
 ## Known benign console output
@@ -68,7 +70,4 @@ Anything not on this list is a finding, on any page.
 
 | ID | What | Pay it off when |
 |---|---|---|
-| `BL-1` | The outline has no below-`xl` variant (the docs site folds it into a disclosure above the article). | the shared docs chrome lands in `@tale/ui` and both sites render the same outline |
-| `BL-2` | The docs chrome (`app/components/docs/*`) duplicates `services/docs/app/components/docs/*`; a fix in one has to be mirrored by hand. | the shared docs chrome lands in `@tale/ui/docs/*` |
 | `BL-3` | Only nineteen pages exist; most `@tale/ui` components have no page yet, and the Button page is the template the rest copy. | one page per exported component family |
-| `BL-4` | The docs chrome has no print stylesheet: the rail, the strip and the outline print with the article. | the shared docs chrome lands in `@tale/ui` (the docs site's print rules come with it) |

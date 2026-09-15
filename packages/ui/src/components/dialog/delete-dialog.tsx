@@ -43,6 +43,11 @@ export interface DeleteDialogProps {
   onDelete: () => void;
   /** Additional className for DialogContent */
   className?: string;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -65,6 +70,7 @@ export function DeleteDialog({
   disableDelete = false,
   onDelete,
   className,
+  restoreFocusRef,
 }: DeleteDialogProps) {
   const { t: tCommon } = useT('common');
 
@@ -84,6 +90,7 @@ export function DeleteDialog({
       onConfirm={onDelete}
       variant="destructive"
       className={className}
+      restoreFocusRef={restoreFocusRef}
     >
       {hasContent && (
         <Stack gap={4}>

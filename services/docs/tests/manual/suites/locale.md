@@ -16,7 +16,7 @@ strings, and `<html lang>`. The per-locale **search** index is covered in
 | German tree    | `{base}/de`, `{base}/de/{slug}`                                                                           |
 | French tree    | `{base}/fr`, `{base}/fr/{slug}`                                                                           |
 | Switcher       | footer (shared `LanguageSwitcher`, `@tale/ui`)                                                            |
-| Content source | `docs/{en,de,fr}/**.md`; messages `services/docs/messages/*.yml` (incl. the `de-CH.yml` regional overlay) |
+| Content source | `docs/{en,de,fr}/**.md`; messages `services/docs/messages/*.yml` over the shared frame's `packages/ui/src/i18n/messages/*.yml` (each with a `de-CH.yml` regional overlay) |
 
 ## Preconditions
 
@@ -44,7 +44,7 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
 - [ ] `LOC-F2` · **German tree** — Open `{base}/de` and one nested page →
   Landing + page render translated content from `docs/de/`; rail section
   labels are German (`messages/de.yml` `nav.groups.*`);
-  breadcrumbs/outline/prev-next chrome is German (`docs.*`)
+  breadcrumbs/outline/prev-next chrome is German (`@tale/ui` `docs.*`)
 - [ ] `LOC-F3` · **French tree** — Open `{base}/fr` and one nested page → Same
   as LOC-F2 for French.
 - [ ] `LOC-F4` · **`<html lang>`** — Read `document.documentElement.lang` on
@@ -61,16 +61,16 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
 - [ ] `LOC-F7` · **de-CH regional overlay** — Browser locale `de-CH`: open
   `{base}/de`, open the search dialog; at ≤ 767 px open the phone drawer →
   URL stays `/de` (regional variants never URL-prefix,
-  `resolveRegionalLocale`); strings present in `messages/de-CH.yml` render the
+  `resolveRegionalLocale`); strings present in a `de-CH.yml` overlay render the
   Swiss variant over the `de` base — search close reads **Suche schliessen**
   (`search.close`), the footer tip **zum Schliessen** (`search.tipClose`), the
-  drawer close button **Navigationsmenü schliessen** (`nav.closeMenu`) — never
+  drawer close button **Navigationsmenü schliessen** (`docs.closeMenu`) — never
   the base-`de` ß forms; `<html lang>` reflects the base `de` route.
 
 ## Boundary & error tests
 
 - [ ] `LOC-B1` · **Localized 404** — Open `{base}/de/nope-not-a-page` → The
-  404 renders in **German** (`messages/de.yml` `docs.notFoundTitle` etc.);
+  404 renders in **German** (`@tale/ui` `de.yml` `docs.notFound.*`);
   **Back to docs home** targets `{base}/de`
 - [ ] `LOC-B2` · **Unknown prefix** — Open `{base}/es/quickstart` → Not a
   locale — treated as an unknown English-tree slug: the styled 404 (with

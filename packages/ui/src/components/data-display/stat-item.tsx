@@ -31,9 +31,9 @@ export function StatItem({
           {label}
         </Text>
       </dt>
-      {/* Word boundaries, not `break-all` — a 2-col grid would otherwise
-          split a timestamp mid-digit ("11:1" / "1"). */}
-      <dd className="wrap-break-word">{children}</dd>
+      {/* Wrap at spaces first; only an unbroken run (a URL, an id) breaks
+          mid-word — `break-all` split dates like "8:54" across lines. */}
+      <dd className="wrap-anywhere">{children}</dd>
     </div>
   );
 }

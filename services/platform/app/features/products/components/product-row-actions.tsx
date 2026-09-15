@@ -4,63 +4,40 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { toast } from '@tale/ui/use-toast';
-import { Pencil, Trash2, ExternalLink } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
+import { ExternalLink, Eye, Pencil, Trash2 } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteProduct } from '../hooks/mutations';
 import type { Product } from '../hooks/use-products-table-config';
 import { ProductDeleteDialog } from './product-delete-dialog';
 import { ProductEditDialog } from './product-edit-dialog';
+import { ProductViewDialog } from './product-view-dialog';
 
 interface ProductRowActionsProps {
   product: Product;
 }
 
 export function ProductRowActions({ product }: ProductRowActionsProps) {
-  const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
-  const dialogs = useEntityRowDialogs(['edit', 'delete']);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const deleteProduct = useDeleteProduct();
-
-  const handleDeleteConfirm = useCallback(async () => {
-    try {
-      setIsDeleting(true);
-      await deleteProduct.mutateAsync({
-        productId: product._id,
-      });
-      dialogs.setOpen.delete(false);
-      toast({
-        title: tProducts('actions.deleteSuccess'),
-        variant: 'success',
-      });
-    } catch (err) {
-      console.error('Deletion error:', err);
-      toast({
-        title: tProducts('actions.deleteFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [deleteProduct, product._id, dialogs.setOpen, tProducts]);
-
-  const handleOpenExternalLink = useCallback(() => {
-    if (typeof product.metadata?.url === 'string') {
-      window.open(product.metadata.url, '_blank', 'noopener,noreferrer');
-    }
-  }, [product.metadata?.url]);
-
-  const hasExternalLink = typeof product.metadata?.url === 'string';
+  // Dialogs opened from the menu return focus to its trigger: the menu item
+  // that opened them is gone by the time they close.
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
+  const sourceUrl =
+    typeof product.metadata?.url === 'string' ? product.metadata.url : null;
 
   const actions = useMemo(
     () => [
+      {
+        key: 'view',
+        label: tCommon('actions.view'),
+        icon: Eye,
+        onClick: dialogs.open.view,
+      },
       {
         key: 'edit',
         label: tCommon('actions.edit'),
@@ -72,9 +49,11 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
         key: 'external',
         label: tCommon('actions.viewSource'),
         icon: ExternalLink,
-        onClick: handleOpenExternalLink,
-        visible: hasExternalLink,
-        separator: true,
+        onClick: () => {
+          if (sourceUrl)
+            window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+        },
+        visible: sourceUrl !== null,
       },
       {
         key: 'delete',
@@ -82,34 +61,42 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
         icon: Trash2,
         onClick: dialogs.open.delete,
         destructive: true,
-        separator: !hasExternalLink,
         visible: canWrite,
       },
     ],
-    [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink, canWrite],
+    [tCommon, dialogs.open, sourceUrl, canWrite],
   );
-
-  if (!canWrite) return null;
 
   return (
     <>
-      <EntityRowActions actions={actions} />
+      <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
 
-      {dialogs.isOpen.edit && (
-        <ProductEditDialog
-          isOpen={dialogs.isOpen.edit}
-          onClose={() => dialogs.setOpen.edit(false)}
+      {dialogs.isOpen.view && (
+        <ProductViewDialog
+          isOpen
+          onClose={() => dialogs.setOpen.view(false)}
+          restoreFocusRef={menuTriggerRef}
           product={product}
         />
       )}
 
-      <ProductDeleteDialog
-        isOpen={dialogs.isOpen.delete}
-        onClose={() => dialogs.setOpen.delete(false)}
-        onConfirm={handleDeleteConfirm}
-        productName={product.name}
-        isDeleting={isDeleting}
-      />
+      {dialogs.isOpen.edit && (
+        <ProductEditDialog
+          isOpen
+          onClose={() => dialogs.setOpen.edit(false)}
+          restoreFocusRef={menuTriggerRef}
+          product={product}
+        />
+      )}
+
+      {dialogs.isOpen.delete && (
+        <ProductDeleteDialog
+          isOpen
+          onClose={() => dialogs.setOpen.delete(false)}
+          restoreFocusRef={menuTriggerRef}
+          product={product}
+        />
+      )}
     </>
   );
 }

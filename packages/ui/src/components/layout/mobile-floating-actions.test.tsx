@@ -36,6 +36,9 @@ describe('MobileFloatingActions', () => {
 
     const inner = outer?.firstElementChild;
     expect(inner).toHaveClass('w-fit', 'rounded-xl', 'border', 'shadow-md');
+    // One inset on every side; the browser test measures it in real layout.
+    expect(inner).toHaveClass('p-2');
+    expect(inner?.className).not.toMatch(/\bp[xytrbl]-/);
 
     await waitFor(() => {
       expect(outer).not.toHaveClass('hidden');

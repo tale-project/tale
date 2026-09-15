@@ -93,10 +93,11 @@ bun run dev
 
 Wait for the platform’s readiness message, then open the address it prints. The setup check covers only part of the environment; a passing check does not establish that databases, storage, or a model provider are configured.
 
-To work on documentation alone, no platform database or provider is needed:
+To work on documentation alone, no platform database or provider is needed. The first command previews the product docs, the second the design-system guide:
 
 ```bash
 bun run --filter @tale/docs dev
+bun run --filter @tale/ui-docs dev
 ```
 
 ## What you can do
@@ -116,6 +117,8 @@ Features depend on your role and deployment configuration. A local model keeps i
 The documentation is available in [English](https://docs.tale.dev), [German](https://docs.tale.dev/de), and [French](https://docs.tale.dev/fr).
 
 Start with a guided task, use the Platform pages for everyday work, and consult the operator or API references when you need exact configuration details. The [screenshot gallery](SCREENSHOTS.md) gives a visual overview. To improve the docs, read [the docs workspace README](services/docs/README.md).
+
+Building an interface with Tale’s components? The [design-system guide](https://ui.tale.dev) documents `@tale/ui` and `@tale/marketing-ui` with live examples, in English. Its pages live in [services/ui-docs](services/ui-docs/README.md).
 
 ## Contribute or get help
 

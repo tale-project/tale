@@ -5,7 +5,6 @@ nav:
   homeAriaLabel: Accueil du design system Tale
   skipToMain: Aller au contenu principal
   sidebarAriaLabel: Documentation du design system
-  openSearch: Ouvrir la recherche
   openMenu: Ouvrir le menu de navigation
   closeMenu: Fermer le menu de navigation
   docs: Doc
@@ -18,27 +17,7 @@ nav:
     patterns: Modèles
     marketingUi: Marketing UI
 docs:
-  onThisPage: Sur cette page
-  breadcrumbs: Fil d’Ariane
   home: Doc
-  editOnGithub: Modifier cette page sur GitHub
-  previous: Précédent
-  next: Suivant
-  pagination: Navigation entre les pages
-  readingTime: '{minutes} min de lecture'
-  searchTrigger: Rechercher
-  notFoundTitle: Page introuvable
-  notFoundBody: Cette page ne fait pas partie de la doc du design system.
-    Commence par l’introduction ou cherche le composant qui t’intéresse.
-  notFoundBackHome: Retour à l’introduction
-  pageActions:
-    copyPage: Copier la page
-    copied: Copié
-    viewMarkdown: Voir en Markdown
-    openIn: Ouvrir dans
-    openChatGpt: Ouvrir dans ChatGPT
-    openClaude: Ouvrir dans Claude
-    openCursor: Ouvrir dans Cursor
 demo:
   preview: Exemple en direct
   showCode: Code

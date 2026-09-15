@@ -193,3 +193,48 @@ describe('website creation dates', () => {
     });
   });
 });
+
+describe('knowledge entry versions', () => {
+  const current = {
+    id: 'entry-2',
+    topic: 'Shipping times',
+    content: 'Orders over CHF 100 ship free.',
+    status: 'active',
+    supersededAt: null,
+  };
+  const previous = {
+    id: 'entry-1',
+    topic: 'Shipping times',
+    content: 'Standard shipping takes 2–3 business days.',
+    status: 'superseded',
+    supersededAt: 1789455000000,
+  };
+
+  function read(entryId: string) {
+    return engagementReadAdapters[
+      'knowledge_entries/queries:getKnowledgeEntryVersions'
+    ]?.({ entryId }, ctx);
+  }
+
+  it('answers the contract shape — the entry apart, the chain as versions', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ versions: [current, previous] })),
+    );
+
+    expect(await read('entry-2')?.queryFn()).toEqual({
+      entry: { ...current, _id: 'entry-2' },
+      versions: [
+        { ...current, _id: 'entry-2' },
+        { ...previous, _id: 'entry-1' },
+      ],
+    });
+  });
+
+  it('answers null when the chain no longer holds the entry', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ versions: [previous] })),
+    );
+
+    expect(await read('entry-2')?.queryFn()).toBeNull();
+  });
+});

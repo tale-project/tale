@@ -37,7 +37,7 @@ prefix may shadow another.
 |---|---|---|---|---|
 | [smoke](suites/smoke.md) | `SMOKE-` | is this build even drivable — run it before investing in anything bigger | once, at the start | 10 min |
 | [home](suites/home.md) | `HOME-` | the marketing front page: hero, product window, section cards, install band, theme, phone header | none | 15 min |
-| [docs](suites/docs.md) | `DOCS-` | the app-language documentation chrome: rail, trail, live examples + Code, outline, neighbours, drawer, both themes, 404 | none | 25 min |
+| [docs](suites/docs.md) | `DOCS-` | the shared app-language documentation frame: rail, trail, page actions, live examples + Code, outline, neighbours, footer, drawer, print, both themes, 404 | none | 30 min |
 | [search](suites/search.md) | `SEARCH-` | the ⌘K palette: triggers, results, keyboard, recents, empty state | none | 10 min |
 | [seo](suites/seo.md) | `SEO-` | the crawler surface on the built server: prerendered head, JSON-LD, sitemap, robots, llms + `.md` twins, real 404, headers | none | 15 min |
 

@@ -4,7 +4,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type { KnowledgeEntryItem } from '../hooks/queries';
-import { AddKnowledgeEntryDialog } from './knowledge-entry-add-dialog';
+import { KnowledgeEntryCreateDialog } from './knowledge-entry-create-dialog';
 import { KnowledgeEntryRowActions } from './knowledge-entry-row-actions';
 
 // Migrated from the `knowledge` E2E "creates, edits and deletes a
@@ -82,7 +82,7 @@ describe('Knowledge-entries CRUD', () => {
   describe('add dialog', () => {
     it('renders the topic and content fields when open', async () => {
       const { container } = render(
-        <AddKnowledgeEntryDialog
+        <KnowledgeEntryCreateDialog
           isOpen
           onClose={vi.fn()}
           organizationId={ORG_ID}
@@ -101,7 +101,7 @@ describe('Knowledge-entries CRUD', () => {
     it('creates an entry from the typed topic + content on save', async () => {
       const onClose = vi.fn();
       const { user } = render(
-        <AddKnowledgeEntryDialog
+        <KnowledgeEntryCreateDialog
           isOpen
           onClose={onClose}
           organizationId={ORG_ID}
@@ -127,7 +127,7 @@ describe('Knowledge-entries CRUD', () => {
 
     it('blocks the create and surfaces required errors on an empty submit', async () => {
       const { user } = render(
-        <AddKnowledgeEntryDialog
+        <KnowledgeEntryCreateDialog
           isOpen
           onClose={vi.fn()}
           organizationId={ORG_ID}

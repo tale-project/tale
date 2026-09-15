@@ -1,230 +1,140 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type { KnowledgeEntryItem } from '../hooks/queries';
-import { ViewKnowledgeEntryDialog } from './knowledge-entry-view-dialog';
+import { KnowledgeEntryViewDialog } from './knowledge-entry-view-dialog';
 
-const canWrite = { current: true };
-const mockUpdate = vi.fn();
+let mockVersions: unknown = null;
 
-const versions = {
-  current: [] as Array<{
-    _id: string;
-    topic: string;
-    content: string;
-    createdAt: number;
-    supersededAt?: number;
-  }>,
-};
+vi.mock('../hooks/queries', () => ({
+  useKnowledgeEntryVersions: () => ({ data: mockVersions }),
+}));
+
+// The badge reads and retries indexing through the backend; its own tests
+// cover it.
+vi.mock('@/app/features/documents/components/rag-status-badge', () => ({
+  RagStatusBadge: ({ status }: { status?: string }) => <span>{status}</span>,
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useUpdateKnowledgeEntry: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true, cannot: () => false }),
+}));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({
-    can: () => canWrite.current,
-    cannot: () => !canWrite.current,
-  }),
-}));
-
-vi.mock('@/app/hooks/use-backend-action', () => {
-  const mutate = vi.fn();
-  return {
-    useBackendAction: () => ({
-      mutate,
-      mutateAsync: vi.fn(),
-      isPending: false,
-    }),
-  };
-});
-
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
   toast: vi.fn(),
 }));
 
-vi.mock('../hooks/mutations', () => ({
-  useUpdateKnowledgeEntry: () => ({ mutate: mockUpdate, isPending: false }),
-}));
+function makeEntry(
+  overrides: Partial<KnowledgeEntryItem> = {},
+): KnowledgeEntryItem {
+  return {
+    _id: 'entry-2' as never,
+    _creationTime: Date.now(),
+    organizationId: 'org-1',
+    topic: 'Shipping times',
+    topicKey: 'shipping times',
+    content: 'Orders over CHF 100 ship free.',
+    status: 'active',
+    source: 'manual',
+    createdBy: 'user-1',
+    createdAt: Date.now(),
+    ragStatus: 'not_indexed',
+    ...overrides,
+  };
+}
 
-vi.mock('../hooks/queries', () => ({
-  useKnowledgeEntryVersions: () => ({
-    data: { versions: versions.current },
-  }),
-}));
+function version(id: string, status: 'active' | 'superseded') {
+  return {
+    _id: id,
+    topic: 'Shipping times',
+    content: `Content of ${id}`,
+    status,
+    createdAt: 1789450000000,
+    supersededAt: status === 'superseded' ? 1789455000000 : undefined,
+  };
+}
 
-const ENTRY: KnowledgeEntryItem = {
-  _id: 'entry-1' as never,
-  _creationTime: Date.parse('2026-09-14T11:11:00'),
-  organizationId: 'org-1',
-  topic: 'Shipping times',
-  topicKey: 'shipping times',
-  content:
-    'Standard shipping is 3-5 business days. Express arrives the next weekday if ordered before 2 pm.',
-  status: 'active',
-  source: 'manual',
-  createdBy: 'user-1',
-  createdAt: Date.parse('2026-09-14T11:11:00'),
-  ragStatus: 'not_indexed',
-};
+beforeEach(() => {
+  mockVersions = null;
+});
 
-describe('ViewKnowledgeEntryDialog', () => {
-  beforeEach(() => {
-    canWrite.current = true;
-    versions.current = [];
-    mockUpdate.mockReset();
-  });
-
-  it('titles the dialog with the topic, not a filler chrome title', () => {
-    render(<ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />);
-
-    const dialog = screen.getByRole('dialog', { name: 'Shipping times' });
-    expect(dialog).toBeInTheDocument();
-    expect(
-      screen.queryByRole('dialog', { name: 'Knowledge entry details' }),
-    ).not.toBeInTheDocument();
-    expect(within(dialog).getByText('Manual')).toBeInTheDocument();
-    expect(within(dialog).getByText('Not indexed')).toBeInTheDocument();
-    expect(within(dialog).getByText(ENTRY.content)).toBeInTheDocument();
-    expect(dialog).toHaveClass('md:max-w-[24rem]');
-  });
-
-  it('does not repeat table fields or a Content label', () => {
-    render(<ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />);
-
-    expect(screen.queryByText('Topic')).not.toBeInTheDocument();
-    expect(screen.queryByText('Indexing status')).not.toBeInTheDocument();
-    expect(screen.queryByText('Updated')).not.toBeInTheDocument();
-    expect(screen.queryByText('Content')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Shipping times')).toHaveLength(1);
-  });
-
-  it('offers Edit for a writer without opening the form until they ask', () => {
-    render(<ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />);
-
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('dialog', { name: 'Edit knowledge entry' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('hides Edit for a reader', () => {
-    canWrite.current = false;
-    render(<ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />);
-
-    expect(
-      screen.queryByRole('button', { name: 'Edit' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('swaps the same dialog into the edit form without a second overlay', async () => {
-    const onClose = vi.fn();
-    const { user } = render(
-      <ViewKnowledgeEntryDialog isOpen onClose={onClose} entry={ENTRY} />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
-
-    expect(onClose).not.toHaveBeenCalled();
-    const dialogs = screen.getAllByRole('dialog');
-    expect(dialogs).toHaveLength(1);
-    expect(dialogs[0]).toHaveAccessibleName('Edit knowledge entry');
-    expect(dialogs[0]).toHaveClass('md:max-w-[24rem]');
-    expect(
-      screen.queryByRole('dialog', { name: 'Shipping times' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Topic')).toHaveValue('Shipping times');
-    expect(screen.getByLabelText('Content')).toHaveValue(ENTRY.content);
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-  });
-
-  it('returns to the view on Cancel without closing the overlay', async () => {
-    const onClose = vi.fn();
-    const { user } = render(
-      <ViewKnowledgeEntryDialog isOpen onClose={onClose} entry={ENTRY} />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Shipping times' })).toHaveClass(
-      'md:max-w-[24rem]',
-    );
-    expect(screen.queryByLabelText('Topic')).not.toBeInTheDocument();
-    expect(screen.getByText(ENTRY.content)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-  });
-
-  it('saves from the footer without remounting the overlay', async () => {
-    mockUpdate.mockImplementation(
-      (_args: unknown, opts: { onSuccess?: () => void }) => {
-        opts.onSuccess?.();
-      },
-    );
-    const onClose = vi.fn();
-    const { user } = render(
-      <ViewKnowledgeEntryDialog isOpen onClose={onClose} entry={ENTRY} />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
-    const topic = screen.getByLabelText('Topic');
-    await user.clear(topic);
-    await user.type(topic, 'Shipping windows');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledTimes(1);
-    });
-    expect(mockUpdate.mock.calls[0]?.[0]).toEqual({
-      entryId: ENTRY._id,
-      topic: 'Shipping windows',
-      content: ENTRY.content,
-    });
-    expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Shipping times' })).toHaveClass(
-      'md:max-w-[24rem]',
-    );
-    expect(screen.queryByLabelText('Topic')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-  });
-
-  it('lists previous versions when the chain has any', () => {
-    versions.current = [
-      {
-        _id: 'v-1',
-        topic: 'Shipping times',
-        content: 'Standard shipping is 5 business days.',
-        createdAt: Date.parse('2026-09-01T09:00:00'),
-        supersededAt: Date.parse('2026-09-14T11:11:00'),
-      },
-    ];
-
-    render(<ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />);
-
-    expect(screen.getByText('Version history')).toBeInTheDocument();
-    expect(screen.getByText('1 previous version')).toBeInTheDocument();
-    expect(screen.getByText('Superseded')).toBeInTheDocument();
-  });
-
-  it('does not render content when closed', () => {
+describe('KnowledgeEntryViewDialog', () => {
+  it('names the entry and lists its facts', () => {
     render(
-      <ViewKnowledgeEntryDialog
-        isOpen={false}
-        onClose={vi.fn()}
-        entry={ENTRY}
-      />,
+      <KnowledgeEntryViewDialog isOpen onClose={vi.fn()} entry={makeEntry()} />,
     );
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', {
+      name: 'Knowledge entry details',
+    });
+    expect(
+      within(dialog).getByRole('heading', { name: 'Shipping times' }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('Manual')).toBeInTheDocument();
+    expect(within(dialog).getByText('entry-2')).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('region', { name: 'Version history' }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Regression: the history read the versions from a shape the adapter never
+  // answered, so it never appeared; the chain also carries the current row.
+  it('lists only the versions the entry replaced', () => {
+    mockVersions = {
+      entry: version('entry-2', 'active'),
+      versions: [
+        version('entry-2', 'active'),
+        version('entry-1', 'superseded'),
+      ],
+    };
+
+    render(
+      <KnowledgeEntryViewDialog isOpen onClose={vi.fn()} entry={makeEntry()} />,
+    );
+
+    const history = screen.getByRole('region', { name: 'Version history' });
+    expect(within(history).getByText('1 previous version')).toBeInTheDocument();
+    expect(within(history).getAllByText('Superseded')).toHaveLength(1);
+  });
+
+  it('offers Edit, which swaps in the edit dialog', async () => {
+    const { user } = render(
+      <KnowledgeEntryViewDialog isOpen onClose={vi.fn()} entry={makeEntry()} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Edit knowledge entry' }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {
-    it('passes axe audit', async () => {
+    it('passes axe audit with a version history', async () => {
+      mockVersions = {
+        entry: version('entry-2', 'active'),
+        versions: [
+          version('entry-2', 'active'),
+          version('entry-1', 'superseded'),
+        ],
+      };
       const { container } = render(
-        <ViewKnowledgeEntryDialog isOpen onClose={vi.fn()} entry={ENTRY} />,
+        <KnowledgeEntryViewDialog
+          isOpen
+          onClose={vi.fn()}
+          entry={makeEntry()}
+        />,
       );
       await checkAccessibility(container);
     });

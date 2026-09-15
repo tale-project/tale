@@ -103,7 +103,7 @@ describe('ProductsTable', () => {
   });
 
   describe('row click', () => {
-    it('opens the view dialog titled with the product name', async () => {
+    it('opens the product details dialog on row click', async () => {
       mockProducts = [makeProduct('Draft gadget')];
       const { user } = render(<ProductsTable organizationId="test-org-id" />);
 
@@ -112,13 +112,12 @@ describe('ProductsTable', () => {
       if (!(row instanceof HTMLElement)) return;
       await user.click(within(row).getByText('Draft gadget'));
 
-      const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
-      expect(dialog).toBeInTheDocument();
+      const dialog = screen.getByRole('dialog', { name: 'Product details' });
+      expect(
+        within(dialog).getByRole('heading', { name: 'Draft gadget' }),
+      ).toBeInTheDocument();
       expect(
         screen.queryByRole('dialog', { name: 'Edit product' }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole('dialog', { name: 'Product details' }),
       ).not.toBeInTheDocument();
       expect(
         within(dialog).getByRole('button', { name: 'Edit' }),
@@ -135,7 +134,7 @@ describe('ProductsTable', () => {
       if (!(row instanceof HTMLElement)) return;
       await user.click(within(row).getByText('Draft gadget'));
 
-      const dialog = screen.getByRole('dialog', { name: 'Draft gadget' });
+      const dialog = screen.getByRole('dialog', { name: 'Product details' });
       expect(dialog).toBeInTheDocument();
       expect(within(dialog).queryByRole('button', { name: 'Edit' })).toBeNull();
       expect(within(dialog).queryByRole('button', { name: 'Save' })).toBeNull();

@@ -41,6 +41,7 @@ For a type-to-confirm decision, set `requireConfirmPhrase`. The trimmed input mu
 | `dialog/delete-dialog` | Entity-specific deletion wording. |
 | `dialog/form-dialog` | A form with submission state and actions. |
 | `dialog/view-dialog` | Read-only detail. |
+| `entity/entity-view-dialog` | One record's details in the shared record layout, with an edit handoff. |
 | `overlays/responsive-dialog` | The responsive wrapper's dialog/drawer composition. |
 
 The base Dialog itself uses a bottom-sheet layout below `md` and a centered modal above it. Its header and footer remain outside the scrollable body. Test long content on a phone; choosing a large desktop size does not remove the need for that check.
@@ -49,7 +50,7 @@ The base Dialog itself uses a bottom-sheet layout below `md` and a centered moda
 
 | Prop | Purpose |
 | --- | --- |
-| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, or `wide`; default `default`. |
+| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives a record's details, create, and edit dialogs one width and a shared minimum height from `md` up. |
 | `children`, `footer` | Body and action content; either may be omitted. |
 | `icon`, `headerActions` | Additional header content. |
 | `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |

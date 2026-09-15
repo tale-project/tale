@@ -5,7 +5,7 @@ import type { CrawlerPage } from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
-import { ViewWebsiteDialog } from './website-view-dialog';
+import { WebsiteViewDialog } from './website-view-dialog';
 
 const canWrite = { current: true };
 const pagesPayload = {
@@ -52,6 +52,7 @@ vi.mock('@/app/hooks/use-backend-action', () => {
 
 vi.mock('../hooks/mutations', () => ({
   useUpdateWebsite: () => ({ mutate: vi.fn(), isPending: false }),
+  useResumeScanning: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 const WEBSITE: WebsiteDoc = {
@@ -68,49 +69,31 @@ const WEBSITE: WebsiteDoc = {
   failedPageCount: 1,
 };
 
-describe('ViewWebsiteDialog', () => {
+describe('WebsiteViewDialog', () => {
   beforeEach(() => {
     canWrite.current = true;
     pagesPayload.current = null;
   });
 
-  it('titles the dialog with the site name, not a filler chrome title', async () => {
-    render(<ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+  it('names the site in the shared record details', async () => {
+    render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
 
-    const dialog = screen.getByRole('dialog', { name: 'Example docs' });
-    expect(dialog).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
     expect(
-      screen.queryByRole('dialog', { name: 'Website details' }),
-    ).not.toBeInTheDocument();
-    expect(within(dialog).getByText('Active')).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('link', { name: 'docs.example.com' }),
+      within(dialog).getByRole('heading', { name: 'docs.example.com' }),
     ).toBeInTheDocument();
-    const pagesTitle = within(dialog).getByText('Pages');
-    expect(pagesTitle).toBeInTheDocument();
-    expect(pagesTitle.parentElement).toHaveClass('justify-between');
+    expect(within(dialog).getByText('Example docs')).toBeInTheDocument();
+    expect(within(dialog).getByText('Active')).toBeInTheDocument();
+    expect(within(dialog).getByText('Website pages')).toBeInTheDocument();
     expect(within(dialog).getByText(/1 indexed/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: '1 indexed · 1 page failed' }),
-    ).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveFocus();
     });
   });
 
-  it('does not repeat table fields or empty placeholders', () => {
-    render(<ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
-
-    expect(screen.queryByText('Scan interval')).not.toBeInTheDocument();
-    expect(screen.queryByText('Last scanned')).not.toBeInTheDocument();
-    expect(screen.queryByText('Created')).not.toBeInTheDocument();
-    expect(screen.queryByText('Description')).not.toBeInTheDocument();
-    expect(screen.queryByText('-')).not.toBeInTheDocument();
-  });
-
   it('falls back to the domain when the site has no title', () => {
     render(
-      <ViewWebsiteDialog
+      <WebsiteViewDialog
         isOpen
         onClose={vi.fn()}
         website={{ ...WEBSITE, title: undefined }}
@@ -118,7 +101,7 @@ describe('ViewWebsiteDialog', () => {
     );
 
     expect(
-      screen.getByRole('dialog', { name: 'docs.example.com' }),
+      screen.getByRole('heading', { name: 'docs.example.com' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'docs.example.com' }),
@@ -126,7 +109,7 @@ describe('ViewWebsiteDialog', () => {
   });
 
   it('offers Edit for a writer without opening the form until they ask', () => {
-    render(<ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+    render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
 
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(
@@ -136,51 +119,40 @@ describe('ViewWebsiteDialog', () => {
 
   it('hides Edit for a reader', () => {
     canWrite.current = false;
-    render(<ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+    render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
 
     expect(
       screen.queryByRole('button', { name: 'Edit' }),
     ).not.toBeInTheDocument();
   });
 
-  it('swaps the same dialog into the edit form without a second overlay', async () => {
+  it('swaps to the edit dialog on Edit and back to the details on cancel', async () => {
     const onClose = vi.fn();
     const { user } = render(
-      <ViewWebsiteDialog isOpen onClose={onClose} website={WEBSITE} />,
+      <WebsiteViewDialog isOpen onClose={onClose} website={WEBSITE} />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
+    const editDialog = await screen.findByRole('dialog', {
+      name: 'Edit website',
+    });
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    const dialog = screen.getByRole('dialog', { name: 'Edit website' });
-    expect(dialog).toHaveClass('md:max-w-[24rem]');
-    expect(within(dialog).queryByText('Active')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: 'docs.example.com' }),
-    ).not.toBeInTheDocument();
-    const domain = screen.getByLabelText('Domain');
+    const domain = within(editDialog).getByLabelText('Domain');
     expect(domain).toHaveValue('docs.example.com');
-    expect(domain).toBeDisabled();
-    expect(screen.getByLabelText('Scan interval')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-  });
+    expect(domain).toHaveAttribute('readonly');
+    expect(
+      within(editDialog).getByLabelText('Scan interval'),
+    ).toBeInTheDocument();
 
-  it('returns to the view on Cancel without closing the overlay', async () => {
-    const onClose = vi.fn();
-    const { user } = render(
-      <ViewWebsiteDialog isOpen onClose={onClose} website={WEBSITE} />,
+    await user.click(
+      within(editDialog).getByRole('button', { name: 'Cancel' }),
     );
 
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
+    expect(
+      await screen.findByRole('dialog', { name: 'Website details' }),
+    ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('dialog', { name: 'Example docs' });
-    expect(dialog).toHaveClass('md:max-w-[24rem]');
-    expect(within(dialog).getByText('Active')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Scan interval')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 
   it('replaces a hollow scan failure with a teaching empty, not a fake page list', () => {
@@ -207,7 +179,7 @@ describe('ViewWebsiteDialog', () => {
     };
 
     render(
-      <ViewWebsiteDialog
+      <WebsiteViewDialog
         isOpen
         onClose={vi.fn()}
         website={{
@@ -225,7 +197,7 @@ describe('ViewWebsiteDialog', () => {
       />,
     );
 
-    const dialog = screen.getByRole('dialog', { name: 'Example' });
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
     expect(within(dialog).getByText('Error')).toBeInTheDocument();
     expect(
       within(dialog).getByRole('heading', {
@@ -241,7 +213,7 @@ describe('ViewWebsiteDialog', () => {
     expect(screen.queryByText(/create_failed/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 indexed/)).not.toBeInTheDocument();
     expect(
-      screen.queryByLabelText('Search website content'),
+      screen.queryByPlaceholderText('Search website content'),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'https://example.com/' }),
@@ -251,7 +223,7 @@ describe('ViewWebsiteDialog', () => {
 
   it('keeps the page list when a scan error follows indexed pages', () => {
     render(
-      <ViewWebsiteDialog
+      <WebsiteViewDialog
         isOpen
         onClose={vi.fn()}
         website={{
@@ -267,13 +239,15 @@ describe('ViewWebsiteDialog', () => {
 
     expect(screen.getByText("Scanning didn't run.")).toBeInTheDocument();
     expect(screen.getByText(/1 indexed/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Search website content')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Search website content'),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Nothing was indexed. The URL isn't the problem."),
     ).not.toBeInTheDocument();
   });
 
-  it('names a failed page with a short reason, not the syscall dump', () => {
+  it('names a failed page with a short reason, not the syscall dump', async () => {
     pagesPayload.current = {
       offset: 0,
       hasMore: false,
@@ -297,25 +271,30 @@ describe('ViewWebsiteDialog', () => {
       ],
     };
 
-    render(<ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+    render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
 
-    expect(screen.getByText("Couldn't resolve the host.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("Couldn't resolve the host."),
+      ).toBeInTheDocument();
+    });
     expect(screen.getByText('Failed')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'https://docs.example.com/' }),
     ).toBeInTheDocument();
     expect(screen.getByText(/1 indexed/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Search website content')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Search website content'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/getaddrinfo/)).not.toBeInTheDocument();
     expect(screen.queryByText('0 words')).not.toBeInTheDocument();
     expect(screen.queryByText('0 chunks')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Crawled/)).not.toBeInTheDocument();
   });
 
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
-        <ViewWebsiteDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
       );
       await checkAccessibility(container);
     });

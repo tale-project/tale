@@ -59,6 +59,40 @@ search:
   tipSelect: pour ouvrir
   tipClose: pour fermer
   results: '{count, plural, =0 {aucun résultat} =1 {# résultat} other {# résultats}}'
+docs:
+  skipToMain: Aller au contenu principal
+  openSearch: Ouvrir la recherche
+  openMenu: Ouvrir le menu de navigation
+  closeMenu: Fermer le menu de navigation
+  searchPlaceholder: Rechercher dans la documentation
+  breadcrumbs: Fil d'Ariane
+  onThisPage: Sur cette page
+  previous: Précédent
+  next: Suivant
+  pagination: Navigation entre les pages
+  readingTime: '{minutes} min de lecture'
+  lastUpdated: Mis à jour le {date}
+  editOnGithub: Modifier sur GitHub
+  backToTop: Retour en haut
+  pageActions:
+    copyPage: Copier la page
+    copied: Copié
+    viewMarkdown: Voir en Markdown
+    openIn: Ouvrir dans
+    openChatGpt: Ouvrir dans ChatGPT
+    openClaude: Ouvrir dans Claude
+    openCursor: Ouvrir dans Cursor
+  notFound:
+    title: Page introuvable
+    body: Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.
+    suggestions: Tu voulais dire
+    backHome: Retour à l'accueil de la documentation
+  search:
+    title: Rechercher dans la documentation
+    placeholder: Rechercher dans la documentation
+    empty: Commence à taper pour explorer la doc.
+    emptyHint: Trouve des guides, des références et des concepts dans toutes les sections.
+    noResultsHint: Essaie d'autres mots-clés ou parcours la navigation.
 auth:
   userButton:
     iosInstall:

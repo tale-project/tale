@@ -41,7 +41,14 @@ export function useRestoreFocus(
       let target = previouslyFocused.current;
       // Menu items and other transient openers unmount when their parent
       // overlay closes; fall back to a stable trigger (e.g. the menu button).
-      if (target && !target.isConnected) {
+      // `<body>` is no opener either: focus rests there when the focused
+      // control was removed in the same update that opened this overlay — an
+      // edit dialog's Cancel bringing a details dialog back.
+      if (
+        target === null ||
+        !target.isConnected ||
+        target === target.ownerDocument.body
+      ) {
         target = fallbackRef?.current ?? null;
       }
       // Only take over from Radix when a restore target still exists in the
