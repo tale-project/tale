@@ -155,3 +155,21 @@ subjects:
 ```
 
 A required file appears as **Not ready yet** until a run files it. An optional file appears only once it exists. Patterns support `*` and `?`, such as `return-*.xml`. Without declarations, the outcome shows all files filed by runs, newest first. Use a short explicit list when the reviewer needs to distinguish the final report from supporting work.
+
+## Ask before an approval that decides more
+
+**Approve** closes the task in one click. When approving means more than closing the task, declare that consequence, for example when an integration reports the approval to a client as a filing. **Approve** then asks first and shows your sentence:
+
+```yaml
+subjects:
+  task:
+    review:
+      requestChanges: true
+      approve:
+        confirm: Approving tells the client this return has been filed with the tax authority. Approve only after you have filed it.
+        i18n:
+          de:
+            confirm: Mit der Freigabe erfährt der Kunde, dass diese Abrechnung bei der Steuerverwaltung eingereicht ist. Gib sie erst frei, wenn du sie eingereicht hast.
+```
+
+Without `approve`, **Approve** stays a one-click close. Translate the sentence under `i18n`; a locale without its own sentence uses its base language, then the English one.

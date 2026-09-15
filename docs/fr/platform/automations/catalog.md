@@ -155,3 +155,21 @@ subjects:
 ```
 
 Un fichier obligatoire apparaît comme **Pas encore prêt** tant qu’une exécution ne l’a pas déposé. Un fichier facultatif n’apparaît qu’une fois présent. Les motifs acceptent `*` et `?`, par exemple `return-*.xml`. Sans déclaration, le résultat regroupe tous les fichiers déposés par les exécutions, du plus récent au plus ancien. Une liste explicite aide à distinguer le rapport final des documents de travail.
+
+## Demander avant une approbation qui engage davantage
+
+**Approuver** clôt la tâche en un clic. Quand l’approbation signifie davantage que clore la tâche, déclare cette conséquence, par exemple quand une intégration transmet l’approbation à un client comme un dépôt. **Approuver** demande alors confirmation et affiche ta phrase :
+
+```yaml
+subjects:
+  task:
+    review:
+      requestChanges: true
+      approve:
+        confirm: Approving tells the client this return has been filed with the tax authority. Approve only after you have filed it.
+        i18n:
+          fr:
+            confirm: L’approbation indique au client que cette déclaration a été déposée auprès de l’administration fiscale. N’approuve qu’après l’avoir déposée.
+```
+
+Sans `approve`, **Approuver** reste une clôture en un clic. Traduis la phrase sous `i18n` ; une langue sans phrase propre utilise sa langue de base, puis la phrase anglaise.

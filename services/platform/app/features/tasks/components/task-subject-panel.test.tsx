@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   run: null as unknown,
   start: vi.fn(),
   cancel: vi.fn(),
+  updateStatus: vi.fn(),
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
@@ -38,7 +39,7 @@ vi.mock('@/app/hooks/use-backend-action', () => {
 });
 
 vi.mock('../hooks/mutations', () => ({
-  useUpdateTaskStatus: () => ({ mutateAsync: vi.fn() }),
+  useUpdateTaskStatus: () => ({ mutateAsync: mocks.updateStatus }),
   useAddTaskComment: () => ({ mutateAsync: vi.fn() }),
 }));
 
@@ -86,14 +87,18 @@ function ownedBy(
 // `hasFiles` is the server-stamped subtree fact (`getTask` shares one
 // predicate with the board chip and staging) — the panel consumes it, never
 // re-derives it from a document listing.
-function renderPanel(resolved = ownedBy(), hasFiles = false) {
+function renderPanel(
+  resolved = ownedBy(),
+  hasFiles = false,
+  status = 'backlog',
+) {
   return render(
     <TaskSubjectPanel
       organizationId="org_1"
       task={{
         _id: 'task_1' as string,
         projectId: 'project_1' as string,
-        status: 'backlog',
+        status,
         externalId: FOLDER,
         hasFiles,
       }}
@@ -108,6 +113,8 @@ describe('TaskSubjectPanel', () => {
     mocks.run = null;
     mocks.start.mockReset();
     mocks.start.mockResolvedValue({ started: true });
+    mocks.updateStatus.mockReset();
+    mocks.updateStatus.mockResolvedValue(undefined);
   });
 
   it('names the automation and shows the automation s own description', () => {
@@ -194,5 +201,58 @@ describe('TaskSubjectPanel', () => {
       'aria-disabled',
       'true',
     );
+  });
+
+  // Approve writes Done in one gesture. An automation whose Done means more
+  // outside the task declares that consequence, and only then does Approve
+  // ask first — so a reviewer cannot give that attestation by a slip, while
+  // every other automation keeps its one-click close.
+  it('approves in one click when the automation declares no consequence', async () => {
+    const { user } = renderPanel(ownedBy(), true, 'in_review');
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+
+    expect(mocks.updateStatus).toHaveBeenCalledWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
+    expect(
+      screen.queryByText('Approve the output of Document verification desk?'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('asks before approving when the automation declares what approving decides', async () => {
+    const consequence =
+      'Approving tells the client this return has been filed with the tax authority.';
+    const { user } = renderPanel(
+      ownedBy({ approveConfirmation: consequence }),
+      true,
+      'in_review',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(
+      await screen.findByText(
+        'Approve the output of Document verification desk?',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(consequence)).toBeInTheDocument();
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mocks.updateStatus).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await screen.findByText(consequence);
+    const confirm = screen.getAllByRole('button', { name: 'Approve' }).at(-1);
+    if (confirm === undefined)
+      throw new Error('the confirmation has no Approve');
+    await user.click(confirm);
+
+    expect(mocks.updateStatus).toHaveBeenCalledTimes(1);
+    expect(mocks.updateStatus).toHaveBeenCalledWith({
+      taskId: 'task_1',
+      status: 'done',
+    });
   });
 });

@@ -155,3 +155,21 @@ subjects:
 ```
 
 Eine erforderliche Datei erscheint bis zu ihrer Ablage durch einen Lauf als **Noch nicht bereit**. Eine optionale Datei wird erst angezeigt, wenn sie existiert. Muster unterstützen `*` und `?`, etwa `return-*.xml`. Ohne Vorgaben zeigt das Ergebnis alle von Läufen abgelegten Dateien, neueste zuerst. Eine kurze ausdrückliche Liste hilft, den Abschlussbericht von Arbeitsunterlagen zu unterscheiden.
+
+## Vor folgenreichen Freigaben nachfragen
+
+**Freigeben** schließt die Aufgabe mit einem Klick. Bedeutet die Freigabe mehr als das Schließen der Aufgabe, deklariere diese Folge, etwa wenn eine Integration die Freigabe einem Kunden als Einreichung meldet. **Freigeben** fragt dann zuerst nach und zeigt deinen Satz:
+
+```yaml
+subjects:
+  task:
+    review:
+      requestChanges: true
+      approve:
+        confirm: Approving tells the client this return has been filed with the tax authority. Approve only after you have filed it.
+        i18n:
+          de:
+            confirm: Mit der Freigabe erfährt der Kunde, dass diese Abrechnung bei der Steuerverwaltung eingereicht ist. Gib sie erst frei, wenn du sie eingereicht hast.
+```
+
+Ohne `approve` bleibt **Freigeben** ein Schließen mit einem Klick. Übersetze den Satz unter `i18n`; eine Sprache ohne eigenen Satz nutzt ihre Basissprache, danach den englischen.

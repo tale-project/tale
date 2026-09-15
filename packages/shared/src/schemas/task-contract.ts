@@ -21,6 +21,12 @@ const taskSubjectFieldTextSchema = z.object({
   help: z.string().optional(),
 });
 
+/** The consequence an automation declares for approving its reviewed output:
+ *  the sentence the Approve confirmation shows. */
+const taskSubjectApproveTextSchema = z.object({
+  confirm: z.string().min(1).max(500),
+});
+
 export const taskSubjectContractSchema = z.object({
   /** Automation the task-surface Start / Request-changes choreography runs
    *  (`startTaskWorkflow`; this is the automation's own store name). */
@@ -70,7 +76,28 @@ export const taskSubjectContractSchema = z.object({
   start: z.object({ when: z.string().optional() }).optional(),
   /** Review affordances: `requestChanges` maps In review → In progress onto
    *  comment-then-rerun (the same `startTaskWorkflow` path as Start). */
-  review: z.object({ requestChanges: z.boolean().optional() }).optional(),
+  review: z
+    .object({
+      requestChanges: z.boolean().optional(),
+      /**
+       * Approve writes Done in one gesture — for most automations a plain
+       * close. When Done means more outside the task (an integration relays
+       * it as a filing attestation, a release, a payment), the automation
+       * declares that consequence here: Approve then asks first and says
+       * exactly this, so a reviewer cannot give that attestation by a slip.
+       */
+      approve: taskSubjectApproveTextSchema
+        .extend({
+          i18n: z
+            .record(
+              z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+              taskSubjectApproveTextSchema.partial(),
+            )
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   /**
    * The deliverables — what a reviewer opens the task FOR. The task surface
    * promotes these out of the bound folder into an always-open Outcome zone
@@ -111,6 +138,28 @@ export const taskSubjectContractSchema = z.object({
 });
 
 export type TaskSubjectContract = z.infer<typeof taskSubjectContractSchema>;
+
+/**
+ * The consequence sentence for Approve in the reader's language, or undefined
+ * when the automation declared none — then Approve stays the one-click close
+ * it is for automations whose Done means nothing outside the task.
+ *
+ * The locale chain matches every other declared text: exact tag, then base
+ * language, then the authored English.
+ */
+export function approveConfirmation(
+  contract: TaskSubjectContract,
+  locale: string,
+): string | undefined {
+  const declared = contract.review?.approve;
+  if (declared === undefined) return undefined;
+  const base = locale.split('-')[0] ?? locale;
+  return (
+    declared.i18n?.[locale]?.confirm ??
+    declared.i18n?.[base]?.confirm ??
+    declared.confirm
+  );
+}
 
 /** One declared deliverable, normalized from the two `outcome.files` entry
  * shapes (bare name, or `{ name, optional }`). */

@@ -6492,6 +6492,7 @@ tasks:
     review: 'Le résultat de {name} est prêt pour relecture.'
     reviewWaitingOn: 'Le résultat de {name} est prêt pour relecture — en attente de {reviewer}.'
     approve: Approuver
+    approveConfirmTitle: 'Approuver le résultat de {name} ?'
     approved: Approuvé — la tâche est terminée.
     requestChanges: Demander des modifications
     requestChangesDialog: 'Ton retour est ajouté en commentaire sur cette tâche et {name} repart de là.'
