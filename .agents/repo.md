@@ -292,3 +292,25 @@ default means deleting the override and fixing what surfaces:
   verify what landed (2026-09, round h). Paying it down means
   `GET /api/v1/conversations/{id}/messages` under the owner rule, keyset by
   (`createdAt`, `messageId`), attachments as refs.
+- **A queued send is invisible on the message list** — while a turn waits in the deployment
+  queue, `GET …/threads/{id}/messages` answers a complete page without it and
+  `…/messages/{messageId}` 404s the id the 202 named; the generation poll is its only view
+  (2026-09, round i). The reference says so. Paying it down means listing the user turn and a
+  `pending` assistant row from the moment the send is accepted, not when a worker opens it.
+- **A webhook delivery the deployed `inputs` schema refuses moves no trigger stamp** — the
+  400 goes to the sender and `lastSkippedAt` / `lastSkipReason` stay as they were, so a binding
+  refusing every delivery reads as never called (2026-09, round i). The reference says so.
+  Paying it down means a `delivery_refused` skip reason stamped from the webhook door beside
+  `start_refused`.
+- **MCP `run_deployed` keys its idempotency apart from `start_run` and REST** — one key shared
+  across them hard-fails `IDEMPOTENCY_KEY_REUSED` both ways and never answers the `duplicate`
+  marker its schema documents (2026-09, round i). Paying it down means one ledger namespace
+  for the three doors and the marker on the reply.
+- **`robots.txt` `$` end-anchors and `Allow:` are not honoured, and a page is fetched three to
+  four times a scan** — prefix and `*` rules are enforced; a `$`-anchored `Disallow` fails open
+  (the URL is fetched, not indexed) and an `Allow` ahead of a `Disallow` does not admit its
+  path (2026-09, round i). Paying it down means the `$` and `Allow` branches of the robots
+  parser and one fetch per page per scan.
+- **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
+  so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
+  Paying it down means keeping the partial trace the way the failed path does.

@@ -76,5 +76,13 @@
  * `set_trigger` answers a webhook token once with `deployed`,
  * `get_automation` reads `version: "deployed"`, `list_versions` marks the
  * deployed one, and every capability refusal carries a `code`.
+ *
+ * 1.12.0 — 2026-09-15: the 09-15 evaluation's ninth pass — `MessagePart` is
+ * a discriminator over seven named part schemas (`TextPart` …
+ * `HumanInputPart`) with an explicit `mapping`, so a validating client
+ * accepts every message; `recipientId` on the notification export is
+ * `nullable`, not a 3.1 type list; the conversation mirror receipt carries
+ * `sourceDeleted` and `status`, and a content snapshot onto a torn-down
+ * mirror answers 409 `CONVERSATION_CLOSED` instead of reopening it.
  */
-export const API_CONTRACT_VERSION = '1.11.0';
+export const API_CONTRACT_VERSION = '1.12.0';

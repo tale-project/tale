@@ -15,6 +15,12 @@ import { routeClass } from './telemetry.ts';
  * recording stays disabled and none of the auto-performance instrumentation
  * loads. `SENTRY_TRACES_SAMPLE_RATE` remains a browser-side knob.
  *
+ * `tracePropagationTargets: []` because the SDK otherwise stamps
+ * `sentry-trace` and `baggage` — release, public key, environment — onto
+ * every outgoing `fetch`, tracing sampled or not: the crawler carried them
+ * to every third-party site it visited (2026-09-15 evaluation, i6).
+ * Nothing outbound is ours to trace.
+ *
  * `registerEsmLoaderHooks: false` because the backend already runs under its
  * own resolve hook (`node-loader.mjs`); stacking import-in-the-middle's
  * loader onto that chain buys nothing without tracing and risks resolver
@@ -42,6 +48,8 @@ export function initErrorReporting(options: ErrorReportingOptions): boolean {
       dsn: options.dsn,
       release: process.env.TALE_VERSION,
       registerEsmLoaderHooks: false,
+      // No outgoing request carries our trace headers (see the module note).
+      tracePropagationTargets: [],
       integrations: (defaults) => [
         ...defaults.filter((i) => i.name !== 'OnUnhandledRejection'),
         Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }),
