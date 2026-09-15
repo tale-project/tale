@@ -504,17 +504,43 @@ function healthy(
   );
 }
 
+const REPORTED_HEALTH = ['starting', 'unhealthy'] as const;
+
+/**
+ * The managed services that are not running healthy, for a failure summary:
+ * `proxy: unhealthy`, `db: not running`. Fixed vocabulary only — the service
+ * comes from the managed topology and the health from Docker's enum, so
+ * nothing a container or Compose printed can reach the message.
+ */
+function unsettledServices(
+  containers: RuntimeContainer[],
+  compose: ComposeDocument,
+): string | null {
+  const unsettled = RUNTIME_SERVICES.flatMap((service) => {
+    const container = containers.find(
+      (candidate) =>
+        candidate.Config.Labels?.['com.docker.compose.service'] === service,
+    );
+    if (!container) return [];
+    if (!container.State.Running) return [`${service}: not running`];
+    if (reportsHealthy(container, compose)) return [];
+    const health = REPORTED_HEALTH.find(
+      (status) => status === container.State.Health?.Status,
+    );
+    return [`${service}: ${health ?? 'no health status'}`];
+  });
+  return unsettled.length > 0 ? unsettled.join(', ') : null;
+}
+
 async function waitForRuntime(
   options: ApplyRuntimeOptions,
   bundle: RuntimeBundle,
   compose: ComposeDocument,
   dependencies: RuntimeDependencies,
 ): Promise<RuntimeContainer[]> {
+  let containers: RuntimeContainer[] = [];
   for (let attempt = 0; attempt < 60; attempt++) {
-    const containers = await runtimeContainers(
-      options.composeProject,
-      dependencies,
-    );
+    containers = await runtimeContainers(options.composeProject, dependencies);
     assertContainerCustody(containers, compose, options);
     if (healthy(containers, bundle, compose)) {
       const sandbox = containers.find(
@@ -541,8 +567,9 @@ async function waitForRuntime(
     }
     if (attempt !== 59) await runtimeSleep(dependencies, 3000);
   }
+  const unsettled = unsettledServices(containers, compose);
   throw externalDepError(
-    'Managed runtime did not become healthy; pending state is retained for recovery.',
+    `Managed runtime did not become healthy${unsettled ? ` (${unsettled})` : ''}; pending state is retained for recovery.`,
   );
 }
 
@@ -882,7 +909,18 @@ export async function applyRuntime(
       ...(receipt.regeneratedSecrets.length ? ['--force-recreate'] : []),
     ],
     dependencies,
-    { cwd: sourceDirectory, timeout: 600, operation: 'compose-startup' },
+    {
+      cwd: sourceDirectory,
+      timeout: 600,
+      operation: 'compose-startup',
+      // Compose names the dependency it refused on only in output that can
+      // also carry the environment; Docker's state says the same safely.
+      diagnose: async () =>
+        unsettledServices(
+          await runtimeContainers(options.composeProject, dependencies),
+          compose,
+        ),
+    },
   );
   containers = await waitForRuntime(options, bundle, compose, dependencies);
   for (const file of installedFiles)

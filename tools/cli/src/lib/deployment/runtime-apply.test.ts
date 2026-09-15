@@ -678,7 +678,9 @@ describePosix('managed source-Compose runtime adoption', () => {
     docker.staleHealth.set('proxy', { status: 'unhealthy', reads: Infinity });
     docker.calls = [];
 
-    await expect(apply()).rejects.toThrow('did not become healthy');
+    await expect(apply()).rejects.toThrow(
+      'Managed runtime did not become healthy (proxy: unhealthy); pending state is retained for recovery.',
+    );
     expect(mutations(docker)).toEqual([]);
     expect(receipt()).toEqual(ready);
   });

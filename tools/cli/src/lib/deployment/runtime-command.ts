@@ -1,4 +1,5 @@
 import { externalDepError } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { exec, type ExecResult } from '../docker/exec';
 import type { RuntimeDependencies } from './runtime-model';
 
@@ -25,6 +26,22 @@ export function runtimeProcessEnvironment(): Record<string, string> {
   );
 }
 
+/** ` (detail)` from the caller's diagnosis, or nothing when it has none. */
+async function failureContext(
+  diagnose: (() => Promise<string | null>) | undefined,
+): Promise<string> {
+  if (!diagnose) return '';
+  try {
+    const detail = await diagnose();
+    return detail ? ` (${detail})` : '';
+  } catch {
+    // The failure still surfaces, unexplained. The reason stays out of the
+    // log for the same reason Docker's own output does.
+    logger.warn('Docker state could not be read to explain the failure.');
+    return '';
+  }
+}
+
 export async function runtimeCommand(
   args: string[],
   dependencies: RuntimeDependencies,
@@ -33,6 +50,12 @@ export async function runtimeCommand(
     timeout?: number;
     allowFailure?: boolean;
     operation?: 'compose-validation' | 'compose-startup';
+    /**
+     * What Docker's state shows about a failure, in fixed vocabulary such as
+     * `proxy: unhealthy`, appended to the summary. Never the command's own
+     * output: Compose can echo the environment it loaded.
+     */
+    diagnose?: () => Promise<string | null>;
   } = {},
 ): Promise<ExecResult> {
   // Use only fixed labels: Docker arguments and failures can contain secrets.
@@ -51,10 +74,14 @@ export async function runtimeCommand(
       env: runtimeProcessEnvironment(),
     });
   } catch {
-    throw externalDepError(`Docker could not complete ${operation}.`);
+    throw externalDepError(
+      `Docker could not complete ${operation}${await failureContext(options.diagnose)}.`,
+    );
   }
   if (!result.success && !options.allowFailure) {
-    throw externalDepError(`Docker refused ${operation}.`);
+    throw externalDepError(
+      `Docker refused ${operation}${await failureContext(options.diagnose)}.`,
+    );
   }
   return result;
 }
