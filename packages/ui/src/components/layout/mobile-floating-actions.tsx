@@ -1,7 +1,13 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 interface MobileFloatingActionsProps {
@@ -28,6 +34,81 @@ function nodeHasContent(node: HTMLElement): boolean {
     Array.from(node.children).some((child) => !child.matches(':empty')) ||
     (node.textContent?.trim().length ?? 0) > 0
   );
+}
+
+/** The controls a dock's rows are made of. */
+const DOCK_ACTION_SELECTOR =
+  'button, a[href], input, select, textarea, [role="button"], [role="combobox"]';
+
+interface ActionRow {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** The dock's in-flow controls, grouped into the rows they wrapped onto. */
+function actionRows(dock: HTMLElement): ActionRow[] {
+  const rows: ActionRow[] = [];
+  for (const action of dock.querySelectorAll(DOCK_ACTION_SELECTOR)) {
+    // A control inside another control is part of that control's box, and an
+    // out-of-flow one (a visually hidden input) sits on no row at all.
+    if (action.parentElement?.closest(DOCK_ACTION_SELECTOR)) continue;
+    const { position } = getComputedStyle(action);
+    if (position === 'absolute' || position === 'fixed') continue;
+    const box = action.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) continue;
+    const row = rows.find(
+      (candidate) => box.top < candidate.bottom && box.bottom > candidate.top,
+    );
+    if (row === undefined) {
+      rows.push({
+        top: box.top,
+        bottom: box.bottom,
+        left: box.left,
+        right: box.right,
+      });
+    } else {
+      row.top = Math.min(row.top, box.top);
+      row.bottom = Math.max(row.bottom, box.bottom);
+      row.left = Math.min(row.left, box.left);
+      row.right = Math.max(row.right, box.right);
+    }
+  }
+  return rows;
+}
+
+/**
+ * Shrinks a wrapped dock to its widest row. Once the actions wrap, a `w-fit`
+ * flex box takes its whole `max-w`, and the room the rows leave over reads as
+ * extra padding beside them; giving back the room every row leaves free keeps
+ * the inset even on all four sides. A width that would move an action onto
+ * another row is undone, so the dock can only ever get tighter, never reflow.
+ */
+function hugWidestRow(dock: HTMLElement): void {
+  dock.style.removeProperty('width');
+  const rows = actionRows(dock);
+  if (rows.length < 2) return;
+  const frame = dock.getBoundingClientRect();
+  const style = getComputedStyle(dock);
+  const contentLeft =
+    frame.left +
+    Number.parseFloat(style.borderLeftWidth) +
+    Number.parseFloat(style.paddingLeft);
+  const contentRight =
+    frame.right -
+    Number.parseFloat(style.borderRightWidth) -
+    Number.parseFloat(style.paddingRight);
+  const spare = Math.floor(
+    Math.min(
+      ...rows.map((row) => row.left - contentLeft + (contentRight - row.right)),
+    ),
+  );
+  if (spare < 1) return;
+  dock.style.width = `${frame.width - spare}px`;
+  if (actionRows(dock).length !== rows.length) {
+    dock.style.removeProperty('width');
+  }
 }
 
 function acquirePagePad(): void {
@@ -98,6 +179,32 @@ export function MobileFloatingActions({
     return () => releasePagePad();
   }, [hasContent]);
 
+  // Re-hug whenever the rows can change: the actions themselves, the window
+  // width they wrap against, and the web fonts their labels measure in.
+  useLayoutEffect(() => {
+    const node = innerRef.current;
+    if (!hasContent || !node) return undefined;
+    const fit = () => {
+      hugWidestRow(node);
+    };
+    fit();
+    const observer = new MutationObserver(fit);
+    observer.observe(node, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    window.addEventListener('resize', fit);
+    // Not every environment implements the Font Loading API (jsdom does not).
+    const fonts = 'fonts' in document ? document.fonts : undefined;
+    fonts?.addEventListener('loadingdone', fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+      fonts?.removeEventListener('loadingdone', fit);
+    };
+  }, [hasContent]);
+
   if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
@@ -115,7 +222,9 @@ export function MobileFloatingActions({
         // Capped to the viewport so a wide cluster (an editor's version, run
         // and save verbs) wraps inside the dock instead of running off the
         // left edge; `justify-end` keeps every wrapped row on the anchor side.
-        className="border-border bg-background pointer-events-auto flex w-fit max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-2 rounded-xl border px-3 py-2 shadow-md"
+        // One `p-2` inset on all four sides — `hugWidestRow` keeps it even
+        // once the actions wrap.
+        className="border-border bg-background pointer-events-auto flex w-fit max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-2 rounded-xl border p-2 shadow-md"
       >
         {children}
       </div>

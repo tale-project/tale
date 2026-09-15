@@ -211,6 +211,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [projects](../suites/projects.md) | REST chat after the 2026-09-15 round-i evaluation: `MessagePart` is a `type` discriminator with an explicit mapping over seven named part schemas (`TextPart` … `HumanInputPart`), and the contract declares nullability with `nullable` only — no OpenAPI 3.1 type list anywhere in the document | ✅ automated | `scripts/openapi/spec.test.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F1`, `RESP-F2` | ✅ automated | `responsive.spec.ts` (app-shell: rail hidden, tab bar + More sheet) |
 | [responsive](../suites/responsive.md) | `RESP-F3` | ✅ automated | `responsive.spec.ts` (floating Save dock: 1 visible Save, dirty→enabled, reload-discard) |
+| [responsive](../suites/responsive.md) | `RESP-F3` dock frame: one inset between the floating dock's border and its actions on every side, a dock whose actions wrap hugs its widest row, and the dock re-fits when its actions or the viewport change | ✅ automated | `packages/ui/src/components/layout/mobile-floating-actions.browser.test.tsx` (real Chromium at 390×844 and 430×932, one row and wrapped rows) |
 | [responsive](../suites/responsive.md) | `RESP-F4` | 🔶 partial | `responsive.spec.ts` (chat input renders + enabled at mobile; **no send / no attach**) |
 | [responsive](../suites/responsive.md) | `RESP-F5` | 🔶 partial | `responsive.spec.ts` (contacts list usable at mobile; **no row/stack assertions**) |
 | [responsive](../suites/responsive.md) | `RESP-F6`, `RESP-F7` | ⛔ manual-only | — |
