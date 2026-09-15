@@ -23,6 +23,7 @@ const {
   writeGovernancePolicyFile,
   readGovernancePolicySnapshot,
   getSandboxDeploymentLimits,
+  getUserTeamIds,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -33,6 +34,7 @@ const {
   writeGovernancePolicyFile: vi.fn(),
   readGovernancePolicySnapshot: vi.fn(),
   getSandboxDeploymentLimits: vi.fn(),
+  getUserTeamIds: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -47,6 +49,10 @@ vi.mock('../../lib/governance-policy-write.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
+vi.mock('../../auth/membership.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
+  getUserTeamIds,
+}));
 
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -381,4 +387,169 @@ describe('POST /policies/sandbox_quota — deployment capacity', () => {
       expectNoWrite();
     },
   );
+});
+
+describe('GET /my/budget-usage', () => {
+  interface Usage {
+    totalTokens: number;
+    costEstimate: number;
+    requestCount: number;
+  }
+
+  /** The ledger sums by scope (`user_id`/`team_id` are the 3rd and 5th
+   * bindings) and the team-name read, recorded in call order. */
+  function database(answers: {
+    user: Usage;
+    teams: Record<string, Usage>;
+    org: Usage;
+    teamRows: { id: string; name: string }[];
+  }) {
+    const queries: string[] = [];
+    const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      queries.push(text);
+      if (text.includes('FROM "team"')) return answers.teamRows;
+      const userId = values[2];
+      const teamId = values[4];
+      if (typeof userId === 'string') return [answers.user];
+      if (typeof teamId === 'string') return [answers.teams[teamId]];
+      return [answers.org];
+    };
+    return { sql: sql as never, queries };
+  }
+
+  async function read(sql: never): Promise<Response> {
+    return await createGovernanceRoutes({ sql, auth: {} as never }).request(
+      '/my/budget-usage?orgId=o1',
+    );
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.UTC(2026, 8, 15, 13));
+    caller.role = 'member';
+    getUserTeamIds.mockResolvedValue(['team-1']);
+    return () => {
+      vi.useRealTimers();
+    };
+  });
+
+  it('answers a plain member the caps that bind them with their usage', async () => {
+    readGovernancePolicyForOrg.mockImplementation(
+      async (_sql: unknown, _org: string, policyType: string) =>
+        policyType === 'budgets'
+          ? {
+              enabled: true,
+              rules: [
+                {
+                  scope: 'default',
+                  period: 'monthly',
+                  maxCostCents: 5_000,
+                  warningThresholdPercent: 80,
+                },
+                {
+                  scope: 'user',
+                  scopeId: 'someone-else',
+                  period: 'monthly',
+                  maxCostCents: 1,
+                },
+                {
+                  scope: 'team',
+                  scopeId: 'team-1',
+                  period: 'weekly',
+                  maxRequests: 400,
+                },
+                { scope: 'org', period: 'monthly', maxTokens: 9_000_000 },
+              ],
+            }
+          : null,
+    );
+    const { sql } = database({
+      user: { totalTokens: 41_000, costEstimate: 1_240, requestCount: 30 },
+      teams: {
+        'team-1': {
+          totalTokens: 90_000,
+          costEstimate: 3_000,
+          requestCount: 260,
+        },
+      },
+      org: { totalTokens: 2_500_000, costEstimate: 40_000, requestCount: 900 },
+      teamRows: [{ id: 'team-1', name: 'Design' }],
+    });
+
+    const response = await read(sql);
+
+    expect(response.status).toBe(200);
+    const nextMonth = Date.UTC(2026, 9, 1);
+    const nextMonday = Date.UTC(2026, 8, 21);
+    expect(await response.json()).toEqual({
+      limits: [
+        {
+          scope: 'user',
+          teamId: null,
+          teamName: null,
+          period: 'weekly',
+          periodKey: '2026-W38',
+          resetsAt: nextMonday,
+          warningThresholdPercent: null,
+          tokens: null,
+          costCents: null,
+          requests: { used: 30, limit: 400 },
+        },
+        {
+          scope: 'team',
+          teamId: 'team-1',
+          teamName: 'Design',
+          period: 'weekly',
+          periodKey: '2026-W38',
+          resetsAt: nextMonday,
+          warningThresholdPercent: null,
+          tokens: null,
+          costCents: null,
+          requests: { used: 260, limit: 400 },
+        },
+        {
+          scope: 'user',
+          teamId: null,
+          teamName: null,
+          period: 'monthly',
+          periodKey: '2026-09',
+          resetsAt: nextMonth,
+          warningThresholdPercent: 80,
+          tokens: null,
+          costCents: { used: 1_240, limit: 5_000 },
+          requests: null,
+        },
+        {
+          scope: 'org',
+          teamId: null,
+          teamName: null,
+          period: 'monthly',
+          periodKey: '2026-09',
+          resetsAt: nextMonth,
+          warningThresholdPercent: null,
+          tokens: { used: 2_500_000, limit: 9_000_000 },
+          costCents: null,
+          requests: null,
+        },
+      ],
+    });
+    expect(getUserTeamIds).toHaveBeenCalledWith(sql, 'o1', 'u1');
+  });
+
+  it('answers no limits, and reads no team names, when budgets are off', async () => {
+    readGovernancePolicyForOrg.mockResolvedValue(null);
+    const { sql, queries } = database({
+      user: { totalTokens: 0, costEstimate: 0, requestCount: 0 },
+      teams: {},
+      org: { totalTokens: 0, costEstimate: 0, requestCount: 0 },
+      teamRows: [],
+    });
+
+    const response = await read(sql);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ limits: [] });
+    expect(queries).toEqual([]);
+  });
 });

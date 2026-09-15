@@ -16,7 +16,7 @@ vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn(async () => policy.config),
 }));
 
-const { checkOrgBudget, resolveTurnAllowance } =
+const { checkOrgBudget, readBudgetStanding, resolveTurnAllowance } =
   await import('./budget-gate.ts');
 
 interface Usage {
@@ -177,6 +177,187 @@ describe('resolveTurnAllowance', () => {
       },
     );
     expect(allowance).toEqual({ allowed: true, budgetCents: 150 });
+  });
+});
+
+describe('readBudgetStanding', () => {
+  // Tuesday 2026-09-15 13:00 UTC.
+  const NOW = Date.UTC(2026, 8, 15, 13);
+
+  it('answers no caps when no budget policy binds the subject', async () => {
+    await expect(readBudgetStanding(ledger({}), SUBJECT, NOW)).resolves.toEqual(
+      [],
+    );
+    policy.config = {
+      enabled: false,
+      rules: [{ scope: 'default', period: 'monthly', maxCostCents: 100 }],
+    };
+    await expect(readBudgetStanding(ledger({}), SUBJECT, NOW)).resolves.toEqual(
+      [],
+    );
+    // Rules that name someone else never reach this subject.
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'user', scopeId: 'user-2', period: 'daily', maxRequests: 5 },
+        { scope: 'team', scopeId: 'team-9', period: 'daily', maxRequests: 5 },
+        { scope: 'role', scopeId: 'admin', period: 'daily', maxRequests: 5 },
+        { scope: 'apiKey', apiKeyId: 'key-1', period: 'daily', maxRequests: 5 },
+      ],
+    };
+    await expect(readBudgetStanding(ledger({}), SUBJECT, NOW)).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('reads the personal and organization buckets the gate checks', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'default',
+          period: 'monthly',
+          maxCostCents: 5_000,
+          maxTokens: 1_000_000,
+          warningThresholdPercent: 80,
+        },
+        {
+          scope: 'org',
+          period: 'monthly',
+          maxCostCents: 50_000,
+          warningThresholdPercent: 90,
+        },
+      ],
+    };
+    const user = {
+      totalTokens: 412_300,
+      costEstimate: 1_240,
+      requestCount: 38,
+    };
+    const org = { totalTokens: 9e6, costEstimate: 31_000, requestCount: 900 };
+    await expect(
+      readBudgetStanding(ledger({ user, org }), SUBJECT, NOW),
+    ).resolves.toEqual([
+      {
+        scope: 'user',
+        period: 'monthly',
+        periodKey: '2026-09',
+        resetsAt: Date.UTC(2026, 9, 1),
+        warningThresholdPercent: 80,
+        maxTokens: 1_000_000,
+        maxCostCents: 5_000,
+        usage: user,
+      },
+      {
+        scope: 'org',
+        period: 'monthly',
+        periodKey: '2026-09',
+        resetsAt: Date.UTC(2026, 9, 1),
+        warningThresholdPercent: 90,
+        maxCostCents: 50_000,
+        usage: org,
+      },
+    ]);
+  });
+
+  it('resolves each personal cap from the most specific rule that sets it', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'default',
+          period: 'daily',
+          maxCostCents: 100,
+          maxRequests: 50,
+        },
+        {
+          scope: 'role',
+          scopeId: 'member',
+          period: 'daily',
+          maxCostCents: 300,
+        },
+        {
+          scope: 'user',
+          scopeId: 'user-1',
+          period: 'daily',
+          maxCostCents: 700,
+        },
+      ],
+    };
+    const [personal, ...rest] = await readBudgetStanding(
+      ledger({ user: { totalTokens: 0, costEstimate: 20, requestCount: 3 } }),
+      SUBJECT,
+      NOW,
+    );
+    expect(rest).toEqual([]);
+    expect(personal).toMatchObject({
+      scope: 'user',
+      period: 'daily',
+      periodKey: '2026-09-15',
+      resetsAt: Date.UTC(2026, 8, 16),
+      maxCostCents: 700,
+      maxRequests: 50,
+    });
+    expect(personal?.maxTokens).toBeUndefined();
+  });
+
+  it('shows a team rule as a personal cap and as the team’s shared cap', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'weekly',
+          maxRequests: 400,
+          warningThresholdPercent: 75,
+        },
+      ],
+    };
+    const standing = await readBudgetStanding(
+      ledger({
+        user: { totalTokens: 0, costEstimate: 0, requestCount: 12 },
+        teams: {
+          'team-1': { totalTokens: 0, costEstimate: 0, requestCount: 260 },
+        },
+      }),
+      SUBJECT,
+      NOW,
+    );
+    expect(standing).toEqual([
+      expect.objectContaining({
+        scope: 'user',
+        maxRequests: 400,
+        warningThresholdPercent: 75,
+        usage: { totalTokens: 0, costEstimate: 0, requestCount: 12 },
+      }),
+      {
+        scope: 'team',
+        teamId: 'team-1',
+        period: 'weekly',
+        periodKey: '2026-W38',
+        resetsAt: Date.UTC(2026, 8, 21),
+        maxRequests: 400,
+        usage: { totalTokens: 0, costEstimate: 0, requestCount: 260 },
+      },
+    ]);
+  });
+
+  it('lists periods from the shortest to the longest', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'monthly', maxRequests: 1_000 },
+        { scope: 'default', period: 'daily', maxRequests: 60 },
+        { scope: 'default', period: 'weekly', maxRequests: 300 },
+      ],
+    };
+    const standing = await readBudgetStanding(ledger({}), SUBJECT, NOW);
+    expect(standing.map((s) => s.period)).toEqual([
+      'daily',
+      'weekly',
+      'monthly',
+    ]);
   });
 });
 
