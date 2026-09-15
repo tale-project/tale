@@ -66,6 +66,7 @@ Prüfe vor einer Operation sowohl die Rolle als auch den Zugriff auf die Ressour
 | --- | --- |
 | `developer` | Inhaber, Admins und Entwickler dürfen beliebige Live-Läufe starten, Läufe abbrechen oder löschen, Trigger binden oder lösen, Automatisierungen löschen sowie Projekt-Automatisierungen installieren oder deinstallieren. Ohne diese Berechtigung liefern diese REST-Operationen `403 ROLE_FORBIDDEN`. MCP prüft sie ebenfalls beim Speichern, Bereitstellen und für weitere privilegierte Tools, nutzt aber sein eigenes Fehlerformat. Validierung und Mock-Tools bleiben für Mitglieder verfügbar. Der Projektzugriff wird gesondert geprüft. |
 | `deploymentEditor` | Die Freigabeliste des Betreibers erlaubt Import und Widerruf von Browsersitzungen. Eine administrative Rolle allein reicht dafür nicht. |
+| `notificationExport` | Der Schlüssel darf Benachrichtigungen von Mitgliedern über `GET /api/v1/notifications/sync` exportieren. Inhaber und Admins haben diese Berechtigung durch ihre Rolle, alle anderen Mitglieder nur mit einer gültigen Berechtigung `tale:notifications.export`, die ein Admin erteilt hat; siehe [Export ohne Admin-Rolle delegieren](#export-ohne-admin-rolle-delegieren). Ohne sie liefert der Export `403 ROLE_FORBIDDEN`. |
 
 ## Was für jede Anfrage gilt
 
@@ -223,7 +224,7 @@ Jede **201**, die eine adressierbare Ressource anlegt, trägt `Location` — den
 | Produkte | `/api/v1/products/...`<br>Produktkatalog-Einträge: CRUD (ein `PATCH` antwortet mit dem aktualisierten Produkt). |
 | Kontakte | `/api/v1/contacts/...`<br>Kontaktdaten: CRUD (ein `PATCH` antwortet mit dem aktualisierten Kontakt) plus `POST /api/v1/contacts/bulk`. |
 | Gespräche | `/api/v1/conversations/...`<br>Externe Gespräche als versionierte Snapshots in den Posteingang spiegeln, die Snapshot-Quittung einer Quelle lesen, in die Zustellwarteschlange einer Quelle schauen, native Antworten abholen, ihre Zustellung bestätigen oder als fehlgeschlagen melden und eine unzustellbar abgelegte neu anstoßen; genaue Schemas stehen unter `/docs` der laufenden Instanz. |
-| Benachrichtigungen | `GET /api/v1/notifications/sync`<br>Persönliche oder sichtbare Organisationsmeldungen eines bestätigten Mitglieds exportieren; nur für Inhaber/Admins. Signierte Pagination, übersetzte Texte, stabile IDs und Hashes für Inhalt und Lesestatus. |
+| Benachrichtigungen | `GET /api/v1/notifications/sync`<br>Persönliche oder sichtbare Organisationsmeldungen eines bestätigten Mitglieds exportieren; für Inhaber/Admins oder Mitglieder, denen ein Admin `tale:notifications.export` erteilt hat. Signierte Pagination, übersetzte Texte, stabile IDs und Hashes für Inhalt und Lesestatus. |
 | Projekte | `/api/v1/projects/...`<br>Der Maschinenzugang für externe Worker: Projekte auflisten oder eines per externer ID nachschlagen, anlegen, archivieren und wiederherstellen, löschen; Ordner vorbereiten, Dateien hochladen, herunterladen und löschen, eine Datei sofort indexieren, Ordner löschen. |
 | Aufgaben | `/api/v1/projects/{id}/tasks/...`<br>Aufgaben aus externen Referenzen idempotent anlegen, Status lesen, Workflows starten (die Antwort nennt die `runId` zum Pollen) und kommentieren, jeweils im benannten Projekt. |
 | MCP | `POST /api/v1/mcp`<br>Der [MCP-Endpoint](/de/develop/mcp-endpoint) — derselbe Schlüssel, JSON-RPC statt REST. |
@@ -398,7 +399,27 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 
 ## Benachrichtigungen eines Mitglieds spiegeln
 
-`GET /api/v1/notifications/sync` exportiert die Benachrichtigungen, die ein bestimmtes Mitglied sehen darf. Die Route ist seit API-Vertrag 1.8.0 verfügbar und eignet sich für eine einseitige Synchronisierung in eine andere Anwendung. Der API-Schlüssel muss einem Inhaber oder Admin der ausgewählten Organisation gehören; die Entwicklerrolle allein reicht nicht.
+`GET /api/v1/notifications/sync` exportiert die Benachrichtigungen, die ein bestimmtes Mitglied sehen darf. Die Route ist seit API-Vertrag 1.8.0 verfügbar und eignet sich für eine einseitige Synchronisierung in eine andere Anwendung. Der API-Schlüssel muss einem Inhaber oder Admin der ausgewählten Organisation gehören oder einem Mitglied, dem ein Admin die Berechtigung `tale:notifications.export` erteilt hat (seit API-Vertrag 1.14.0). Eine andere Rolle allein reicht nicht, auch nicht die Entwicklerrolle.
+
+### Export ohne Admin-Rolle delegieren
+
+Ein Dienst, der Benachrichtigungen spiegelt, braucht kein Admin-Konto. Mit der Admin-Rolle lassen sich auch Mitglieder, Single Sign-on und SCIM verwalten und Passwörter rangniedrigerer Mitglieder zurücksetzen. Betreibe den Dienst deshalb als gewöhnliches Mitglied und erteile diesem Mitglied genau die Berechtigung, die der Export prüft. Sie ist ein Eintrag im Kompetenzregister der Organisation: Sie gilt nur in dieser Organisation, wird protokolliert, kann ein Ablaufdatum haben und wird automatisch widerrufen, wenn ein Admin das Mitglied entfernt oder dein Identitätsanbieter die Mitgliedschaft per SCIM aufhebt.
+
+Ein Inhaber oder Admin erteilt sie aus einer aktiven Sitzung. `TALE_ORIGIN` ist der Ursprung deiner Tale-Instanz, `TALE_SESSION_COOKIE` der Cookie-Header dieser Sitzung. `TALE_ORG_ID` und `TALE_WORKER_USER_ID` sind die Werte `organization.id` und `user.id`, die `GET /api/v1/me` für den Schlüssel des Dienstes liefert:
+
+```bash
+GRANT_BODY=$(jq -n --arg user "$TALE_WORKER_USER_ID" \
+  '{userId:$user,competence:"tale:notifications.export",evidence:"Notification mirror worker"}')
+curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/governance/competences?orgId=$TALE_ORG_ID" \
+  -H "Cookie: $TALE_SESSION_COOKIE" \
+  -H "Origin: $TALE_ORIGIN" \
+  -H "Content-Type: application/json" \
+  -d "$GRANT_BODY"
+```
+
+Die Antwort ist **201** mit `{ "recordId": "…" }`. Mit `expiresAt` in Unixzeit-Millisekunden endet die Berechtigung von selbst; ohne das Feld läuft sie nicht ab. Solange eine Berechtigung gültig ist, liefert eine erneute Erteilung **409** `COMPETENCE_ALREADY_GRANTED`. Ein anderer Name unter `tale:` liefert **400** `COMPETENCE_CAPABILITY_UNKNOWN`, ein Benutzer außerhalb der Organisation **400** `COMPETENCE_USER_NOT_MEMBER` und eine Sitzung ohne Inhaber- oder Admin-Rolle **403** `COMPETENCE_FORBIDDEN`. Prüfe vor der ersten Seite mit dem Schlüssel des Dienstes, dass `GET /api/v1/me` `capabilities.notificationExport: true` meldet.
+
+Um die Berechtigung zu entziehen, suche mit derselben Sitzung ihre `id` in `GET /api/app/governance/competences?orgId=<orgId>&userId=<userId>` und sende `POST /api/app/governance/competences/<recordId>/revoke?orgId=<orgId>`. Die nächste Exportanfrage des Dienstes liefert `403 ROLE_FORBIDDEN`. Ein widerrufener Eintrag bleibt als Prüfpfad in der Liste; erteile die Berechtigung neu, um den Export wieder zu erlauben.
 
 ### Empfänger und Datenstrom wählen
 
@@ -452,7 +473,7 @@ Der Export markiert keine Tale-Meldung als gelesen und löscht keine Meldung. Es
 | Antwort | Nächster Schritt |
 | --- | --- |
 | `401 UNAUTHORIZED` | Fehlenden, ungültigen oder abgelaufenen API-Schlüssel ersetzen. |
-| `403 ROLE_FORBIDDEN` | Einen Schlüssel eines Inhabers oder Admins der ausgewählten Organisation verwenden. Die Mitgliedschaft der empfangenden Person erteilt dem Aufrufer keine Exportrechte. |
+| `403 ROLE_FORBIDDEN` | Einen Schlüssel eines Inhabers oder Admins der ausgewählten Organisation verwenden oder dem Benutzer des Schlüssels von einem Admin `tale:notifications.export` erteilen lassen; `capabilities.notificationExport` in `GET /api/v1/me` bestätigt es. Eine abgelaufene oder widerrufene Berechtigung erlaubt den Export nicht mehr. Die Mitgliedschaft der empfangenden Person erteilt dem Aufrufer keine Exportrechte. |
 | `400 INVALID_QUERY` | Fehlende oder ungültige Empfänger-, Datenstrom- oder Sprachangaben, unbekannte oder doppelte Parameter sowie leere Cursor oder Limits korrigieren. `data.issues` nennt die Felder. |
 | `400 INVALID_LIMIT` | Eine ganze Zahl als Limit senden. |
 | `400 INVALID_CURSOR` | Den betroffenen Datenstrom ohne Cursor neu beginnen. Eine entfernte oder geänderte Mitgliedschaft kann den bisherigen Cursor ungültig machen. |

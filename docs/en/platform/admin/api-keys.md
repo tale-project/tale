@@ -51,6 +51,8 @@ Do not use an old **Last used** date as the only reason to revoke a key. A month
 
 Role changes take effect for existing keys on subsequent requests. Disabling the owner's membership removes their access; a key does not preserve the role it had when created.
 
+Give an integration the narrowest access that works. A notification mirror, for example, does not need an Admin account: an Admin can grant an ordinary member the `tale:notifications.export` capability, which permits that export and none of the other rights of the Admin role. The grant applies only in that organization, can expire, and ends when the member is removed. See [Delegate the export without an Admin role](/develop/api-reference#delegate-the-export-without-an-admin-role).
+
 REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally cap what requests authenticated with one key may spend: their usage counts toward the key, and a send over the cap is refused with `429 BUDGET_EXCEEDED`.
 
 API keys authenticate software calling Tale. [Connector credentials](/platform/admin/connectors) serve the other direction: they let Tale call an external service.
