@@ -2067,9 +2067,6 @@ documents:
       teams: Teams
       uploadedBy: Uploaded by
       modified: Modified
-      sourceUpload: Upload
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Image pages
   upload:
     cancelUpload: Cancel upload
@@ -2280,6 +2277,9 @@ documents:
     sharePointSynced: SharePoint (synced)
     sharePointNotSynced: SharePoint (not synced)
     uploaded: Upload
+    agent: Agent
+    knowledgeEntry: Knowledge entry
+    api: API
     googleDriveSynced: Google Drive (synced)
     googleDriveNotSynced: Google Drive (not synced)
   syncHealth:

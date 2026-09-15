@@ -234,18 +234,20 @@ records and delete them after.
   the app's access in that Microsoft account, or as an operator set that
   member's row in app.user_cloud_authorizations to needs-reauth) and let the
   next sync run happen (≤ 15 min) → The folder row's **Source**
-  (`tables.headers.source`) cell shows the badge **Reconnect needed**
-  (`documents.syncHealth.badge.needsReauth`) in place of the OneDrive mark and
-  its sync glyph (`documents.sourceType.oneDriveSynced` on hover), without a
-  reload. Activating the badge opens a dialog titled **OneDrive access expired**
-  (`documents.syncHealth.dialog.needsReauthTitle`) that names when the
-  failures began and whose account the sync runs under; as that member it
-  offers **Reconnect Microsoft 365** (`documents.onedrive.reconnect`), as any
-  other member it says whom to ask. Reconnect and let the next run happen →
-  the badge is gone without a reload and the row shows the OneDrive mark with
-  its sync glyph again. A run failing for another reason (vendor unreachable)
-  shows **Sync failed** (`documents.syncHealth.badge.failed`), whose dialog
-  carries the error text and says Tale retries about every 15 minutes.
+  (`tables.headers.source`) cell shows the OneDrive mark with a red unplugged
+  plug where its sync arrows stood, tipped **Reconnect needed**
+  (`documents.syncHealth.badge.needsReauth`) on hover and on keyboard focus,
+  without a reload. Activating the mark opens a dialog titled
+  **OneDrive access expired** (`documents.syncHealth.dialog.needsReauthTitle`)
+  that names when the failures began and whose account the sync runs under;
+  as that member it offers **Reconnect Microsoft 365**
+  (`documents.onedrive.reconnect`), as any other member it says whom to ask.
+  Reconnect and let the next run happen → the red glyph is gone without a
+  reload and the row shows the sync arrows again
+  (`documents.sourceType.oneDriveSynced` on hover). A run failing for another
+  reason (vendor unreachable) shows a red warning sign tipped **Sync failed**
+  (`documents.syncHealth.badge.failed`), whose dialog carries the error text
+  and says Tale retries about every 15 minutes.
 - [ ] `KNOW-F17` · **Record dialogs share one shape** — in a window at least
   768px wide, for each of Products, Contacts (a manually-created row), Websites
   and Knowledge entries: click a row and close the details, then open the same
@@ -294,9 +296,14 @@ records and delete them after.
   a one-time import. Nothing wraps or runs into **RAG status**. Hovering a
   cell names it in words (`documents.sourceType.oneDriveSynced`,
   `documents.sourceType.oneDriveNotSynced`, `documents.sourceType.uploaded`),
-  and a screen reader announces the same words as an image. A failed sync
-  still shows its badge (KNOW-F16). Repeat in the dark theme → the marks and
-  glyphs stay visible.
+  and a screen reader announces the same words as an image. Uploads, agent
+  files, knowledge entries and API imports carry their own glyph
+  (`documents.sourceType.agent`, `documents.sourceType.knowledgeEntry`,
+  `documents.sourceType.api`); a failed sync is a red glyph that Tab reaches
+  (KNOW-F16). Open a Google Drive file's preview → the sidebar's **Source**
+  (`documents.preview.sidebar.source`) shows the same mark and words, never
+  `google_drive`. Repeat in the dark theme → the marks and glyphs stay
+  visible.
 
 ## Boundary & error tests
 

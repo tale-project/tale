@@ -28,7 +28,9 @@ import { formatBytes } from '@/lib/utils/format/number';
 
 import type { Document } from '../hooks/queries';
 import { useDocument } from '../hooks/queries';
+import { useDocumentSource } from '../hooks/use-document-source';
 import { DocumentPreview } from './document-preview';
+import { DocumentSourceMark } from './document-source-icon';
 import { PreviewPaneSkeleton } from './preview-pane';
 import { RagStatusBadge } from './rag-status-badge';
 
@@ -94,14 +96,9 @@ function DetailsSidebar({
       .filter(Boolean);
   }, [doc?.teamIds, teams]);
 
-  const sourceLabel = useMemo(() => {
-    const labels: Record<string, string> = {
-      upload: t('preview.sidebar.sourceUpload'),
-      onedrive: t('preview.sidebar.sourceOnedrive'),
-      sharepoint: t('preview.sidebar.sourceSharepoint'),
-    };
-    return labels[doc?.sourceProvider ?? 'upload'] ?? doc?.sourceProvider;
-  }, [doc?.sourceProvider, t]);
+  // The same map the Source column reads, so the two never name one
+  // provenance differently — or print its internal slug.
+  const source = useDocumentSource(doc?.sourceProvider, doc?.sourceMode);
 
   const modifiedDate = useMemo(() => {
     if (!doc?.lastModified) return undefined;
@@ -126,7 +123,21 @@ function DetailsSidebar({
         <SidebarSection>
           <Stack gap={3}>
             <SidebarRow label={t('preview.sidebar.source')}>
-              <SkeletonBox>{sourceLabel}</SkeletonBox>
+              <SkeletonBox>
+                {source ? (
+                  <HStack gap={2} className="items-center">
+                    <span
+                      aria-hidden
+                      className="inline-flex items-center gap-1"
+                    >
+                      <DocumentSourceMark source={source} />
+                    </span>
+                    <span>{source.label}</span>
+                  </HStack>
+                ) : (
+                  '—'
+                )}
+              </SkeletonBox>
             </SidebarRow>
           </Stack>
         </SidebarSection>

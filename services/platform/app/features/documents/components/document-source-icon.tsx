@@ -1,103 +1,113 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
-import { GoogleDriveIcon } from '@tale/ui/icons/google-drive-icon';
-import { OneDriveIcon } from '@tale/ui/icons/onedrive-icon';
-import { SharePointIcon } from '@tale/ui/icons/sharepoint-icon';
 import { Tooltip } from '@tale/ui/tooltip';
-import { Plug, RefreshCw, RefreshCwOff, Upload } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { RefreshCw, RefreshCwOff, TriangleAlert, Unplug } from 'lucide-react';
 
-import { useT } from '@/lib/i18n/client';
 import type { DocumentItem } from '@/types/documents';
 
-type DocumentsT = ReturnType<typeof useT>['t'];
+import type { DocumentSource } from '../hooks/use-document-source';
+import { useDocumentSource } from '../hooks/use-document-source';
+import { SyncHealthButton } from './sync-health-button';
 
-interface DocumentSource {
-  /** The whole fact in words — the tooltip and the accessible name. */
-  label: string;
-  Icon: ComponentType<{ className?: string }>;
-  /** A vendor mark keeps its own colours; a generic glyph is muted. */
-  brand: boolean;
-  /** Absent where the source has no sync to speak of (an upload, WebDAV). */
-  synced?: boolean;
+/** What the small glyph beside the vendor mark says about the sync. */
+type SyncState = 'synced' | 'notSynced' | 'failed' | 'needsReauth';
+
+const SYNC_GLYPH: Record<
+  SyncState,
+  { Icon: typeof RefreshCw; className: string }
+> = {
+  synced: { Icon: RefreshCw, className: 'text-muted-foreground' },
+  notSynced: { Icon: RefreshCwOff, className: 'text-muted-foreground' },
+  failed: { Icon: TriangleAlert, className: 'text-destructive' },
+  // A dead grant is a pulled plug: only reconnecting the account resumes it.
+  needsReauth: { Icon: Unplug, className: 'text-destructive' },
+};
+
+/** What the source itself says, before a broken sync overrides it. */
+function sourceState(source: DocumentSource): SyncState | undefined {
+  if (source.synced === undefined) return undefined;
+  return source.synced ? 'synced' : 'notSynced';
 }
 
-function getDocumentSource(
-  sourceProvider: DocumentItem['sourceProvider'],
-  sourceMode: DocumentItem['sourceMode'],
-  t: DocumentsT,
-): DocumentSource | null {
-  const synced = sourceMode === 'auto';
-  switch (sourceProvider) {
-    case 'onedrive':
-      return {
-        label: synced
-          ? t('sourceType.oneDriveSynced')
-          : t('sourceType.oneDriveNotSynced'),
-        Icon: OneDriveIcon,
-        brand: true,
-        synced,
-      };
-    case 'sharepoint':
-      return {
-        label: synced
-          ? t('sourceType.sharePointSynced')
-          : t('sourceType.sharePointNotSynced'),
-        Icon: SharePointIcon,
-        brand: true,
-        synced,
-      };
-    case 'google_drive':
-      return {
-        label: synced
-          ? t('sourceType.googleDriveSynced')
-          : t('sourceType.googleDriveNotSynced'),
-        Icon: GoogleDriveIcon,
-        brand: true,
-        synced,
-      };
-    case 'upload':
-      return { label: t('sourceType.uploaded'), Icon: Upload, brand: false };
-    // No bundled mark for either; the plug is the connectors catalog's own
-    // fallback.
-    case 'webdav':
-      return { label: t('sourceType.webDav'), Icon: Plug, brand: false };
-    case 'confluence':
-      return { label: t('sourceType.confluence'), Icon: Plug, brand: false };
-    default:
-      return null;
-  }
+/**
+ * The vendor mark and its sync glyph, without a name of their own — the
+ * caller supplies the accessible name (the Source cell) or the words beside
+ * it (the preview sidebar).
+ */
+export function DocumentSourceMark({
+  source,
+  /** Overrides the source's own state — a broken sync, in the Source cell. */
+  state,
+}: {
+  source: DocumentSource;
+  state?: SyncState;
+}) {
+  const { Icon } = source;
+  const resolved = state ?? sourceState(source);
+  const glyph = resolved === undefined ? undefined : SYNC_GLYPH[resolved];
+  return (
+    <>
+      <Icon
+        className={cn(
+          'size-5 shrink-0',
+          !source.brand && 'text-muted-foreground',
+        )}
+      />
+      {glyph && (
+        <glyph.Icon
+          aria-hidden
+          className={cn('size-3.5 shrink-0', glyph.className)}
+        />
+      )}
+    </>
+  );
 }
 
 interface DocumentSourceIconProps {
   sourceProvider: DocumentItem['sourceProvider'];
   sourceMode: DocumentItem['sourceMode'];
+  /** Set on a synced row; a failed sync replaces the sync glyph. */
+  syncHealth?: DocumentItem['syncHealth'];
+  /** The synced item's name, for the failure dialog's sentences. */
+  itemName?: string;
 }
 
 /**
  * Where a document came from, as the Source cell shows it: the vendor's mark,
- * trailed by a smaller glyph saying whether Tale keeps it in sync or imported
- * it once. Icons rather than words, because a label such as
- * "OneDrive (synchronisiert)" cannot fit the column in every locale; the
- * words stay on hover and as the accessible name. Renders nothing for a
- * provenance with no mark (an agent's file, an API import).
+ * trailed by a smaller glyph saying whether Tale keeps it in sync, imported it
+ * once, or cannot reach the source any more. Icons rather than words, because
+ * a label such as "OneDrive (synchronisiert)" cannot fit the column in every
+ * locale; the words stay on hover and as the accessible name. A broken sync is
+ * a button that opens the reason and the way back. Renders nothing for a row
+ * with no provenance at all.
  */
 export function DocumentSourceIcon({
   sourceProvider,
   sourceMode,
+  syncHealth,
+  itemName,
 }: DocumentSourceIconProps) {
-  const { t } = useT('documents');
-  const source = getDocumentSource(sourceProvider, sourceMode, t);
+  const source = useDocumentSource(sourceProvider, sourceMode);
   if (!source) return null;
 
-  const { Icon } = source;
-  const SyncIcon =
-    source.synced === undefined
-      ? undefined
-      : source.synced
-        ? RefreshCw
-        : RefreshCwOff;
+  const failure: SyncState | undefined =
+    syncHealth?.status === 'failed'
+      ? syncHealth.needsReauth
+        ? 'needsReauth'
+        : 'failed'
+      : undefined;
+  const mark = <DocumentSourceMark source={source} state={failure} />;
+
+  // A sync that stopped working outranks the source label: the mark says so
+  // in the failure colour and opens the reason + the way back.
+  if (syncHealth?.status === 'failed') {
+    return (
+      <SyncHealthButton health={syncHealth} itemName={itemName ?? ''}>
+        {mark}
+      </SyncHealthButton>
+    );
+  }
 
   return (
     <Tooltip content={source.label}>
@@ -106,18 +116,7 @@ export function DocumentSourceIcon({
         aria-label={source.label}
         className="inline-flex items-center gap-1 align-middle"
       >
-        <Icon
-          className={cn(
-            'size-5 shrink-0',
-            !source.brand && 'text-muted-foreground',
-          )}
-        />
-        {SyncIcon && (
-          <SyncIcon
-            aria-hidden
-            className="text-muted-foreground size-3.5 shrink-0"
-          />
-        )}
+        {mark}
       </span>
     </Tooltip>
   );

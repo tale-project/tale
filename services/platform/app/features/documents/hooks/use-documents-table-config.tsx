@@ -21,7 +21,6 @@ import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { DocumentSourceIcon } from '../components/document-source-icon';
 import { RagStatusBadge } from '../components/rag-status-badge';
-import { SyncHealthBadge } from '../components/sync-health-badge';
 
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
@@ -137,25 +136,14 @@ export function useDocumentsTableConfig({
           headerLabel: tTables('headers.source'),
           skeleton: { type: 'icon', icon: <span className="block size-5" /> },
         },
-        cell: ({ row }) => {
-          // A sync that stopped working outranks its source label: the badge
-          // says so and opens the reason + the way back.
-          const health = row.original.syncHealth;
-          if (health?.status === 'failed') {
-            return (
-              <SyncHealthBadge
-                health={health}
-                itemName={row.original.name ?? ''}
-              />
-            );
-          }
-          return (
-            <DocumentSourceIcon
-              sourceProvider={row.original.sourceProvider}
-              sourceMode={row.original.sourceMode}
-            />
-          );
-        },
+        cell: ({ row }) => (
+          <DocumentSourceIcon
+            sourceProvider={row.original.sourceProvider}
+            sourceMode={row.original.sourceMode}
+            syncHealth={row.original.syncHealth}
+            itemName={row.original.name ?? ''}
+          />
+        ),
       },
       {
         id: 'ragStatus',

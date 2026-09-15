@@ -2146,9 +2146,6 @@ documents:
       teams: Équipes
       uploadedBy: Téléversé par
       modified: Modifié
-      sourceUpload: Téléversement
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Pages image
   upload:
     cancelUpload: Annuler le téléversement
@@ -2384,6 +2381,9 @@ documents:
     sharePointSynced: SharePoint (synchronisé)
     sharePointNotSynced: SharePoint (non synchronisé)
     uploaded: Téléversement
+    agent: Agent
+    knowledgeEntry: Entrée de connaissances
+    api: API
   syncHealth:
     badge:
       failed: Sync en échec

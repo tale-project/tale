@@ -2136,9 +2136,6 @@ documents:
       teams: Teams
       uploadedBy: Hochgeladen von
       modified: Geändert
-      sourceUpload: Upload
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Bildseiten
   upload:
     cancelUpload: Upload abbrechen
@@ -2360,6 +2357,9 @@ documents:
     sharePointSynced: SharePoint (synchronisiert)
     sharePointNotSynced: SharePoint (nicht synchronisiert)
     uploaded: Upload
+    agent: Agent
+    knowledgeEntry: Wissenseintrag
+    api: API
   syncHealth:
     badge:
       failed: Sync-Fehler
