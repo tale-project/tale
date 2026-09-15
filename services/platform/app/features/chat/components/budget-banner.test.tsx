@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
@@ -29,6 +30,24 @@ const budgetStatusMock = vi.hoisted(() => ({
 
 vi.mock('../../settings/governance/hooks/queries', () => ({
   useMyBudgetStatus: () => ({ data: budgetStatusMock.value }),
+}));
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    params,
+    className,
+  }: {
+    children: ReactNode;
+    to: string;
+    params: { id: string };
+    className?: string;
+  }) => (
+    <a href={to.replace('$id', params.id)} className={className}>
+      {children}
+    </a>
+  ),
 }));
 
 import { BudgetBanner } from './budget-banner';
@@ -114,6 +133,19 @@ describe('BudgetBanner', () => {
     expect(
       screen.getByRole('button', { name: 'Request usage credits' }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['approached', WARNING_STATUS],
+    ['exceeded', EXCEEDED_STATUS],
+  ])('links to the usage page while a budget is %s', (_state, status) => {
+    budgetStatusMock.value = status;
+    render(<BudgetBanner organizationId="org-1" />);
+
+    expect(screen.getByRole('link', { name: 'View usage' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/settings/usage',
+    );
   });
 
   it('hides after dismiss', async () => {

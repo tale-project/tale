@@ -29,6 +29,8 @@ Pour chaque dimension, la limite personnelle vient de la règle la plus précise
 
 Si une requête est refusée de façon inattendue, vérifie tous les plafonds applicables et leurs périodes. Augmenter une limite personnelle ne retire pas un plafond d’organisation, d’équipe ou de clé API.
 
+Les membres consultent leur propre situation sous [Paramètres > Utilisation](/fr/platform/member/preferences#usage-limits). Chaque plafond personnel, d’équipe ou d’organisation qui les concerne y figure avec l’utilisation actuelle et la prochaine réinitialisation, sans que les règles elles-mêmes soient affichées.
+
 ## Contrôler les imports
 
 La politique d’import définit les extensions autorisées et bloquées, les types MIME autorisés, la taille maximale par fichier en Mo et le volume total par personne en Go. Choisis les types nécessaires et teste un fichier autorisé et un fichier refusé après l’enregistrement.

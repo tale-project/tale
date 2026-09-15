@@ -1252,7 +1252,9 @@ async function ensureApiKeys(page: Page, orgId: string): Promise<void> {
     .getByRole('button', { name: t('settings.apiKeys.createKey') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await settleList(page);
+  // A fresh org has no keys: the table gives way to its empty state, which
+  // carries no row-count footer.
+  await settleListOrEmpty(page, page.getByText(t('emptyStates.apiKeys.title')));
   for (const name of DEMO_API_KEYS) {
     if (await isPresent(page.getByRole('row').filter({ hasText: name })))
       continue;

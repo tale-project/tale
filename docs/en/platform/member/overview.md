@@ -29,7 +29,7 @@ Learn which files and conversations belong to a project and which chats remain p
 
 <Card title="Manage your account" icon="user" href="/platform/member/preferences">
 
-Edit your profile and understand saved preferences and chat management.
+Edit your profile, check your usage limits, and understand saved preferences and chat management.
 
 </Card>
 

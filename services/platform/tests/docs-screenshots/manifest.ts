@@ -933,6 +933,28 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('personalization.page.memories.empty')).first(),
   },
   {
+    // Settings > Usage — the reader's standing under every budget cap that
+    // binds them (the demo org's default and organization rules) and their
+    // storage quota. The two reads settle independently: the shared section
+    // paints only once the budget read answers, then gate on the storage
+    // meter, which waits on the upload-usage read.
+    name: 'settings-usage',
+    section: 'platform',
+    // Taller than the default so the Storage section clears the fold under
+    // the owner's six budget rows.
+    viewport: { width: 1440, height: 1024 },
+    route: '/dashboard/:orgId/settings/usage',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', { name: t('settings.usage.shared.title') }),
+      ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    },
+    readyWhen: (page) =>
+      page.getByRole('progressbar', {
+        name: new RegExp(`^${t('settings.usage.storage.label')}: `),
+      }),
+  },
+  {
     // Settings > Governance > Content & Models — the default-model rules,
     // model access, and the vision model every chat and agent passes through
     // at request time. (The org's custom instructions live on Guardrails.)

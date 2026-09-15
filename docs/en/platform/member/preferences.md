@@ -47,6 +47,22 @@ The current chat assistant does not use these personal instructions or memory to
 
 If memory entries already exist, review pending suggestions and keep only those you want stored. Delete a saved entry when it should no longer be retained. Do not treat the presence of an entry as evidence that a chat has read it.
 
+## Check your usage limits {#usage-limits}
+
+Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you.
+
+<Frame caption="Settings > Usage lists each limit that applies to you with its usage and next reset.">
+
+![The Usage page lists personal monthly token, cost, and request limits and the organization's shared monthly limits, each with a usage bar and its reset date, above the storage used against the per-user limit. An administrator also sees a Manage limits button.](/images/platform/settings-usage.webp)
+
+</Frame>
+
+- **Your limits** count your own chats, voice output, and agent runs. When one is reached, you can't start more of that work until it resets.
+- **Shared limits** count the usage of everyone they cover, such as a team you belong to or the entire organization, so they can be reached before your own limits.
+- **Storage** compares the files you have uploaded with your storage limit. New document uploads are refused once it is reached.
+
+Each usage limit shows the amount used, the limit, and when it resets in your local time. Periods follow UTC: daily limits reset at midnight, weekly limits on Monday, and monthly limits on the first of the month. If an administrator set a warning threshold, the bar turns amber once your usage reaches it. When a banner above the composer warns about a limit, **View usage** opens this page. Administrators also see **Manage limits**, which opens **Governance > Policies & Limits**.
+
 ## Archive old chats or sign out
 
 **Settings > Account > Your chats** offers bulk archive and delete actions. Read the confirmation carefully before using a bulk action; it applies across your chat history. Use an individual chat’s menu when you only want to organize that one conversation.

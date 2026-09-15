@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPeriodKey, buildPeriodKeyFromTimestamp } from './helpers';
+import {
+  buildPeriodEndFromTimestamp,
+  buildPeriodKey,
+  buildPeriodKeyFromTimestamp,
+} from './helpers';
 
 describe('buildPeriodKeyFromTimestamp', () => {
   describe('daily', () => {
@@ -82,6 +86,66 @@ describe('buildPeriodKeyFromTimestamp', () => {
       const ts = Date.UTC(2024, 11, 31, 23, 59, 59);
       expect(buildPeriodKeyFromTimestamp('monthly', ts)).toBe('2024-12');
     });
+  });
+});
+
+describe('buildPeriodEndFromTimestamp', () => {
+  it('ends a day at the next UTC midnight', () => {
+    const ts = Date.UTC(2026, 8, 15, 13, 45, 0);
+    expect(buildPeriodEndFromTimestamp('daily', ts)).toBe(
+      Date.UTC(2026, 8, 16),
+    );
+  });
+
+  it('starts the next day at the boundary itself', () => {
+    const ts = Date.UTC(2026, 8, 16, 0, 0, 0);
+    expect(buildPeriodEndFromTimestamp('daily', ts)).toBe(
+      Date.UTC(2026, 8, 17),
+    );
+  });
+
+  it('rolls a day over a month and a year end', () => {
+    expect(
+      buildPeriodEndFromTimestamp('daily', Date.UTC(2024, 1, 29, 23, 59, 59)),
+    ).toBe(Date.UTC(2024, 2, 1));
+    expect(
+      buildPeriodEndFromTimestamp('daily', Date.UTC(2024, 11, 31, 12)),
+    ).toBe(Date.UTC(2025, 0, 1));
+  });
+
+  it('ends an ISO week at the next Monday midnight', () => {
+    // Tuesday 2026-09-15 → Monday 2026-09-21.
+    expect(
+      buildPeriodEndFromTimestamp('weekly', Date.UTC(2026, 8, 15, 9)),
+    ).toBe(Date.UTC(2026, 8, 21));
+    // Sunday is the week's last day, not the first of the next.
+    expect(
+      buildPeriodEndFromTimestamp('weekly', Date.UTC(2026, 8, 20, 23, 59)),
+    ).toBe(Date.UTC(2026, 8, 21));
+    // Monday midnight already belongs to the new week.
+    expect(buildPeriodEndFromTimestamp('weekly', Date.UTC(2026, 8, 21))).toBe(
+      Date.UTC(2026, 8, 28),
+    );
+  });
+
+  it('agrees with the week key across the ISO year boundary', () => {
+    // 2024-12-30 is Monday of 2025-W01; its week ends 2025-01-06.
+    const ts = Date.UTC(2024, 11, 31, 10);
+    const end = buildPeriodEndFromTimestamp('weekly', ts);
+    expect(end).toBe(Date.UTC(2025, 0, 6));
+    expect(buildPeriodKeyFromTimestamp('weekly', end - 1)).toBe(
+      buildPeriodKeyFromTimestamp('weekly', ts),
+    );
+    expect(buildPeriodKeyFromTimestamp('weekly', end)).toBe('2025-W02');
+  });
+
+  it('ends a month on the first of the next, including December', () => {
+    expect(
+      buildPeriodEndFromTimestamp('monthly', Date.UTC(2026, 8, 15, 13)),
+    ).toBe(Date.UTC(2026, 9, 1));
+    expect(
+      buildPeriodEndFromTimestamp('monthly', Date.UTC(2026, 11, 31, 23, 59)),
+    ).toBe(Date.UTC(2027, 0, 1));
   });
 });
 

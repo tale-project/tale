@@ -47,6 +47,22 @@ Der aktuelle Chat-Assistent verwendet diese persönlichen Anweisungen und Erinne
 
 Falls bereits Erinnerungen vorhanden sind, prüfe ausstehende Vorschläge und behalte nur die gewünschten Einträge. Lösche gespeicherte Einträge, die nicht länger aufbewahrt werden sollen. Ein vorhandener Eintrag belegt nicht, dass ein Chat ihn gelesen hat.
 
+## Nutzungslimits prüfen {#usage-limits}
+
+Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an.
+
+<Frame caption="Unter Einstellungen > Nutzung steht jedes Limit, das für dich gilt, mit Verbrauch und nächstem Zurücksetzen.">
+
+![Die Seite Nutzung zeigt persönliche Monatslimits für Token, Kosten und Anfragen und die geteilten Monatslimits der Organisation, jeweils mit Verbrauchsbalken und Datum des Zurücksetzens. Darunter steht der belegte Speicherplatz im Vergleich zum Limit pro Person. Admins sehen zusätzlich die Schaltfläche Limits verwalten.](/images/platform/settings-usage.webp)
+
+</Frame>
+
+- **Deine Limits** zählen deine eigenen Chats, Sprachausgaben und Agenten-Läufe. Ist eines erreicht, kannst du bis zum Zurücksetzen nichts davon neu starten.
+- **Geteilte Limits** zählen die Nutzung aller, für die sie gelten, etwa eines Teams, zu dem du gehörst, oder der gesamten Organisation. Sie können deshalb vor deinen eigenen Limits erreicht sein.
+- **Speicherplatz** vergleicht die Dateien, die du hochgeladen hast, mit deinem Speicherlimit. Ist es erreicht, werden neue Dokument-Uploads abgelehnt.
+
+Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurücksetzens in deiner Ortszeit. Die Zeiträume richten sich nach UTC: Tageslimits beginnen um Mitternacht neu, Wochenlimits am Montag und Monatslimits am Ersten des Monats. Hat ein Admin eine Warnschwelle festgelegt, färbt sich der Balken orange, sobald deine Nutzung sie erreicht. Warnt ein Banner über dem Eingabefeld vor einem Limit, öffnet **Nutzung anzeigen** diese Seite. Admins sehen zusätzlich **Limits verwalten**, das **Richtlinien > Richtlinien & Limits** öffnet.
+
 ## Alte Chats archivieren oder abmelden
 
 Unter **Einstellungen > Konto** kannst du im Bereich deiner Chats mehrere Gespräche gemeinsam archivieren oder löschen. Lies die Bestätigung vor einer Sammelaktion sorgfältig: Sie betrifft deine Chat-Historie. Verwende das Menü eines einzelnen Chats, wenn du nur dieses Gespräch ordnen möchtest.

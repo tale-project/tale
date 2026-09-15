@@ -29,6 +29,8 @@ Personal limits resolve each dimension from the most specific rule that defines 
 
 If a request is refused unexpectedly, check all applicable caps and their periods. Increasing one personal limit does not remove an organization, shared-team, or API-key ceiling.
 
+Members can check their own standing under [Settings > Usage](/platform/member/preferences#usage-limits). It lists each personal, team, and organization cap that applies to them with its current usage and next reset, without showing the rules themselves.
+
 ## Control uploads
 
 **Upload policy** sets allowed and blocked extensions, allowed MIME types, maximum file size in MB, and total volume per user in GB. Use the types your workflows need and test an allowed file and a rejected file after saving.

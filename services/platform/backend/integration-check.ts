@@ -1209,6 +1209,100 @@ async function checkIdentityDomains(
     `policy → ${orgWarnPolicy.status}, status=${orgWarning.success ? JSON.stringify(orgWarning.data.status) : 'UNPARSEABLE'} (want exceeded=false + one org COST_WARNING 600/1000)`,
   );
 
+  // The usage page's read answers at ANY usage level, where the status read
+  // stays null below a threshold: a personal monthly cost cap and an org
+  // token cap both come back with the ledger usage the gate measures (the
+  // caller's own spend, the whole org's tokens) and the UTC month boundary.
+  const { buildPeriodEndFromTimestamp } =
+    await import('./core/governance/helpers.ts');
+  const budgetUsageSchema = z.object({
+    limits: z.array(
+      z.object({
+        scope: z.enum(['user', 'team', 'org']),
+        period: z.string(),
+        periodKey: z.string(),
+        resetsAt: z.number(),
+        warningThresholdPercent: z.number().nullable(),
+        tokens: z.object({ used: z.number(), limit: z.number() }).nullable(),
+        costCents: z.object({ used: z.number(), limit: z.number() }).nullable(),
+        requests: z.object({ used: z.number(), limit: z.number() }).nullable(),
+      }),
+    ),
+  });
+  const usagePagePolicy = await post(
+    `/api/app/governance/policies/budgets?orgId=${orgId}`,
+    {
+      config: {
+        enabled: true,
+        rules: [
+          {
+            scope: 'default',
+            period: 'monthly',
+            maxCostCents: 5000,
+            warningThresholdPercent: 80,
+          },
+          { scope: 'org', period: 'monthly', maxTokens: 1_000_000 },
+        ],
+      },
+    },
+  );
+  const usageBefore = budgetUsageSchema.safeParse(
+    await get(`/api/app/governance/my/budget-usage?orgId=${orgId}`),
+  );
+  const usagePeriodKey = buildPeriodKey('monthly');
+  await sql`
+    INSERT INTO app.usage_ledger (
+      org_id, user_id, period_key, granularity, agent_slug, input_tokens,
+      output_tokens, total_tokens, cost_estimate_cents, request_count,
+      connector_call_count, updated_at_ms
+    ) VALUES
+      (${orgId}, ${userId}, ${usagePeriodKey}, 'monthly', 'itest-usage-page',
+        0, 0, 0, 1240, 1, 0, ${Date.now()}),
+      (${orgId}, 'itest-usage-page-peer', ${usagePeriodKey}, 'monthly',
+        'itest-usage-page', 150000, 150000, 300000, 0, 1, 0, ${Date.now()})
+  `;
+  const usageAfter = budgetUsageSchema.safeParse(
+    await get(`/api/app/governance/my/budget-usage?orgId=${orgId}`),
+  );
+  await sql`
+    DELETE FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND agent_slug = 'itest-usage-page'
+  `;
+  await post(`/api/app/governance/policies/budgets?orgId=${orgId}`, {
+    config:
+      priorBudgets.success && priorBudgets.data.policy !== null
+        ? priorBudgets.data.policy.config
+        : { enabled: false, rules: [] },
+  });
+  const bucketOf = (
+    read: typeof usageAfter,
+    scope: 'user' | 'org',
+  ): z.infer<typeof budgetUsageSchema>['limits'][number] | undefined =>
+    read.success ? read.data.limits.find((l) => l.scope === scope) : undefined;
+  const personalBefore = bucketOf(usageBefore, 'user');
+  const personalAfter = bucketOf(usageAfter, 'user');
+  const orgBefore = bucketOf(usageBefore, 'org');
+  const orgAfter = bucketOf(usageAfter, 'org');
+  record(
+    'governance: the usage page reads every binding cap with its usage and reset',
+    usagePagePolicy.ok &&
+      usageAfter.success &&
+      usageAfter.data.limits.length === 2 &&
+      personalAfter?.period === 'monthly' &&
+      personalAfter.periodKey === usagePeriodKey &&
+      personalAfter.resetsAt ===
+        buildPeriodEndFromTimestamp('monthly', Date.now()) &&
+      personalAfter.warningThresholdPercent === 80 &&
+      personalAfter.tokens === null &&
+      personalAfter.costCents?.limit === 5000 &&
+      personalAfter.costCents.used ===
+        (personalBefore?.costCents?.used ?? Number.NaN) + 1240 &&
+      orgAfter?.costCents === null &&
+      orgAfter.tokens?.limit === 1_000_000 &&
+      orgAfter.tokens.used === (orgBefore?.tokens?.used ?? Number.NaN) + 300000,
+    `policy → ${usagePagePolicy.status}, before=${usageBefore.success ? JSON.stringify(usageBefore.data.limits) : 'UNPARSEABLE'}, after=${usageAfter.success ? JSON.stringify(usageAfter.data.limits) : 'UNPARSEABLE'} (want personal cost +1240 of 5000 at 80%, org tokens +300000 of 1000000)`,
+  );
+
   const budget = z
     .object({ status: z.unknown().nullable() })
     .safeParse(

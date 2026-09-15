@@ -8,11 +8,13 @@
  * says the limit is reached and when it resets, it can no longer be
  * dismissed (a hard block is never hidden — it also shows regardless of the
  * team filter), and a "Request usage credits" affordance notifies the org's
- * operators through the notification bell.
+ * operators through the notification bell. Either state links to the
+ * member's usage page, where every cap that binds them reads in full.
  */
 
 import { cn } from '@tale/ui/cn';
 import { toast } from '@tale/ui/use-toast';
+import { Link } from '@tanstack/react-router';
 import { AlertTriangle, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -136,6 +138,13 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
               })
               .join(' · ')}
       </span>
+      <Link
+        to="/dashboard/$id/settings/usage"
+        params={{ id: organizationId }}
+        className="text-foreground shrink-0 text-sm underline underline-offset-2"
+      >
+        {t('budgetViewUsage')}
+      </Link>
       {exceeded ? (
         <button
           type="button"

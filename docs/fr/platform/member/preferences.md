@@ -47,6 +47,22 @@ L’assistant de chat actuel n’utilise ni ces instructions personnelles ni les
 
 Si des souvenirs existent déjà, examine les suggestions en attente et ne garde que les entrées souhaitées. Supprime un souvenir lorsqu’il ne doit plus être conservé. Sa présence dans la liste ne prouve pas qu’un chat l’a consulté.
 
+## Consulter tes limites d’utilisation {#usage-limits}
+
+Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique.
+
+<Frame caption="Paramètres > Utilisation affiche chaque limite qui te concerne, avec son utilisation et sa prochaine réinitialisation.">
+
+![La page Utilisation affiche les limites mensuelles personnelles de tokens, de coût et de requêtes, puis les limites mensuelles partagées de l’organisation, chacune avec une barre d’utilisation et sa date de réinitialisation. En dessous figure le stockage utilisé par rapport à la limite par personne. Un admin voit aussi le bouton Gérer les limites.](/images/platform/settings-usage.webp)
+
+</Frame>
+
+- **Tes limites** comptent tes propres chats, sorties vocales et exécutions d’agents. Quand l’une d’elles est atteinte, tu ne peux plus lancer ce type d’activité avant sa réinitialisation.
+- **Limites partagées** comptent l’utilisation de toutes les personnes qu’elles couvrent, par exemple une équipe dont tu fais partie ou l’organisation entière. Elles peuvent donc être atteintes avant tes propres limites.
+- **Stockage** compare les fichiers que tu as téléversés avec ta limite de stockage. Une fois celle-ci atteinte, les nouveaux téléversements de documents sont refusés.
+
+Chaque limite d’utilisation indique la quantité utilisée, la limite et le moment de sa réinitialisation, dans ton fuseau horaire. Les périodes suivent l’heure UTC : les limites quotidiennes repartent à minuit, les limites hebdomadaires le lundi et les limites mensuelles le premier du mois. Si un admin a défini un seuil d’alerte, la barre passe à l’orange dès que ton utilisation l’atteint. Quand un bandeau au-dessus de la zone de saisie signale une limite, **Voir l'utilisation** ouvre cette page. Les admins voient aussi **Gérer les limites**, qui ouvre **Gouvernance > Politiques et limites**.
+
 ## Archiver des chats ou se déconnecter
 
 Sous **Paramètres > Compte**, la section consacrée à tes chats propose des actions groupées d’archivage et de suppression. Lis la confirmation attentivement : une action groupée porte sur ton historique de chats. Utilise le menu d’une conversation si tu souhaites seulement ranger celle-ci.

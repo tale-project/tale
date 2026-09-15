@@ -29,7 +29,7 @@ Erfahre, welche Dateien und Gespräche zu einem Projekt gehören und welche Chat
 
 <Card title="Dein Konto verwalten" icon="user" href="/de/platform/member/preferences">
 
-Bearbeite dein Profil und verstehe gespeicherte Einstellungen und Chat-Verwaltung.
+Bearbeite dein Profil, prüfe deine Nutzungslimits und verstehe gespeicherte Einstellungen und Chat-Verwaltung.
 
 </Card>
 

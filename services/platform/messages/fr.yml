@@ -1497,6 +1497,7 @@ chat:
   budgetWarningTypeTokens: token
   budgetWarningTypeCost: coût
   budgetWarningTypeRequests: requête
+  budgetViewUsage: Voir l'utilisation
 common:
   or: ou
   select:
@@ -4170,6 +4171,9 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choisis les événements qui t'envoient une notification.
+  usage:
+    title: Utilisation
+    description: Ce que tu as utilisé des limites qui s'appliquent à toi.
   organization:
     title: Organisation
     description: Gère les paramètres de ton organisation.
@@ -4300,6 +4304,7 @@ navigation:
   metrics: Métriques
   personalization: Personnalisation
   account: Compte
+  usage: Utilisation
   agents: Agents
   mcp: MCP
   webdav: WebDAV
@@ -4908,6 +4913,8 @@ settings:
       description: Comment Tale s'adapte à toi — mémoire, instructions et voix.
     notifications:
       description: Choisis les événements qui t'envoient une notification.
+    usage:
+      description: Ce que tu as utilisé des limites qui s'appliquent à toi.
     organization:
       description: Nom de l'espace de travail et identifiants.
     members:
@@ -4992,6 +4999,45 @@ settings:
       description: Archive ou supprime définitivement tous tes chats en une seule fois.
       archiveAll: Archiver tous les chats
       deleteAll: Supprimer tous les chats
+  usage:
+    limits:
+      title: Limites d'utilisation
+      description: Ton organisation peut plafonner les tokens, le coût et les
+        requêtes de ton utilisation de l'IA.
+    personal:
+      title: Tes limites
+      description: Tes chats, sorties vocales et exécutions d'agents comptent dans
+        ces limites. Une fois une limite atteinte, tu ne peux plus lancer ce type
+        d'activité avant sa réinitialisation.
+    shared:
+      title: Limites partagées
+      description: "Une limite partagée compte l'utilisation de toutes les
+        personnes qu'elle couvre : elle peut donc être atteinte avant tes
+        propres limites."
+    empty:
+      title: Aucune limite d'utilisation ne s'applique à toi
+      description: Ton organisation n'a défini aucune limite de tokens, de coût ou
+        de requêtes qui te concerne.
+    loadFailed: Impossible de charger tes limites d'utilisation. Recharge la page
+      pour réessayer.
+    manageLimits: Gérer les limites
+    metric:
+      tokens: '{period, select, daily {Tokens par jour} weekly {Tokens par semaine} other {Tokens par mois}}'
+      costCents: '{period, select, daily {Coût par jour} weekly {Coût par semaine} other {Coût par mois}}'
+      requests: '{period, select, daily {Requêtes par jour} weekly {Requêtes par semaine} other {Requêtes par mois}}'
+    resets: Réinitialisation le {date}
+    teamScope: 'Équipe {team} · réinitialisation le {date}'
+    anyTeamScope: Une de tes équipes · réinitialisation le {date}
+    organizationScope: Organisation entière · réinitialisation le {date}
+    usedOfLimit: '{used} sur {limit}'
+    meterLabel: '{metric} : {used} sur {limit}'
+    reached: Limite atteinte
+    storage:
+      title: Stockage
+      description: Fichiers que tu as téléversés dans cette organisation. Une fois
+        la limite atteinte, les nouveaux téléversements de documents sont refusés.
+      label: Fichiers téléversés
+      unlimited: Aucune limite de stockage ne s'applique à toi.
   organization:
     title: Nom de l'organisation
     detailsTitle: Détails de l'organisation

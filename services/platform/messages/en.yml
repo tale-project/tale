@@ -1450,6 +1450,7 @@ chat:
   budgetWarningTypeTokens: token
   budgetWarningTypeCost: cost
   budgetWarningTypeRequests: request
+  budgetViewUsage: View usage
 common:
   or: or
   select:
@@ -3955,6 +3956,9 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choose which events send you a notification.
+  usage:
+    title: Usage
+    description: How much you have used of the limits that apply to you.
   organization:
     title: Organization
     description: Manage your organization settings.
@@ -4084,6 +4088,7 @@ navigation:
   metrics: Metrics
   personalization: Preferences
   account: Account
+  usage: Usage
   agents: Agents
   mcp: MCP
   webdav: WebDAV
@@ -4982,6 +4987,8 @@ settings:
       description: How Tale adapts to you — memory, instructions, and voice.
     notifications:
       description: Choose which events send you a notification.
+    usage:
+      description: How much you have used of the limits that apply to you.
     organization:
       description: Workspace name and identifiers.
     members:
@@ -5061,6 +5068,43 @@ settings:
       description: Archive or permanently delete all of your chat conversations at once.
       archiveAll: Archive all chats
       deleteAll: Delete all chats
+  usage:
+    limits:
+      title: Usage limits
+      description: Your organization can cap the tokens, cost, and requests of
+        your AI usage.
+    personal:
+      title: Your limits
+      description: Your chats, voice output, and agent runs count toward these
+        limits. When a limit is reached, you can't start more of that work
+        until it resets.
+    shared:
+      title: Shared limits
+      description: A shared limit counts the usage of everyone it covers, so it
+        can be reached before your own limits.
+    empty:
+      title: No usage limits apply to you
+      description: Your organization hasn't set a token, cost, or request limit
+        that covers you.
+    loadFailed: Couldn't load your usage limits. Reload the page to try again.
+    manageLimits: Manage limits
+    metric:
+      tokens: '{period, select, daily {Daily tokens} weekly {Weekly tokens} other {Monthly tokens}}'
+      costCents: '{period, select, daily {Daily cost} weekly {Weekly cost} other {Monthly cost}}'
+      requests: '{period, select, daily {Daily requests} weekly {Weekly requests} other {Monthly requests}}'
+    resets: Resets {date}
+    teamScope: '{team} team · resets {date}'
+    anyTeamScope: One of your teams · resets {date}
+    organizationScope: Entire organization · resets {date}
+    usedOfLimit: '{used} of {limit}'
+    meterLabel: '{metric}: {used} of {limit}'
+    reached: Limit reached
+    storage:
+      title: Storage
+      description: Files you have uploaded to this organization. When the limit
+        is reached, new document uploads are refused.
+      label: Uploaded files
+      unlimited: No storage limit applies to you.
   organization:
     title: Organization name
     detailsTitle: Organization details

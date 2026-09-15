@@ -598,6 +598,27 @@ export interface GovernanceContract {
           }>;
         };
   };
+  'governance/queries:getMyBudgetUsage': {
+    kind: 'query';
+    args: { organizationId: string };
+    /** Every budget cap that binds the reader, at any usage level (empty
+     * when none does), shortest period first. */
+    returns: Array<{
+      /** Whose usage counts toward the cap: the reader's own, the combined
+       * usage of a team they belong to, or the whole organization's. */
+      scope: 'user' | 'team' | 'org';
+      teamId: null | string;
+      teamName: null | string;
+      period: 'daily' | 'weekly' | 'monthly';
+      periodKey: string;
+      /** When the period rolls over (a UTC boundary) and usage restarts. */
+      resetsAt: number;
+      warningThresholdPercent: null | number;
+      tokens: null | { used: number; limit: number };
+      costCents: null | { used: number; limit: number };
+      requests: null | { used: number; limit: number };
+    }>;
+  };
   'governance/queries:getMyFeatureFlags': {
     kind: 'query';
     args: { organizationId: string };

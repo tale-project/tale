@@ -77,3 +77,31 @@ export function buildPeriodKeyFromTimestamp(
       return `${year}-${month}-${day}`;
   }
 }
+
+/**
+ * The instant (milliseconds since epoch) the period containing `timestamp`
+ * ends: the next UTC boundary — midnight, Monday midnight (ISO weeks), or the
+ * first of the month — where `buildPeriodKeyFromTimestamp` rolls to a new key
+ * and every cap measured over the ledger starts again from zero.
+ */
+export function buildPeriodEndFromTimestamp(
+  period: 'daily' | 'weekly' | 'monthly',
+  timestamp: number,
+): number {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+
+  switch (period) {
+    case 'weekly': {
+      const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+      return Date.UTC(year, month, day - daysSinceMonday + 7);
+    }
+    case 'monthly':
+      return Date.UTC(year, month + 1, 1);
+    case 'daily':
+    default:
+      return Date.UTC(year, month, day + 1);
+  }
+}

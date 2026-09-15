@@ -5,6 +5,7 @@ import {
   Bell,
   ChartColumn,
   Database,
+  Gauge,
   IdCard,
   KeyRound,
   Palette,
@@ -38,7 +39,8 @@ interface SectionConfig {
 
 /**
  * Shared section catalog for the mobile settings overviews. The personal
- * scope shows only `you`-group entries (account, personalization); the
+ * scope shows only `you`-group entries (account, personalization,
+ * notifications, usage); the
  * workspace scope shows the organization + advanced groups. Permission
  * gates filter each list against the current member's ability before render.
  */
@@ -63,6 +65,7 @@ export function useSettingsMenuGroups(
         icon: Bell,
         path: 'notifications',
       },
+      { key: 'usage', icon: Gauge, path: 'usage' },
     ];
 
     // Order mirrors the desktop rail: who we are (organization, teams,

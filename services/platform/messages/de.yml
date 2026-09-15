@@ -1490,6 +1490,7 @@ chat:
   budgetWarningTypeTokens: Token
   budgetWarningTypeCost: Kosten
   budgetWarningTypeRequests: Anfragen
+  budgetViewUsage: Nutzung anzeigen
 common:
   or: oder
   select:
@@ -4099,6 +4100,9 @@ metadata:
   notificationPreferences:
     title: Benachrichtigungen
     description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
+  usage:
+    title: Nutzung
+    description: Wie viel du von den Limits verbraucht hast, die für dich gelten.
   organization:
     title: Organisation
     description: deine Organisationseinstellungen verwalten.
@@ -4230,6 +4234,7 @@ navigation:
   metrics: Metriken
   personalization: Personalisierung
   account: Konto
+  usage: Nutzung
   agents: Agenten
   mcp: MCP
   webdav: WebDAV
@@ -4832,6 +4837,8 @@ settings:
       description: Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme.
     notifications:
       description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
+    usage:
+      description: Wie viel du von den Limits verbraucht hast, die für dich gelten.
     organization:
       description: Name des Arbeitsbereichs und Identifikatoren.
     members:
@@ -4913,6 +4920,44 @@ settings:
       description: Archiviere oder lösche alle deine Chat-Unterhaltungen auf einmal.
       archiveAll: Alle Chats archivieren
       deleteAll: Alle Chats löschen
+  usage:
+    limits:
+      title: Nutzungslimits
+      description: Deine Organisation kann Token, Kosten und Anfragen deiner
+        KI-Nutzung begrenzen.
+    personal:
+      title: Deine Limits
+      description: Deine Chats, Sprachausgaben und Agenten-Läufe zählen zu diesen
+        Limits. Sobald ein Limit erreicht ist, kannst du erst nach dem
+        Zurücksetzen wieder etwas davon starten.
+    shared:
+      title: Geteilte Limits
+      description: Ein geteiltes Limit zählt die Nutzung aller, für die es gilt.
+        Es kann deshalb vor deinen eigenen Limits erreicht sein.
+    empty:
+      title: Für dich gelten keine Nutzungslimits
+      description: Deine Organisation hat kein Token-, Kosten- oder Anfragelimit
+        festgelegt, das für dich gilt.
+    loadFailed: Deine Nutzungslimits konnten nicht geladen werden. Lade die Seite
+      neu, um es erneut zu versuchen.
+    manageLimits: Limits verwalten
+    metric:
+      tokens: '{period, select, daily {Token pro Tag} weekly {Token pro Woche} other {Token pro Monat}}'
+      costCents: '{period, select, daily {Kosten pro Tag} weekly {Kosten pro Woche} other {Kosten pro Monat}}'
+      requests: '{period, select, daily {Anfragen pro Tag} weekly {Anfragen pro Woche} other {Anfragen pro Monat}}'
+    resets: Wird am {date} zurückgesetzt
+    teamScope: 'Team {team} · wird am {date} zurückgesetzt'
+    anyTeamScope: Eines deiner Teams · wird am {date} zurückgesetzt
+    organizationScope: Gesamte Organisation · wird am {date} zurückgesetzt
+    usedOfLimit: '{used} von {limit}'
+    meterLabel: '{metric}: {used} von {limit}'
+    reached: Limit erreicht
+    storage:
+      title: Speicherplatz
+      description: Dateien, die du in diese Organisation hochgeladen hast. Ist das
+        Limit erreicht, werden neue Dokument-Uploads abgelehnt.
+      label: Hochgeladene Dateien
+      unlimited: Für dich gilt kein Speicherlimit.
   organization:
     title: Organisationsname
     detailsTitle: Organisationsdetails

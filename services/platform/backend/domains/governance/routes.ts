@@ -36,6 +36,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { checkTtsBudget } from '../tts/service.ts';
+import { readBudgetStanding } from './budget-gate.ts';
 import {
   CompetenceError,
   grantCompetence,
@@ -70,8 +71,8 @@ import { getOrgUsageMetricsPg } from './usage-metrics.ts';
 /**
  * /api/app/governance — the governance SETTINGS core: policy file
  * reads/writes (history-snapshotted yaml, the 0.4 `saveGovernancePolicy`
- * semantics), the caller's resolved feature flags and budget status, the
- * model-access filter, and the admin Trash listing/restore.
+ * semantics), the caller's resolved feature flags, budget status and budget
+ * usage, the model-access filter, and the admin Trash listing/restore.
  */
 
 /** The 0.4 member-readable set — everything else needs admin. */
@@ -511,6 +512,55 @@ export function createGovernanceRoutes(deps: {
       });
     }
     return c.json({ status: null });
+  });
+
+  /**
+   * The caller's standing under every budget cap that binds them — their
+   * personal caps, each of their teams' shared caps and the organization's —
+   * with the usage the gate measures and when each period resets. Unlike
+   * `/my/budget-status` it answers at any usage level. Resolved caps only:
+   * the raw rules name other members and API keys, so the policy stays
+   * admin-read.
+   */
+  app.get('/my/budget-usage', async (c) => {
+    const organizationId = c.get('orgId');
+    const userId = c.get('sessionBundle').user.id;
+    const standing = await readBudgetStanding(deps.sql, {
+      organizationId,
+      userId,
+      userTeamIds: await getUserTeamIds(deps.sql, organizationId, userId),
+      userRole: c.get('orgMember').role,
+    });
+    const teamIds = [
+      ...new Set(standing.flatMap((s) => (s.teamId ? [s.teamId] : []))),
+    ];
+    const teamNames = new Map(
+      teamIds.length === 0
+        ? []
+        : (
+            await deps.sql<{ id: string; name: string }[]>`
+              SELECT "id", "name" FROM "team"
+              WHERE "organizationId" = ${organizationId}
+                AND "id" = ANY(${teamIds})
+            `
+          ).map((row) => [row.id, row.name]),
+    );
+    const meter = (limit: number | undefined, used: number) =>
+      limit === undefined ? null : { used, limit };
+    return c.json({
+      limits: standing.map((s) => ({
+        scope: s.scope,
+        teamId: s.teamId ?? null,
+        teamName: s.teamId ? (teamNames.get(s.teamId) ?? null) : null,
+        period: s.period,
+        periodKey: s.periodKey,
+        resetsAt: s.resetsAt,
+        warningThresholdPercent: s.warningThresholdPercent ?? null,
+        tokens: meter(s.maxTokens, s.usage.totalTokens),
+        costCents: meter(s.maxCostCents, s.usage.costEstimate),
+        requests: meter(s.maxRequests, s.usage.requestCount),
+      })),
+    });
   });
 
   app.post('/models/accessible', async (c) => {

@@ -1,9 +1,9 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 65 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
-Preferences, Notifications), **Organization** (Organization, Teams, Members,
+Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
 AI providers, Connectors, Skills, Branding, Sandboxes, Governance, Metrics)
 and **Advanced** (API: REST / MCP / WebDAV, Enterprise SSO, Data residency).
 Governance has its own guide ([governance.md](governance.md)); data-residency
@@ -30,6 +30,7 @@ disclosure rows whose children render indented.
 | Account                    | `/dashboard/{org}/settings/account`                                        |
 | Preferences                | `/dashboard/{org}/settings/personalization`                                |
 | Notifications              | `/dashboard/{org}/settings/notifications`                                  |
+| Usage                      | `/dashboard/{org}/settings/usage`                                          |
 | Organization               | `/dashboard/{org}/settings/organization`                                   |
 | Teams                      | `/dashboard/{org}/settings/teams`                                          |
 | Members                    | `/dashboard/{org}/settings/members`                                        |
@@ -424,6 +425,27 @@ any toggled setting after the run.
   (`sandboxes.task.project`) above the three task ids; when a task settles,
   its id drops from the cell and `sandboxes.columns.spend` grows by that
   turn's metered cost (a workspace whose turns never settled shows **—**).
+- [ ] `SET-F39` · **Usage limits as a member** — As owner, give Budget rules
+  (Governance → Policies & Limits) a monthly default cost cap with a warning
+  threshold, a daily default request cap and an organization cost cap; then
+  open `/dashboard/{org}/settings/usage` as a plain **member** → The rail lists
+  **Usage** (`navigation.usage`) under Personal; **Your limits**
+  (`settings.usage.personal.title`) shows one row per capped dimension, such as
+  **Monthly cost** (`settings.usage.metric.costCents`) and **Daily requests**
+  (`settings.usage.metric.requests`), each with its reset in local time
+  (`settings.usage.resets`) and a used-of-limit meter
+  (`settings.usage.usedOfLimit`); **Shared limits**
+  (`settings.usage.shared.title`) shows the organization cap as **Entire
+  organization · resets …** (`settings.usage.organizationScope`); a bar at or
+  over the warning threshold turns amber; **Storage**
+  (`settings.usage.storage.title`) meters **Uploaded files**
+  (`settings.usage.storage.label`) against the upload policy's per-user volume.
+- [ ] `SET-F40` · **Usage page entry points** — With the member past the
+  warning threshold, open Chat → The budget banner links **View usage**
+  (`chat.budgetViewUsage`) to `/dashboard/{org}/settings/usage`; as owner, the
+  page's first section offers **Manage limits** (`settings.usage.manageLimits`)
+  to `/dashboard/{org}/settings/governance/policies-limits`, and the member
+  sees no such link.
 
 ## Boundary & error tests
 
@@ -488,6 +510,17 @@ any toggled setting after the run.
 
 - [ ] `SET-B11` · **REST model discovery** → With a SET-F32 key, call `GET /api/v1/models`; only this organization's configured chat models allowed by the key holder's model policy appear. Without available models the response is `200 {"models":[]}`; use an entry's `id` and `providerSlug` to send a thread message and verify the selected provider answers.
 - [ ] `SET-B12` · **Sandbox reader and unavailable state** — `/dashboard/{org}/settings/sandboxes` as a developer → saved limits, the calculated total, allocations and capacity remain readable; **Save**, **Discard**, and the entire **Workspaces** section are absent. In a disconnected sandbox-service test environment, **Refresh** (`sandboxes.capacity.refresh`) shows `sandboxes.capacity.unreachable`, and metrics never substitute zero for a failed observation. As an admin in that environment, workspace runtime state is **Unknown** (`sandboxes.status.runtime.unknown`); a limit cannot be RAISED while the deployment capacity is unavailable (`sandboxes.limits.capacityUnavailable` explains how to retry), while lowering one still saves.
+- [ ] `SET-B13` · **Usage page without limits** — Turn Budget rules off and,
+  as the member, reload `/dashboard/{org}/settings/usage` (allow the policy
+  cache a few seconds) → **Usage limits** (`settings.usage.limits.title`) shows
+  **No usage limits apply to you** (`settings.usage.empty.title`) and no
+  meters; with the upload policy's per-user volume unset, **Storage** reads
+  `settings.usage.storage.unlimited`. Restore both policies afterwards.
+- [ ] `SET-B14` · **Reached cap** — Lower the member's daily request cap to
+  their booked requests → The row reads **Limit reached**
+  (`settings.usage.reached`) over a full destructive bar; the chat banner
+  switches to `chat.budgetLimitReached` and still links **View usage**
+  (`chat.budgetViewUsage`).
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -512,6 +545,13 @@ any toggled setting after the run.
 - [ ] `SET-A6` · **Sandbox total feedback** — `/dashboard/{org}/settings/sandboxes` → edit a workload limit by keyboard until **Total organization sessions** (`sandboxes.limits.total`) exceeds the deployment capacity → a screen reader announces the updated total and explains `sandboxes.limits.totalExceedsDeployment` when a workload field receives focus. The total, validation text and capacity-card hints remain readable without clipping or horizontal scrolling in `en`, `de` and `fr`; return to valid values and use **Discard** to leave saved limits unchanged.
 
 - [ ] `SET-A7` · **WebDAV status labels** — on `/dashboard/{org}/settings/api/webdav`, generate an app-password with a descriptive multiword device label, then revoke it → at desktop and narrow widths in `en`, `de` and `fr`, the full revoked status (`webdav.list.revoked`) remains readable beside or below the device label; active rows keep a labelled Revoke control and revoked rows have none.
+
+- [ ] `SET-A8` · **Usage meters** — On `/dashboard/{org}/settings/usage`, Tab
+  through the rail and the page → **Usage** and (as owner) **Manage limits**
+  take visible focus; each meter is a `progressbar` named by its row
+  (`settings.usage.meterLabel`, e.g. "Monthly cost: $12.40 of $50.00"); at
+  desktop and narrow widths in `en`, `de` and `fr` the labels, reset lines and
+  amounts stay readable without clipping or horizontal scrolling.
 
 ## Performance
 

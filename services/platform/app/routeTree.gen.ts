@@ -37,6 +37,7 @@ import { Route as DashboardIdProjectsIndexRouteImport } from './routes/dashboard
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
 import { Route as DashboardIdSettingsWebdavRouteImport } from './routes/dashboard/$id/settings/webdav';
+import { Route as DashboardIdSettingsUsageRouteImport } from './routes/dashboard/$id/settings/usage';
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsSkillsRouteImport } from './routes/dashboard/$id/settings/skills';
 import { Route as DashboardIdSettingsSandboxesRouteImport } from './routes/dashboard/$id/settings/sandboxes';
@@ -267,6 +268,12 @@ const DashboardIdSettingsWebdavRoute =
   DashboardIdSettingsWebdavRouteImport.update({
     id: '/webdav',
     path: '/webdav',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsUsageRoute =
+  DashboardIdSettingsUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsTeamsRoute =
@@ -860,6 +867,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/sandboxes': typeof DashboardIdSettingsSandboxesRoute;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/usage': typeof DashboardIdSettingsUsageRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -965,6 +973,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/sandboxes': typeof DashboardIdSettingsSandboxesRoute;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/usage': typeof DashboardIdSettingsUsageRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
@@ -1082,6 +1091,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/sandboxes': typeof DashboardIdSettingsSandboxesRoute;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/usage': typeof DashboardIdSettingsUsageRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -1199,6 +1209,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/sandboxes'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/usage'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
@@ -1304,6 +1315,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/sandboxes'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/usage'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
@@ -1420,6 +1432,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/sandboxes'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/usage'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
@@ -1687,6 +1700,13 @@ declare module '@tanstack/react-router' {
       path: '/webdav';
       fullPath: '/dashboard/$id/settings/webdav';
       preLoaderRoute: typeof DashboardIdSettingsWebdavRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/usage': {
+      id: '/dashboard/$id/settings/usage';
+      path: '/usage';
+      fullPath: '/dashboard/$id/settings/usage';
+      preLoaderRoute: typeof DashboardIdSettingsUsageRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/teams': {
@@ -2527,6 +2547,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsSandboxesRoute: typeof DashboardIdSettingsSandboxesRoute;
   DashboardIdSettingsSkillsRoute: typeof DashboardIdSettingsSkillsRoute;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
+  DashboardIdSettingsUsageRoute: typeof DashboardIdSettingsUsageRoute;
   DashboardIdSettingsWebdavRoute: typeof DashboardIdSettingsWebdavRoute;
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute;
 }
@@ -2560,6 +2581,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsSandboxesRoute: DashboardIdSettingsSandboxesRoute,
   DashboardIdSettingsSkillsRoute: DashboardIdSettingsSkillsRoute,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
+  DashboardIdSettingsUsageRoute: DashboardIdSettingsUsageRoute,
   DashboardIdSettingsWebdavRoute: DashboardIdSettingsWebdavRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 };

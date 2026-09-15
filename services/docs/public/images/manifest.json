@@ -457,6 +457,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/settings-usage.webp",
+      "shot": "settings-usage",
+      "route": "/dashboard/:orgId/settings/usage",
+      "viewport": {
+        "width": 1440,
+        "height": 1024
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 2048
+    },
+    {
       "file": "images/platform/settings-webdav.webp",
       "shot": "settings-webdav",
       "route": "/dashboard/:orgId/settings/api/webdav",

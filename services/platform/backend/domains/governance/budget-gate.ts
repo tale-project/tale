@@ -8,16 +8,20 @@ import {
   resolveEffectiveLimits,
   teamLimitsHasCap,
 } from '../../core/governance/budget_enforcement.ts';
-import { buildPeriodKey } from '../../core/governance/helpers.ts';
+import {
+  buildPeriodEndFromTimestamp,
+  buildPeriodKeyFromTimestamp,
+} from '../../core/governance/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 
 /**
  * The org budget gate over the policy FILE + `app.usage_ledger`, with the
  * pure rule collectors/evaluators reused — ONE evaluation for every lane
  * that spends on the org's behalf: the TTS/transcription reservations, the
- * budget-status banner, and the managed harness turns (project agents,
- * automation agent nodes). The api-key bucket is omitted: none of these
- * lanes carries one (the REST lane's budget wiring rides its own increment).
+ * budget-status banner, the member's usage page, and the managed harness
+ * turns (project agents, automation agent nodes). The api-key bucket is
+ * omitted: none of these lanes carries one (the REST lane's budget wiring
+ * rides its own increment).
  */
 
 interface UsageTotals {
@@ -77,8 +81,9 @@ async function bucketsFor(
   period: BudgetRule['period'],
   limits: Limits,
   reserved: { orgCents: number; userCents: number },
+  now: number = Date.now(),
 ): Promise<BudgetBucket[]> {
-  const periodKey = buildPeriodKey(period);
+  const periodKey = buildPeriodKeyFromTimestamp(period, now);
   const withReservation = (usage: UsageTotals, cents: number) =>
     cents > 0 ? { ...usage, costEstimate: usage.costEstimate + cents } : usage;
   const buckets: BudgetBucket[] = [];
@@ -183,6 +188,113 @@ export async function checkOrgBudget(
     }
   }
   return { allowed: true };
+}
+
+/** One cap that binds the subject this period and the usage the gate
+ * measures it against. */
+export interface BudgetStanding {
+  /** Whose usage counts: the subject's own, one of their teams' combined
+   * usage, or the whole organization's. */
+  scope: 'user' | 'team' | 'org';
+  /** The team whose shared cap this is — team scope only. */
+  teamId?: string;
+  period: BudgetRule['period'];
+  periodKey: string;
+  /** When the period rolls over and this usage starts again from zero. */
+  resetsAt: number;
+  /** The share of a cap the budget banner starts warning at, when a rule
+   * for this bucket sets one (team shared caps have none). */
+  warningThresholdPercent?: number;
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+  usage: UsageTotals;
+}
+
+const PERIODS: readonly BudgetRule['period'][] = ['daily', 'weekly', 'monthly'];
+
+/**
+ * Every cap that binds the subject, with what has been used against it this
+ * period — the same buckets `checkOrgBudget` walks, read without a
+ * prospective spend, so a reader sees exactly the numbers that would refuse
+ * their next request. Only buckets that carry a cap are returned; `[]` when
+ * no budget policy binds.
+ */
+export async function readBudgetStanding(
+  sql: Sql | TransactionSql,
+  subject: OrgBudgetSubject,
+  now: number = Date.now(),
+): Promise<BudgetStanding[]> {
+  const config = await readGovernancePolicyForOrg(
+    sql,
+    subject.organizationId,
+    'budgets',
+  );
+  if (!config || !config.enabled || config.rules.length === 0) return [];
+  const applicableRules = collectAllApplicableRules(
+    config.rules,
+    subject.userId,
+    subject.userTeamIds,
+    subject.userRole,
+    undefined,
+  );
+
+  const standings: BudgetStanding[] = [];
+  for (const period of PERIODS) {
+    const periodRules = applicableRules.filter((r) => r.period === period);
+    if (periodRules.length === 0) continue;
+    const limits = resolveEffectiveLimits(
+      periodRules,
+      subject.userId,
+      subject.userTeamIds,
+      subject.userRole,
+      undefined,
+    );
+    const buckets = await bucketsFor(
+      sql,
+      subject,
+      period,
+      limits,
+      { orgCents: 0, userCents: 0 },
+      now,
+    );
+    for (const { rule, usage } of buckets) {
+      if (
+        rule.maxTokens == null &&
+        rule.maxCostCents == null &&
+        rule.maxRequests == null
+      ) {
+        continue;
+      }
+      const scope =
+        rule.scope === 'team' ? 'team' : rule.scope === 'org' ? 'org' : 'user';
+      const warningThresholdPercent =
+        scope === 'user'
+          ? limits.warningThresholdPercent
+          : scope === 'org'
+            ? limits.orgWarningThresholdPercent
+            : undefined;
+      standings.push({
+        scope,
+        ...(scope === 'team' && rule.scopeId !== undefined
+          ? { teamId: rule.scopeId }
+          : {}),
+        period,
+        periodKey: buildPeriodKeyFromTimestamp(period, now),
+        resetsAt: buildPeriodEndFromTimestamp(period, now),
+        ...(warningThresholdPercent !== undefined
+          ? { warningThresholdPercent }
+          : {}),
+        ...(rule.maxTokens != null ? { maxTokens: rule.maxTokens } : {}),
+        ...(rule.maxCostCents != null
+          ? { maxCostCents: rule.maxCostCents }
+          : {}),
+        ...(rule.maxRequests != null ? { maxRequests: rule.maxRequests } : {}),
+        usage,
+      });
+    }
+  }
+  return standings;
 }
 
 export type TurnAllowance =
