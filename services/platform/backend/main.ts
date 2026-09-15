@@ -4,7 +4,10 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
-import { closeKnowledgePools } from './core/knowledge/pool.ts';
+import {
+  closeKnowledgePools,
+  knowledgePoolMax,
+} from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { isBackendDraining } from './domains/control/service.ts';
@@ -113,6 +116,15 @@ async function main(): Promise<void> {
     reportError(error, { tags: { 'tale.lane': 'boot' } });
   }
   if (env.ROLE !== 'api') {
+    // The corpus pool caps how many indexing jobs commit a slice at once; a
+    // worker allowed more concurrent jobs than that queues on it. Said here,
+    // where both knobs are set, not as a slow backlog weeks later.
+    const corpusPoolMax = knowledgePoolMax();
+    if (env.WORKER_CONCURRENCY > corpusPoolMax) {
+      console.warn(
+        `[backend] WORKER_CONCURRENCY (${env.WORKER_CONCURRENCY}) exceeds KNOWLEDGE_DB_POOL_MAX (${corpusPoolMax}): indexing jobs will queue on the knowledge pool — raise KNOWLEDGE_DB_POOL_MAX alongside it`,
+      );
+    }
     await startWorker({
       boss,
       taskList: createTaskList({ sql }),
