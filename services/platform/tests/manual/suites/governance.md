@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 31 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -22,7 +22,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
 | Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
-| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
@@ -226,6 +226,16 @@ select lists only the current admin's keys (`useApiKeys`).
   below it refuses the next run at start (see [tasks.md](tasks.md)
   `TASK-B5`) — the refusal names the cap, and nothing in **Sandboxes** shows
   a running turn for it.
+- [ ] `GOV-F19` · **Confidentiality notice** — `policies-limits` → in
+  **Confidentiality notice** (`governance.dataNotice.title`) turn the switch
+  (`governance.dataNotice.enabledLabel`) on — it saves instantly — type a text
+  under **English** (`global.languages.en`) → **Save**
+  (`common.actions.save`) → reload → The switch is still on and **English**
+  holds the text; the empty **Deutsch** (`global.languages.de`) field's
+  placeholder shows that English text; a text over 280 characters is refused
+  with `governance.dataNotice.charLimitExceeded`; turning the switch off hides
+  the three fields and turning it on again brings the saved text back. Turn it
+  off to restore.
 
 ## Boundary & error tests
 

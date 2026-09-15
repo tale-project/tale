@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 60 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 64 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -276,6 +276,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   other project is listed or searched. In the organization chat the listing
   returns hub files only and the assistant points at the project's own chat
   instead of walking the project list.
+- [ ] `CHAT-F37` · **Confidentiality notice** — With the org's notice on and
+  an English text saved (governance.md `GOV-F19`), open a new chat, send a
+  message, then archive the thread; in a second tab, turn the notice off →
+  Under the composer a note labelled **Confidentiality notice**
+  (`dataNotice.footer.ariaLabel`) reads the saved text on the new chat and in
+  the thread; the archived thread, whose banner replaces the composer, shows
+  no note; after the switch turns off, an open chat drops the note without a
+  reload.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -367,6 +375,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.providerSetup.action`); a member sees
   `chat.providerSetup.descriptionMember` — this is a designed state, not a
   defect.
+- [ ] `CHAT-B9` · **No notice by default** — On a freshly created org, open
+  chat → No **Confidentiality notice** note (`dataNotice.footer.ariaLabel`)
+  sits under the composer: the notice is off until an admin turns it on.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -399,3 +410,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   messages in < 1 s (warm)
 - [ ] `CHAT-P4` · **Long-thread scroll** → A 50+ message thread scrolls
   without visible jank; the timeline/source folds stay responsive.
+- [ ] `CHAT-P5` · **Notice holds its place on reload** — With the org's
+  notice on, open chat once, then reload at desktop width → The loading
+  composer skeleton already carries the notice's row, and neither the
+  composer nor the notice moves when the live ones replace the skeleton.
