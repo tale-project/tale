@@ -1,45 +1,54 @@
-import { Button } from '@tale/ui/button';
-import { Heading } from '@tale/ui/heading';
-import { Link } from '@tanstack/react-router';
+import { DocsNotFound } from '@tale/ui/docs/docs-not-found';
+import { suggestPages } from '@tale/ui/docs/suggest-pages';
+import { useRouterState } from '@tanstack/react-router';
+import { useMemo } from 'react';
 
-import { firstNavSlug } from '@/lib/content/nav';
+import { UiDocsLayout } from '@/app/components/docs/ui-docs-layout';
+import { firstNavSlug, flattenNav } from '@/lib/content/nav';
+import { navPage } from '@/lib/content/nav-sections';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
+/** The requested path as a content slug: `/docs/components/buton` → `components/buton`. */
+function pathnameToSlug(pathname: string): string {
+  return pathname.replace(/^\/+|\/+$/g, '').replace(/^docs(?:\/|$)/, '');
+}
+
 /**
- * The 404. Rendered inside the app chrome's colour scheme rather than the
- * marketing one, because most ways to land here are a stale link to a page
- * that used to exist under `/docs`.
+ * The 404, inside the same docs frame as every page: most ways to land here
+ * are a stale link to a page that used to exist under `/docs`, so the closest
+ * pages come first and the introduction is one click away.
  */
 export function NotFoundPage() {
   const { t } = useT('docs');
   const { t: tSeo } = useT('seo');
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const requestedSlug = pathnameToSlug(pathname);
+  const suggestions = useMemo(
+    () =>
+      suggestPages(requestedSlug, flattenNav()).map(({ slug }) =>
+        navPage(slug),
+      ),
+    [requestedSlug],
+  );
 
+  // The page copy is the shared frame's (`docs.notFound.*` in `@tale/ui`);
+  // the document head reads the same strings, so the tab says what the
+  // heading says.
   useDocumentMeta({
-    title: `${t('notFoundTitle')} | ${tSeo('siteTitle')}`,
-    description: t('notFoundBody'),
+    title: `${t('notFound.title')} | ${tSeo('siteTitle')}`,
+    description: t('notFound.body'),
     canonicalPath: '/404',
     noindex: true,
   });
 
   return (
-    <div className="bg-background text-foreground flex min-h-screen flex-col">
-      <main
-        id="main"
-        tabIndex={-1}
-        className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center"
-      >
-        <Heading level={1} size="2xl">
-          {t('notFoundTitle')}
-        </Heading>
-        <p className="text-muted-foreground text-base leading-relaxed">
-          {t('notFoundBody')}
-        </p>
-        <Button asChild variant="secondary">
-          <Link to={docPath(firstNavSlug())}>{t('notFoundBackHome')}</Link>
-        </Button>
-      </main>
-    </div>
+    <UiDocsLayout activeHref={pathname}>
+      <DocsNotFound
+        home={{ href: docPath(firstNavSlug()), label: t('home') }}
+        suggestions={suggestions}
+      />
+    </UiDocsLayout>
   );
 }

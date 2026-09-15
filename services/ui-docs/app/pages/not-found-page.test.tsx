@@ -1,37 +1,66 @@
-import { render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 
 vi.mock('@tanstack/react-router', async () => {
   const { createRouterStub } = await import('@/tests/utils/router-stub');
-  return createRouterStub('/docs/gone');
+  return createRouterStub('/docs/components/buton');
 });
 
 const { NotFoundPage } = await import('./not-found-page');
 
+function renderPage() {
+  // The docs frame's icon buttons carry tooltips, which need their provider;
+  // the app gets it from `AppShell`.
+  return render(
+    <TooltipProvider>
+      <NotFoundPage />
+    </TooltipProvider>,
+  );
+}
+
 /**
  * Most ways to land on the 404 are a stale link to a page that used to exist
- * under `/docs`, so the page owes a reader two things: a heading that says
- * what happened, and one route back into the documentation.
+ * under `/docs`, so the page owes a reader three things: a heading that says
+ * what happened, the pages closest to the one they asked for, and one route
+ * back into the documentation — all inside the same frame as every page.
  */
 describe('NotFoundPage', () => {
   it('says what happened in the page heading', () => {
-    const { container } = render(<NotFoundPage />);
+    const { container } = renderPage();
     const headings = container.querySelectorAll('h1');
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent('Page not found');
   });
 
-  it('offers one route back into the documentation', () => {
-    render(<NotFoundPage />);
+  it('suggests the closest page first and one route back', () => {
+    renderPage();
+    const suggestions = screen.getByRole('navigation', {
+      name: 'Did you mean',
+    });
+    expect(within(suggestions).getAllByRole('link')[0]).toHaveAttribute(
+      'href',
+      '/docs/components/button',
+    );
     expect(
-      screen.getByRole('link', { name: 'Back to the introduction' }),
+      screen.getByRole('link', { name: 'Back to docs home' }),
     ).toHaveAttribute('href', '/docs/getting-started/introduction');
   });
 
+  it('keeps the documentation rail beside the message', () => {
+    renderPage();
+    expect(
+      screen.getByRole('navigation', { name: 'Design system documentation' }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('main')).getByRole('heading', { level: 1 }),
+    ).toBeInTheDocument();
+  });
+
   it('sets a noindex document title', () => {
-    render(<NotFoundPage />);
+    renderPage();
     expect(document.title).toBe('Page not found | The Tale design system');
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
       'content',
@@ -39,16 +68,8 @@ describe('NotFoundPage', () => {
     );
   });
 
-  it('renders the message inside the main landmark', () => {
-    render(<NotFoundPage />);
-    const main = screen.getByRole('main');
-    expect(main).toHaveTextContent(
-      'That page is not part of the design system',
-    );
-  });
-
   it('has no accessibility violations', async () => {
-    const { container } = render(<NotFoundPage />);
+    const { container } = renderPage();
     await checkAccessibility(container);
   });
 });

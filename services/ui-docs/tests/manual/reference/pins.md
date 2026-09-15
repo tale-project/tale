@@ -34,10 +34,10 @@ and name the test that now holds it. Never key a row by round — the journal in
 
 | Box | What it pins |
 |---|---|
-| `DOCS-1` | TanStack `Link` marks a link active by URL **prefix** and sets `aria-current="page"` itself, so on a deep page every ancestor row claimed to be the current page. Rows pass `activeOptions={{ exact: true }}` (`docs-nav-tree.tsx`). |
-| `DOCS-12` | The drawer's close control used to be an `IconButton`, whose automatic tooltip opened the moment the drawer focused it; the Radix tooltip layer swallowed the first Escape, so the drawer needed two presses. It is a plain `Button` now, and focus is returned to the menu button explicitly because a state-driven `Sheet` has no `Dialog.Trigger` to do it (`docs-mobile-nav.tsx`). |
+| `DOCS-1` | TanStack `Link` marks a link active by URL **prefix** and sets `aria-current="page"` itself, so on a deep page every ancestor row claimed to be the current page. Rows pass `activeOptions={{ exact: true }}` (`@tale/ui` `docs-nav-tree.tsx`). |
+| `DOCS-12` | The drawer's close control used to be an `IconButton`, whose automatic tooltip opened the moment the drawer focused it; the Radix tooltip layer swallowed the first Escape, so the drawer needed two presses. It is a plain `Button` now, and focus is returned to the menu button explicitly because a state-driven `Sheet` has no `Dialog.Trigger` to do it (`@tale/ui` `docs-mobile-nav.tsx`). |
 | `DOCS-13` | `Sheet`'s `md:hidden` hides the panel, not the portalled overlay: an open drawer plus a widening viewport left an invisible scrim over the page. The `open` state is released by the viewport, not just by CSS. |
-| `DOCS-2` | The trail's leaf is the page's only `h1` (`HeaderBreadcrumbs`); the article deliberately renders no second heading of level one, and `tests/content.test.ts` refuses a body that starts with `# `. |
+| `DOCS-2` | The trail's leaf is a plain current-page marker, not a heading: the shared `DocsArticle` renders the frontmatter title as the page's only `h1`, and `tests/content.test.ts` refuses a body that starts with `# `. The strip is the `h-13` box itself, border included. The product docs once wrapped a fixed-height row in a bordered parent, so the strip stood 53 px beside the rail's 52 px logo row and the line stepped down at the rail's edge; `docs-layout.browser.test.tsx` and the smoke spec measure both bars now. |
 
 ## Crawler surface
 

@@ -34,9 +34,9 @@ server you opened.
 | Edit a guide or its order | `content/<section>/<slug>.md`, `content/nav.json` |
 | Change a working example | `app/demos/<family>/<name>.tsx` |
 | Change preview or Code behavior | `app/components/demo/` |
-| Change the documentation frame | `app/components/docs/` |
+| Change the documentation frame | [`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/), shared with the [product docs](../docs/README.md); this site feeds it in `app/components/docs/ui-docs-layout.tsx` |
 | Change the public homepage | `app/pages/home-page.tsx`, `app/components/home/` |
-| Change search or page actions | `app/features/search/`, `app/features/page-actions/` |
+| Change search or page actions | `docs-search-dialog.tsx` and `page-actions.tsx` in the shared docs family; the index engine in [`packages/ui/src/components/search/static-index/`](../../packages/ui/src/components/search/static-index/) |
 | Change site copy | `messages/{en,de,fr}.yml` |
 | Change artifact generation or serving | `scripts/`, `lib/seo/`, `server.ts` |
 
@@ -100,8 +100,10 @@ bun run lint:manual
 ```
 
 Unit tests cover navigation/file parity, frontmatter, demo registration, loader
-behavior, and accessible chrome. Browser tests cover the homepage, docs, Code panel,
-search, theme, redirects, and 404. The [manual layer](tests/manual/readme.md) adds
+behavior, and the 404. The shared frame’s own tests live with it in `packages/ui`
+(`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the homepage,
+docs, the header strip’s line with the rail, Code panel, search, theme, redirects, and
+404. The [manual layer](tests/manual/readme.md) adds
 visual judgment, focus, responsive navigation, and production artifact review.
 Read the page and use its examples at phone and desktop widths in both themes;
 a green structural test cannot establish that an instruction is accurate.

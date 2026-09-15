@@ -38,6 +38,6 @@ viewport, the theme at **System** with the OS in light mode.
 - [ ] `SMOKE-5` · **Reach the first Live example's Code button with Tab alone
   and activate it with Enter, then with Space** → focus is visible at every stop,
   the source panel opens (`aria-expanded` flips) and closes again.
-- [ ] `SMOKE-6` · **Open `/docs/nope-not-a-page`** → the styled not-found page
-  renders (**Page not found**, a **Back to the introduction** button) in the app
-  language; no white screen, no unhandled rejection in the console.
+- [ ] `SMOKE-6` · **Open `/docs/nope-not-a-page`** → the not-found page
+  renders inside the docs frame (**Page not found**, a **Back to docs home**
+  button); no white screen, no unhandled rejection in the console.

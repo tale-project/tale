@@ -460,7 +460,6 @@
         "@tale/marketing-ui": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tanstack/react-table": "8.21.3",
-        "minisearch": "7.2.0",
       },
       "devDependencies": {
         "@playwright/test": "1.58.2",
