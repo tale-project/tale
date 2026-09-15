@@ -3,135 +3,165 @@
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
-import { ViewDialog } from '@tale/ui/dialog/view-dialog';
-import { Heading } from '@tale/ui/heading';
-import { HStack } from '@tale/ui/layout';
-import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { CopyableField } from '@tale/ui/copyable-field';
+import {
+  EntityViewDialog,
+  EntityViewSection,
+} from '@tale/ui/entity/entity-view-dialog';
+import { Row, Stack } from '@tale/ui/layout';
+import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { useMemo } from 'react';
+import { BookOpen } from 'lucide-react';
+import { type RefObject, useMemo } from 'react';
 
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import { useKnowledgeEntryVersions } from '../hooks/queries';
 import type { KnowledgeEntryItem } from '../hooks/queries';
+import { KnowledgeEntryEditDialog } from './knowledge-entry-edit-dialog';
 
-interface ViewKnowledgeEntryDialogProps {
+interface KnowledgeEntryViewDialogProps {
   isOpen: boolean;
   onClose: () => void;
   entry: KnowledgeEntryItem;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-export function ViewKnowledgeEntryDialog({
+export function KnowledgeEntryViewDialog({
   isOpen,
   onClose,
   entry,
-}: ViewKnowledgeEntryDialogProps) {
+  restoreFocusRef,
+}: KnowledgeEntryViewDialogProps) {
   const { t } = useT('knowledgeEntries');
+  const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const { data: versionData } = useKnowledgeEntryVersions(entry._id);
 
-  const versions = versionData?.versions ?? [];
+  // The chain includes the current version; the history lists the ones it
+  // replaced.
+  const versions = (versionData?.versions ?? []).filter(
+    (version) => version.status === 'superseded',
+  );
 
-  const items = useMemo<StatGridItem[]>(
+  const facts = useMemo<StatGridItem[]>(
     () => [
-      {
-        label: t('topic'),
-        value: <Text>{entry.topic}</Text>,
-      },
       {
         label: t('headers.source'),
         value: (
-          <Badge variant="outline">
+          <Text>
             {entry.source === 'chat' ? t('source.chat') : t('source.manual')}
-          </Badge>
-        ),
-      },
-      {
-        label: t('viewDialog.indexingStatus'),
-        value: (
-          <RagStatusBadge
-            status={entry.ragStatus}
-            indexedAt={entry.ragIndexedAt}
-            error={entry.ragError}
-            errorCode={entry.ragErrorCode}
-            documentId={entry.documentId ? entry.documentId : undefined}
-          />
+          </Text>
         ),
       },
       {
         label: t('viewDialog.updated'),
-        value: <CopyableTimestamp date={entry.createdAt} preset="long" />,
+        value: <Text>{formatDate(new Date(entry.createdAt), 'long')}</Text>,
       },
       {
         label: t('content'),
         value: (
-          <Text className="max-h-72 overflow-y-auto whitespace-pre-wrap">
+          <Text className="leading-relaxed whitespace-pre-wrap">
             {entry.content}
           </Text>
         ),
         colSpan: 2,
       },
+      {
+        label: t('viewDialog.entryId'),
+        value: <CopyableField value={entry._id} />,
+        colSpan: 2,
+      },
     ],
-    [entry, t],
+    [entry, t, formatDate],
   );
 
   return (
-    <ViewDialog
+    <EntityViewDialog
       open={isOpen}
-      onOpenChange={onClose}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
       title={t('viewDialog.title')}
-      size="wide"
+      description={t('viewDialog.description')}
+      name={entry.topic}
+      summary={entry.content}
+      icon={BookOpen}
+      badges={
+        <RagStatusBadge
+          status={entry.ragStatus}
+          indexedAt={entry.ragIndexedAt}
+          error={entry.ragError}
+          errorCode={entry.ragErrorCode}
+          documentId={entry.documentId ? entry.documentId : undefined}
+        />
+      }
+      edit={
+        canWrite
+          ? {
+              label: tCommon('actions.edit'),
+              render: ({ onBack, onDone }) => (
+                <KnowledgeEntryEditDialog
+                  isOpen
+                  onClose={onBack}
+                  onSaved={onDone}
+                  restoreFocusRef={restoreFocusRef}
+                  entry={entry}
+                />
+              ),
+            }
+          : undefined
+      }
+      facts={facts}
+      restoreFocusRef={restoreFocusRef}
     >
-      <StatGrid items={items} />
-
       {versions.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <HStack justify="between" align="center">
-            <Heading level={2} size="sm" weight="semibold">
-              {t('viewDialog.history')}
-            </Heading>
-            <Text variant="caption">
-              {t('viewDialog.versionCount', { count: versions.length })}
-            </Text>
-          </HStack>
-
-          {versions.map((version) => (
-            <BorderedSection key={version._id}>
-              <CollapsibleDetails
-                summary={
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <HStack gap={2} align="center">
-                      <Badge variant="outline">
-                        {t('viewDialog.superseded')}
-                      </Badge>
-                      <Text variant="caption">
-                        {version.supersededAt
-                          ? t('viewDialog.supersededOn', {
-                              date: formatDate(
-                                new Date(version.supersededAt),
-                                'long',
-                              ),
-                            })
-                          : formatDate(new Date(version.createdAt), 'long')}
+        <EntityViewSection
+          title={t('viewDialog.history')}
+          meta={t('viewDialog.versionCount', { count: versions.length })}
+        >
+          <Stack gap={2}>
+            {versions.map((version) => (
+              <BorderedSection key={version._id}>
+                <CollapsibleDetails
+                  summary={
+                    <Stack gap={1} className="min-w-0 flex-1">
+                      <Row gap={2}>
+                        <Badge variant="outline">
+                          {t('viewDialog.superseded')}
+                        </Badge>
+                        <Text variant="caption">
+                          {version.supersededAt
+                            ? t('viewDialog.supersededOn', {
+                                date: formatDate(
+                                  new Date(version.supersededAt),
+                                  'long',
+                                ),
+                              })
+                            : formatDate(new Date(version.createdAt), 'long')}
+                        </Text>
+                      </Row>
+                      <Text variant="caption" className="wrap-anywhere">
+                        {version.topic}
                       </Text>
-                    </HStack>
-                    <Text variant="caption" className="break-words">
-                      {version.topic}
-                    </Text>
-                  </div>
-                }
-              >
-                <Text className="mt-3 max-h-48 overflow-y-auto text-sm wrap-break-word whitespace-pre-wrap">
-                  {version.content}
-                </Text>
-              </CollapsibleDetails>
-            </BorderedSection>
-          ))}
-        </div>
+                    </Stack>
+                  }
+                >
+                  <Text className="mt-3 text-sm wrap-anywhere whitespace-pre-wrap">
+                    {version.content}
+                  </Text>
+                </CollapsibleDetails>
+              </BorderedSection>
+            ))}
+          </Stack>
+        </EntityViewSection>
       )}
-    </ViewDialog>
+    </EntityViewDialog>
   );
 }

@@ -8,6 +8,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
 const mockResumeScanning = vi.fn();
+let mockCanWrite = true;
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -24,7 +25,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true }),
+  useAbility: () => ({ can: () => mockCanWrite }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -38,11 +39,16 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('./website-edit-dialog', () => ({
-  EditWebsiteDialog: () => null,
+  WebsiteEditDialog: () => null,
+}));
+
+vi.mock('./website-view-dialog', () => ({
+  WebsiteViewDialog: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog" aria-label="website-details" /> : null,
 }));
 
 vi.mock('./website-delete-dialog', () => ({
-  DeleteWebsiteDialog: () => null,
+  WebsiteDeleteDialog: () => null,
 }));
 
 import { WebsiteRowActions } from './website-row-actions';
@@ -65,6 +71,7 @@ const pausedWebsite = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockCanWrite = true;
 });
 
 describe('WebsiteRowActions', () => {
@@ -83,6 +90,37 @@ describe('WebsiteRowActions', () => {
       );
       return user;
     };
+
+    it('offers View, Edit, Resume scanning, then Delete for a paused site', async () => {
+      render(<WebsiteRowActions website={pausedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getAllByRole('menuitem').map((item) => item.textContent),
+      ).toEqual([
+        'common.actions.view',
+        'common.actions.edit',
+        'websites.resumeScanning',
+        'common.actions.delete',
+      ]);
+    });
+
+    it('offers only View to a member who cannot edit', async () => {
+      mockCanWrite = false;
+      render(<WebsiteRowActions website={pausedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getAllByRole('menuitem').map((item) => item.textContent),
+      ).toEqual(['common.actions.view']);
+    });
+
+    it('opens the website details from View', async () => {
+      render(<WebsiteRowActions website={mockWebsite} />);
+      const user = await openMenu();
+      await user.click(screen.getByText('common.actions.view'));
+      expect(
+        screen.getByRole('dialog', { name: 'website-details' }),
+      ).toBeInTheDocument();
+    });
 
     it('offers resume only while the crawler has paused the site', async () => {
       render(<WebsiteRowActions website={mockWebsite} />);

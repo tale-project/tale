@@ -26,7 +26,7 @@ Knowledge is your organization's shared library. Add documents, short facts, pub
 | Items with product details | **Products** | Look up the record's fields instead of searching a paragraph. |
 | Reference files for one piece of work | A project's **Knowledge** tab | Keep them within that project's access and chat context. |
 
-Members can read content within their access. Editors and higher roles curate the shared library. The [structured-data guide](/platform/knowledge/structured-data) helps when a spreadsheet could be either a source document or a set of records.
+Members can read content within their access. Editors and higher roles curate the shared library. Open a row, or choose **View** in its row menu, to see its details. If you can change a source, the same menu offers the actions that change it, such as **Delete**; contacts, products, websites, and knowledge entries also offer **Edit** there and in their details. The [structured-data guide](/platform/knowledge/structured-data) helps when a spreadsheet could be either a source document or a set of records.
 
 ## Make a source useful for answers
 

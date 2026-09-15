@@ -2,24 +2,27 @@
 
 import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
-import { useCallback } from 'react';
+import { type RefObject, useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';
 import type { KnowledgeEntryItem } from '../hooks/queries';
 
-interface DeleteKnowledgeEntryDialogProps {
+interface KnowledgeEntryDeleteDialogProps {
   isOpen: boolean;
   onClose: () => void;
   entry: KnowledgeEntryItem;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-export function DeleteKnowledgeEntryDialog({
+export function KnowledgeEntryDeleteDialog({
   isOpen,
   onClose,
   entry,
-}: DeleteKnowledgeEntryDialogProps) {
+  restoreFocusRef,
+}: KnowledgeEntryDeleteDialogProps) {
   const { t } = useT('knowledgeEntries');
   const { t: tToast } = useT('toast');
   const { mutateAsync: deleteEntry } = useDeleteKnowledgeEntry();
@@ -30,6 +33,7 @@ export function DeleteKnowledgeEntryDialog({
     keys: {
       title: 'delete.title',
       description: 'delete.confirmation',
+      warningText: 'delete.warning',
       errorMessage: 'toast.deleteError',
     },
   });
@@ -51,6 +55,7 @@ export function DeleteKnowledgeEntryDialog({
       getEntityName={getEntityName}
       deleteMutation={handleDelete}
       translations={translations}
+      restoreFocusRef={restoreFocusRef}
     />
   );
 }

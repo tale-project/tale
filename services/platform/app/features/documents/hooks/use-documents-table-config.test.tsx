@@ -39,6 +39,7 @@ function renderColumnCell(
     () =>
       useDocumentsTableConfig({
         onDocumentClick: () => {},
+        onDocumentView: () => {},
         onFolderDeleted: () => {},
         isLoadingTeams: false,
         teamMap,

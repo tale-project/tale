@@ -4,21 +4,26 @@ import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
-import { ViewDialog } from '@tale/ui/dialog/view-dialog';
+import { CopyableField } from '@tale/ui/copyable-field';
 import { EmptyState } from '@tale/ui/empty-state';
+import {
+  EntityViewDialog,
+  EntityViewSection,
+} from '@tale/ui/entity/entity-view-dialog';
 import { Heading } from '@tale/ui/heading';
-import { Grid, HStack, Row } from '@tale/ui/layout';
+import { IconButton } from '@tale/ui/icon-button';
+import { Row, Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
-import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { FileText, Search as SearchIcon } from 'lucide-react';
+import { FileText, Globe, Play, Search as SearchIcon } from 'lucide-react';
 import {
+  type RefObject,
   type ChangeEvent,
   type KeyboardEvent,
   useCallback,
@@ -27,6 +32,7 @@ import {
   useState,
 } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import type {
@@ -36,7 +42,9 @@ import type {
 } from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
+import { useResumeScanning } from '../hooks/mutations';
 import { isScanPaused } from '../lib/scan-paused';
+import { WebsiteEditDialog } from './website-edit-dialog';
 
 const PAGE_SIZE = 20;
 
@@ -47,10 +55,12 @@ const statusVariant = {
   deleting: 'destructive',
 } as const;
 
-interface ViewWebsiteDialogProps {
+interface WebsiteViewDialogProps {
   isOpen: boolean;
   onClose: () => void;
   website: WebsiteDoc;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const PLACEHOLDER_PAGE: CrawlerPage = {
@@ -97,8 +107,8 @@ function PageRow({
   );
 
   const summary = (
-    <div className="min-w-0 flex-1 space-y-1">
-      <Heading level={3} size="sm" weight="medium" className="break-words">
+    <Stack gap={1} className="min-w-0 flex-1">
+      <Heading level={4} size="sm" weight="medium" className="wrap-anywhere">
         <SkeletonBox>{page.title || page.url}</SkeletonBox>
       </Heading>
       {page.title && (
@@ -107,14 +117,14 @@ function PageRow({
             href={page.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all hover:underline"
+            className="wrap-anywhere hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             <SkeletonBox>{page.url}</SkeletonBox>
           </a>
         </Text>
       )}
-      <Row align="stretch" className="text-muted-foreground text-xs">
+      <Row gap={3} wrap className="text-muted-foreground text-xs">
         <span>
           <SkeletonBox>
             {t('pagesDialog.wordCount', { count: page.word_count })}
@@ -134,41 +144,39 @@ function PageRow({
         )}
       </Row>
       {page.fail_count > 0 && page.last_error !== null && (
-        <Text variant="caption" className="text-destructive break-words">
+        <Text variant="caption" className="text-destructive wrap-anywhere">
           {t('pagesDialog.lastError', {
             count: page.fail_count,
             message: page.last_error,
           })}
         </Text>
       )}
-    </div>
+    </Stack>
   );
 
   return (
     <BorderedSection>
       <CollapsibleDetails summary={summary} onToggle={handleToggle}>
-        <div className="mt-3 space-y-2">
+        <Stack gap={2} className="mt-3">
           {isPending && (
-            <Row gap={0} align="stretch" justify="center" className="py-2">
+            <Row gap={0} justify="center" className="py-2">
               <Spinner size="sm" />
             </Row>
           )}
           {chunks?.length === 0 && (
-            <Text variant="muted" className="text-sm">
-              {t('pagesDialog.noChunks')}
-            </Text>
+            <Text variant="muted">{t('pagesDialog.noChunks')}</Text>
           )}
           {chunks?.map((chunk) => (
             <div key={chunk.chunk_index} className="bg-muted/50 rounded-md p-3">
               <Text variant="caption" className="mb-1 block font-medium">
                 {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
               </Text>
-              <Text className="max-h-48 overflow-y-auto text-sm wrap-break-word whitespace-pre-wrap">
+              <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
                 {chunk.chunk_content}
               </Text>
             </div>
           ))}
-        </div>
+        </Stack>
       </CollapsibleDetails>
     </BorderedSection>
   );
@@ -179,13 +187,8 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
 
   return (
     <BorderedSection>
-      <div className="space-y-2">
-        <Heading
-          level={3}
-          size="sm"
-          weight="medium"
-          className="min-w-0 break-words"
-        >
+      <Stack gap={2}>
+        <Heading level={4} size="sm" weight="medium" className="wrap-anywhere">
           {result.title || result.url}
         </Heading>
         <Text variant="caption">
@@ -193,7 +196,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all hover:underline"
+            className="wrap-anywhere hover:underline"
           >
             {result.url}
           </a>
@@ -202,22 +205,28 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
           <Text variant="caption" className="mb-1 block font-medium">
             {t('pagesDialog.chunkIndex', { index: result.chunk_index + 1 })}
           </Text>
-          <Text className="max-h-48 overflow-y-auto text-sm wrap-break-word whitespace-pre-wrap">
+          <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
             {result.chunk_content}
           </Text>
         </div>
-      </div>
+      </Stack>
     </BorderedSection>
   );
 }
 
-export function ViewWebsiteDialog({
+export function WebsiteViewDialog({
   isOpen,
   onClose,
   website,
-}: ViewWebsiteDialogProps) {
+  restoreFocusRef,
+}: WebsiteViewDialogProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('websites');
+  const { t: tCommon } = useT('common');
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const { mutate: resumeScanning } = useResumeScanning();
+  const paused = isScanPaused(website);
 
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -328,59 +337,31 @@ export function ViewWebsiteDialog({
     [t],
   );
 
-  const items = useMemo<StatGridItem[]>(
+  const statusLabel =
+    (website.status &&
+      (
+        {
+          scanning: t('filter.status.scanning'),
+          active: t('filter.status.active'),
+          error: t('filter.status.error'),
+          deleting: t('filter.status.deleting'),
+        } satisfies Record<string, string>
+      )[website.status]) ||
+    website.status ||
+    t('viewDialog.unknown');
+
+  // Paused (repeated failures to reach the knowledge database) wins over the
+  // stored `error` status — this site stopped retrying and needs a manual
+  // resume, which the notice explains.
+  const statusNotice = paused
+    ? t('viewDialog.scanPausedNotice')
+    : website.status === 'error' &&
+        typeof website.metadata?.lastSyncError === 'string'
+      ? website.metadata.lastSyncError
+      : null;
+
+  const facts = useMemo<StatGridItem[]>(
     () => [
-      {
-        label: t('viewDialog.domain'),
-        value: <Text>{website.domain}</Text>,
-      },
-      {
-        label: t('viewDialog.status'),
-        value: (
-          <Row gap={2} wrap>
-            {isScanPaused(website) ? (
-              // Paused (repeated failures to reach the knowledge database)
-              // wins over the stored `error` status — this site stopped
-              // retrying and needs a manual resume.
-              <Badge variant="orange" dot>
-                {t('scanPausedBadge')}
-              </Badge>
-            ) : (
-              <Badge
-                variant={
-                  website.status && website.status in statusVariant
-                    ? statusVariant[website.status]
-                    : 'outline'
-                }
-                dot
-              >
-                {(website.status &&
-                  (
-                    {
-                      scanning: t('filter.status.scanning'),
-                      active: t('filter.status.active'),
-                      error: t('filter.status.error'),
-                      deleting: t('filter.status.deleting'),
-                    } satisfies Record<string, string>
-                  )[website.status]) ||
-                  website.status ||
-                  t('viewDialog.unknown')}
-              </Badge>
-            )}
-            {website.status === 'error' &&
-              typeof website.metadata?.lastSyncError === 'string' && (
-                <Text variant="caption" className="text-destructive">
-                  {website.metadata.lastSyncError}
-                </Text>
-              )}
-            {isScanPaused(website) && (
-              <Text variant="caption" className="text-muted-foreground">
-                {t('viewDialog.scanPausedNotice')}
-              </Text>
-            )}
-          </Row>
-        ),
-      },
       {
         label: t('viewDialog.scanInterval'),
         value: (
@@ -391,25 +372,13 @@ export function ViewWebsiteDialog({
       },
       {
         label: t('viewDialog.lastScanned'),
-        value: website.lastScannedAt ? (
-          <CopyableTimestamp date={website.lastScannedAt} preset="long" />
-        ) : (
-          <Text>{t('viewDialog.notScannedYet')}</Text>
-        ),
-      },
-      {
-        label: t('viewDialog.titleField'),
-        value: <Text>{website.title || '-'}</Text>,
-        colSpan: 2,
-      },
-      {
-        label: t('viewDialog.description'),
         value: (
-          <Text className="whitespace-pre-wrap">
-            {website.description || '-'}
+          <Text>
+            {website.lastScannedAt
+              ? formatDate(new Date(website.lastScannedAt), 'long')
+              : t('viewDialog.notScannedYet')}
           </Text>
         ),
-        colSpan: 2,
       },
       {
         label: t('viewDialog.created'),
@@ -417,32 +386,117 @@ export function ViewWebsiteDialog({
           <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>
         ),
       },
+      ...(statusNotice
+        ? [
+            {
+              label: t('viewDialog.status'),
+              value: (
+                <Text
+                  className={
+                    paused ? 'text-muted-foreground' : 'text-destructive'
+                  }
+                >
+                  {statusNotice}
+                </Text>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
+      ...(website.description
+        ? [
+            {
+              label: t('viewDialog.descriptionField'),
+              value: (
+                <Text className="leading-relaxed whitespace-pre-wrap">
+                  {website.description}
+                </Text>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
+      {
+        label: t('viewDialog.websiteId'),
+        value: <CopyableField value={website._id} />,
+        colSpan: 2,
+      },
     ],
-    [website, t, formatDate, scanIntervals],
+    [website, t, formatDate, scanIntervals, statusNotice, paused],
   );
 
+  const failedPageCount = website.failedPageCount ?? 0;
+
   return (
-    <ViewDialog
+    <EntityViewDialog
       open={isOpen}
-      onOpenChange={onClose}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
       title={t('viewDialog.title')}
-      size="wide"
+      description={t('viewDialog.description')}
+      name={website.domain}
+      summary={website.title}
+      icon={Globe}
+      badges={
+        paused ? (
+          <Badge variant="orange" dot>
+            {t('scanPausedBadge')}
+          </Badge>
+        ) : (
+          <Badge
+            variant={
+              website.status && website.status in statusVariant
+                ? statusVariant[website.status]
+                : 'outline'
+            }
+            dot
+          >
+            {statusLabel}
+          </Badge>
+        )
+      }
+      edit={
+        canWrite
+          ? {
+              label: tCommon('actions.edit'),
+              render: ({ onBack, onDone }) => (
+                <WebsiteEditDialog
+                  isOpen
+                  onClose={onBack}
+                  onSaved={onDone}
+                  restoreFocusRef={restoreFocusRef}
+                  website={website}
+                />
+              ),
+            }
+          : undefined
+      }
+      actions={[
+        {
+          // Only offered while the crawler has paused this site: clears the
+          // pause and starts a scan right away, as the row menu does.
+          key: 'resume',
+          label: t('resumeScanning'),
+          icon: Play,
+          onClick: () => resumeScanning({ websiteId: website._id }),
+          visible: canWrite && paused,
+        },
+      ]}
+      facts={facts}
+      restoreFocusRef={restoreFocusRef}
     >
-      <StatGrid items={items} />
-
-      <div className="mt-6 space-y-4">
-        <HStack justify="between" align="center">
-          <Heading level={2} size="sm" weight="semibold">
-            {t('pagesDialog.title')}
-          </Heading>
-          <Text variant="caption">
+      <EntityViewSection
+        title={t('pagesDialog.title')}
+        meta={
+          <>
             {website.crawledPageCount ?? 0} {t('indexed').toLowerCase()}
-            {(website.failedPageCount ?? 0) > 0 &&
-              ` · ${t('pagesDialog.failedPages', { count: website.failedPageCount ?? 0 })}`}
-          </Text>
-        </HStack>
-
-        <Row gap={2} align="stretch">
+            {failedPageCount > 0 &&
+              ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
+          </>
+        }
+      >
+        <Row gap={2}>
           <SearchInput
             value={searchQuery}
             onChange={handleSearchChange}
@@ -450,21 +504,21 @@ export function ViewWebsiteDialog({
             placeholder={t('pagesDialog.searchPlaceholder')}
             aria-label={t('pagesDialog.searchPlaceholder')}
             wrapperClassName="flex-1"
+            className="max-w-none"
           />
-          <Button
+          <IconButton
+            icon={SearchIcon}
             variant="secondary"
-            size="default"
             onClick={triggerSearch}
             disabled={!searchQuery.trim() || isSearching}
-          >
-            <SearchIcon className="size-4" />
-          </Button>
+            aria-label={t('pagesDialog.searchPlaceholder')}
+          />
         </Row>
 
         {isSearchMode ? (
-          <>
+          <Stack gap={2}>
             {isSearching && (
-              <Row gap={0} align="stretch" justify="center" className="py-4">
+              <Row gap={0} justify="center" className="py-4">
                 <Spinner size="sm" />
               </Row>
             )}
@@ -483,9 +537,9 @@ export function ViewWebsiteDialog({
                 result={result}
               />
             ))}
-          </>
+          </Stack>
         ) : (
-          <>
+          <Stack gap={2}>
             {!isFirstLoad && pages.length === 0 && (
               <EmptyState
                 icon={FileText}
@@ -495,7 +549,7 @@ export function ViewWebsiteDialog({
             )}
 
             <Skeletonize loading={isFirstLoad && isPending}>
-              <Grid sm={2} xl={3} gap={3}>
+              <Stack gap={2}>
                 {(isFirstLoad && isPending
                   ? [
                       { ...PLACEHOLDER_PAGE, url: 'placeholder-1' },
@@ -506,11 +560,11 @@ export function ViewWebsiteDialog({
                 ).map((page) => (
                   <PageRow key={page.url} page={page} websiteId={website._id} />
                 ))}
-              </Grid>
+              </Stack>
             </Skeletonize>
 
             {hasMore && (
-              <Row gap={0} align="stretch" justify="center" className="pt-2">
+              <Row gap={0} justify="center" className="pt-2">
                 <Button
                   variant="secondary"
                   onClick={loadMore}
@@ -520,9 +574,9 @@ export function ViewWebsiteDialog({
                 </Button>
               </Row>
             )}
-          </>
+          </Stack>
         )}
-      </div>
-    </ViewDialog>
+      </EntityViewSection>
+    </EntityViewDialog>
   );
 }

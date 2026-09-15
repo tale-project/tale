@@ -8,7 +8,7 @@ import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo, useRef } from 'react';
+import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
@@ -40,6 +40,10 @@ interface EditProductDialogProps {
     category?: string;
     status?: (typeof PRODUCT_STATUSES)[number];
   };
+  /** Runs after a successful save, before the dialog closes. */
+  onSaved?: () => void;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const PRODUCT_STATUSES = ['active', 'inactive', 'draft', 'archived'] as const;
@@ -59,6 +63,8 @@ export function ProductEditDialog({
   isOpen,
   onClose,
   product,
+  onSaved,
+  restoreFocusRef,
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
@@ -196,6 +202,7 @@ export function ProductEditDialog({
             title: tProducts('edit.toast.success'),
             variant: 'success',
           });
+          onSaved?.();
           onClose();
         },
         onError: (err) => {
@@ -226,7 +233,8 @@ export function ProductEditDialog({
       isSubmitting={isSubmitting}
       isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
-      large
+      size="entity"
+      restoreFocusRef={restoreFocusRef}
     >
       <Input
         id="name"

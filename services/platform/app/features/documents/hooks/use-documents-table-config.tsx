@@ -82,6 +82,8 @@ function getSourceInfo(
 
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
+  /** Opens a file's preview from its row menu. */
+  onDocumentView: (documentId: string, opener: HTMLElement | null) => void;
   onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
@@ -97,6 +99,7 @@ interface DocumentsTableConfig {
 
 export function useDocumentsTableConfig({
   onDocumentClick,
+  onDocumentView,
   onFolderDeleted,
   isLoadingTeams,
   teamMap,
@@ -418,6 +421,7 @@ export function useDocumentsTableConfig({
               parentFolderTeamId={parentFolderTeamId}
               ragStatus={row.original.ragStatus}
               record={row.original.record}
+              onView={onDocumentView}
             />
           </HStack>
         ),
@@ -425,6 +429,7 @@ export function useDocumentsTableConfig({
     ],
     [
       onDocumentClick,
+      onDocumentView,
       onFolderDeleted,
       isLoadingTeams,
       teamMap,

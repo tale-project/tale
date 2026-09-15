@@ -23,7 +23,7 @@ type FormData = {
   scanInterval: string;
 };
 
-interface AddWebsiteDialogProps {
+interface WebsiteCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
@@ -81,11 +81,11 @@ function parseUrlList(raw: string): {
   return { groups, invalid };
 }
 
-export function AddWebsiteDialog({
+export function WebsiteCreateDialog({
   isOpen,
   onClose,
   organizationId,
-}: AddWebsiteDialogProps) {
+}: WebsiteCreateDialogProps) {
   const { t: tWebsites } = useT('websites');
   const {
     mutate: createWebsite,
@@ -260,9 +260,11 @@ export function AddWebsiteDialog({
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={tWebsites('addWebsite')}
+      description={tWebsites('addDescription')}
       submittingText={tWebsites('adding')}
       isSubmitting={isLoading}
       onSubmit={handleSubmit(onSubmit)}
+      size="entity"
     >
       <SegmentedControl
         id="mode"

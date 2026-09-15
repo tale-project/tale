@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 30 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -33,9 +33,10 @@ records and delete them after.
 > **Agent note**: These are DataTable list pages. The header create affordance
 > is a split/menu button (e.g. **Upload documents**, **Add product**) that
 > opens a menu — pick **From your device** / **Manual entry** inside it; it is
-> not a direct dialog. Row edit/delete live behind each row's **Open menu**
-> (`common.actions.openMenu`) 3-dot button — only manually-created rows expose
-> them. Verify every write by reloading the route and reading the row back,
+> not a direct dialog. Each row's **Open menu** (`common.actions.openMenu`)
+> 3-dot button starts with **View** (`common.actions.view`) for every member;
+> edit/delete follow for writers — contacts expose them only on manually-created
+> rows. Verify every write by reloading the route and reading the row back,
 > never by the toast. Document **indexing** needs the RAG service, which is
 > NOT in the hermetic mock stack, so an uploaded doc lands **Queued** then
 > flips to **Failed** (terminal here) — both are valid hermetic landing
@@ -95,7 +96,7 @@ records and delete them after.
   `products.create.toast.success` ("Product created successfully"); edit toast
   = `products.edit.toast.success` ("Product updated successfully"). Each
   change survives a reload of `/products`. After delete + reload the row is
-  gone (delete toast `products.actions.deleteSuccess`).
+  gone (delete toast `toast.success.deleted.title`).
 - [ ] `KNOW-F5` · **Contact CRUD** — Contacts → header **Add** menu
   (`contacts.addButton`) → **From your device**
   (`contacts.importMenu.fromDevice`) → in the **Upload contacts** dialog
@@ -197,7 +198,9 @@ records and delete them after.
   **URL list** (KNOW-F10) with two URLs on one public site: a healthy page
   and one that answers a redirect into a private address (`http://127.0.0.1/`
   behind a `302`) or a plain `500` → wait for the scan → row **Open menu** →
-  **View pages** → The healthy page shows its word and chunk counts; the
+  **View** (`common.actions.view`) → the **Website pages** section
+  (`websites.pagesDialog.title`) → The healthy page shows its word and chunk
+  counts; the
   failed page shows no words and no chunks but a destructive caption naming
   the failed attempts and the reason (`websites.pagesDialog.lastError` — a
   refused plaintext/private redirect reads as exactly that, never as a page
@@ -209,8 +212,9 @@ records and delete them after.
 - [ ] `KNOW-F14` · **Skipped-page reasons** — Websites → **Add website** →
   **URL list** (KNOW-F10) with three URLs on a host you control: a healthy
   page, a JSON endpoint (`/data.json`), and a page served with
-  `X-Robots-Tag: noindex` → wait for the scan → row **Open menu** → **View
-  pages** → The healthy page shows its counts; the JSON row and the noindex
+  `X-Robots-Tag: noindex` → wait for the scan → row **Open menu** → **View**
+  → the **Website pages** section → The healthy page shows its counts; the JSON
+  row and the noindex
   row show no words and no chunks but a caption naming the reason
   (`websites.pagesDialog.lastError` — "unsupported content" for the JSON,
   "asked not to be indexed" for the noindex page), never a blank row that
@@ -242,6 +246,26 @@ records and delete them after.
   again. A run failing for another reason (vendor unreachable) shows **Sync
   failed** (`documents.syncHealth.badge.failed`), whose dialog carries the
   error text and says Tale retries about every 15 minutes.
+- [ ] `KNOW-F17` · **Record dialogs share one shape** — in a window at least
+  768px wide, for each of Products, Contacts (a manually-created row), Websites
+  and Knowledge entries: click a row and close the details, then open the same
+  record from its row **Open menu** → **View** (`common.actions.view`); in the
+  details choose **Edit** (`common.actions.edit`) → **Cancel**, then **Edit**
+  again → change one field → **Save**; open the row menu's **Delete** and
+  cancel; open the header create dialog → Row click and **View** open the same
+  details dialog (`products.view.title`, `dialogs.contactInfo.title`,
+  `websites.viewDialog.title`, `knowledgeEntries.viewDialog.title`): an image
+  or icon tile beside the name, its summary and status badge, a divider, a
+  two-column facts grid that ends in a copyable ID, then the record's own
+  sections (a website's pages, an entry's version history). **Edit** replaces
+  the details with the edit dialog in the same place; **Cancel** brings the
+  details back and **Save** closes both, shows the success toast, and the row
+  reads the change. The details, edit, create and upload dialogs share one
+  width and are never shorter than a product's details; a short form keeps
+  its buttons on the bottom edge. The delete confirmation names the record in
+  bold with its consequence underneath (`products.delete.warning`,
+  `contacts.deleteWarning`, `websites.delete.warning`,
+  `knowledgeEntries.delete.warning`). Documents keep their full-width preview.
 
 ## Boundary & error tests
 
@@ -300,6 +324,13 @@ records and delete them after.
   its dialog has an accessible title and labelled file input, announces
   validation/upload errors, cannot be dismissed while uploading, and restores
   focus to the row's **Open menu** button when closed.
+- [ ] `KNOW-A6` · **View from the keyboard** → On any Knowledge list, Tab to a
+  row's **Open menu** and press Enter: focus lands on **View**
+  (`common.actions.view`), the first item, for a reader as well as a writer.
+  Enter opens the details with focus inside and a named **Edit** button where
+  the record is editable; Escape closes them and returns focus to that row's
+  **Open menu** button — also after **Edit** → **Cancel** has brought the
+  details back, and after a document preview opened from **View** closes.
 
 ## Performance
 

@@ -6,7 +6,7 @@ import { Input } from '@tale/ui/input';
 import { Select } from '@tale/ui/select';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo } from 'react';
+import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import * as z from 'zod';
 
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
@@ -18,17 +18,23 @@ type FormData = {
   scanInterval: string;
 };
 
-interface EditWebsiteDialogProps {
+interface WebsiteEditDialogProps {
   isOpen: boolean;
   onClose: () => void;
   website: WebsiteDoc;
+  /** Runs after a successful save, before the dialog closes. */
+  onSaved?: () => void;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-export function EditWebsiteDialog({
+export function WebsiteEditDialog({
   isOpen,
   onClose,
   website,
-}: EditWebsiteDialogProps) {
+  onSaved,
+  restoreFocusRef,
+}: WebsiteEditDialogProps) {
   const { t: tWebsites } = useT('websites');
   const { mutate: updateWebsite, isPending: isLoading } = useUpdateWebsite();
 
@@ -70,13 +76,16 @@ export function EditWebsiteDialog({
 
   const scanInterval = watch('scanInterval');
 
+  // Seed the form only on the open transition: re-seeding on every `website`
+  // identity change would drop the user's pick whenever the list refetches
+  // mid-edit (the table re-syncs scan statuses in the background).
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (website) {
-      reset({
-        scanInterval: website.scanInterval,
-      });
+    if (isOpen && !wasOpen.current) {
+      reset({ scanInterval: website.scanInterval });
     }
-  }, [website, reset]);
+    wasOpen.current = isOpen;
+  }, [isOpen, website.scanInterval, reset]);
 
   const onSubmit = (data: FormData) => {
     updateWebsite(
@@ -90,6 +99,7 @@ export function EditWebsiteDialog({
             title: tWebsites('toast.updateSuccess'),
             variant: 'success',
           });
+          onSaved?.();
           onClose();
         },
         onError: (error) => {
@@ -108,9 +118,12 @@ export function EditWebsiteDialog({
       open={isOpen}
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
+      description={tWebsites('editDescription')}
       isSubmitting={isLoading}
       isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
+      size="entity"
+      restoreFocusRef={restoreFocusRef}
     >
       <Input
         id="domain"

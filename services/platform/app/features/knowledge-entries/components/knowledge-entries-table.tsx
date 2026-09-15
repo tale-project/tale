@@ -4,9 +4,10 @@ import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';
@@ -17,7 +18,7 @@ import {
 } from '../hooks/queries';
 import { useKnowledgeEntriesTableConfig } from '../hooks/use-knowledge-entries-table-config';
 import { KnowledgeEntriesActionMenu } from './knowledge-entries-action-menu';
-import { ViewKnowledgeEntryDialog } from './knowledge-entry-view-dialog';
+import { KnowledgeEntryViewDialog } from './knowledge-entry-view-dialog';
 
 export interface KnowledgeEntriesTableProps {
   organizationId: string;
@@ -38,22 +39,20 @@ export function KnowledgeEntriesTable({
     initialNumItems: pageSize,
   });
 
-  const [viewingEntryId, setViewingEntryId] = useState<string | null>(null);
+  const {
+    record: viewedRecord,
+    open: openRecord,
+    close: closeRecord,
+  } = useViewedRecord(paginatedResult.results, paginatedResult.status);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { mutateAsync: deleteEntry } = useDeleteKnowledgeEntry();
 
-  const viewingEntry = useMemo(
-    () =>
-      viewingEntryId
-        ? (paginatedResult.results.find((e) => e._id === viewingEntryId) ??
-          null)
-        : null,
-    [viewingEntryId, paginatedResult.results],
+  const handleRowClick = useCallback(
+    (row: Row<KnowledgeEntryItem>) => {
+      openRecord(row.original._id);
+    },
+    [openRecord],
   );
-
-  const handleRowClick = useCallback((row: Row<KnowledgeEntryItem>) => {
-    setViewingEntryId(row.original._id);
-  }, []);
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -119,11 +118,11 @@ export function KnowledgeEntriesTable({
         {...list.tableProps}
       />
 
-      {viewingEntry && (
-        <ViewKnowledgeEntryDialog
-          isOpen={!!viewingEntry}
-          onClose={() => setViewingEntryId(null)}
-          entry={viewingEntry}
+      {viewedRecord && (
+        <KnowledgeEntryViewDialog
+          isOpen
+          onClose={closeRecord}
+          entry={viewedRecord}
         />
       )}
     </>

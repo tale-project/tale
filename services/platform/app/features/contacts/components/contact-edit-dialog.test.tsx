@@ -46,7 +46,7 @@ describe('ContactEditDialog', () => {
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={vi.fn()}
+        onClose={vi.fn()}
       />,
     );
 
@@ -56,12 +56,12 @@ describe('ContactEditDialog', () => {
   });
 
   it('allows saving with an empty name, matching import (#2640)', async () => {
-    const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={onOpenChange}
+        onClose={onClose}
       />,
     );
 
@@ -85,12 +85,12 @@ describe('ContactEditDialog', () => {
   });
 
   it('clears an existing phone number instead of silently keeping it', async () => {
-    const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={onOpenChange}
+        onClose={onClose}
       />,
     );
 
@@ -110,12 +110,12 @@ describe('ContactEditDialog', () => {
   });
 
   it('shows a visible, localized inline error when a required field is emptied', async () => {
-    const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={onOpenChange}
+        onClose={onClose}
       />,
     );
 
@@ -137,16 +137,16 @@ describe('ContactEditDialog', () => {
     expect(mockToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'success' }),
     );
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('submits with name when contact has a name', async () => {
-    const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={onOpenChange}
+        onClose={onClose}
       />,
     );
 
@@ -171,12 +171,12 @@ describe('ContactEditDialog', () => {
   it('shows error toast on failure', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Network error'));
 
-    const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
         contact={makeContact({ name: 'John' })}
         isOpen={true}
-        onOpenChange={onOpenChange}
+        onClose={onClose}
       />,
     );
 
@@ -193,7 +193,7 @@ describe('ContactEditDialog', () => {
       );
     });
 
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   describe('accessibility', () => {
@@ -202,7 +202,7 @@ describe('ContactEditDialog', () => {
         <ContactEditDialog
           contact={makeContact({ name: 'John' })}
           isOpen={true}
-          onOpenChange={vi.fn()}
+          onClose={vi.fn()}
         />,
       );
       await checkAccessibility(container);

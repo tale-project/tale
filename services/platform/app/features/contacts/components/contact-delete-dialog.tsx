@@ -1,13 +1,8 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
-import {
-  useDeleteDialog,
-  useDeleteDialogTranslations,
-} from '@tale/ui/entity/use-delete-dialog';
-import { Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
+import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
+import { type RefObject, useCallback } from 'react';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
@@ -15,26 +10,22 @@ import { useT } from '@/lib/i18n/client';
 import { useDeleteContact } from '../hooks/mutations';
 
 interface ContactDeleteDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
   contact: ContactDoc;
-  isOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  asChild?: boolean;
+  /** Stable focus target when the opener (a row menu item) unmounts. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function ContactDeleteDialog({
+  isOpen,
+  onClose,
   contact,
-  isOpen: controlledIsOpen,
-  onOpenChange: controlledOnOpenChange,
-  asChild = false,
+  restoreFocusRef,
 }: ContactDeleteDialogProps) {
   const { t: tContacts } = useT('contacts');
   const { t: tToast } = useT('toast');
-  const deleteContact = useDeleteContact();
-
-  const dialog = useDeleteDialog({
-    isOpen: controlledIsOpen,
-    onOpenChange: controlledOnOpenChange,
-  });
+  const { mutateAsync: deleteContact } = useDeleteContact();
 
   const translations = useDeleteDialogTranslations({
     tEntity: tContacts,
@@ -49,37 +40,25 @@ export function ContactDeleteDialog({
 
   const handleDelete = useCallback(
     async (c: ContactDoc) => {
-      await deleteContact.mutateAsync({ contactId: c._id });
+      await deleteContact({ contactId: c._id });
     },
     [deleteContact],
   );
 
   const getEntityName = useCallback(
-    (c: ContactDoc) => c.name || tContacts('thisContact'),
+    (c: ContactDoc) => c.name || c.email || tContacts('thisContact'),
     [tContacts],
   );
 
   return (
-    <>
-      {!asChild && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={dialog.open}
-          title={tContacts('deleteContact')}
-        >
-          <Trash2 className="text-muted-foreground size-4" />
-        </Button>
-      )}
-
-      <EntityDeleteDialog
-        isOpen={dialog.isOpen}
-        onClose={dialog.close}
-        entity={contact}
-        getEntityName={getEntityName}
-        deleteMutation={handleDelete}
-        translations={translations}
-      />
-    </>
+    <EntityDeleteDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      entity={contact}
+      getEntityName={getEntityName}
+      deleteMutation={handleDelete}
+      translations={translations}
+      restoreFocusRef={restoreFocusRef}
+    />
   );
 }

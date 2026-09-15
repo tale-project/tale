@@ -7,7 +7,7 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import { render, waitFor } from '@/tests/utils/render';
 
 import type { KnowledgeEntryItem } from '../hooks/queries';
-import { EditKnowledgeEntryDialog } from './knowledge-entry-edit-dialog';
+import { KnowledgeEntryEditDialog } from './knowledge-entry-edit-dialog';
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
-describe('EditKnowledgeEntryDialog', () => {
+describe('KnowledgeEntryEditDialog', () => {
   // Regression for #2056: a topic rename that collides with another live entry
   // must surface the duplicate toast. The backend throws
   // AppError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }); the dialog reads the
@@ -53,16 +53,23 @@ describe('EditKnowledgeEntryDialog', () => {
     );
 
     const { user } = render(
-      <EditKnowledgeEntryDialog
+      <KnowledgeEntryEditDialog
         isOpen={true}
         onClose={vi.fn()}
         entry={ENTRY}
       />,
     );
 
+    // Save stays disabled until something changed.
     const submit = document.querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+    const topic = document.querySelector(
+      'input[name="topic"]',
+    ) as HTMLInputElement;
+    await user.clear(topic);
+    await user.type(topic, 'Returns');
     await waitFor(() => expect(submit).toBeEnabled());
     await user.click(submit);
 

@@ -8,6 +8,7 @@ import { Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import type { SortingState } from '@/lib/pagination/types';
@@ -18,7 +19,7 @@ import {
   useListContactsPaginated,
 } from '../hooks/queries';
 import { useContactsTableConfig } from '../hooks/use-contacts-table-config';
-import { ContactInfoDialog } from './contact-info-dialog';
+import { ContactViewDialog } from './contact-view-dialog';
 import { ContactsActionMenu } from './contacts-action-menu';
 
 type Contact = ContactDoc;
@@ -131,7 +132,11 @@ export function ContactsTable({
     ],
   );
 
-  const [viewingContact, setViewingContact] = useState<Contact | null>(null);
+  const {
+    record: viewedRecord,
+    open: openRecord,
+    close: closeRecord,
+  } = useViewedRecord(paginatedResult.results, paginatedResult.status);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [createOpen, setCreateOpen] = useState(false);
   // Client-side sort over the eagerly-loaded page buffer (pagination mode
@@ -140,9 +145,12 @@ export function ContactsTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const deleteContact = useDeleteContact();
 
-  const handleRowClick = useCallback((row: Row<Contact>) => {
-    setViewingContact(row.original);
-  }, []);
+  const handleRowClick = useCallback(
+    (row: Row<Contact>) => {
+      openRecord(row.original._id);
+    },
+    [openRecord],
+  );
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -216,13 +224,11 @@ export function ContactsTable({
         {...list.tableProps}
       />
 
-      {viewingContact && (
-        <ContactInfoDialog
-          contact={viewingContact}
-          open={!!viewingContact}
-          onOpenChange={(open) => {
-            if (!open) setViewingContact(null);
-          }}
+      {viewedRecord && (
+        <ContactViewDialog
+          isOpen
+          onClose={closeRecord}
+          contact={viewedRecord}
         />
       )}
     </>

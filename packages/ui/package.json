@@ -100,6 +100,7 @@
     "./empty-state": "./src/components/feedback/empty-state.tsx",
     "./entity/entity-delete-dialog": "./src/components/entity/entity-delete-dialog.tsx",
     "./entity/entity-row-actions": "./src/components/entity/entity-row-actions.tsx",
+    "./entity/entity-view-dialog": "./src/components/entity/entity-view-dialog.tsx",
     "./entity/use-delete-dialog": "./src/components/entity/use-delete-dialog.ts",
     "./env-var-list-editor": "./src/components/forms/env-var-list-editor.tsx",
     "./error-boundaries/dialog-error-boundary": "./src/components/error-boundaries/boundaries/dialog-error-boundary.tsx",

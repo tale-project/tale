@@ -239,12 +239,15 @@ export function ProductCreateDialog({
       onOpenChange={(open) => !open && handleClose()}
       title={tProducts('create.title')}
       description={stepHints[activeIndex]}
-      size="md"
+      size="entity"
     >
       {/* Keyed on open so each fresh open starts at step 1 (form reset lives in
-          handleClose). Remounts only the wizard subtree, not the dialog. */}
+          handleClose). Remounts only the wizard subtree, not the dialog. The
+          wizard fills the frame so its footer stays on the bottom edge while
+          steps of different lengths come and go. */}
       <Wizard
         key={isOpen ? 'open' : 'closed'}
+        className="flex-1"
         steps={steps}
         activeIndex={activeIndex}
         onIndexChange={setActiveIndex}
@@ -382,6 +385,7 @@ export function ProductCreateDialog({
         </WizardStep>
 
         <WizardFooter
+          className="mt-auto"
           backLabel={tCommon('actions.back')}
           nextLabel={tCommon('actions.next')}
           finishLabel={tCommon('actions.create')}
