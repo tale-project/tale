@@ -318,6 +318,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-AT8` · **Attachment-only send** — Attach a file, send with no text
   → The message sends — staged attachments make an empty field sendable; the
   turn renders with the file part only.
+- [ ] `CHAT-AT9` · **Queued send fires** — Attach a large document and press
+  Send while its chip still reads **Indexing…** (`chat.indexing`) → The tray
+  row reads **Queued — sends when the attachments are ready**
+  (`chat.deferredSend.waiting`) with the chip's live progress; the moment
+  the reply starts streaming, the row leaves the tray and the sent message
+  appears in the transcript above the reply — not when the reply ends. The
+  same thread open in a second tab shows the same flip; a tab that reopens
+  the thread mid-reply shows the message, no tray row.
 
 ## Boundary & error tests
 

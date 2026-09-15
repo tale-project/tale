@@ -1,7 +1,10 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
-import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
+import {
+  DEFERRED_SEND_HINT_ENTITY,
+  VIDEO_LINK_HINT_ENTITY,
+} from '@/lib/shared/hint-entities';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
@@ -370,10 +373,13 @@ export interface DeferredSendView {
   createdAt: number;
 }
 
-/** The thread's parked sends (the tray above the composer). */
+/** The thread's parked sends (the tray above the composer). Keyed under the
+ * deferred-send hint entity: the backend hints the sender on every row write
+ * (park, claim, settle, cancel), and the thread stream nudges it when a turn
+ * opens — so a row the poller fired leaves the tray within a round-trip. */
 export function deferredSendsQuery(organizationId: string, threadId: string) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'chat_deferred', threadId),
+    queryKey: backendKey(organizationId, DEFERRED_SEND_HINT_ENTITY, threadId),
     queryFn: ({ signal }) =>
       backendFetch<{ sends: DeferredSendView[] }>(
         `/chat/threads/${encodeURIComponent(threadId)}/deferred-sends`,
@@ -642,7 +648,7 @@ export function invalidateChatMessages(
     queryKey: backendKey(organizationId, 'chat_message', threadId),
   });
   void queryClient.invalidateQueries({
-    queryKey: backendKey(organizationId, 'chat_deferred', threadId),
+    queryKey: backendKey(organizationId, DEFERRED_SEND_HINT_ENTITY, threadId),
   });
 }
 

@@ -62,8 +62,18 @@ describe('recoverStuckDeferredSends', () => {
       // waiting rows the sever-recovery re-polls
       [{ id: 'wait_1' }, { id: 'wait_2' }],
       // claimed rows the wedge-recovery deletes
-      [{ id: 'claim_1', organizationId: 'org_1', videoJobIds: ['job_1'] }],
+      [
+        {
+          id: 'claim_1',
+          organizationId: 'org_1',
+          userId: 'user_1',
+          threadId: 'thread_1',
+          videoJobIds: ['job_1'],
+        },
+      ],
       // the release of the cleared row's videos
+      [],
+      // the tray hint for the cleared row
       [],
     ]);
 
@@ -77,6 +87,14 @@ describe('recoverStuckDeferredSends', () => {
       statement.text.includes('message_bound_at_ms = NULL'),
     );
     expect(release?.values.slice(0, 2)).toEqual([['job_1'], 'org_1']);
+    // The cleared row's sender hears it: the tray chip it wedged goes away
+    // without waiting for the next thread-stream settle.
+    const hints = statements.filter((statement) =>
+      statement.text.includes('INSERT INTO app_realtime.outbox'),
+    );
+    expect(hints.map((statement) => statement.values)).toEqual([
+      ['org_1', 'user_1', 'chat_deferred', 'thread_1'],
+    ]);
     expect(sent).toHaveLength(2);
     expect(sent.every((job) => job.name === 'chat.deferred_send_poll')).toBe(
       true,

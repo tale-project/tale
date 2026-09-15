@@ -10,7 +10,11 @@
  *  - fire: the tray row settles the moment the turn persists the user
  *    message (never bubble + "sending" row together), and a send the turn
  *    refused or dropped BEFORE that write leaves its trace in the thread
- *    instead of vanishing.
+ *    instead of vanishing;
+ *  - hint: every row write tells the sender's tabs (a user-targeted
+ *    `chat_deferred` outbox hint) — park, claim, settle, cancel — so the tray
+ *    read refetches within a round-trip instead of holding a fired row as
+ *    "Queued" until the generation settles.
  *
  * The real-Postgres run rides `integration-check.ts`; this locks the
  * statement order and what the rows carry.
@@ -46,6 +50,7 @@ vi.mock('./service.ts', () => ({ runChatTurn }));
 vi.mock('../control/service.ts', () => ({ isBackendDraining }));
 
 import {
+  cancelDeferredSend,
   cancelDeferredSendsForThread,
   enqueueDeferredSend,
   pollDeferredSend,
@@ -136,6 +141,14 @@ const settleIndex = (timeline: Timeline) =>
   );
 const releaseStatement = (timeline: Timeline) =>
   timeline.find((entry) => entry.text.includes('message_bound_at_ms = NULL'));
+/** The tray hints (`chat_deferred` outbox rows) in timeline order. */
+const trayHints = (timeline: Timeline) =>
+  timeline.filter(
+    (entry) =>
+      entry.text.includes('INSERT INTO app_realtime.outbox') &&
+      entry.values[2] === 'chat_deferred',
+  );
+const TRAY_HINT_VALUES = ['org_1', 'user_1', 'chat_deferred', 'thread_1'];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -179,14 +192,18 @@ describe('enqueueDeferredSend', () => {
     );
     // The claim hints the uploader's chip reads on the same transaction
     // (`video_links/hints.ts`) — the chips leave the composer without a
-    // poll — and the row lands after it, the poll last.
+    // poll — the row lands after it and hints the tray read, the poll last.
     expect(order).toEqual([
       'other',
       'claim',
       'claim',
       'hint',
       'insert',
+      'hint',
       'job:chat.deferred_send_poll',
+    ]);
+    expect(trayHints(f.timeline).map((entry) => entry.values)).toEqual([
+      TRAY_HINT_VALUES,
     ]);
     // The row carries exactly the CLAIMED set — the foreign id was dropped.
     const insert = f.timeline.find((entry) =>
@@ -263,7 +280,14 @@ describe('pollDeferredSend', () => {
 describe('pollDeferredSend — settle at user append, trace on failure', () => {
   function readySql() {
     let order = 0;
+    let settled = false;
     return fakeSql(({ text }) => {
+      if (text.includes('DELETE FROM app.deferred_sends')) {
+        // The row goes exactly once; the finally's repeat finds nothing.
+        if (settled) return [];
+        settled = true;
+        return [{ id: 'ds_1' }];
+      }
       if (text.includes('FROM app.deferred_sends')) return [readyRow()];
       if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
       if (text.includes('INSERT INTO app.messages')) {
@@ -292,6 +316,21 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
     expect(settledBeforeTurnEnd).toBe(true);
     // A completed turn wrote its own rows through the store — no trace.
     expect(messageInserts(f.timeline)).toHaveLength(0);
+    // The sender's tabs hear both flips — claim ("Sending…") and settle
+    // (row gone) — and the settle's hint follows the DELETE that removed
+    // the row; the finally's repeat DELETE, removing nothing, hints nothing.
+    const hints = trayHints(f.timeline);
+    expect(hints.map((entry) => entry.values)).toEqual([
+      TRAY_HINT_VALUES,
+      TRAY_HINT_VALUES,
+    ]);
+    const claimAt = f.timeline.findIndex((entry) =>
+      entry.text.includes("SET status = 'claimed'"),
+    );
+    expect(f.timeline.indexOf(hints[0]!)).toBeGreaterThan(claimAt);
+    expect(f.timeline.indexOf(hints[1]!)).toBeGreaterThan(
+      settleIndex(f.timeline),
+    );
   });
 
   it('leaves the user row and an assistant error row when the turn is refused before the pipeline opened', async () => {
@@ -355,6 +394,49 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
     );
   });
 
+  it('still runs and settles the turn when the tray hint cannot be written', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let order = 0;
+    let settled = false;
+    const f = fakeSql(({ text }) => {
+      if (text.includes('INSERT INTO app_realtime.outbox')) {
+        throw new Error('outbox unavailable');
+      }
+      if (text.includes('DELETE FROM app.deferred_sends')) {
+        if (settled) return [];
+        settled = true;
+        return [{ id: 'ds_1' }];
+      }
+      if (text.includes('FROM app.deferred_sends')) return [readyRow()];
+      if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
+      if (text.includes('INSERT INTO app.messages')) {
+        order += 1;
+        return [{ id: `m_${order}`, order }];
+      }
+      return [];
+    });
+    runChatTurn.mockImplementation(
+      async (
+        _sql: unknown,
+        request: { onUserMessageAppended?: () => Promise<void> },
+      ) => {
+        await request.onUserMessageAppended?.();
+        return { status: 'completed', steps: ['done'], text: 'ok' };
+      },
+    );
+
+    // The hint is a freshness signal, not the write: a claim whose hint
+    // failed must not wedge as `claimed` with its message unsent.
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('ran');
+    expect(runChatTurn).toHaveBeenCalledTimes(1);
+    expect(settleIndex(f.timeline)).not.toBe(-1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('tray hint for thread thread_1 failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
   it('adds no trace for a failure the placeholder already carries', async () => {
     runChatTurn.mockImplementation(
       async (
@@ -387,6 +469,10 @@ describe('pollDeferredSend — the thread and the claimed videos at fire time', 
     expect(runChatTurn).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(settleIndex(f.timeline)).not.toBe(-1);
+    // The drop is a row write like any other: the sender's tabs hear it.
+    expect(trayHints(f.timeline).map((entry) => entry.values)).toEqual([
+      TRAY_HINT_VALUES,
+    ]);
     // The claim is undone for the jobs no message carries — the predicate
     // rides the statement; here it is the set that matters.
     expect(releaseStatement(f.timeline)?.values[0]).toEqual(['job_1']);
@@ -496,5 +582,71 @@ describe('cancelDeferredSendsForThread', () => {
       [],
       'user_1',
     );
+    // One hint for the thread's tray, however many rows went.
+    expect(trayHints(f.timeline).map((entry) => entry.values)).toEqual([
+      TRAY_HINT_VALUES,
+    ]);
+  });
+
+  it('hints nothing when the thread had no waiting row', async () => {
+    const f = fakeSql(() => []);
+
+    await expect(
+      cancelDeferredSendsForThread(f.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+      }),
+    ).resolves.toBe(0);
+    expect(trayHints(f.timeline)).toHaveLength(0);
+  });
+});
+
+describe('cancelDeferredSend', () => {
+  it('deletes the waiting row, cancels its claimed media, and hints the tray', async () => {
+    const f = fakeSql(({ text }) =>
+      text.includes('DELETE FROM app.deferred_sends')
+        ? [{ id: 'ds_1', threadId: 'thread_1', videoJobIds: ['job_1'] }]
+        : [],
+    );
+
+    await expect(
+      cancelDeferredSend(f.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        deferredSendId: 'ds_1',
+      }),
+    ).resolves.toBe(true);
+    // Only the owner's own WAITING row — a claimed one is already running.
+    const deletion = f.timeline.find((entry) =>
+      entry.text.includes('DELETE FROM app.deferred_sends'),
+    );
+    expect(deletion?.text).toContain("status = 'waiting'");
+    expect(deletion?.values).toEqual(['ds_1', 'org_1', 'user_1']);
+    expect(cancelDeferredJobs).toHaveBeenCalledWith(
+      f.sql,
+      'org_1',
+      ['job_1'],
+      'user_1',
+    );
+    // The hint names the thread the row came from — the tray is per thread
+    // and the cancel door only knows the row id.
+    expect(trayHints(f.timeline).map((entry) => entry.values)).toEqual([
+      TRAY_HINT_VALUES,
+    ]);
+  });
+
+  it('refuses quietly, without a hint, when no waiting row matched', async () => {
+    const f = fakeSql(() => []);
+
+    await expect(
+      cancelDeferredSend(f.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        deferredSendId: 'ds_claimed',
+      }),
+    ).resolves.toBe(false);
+    expect(cancelDeferredJobs).not.toHaveBeenCalled();
+    expect(trayHints(f.timeline)).toHaveLength(0);
   });
 });
