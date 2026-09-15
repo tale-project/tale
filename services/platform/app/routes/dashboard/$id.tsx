@@ -20,6 +20,7 @@ import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-con
 import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-placeholder';
 import { ChatSubPanelPlaceholder } from '@/app/components/layout/chat-sub-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
+import { MobileBottomNavPlaceholder } from '@/app/components/layout/mobile-bottom-nav-placeholder';
 import { UserButton } from '@/app/components/user-button';
 import {
   AbilityContext,
@@ -350,8 +351,14 @@ function DashboardLayout() {
                             )
                           ) : null}
                         </Stack>
-                        {hasRole && (
+                        {hasRole ? (
                           <MobileBottomNav organizationId={organizationId} />
+                        ) : (
+                          // Holds the tab bar's band while access resolves,
+                          // like the rail and chat placeholders above — without
+                          // it the content column grows to the bottom edge and
+                          // jumps back up when the live bar mounts.
+                          <MobileBottomNavPlaceholder />
                         )}
                       </div>
                     </div>

@@ -4,6 +4,8 @@ import { type LucideIcon } from 'lucide-react';
 import { forwardRef, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox, SkeletonCircle } from '../feedback/skeleton';
+import { Skeletonize } from '../feedback/skeleton-context';
 
 export interface BottomTabBarItem {
   /** Stable identifier for the item — used as the React key. */
@@ -40,6 +42,18 @@ export interface BottomTabBarProps extends Omit<
   ariaLabel: string;
 }
 
+// The bar's geometry, shared by the live bar and its placeholder so the
+// stand-in a loading shell renders has the bar's exact height by
+// construction: a top border, then per tab the padding, a 28px icon pill, the
+// gap and one label line.
+const BAR_FRAME_CLASS =
+  'border-border flex border-t pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left) md:hidden';
+const TAB_CLASS =
+  'relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5';
+const PILL_CLASS =
+  'relative inline-flex h-7 min-w-12 items-center justify-center rounded-full px-3';
+const LABEL_CLASS = 'w-full truncate text-center text-[10px] leading-tight';
+
 /**
  * In-flow bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
  * touch targets (44×44 min). Honors `env(safe-area-inset-bottom)` (via the
@@ -57,8 +71,8 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
       ref={ref}
       aria-label={ariaLabel}
       className={cn(
-        'bg-background/95 border-border flex border-t shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md md:hidden',
-        'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
+        BAR_FRAME_CLASS,
+        'bg-background/95 shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md',
         className,
       )}
       {...props}
@@ -70,6 +84,49 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
   ),
 );
 BottomTabBar.displayName = 'BottomTabBar';
+
+export interface BottomTabBarPlaceholderProps {
+  /** How many masked tabs to draw — match the live bar's usual item count. */
+  tabs: number;
+  /** Extra classes, e.g. the bottom clearance the live bar adds for a toolbar. */
+  className?: string;
+}
+
+/**
+ * Masked stand-in for `BottomTabBar` while the shell that owns the real bar
+ * is still loading. Built from the bar's own tab geometry, so it is exactly as
+ * tall as the live bar and the content above it does not move when the bar
+ * replaces it. Renders no text (each label line is sized by a zero-width
+ * glyph), so a server-rendered boot shell painting before its stylesheet
+ * shows nothing stray.
+ */
+export function BottomTabBarPlaceholder({
+  tabs,
+  className,
+}: BottomTabBarPlaceholderProps) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(BAR_FRAME_CLASS, 'bg-background', className)}
+    >
+      <Skeletonize loading className="flex w-full">
+        {Array.from({ length: tabs }, (_, index) => (
+          // eslint-disable-next-line react/no-array-index-key -- a fixed row of identical masks
+          <div key={index} className={TAB_CLASS}>
+            <SkeletonCircle asChild>
+              <span className={PILL_CLASS} />
+            </SkeletonCircle>
+            <SkeletonBox asChild>
+              <span className={cn(LABEL_CLASS, 'mx-auto w-10')}>
+                {'\u200B'}
+              </span>
+            </SkeletonBox>
+          </div>
+        ))}
+      </Skeletonize>
+    </div>
+  );
+}
 
 interface BottomTabBarButtonProps {
   item: BottomTabBarItem;
@@ -90,7 +147,8 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
       onClick={item.onSelect}
       aria-current={item.active ? 'page' : undefined}
       className={cn(
-        'group relative flex min-h-12 min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors select-none [-webkit-tap-highlight-color:transparent]',
+        'group touch-manipulation text-[11px] font-medium transition-colors select-none [-webkit-tap-highlight-color:transparent]',
+        TAB_CLASS,
         'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
         item.active
           ? item.accentColor
@@ -102,7 +160,8 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
     >
       <span
         className={cn(
-          'relative inline-flex h-7 min-w-12 items-center justify-center rounded-full px-3 transition-colors',
+          PILL_CLASS,
+          'transition-colors',
           showPill && !item.accentColor && 'bg-muted',
         )}
         style={pillStyle}
@@ -126,9 +185,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className="w-full truncate text-center text-[10px] leading-tight">
-        {item.label}
-      </span>
+      <span className={LABEL_CLASS}>{item.label}</span>
     </button>
   );
 }

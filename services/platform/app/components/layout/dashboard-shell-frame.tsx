@@ -7,6 +7,7 @@ import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
 // (the boot-shell prerender), where the `@/` tsconfig alias isn't guaranteed.
 import { ChatComposerPlaceholder } from './chat-composer-placeholder';
 import { ChatSubPanelPlaceholder } from './chat-sub-panel-placeholder';
+import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
 
 /**
  * KEEP THIS MODULE LEAN. It is the boot-shell prerender root (rendered under
@@ -76,12 +77,9 @@ export function DashboardShellFrame() {
         </div>
       </Stack>
 
-      {/* Mobile bottom-nav placeholder */}
-      <Row
-        gap={0}
-        align="stretch"
-        className="bg-background border-border min-h-12 border-t pb-(--safe-bottom) md:hidden"
-      />
+      {/* Mobile bottom-nav placeholder — the live tab bar's exact height, so
+          the composer stand-in above it sits where the live composer lands. */}
+      <MobileBottomNavPlaceholder />
     </div>
   );
 }
