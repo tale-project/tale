@@ -368,7 +368,9 @@ BACKEND_BLOCK=$(cat <<EOF
 	# Uploads and downloads run browser↔store directly: the store, not Node,
 	# answers the Range requests media seeking needs. The store itself is
 	# internal-only, so the backend signs browser-facing URLs against
-	# OBJECT_STORE_PUBLIC_ENDPOINT (this origin) and they arrive here.
+	# OBJECT_STORE_PUBLIC_ENDPOINT — moved onto the site origin the request
+	# came from, when that endpoint is itself a site origin — and they arrive
+	# here, on whichever address of this block the browser used.
 	#
 	# The path is LITERALLY the bucket name and is NOT stripped: SigV4 covers
 	# the host and the path, so rewriting either would break every signature.

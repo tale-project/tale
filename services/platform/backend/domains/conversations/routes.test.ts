@@ -224,6 +224,8 @@ describe('conversations route — the detail door reads the thread once', () => 
       expect.anything(),
       { id: 'c1', organizationId: 'o1' },
       [{ id: 'm1' }, { id: 'm2' }],
+      // The viewer's origin, which the attachment links are signed for.
+      expect.any(String),
     );
   });
 });

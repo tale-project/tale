@@ -89,7 +89,7 @@ Les fichiers et médias utilisent un stockage compatible S3. Ces variables règl
 | `OBJECT_STORE_REGION`            | `us-east-1`                  | Région de signature. Signifiante sur AWS ; arbitraire mais exigée par le signataire pour un store auto-hébergé. |
 | `OBJECT_STORE_FORCE_PATH_STYLE`  | `true` avec endpoint, `false` sans | Adresse le bucket en `endpoint/bucket/key` plutôt qu’en `bucket.endpoint/key`. Le défaut suit l’endpoint et convient donc aux deux cas ; ne le pose que pour un store qui déroge à sa propre forme. |
 | `OBJECT_STORE_PREFIX`            | non défini                   | Préfixe de clés dans le bucket, pour que les blobs de Tale partagent un bucket avec d’autres données. Vide signifie la racine du bucket. |
-| `OBJECT_STORE_PUBLIC_ENDPOINT`   | `${SITE_URL}` (posé par la CLI) | Où le **navigateur** atteint le store. Le proxy publie le store embarqué sous `/<bucket>/*` et transfère les URLs présignées telles quelles, donc téléversements et téléchargements se font directement navigateur↔store. Laisse-le vide pour un bucket que le navigateur atteint déjà. |
+| `OBJECT_STORE_PUBLIC_ENDPOINT`   | `${SITE_URL}` (posé par la CLI) | Où le **navigateur** atteint le store. Le proxy publie le store embarqué sous `/<bucket>/*` et transfère les URLs présignées telles quelles, donc téléversements et téléchargements se font directement navigateur↔store. Si ce point d’accès est l’une des origines du déploiement, un lien destiné à un navigateur sur une autre origine configurée est signé pour cette origine. Laisse-le vide pour un bucket que le navigateur atteint déjà. |
 
 Le proxy fourni expose la route des objets au navigateur sans publier le port d’administration du stockage. Un stockage externe peut utiliser son propre endpoint public.
 

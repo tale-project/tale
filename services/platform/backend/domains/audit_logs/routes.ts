@@ -7,6 +7,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import {
   browserFacing,
   s3PresignGetUrl,
@@ -220,10 +221,14 @@ export function createAuditLogRoutes(deps: {
     );
     // The browser downloads the export directly, so the URL is signed
     // against the origin it can reach — see `browserFacing`.
-    const url = await s3PresignGetUrl(browserFacing(store), key, {
-      filename: built.fileName,
-      expiresInSec: 600,
-    });
+    const url = await s3PresignGetUrl(
+      browserFacing(store, publicOrigin(c.req.raw)),
+      key,
+      {
+        filename: built.fileName,
+        expiresInSec: 600,
+      },
+    );
     return c.json({ storageId: key, fileName: built.fileName, url });
   });
 

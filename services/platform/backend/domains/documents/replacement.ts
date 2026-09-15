@@ -325,6 +325,9 @@ export async function beginReplacementUpload(
   sql: Sql,
   auth: ProjectAuthContext,
   args: BeginReplacementArgs,
+  /** The origin the browser's request arrived on (`publicOrigin(req)`): the
+   * staging PUT is signed for it (`browserFacing`). */
+  requestOrigin: string | null,
 ): Promise<{
   intentId: string;
   url: string;
@@ -376,10 +379,14 @@ export async function beginReplacementUpload(
   // URL must be signed against the origin the browser can reach — this lane
   // was the one browser-handed presign missing `browserFacing`, which broke
   // replacement uploads on deployments whose store endpoint is internal.
-  const url = await s3PresignPutUrl(browserFacing(store), stagingKey, {
-    contentType: uploadContentType,
-    expiresInSec: PRESIGN_TTL_SEC,
-  });
+  const url = await s3PresignPutUrl(
+    browserFacing(store, requestOrigin),
+    stagingKey,
+    {
+      contentType: uploadContentType,
+      expiresInSec: PRESIGN_TTL_SEC,
+    },
+  );
   const now = Date.now();
   const inserted = await sql<{ id: string }[]>`
     INSERT INTO app.document_replacement_uploads (

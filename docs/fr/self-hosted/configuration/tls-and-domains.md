@@ -91,7 +91,7 @@ Tale n’accepte que les origines configurées pour construire les URL publiques
 | Entity ID du SP SAML | Le fournisseur d’identité connaît un identifiant stable du service. |
 | Adresses des ressources SCIM | La synchronisation d’annuaire a besoin d’URL stables. |
 | Passkeys | Les identifiants sont liés au domaine de la partie de confiance et ne passent pas automatiquement d’un domaine à l’autre. |
-| Point d’accès public du stockage objet | Les URL présignées utilisent son origine configurée ; revois-la lors d’un changement de domaine. |
+| Point d’accès public du stockage objet | Les tâches en arrière-plan signent les liens de fichiers pour ce point d’accès. Un lien remis au navigateur utilise le domaine sur lequel il se trouve lorsque ce point d’accès est l’une des origines du déploiement ; revois un hôte de fichiers distinct lors d’un changement de domaine. |
 
 ### Enregistrer chaque callback fournisseur
 

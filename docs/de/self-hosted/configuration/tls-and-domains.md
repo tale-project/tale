@@ -91,7 +91,7 @@ Beim Ableiten öffentlicher URLs akzeptiert Tale nur konfigurierte Ursprünge. E
 | SAML-SP-Entity-ID | Der Identitätsanbieter kennt einen stabilen Dienstanbieter. |
 | SCIM-Ressourcenadressen | Verzeichnissynchronisierung braucht stabile URLs. |
 | Passkeys | Zugangsdaten sind an eine Relying-Party-Domain gebunden und wechseln nicht automatisch zwischen Domains. |
-| Öffentlicher Objektspeicher-Endpunkt | Vorsignierte URLs nutzen dessen konfigurierten Ursprung; prüfe ihn beim Domainwechsel. |
+| Öffentlicher Objektspeicher-Endpunkt | Hintergrundaufgaben signieren Dateilinks für diesen Endpunkt. Ein Link für den Browser nutzt die Domain, auf der dieser gerade ist, wenn der Endpunkt einer der Ursprünge dieses Deployments ist; prüfe einen separaten Datei-Host beim Domainwechsel. |
 
 ### Alle Anbieter-Callbacks registrieren
 

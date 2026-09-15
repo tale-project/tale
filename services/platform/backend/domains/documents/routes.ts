@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import {
   rateLimitExceededCause,
@@ -159,6 +160,7 @@ export function createDocumentRoutes(deps: {
           deps.sql,
           auth.organizationId,
           documents,
+          publicOrigin(c.req.raw),
         ),
         truncated,
       });
@@ -186,7 +188,12 @@ export function createDocumentRoutes(deps: {
           : {}),
       });
       return c.json({
-        page: await toDocumentItems(deps.sql, auth.organizationId, result.page),
+        page: await toDocumentItems(
+          deps.sql,
+          auth.organizationId,
+          result.page,
+          publicOrigin(c.req.raw),
+        ),
         isDone: result.isDone,
         continueCursor: result.continueCursor,
       });
@@ -326,7 +333,12 @@ export function createDocumentRoutes(deps: {
         c.req.param('projectId'),
       );
       return c.json({
-        documents: await toDocumentItems(deps.sql, auth.organizationId, rows),
+        documents: await toDocumentItems(
+          deps.sql,
+          auth.organizationId,
+          rows,
+          publicOrigin(c.req.raw),
+        ),
       });
     } catch (error) {
       return handleError(c, error);
@@ -426,7 +438,12 @@ export function createDocumentRoutes(deps: {
         auth,
         c.req.param('documentId'),
       );
-      const items = await toDocumentItems(deps.sql, auth.organizationId, [doc]);
+      const items = await toDocumentItems(
+        deps.sql,
+        auth.organizationId,
+        [doc],
+        publicOrigin(c.req.raw),
+      );
       return c.json({ document: items[0] ?? null });
     } catch (error) {
       return handleError(c, error);
@@ -521,10 +538,12 @@ export function createDocumentRoutes(deps: {
     try {
       const auth = await authCtx(c);
       return c.json(
-        await beginReplacementUpload(deps.sql, auth, {
-          documentId: c.req.param('documentId'),
-          ...body.data,
-        }),
+        await beginReplacementUpload(
+          deps.sql,
+          auth,
+          { documentId: c.req.param('documentId'), ...body.data },
+          publicOrigin(c.req.raw),
+        ),
       );
     } catch (error) {
       return handleError(c, error);

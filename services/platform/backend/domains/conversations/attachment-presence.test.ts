@@ -59,6 +59,7 @@ describe('presignMessageAttachments — attachment presence', () => {
       sql,
       'org-1',
       messageWith({ storageId: 's1', name: 'invoice.pdf' }),
+      null,
     );
 
     expect(firstAttachment(out)).toMatchObject({
@@ -75,6 +76,7 @@ describe('presignMessageAttachments — attachment presence', () => {
       sql,
       'org-1',
       messageWith({ storageId: 's1', name: 'invoice.pdf' }),
+      null,
     );
 
     // The URL must be GONE, not merely flagged — a dead link next to the
@@ -94,6 +96,7 @@ describe('presignMessageAttachments — attachment presence', () => {
       sql,
       'org-1',
       messageWith({ storageId: 's1', name: 'invoice.pdf' }),
+      null,
     );
 
     expect(firstAttachment(out)).toMatchObject({

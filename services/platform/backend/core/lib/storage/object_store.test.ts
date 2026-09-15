@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { s3KeyBelongsToOrg } from './blob_ref';
 import {
+  browserFacing,
   buildObjectKey,
   buildS3ObjectStore,
   clearOrgObjectStoreCache,
@@ -127,6 +128,83 @@ describe('s3PresignGetUrl — attachment forcing', () => {
     // is covered by the signature — a tampered disposition invalidates it.
     expect(url.searchParams.get('X-Amz-SignedHeaders')).toBe('host');
     expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
+  });
+});
+
+describe('presigned browser links on a deployment with several origins', () => {
+  // The proxy publishes the bucket on every configured origin and forwards
+  // the Host untouched, so a link signed for the origin the browser is on
+  // verifies at the store — and the same link replayed on another host would
+  // not, because the host is part of what is signed.
+  beforeEach(() => {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com');
+    vi.stubEnv('ADDITIONAL_SITE_URLS', 'https://tale.partner.example');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  function published() {
+    return buildS3ObjectStore(
+      {
+        endpoint: 'http://object-store:9000',
+        publicEndpoint: 'https://tale.example.com',
+        bucket: 'tale-blobs',
+        region: 'us-east-1',
+        forcePathStyle: true,
+      },
+      { accessKeyId: 'test-access', secretAccessKey: 'test-secret' },
+    );
+  }
+
+  it('signs a download for the host the browser is on', async () => {
+    const url = new URL(
+      await s3PresignGetUrl(
+        browserFacing(published(), 'https://tale.partner.example'),
+        'acme/blob-1',
+      ),
+    );
+    expect(url.host).toBe('tale.partner.example');
+    expect(url.pathname).toBe('/tale-blobs/acme/blob-1');
+    expect(url.searchParams.get('X-Amz-SignedHeaders')).toBe('host');
+  });
+
+  it('signs an upload for the host the browser is on, its type still bound', async () => {
+    const url = new URL(
+      await s3PresignPutUrl(
+        browserFacing(published(), 'https://tale.partner.example'),
+        'acme/blob-1',
+        { contentType: 'application/pdf' },
+      ),
+    );
+    expect(url.host).toBe('tale.partner.example');
+    expect(url.searchParams.get('X-Amz-SignedHeaders')?.split(';')).toEqual([
+      'content-type',
+      'host',
+    ]);
+  });
+
+  it('binds the signature to that host', async () => {
+    const sign = async (origin: string) =>
+      new URL(
+        await s3PresignGetUrl(
+          browserFacing(published(), origin),
+          'acme/blob-1',
+        ),
+      );
+    const canonical = await sign('https://tale.example.com');
+    const partner = await sign('https://tale.partner.example');
+    expect(canonical.host).toBe('tale.example.com');
+    expect(canonical.searchParams.get('X-Amz-Date')).toBe(
+      partner.searchParams.get('X-Amz-Date'),
+    );
+    expect(canonical.searchParams.get('X-Amz-Signature')).not.toBe(
+      partner.searchParams.get('X-Amz-Signature'),
+    );
   });
 });
 

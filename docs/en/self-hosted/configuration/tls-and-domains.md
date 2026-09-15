@@ -91,7 +91,7 @@ Tale accepts only configured origins when deriving browser-facing URLs; an unrec
 | SAML SP entity ID | The identity provider identifies one stable service provider. |
 | SCIM resource locations | Directory synchronization needs stable resource URLs. |
 | Passkeys | Credentials are bound to a relying-party domain and do not transfer automatically between domains. |
-| Public object-storage endpoint | Presigned URLs use its configured origin; review it when changing domains. |
+| Public object-storage endpoint | Background work signs file links for this endpoint. A link handed to a browser uses the domain the browser is on when the endpoint is one of this deployment's origins; review a separate file host when changing domains. |
 
 ### Register every provider callback
 

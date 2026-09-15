@@ -6,6 +6,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   bulkReplyToConversations,
@@ -198,6 +199,7 @@ export function createConversationRoutes(deps: {
           deps.sql,
           conversation,
           messages,
+          publicOrigin(c.req.raw),
         ),
       });
     } catch (error) {
