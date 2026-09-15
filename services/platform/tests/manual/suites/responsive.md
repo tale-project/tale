@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 16 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 17 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the **More** overflow sheet, the mobile floating Save cluster, and that no key
@@ -132,3 +132,10 @@ if you want to keep a write.
   ms** (mock mode A, local backend).
 - [ ] `RESP-P2` · **More-sheet open** → Tapping **More** shows the dialog in
   **< 300 ms** (mock mode A, local backend).
+- [ ] `RESP-P3` · **Mobile composer holds its place while the shell loads**
+  — At 390 px, hard-reload `/dashboard/{org}/chat`, once in a fresh tab
+  (access resolves after the skeleton) and once again in the same tab → The
+  masked tab bar at the bottom of the loading screen is as tall as the live
+  one, so neither the masked composer nor the live composer that replaces it
+  moves; on iPhone Safari in a browser tab the masked bar already carries the
+  toolbar clearance the live bar adds.

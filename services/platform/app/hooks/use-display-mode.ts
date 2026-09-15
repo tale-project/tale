@@ -16,14 +16,19 @@ interface DisplayMode {
 
 const STANDALONE_QUERY = '(display-mode: standalone)';
 
-function detectIsStandalone(): boolean {
+export function detectIsStandalone(): boolean {
   if (typeof window === 'undefined') return false;
-  if (window.matchMedia(STANDALONE_QUERY).matches) return true;
+  if (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(STANDALONE_QUERY).matches
+  ) {
+    return true;
+  }
   const nav = window.navigator as Navigator & { standalone?: boolean };
   return nav.standalone === true;
 }
 
-function detectIsMobileSafari(): boolean {
+export function detectIsMobileSafari(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = window.navigator.userAgent;
   const isIOS =
@@ -38,28 +43,40 @@ function detectIsMobileSafari(): boolean {
   return isSafariShell;
 }
 
+function detectMode(): DisplayMode {
+  return {
+    isStandalone: detectIsStandalone(),
+    isMobileSafari: detectIsMobileSafari(),
+  };
+}
+
 /**
  * Detect whether the app is running as an installed PWA (standalone) and
  * whether the browser is Mobile Safari. Used to opt into Safari-specific
  * layout adjustments (e.g. clearing the bottom browser toolbar) only when
  * needed — installed PWAs use the standard safe-area inset instead.
+ *
+ * Detected on the first render rather than after mount: the bottom tab bar's
+ * toolbar clearance must be in place before first paint, or the content
+ * column moves up by it just after the page appears. The pre-hydration script
+ * in `index.html` applies the same checks for the boot shell's placeholder.
  */
 export function useDisplayMode(): DisplayMode {
-  const [mode, setMode] = useState<DisplayMode>({
-    isStandalone: false,
-    isMobileSafari: false,
-  });
+  const [mode, setMode] = useState<DisplayMode>(detectMode);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
+    if (typeof window.matchMedia !== 'function') return undefined;
 
     const update = () => {
-      setMode({
-        isStandalone: detectIsStandalone(),
-        isMobileSafari: detectIsMobileSafari(),
-      });
+      const next = detectMode();
+      setMode((current) =>
+        current.isStandalone === next.isStandalone &&
+        current.isMobileSafari === next.isMobileSafari
+          ? current
+          : next,
+      );
     };
-    update();
 
     const mql = window.matchMedia(STANDALONE_QUERY);
     mql.addEventListener('change', update);

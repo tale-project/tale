@@ -53,6 +53,35 @@
         }
       })();
     </script>
+    <!-- Pre-hydration Safari toolbar marker: on Mobile Safari outside an
+         installed app the mobile tab bar adds bottom clearance (`pb-12`) for
+         the browser toolbar. `boot-safari-toolbar` on <html> lets the boot
+         shell's tab-bar placeholder reserve the same clearance before first
+         paint. Mirrors detectIsMobileSafari / detectIsStandalone in
+         app/hooks/use-display-mode.ts (pinned by
+         boot-safari-toolbar-script.test.ts). -->
+    <script>
+      (function () {
+        try {
+          var nav = window.navigator;
+          var ua = nav.userAgent;
+          var isIOS =
+            /iP(ad|hone|od)/.test(ua) ||
+            (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+          var isSafariShell =
+            /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS)/.test(ua);
+          var standalone =
+            (typeof window.matchMedia === 'function' &&
+              window.matchMedia('(display-mode: standalone)').matches) ||
+            nav.standalone === true;
+          if (isIOS && isSafariShell && !standalone) {
+            document.documentElement.classList.add('boot-safari-toolbar');
+          }
+        } catch (error) {
+          console.warn('Failed to apply the boot Safari toolbar marker', error);
+        }
+      })();
+    </script>
     <!-- Pre-hydration boot-shell state: when the navigation targets a chat
          route (shared-view routes excluded — they render no panel) or an
          org root (which always redirects to chat), reveal the chat layout
