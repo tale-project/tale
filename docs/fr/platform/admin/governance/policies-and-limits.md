@@ -56,9 +56,9 @@ Les commutateurs par défaut des instructions personnalisées et des souvenirs e
 **Avis de confidentialité** ajoute une courte ligne sous le champ de message du chat pour tous les membres de ton organisation, par exemple pour rappeler de ne pas partager de données sensibles. L’avis reste désactivé tant que tu ne l’actives pas.
 
 1. Active le commutateur **Avis de confidentialité**. Les membres voient aussitôt l’avis dans le chat, dans leur langue, et les chats ouverts se mettent à jour sans rechargement.
-2. Si tu le souhaites, saisis ton propre texte sous **English**, **Deutsch** et **Français**, jusqu’à 280 caractères chacun. Enregistre ensuite les changements de la page.
+2. Si tu le souhaites, saisis ton propre texte dans les onglets de langue **English**, **Deutsch** et **Français**, jusqu’à 280 caractères par langue. Enregistre ensuite les changements de la page.
 
-Chaque membre voit le texte de sa langue. Pour une langue laissée vide, ton texte anglais s’affiche, ou l’avis par défaut si l’anglais est vide lui aussi. Chaque champ vide présente en aperçu le texte que verront ces membres. Désactiver l’avis conserve tes textes pour la prochaine activation.
+Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).
 

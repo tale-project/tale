@@ -56,9 +56,9 @@ The custom-instructions and memories default switches store organization default
 **Confidentiality notice** adds a short line under the chat message field for every member of your organization, such as a reminder not to share sensitive data. It stays off until you turn it on.
 
 1. Turn on the **Confidentiality notice** switch. Members see the notice in chat right away, in their language; open chats update without reloading.
-2. Optionally enter your own text under **English**, **Deutsch**, and **Français**, up to 280 characters each. Save the pending page changes.
+2. Optionally enter your own text in the language tabs **English**, **Deutsch**, and **Français**, up to 280 characters per language. Save the pending page changes.
 
-Members see the text for their language. A language left empty shows your English text, or the default notice when English is empty too; each empty field previews the text those members will see. Turning the notice off keeps your texts for when you turn it on again.
+Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
 
 The notice is a reminder only. It does not check, block, or change what members send. To act on sensitive content, configure [Guardrails](/platform/admin/governance/guardrails).
 
