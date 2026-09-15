@@ -25,11 +25,6 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
-  harnessStatusQueryKey: (organizationId: string) => [
-    'providers',
-    'harness-status',
-    organizationId,
-  ],
   useHarnessStatus: () => ({
     data: fixtures.statusError === null ? fixtures.status : undefined,
     isPending: false,

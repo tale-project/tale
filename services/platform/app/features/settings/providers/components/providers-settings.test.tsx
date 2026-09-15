@@ -42,11 +42,6 @@ vi.mock('../hooks/queries', () => ({
     'catalogs',
     organizationId,
   ],
-  harnessStatusQueryKey: (organizationId: string) => [
-    'providers',
-    'harness-status',
-    organizationId,
-  ],
   useProviderCatalogs: () => ({
     data: fixtures.catalogs,
     isPending: false,

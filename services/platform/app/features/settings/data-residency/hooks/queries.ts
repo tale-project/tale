@@ -1,5 +1,7 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { backendKey } from '@/app/lib/backend/query-keys';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
  * Read hooks for the unified data-residency page. The reads are ACTIONS (they
@@ -38,14 +40,20 @@ export function useOrgKnowledgeEmbedding(organizationId: string) {
  * Embedding models the org could adopt — curated picks from the catalogs its
  * direct credentials already unlock, each carrying the vector width an admin
  * would otherwise have to look up by hand. Feeds the one-click form fill in
- * the embedding section; the admin's Save remains the write.
+ * the embedding section; the admin's Save remains the write. Keyed under the
+ * credential entity: the picks change with the credentials, not with the
+ * embedding config.
  */
 export function useEmbeddingRecommendations(
   organizationId: string,
   options?: { enabled?: boolean },
 ) {
   return useActionQuery(
-    ['config', 'org-embedding-recommendations', organizationId],
+    backendKey(
+      organizationId,
+      PROVIDER_CREDENTIAL_HINT_ENTITY,
+      'embedding-recommendations',
+    ),
     'knowledge/recommendations:listEmbeddingRecommendations',
     { organizationId },
     options,

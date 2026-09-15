@@ -11,12 +11,14 @@ import { useMemo } from 'react';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { backendKey } from '@/app/lib/backend/query-keys';
 import type { SoftDeleteResourceType } from '@/backend/core/governance/soft_delete';
 import {
   CHAT_MAX_FILE_SIZE,
   CHAT_UPLOAD_ALLOWED_TYPES,
   DOCUMENT_MAX_FILE_SIZE,
 } from '@/lib/shared/file-types';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { isRecord } from '@/lib/utils/type-utils';
 
 interface UploadPolicyLimits {
@@ -273,11 +275,13 @@ export function useListTrashedRows(
  * Which model would read an image for this organization right now, and why
  * that one. The pick is otherwise invisible — three lanes resolve it at run
  * time and none records it — so the vision-model editor shows it next to the
- * Automatic option instead of leaving the reader to guess.
+ * Automatic option instead of leaving the reader to guess. "Right now" is
+ * whatever the org's credentials reach, so the pick keys under their entity
+ * and re-resolves when a credential changes.
  */
 export function useResolvedVisionModel(organizationId: string) {
   return useActionQuery(
-    ['governance', 'vision-model', 'resolved', organizationId],
+    backendKey(organizationId, PROVIDER_CREDENTIAL_HINT_ENTITY, 'vision-model'),
     'lib/providers/vision_actions:getResolvedVisionModel',
     { organizationId },
   );
