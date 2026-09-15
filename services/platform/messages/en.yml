@@ -2067,9 +2067,6 @@ documents:
       teams: Teams
       uploadedBy: Uploaded by
       modified: Modified
-      sourceUpload: Upload
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Image pages
   upload:
     cancelUpload: Cancel upload
@@ -2274,14 +2271,17 @@ documents:
           malformed: The file cannot be read as its stated format. It may be damaged or password-protected.
   sourceType:
     confluence: Confluence
-    googleDrive: Google Drive
     webDav: WebDAV
-    oneDrive: OneDrive
     oneDriveSynced: OneDrive (synced)
-    sharePoint: SharePoint
+    oneDriveNotSynced: OneDrive (not synced)
     sharePointSynced: SharePoint (synced)
+    sharePointNotSynced: SharePoint (not synced)
     uploaded: Upload
+    agent: Agent
+    knowledgeEntry: Knowledge entry
+    api: API
     googleDriveSynced: Google Drive (synced)
+    googleDriveNotSynced: Google Drive (not synced)
   syncHealth:
     badge:
       failed: Sync failed

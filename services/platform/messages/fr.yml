@@ -2146,9 +2146,6 @@ documents:
       teams: Équipes
       uploadedBy: Téléversé par
       modified: Modifié
-      sourceUpload: Téléversement
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Pages image
   upload:
     cancelUpload: Annuler le téléversement
@@ -2376,14 +2373,17 @@ documents:
           malformed: Le fichier ne peut pas être lu dans le format indiqué. Il peut être endommagé ou protégé par mot de passe.
   sourceType:
     confluence: Confluence
-    googleDrive: Google Drive
     webDav: WebDAV
-    oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisé)
+    oneDriveNotSynced: OneDrive (non synchronisé)
     googleDriveSynced: Google Drive (synchronisé)
-    sharePoint: SharePoint
+    googleDriveNotSynced: Google Drive (non synchronisé)
     sharePointSynced: SharePoint (synchronisé)
+    sharePointNotSynced: SharePoint (non synchronisé)
     uploaded: Téléversement
+    agent: Agent
+    knowledgeEntry: Entrée de connaissances
+    api: API
   syncHealth:
     badge:
       failed: Sync en échec

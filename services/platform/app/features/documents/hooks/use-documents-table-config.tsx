@@ -3,14 +3,11 @@
 import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DocumentIcon } from '@tale/ui/document-icon';
-import { GoogleDriveIcon } from '@tale/ui/icons/google-drive-icon';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Tooltip } from '@tale/ui/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { ComponentType } from 'react';
 import { useMemo } from 'react';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
@@ -22,63 +19,8 @@ import type { DocumentItem } from '@/types/documents';
 
 import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
+import { DocumentSourceIcon } from '../components/document-source-icon';
 import { RagStatusBadge } from '../components/rag-status-badge';
-import { SyncHealthBadge } from '../components/sync-health-badge';
-
-type DocumentsT = ReturnType<typeof useT>['t'];
-
-interface SourceInfo {
-  title: string;
-  Icon?: ComponentType<{ className?: string }>;
-}
-
-function getSourceInfo(
-  sourceProvider: DocumentItem['sourceProvider'],
-  sourceMode: DocumentItem['sourceMode'],
-  t: DocumentsT,
-): SourceInfo | null {
-  if (sourceProvider === 'onedrive') {
-    return {
-      title:
-        sourceMode === 'auto'
-          ? t('sourceType.oneDriveSynced')
-          : t('sourceType.oneDrive'),
-    };
-  }
-  if (sourceProvider === 'sharepoint') {
-    return {
-      title:
-        sourceMode === 'auto'
-          ? t('sourceType.sharePointSynced')
-          : t('sourceType.sharePoint'),
-    };
-  }
-  if (sourceProvider === 'upload') {
-    return {
-      title: t('sourceType.uploaded'),
-    };
-  }
-  if (sourceProvider === 'confluence') {
-    return {
-      title: t('sourceType.confluence'),
-    };
-  }
-  if (sourceProvider === 'google_drive') {
-    return {
-      title:
-        sourceMode === 'auto'
-          ? t('sourceType.googleDriveSynced')
-          : t('sourceType.googleDrive'),
-      Icon: GoogleDriveIcon,
-    };
-  }
-  if (sourceProvider === 'webdav') {
-    return {
-      title: t('sourceType.webDav'),
-    };
-  }
-  return null;
-}
 
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
@@ -186,59 +128,22 @@ export function useDocumentsTableConfig({
       },
       {
         id: 'source',
-        header: () => (
-          <span className="block w-full text-center">
-            {tTables('headers.source')}
-          </span>
-        ),
+        header: tTables('headers.source'),
         // Wide enough for the sync-health badge ("Reconnect needed" + dot),
         // which used to spill into the RAG status column at 96.
         size: 150,
         meta: {
           headerLabel: tTables('headers.source'),
-          align: 'center' as const,
+          skeleton: { type: 'icon', icon: <span className="block size-5" /> },
         },
-        cell: ({ row }) => {
-          // A sync that stopped working outranks its source label: the badge
-          // says so and opens the reason + the way back.
-          const health = row.original.syncHealth;
-          if (health?.status === 'failed') {
-            return (
-              <div className="flex justify-center">
-                <SyncHealthBadge
-                  health={health}
-                  itemName={row.original.name ?? ''}
-                />
-              </div>
-            );
-          }
-          const source = getSourceInfo(
-            row.original.sourceProvider,
-            row.original.sourceMode,
-            tDocuments,
-          );
-          if (!source) return null;
-          if (source.Icon) {
-            const Icon = source.Icon;
-            return (
-              <div className="flex justify-center">
-                <Tooltip content={source.title}>
-                  <span
-                    className="inline-flex size-5 items-center justify-center"
-                    aria-label={source.title}
-                  >
-                    <Icon className="size-5" />
-                  </span>
-                </Tooltip>
-              </div>
-            );
-          }
-          return (
-            <Text as="span" variant="muted" className="block text-center">
-              {source.title}
-            </Text>
-          );
-        },
+        cell: ({ row }) => (
+          <DocumentSourceIcon
+            sourceProvider={row.original.sourceProvider}
+            sourceMode={row.original.sourceMode}
+            syncHealth={row.original.syncHealth}
+            itemName={row.original.name ?? ''}
+          />
+        ),
       },
       {
         id: 'ragStatus',

@@ -2136,9 +2136,6 @@ documents:
       teams: Teams
       uploadedBy: Hochgeladen von
       modified: Geändert
-      sourceUpload: Upload
-      sourceOnedrive: OneDrive
-      sourceSharepoint: SharePoint
       imagePages: Bildseiten
   upload:
     cancelUpload: Upload abbrechen
@@ -2352,14 +2349,17 @@ documents:
           malformed: Die Datei lässt sich nicht im angegebenen Format lesen. Sie kann beschädigt oder kennwortgeschützt sein.
   sourceType:
     confluence: Confluence
-    googleDrive: Google Drive
     webDav: WebDAV
-    oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisiert)
+    oneDriveNotSynced: OneDrive (nicht synchronisiert)
     googleDriveSynced: Google Drive (synchronisiert)
-    sharePoint: SharePoint
+    googleDriveNotSynced: Google Drive (nicht synchronisiert)
     sharePointSynced: SharePoint (synchronisiert)
+    sharePointNotSynced: SharePoint (nicht synchronisiert)
     uploaded: Upload
+    agent: Agent
+    knowledgeEntry: Wissenseintrag
+    api: API
   syncHealth:
     badge:
       failed: Sync-Fehler

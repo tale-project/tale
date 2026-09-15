@@ -44,7 +44,7 @@ directory and greppable as one token.
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 26 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 15 |
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 29 |
-| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 31 |
+| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 32 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 17 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav, breadcrumbs, command palette, changelog, page-loads | 25 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 28 |

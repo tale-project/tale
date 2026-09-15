@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import type { DocumentItem } from '@/types/documents';
 
 import { useDocumentsTableConfig } from './use-documents-table-config';
@@ -194,13 +195,95 @@ describe('useDocumentsTableConfig — source cell', () => {
       sourceMode: 'auto',
       syncHealth: { ...healthy, provider: 'google_drive' },
     });
-    expect(screen.getByLabelText('Google Drive (synced)')).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Google Drive (synced)' }),
+    ).toBeInTheDocument();
+  });
+
+  // The cell used to spell the source out, and "OneDrive (synchronisiert)"
+  // wrapped and spilled into the RAG status column. The vendor mark and a
+  // sync glyph fit every locale; the words stay as the accessible name.
+  it.each([
+    {
+      sourceProvider: 'onedrive',
+      sourceMode: 'auto',
+      name: 'OneDrive (synced)',
+    },
+    {
+      sourceProvider: 'onedrive',
+      sourceMode: 'manual',
+      name: 'OneDrive (not synced)',
+    },
+    {
+      sourceProvider: 'sharepoint',
+      sourceMode: 'manual',
+      name: 'SharePoint (not synced)',
+    },
+    {
+      sourceProvider: 'google_drive',
+      sourceMode: 'manual',
+      name: 'Google Drive (not synced)',
+    },
+    { sourceProvider: 'upload', sourceMode: 'manual', name: 'Upload' },
+    { sourceProvider: 'webdav', sourceMode: 'manual', name: 'WebDAV' },
+    { sourceProvider: 'agent', sourceMode: 'manual', name: 'Agent' },
+    {
+      sourceProvider: 'knowledge',
+      sourceMode: 'manual',
+      name: 'Knowledge entry',
+    },
+    { sourceProvider: 'api_import', sourceMode: 'manual', name: 'API' },
+    { sourceProvider: 'erp-export', sourceMode: 'manual', name: 'erp-export' },
+  ] as const)(
+    'shows $sourceProvider ($sourceMode) as an icon named $name',
+    async ({ sourceProvider, sourceMode, name }) => {
+      const { container } = renderColumnCell('source', {
+        type: 'file',
+        sourceProvider,
+        sourceMode,
+      });
+      expect(screen.getByRole('img', { name })).toBeInTheDocument();
+      expect(container).toHaveTextContent(/^$/);
+      await checkAccessibility(container);
+    },
+  );
+
+  it('draws the sync state as its own glyph, and none for an upload', () => {
+    const synced = renderColumnCell('source', {
+      type: 'file',
+      sourceProvider: 'onedrive',
+      sourceMode: 'auto',
+    }).container;
+    const notSynced = renderColumnCell('source', {
+      type: 'file',
+      sourceProvider: 'onedrive',
+      sourceMode: 'manual',
+    }).container;
+    const upload = renderColumnCell('source', {
+      type: 'file',
+      sourceProvider: 'upload',
+    }).container;
+
+    expect(synced.querySelector('.lucide-refresh-cw')).not.toBeNull();
+    expect(synced.querySelector('.lucide-refresh-cw-off')).toBeNull();
+    expect(notSynced.querySelector('.lucide-refresh-cw-off')).not.toBeNull();
+    expect(notSynced.querySelector('.lucide-refresh-cw')).toBeNull();
+    expect(upload.querySelector('[class*="lucide-refresh"]')).toBeNull();
+  });
+
+  it('shows nothing for a row with no provenance', () => {
+    const { container } = renderColumnCell('source', {
+      type: 'folder',
+      name: 'Plain folder',
+    });
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   // A config in `error` used to lose its "(synced)" label altogether: the
   // folder listing decorated active configs only, so a broken sync looked
-  // like a plain folder. The badge replaces the label and opens the reason.
-  it('flags a failed sync with a badge that opens the run error', async () => {
+  // like a plain folder. The mark turns into a warning that opens the reason.
+  it('flags a failed sync with a warning mark that opens the run error', async () => {
     const { user } = renderColumnCellWithUser('source', {
       type: 'folder',
       name: 'Reports',
@@ -214,8 +297,19 @@ describe('useDocumentsTableConfig — source cell', () => {
         errorMessage: 'Failed to list folder contents: 503 throttled',
       },
     });
-    expect(screen.queryByText('OneDrive (synced)')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Sync failed' }));
+    expect(
+      screen.queryByRole('img', { name: 'OneDrive (synced)' }),
+    ).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Sync failed' });
+    // Still a mark, not words: the vendor logo with a warning glyph where the
+    // sync arrows stood, and the words on the tooltip.
+    expect(trigger).toHaveTextContent(/^$/);
+    expect(trigger.querySelector('.lucide-triangle-alert')).not.toBeNull();
+    expect(trigger.querySelector('.lucide-refresh-cw')).toBeNull();
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Sync failed');
+    await user.click(trigger);
     expect(
       screen.getByText('Failed to list folder contents: 503 throttled'),
     ).toBeInTheDocument();
@@ -224,8 +318,8 @@ describe('useDocumentsTableConfig — source cell', () => {
     ).toBeInTheDocument();
   });
 
-  it('names the reconnect case on the badge', () => {
-    renderColumnCell('source', {
+  it('marks the reconnect case with its own glyph and tip', async () => {
+    const { user } = renderColumnCellWithUser('source', {
       type: 'folder',
       name: 'Reports',
       sourceProvider: 'onedrive',
@@ -237,8 +331,13 @@ describe('useDocumentsTableConfig — source cell', () => {
         needsReauth: true,
       },
     });
-    expect(
-      screen.getByRole('button', { name: 'OneDrive access expired' }),
-    ).toHaveTextContent('Reconnect needed');
+    const trigger = screen.getByRole('button', {
+      name: 'OneDrive access expired',
+    });
+    expect(trigger.querySelector('.lucide-unplug')).not.toBeNull();
+    await user.tab();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Reconnect needed',
+    );
   });
 });
