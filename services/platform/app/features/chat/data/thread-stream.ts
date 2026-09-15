@@ -12,6 +12,15 @@
  * text + reasoning at the store's write throttle); `settled` with the final
  * message when the row disappears — at which point the store nudges the
  * message/thread reads so the transcript swaps to the durable row.
+ *
+ * The store also nudges the message and tray reads when a turn OPENS (the
+ * first `progress` over an idle lane): the turn-open write persisted the
+ * user message and settled any parked (deferred) send, and only this tab's
+ * own direct send has an optimistic bubble to cover the gap — a send the
+ * backend fired once its attachments were ready, a REST caller's, or another
+ * tab's would otherwise show no user bubble and a "Queued" tray row for the
+ * whole generation. An `idle` over a streaming lane is a reconnect that
+ * missed `settled`, and nudges the same reads.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -78,6 +87,11 @@ function streamPath(organizationId: string, threadId: string): string {
   );
 }
 
+/** A lane with a turn on it — `null` is idle, `undefined` still resolving. */
+function isStreaming(state: ThreadStreamState | undefined): boolean {
+  return state?.generation !== null && state?.generation !== undefined;
+}
+
 function publish(key: string, state: ThreadStreamState): void {
   const entry = streams.get(key);
   if (!entry) return;
@@ -99,11 +113,22 @@ function openStream(
     state: RESOLVING,
     listeners: new Set(),
   };
-  source.addEventListener('idle', () => publish(key, IDLE));
+  source.addEventListener('idle', () => {
+    // `idle` is the open-time probe, so one arriving over a streaming lane
+    // is a reconnect that found the turn over: `settled` went by while the
+    // lane was down. Nudge the reads the way settle would have.
+    const wasStreaming = isStreaming(streams.get(key)?.state);
+    publish(key, IDLE);
+    if (wasStreaming) {
+      invalidateChatMessages(queryClient, organizationId, threadId);
+      invalidateChatThreads(queryClient, organizationId);
+    }
+  });
   source.addEventListener('progress', (event: MessageEvent<string>) => {
     try {
       const data: unknown = JSON.parse(event.data);
       if (data === null || typeof data !== 'object') return;
+      const previous = streams.get(key)?.state;
       const record = data as {
         messageId?: unknown;
         text?: unknown;
@@ -115,7 +140,7 @@ function openStream(
         typeof record.messageId === 'string' ? record.messageId : undefined;
       // Absent parts mean unchanged, so carry the last ones forward — a
       // text tick must not blank the trace the previous event painted.
-      const carried = streams.get(key)?.state.generationText ?? undefined;
+      const carried = previous?.generationText ?? undefined;
       const parts = Array.isArray(record.parts)
         ? (record.parts as readonly MessagePart[])
         : carried?.messageId === messageId
@@ -138,6 +163,13 @@ function openStream(
             : {}),
         },
       });
+      // The turn just opened: the durable rows carry its user message and a
+      // parked send's tray row is already settled — swap both in NOW, not
+      // at settle (see the module doc). A reconnect mid-turn lands here over
+      // a streaming lane and nudges nothing.
+      if (!isStreaming(previous)) {
+        invalidateChatMessages(queryClient, organizationId, threadId);
+      }
     } catch (error) {
       console.warn('[chat-stream] unparseable progress event:', error);
     }

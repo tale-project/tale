@@ -31,6 +31,18 @@ export const NOTIFICATION_HINT_ENTITY = 'notification';
 export const VIDEO_LINK_HINT_ENTITY = 'video_link';
 
 /**
+ * A thread's parked sends — the "Queued — sends when the attachments are
+ * ready" tray above the composer. Every write to `app.deferred_sends` (park,
+ * claim, settle, re-park, cancel, the watchdog's clear) hints the sender
+ * under this entity, and the app keys the tray read under it. The backend
+ * settles the row the moment the fired turn persists the user message, but
+ * before the hint existed nothing told the tab: the tray read had no signal
+ * and no poll, so the row stayed on screen as "Queued" for the whole
+ * generation, until the thread stream's settle nudged the read.
+ */
+export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
+
+/**
  * An organization's AI-provider credentials — and everything derived from
  * them. What the credentials can serve is the answer behind the composer's
  * model catalog, the agent model pickers, the runtime status on the
