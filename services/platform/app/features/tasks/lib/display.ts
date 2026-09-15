@@ -63,9 +63,15 @@ export function isTaskStatus(value: string): value is TaskStatus {
 }
 
 /**
- * Maps a stored activity `action` (see backend/core/tasks/helpers.ts `recordActivity`)
- * to its `tasks` i18n key. Unknown actions fall back to the raw string at the
- * call site, so the timeline degrades gracefully if a new action ships.
+ * Maps a stored activity `action` (see `recordActivity` in
+ * `backend/domains/tasks/service.ts`) to its `tasks` i18n key. Unknown
+ * actions fall back to the raw string at the call site, so the timeline
+ * degrades gracefully if a new action ships.
+ *
+ * Per-field editor actions (`title.changed`, `priority.changed`, …) carry the
+ * previous and new value in `fromValue` / `toValue` so the timeline can
+ * show `Old → New` for every edit; the generic `updated` action is kept
+ * for legacy rows but new `updateTask` writes emit one row per field.
  */
 export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   created: 'activity.created',
@@ -76,10 +82,32 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   reordered: 'activity.reordered',
   'status.changed': 'activity.statusChanged',
   'assignee.changed': 'activity.assigneeChanged',
+  'title.changed': 'activity.titleChanged',
+  'description.changed': 'activity.descriptionChanged',
+  'priority.changed': 'activity.priorityChanged',
+  'labels.changed': 'activity.labelsChanged',
+  'attachments.changed': 'activity.attachmentsChanged',
+  'startDate.changed': 'activity.startDateChanged',
+  'dueDate.changed': 'activity.dueDateChanged',
+  'reviewer.changed': 'activity.reviewerChanged',
   'comment.added': 'activity.commentAdded',
   'dependency.added': 'activity.dependencyAdded',
   'dependency.removed': 'activity.dependencyRemoved',
   'agent_run.refused': 'activity.agentRunRefused',
+};
+
+/**
+ * Maps a stored priority code (a `priority.changed` row's `fromValue` /
+ * `toValue`) to its `tasks` i18n key. An empty string stands for "priority
+ * cleared" (the row's `priority` is now `null`); anything else is a raw
+ * code we never want the reader to see.
+ */
+export const TASK_PRIORITY_LABEL_KEY: Record<string, string> = {
+  p0: 'priority.p0',
+  p1: 'priority.p1',
+  p2: 'priority.p2',
+  p3: 'priority.p3',
+  '': 'priority.none',
 };
 
 /**

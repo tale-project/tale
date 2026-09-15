@@ -12,6 +12,7 @@ import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
   TASK_ACTIVITY_LABEL_KEY,
+  TASK_PRIORITY_LABEL_KEY,
   TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
 } from '../lib/display';
@@ -174,9 +175,30 @@ export function TaskTimeline({
             const formatActivityValue = (
               value: string | undefined,
             ): string | undefined => {
+              if (value === undefined) return undefined;
+              // `priority.changed` uses the empty string as the "no
+              // priority" sentinel; map it before the generic empty-string
+              // pass-through below would otherwise drop the cleared case.
+              if (entry.action === 'priority.changed') {
+                const key = TASK_PRIORITY_LABEL_KEY[value];
+                return key ? t(key) : value;
+              }
               if (!value) return undefined;
               if (entry.action === 'assignee.changed') {
                 return resolveAssigneeId(value);
+              }
+              if (entry.action === 'reviewer.changed') {
+                return resolveAssigneeId(value);
+              }
+              if (
+                entry.action === 'startDate.changed' ||
+                entry.action === 'dueDate.changed'
+              ) {
+                const parsed = Number(value);
+                if (Number.isFinite(parsed)) {
+                  return formatDate(new Date(parsed), 'short');
+                }
+                return value;
               }
               if (isTaskStatus(value)) {
                 return t(`status.${value}`);

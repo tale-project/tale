@@ -59,6 +59,13 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'detail.activity': 'Activity',
         'activity.agentRunRefused': 'Run refused',
         'activity.assigneeChanged': 'Assignee changed',
+        'activity.titleChanged': 'Title changed',
+        'activity.priorityChanged': 'Priority changed',
+        'priority.p0': 'Urgent',
+        'priority.p1': 'High',
+        'priority.p2': 'Medium',
+        'priority.p3': 'Low',
+        'priority.none': 'No priority',
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
       };
@@ -117,5 +124,90 @@ describe('TaskTimeline — assignee change activity', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/user-old/)).not.toBeInTheDocument();
     expect(screen.queryByText(/user-new/)).not.toBeInTheDocument();
+  });
+});
+
+describe('TaskTimeline — editor activity rows surface what changed', () => {
+  it('renders an old → new title for a title.changed row', () => {
+    timelineMocks.activity = [
+      {
+        _id: 'activity_title' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'title.changed',
+        fromValue: 'Tie the room together',
+        toValue: 'Tie the whole room together',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /title changed: Tie the room together → Tie the whole room together/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/TASK_ACTIVITY_LABEL_KEY|enqueued/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders both ends of a priority.changed row using the priority labels', () => {
+    timelineMocks.activity = [
+      {
+        _id: 'activity_priority' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'priority.changed',
+        fromValue: 'p2',
+        toValue: 'p0',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(/priority changed: Medium → Urgent/i),
+    ).toBeInTheDocument();
+  });
+
+  it('shows "No priority" when priority is cleared (empty toValue)', () => {
+    timelineMocks.activity = [
+      {
+        _id: 'activity_priority_cleared' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'priority.changed',
+        fromValue: 'p0',
+        toValue: '',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(/priority changed: Urgent → No priority/i),
+    ).toBeInTheDocument();
   });
 });
