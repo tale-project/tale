@@ -93,10 +93,11 @@ bun run dev
 
 Attends le message indiquant que la plateforme est prête, puis ouvre l’adresse affichée. Le contrôle de configuration ne vérifie qu’une partie de l’environnement. Sa réussite ne garantit pas que les bases de données, le stockage et le fournisseur de modèles sont configurés.
 
-Pour travailler uniquement sur la documentation, tu n’as besoin ni de la base de données de la plateforme ni d’un fournisseur :
+Pour travailler uniquement sur la documentation, tu n’as besoin ni de la base de données de la plateforme ni d’un fournisseur. La première commande lance la documentation produit, la seconde le guide du design system :
 
 ```bash
 bun run --filter @tale/docs dev
+bun run --filter @tale/ui-docs dev
 ```
 
 ## Ce que tu peux faire
@@ -116,6 +117,8 @@ Les fonctions disponibles dépendent de ton rôle et de la configuration. Un mod
 La documentation existe en [anglais](https://docs.tale.dev), en [allemand](https://docs.tale.dev/de) et en [français](https://docs.tale.dev/fr).
 
 Commence par une tâche guidée. Les pages Plateforme accompagnent le travail quotidien ; les références d’exploitation et d’API donnent les détails de configuration. La [galerie de captures](SCREENSHOTS.md) présente les principales vues. Pour améliorer les guides, lis le [README de l’espace Docs](services/docs/README.md).
+
+Tu construis une interface avec les composants de Tale ? Le [guide du design system](https://ui.tale.dev) documente `@tale/ui` et `@tale/marketing-ui` avec des exemples interactifs, en anglais. Ses pages se trouvent dans [services/ui-docs](services/ui-docs/README.md).
 
 ## Contribuer ou obtenir de l’aide
 

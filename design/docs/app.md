@@ -80,6 +80,17 @@ to light mode and lets readers choose a theme. Use the same components, tokens, 
 conventions, and verify both light and dark appearances. Page _content_ rules live in the
 [`write-docs`](../../.agents/skills/write-docs/SKILL.md) skill; this is only the visual layer.
 
+Both documentation sites — `services/docs` and the `/docs/*` pages of `services/ui-docs` — render
+**one frame**, the `@tale/ui/docs/*` family
+([`packages/ui/src/components/docs/`](../../packages/ui/src/components/docs/)): the `SubPanel` rail
+with the search trigger, the phone bar and drawer, the `h-13` header strip (breadcrumb trail whose
+leaf is a plain marker, page actions on the right), the article (its single `h1`, description,
+reading time, body, neighbour cards, edit link), the "On this page" outline, the footer and the
+404. A site passes in its navigation tree, search index and copy; it never forks a piece of the
+frame. The rail's logo row and the header strip are the same `h-13` box **border included**, so
+their bottom borders meet as one line whether or not the strip holds buttons — never wrap a
+fixed-height row in a bordered parent.
+
 ## Accessibility (app)
 
 WCAG 2.1 AA. The recurring gaps and the token hierarchy are in
