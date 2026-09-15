@@ -214,20 +214,22 @@ export function effectiveMandatoryInstructions(
 }
 
 /**
- * Phase 12 — admin-customizable confidentiality notice.
+ * Admin-customizable confidentiality notice, shown under the chat composer.
  *
- * Rendered in chat composer + upload dialog footers. `messages` is a
- * per-locale map (en/de/fr/de-AT/de-CH/fr-CH); resolution falls back
- * to platform default in `messages/{locale}.json` when an org's locale
- * key is absent.
+ * Opt-in: the notice shows only while `enabled` is true — an org without
+ * this file shows none. Admins edit it under Settings → Governance →
+ * Policies & limits. `messages` is a per-locale map (`en`, `de`, `fr`, or a
+ * regional code such as `de-CH`); a reader's text resolves locale →
+ * language → `en` → the platform default (`dataNotice.default` in the
+ * platform's message catalogs).
  *
- * `requireAcknowledgment: true` triggers a one-time onboarding modal
- * on first message send + on every `version` bump (the bump is what
- * forces re-acknowledgment when admins update the notice).
+ * `requireAcknowledgment` and `version` are stored and preserved on save but
+ * drive nothing today: the acknowledgment modal they once gated was removed
+ * (see the platform's `DataNoticeFooter`).
  *
- * Per-locale char cap: 280 chars warn at 240. German is typically
- * +30% longer than English; aggregate caps would force translators to
- * truncate, so the cap is per-locale.
+ * Per-locale char cap: 280 chars. German is typically +30% longer than
+ * English; aggregate caps would force translators to truncate, so the cap is
+ * per-locale.
  */
 export const dataNoticeConfigSchema = z.object({
   enabled: z.boolean(),

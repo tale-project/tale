@@ -2865,6 +2865,18 @@ governance:
     enabledLabel: Voice output enabled for this organization
     saved: Voice-output policy updated
     saveFailed: Couldn't save the voice-output policy
+  dataNotice:
+    title: Confidentiality notice
+    description:
+      Shows a short note under the chat message field for every member of
+      this organization, such as a reminder not to share sensitive data. It
+      stays off until you turn it on.
+    enabledLabel: Show the confidentiality notice in chat
+    textsHint:
+      Members see the text for their language. A language left empty shows
+      the English text, or the default notice when English is empty too.
+    charLimitExceeded: Use {max} characters or fewer
+    saveFailed: Couldn't save the confidentiality notice
   personalization:
     enabledLabel: Enabled for this organization
     saved: Personalization policy updated
