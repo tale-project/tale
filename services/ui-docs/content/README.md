@@ -31,7 +31,8 @@ description: Choose an action style and handle loading or unavailable actions.
 ---
 ```
 
-The header renders `title` as the page’s only accessible `h1`; body headings begin
+The article header renders `title` as the page’s only accessible `h1` (the trail in
+the header strip above it names the page without a heading); body headings begin
 at `##`. `description` appears below the title, in metadata, and in search results.
 Write a useful sentence. Set optional `noindex: true` only when a page should be
 excluded from the sitemap.

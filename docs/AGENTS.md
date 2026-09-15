@@ -17,8 +17,10 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
   chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
-  the "On this page" outline (a rail from `xl`, a disclosure below it). Component map:
-  [`services/docs/README.md`](../services/docs/README.md) → _The page layout_.
+  the "On this page" outline (a rail from `xl`, a disclosure below it). That chrome is the shared
+  `@tale/ui/docs/*` frame the design-system guide renders too; change it in `packages/ui`, never
+  in a site. Component map: [`services/docs/README.md`](../services/docs/README.md) → _The page
+  layout_.
 
 This contract covers Tale’s product documentation. The separate English design-system guide
 at `services/ui-docs/content/` follows its own [authoring contract](../services/ui-docs/content/README.md)

@@ -27,7 +27,7 @@ with the shared manual-test shape; the guides it replaced had no such list.
 - **The rail's search field truncates its placeholder in DE/FR.** The field is
   the rail's width (16 rem) minus the `⌘K` hint, and **Dokumentation
   durchsuchen** / **Rechercher dans la documentation** are longer than that —
-  they ellipsize by design (`docs-search-trigger.tsx`). The control's
+  they ellipsize by design (`@tale/ui` `docs-search-trigger.tsx`). The control's
   accessible name is the full **Open search** either way.
 - **The docs ship the theme switcher even though they default to light.**
   `AppShell theme={{ defaultTheme: 'light' }}` sets the *default*, not a lock:

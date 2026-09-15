@@ -11,7 +11,7 @@ The site is static and has no backend of its own, so it carries no error
 
 | Surface | How to reach it |
 |---|---|
-| **Page not found** (`docs.notFoundTitle`) | open any `/docs/<unknown>` or any path outside `/` and `/docs` — the `$` catch-all route renders it; on the built server it also carries a real `404` status ([seo.md](../suites/seo.md) `SEO-8`) |
+| **Page not found** (`docs.notFound.title`) | open any `/docs/<unknown>` or any path outside `/` and `/docs` — the `$` catch-all route renders it; on the built server it also carries a real `404` status ([seo.md](../suites/seo.md) `SEO-8`) |
 | **Unknown demo** (`demo.missingTitle`, a `role="alert"` box in the article) | in dev only: reference a demo that has no file, e.g. `<Demo name="button/nope" />` in a scratch page — `tests/content.test.ts` refuses to let it ship |
 | the search palette's error line | in dev, start the Vite server without the content build so `/search-index.json` is missing (`bun --bun vite` instead of `bun run dev`), open ⌘K and type — the palette reports the failed fetch instead of hanging |
 

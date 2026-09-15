@@ -5,7 +5,6 @@ nav:
   homeAriaLabel: Tale design system home
   skipToMain: Skip to main content
   sidebarAriaLabel: Design system documentation
-  openSearch: Open search
   openMenu: Open navigation menu
   closeMenu: Close navigation menu
   docs: Docs
@@ -18,27 +17,7 @@ nav:
     patterns: Patterns
     marketingUi: Marketing UI
 docs:
-  onThisPage: On this page
-  breadcrumbs: Breadcrumbs
   home: Docs
-  editOnGithub: Edit this page on GitHub
-  previous: Previous
-  next: Next
-  pagination: Page navigation
-  readingTime: '{minutes} min read'
-  searchTrigger: Search
-  notFoundTitle: Page not found
-  notFoundBody: That page is not part of the design system docs. Start from the
-    introduction, or search for the component you were looking for.
-  notFoundBackHome: Back to the introduction
-  pageActions:
-    copyPage: Copy page
-    copied: Copied
-    viewMarkdown: View as Markdown
-    openIn: Open in
-    openChatGpt: Open in ChatGPT
-    openClaude: Open in Claude
-    openCursor: Open in Cursor
 demo:
   preview: Live example
   showCode: Code

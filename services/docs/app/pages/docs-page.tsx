@@ -1,3 +1,7 @@
+import { DocsArticle } from '@tale/ui/docs/docs-article';
+import { DocsHeader } from '@tale/ui/docs/docs-header';
+import type { DocsCrumb } from '@tale/ui/docs/docs-nav';
+import { PageActions } from '@tale/ui/docs/page-actions';
 import { markdownComponents } from '@tale/ui/markdown/components/registry';
 import { extractToc } from '@tale/ui/markdown/extract-toc';
 import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';
@@ -12,14 +16,11 @@ import { resolveFullTitle } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
 import { DocsImage } from '@/app/components/docs/docs-image';
-import { DocsPageHeader } from '@/app/components/docs/docs-page-header';
-import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
-import { DocsToc, DocsTocOutline } from '@/app/components/docs/docs-toc';
 import { DocsVideo } from '@/app/components/docs/docs-video';
-import { EditOnGithub } from '@/app/components/docs/edit-on-github';
-import { PageActions } from '@/app/features/page-actions/page-actions';
+import { docEditUrl } from '@/lib/content/edit-url';
 import { getDocPage } from '@/lib/content/loader';
-import { flattenNav, navGroupTrail } from '@/lib/content/nav';
+import { navGroupTrail } from '@/lib/content/nav';
+import { navNeighbours } from '@/lib/content/nav-sections';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import { BASE_LOCALES, type SupportedLocale } from '@/lib/i18n/locales';
@@ -43,6 +44,7 @@ function humaniseSegment(part: string): string {
   return part.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
 
+/** A page's ancestors and the page itself, below the docs home crumb. */
 function buildBreadcrumbs(
   locale: SupportedLocale,
   slug: string,
@@ -114,19 +116,6 @@ export function buildMetaTitle(
   return withinBudget(`${page} | ${section}`);
 }
 
-function findPrevNext(slug: string): {
-  prev: string | null;
-  next: string | null;
-} {
-  const flat = flattenNav();
-  const idx = flat.findIndex((entry) => entry.slug === slug);
-  if (idx === -1) return { prev: null, next: null };
-  return {
-    prev: idx > 0 ? flat[idx - 1].slug : null,
-    next: idx < flat.length - 1 ? flat[idx + 1].slug : null,
-  };
-}
-
 function buildAlternates(
   slug: string,
 ): Partial<Record<SupportedLocale, string>> {
@@ -147,7 +136,23 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
       buildBreadcrumbs(locale, slug, (key) => tNav(key.slice('nav.'.length))),
     [locale, slug, tNav],
   );
-  const { prev, next } = useMemo(() => findPrevNext(slug), [slug]);
+  // The docs root is always the first crumb, so a locale landing page (which
+  // contributes no crumbs of its own) still renders a trail — with "Home" as
+  // its own leaf rather than a separator pointing at nothing.
+  const trail = useMemo<DocsCrumb[]>(
+    () => [
+      { label: t('home'), href: docPath(locale, 'index') },
+      ...breadcrumbs.map((crumb) => ({
+        label: crumb.label,
+        href: crumb.slug ? docPath(locale, crumb.slug) : undefined,
+      })),
+    ],
+    [breadcrumbs, locale, t],
+  );
+  const { prev, next } = useMemo(
+    () => navNeighbours(locale, slug),
+    [locale, slug],
+  );
   const tocEntries = useMemo(() => (doc ? extractToc(doc.body) : []), [doc]);
   const alternates = useMemo(() => buildAlternates(slug), [slug]);
   const path = docPath(locale, slug);
@@ -229,66 +234,31 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
     return null;
   }
 
-  const contentPath = `${doc.locale}/${doc.slug}.mdx`;
-
   return (
     <>
-      <DocsPageHeader
-        locale={locale}
-        crumbs={breadcrumbs}
+      <DocsHeader
+        crumbs={trail}
         actions={
-          <PageActions
-            pageUrl={url}
-            markdownUrl={markdownUrl}
-            markdown={rawMarkdown}
-            labels={{
-              copyPage: t('pageActions.copyPage'),
-              copied: t('pageActions.copied'),
-              viewMarkdown: t('pageActions.viewMarkdown'),
-              openIn: t('pageActions.openIn'),
-              openChatGpt: t('pageActions.openChatGpt'),
-              openClaude: t('pageActions.openClaude'),
-              openCursor: t('pageActions.openCursor'),
-            }}
-          />
+          <PageActions markdownUrl={markdownUrl} markdown={rawMarkdown} />
         }
       />
-      <div className="mx-auto flex w-full max-w-6xl flex-1 justify-between gap-8 px-4 py-8 lg:px-6 xl:gap-10">
-        <article className="w-full max-w-3xl min-w-0 flex-1">
-          <DocsTocOutline entries={tocEntries} />
-          <header className="min-w-0 [overflow-wrap:anywhere]">
-            <h1 className="text-foreground text-3xl font-semibold tracking-tight md:text-4xl">
-              {doc.frontmatter.title}
-            </h1>
-            {doc.frontmatter.description ? (
-              <p className="text-muted-foreground mt-3 text-base leading-relaxed">
-                {doc.frontmatter.description}
-              </p>
-            ) : null}
-            <p className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <span>{t('readingTime', { minutes: readingTime })}</span>
-              {formattedUpdatedAt ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
-                </>
-              ) : null}
-            </p>
-          </header>
-          <RoutedMarkdown
-            // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
-            components={docsMarkdownComponents as any}
-            className="mt-8"
-          >
-            {doc.body}
-          </RoutedMarkdown>
-          <DocsPrevNext locale={locale} prevSlug={prev} nextSlug={next} />
-          <div className="mt-4 flex justify-end">
-            <EditOnGithub contentPath={contentPath} />
-          </div>
-        </article>
-        <DocsToc entries={tocEntries} />
-      </div>
+      <DocsArticle
+        title={doc.frontmatter.title}
+        description={doc.frontmatter.description}
+        readingTimeMinutes={readingTime}
+        updatedAt={formattedUpdatedAt}
+        toc={tocEntries}
+        prev={prev}
+        next={next}
+        editHref={docEditUrl(`${doc.locale}/${doc.slug}`)}
+      >
+        <RoutedMarkdown
+          // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
+          components={docsMarkdownComponents as any}
+        >
+          {doc.body}
+        </RoutedMarkdown>
+      </DocsArticle>
     </>
   );
 }

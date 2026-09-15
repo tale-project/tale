@@ -13,7 +13,8 @@ import {
   buildSearchIndex,
   stripMarkdown,
   type SearchDoc,
-} from '../app/features/search/build-index';
+} from '@tale/ui/search/static-index/build';
+
 import { listAllContent, type ContentRecord } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));

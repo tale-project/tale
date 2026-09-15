@@ -57,7 +57,7 @@ German at `{base}/de/platform/chat/basics`.
 | Landing        | `{base}/`                                 | h1 **Tale documentation** renders; rail + header strip visible                                                                          |
 | Sidebar        | `{base}/`                                 | the six top groups render: **Start here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**, **Development** (`nav.groups.*`) |
 | A content page | `{base}/self-hosted/install/quickstart`   | body + **On this page** TOC render                                                                                                   |
-| Search         | header **Open search** (`nav.openSearch`) | the dialog opens with the **Search documentation…** input                                                                            |
+| Search         | header **Open search** (`docs.openSearch`) | the dialog opens with the **Search documentation…** input                                                                            |
 | Locales        | `{base}/de`, `{base}/fr`                  | localized landing renders                                                                                                            |
 
 ```

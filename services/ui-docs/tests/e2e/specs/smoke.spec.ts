@@ -4,15 +4,26 @@ import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
 /**
  * Design-system docs smoke. The site speaks two design languages, so the
- * suite crosses the seam: the marketing front page, then the app chrome under
- * `/docs` with its rail, its live examples and its search palette.
+ * suite crosses the seam: the marketing front page, then the shared docs
+ * frame under `/docs` with its rail, its live examples and its search palette.
  *
- * Labels resolve from `messages/en.yml` (en-US pinned by the shared config).
- * The search palette's own copy ships in `@tale/ui`, not here, so its few
- * strings are addressed by role instead.
+ * Labels resolve from `messages/en.yml` (en-US pinned by the shared config)
+ * over the `@tale/ui` catalog, which owns the docs frame's copy. The search
+ * palette's strings are addressed by role instead.
  */
 
-const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url), {
+  packages: [
+    new URL(
+      '../../../../../packages/ui/src/i18n/messages/global.yml',
+      import.meta.url,
+    ),
+    new URL(
+      '../../../../../packages/ui/src/i18n/messages/en.yml',
+      import.meta.url,
+    ),
+  ],
+});
 
 const BUTTON_PAGE = '/docs/components/button';
 /** Demos the Button page carries today. A floor rather than an exact count:
@@ -65,6 +76,36 @@ test.describe('documentation page', () => {
     ).toBeVisible();
 
     expect(errors).toEqual([]);
+  });
+
+  test('the header strip sits on the rail logo row line', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(BUTTON_PAGE);
+    // The strip carries page actions; it must stay the rail's `h-13` bar,
+    // border included, so the two bottom borders meet as one line.
+    await expect(
+      page.getByRole('navigation', { name: t('docs.breadcrumbs') }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: t('nav.sidebarAriaLabel') }),
+    ).toBeVisible();
+    const bars = await page.evaluate(
+      ([trailLabel, railLabel]) => {
+        const trail = document.querySelector(`nav[aria-label="${trailLabel}"]`);
+        const rail = document.querySelector(`nav[aria-label="${railLabel}"]`);
+        const strip = trail?.parentElement?.getBoundingClientRect();
+        const row = rail?.firstElementChild?.getBoundingClientRect();
+        return strip && row
+          ? {
+              strip: [strip.height, strip.bottom],
+              row: [row.height, row.bottom],
+            }
+          : null;
+      },
+      [t('docs.breadcrumbs'), t('nav.sidebarAriaLabel')] as const,
+    );
+    expect(bars).not.toBeNull();
+    expect(bars?.strip).toEqual(bars?.row);
   });
 
   test('the Code toggle reveals the example source', async ({ page }) => {
@@ -152,9 +193,9 @@ test.describe('routing', () => {
   test('an unknown page renders the 404 with a way back', async ({ page }) => {
     await page.goto('/docs/nope');
     await expect(
-      page.getByRole('heading', { level: 1, name: t('docs.notFoundTitle') }),
+      page.getByRole('heading', { level: 1, name: t('docs.notFound.title') }),
     ).toBeVisible();
-    const back = page.getByRole('link', { name: t('docs.notFoundBackHome') });
+    const back = page.getByRole('link', { name: t('docs.notFound.backHome') });
     await expect(back).toHaveAttribute(
       'href',
       '/docs/getting-started/introduction',

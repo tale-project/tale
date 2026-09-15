@@ -93,10 +93,11 @@ bun run dev
 
 Warte auf die Bereitschaftsmeldung der Plattform und öffne die angezeigte Adresse. Der Einrichtungscheck prüft nur einen Teil der Umgebung. Auch bei grünem Ergebnis müssen Datenbanken, Speicher und Modellanbieter eingerichtet sein.
 
-Für die Arbeit an der Dokumentation allein brauchst du weder eine Plattform-Datenbank noch einen Modellanbieter:
+Für die Arbeit an der Dokumentation allein brauchst du weder eine Plattform-Datenbank noch einen Modellanbieter. Der erste Befehl startet die Produktdokumentation, der zweite den Design-System-Leitfaden:
 
 ```bash
 bun run --filter @tale/docs dev
+bun run --filter @tale/ui-docs dev
 ```
 
 ## Was du mit Tale tun kannst
@@ -116,6 +117,8 @@ Welche Funktionen du nutzen kannst, hängt von deiner Rolle und der Konfiguratio
 Die Dokumentation gibt es auf [Englisch](https://docs.tale.dev), [Deutsch](https://docs.tale.dev/de) und [Französisch](https://docs.tale.dev/fr).
 
 Beginne mit einer angeleiteten Aufgabe. Die Plattformseiten begleiten die tägliche Arbeit, die Betriebs- und API-Referenzen liefern genaue Konfigurationsangaben. Die [Screenshot-Galerie](SCREENSHOTS.md) zeigt die wichtigsten Ansichten. Wenn du die Dokumentation verbessern möchtest, lies die [README des Docs-Workspaces](services/docs/README.md).
+
+Du baust eine Oberfläche mit Tales Komponenten? Der [Design-System-Leitfaden](https://ui.tale.dev) beschreibt `@tale/ui` und `@tale/marketing-ui` mit interaktiven Beispielen, auf Englisch. Seine Seiten liegen in [services/ui-docs](services/ui-docs/README.md).
 
 ## Mitwirken und Hilfe finden
 
