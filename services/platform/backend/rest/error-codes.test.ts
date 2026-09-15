@@ -329,10 +329,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'LEGAL_HOLD_RELEASE_ALREADY_PENDING',
   'MATTER_NOT_FOUND',
   'RETENTION_BELOW_FLOOR',
-  // Spend gates the chat and automation lanes raise on the app doors.
-  'BUDGET_EXCEEDED',
+  // Spend gates the chat and automation lanes raise on the app doors. On
+  // the REST send a reached cap is `BUDGET_EXCEEDED`, and the budget gate's
+  // own cap codes only name the cap in its `data.limitCode`.
   'COST_LIMIT',
   'COST_WARNING',
+  'TOKEN_LIMIT',
   // Chat threads: sharing a thread with its project is the app's own toggle
   // (no REST body carries `isShared`), and the write-scope check fires in
   // the detached REST turn job, where the accepted send is dropped without

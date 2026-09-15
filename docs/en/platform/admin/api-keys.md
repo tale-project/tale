@@ -51,6 +51,6 @@ Do not use an old **Last used** date as the only reason to revoke a key. A month
 
 Role changes take effect for existing keys on subsequent requests. Disabling the owner's membership removes their access; a key does not preserve the role it had when created.
 
-REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally limit model spending for an individual key.
+REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally cap what requests authenticated with one key may spend: their usage counts toward the key, and a send over the cap is refused with `429 BUDGET_EXCEEDED`.
 
 API keys authenticate software calling Tale. [Connector credentials](/platform/admin/connectors) serve the other direction: they let Tale call an external service.

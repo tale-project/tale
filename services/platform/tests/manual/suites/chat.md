@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 64 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 65 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -363,7 +363,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.budgetRequestCredits` → `chat.budgetRequestCreditsSent`); Send is
   blocked with reason `chat.budgetExceededDefault` (tooltip on the disabled
   button; destructive toast on Enter); a server-side refusal titles
-  `chat.toast.budgetExceeded`
+  `chat.toast.budgetExceeded` with `chat.errorHintBudgetExceeded` below it
 - [ ] `CHAT-B7` · **Backend unavailable** — Stop the chat backend while the
   app is open (e.g. kill the dev backend process), open a thread → The surface
   shows **Chat isn't connected yet** (`chat.backendUnavailable.title`) with
@@ -378,6 +378,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-B9` · **No notice by default** — On a freshly created org, open
   chat → No **Confidentiality notice** note (`dataNotice.footer.ariaLabel`)
   sits under the composer: the notice is off until an admin turns it on.
+- [ ] `CHAT-B10` · **Budget refusal on every send path** — Reach a cap the
+  open page does not know about yet (lower the rule in a second tab, or let
+  another member spend a shared cap), then try a regenerate, an edit, an arena
+  send and a send whose attachment is still processing; **delete the rule
+  after** → Each is refused with a toast titled `chat.toast.budgetExceeded`
+  and `chat.errorHintBudgetExceeded` below it; a composer send keeps its text,
+  no user message or reply lands, and the banner switches to
+  `chat.budgetExceededDetail` without a reload
 
 ## Accessibility (WCAG 2.1 AA)
 

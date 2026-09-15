@@ -14,8 +14,10 @@ import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.t
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { budgetPolicyActive } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
+import { admitChatTurnSpend } from './budget-admission.ts';
 import { ChatThreadError, projectChatAccess } from './threads.ts';
 
 /**
@@ -404,12 +406,32 @@ function pgTurnStore(
     },
 
     async beginTurn(setup) {
+      // A budget admission serializes the organization's opens, so it runs
+      // only where a budget policy is on — decided before the transaction,
+      // outside the callback a serialization failure re-runs.
+      const admission =
+        setup.spend !== undefined &&
+        (await budgetPolicyActive(sql, setup.organizationId))
+          ? setup.spend
+          : undefined;
       // ONE transaction, per the contract: the user row, the placeholder,
       // and the generation row commit together or not at all — a crash
       // between them used to leave a question with no reply, or a 'pending'
       // bubble no watchdog would ever fail (the watchdog keys on the
       // generation row, which did not exist yet).
       const open = async (tx: TransactionSql) => {
+        // The admission comes FIRST: its lock orders before the thread's,
+        // and a reached cap throws here, rolling the open back with
+        // nothing written.
+        if (admission !== undefined) {
+          await admitChatTurnSpend(tx, {
+            organizationId: setup.organizationId,
+            userId: admission.userId,
+            ...(admission.apiKeyId !== undefined
+              ? { apiKeyId: admission.apiKeyId }
+              : {}),
+          });
+        }
         if (scope !== undefined) {
           await assertThreadWriteScope(tx, {
             ...scope,
@@ -446,13 +468,19 @@ function pgTurnStore(
         // rebinding its row (the old DO UPDATE) let two racing sends stream
         // into one row and delete it from under each other. DO NOTHING plus
         // the throw rolls the whole open back — the loser leaves no trace.
+        // The row also carries the turn's hold (who spends, and what it may
+        // spend), which every budget admission counts until the row is gone
+        // — however the turn ends.
         const claimed = await tx<{ threadId: string }[]>`
           INSERT INTO app.generations (
             thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
-            updated_at_ms
+            updated_at_ms, user_id, api_key_id, reserved_cost_cents,
+            reserved_tokens
           ) VALUES (
             ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
-            ${now}, ${now}, ${now}
+            ${now}, ${now}, ${now}, ${setup.spend?.userId ?? null},
+            ${setup.spend?.apiKeyId ?? null}, ${setup.spend?.costCents ?? 0},
+            ${Math.ceil(setup.spend?.tokens ?? 0)}
           )
           ON CONFLICT (thread_id) DO NOTHING
           RETURNING thread_id AS "threadId"
@@ -574,6 +602,7 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
       await incrementUsageLedger(sql, {
         organizationId: entry.organizationId,
         userId: entry.userId,
+        ...(entry.apiKeyId !== undefined ? { apiKeyId: entry.apiKeyId } : {}),
         inputTokens: entry.inputTokens,
         outputTokens: entry.outputTokens,
         costEstimateCents,

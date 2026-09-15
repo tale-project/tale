@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { THREAD_BUSY_REASON, ThreadBusyError } from '../../../lib/chat/turn.ts';
 import {
   classifyChatErrorCode,
+  describeChatError,
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
@@ -27,6 +28,11 @@ import {
   hasLiveGeneration,
   settleArenaPair,
 } from './arena.ts';
+import {
+  assertChatTurnBudget,
+  budgetRetryAfterSeconds,
+  ChatBudgetExceededError,
+} from './budget-admission.ts';
 import {
   listAutomationCapabilities,
   listComposerModels,
@@ -260,6 +266,34 @@ function handleThreadError<E extends OrgEnv>(
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
+}
+
+/** A reached budget cap as the app's turn doors answer it: 429, the
+ * refusal's sentence as the reason, the cap in `data`, and the wait until
+ * its period resets as `Retry-After`. Nothing was written, so the composer
+ * keeps the text. */
+function budgetRefusalResponse<E extends OrgEnv>(
+  c: Context<E>,
+  error: ChatBudgetExceededError,
+): Response {
+  const { code, message, ...cap } = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(cap.resetsAt)));
+  return c.json(
+    { status: 'refused', code, reason: message, persisted: false, data: cap },
+    429,
+  );
+}
+
+/** The same refusal in the app's error envelope (`{error: <code>, message,
+ * data}`), for a door whose client reads a failure through `backendFetch`
+ * — the parked send's. */
+function budgetErrorResponse<E extends OrgEnv>(
+  c: Context<E>,
+  error: ChatBudgetExceededError,
+): Response {
+  const { code, message, ...cap } = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(cap.resetsAt)));
+  return c.json({ error: code, message, data: cap }, 429);
 }
 
 async function listMessageViews(
@@ -943,6 +977,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
+    // A parked send fires later, but a cap already reached refuses it now —
+    // the sender learns at once, not after the attachments finish. The
+    // worker measures again when the send fires.
+    try {
+      await assertChatTurnBudget(deps.sql, { organizationId, userId });
+    } catch (error) {
+      if (error instanceof ChatBudgetExceededError) {
+        return budgetErrorResponse(c, error);
+      }
+      throw error;
+    }
     try {
       const enqueued = await enqueueDeferredSend(deps.sql, {
         organizationId,
@@ -1174,6 +1219,20 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const busy = { status: 'refused' as const, reason: THREAD_BUSY_REASON };
       return c.json({ a: busy, b: busy });
     }
+    // Both columns spend under the same caps: a reached cap refuses the
+    // pair up front, as a busy side does, rather than one column alone.
+    try {
+      await assertChatTurnBudget(deps.sql, { organizationId, userId });
+    } catch (error) {
+      if (!(error instanceof ChatBudgetExceededError)) throw error;
+      const refused = {
+        status: 'refused' as const,
+        code: error.data.code,
+        reason: error.data.message,
+        persisted: false,
+      };
+      return c.json({ a: refused, b: refused });
+    }
 
     const shared = {
       organizationId,
@@ -1218,8 +1277,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         }
         // A pre-pipeline throw (model resolution, credential) left nothing
         // in the transcript — write the error row here so the column
-        // explains itself instead of sitting silently half-empty.
-        const reason = sanitizeError(err);
+        // explains itself instead of sitting silently half-empty. A platform
+        // refusal's sentence is its `data.message`, never the serialized
+        // payload.
+        const reason = sanitizeError(
+          describeChatError(err, 'The turn could not be started.'),
+        );
         try {
           await appendMessageRow(deps.sql, {
             organizationId,
@@ -1337,6 +1400,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           { status: 'refused', reason: error.message, persisted: false },
           409,
         );
+      }
+      // A cap that binds the sender is reached: refused before the turn
+      // wrote anything, naming the cap and when it resets.
+      if (error instanceof ChatBudgetExceededError) {
+        return budgetRefusalResponse(c, error);
       }
       // A turn that could not START because the picked model is not
       // servable — its provider's default credential was disabled or

@@ -1412,6 +1412,7 @@ chat:
   errorHintTokenLimit: La limite de tokens en sortie du modèle a été dépassée.
     Essaie une requête plus courte ou demande à ton administrateur d'ajuster les
     paramètres du modèle.
+  errorHintBudgetExceeded: Une limite d'utilisation qui s'applique à toi a été atteinte. Tu peux voir dans Paramètres > Utilisation quand elle sera réinitialisée, et ton administrateur peut l'augmenter.
   errorHintToolFailure: L'agent a rencontré une erreur lors de l'accès aux
     données. Essaie de reformuler ta demande ou de demander un ensemble de
     données plus restreint.

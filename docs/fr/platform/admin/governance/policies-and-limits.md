@@ -21,11 +21,11 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Polit
 
 Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-Les budgets concernent les nouveaux travaux facturables, dont le chat et les exécutions d’agents gérés. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
 ## Comprendre les plafonds applicables
 
-Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé de l’équipe, même si un membre a une règle personnelle plus précise. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, pas les autres actions dans l’interface.
+Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé des membres actuels de l’équipe, même si un membre a une règle personnelle plus précise : l’usage d’un nouveau membre sur la période en cours compte aussitôt, et celui d’un membre parti ne compte plus. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, dont l’usage est imputé à la clé, pas les autres actions dans l’interface.
 
 Si une requête est refusée de façon inattendue, vérifie tous les plafonds applicables et leurs périodes. Augmenter une limite personnelle ne retire pas un plafond d’organisation, d’équipe ou de clé API.
 

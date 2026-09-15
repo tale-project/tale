@@ -1,14 +1,22 @@
 /**
- * Map a turn refusal's server reason to the localized toast the 0.3 page
- * showed — a guardrail block, a budget stop, or a model-access denial each
- * get purpose-written copy instead of a generic "Send failed" carrying the
- * raw English sentence.
+ * Map a turn refusal to the localized toast the 0.3 page showed — a
+ * guardrail block, a budget stop, or a model-access denial each get
+ * purpose-written copy instead of a generic "Send failed" carrying the raw
+ * English sentence.
  *
- * The backend hands the frontend only a reason STRING (the turn outcome
- * carries no code), so classification matches on the known phrasings; an
- * unrecognized reason falls back to the generic title with the server text
- * as the description, exactly like the unclassified path before this map.
+ * A refusal the server names with a stable code is classified by that code:
+ * a reached budget cap answers `BUDGET_EXCEEDED` on every chat door. Any
+ * other refusal carries only a reason string, so classification matches on
+ * the known phrasings; an unrecognized reason falls back to the generic
+ * title with the server text as the description, exactly like the
+ * unclassified path before this map.
  */
+
+/** Whether a refusal's code says a budget cap that binds the sender is
+ * reached. */
+export function isBudgetRefusalCode(code: string | undefined): boolean {
+  return code === 'BUDGET_EXCEEDED';
+}
 
 /** i18n keys under the `chat` namespace; `descriptionKey` wins over the raw
  * server reason when set. */
@@ -19,7 +27,18 @@ export interface RefusalToastKeys {
   serverReason?: string;
 }
 
-export function classifyRefusal(reason: string | undefined): RefusalToastKeys {
+export function classifyRefusal(
+  reason: string | undefined,
+  code?: string,
+): RefusalToastKeys {
+  // The cap's own copy says where to see it and that it resets — the
+  // English sentence would only repeat that, untranslated.
+  if (isBudgetRefusalCode(code)) {
+    return {
+      titleKey: 'toast.budgetExceeded',
+      descriptionKey: 'errorHintBudgetExceeded',
+    };
+  }
   if (reason === undefined || reason.length === 0) {
     return { titleKey: 'toast.sendFailed' };
   }

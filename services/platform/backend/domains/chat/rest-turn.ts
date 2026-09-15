@@ -37,6 +37,10 @@ import {
 export interface ApiTurnPayload {
   organizationId: string;
   userId: string;
+  /** The API key that authenticated the send: its caps bind the turn and
+   * the turn's usage is booked against it. Absent for a job an older image
+   * enqueued. */
+  apiKeyId?: string;
   threadId: string;
   /** The URL scope accepted by REST; null means an unfiled thread. */
   expectedProjectId: string | null;
@@ -70,6 +74,7 @@ export interface ApiTurnPayload {
 export const apiTurnPayloadSchema = z.object({
   organizationId: z.string().min(1),
   userId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
   threadId: z.string().min(1),
   expectedProjectId: z.string().min(1).nullable(),
   userText: z.string().min(1),
@@ -286,10 +291,12 @@ async function runAcceptedTurn(
   // refusal BEFORE that point (an unknown model, say) used to leave the
   // thread with an assistant error row and no trace of what was asked.
   let userAppended = false;
+  let unrecordedRefusal: string | undefined;
   try {
     const outcome = await runChatTurn(sql, {
       organizationId: payload.organizationId,
       userId: payload.userId,
+      ...(payload.apiKeyId !== undefined ? { apiKeyId: payload.apiKeyId } : {}),
       threadId: payload.threadId,
       expectedProjectId: payload.expectedProjectId,
       userText: payload.userText,
@@ -317,6 +324,7 @@ async function runAcceptedTurn(
       console.warn(
         `[rest-turn] turn refused for ${payload.threadId}: ${outcome.reason}`,
       );
+      if (!outcome.persisted) unrecordedRefusal = outcome.reason;
     }
   } catch (error) {
     if (
@@ -337,6 +345,21 @@ async function runAcceptedTurn(
         code: classifyChatErrorCode(error),
         model: payload.modelId,
         raw: reason,
+      }),
+      !userAppended,
+    );
+  }
+  // Refused before the pipeline wrote anything (the model access policy
+  // changed while the send was queued, say): nothing on the thread says so,
+  // and the reply the 202 promised would never appear — the poll went idle
+  // over no message at all. It settles as a failure with the refusal's
+  // sentence, beside the caller's prompt.
+  if (unrecordedRefusal !== undefined) {
+    await recordFailure(
+      encodeChatError({
+        code: 'generic',
+        model: payload.modelId,
+        raw: unrecordedRefusal,
       }),
       !userAppended,
     );

@@ -84,5 +84,13 @@
  * `nullable`, not a 3.1 type list; the conversation mirror receipt carries
  * `sourceDeleted` and `status`, and a content snapshot onto a torn-down
  * mirror answers 409 `CONVERSATION_CLOSED` instead of reopening it.
+ *
+ * 1.13.0 — 2026-09-15: budget caps bind the REST chat send — a cap that
+ * binds the key holder (their own, one of their teams', the organization's
+ * or the API key's) refuses `POST …/messages` with 429 `BUDGET_EXCEEDED`,
+ * naming the cap in `data` (`scope`, `period`, `limitCode`, `used`,
+ * `limit`, `resetsAt`) beside `Retry-After`; a cap reached after the 202
+ * settles the reply with errorCode `budget_exceeded`; and a keyed turn's
+ * usage counts against the key's own caps.
  */
-export const API_CONTRACT_VERSION = '1.12.0';
+export const API_CONTRACT_VERSION = '1.13.0';

@@ -33,6 +33,7 @@ vi.mock('../tts/service.ts', () => ({
   checkTtsBudget: vi.fn(() => Promise.resolve({ allowed: true })),
 }));
 vi.mock('../../auth/membership.ts', () => ({
+  findOrganizationMember: vi.fn(() => Promise.resolve(null)),
   getUserTeamIds: vi.fn(() => Promise.resolve([])),
 }));
 

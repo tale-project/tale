@@ -21,11 +21,11 @@ Use **Settings > Governance > Policies & Limits** as an Admin or Owner to contro
 
 For example, a monthly role rule can give Editors a USD 50 personal spending limit, while an organization rule caps everyone's combined spend at USD 500. These are example amounts, not recommended defaults.
 
-Budgets apply to new billable work, including chat and managed agent runs. Image generation needs cost or request limits because its usage is not measured as text tokens. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
+Budgets apply to new billable work, including chat, voice output, and managed agent runs. Tale checks every chat request before it runs — a sent message, a regenerated or edited reply, both sides of a model comparison, a message waiting for an attachment, and a send through the REST API — and refuses it once a cap that applies is reached, naming the cap and when it resets. Replies still being written hold what they may spend, so requests sent at the same moment cannot pass a nearly reached cap together. Image generation needs cost or request limits because its usage is not measured as text tokens. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
 
 ## Understand which caps apply
 
-Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. Organization limits apply in addition. A team budget also caps the team's combined usage, even when a member has a more specific personal rule. API-key limits independently cap requests authenticated with that key; they do not cap unrelated in-app work.
+Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. Organization limits apply in addition. A team budget also caps the combined usage of the team's current members, even when a member has a more specific personal rule: a new member's usage in the current period counts at once, and someone who leaves no longer counts. API-key limits independently cap requests authenticated with that key, and those requests' usage counts toward the key; they do not cap unrelated in-app work.
 
 If a request is refused unexpectedly, check all applicable caps and their periods. Increasing one personal limit does not remove an organization, shared-team, or API-key ceiling.
 

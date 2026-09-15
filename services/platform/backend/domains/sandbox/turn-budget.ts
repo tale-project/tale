@@ -1,8 +1,15 @@
 import type { Sql } from 'postgres';
 
-import { getUserTeamIds } from '../../auth/membership.ts';
 import type { ReserveTurnBudgetResult } from '../../core/node_only/sandbox/turn_budget.ts';
-import { resolveTurnAllowance } from '../governance/budget-gate.ts';
+import {
+  loadBudgetSubject,
+  type OrgBudgetSubject,
+  resolveTurnAllowance,
+} from '../governance/budget-gate.ts';
+import {
+  lockBudgetAdmission,
+  readInFlightReservations,
+} from '../governance/budget-reservations.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import { resolveSessionOpAttribution } from './op-attribution.ts';
 
@@ -11,9 +18,11 @@ import { resolveSessionOpAttribution } from './op-attribution.ts';
  * the PG side of `sandbox/session_mutations:reserveTurnBudget`, taken by
  * both hosts right before they mint the turn's virtual key.
  *
- * Under the org admission lock (so two starts cannot both read the same
- * remaining balance): the budget policy is evaluated for the run's starter
- * against the ledger PLUS every unsettled op's reservation, the allowance
+ * Under the org admission lock and the budget-admission lock the chat lane's
+ * opens share (so no two admissions read the same remaining balance): the
+ * budget policy is evaluated for the run's starter against the ledger PLUS
+ * what every other piece of work in flight holds — unsettled ops and live
+ * chat turns alike — the allowance
  * is `min(deployment default, what remains)`, and this op's reservation is
  * recorded on its row — where it counts until the turn's spend is booked
  * (`spend_settled_at_ms`), whether the turn ends normally, crashes, or never
@@ -36,37 +45,23 @@ export async function reserveTurnBudget(
     await lockOrgAdmission(tx, args.organizationId);
     const attribution = await resolveSessionOpAttribution(tx, args);
     const userId = attribution?.userId ?? '';
-    const [userTeamIds, role] =
+    const subject: OrgBudgetSubject =
       userId === ''
-        ? [[] as string[], undefined]
-        : await Promise.all([
-            getUserTeamIds(tx, args.organizationId, userId),
-            tx<{ role: string }[]>`
-              SELECT "role" FROM "member"
-              WHERE "userId" = ${userId}
-                AND "organizationId" = ${args.organizationId}
-              LIMIT 1
-            `.then((rows) => rows[0]?.role),
-          ]);
-    const reserved = await tx<{ orgCents: number; userCents: number }[]>`
-      SELECT coalesce(sum(budget_cents), 0)::float8 AS "orgCents",
-             coalesce(sum(budget_cents) FILTER (WHERE user_id = ${userId}), 0)::float8
-               AS "userCents"
-      FROM app.sandbox_session_ops
-      WHERE org_id = ${args.organizationId}
-        AND budget_cents IS NOT NULL AND spend_settled_at_ms IS NULL
-        AND NOT (session_id = ${args.sessionId} AND exec_id = ${args.execId})
-    `;
+        ? { organizationId: args.organizationId, userId, userTeamIds: [] }
+        : await loadBudgetSubject(tx, {
+            organizationId: args.organizationId,
+            userId,
+          });
+    // The chat lane's opens take the same budget-admission lock and hold on
+    // their generation rows: the allowance counts live chat turns as well
+    // as the unsettled ops, and they count it.
+    await lockBudgetAdmission(tx, args.organizationId);
     const allowance = await resolveTurnAllowance(tx, {
-      organizationId: args.organizationId,
-      userId,
-      userTeamIds,
-      ...(role !== undefined ? { userRole: role } : {}),
+      ...subject,
       defaultCents,
-      reserved: {
-        orgCents: reserved[0]?.orgCents ?? 0,
-        userCents: reserved[0]?.userCents ?? 0,
-      },
+      reservations: await readInFlightReservations(tx, subject, {
+        op: { sessionId: args.sessionId, execId: args.execId },
+      }),
     });
     if (!allowance.allowed) return allowance;
     const now = Date.now();

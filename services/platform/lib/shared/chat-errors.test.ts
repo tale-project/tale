@@ -9,6 +9,7 @@ import {
   encodeChatError,
   isChatErrorCode,
 } from './chat-errors';
+import { AppError } from './errors/app-error';
 
 describe('classifyChatErrorCode', () => {
   it('classifies funds errors by status and by message', () => {
@@ -245,6 +246,30 @@ describe('the pipeline’s own busy claim', () => {
       decodeChatError(encodeChatError({ code: 'thread_busy', raw: 'busy' }))
         .code,
     ).toBe('thread_busy');
+  });
+});
+
+describe('the budget admission', () => {
+  const sentence =
+    'Usage limit reached. Your daily request limit is used up until 2026-09-16T00:00:00.000Z.';
+
+  it('classifies BUDGET_EXCEEDED as budget_exceeded, never a rate limit or spent credits', () => {
+    const refusal = new AppError({
+      code: 'BUDGET_EXCEEDED',
+      message: sentence,
+    });
+    expect(classifyChatErrorCode(refusal)).toBe('budget_exceeded');
+    expect(CHAT_ERROR_I18N_KEY.budget_exceeded).toBe('errorHintBudgetExceeded');
+  });
+
+  it('records the refusal’s own sentence, not its serialized payload', () => {
+    const refusal = new AppError({
+      code: 'BUDGET_EXCEEDED',
+      message: sentence,
+    });
+    expect(describeChatError(refusal, 'The turn could not be started.')).toBe(
+      sentence,
+    );
   });
 });
 

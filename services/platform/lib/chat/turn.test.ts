@@ -340,6 +340,58 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('books the usage against the API key that authenticated the turn', async () => {
+    const d = deps();
+    await runTurn(request({ apiKeyId: 'key_1' }), d.deps);
+
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', apiKeyId: 'key_1' }),
+    ]);
+  });
+
+  it('hands the open what the turn may spend, for the host to hold against the caps', async () => {
+    const { store } = fakeStore();
+    const spends: unknown[] = [];
+    const d = deps({
+      store: {
+        ...store,
+        beginTurn(setup) {
+          spends.push(setup.spend);
+          return store.beginTurn(setup);
+        },
+      },
+    });
+    await runTurn(
+      request({
+        apiKeyId: 'key_1',
+        budget: { maxTokens: 128_000, reserveOutputTokens: 4_000 },
+        model: {
+          ...MODEL,
+          pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+        },
+      }),
+      d.deps,
+    );
+
+    expect(spends).toEqual([
+      {
+        userId: 'user_1',
+        apiKeyId: 'key_1',
+        tokens: expect.any(Number),
+        costCents: expect.any(Number),
+      },
+    ]);
+    const [spend] = spends as { tokens: number; costCents: number }[];
+    // The output reserve rides on top of the assembled prompt, and both are
+    // priced at the model's own rates.
+    const promptTokens = (spend?.tokens ?? 0) - 4_000;
+    expect(promptTokens).toBeGreaterThan(0);
+    expect(spend?.costCents).toBeCloseTo(
+      (promptTokens * 300 + 4_000 * 1500) / 1_000_000,
+      5,
+    );
+  });
+
   it('opens the generation row before streaming and always closes it', async () => {
     const d = deps();
     await runTurn(request(), d.deps);

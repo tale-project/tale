@@ -21,6 +21,7 @@ vi.mock('../../lib/rate-limit.ts', async (importOriginal) => {
   };
 });
 vi.mock('../../auth/membership.ts', () => ({
+  findOrganizationMember: vi.fn(async () => null),
   getUserTeamIds: vi.fn(async () => []),
 }));
 vi.mock('../../lib/org-config.ts', () => ({

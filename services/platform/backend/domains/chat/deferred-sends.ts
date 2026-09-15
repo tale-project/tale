@@ -7,6 +7,7 @@ import {
 } from '../../../lib/chat/turn.ts';
 import {
   classifyChatErrorCode,
+  describeChatError,
   encodeChatError,
   type ChatErrorCode,
 } from '../../../lib/shared/chat-errors.ts';
@@ -634,10 +635,9 @@ export async function pollDeferredSend(
         // credential): the thread would show nothing of the message.
         await leaveFailureTrace(sql, row, attachments, {
           code: classifyChatErrorCode(error),
-          raw:
-            error instanceof Error
-              ? error.message
-              : 'The turn could not be started.',
+          // A platform refusal's sentence (a reached budget cap, an unknown
+          // model) is its `data.message`, never the serialized payload.
+          raw: describeChatError(error, 'The turn could not be started.'),
         });
       }
       throw error;

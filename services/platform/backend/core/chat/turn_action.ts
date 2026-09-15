@@ -844,6 +844,9 @@ export function createDirectModelCall(
 export interface ExecuteTurnArgs {
   readonly organizationId: string;
   readonly userId: string;
+  /** REST: the API key that authenticated the send — booked with the turn's
+   * usage so the key's own caps see its spend. */
+  readonly apiKeyId?: string;
   readonly threadId: string;
   /** Detached REST turns pin their URL project; the host's store validates
    * this scope again when it opens the turn. Undefined reads the thread. */
@@ -1481,6 +1484,7 @@ export async function executeTurn(
   const request: TurnRequest = {
     organizationId: args.organizationId,
     userId: args.userId,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     threadId: args.threadId,
     userText,
     ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),

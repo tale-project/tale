@@ -36,7 +36,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo } from 'react';
 
-import { backendFetch } from '@/app/lib/backend/api-client';
+import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
   fileStatusesQuery,
   chatMemoriesQuery,
@@ -82,6 +82,7 @@ import type {
   ChatProjectSummary,
   ChatThreadSummary,
 } from '../types';
+import { isBudgetRefusalCode } from '../utils/classify-refusal';
 import {
   readStoredComposerCatalog,
   storeComposerCatalog,
@@ -201,6 +202,28 @@ const fallbackChatQueryClient = new QueryClient();
  * the reads populate. */
 export function useChatQueryClient(): QueryClient {
   return useContext(QueryClientContext) ?? fallbackChatQueryClient;
+}
+
+/**
+ * A refusal said a budget cap is reached: the chat banner's status and the
+ * usage page read afresh instead of waiting for their next poll (the keys
+ * are the `getMyBudgetStatus` and `getMyBudgetUsage` adapters' in
+ * `app/lib/backend/settings.ts`).
+ */
+export function invalidateBudgetStanding(
+  queryClient: QueryClient,
+  organizationId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, 'usage', 'my-budget-status'),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(
+      organizationId,
+      'governance_policy',
+      'my-budget-usage',
+    ),
+  });
 }
 
 export function useChatQuery<Name extends QueryName>(
@@ -774,6 +797,9 @@ export interface ChatTurnHandle {
     /** The refusal is on the thread's record (user row + blocked reply) —
      * the composer must not restore the text. Absent: nothing landed. */
     persisted?: boolean;
+    /** The refusal's stable code when the server names one
+     * (`BUDGET_EXCEEDED`) — see `ChatTurnOutcome.code`. */
+    code?: string;
   }>;
 }
 
@@ -880,10 +906,17 @@ export function useChatSend(organizationId: string): {
         ...(request.reasoningEffort !== undefined
           ? { reasoningEffort: request.reasoningEffort }
           : {}),
-      }).finally(() => {
-        invalidateChatMessages(queryClient, organizationId, threadId);
-        invalidateChatThreads(queryClient, organizationId);
-      });
+      })
+        .then((settled) => {
+          if (isBudgetRefusalCode(settled.code)) {
+            invalidateBudgetStanding(queryClient, organizationId);
+          }
+          return settled;
+        })
+        .finally(() => {
+          invalidateChatMessages(queryClient, organizationId, threadId);
+          invalidateChatThreads(queryClient, organizationId);
+        });
       return { threadId, boundVideoJobIds, outcome };
     },
     [queryClient, organizationId],
@@ -903,28 +936,44 @@ export function useChatSend(organizationId: string): {
             ? { reasoningEffort: request.reasoningEffort }
             : {}),
         }));
-      await enqueueDeferredSendRequest({
-        organizationId,
-        threadId,
-        text: request.text,
-        ...(request.attachments !== undefined && request.attachments.length > 0
-          ? { attachments: [...request.attachments] }
-          : {}),
-        ...(request.videoJobIds !== undefined && request.videoJobIds.length > 0
-          ? { videoJobIds: [...request.videoJobIds] }
-          : {}),
-        ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
-        ...(request.modelSelection !== undefined
-          ? { modelSelection: request.modelSelection }
-          : {}),
-        ...(request.providerSlug !== undefined
-          ? { providerSlug: request.providerSlug }
-          : {}),
-        ...(request.reasoningEffort !== undefined
-          ? { reasoningEffort: request.reasoningEffort }
-          : {}),
-        ...(request.locale !== undefined ? { locale: request.locale } : {}),
-      });
+      try {
+        await enqueueDeferredSendRequest({
+          organizationId,
+          threadId,
+          text: request.text,
+          ...(request.attachments !== undefined &&
+          request.attachments.length > 0
+            ? { attachments: [...request.attachments] }
+            : {}),
+          ...(request.videoJobIds !== undefined &&
+          request.videoJobIds.length > 0
+            ? { videoJobIds: [...request.videoJobIds] }
+            : {}),
+          ...(request.modelId !== undefined
+            ? { modelId: request.modelId }
+            : {}),
+          ...(request.modelSelection !== undefined
+            ? { modelSelection: request.modelSelection }
+            : {}),
+          ...(request.providerSlug !== undefined
+            ? { providerSlug: request.providerSlug }
+            : {}),
+          ...(request.reasoningEffort !== undefined
+            ? { reasoningEffort: request.reasoningEffort }
+            : {}),
+          ...(request.locale !== undefined ? { locale: request.locale } : {}),
+        });
+      } catch (error) {
+        // A reached cap refuses the park itself (429 `BUDGET_EXCEEDED`): the
+        // banner learns it now; the caller still toasts the refusal.
+        if (
+          error instanceof BackendApiError &&
+          isBudgetRefusalCode(error.code)
+        ) {
+          invalidateBudgetStanding(queryClient, organizationId);
+        }
+        throw error;
+      }
       invalidateChatMessages(queryClient, organizationId, threadId);
       return { threadId };
     },

@@ -4,6 +4,10 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  assertChatTurnBudget,
+  ChatBudgetExceededError,
+} from '../domains/chat/budget-admission.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
 import { sendIdempotencyRequestHash } from '../domains/chat/send-idempotency.ts';
 import {
@@ -17,6 +21,12 @@ import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createThreadRestRoutes, heldOffset } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../domains/chat/budget-admission.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/chat/budget-admission.ts')
+  >()),
+  assertChatTurnBudget: vi.fn(() => Promise.resolve()),
+}));
 vi.mock('../domains/chat/composer.ts', () => ({
   listComposerModels: vi.fn(),
 }));
@@ -253,9 +263,10 @@ function fakeSql(
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(sql: Sql) {
+function mount(sql: Sql, options: { apiKeyId?: string } = {}) {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -1131,6 +1142,77 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
         ),
       ),
     ).toBe(false);
+  });
+
+  it('measures the caller and their key before queueing, and hands the key to the turn', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql, { apiKeyId: 'key-1' }).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(res.status).toBe(202);
+    expect(assertChatTurnBudget).toHaveBeenCalledWith(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      apiKeyId: 'key-1',
+    });
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({ apiKeyId: 'key-1' }),
+    );
+  });
+
+  /**
+   * Budget caps bound only the app's composer: a REST caller over their
+   * cap — or their key's — was answered 202 and the turn ran, spending
+   * exactly what the cap was there to stop.
+   */
+  it('refuses a send over a budget cap with 429, the cap and Retry-After, and queues nothing', async () => {
+    const sentence =
+      "Usage limit reached. This API key's daily request limit is used up until 2026-09-16T00:00:00.000Z.";
+    // Just under 91 s ahead: the header rounds the wait up to whole seconds.
+    const resetsAt = Date.now() + 90_999;
+    vi.mocked(assertChatTurnBudget).mockRejectedValueOnce(
+      new ChatBudgetExceededError({
+        code: 'BUDGET_EXCEEDED',
+        message: sentence,
+        scope: 'apiKey',
+        limitCode: 'REQUEST_LIMIT',
+        period: 'daily',
+        used: 100,
+        limit: 100,
+        resetsAt,
+      }),
+    );
+    const { sql } = fakeSql();
+    const res = await mount(sql, { apiKeyId: 'key-1' }).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('91');
+    expect(await res.json()).toEqual({
+      error: sentence,
+      code: 'BUDGET_EXCEEDED',
+      data: {
+        scope: 'apiKey',
+        period: 'daily',
+        limitCode: 'REQUEST_LIMIT',
+        used: 100,
+        limit: 100,
+        resetsAt,
+      },
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
   it('forwards the effort pick and the reply ceiling to the turn', async () => {

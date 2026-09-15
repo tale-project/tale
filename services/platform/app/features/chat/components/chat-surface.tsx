@@ -61,6 +61,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
@@ -123,6 +124,7 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
+import { isBudgetRefusalCode } from '../utils/classify-refusal';
 import { pickMostRecentThread } from '../utils/most-recent-thread';
 import {
   baselineSequenceOf,
@@ -962,9 +964,10 @@ function ChatSurfaceInner({
 
   // A refusal names its cause: guardrail blocks, budget stops, and access
   // denials each get their own localized title instead of a generic "Send
-  // failed" wrapping the raw server sentence.
-  const refusalToast = (reason: string | undefined) => {
-    const { titleKey, description } = turnRefusalToastContent(reason, t);
+  // failed" wrapping the raw server sentence — by the refusal's code when
+  // the server names one.
+  const refusalToast = (reason: string | undefined, code?: string) => {
+    const { titleKey, description } = turnRefusalToastContent(reason, t, code);
     toast({
       title: t(titleKey),
       ...(description !== undefined ? { description } : {}),
@@ -1051,7 +1054,7 @@ function ChatSurfaceInner({
           if (failed.persisted !== true) {
             composerRef.current?.restoreText(text);
           }
-          refusalToast(failed.reason);
+          refusalToast(failed.reason, failed.code);
         });
       return;
     }
@@ -1119,7 +1122,16 @@ function ChatSurfaceInner({
           if (consumedAttachments.length > 0) {
             setStagedAttachments(consumedAttachments);
           }
-          toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+          // A reached cap refuses the park itself: name it as a refused send
+          // would be named, not as a bare "Send failed".
+          if (
+            error instanceof BackendApiError &&
+            isBudgetRefusalCode(error.code)
+          ) {
+            refusalToast(error.message, error.code);
+          } else {
+            toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+          }
         }
       })();
       return;
@@ -1200,7 +1212,7 @@ function ChatSurfaceInner({
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
-            refusalToast(outcome.reason);
+            refusalToast(outcome.reason, outcome.code);
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);

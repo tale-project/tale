@@ -52,6 +52,8 @@ Branch on `code`; `error` is a sentence describing the wait, and `requestId` ide
 3. Retry with a bounded exponential delay and jitter when refusals continue. For example, grow a delay from one second up to sixty seconds, always honoring a longer server-provided wait.
 4. Preserve the original idempotency key for operations that support one. A timeout after a run start may mean the run was already accepted.
 
+A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits).
+
 Other `4xx` responses usually need a corrected request, credential or permission. Do not treat every failure as a rate limit; use the [error model](/develop/api-reference#error-model).
 
 ## Plan polling and retries

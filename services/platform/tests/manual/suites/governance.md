@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 31 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 32 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -96,6 +96,12 @@ select lists only the current admin's keys (`useApiKeys`).
   (`governance.budgets.target`) cell shows the chosen key's name (falls back
   to the raw key id if the key isn't in the admin's list); the row survives
   reload. **Precondition:** ≥1 API key exists (see Prerequisites)
+- [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
+  saved at **Max requests** 1 → send twice through
+  `POST /api/v1/threads/{id}/messages` with that key → The second send answers
+  429 `BUDGET_EXCEEDED` with `Retry-After` and `data.scope` `apiKey`, and
+  nothing is queued; the same person's in-app chat is not refused by the key's
+  cap. **Delete the rule after**
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**
