@@ -3,10 +3,11 @@ title: Tabs and navigation
 description: Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable.
 ---
 
-Use `Tabs` to switch panels within a screen. Use `TabNavigation` for destinations that should support a URL, reload, and browser history. Similar visual treatments do not make these controls interchangeable.
+Use `Tabs` to switch panels within a screen, and `LocaleTabs` to edit one value per language. Use `TabNavigation` for destinations that should support a URL, reload, and browser history. Similar visual treatments do not make these controls interchangeable.
 
 ```tsx
 import { Tabs } from '@tale/ui/tabs';
+import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { TabNavigation } from '@tale/ui/tab-navigation';
 ```
 
@@ -40,6 +41,30 @@ Mounted hidden content can still run hooks and subscriptions. Use this option wh
 | `overflowMenuLabel` | Defaults to `More`; pass a localized label in translated screens. |
 | `keepMounted` | `false`; retains hidden panel content when enabled. |
 | `className`, `listClassName`, `triggerClassName` | Targeted layout customization. |
+
+## Edit text per language
+
+Use `LocaleTabs` when a value exists once per language, such as a notice members read or an agent's description. It builds on the underline `Tabs`: the default locale's tab comes first and is marked **(default)**, and a translation tab without text of its own shows an **untranslated** pill.
+
+<Demo name="tabs/locale-tabs" />
+
+Choose **Français**. Its tab carries the pill, and the empty field shows the English text as a placeholder. Type a translation: the pill disappears, and your text is still there after you visit another tab, because every locale's editor renders in its own panel and the panels stay mounted.
+
+The component stores no text and applies no fallback. Your host keeps the values, answers `hasTranslation` for each translation locale, and decides what an empty language falls back to; the demo previews that choice as a placeholder. Tabs are named in each language's own words, so a reader finds their language whatever the interface language is.
+
+| `LocaleTabs` prop | Default and purpose |
+| --- | --- |
+| `defaultLocale` | Required. The source locale, shown first and marked default. |
+| `locales` | The shipped locales (`en`, `de`, `fr`); pass a list to choose and order them. |
+| `editingLocale`, `onEditingLocaleChange` | Required controlled selection. |
+| `hasTranslation` | Required. `(locale) => boolean`; `false` shows the untranslated pill. Never called for the default locale. |
+| `hasError` | Optional. `(locale) => boolean`; `true` puts an error mark on that tab, named for screen readers. |
+| `renderPanel` | Required. `(locale) => ReactNode`, rendered inside that locale's tab panel. |
+| `onAutoTranslate`, `isTranslating` | Optional action beside the strip on translation tabs; your host performs the translation. |
+| `subtitle` | Optional hint beneath the strip. |
+| `listAriaLabel` | Accessible name for the tab list. |
+
+Give each editor an accessible name that includes its language; a panel's association with its tab does not label the field inside it. A validation message in a hidden panel is invisible, and a disabled Save button cannot say which language to fix, so answer `hasError` from your form state: the tab of every language with a problem shows the mark while the reader works in another one.
 
 ## Navigate between routes
 
