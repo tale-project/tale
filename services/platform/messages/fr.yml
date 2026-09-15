@@ -3030,6 +3030,22 @@ governance:
     enabledLabel: Sortie vocale activée pour cette organisation
     saved: Politique de sortie vocale mise à jour
     saveFailed: Échec de l'enregistrement de la politique de sortie vocale
+  dataNotice:
+    title: Avis de confidentialité
+    description:
+      Affiche une courte note sous le champ de message du chat pour tous les
+      membres de cette organisation, par exemple pour rappeler de ne pas
+      partager de données sensibles. L'avis reste désactivé tant que tu ne
+      l'actives pas.
+    enabledLabel: Afficher l'avis de confidentialité dans le chat
+    textsHint:
+      Chaque membre voit le texte de sa langue. Pour une langue laissée vide,
+      le texte anglais s'affiche, ou l'avis par défaut si l'anglais est vide
+      lui aussi.
+    charLimitExceeded: Utilise {max} caractères au maximum
+    languagesLabel: Langues de l'avis
+    textLabel: Texte de l'avis ({language})
+    saveFailed: Échec de l'enregistrement de l'avis de confidentialité
   personalization:
     enabledLabel: Activé pour cette organisation
     saved: Politique de personnalisation mise à jour

@@ -22,6 +22,11 @@ import {
   PreviewPaneSkeleton,
   previewPaneDocumentClasses,
 } from '@/app/features/documents/components/preview-pane';
+import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
+import {
+  dataNoticeBootKey,
+  toCssString,
+} from '@/app/features/governance/lib/data-notice-boot';
 import { TaskCard } from '@/app/features/tasks/components/task-card';
 import { TasksList } from '@/app/features/tasks/components/tasks-list';
 import { TasksSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
@@ -78,6 +83,21 @@ vi.mock('@/app/features/tasks/hooks/use-actor-directory', () => ({
     resolveActor: () => null,
   }),
 }));
+// The notice as it shows for an org that turned it on; `noticeRead.settled`
+// switches the footer between its settled note and its still-loading reserve.
+const NOTICE_TEXT =
+  'AI can make mistakes—verify responses and do not share sensitive data.';
+const noticeRead = vi.hoisted(() => ({ settled: true }));
+vi.mock(
+  '@/app/features/governance/hooks/use-data-classification-notice',
+  () => ({
+    useDataClassificationNotice: () => ({
+      enabled: true,
+      message: NOTICE_TEXT,
+      settled: noticeRead.settled,
+    }),
+  }),
+);
 vi.mock('@/app/features/tasks/hooks/use-task-status-choreography', () => ({
   useTaskStatusChoreography: () => async () => 'move' as const,
 }));
@@ -89,7 +109,14 @@ vi.mock('@/app/features/tasks/hooks/use-task-subject-contract', () => ({
 
 afterEach(() => {
   cleanup();
-  document.documentElement.classList.remove('boot-chat', 'dark');
+  document.documentElement.classList.remove(
+    'boot-chat',
+    'boot-chat-notice',
+    'dark',
+  );
+  document.documentElement.style.removeProperty('--boot-chat-notice');
+  window.localStorage.clear();
+  noticeRead.settled = true;
 });
 
 function requireElement(root: Element, selector: string) {
@@ -201,6 +228,82 @@ describe('page skeleton geometry in Chromium', () => {
         size(requireElement(placeholder, '.sm\\:min-h-\\[100px\\]')),
       ).toEqual(field);
       expect(getComputedStyle(placeholder).rowGap).toBe('8px');
+    },
+  );
+
+  // The remembered notice sizes the skeleton's row (see data-notice-boot.ts):
+  // at a width where the notice wraps and one where it fits a line, the
+  // placeholder must be exactly as tall as the live composer + notice, so the
+  // composer does not move when the skeleton is replaced.
+  it.each([320, 900])(
+    'reserves the confidentiality notice row at %ipx',
+    (width) => {
+      const { rerender } = render(
+        <div data-testid="fixture" style={{ width }}>
+          <div className="px-4 pb-4">
+            <Composer
+              draftKey={`notice-geometry-${width}`}
+              models={[]}
+              selection={{}}
+              onSelectionChange={() => {}}
+              onSend={() => {}}
+              onAttachFiles={() => {}}
+              onVoiceOutputChange={() => {}}
+            />
+            <DataNoticeFooter organizationId="org_test" className="pt-1 pb-1" />
+          </div>
+        </div>,
+      );
+      const fixture = screen.getByTestId('fixture');
+      const liveBlock = size(requireElement(fixture, 'div'));
+      const liveNotice = size(screen.getByRole('note'));
+
+      rerender(
+        <div data-testid="fixture" style={{ width }}>
+          <ChatComposerPlaceholder />
+        </div>,
+      );
+      // After the rerender: unmounting the live footer clears the marker.
+      const root = document.documentElement;
+      root.classList.add('boot-chat', 'boot-chat-notice');
+      root.style.setProperty('--boot-chat-notice', toCssString(NOTICE_TEXT));
+
+      const placeholder = requireElement(fixture, 'div');
+      const noticeRow = requireElement(
+        placeholder,
+        '[class*="boot-chat-notice"]',
+      );
+      expect(size(placeholder)).toEqual(liveBlock);
+      expect(size(noticeRow)).toEqual(liveNotice);
+    },
+  );
+
+  // Until its read settles on a reload, the live footer holds the remembered
+  // row, so the composer that replaced the skeleton does not drop into the
+  // gap and jump back up when the notice arrives.
+  it.each([320, 900])(
+    'holds the notice row while the policy read settles at %ipx',
+    (width) => {
+      const footer = (
+        <div data-testid="fixture" style={{ width }}>
+          <DataNoticeFooter organizationId="org_test" className="pt-1 pb-1" />
+        </div>
+      );
+      const { rerender } = render(footer);
+      const settled = size(screen.getByRole('note'));
+
+      noticeRead.settled = false;
+      window.localStorage.setItem(
+        dataNoticeBootKey('org_test'),
+        toCssString(NOTICE_TEXT),
+      );
+      rerender(<div key="loading">{footer}</div>);
+
+      const reserve = requireElement(
+        screen.getByTestId('fixture'),
+        '[aria-hidden="true"]',
+      );
+      expect(size(reserve)).toEqual(settled);
     },
   );
 

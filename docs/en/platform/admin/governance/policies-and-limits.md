@@ -1,9 +1,9 @@
 ---
 title: Policies and limits
-description: Set spending budgets, upload rules, retention periods, feature controls, and inbound-conversation routing.
+description: Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, and inbound-conversation routing.
 ---
 
-Use **Settings > Governance > Policies & Limits** as an Admin or Owner to control resource use and data handling. Choose the section that matches the problem: spending, uploads, retention, feature availability, or who receives inbound conversations.
+Use **Settings > Governance > Policies & Limits** as an Admin or Owner to control resource use and data handling. Choose the section that matches the problem: spending, uploads, retention, feature availability, the notice members see in chat, or who receives inbound conversations.
 
 <Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
 
@@ -50,6 +50,23 @@ For self-hosted deployments, [Retention configuration](/self-hosted/configuratio
 Feature controls include scoped context-window limits and the organization-wide voice-output switch. A context limit controls how much context can reach an AI reply; it is different from a spending budget. Turning off voice output prevents members from enabling it through their own defaults or conversation choices.
 
 The custom-instructions and memories default switches store organization defaults. Their presence does not mean personal custom instructions or memory creation are currently active in chat. Organization-wide mandatory instructions are a separate setting under [Guardrails](/platform/admin/governance/guardrails).
+
+## Show a confidentiality notice in chat
+
+**Confidentiality notice** adds a short line under the chat message field for every member of your organization, such as a reminder not to share sensitive data. It stays off until you turn it on.
+
+1. Turn on the **Confidentiality notice** switch. Members see the notice in chat right away, in their language; open chats update without reloading.
+2. Optionally enter your own text in the language tabs **English**, **Deutsch**, and **Français**, up to 280 characters per language. Save the pending page changes.
+
+<Frame caption="Governance > Policies & Limits — the confidentiality notice switched on, with English text, a German translation, and French still untranslated.">
+
+![The Confidentiality notice section with its switch on and the English tab selected, asking members not to paste client names, contract values, or unreleased project codenames into chat; the Français tab is marked untranslated.](/images/platform/governance-confidentiality-notice.webp)
+
+</Frame>
+
+Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
+
+The notice is a reminder only. It does not check, block, or change what members send. To act on sensitive content, configure [Guardrails](/platform/admin/governance/guardrails).
 
 ## Conversation routing
 

@@ -204,6 +204,11 @@ common:
   loading:
     label: Wird geladen
     navigating: Seite wird geladen
+  localeTabs:
+    default: Standard
+    untranslated: nicht übersetzt
+    autoTranslate: Automatisch übersetzen
+    hasError: enthält einen Fehler
   moreTabs: Mehr
   optional: optional
   pagination:

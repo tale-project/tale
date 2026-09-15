@@ -2963,6 +2963,21 @@ governance:
     enabledLabel: Sprachausgabe für diese Organisation aktiviert
     saved: Sprachausgabe-Richtlinie aktualisiert
     saveFailed: Sprachausgabe-Richtlinie konnte nicht gespeichert werden
+  dataNotice:
+    title: Vertraulichkeitshinweis
+    description:
+      Zeigt allen Mitgliedern dieser Organisation unter dem Nachrichtenfeld im
+      Chat einen kurzen Hinweis an, etwa die Erinnerung, keine sensiblen Daten
+      zu teilen. Der Hinweis bleibt aus, bis du ihn einschaltest.
+    enabledLabel: Vertraulichkeitshinweis im Chat anzeigen
+    textsHint:
+      Mitglieder sehen den Text in ihrer Sprache. Für eine leere Sprache
+      erscheint der englische Text oder, wenn auch dieser leer ist, der
+      Standardhinweis.
+    charLimitExceeded: Verwende höchstens {max} Zeichen
+    languagesLabel: Sprachen des Hinweises
+    textLabel: Hinweistext ({language})
+    saveFailed: Vertraulichkeitshinweis konnte nicht gespeichert werden
   personalization:
     enabledLabel: Für diese Organisation aktiviert
     saved: Personalisierungsrichtlinie aktualisiert

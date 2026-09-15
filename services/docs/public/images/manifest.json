@@ -217,6 +217,18 @@
       "height": 440
     },
     {
+      "file": "images/platform/governance-confidentiality-notice.webp",
+      "shot": "governance-confidentiality-notice",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 660
+    },
+    {
       "file": "images/platform/governance-content-models.webp",
       "shot": "governance-content-models",
       "route": "/dashboard/:orgId/settings/governance/content-models",

@@ -181,6 +181,7 @@
     "./layout": "./src/components/layout/layout.tsx",
     "./lazy-component": "./src/lib/lazy-component.tsx",
     "./loading-overlay": "./src/components/feedback/loading-overlay.tsx",
+    "./locale-tabs": "./src/components/navigation/locale-tabs.tsx",
     "./logo": "./src/logo/tale-logo.tsx",
     "./markdown": "./src/markdown/markdown.tsx",
     "./markdown/anchored-heading": "./src/markdown/anchored-heading.tsx",

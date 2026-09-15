@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router';
 
 import { ChatSurface } from '@/app/features/chat/components/chat-surface';
+import { dataNoticePolicyArgs } from '@/app/features/governance/lib/data-notice';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { seo } from '@/lib/utils/seo';
 
@@ -45,6 +46,14 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
       {
         organizationId: params.id,
       },
+    );
+    // The confidentiality notice's policy: warm so the notice mounts WITH the
+    // composer. Arriving a round-trip after it, the notice would push the
+    // already-usable composer up by its own height.
+    prefetchAdaptedQuery(
+      context.queryClient,
+      'governance/queries:getPolicy',
+      dataNoticePolicyArgs(params.id),
     );
   },
   component: ChatSectionRoute,
