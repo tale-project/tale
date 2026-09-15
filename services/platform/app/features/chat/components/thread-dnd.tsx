@@ -91,15 +91,72 @@ function readDropData(
   return null;
 }
 
+type DroppableRects = Parameters<CollisionDetection>[0]['droppableRects'];
+
+/** The nearest ancestor that clips what it holds — a scrolling list, or an
+ * `overflow-hidden` frame. */
+function clippingAncestor(node: Element): Element | null {
+  for (
+    let ancestor = node.parentElement;
+    ancestor !== null;
+    ancestor = ancestor.parentElement
+  ) {
+    const { overflowX, overflowY } = getComputedStyle(ancestor);
+    if (overflowX !== 'visible' || overflowY !== 'visible') return ancestor;
+  }
+  return null;
+}
+
+/**
+ * Every zone's box, cut to the part its clipping ancestor shows. A folder
+ * scrolled out of the PROJECTS list is still laid out below it — under CHATS
+ * or ARCHIVED — and dnd-kit measures that unclipped box, so without the cut a
+ * chat released over CHATS could land in a folder nobody can see. A zone
+ * scrolled wholly out of view takes no drop at all.
+ */
+function visibleDroppableRects({
+  droppableContainers,
+  droppableRects,
+}: Parameters<CollisionDetection>[0]): DroppableRects {
+  const visible: DroppableRects = new Map();
+  for (const { id, node } of droppableContainers) {
+    const rect = droppableRects.get(id);
+    if (rect === undefined) continue;
+    const clip = node.current === null ? null : clippingAncestor(node.current);
+    if (clip === null) {
+      visible.set(id, rect);
+      continue;
+    }
+    const bounds = clip.getBoundingClientRect();
+    const top = Math.max(rect.top, bounds.top);
+    const left = Math.max(rect.left, bounds.left);
+    const bottom = Math.min(rect.bottom, bounds.bottom);
+    const right = Math.min(rect.right, bounds.right);
+    if (bottom > top && right > left) {
+      visible.set(id, {
+        top,
+        left,
+        bottom,
+        right,
+        width: right - left,
+        height: bottom - top,
+      });
+    }
+  }
+  return visible;
+}
+
 // Pointer-first collision: drop into whatever zone sits under the cursor, which
 // reads far more predictably than "closest center" when folders vary wildly in
 // height. Fall back to rect-intersection for the gaps between zones so a drop
-// near an edge still lands somewhere sensible.
+// near an edge still lands somewhere sensible. Both judge only the part of
+// each zone that is on screen.
 const collisionDetection: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
+  const visibleArgs = { ...args, droppableRects: visibleDroppableRects(args) };
+  const pointerCollisions = pointerWithin(visibleArgs);
   return pointerCollisions.length > 0
     ? pointerCollisions
-    : rectIntersection(args);
+    : rectIntersection(visibleArgs);
 };
 
 // Folders expand/collapse and the empty-folder placeholders appear mid-drag, so
