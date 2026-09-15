@@ -83,7 +83,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       size="wide"
       hideClose
       customHeader={<></>}
-      className="bg-muted flex flex-col border-0 p-0 ring-0 sm:p-0"
+      className="bg-muted flex min-h-[min(600px,70dvh)] flex-col border-0 p-0 ring-0 sm:p-0"
     >
       <ZoomPanViewer
         src={currentSrc}
