@@ -2,7 +2,7 @@ import { DocsLayout } from '@tale/ui/docs/docs-layout';
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import type { SearchResult } from '@tale/ui/search';
 import { TALE_GITHUB_URL } from '@tale/ui/seo/globals';
-import { ThemeAssetSync, useTheme } from '@tale/ui/theme';
+import { ThemeAssets } from '@tale/ui/theme/assets';
 import {
   createRootRoute,
   Outlet,
@@ -70,7 +70,6 @@ const SECTION_TO_NAV_KEY: Record<string, string> = {
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const locale = localeFromPathname(pathname);
-  const { resolvedTheme } = useTheme();
   const { t: tNav } = useT('nav');
   const { t: tFooter } = useT('footer');
 
@@ -103,7 +102,7 @@ function RootLayout() {
   return (
     <>
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
-      <ThemeAssetSync resolvedTheme={resolvedTheme} />
+      <ThemeAssets />
       <DocsLayout
         sections={sections}
         activeHref={docPath(locale, activeSlugFromPathname(pathname))}

@@ -50,13 +50,10 @@ if (!root) throw new Error('Missing #root element');
 //
 // `<AppShell>` is mounted without `locale` because docs reads its locale
 // from the URL — `__root.tsx` calls `<LocaleSync>` directly with
-// `useCurrentLocale()`.
-// Pass `theme={{ defaultTheme: 'light' }}` to preserve pre-AppShell
-// behavior. The prior `<ThemeProvider defaultTheme="light">` hard-pinned
-// docs to light; AppShell's default of `'system'` would otherwise flip
-// favicon + theme-color meta for OS-dark users via `ThemeAssetSync` in
-// `__root.tsx`, even though the docs body has no `dark:` Tailwind
-// classes. M9.
+// `useCurrentLocale()`. `theme` keeps the canonical `'system'` default, the
+// same as the design-system guide and the pre-paint script in `index.html`:
+// a reader who never picked a theme follows the operating system, and the
+// footer's switcher saves an explicit choice.
 void router
   .load()
   .catch((error: unknown) => {
@@ -66,7 +63,7 @@ void router
   .then(() => {
     createRoot(root, { onUncaughtError: reportBrowserError }).render(
       <StrictMode>
-        <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+        <AppShell i18n={i18n} theme>
           <RouterProvider router={router} />
         </AppShell>
       </StrictMode>,

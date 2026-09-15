@@ -81,6 +81,37 @@ test.describe('docs smoke', () => {
     await expect(page.locator('a[aria-current="page"]')).toHaveCount(0);
   });
 
+  test('follows the system theme until the reader picks one', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/self-hosted/install/quickstart');
+    const html = page.locator('html');
+    const switcher = page.getByRole('button', {
+      name: t('themeSwitcher.ariaLabel'),
+    });
+    await expect(switcher).toBeVisible();
+    // Nothing stored: the page follows the operating system. Opening the menu
+    // proves React has mounted, so the pre-paint script and the provider
+    // agree instead of the provider flipping a dark reader back to light.
+    await switcher.click();
+    await expect(
+      page.getByRole('menuitemradio', { name: t('themeSwitcher.system') }),
+    ).toHaveAttribute('aria-checked', 'true');
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    // An explicit choice wins over the operating system and survives a reload.
+    await page
+      .getByRole('menuitemradio', { name: t('themeSwitcher.light') })
+      .click();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: t('themeSwitcher.ariaLabel') }),
+    ).toBeVisible();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+  });
+
   test('the header row stays pinned while the article scrolls', async ({
     page,
   }) => {

@@ -48,15 +48,14 @@ export async function render(url: string): Promise<RenderResult> {
   // into the sink as the tree renders (effects don't run under
   // `renderToString`). Mirror any change here in `app/main.tsx`.
   const sink = createHeadSink();
-  // `theme={{ defaultTheme: 'light' }}` matches the CSR path's pinned
-  // light theme and keeps SSR/CSR hydration in sync. AppShell's default
-  // `'system'` would otherwise resolve to dark for OS-dark crawlers
-  // pre-hydration, leaking into the initial HTML's theme-color meta.
-  // M9.
+  // `theme` matches the CSR path's `'system'` default. There is no operating
+  // system on the server, so the prerender resolves it to light; the
+  // pre-paint script in `index.html` applies the reader's theme before the
+  // first paint.
   const html = renderToString(
     <StrictMode>
       <HeadSinkContext.Provider value={sink}>
-        <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+        <AppShell i18n={i18n} theme>
           <RouterProvider router={router} />
         </AppShell>
       </HeadSinkContext.Provider>
