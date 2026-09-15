@@ -3,7 +3,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { indexDocument } from '../../core/knowledge/indexing.ts';
+import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import {
   RAG_ERROR_EMPTY,
   RAG_ERROR_INDEXER_ERROR,
@@ -25,7 +25,9 @@ import { indexUploadedFile } from './service.ts';
  * row: it goes to the platform log.
  */
 
-vi.mock('../../core/knowledge/indexing.ts', () => ({ indexDocument: vi.fn() }));
+vi.mock('../../core/knowledge/indexing.ts', () => ({
+  indexWholeDocument: vi.fn(),
+}));
 vi.mock('../../core/knowledge/embedding.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/knowledge/embedding.ts')
@@ -118,13 +120,13 @@ const skipped = (kind: 'empty' | 'secret-detected' | 'pii-blocked') => ({
 });
 
 beforeEach(() => {
-  vi.mocked(indexDocument).mockReset();
+  vi.mocked(indexWholeDocument).mockReset();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 describe('indexUploadedFile — one stable code per failure', () => {
   it('lands an empty file on the terminal `unsupported` with `empty`, never `failed`', async () => {
-    vi.mocked(indexDocument).mockResolvedValue(skipped('empty'));
+    vi.mocked(indexWholeDocument).mockResolvedValue(skipped('empty'));
     const log: Query[] = [];
     await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
       undefined,
@@ -141,7 +143,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
   ] as const)(
     'keeps a %s policy refusal on `failed` with its code (a retry is meaningful)',
     async (kind, code) => {
-      vi.mocked(indexDocument).mockResolvedValue(skipped(kind));
+      vi.mocked(indexWholeDocument).mockResolvedValue(skipped(kind));
       const log: Query[] = [];
       await indexUploadedFile(fakeSql(log), 'file-1');
       const write = lastStatusWrite(log);
@@ -156,7 +158,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
   ] as const)(
     'lands an extractor’s %s refusal on `unsupported` with its code and does NOT rethrow',
     async (code, wire) => {
-      vi.mocked(indexDocument).mockRejectedValue(
+      vi.mocked(indexWholeDocument).mockRejectedValue(
         new ExtractionError(code, `The file cannot be read (${code}).`),
       );
       const log: Query[] = [];
@@ -172,7 +174,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
   );
 
   it('stores a curated sentence and `indexer_error` for an unclassified fault, never the raw text, and rethrows for the retry ladder', async () => {
-    vi.mocked(indexDocument).mockRejectedValue(
+    vi.mocked(indexWholeDocument).mockRejectedValue(
       new Error('invalid byte sequence for encoding "UTF8": 0x00'),
     );
     const log: Query[] = [];

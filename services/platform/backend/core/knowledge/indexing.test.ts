@@ -2,11 +2,34 @@
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { chunkDocument } from '../../../lib/knowledge/chunking';
+import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { Embedder } from './embedding';
-import { indexDocument } from './indexing';
+import { indexDocument, indexWholeDocument } from './indexing';
+import { applyPiiPolicyForIndexing } from './pii_gate';
+
+// Passthrough spies: every suite below runs the real functions; the
+// once-per-document suite counts how often the write path calls them.
+vi.mock('../../../lib/knowledge/chunking', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../../../lib/knowledge/chunking')>();
+  return { ...original, chunkDocument: vi.fn(original.chunkDocument) };
+});
+vi.mock('../../../lib/knowledge/secret-scan', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../../../lib/knowledge/secret-scan')>();
+  return { ...original, scanForSecrets: vi.fn(original.scanForSecrets) };
+});
+vi.mock('./pii_gate', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./pii_gate')>();
+  return {
+    ...original,
+    applyPiiPolicyForIndexing: vi.fn(original.applyPiiPolicyForIndexing),
+  };
+});
 
 /**
  * The write path, exercised against a database double.
@@ -60,14 +83,38 @@ interface FakeDb {
 }
 
 function fakeDb(
-  options: { stored?: StoredRow | null; duplicateId?: string | null } = {},
+  options: {
+    stored?: StoredRow | null;
+    duplicateId?: string | null;
+    /** Remember what the claim and the chunk inserts wrote, so the next pass
+     * reads the committed prefix back — how a whole-document run resumes
+     * slice after slice. */
+    resumable?: boolean;
+  } = {},
 ): FakeDb {
   const statements: string[] = [];
   const params: unknown[][] = [];
+  let claimedHash: string | null = null;
+  let storedChunks = 0;
+  let status = 'processing';
   const unsafe = (text: string, values: unknown[] = []): Promise<unknown[]> => {
     statements.push(text.trim());
     params.push(values);
     if (text.includes('FROM private_knowledge.documents d')) {
+      if (options.resumable) {
+        return Promise.resolve(
+          claimedHash === null
+            ? []
+            : [
+                {
+                  id: 'doc-1',
+                  content_hash: claimedHash,
+                  status,
+                  stored: storedChunks,
+                },
+              ],
+        );
+      }
       return Promise.resolve(
         options.stored ? [{ id: 'doc-existing', ...options.stored }] : [],
       );
@@ -78,8 +125,17 @@ function fakeDb(
       );
     }
     if (text.includes('INSERT INTO private_knowledge.documents')) {
+      // $4 is the content hash of a claim; a failure row carries none.
+      if (typeof values[3] === 'string') claimedHash = values[3];
       return Promise.resolve([{ id: 'doc-1' }]);
     }
+    if (
+      text.includes('INSERT INTO private_knowledge.chunks') &&
+      typeof values[2] === 'number'
+    ) {
+      storedChunks = Math.max(storedChunks, values[2] + 1);
+    }
+    if (text.includes("SET status = 'completed'")) status = 'completed';
     if (text.includes('WITH copied AS')) {
       return Promise.resolve([{ count: 7 }]);
     }
@@ -509,5 +565,76 @@ describe('the chunk header announces the title, not just the filename', () => {
       .map((value) => (typeof value === 'string' ? value : ''))
       .join('\n');
     expect(flat).toContain(ARGS.filename);
+  });
+});
+
+describe('a document is prepared once, not once per slice', () => {
+  // Preparing — the secret scan, the PII policy, the chunker, the hash — is a
+  // pass over the WHOLE text. A run of many slices used to repeat it for every
+  // slice, so a large document cost O(slices²) and held the worker for the
+  // whole of every pass.
+  const LONG = Array.from(
+    { length: 200 },
+    (_v, i) =>
+      `## Section ${i}\n\nParagraph ${i} with enough words to fill a chunk.\n`,
+  ).join('\n');
+
+  it('scans, applies the policy and chunks the text once across every slice', async () => {
+    vi.mocked(scanForSecrets).mockClear();
+    vi.mocked(applyPiiPolicyForIndexing).mockClear();
+    vi.mocked(chunkDocument).mockClear();
+    const db = fakeDb({ resumable: true });
+    const embedder = stubEmbedder();
+    const progress: number[] = [];
+    const result = await indexWholeDocument(
+      {
+        ...ARGS,
+        text: LONG,
+        bytes: new TextEncoder().encode(LONG),
+        sql: db.sql,
+        embedder,
+        maxChunks: 3,
+      },
+      {
+        onSlice: (slice) => {
+          progress.push(slice.chunksStored);
+        },
+      },
+    );
+
+    expect(result.partial).toBe(false);
+    expect(result.chunksTotal).toBeGreaterThan(3);
+    expect(result.chunksStored).toBe(result.chunksTotal);
+    // Several slices ran, each one further along than the last…
+    expect(progress).toHaveLength(Math.ceil(result.chunksTotal / 3) - 1);
+    for (const [at, stored] of progress.entries()) {
+      expect(stored).toBe((at + 1) * 3);
+    }
+    // …every chunk was embedded exactly once and the document completed…
+    expect(embedder.embedded).toHaveLength(result.chunksTotal);
+    expect(db.statements.join('\n')).toContain("SET status = 'completed'");
+    // …and the whole-document work ran once for the document.
+    expect(scanForSecrets).toHaveBeenCalledTimes(1);
+    expect(applyPiiPolicyForIndexing).toHaveBeenCalledTimes(1);
+    expect(chunkDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a refusal the preparation produced, embedding nothing', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder,
+      prepared: {
+        kind: 'refused',
+        skipped: 'pii-blocked',
+        reason: "Indexing refused by the organization's PII policy (email).",
+      },
+    });
+    expect(result.skipped).toBe('pii-blocked');
+    expect(result.refusal).toContain('PII policy');
+    expect(embedder.embedded).toEqual([]);
+    expect(db.statements.join('\n')).toContain("'failed'");
   });
 });

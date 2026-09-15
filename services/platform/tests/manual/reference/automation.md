@@ -257,6 +257,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [video-links](../suites/video-links.md) | `VID-F5` | 🔶 partial | `lib/shared/video-url.test.ts` (playlist detection); the ConvexError surface is manual |
 | [video-links](../suites/video-links.md) | `VID-F6`, `VID-F7` | 🔶 partial | `backend/core/video_links/ytdlp_live.test.ts` — gated `YOUTUBE_LIVE_TEST=1` (the CI Unit job in `.github/workflows/checks.yml` runs it from a datacenter IP) |
 | [video-links](../suites/video-links.md) | `VID-B1`–`VID-B3` | 🔶 partial | `convex/video_links/ytdlp.test.ts` (stderr classifier, env-flag builders, log sanitizer); the live job-row/log behaviour is manual |
+| [knowledge](../suites/knowledge.md) | A file's whole-document preparation (secret scan, PII policy, chunking, content hash, repeat map) runs once across every indexing slice: a multi-slice document is prepared once, reports progress per slice and completes only after the last slice lands; a preparation refusal records `failed` without embedding | ✅ automated | `backend/core/knowledge/indexing.test.ts`, the `knowledge indexing drains every slice (multi-slice doc completes)` lane in `backend:integration` |
 
 ## Documentation rebase regressions
 

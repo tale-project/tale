@@ -63,6 +63,7 @@ Tale keeps two databases: the operational store (`tale_app` — agents, runs, th
 | `DATABASE_POOL_MAX`                       | `10`                                                                | **Optional.** Connections one backend process opens to the operational database. It costs this twice — the app pool and the job queue's — per `backend-api` and `backend-worker` replica, which is the number to check against a managed Postgres's `max_connections`.                    |
 | `POSTGRES_CA_FILE`                        | unset                                                               | **Optional.** Path to a PEM bundle trusted for **every** Postgres connection: the operational database, the knowledge corpus, and the databases organizations bring themselves. Needed whenever a URL asks for `sslmode=verify-ca` or `verify-full` against a provider whose root is not one Node ships (Amazon RDS is the common one). Concatenate several roots into one file if your databases use different providers. |
 | `KNOWLEDGE_DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | Connection URL for the default knowledge corpus. Pointing it elsewhere selects another database; it does not migrate existing chunks or vectors. |
+| `KNOWLEDGE_DB_POOL_MAX` | `10` | **Optional.** Connections one backend process opens to the knowledge corpus. Every indexing job holds one while it commits a slice of chunks, so a worker allowed more concurrent jobs than this (`WORKER_CONCURRENCY`) queues on the pool — raise the two together. Like `DATABASE_POOL_MAX`, it counts per replica against the corpus database's `max_connections`. |
 | `KNOWLEDGE_DB_NAME` | `tale_knowledge` | Name of the knowledge database created by the bundled database initialization. |
 | `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | `1073741824`                                                        | **Optional.** Largest BM25 search index (in bytes) the backend rebuilds synchronously at boot when it finds it corrupted; a larger one is rebuilt by a background job while writes to that corpus are refused. See [Container architecture](/self-hosted/operate/container-architecture). |
 | `KNOWLEDGE_INDEX_REPAIR_DISABLED` | unset | `1` or `true` disables automatic boot-time BM25 verification and repair. It does not fix corruption; failed queries or writes need investigation and a controlled repair. |
@@ -223,13 +224,14 @@ Re-ranking is disabled by default. To use it, set `RAG_RERANKING_ENABLED=true`, 
 
 ## Deployment topology
 
-These values control replicas per application role in a workspace deployment. `tale deploy` reads them from the project environment and clamps values to the supported range with a warning.
+These values shape the application roles of a workspace deployment: the replica counts, which `tale deploy` reads from the project environment and clamps to the supported range with a warning, and how much work one worker replica takes on at once.
 
 | Name                           | Default | Description                                                                                              |
 | ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
 | `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas of the web tier that serves the app shell. Range `1`–`16`.                                       |
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
+| `WORKER_CONCURRENCY`           | `5`     | Jobs one `backend-worker` replica runs at once — ingestion, crawls, automations and agent turns share it. Read by the worker process itself; range `1`–`64`. The lever to pull before adding worker replicas when a backlog lags. Every running indexing job commits through the knowledge pool, so raise `KNOWLEDGE_DB_POOL_MAX` with it. |
 
 A workspace rollout temporarily runs both colors. Plan capacity for that overlap. Increase the role whose measured workload is the bottleneck; more replicas also increase database connections and memory use. See [Upgrades](/self-hosted/operate/upgrades).
 

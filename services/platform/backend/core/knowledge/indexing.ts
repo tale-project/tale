@@ -19,11 +19,13 @@
  *    normal, and indexing is the expensive part of the system. Unchanged
  *    content is skipped; content already embedded elsewhere in the SAME
  *    organization is copied rather than re-embedded.
- *  - **Slices resume.** A large document takes longer to index than one
- *    invocation may run, so chunks are committed in slices and the committed
- *    prefix is the checkpoint. Without that, a document past the window could
- *    never finish: every attempt would redo the previous attempt's work and run
- *    out of time in the same place.
+ *  - **Slices resume.** A large document is committed in slices, and the
+ *    committed prefix is the checkpoint: a crash resumes after it instead of
+ *    starting over. Preparing the text — the secret scan, the PII policy,
+ *    chunking, hashing — is a pass over the WHOLE document, so a caller that
+ *    drives several slices pays it once (`indexWholeDocument`) rather than
+ *    once per slice; a document of seventy slices used to be scanned and
+ *    chunked seventy times over.
  *
  * The document row stays `processing` — with its `updated_at` touched on every
  * committed slice, so a watchdog can tell live work from abandoned work — until
@@ -110,6 +112,13 @@ export interface IndexDocumentArgs {
   readonly sourceModifiedAt?: Date | null;
   /** Chunks to commit in this invocation. */
   readonly maxChunks?: number;
+  /**
+   * The document as `prepareDocument` made it ready — computed once by a
+   * caller that drives several slices (`indexWholeDocument`) and passed to
+   * each of them. Omitted, this call prepares the text itself: right for one
+   * slice, a whole-document pass repeated for every slice of many.
+   */
+  readonly prepared?: PreparedDocument;
 }
 
 export interface IndexDocumentResult {
@@ -131,30 +140,66 @@ export interface IndexDocumentResult {
 }
 
 /**
- * Index one document, committing at most one slice of chunks.
+ * A document made ready to index: the secret scan, the PII policy, the
+ * chunker and the content hash have run once over the whole text.
  *
- * Returns `partial: true` when chunks remain; calling again with the same
- * arguments resumes where this call stopped.
+ * Preparation is a pass over the ENTIRE document — the PII scan alone is
+ * seconds of synchronous work on a large file — while one slice commits at
+ * most `CHUNKS_PER_SLICE` chunks. A caller that drives a document through
+ * several slices prepares it once and hands the result to every slice.
  */
-export async function indexDocument(
-  args: IndexDocumentArgs,
-): Promise<IndexDocumentResult> {
-  // A corpus whose BM25 index is being rebuilt (or whose rebuild failed)
-  // refuses the write with a coded error — before any embedding is paid for
-  // — instead of PANICking the database on the first chunk insert.
-  await assertCorpusWritable(args.dbUrl, SCHEMA);
+export type PreparedDocument =
+  /** Refused before anything is stored: a credential in the bytes, or the
+   * organization's PII policy said `block`. */
+  | {
+      readonly kind: 'refused';
+      readonly skipped: 'secret-detected' | 'pii-blocked';
+      /** The refusal, in words for the person who uploaded the file. */
+      readonly reason: string | null;
+    }
+  /** No text to index. */
+  | { readonly kind: 'empty' }
+  | {
+      readonly kind: 'ready';
+      /** Hash of the text the chunks were built from — the content's identity. */
+      readonly contentHash: string;
+      readonly chunks: readonly ContextualChunk[];
+      /** Indexes of the chunks whose text repeats an earlier chunk's: stored
+       * without a vector, embedded and searched once through their first
+       * occurrence. */
+      readonly repeats: ReadonlySet<number>;
+    };
+
+export interface PrepareDocumentArgs {
+  /** The document's text, already extracted. */
+  readonly text: string;
+  /** The original bytes, scanned for credentials. Omitted when the caller has
+   * already scanned them. */
+  readonly bytes?: Uint8Array;
+  /** The organization's PII policy, already parsed; absent or disabled
+   * indexes the text as it is. */
+  readonly piiConfig?: PiiConfig | null;
+  readonly filename: string;
+  /** What the chunk header announces when it should differ from `filename`
+   * (see `IndexDocumentArgs.title`). */
+  readonly title?: string;
+}
+
+/**
+ * Prepare a document for indexing — pure, no database.
+ *
+ * Runs everything that looks at the whole text, in the order the write path
+ * always ran it: the secret scan first (a credential must never be chunked),
+ * then the organization's PII policy, then the chunker and the hash.
+ */
+export function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
   if (args.bytes !== undefined) {
     const scan = scanForSecrets(args.bytes);
     if (scan.rejected) {
-      await markFailed(args.sql, args.orgSlug, args.fileId, scan.reason);
       return {
-        fileId: args.fileId,
-        chunksWritten: 0,
-        chunksTotal: 0,
-        chunksStored: 0,
-        partial: false,
+        kind: 'refused',
         skipped: 'secret-detected',
-        ...(scan.reason !== null && { refusal: scan.reason }),
+        reason: scan.reason,
       };
     }
   }
@@ -170,23 +215,70 @@ export async function indexDocument(
     args.piiConfig ?? null,
   );
   if (decision.kind === 'refuse') {
-    const reason = `Indexing refused by the organization's PII policy (${decision.categoryIds.join(', ')}).`;
-    await markFailed(args.sql, args.orgSlug, args.fileId, reason);
     return {
-      fileId: args.fileId,
-      chunksWritten: 0,
-      chunksTotal: 0,
-      chunksStored: 0,
-      partial: false,
+      kind: 'refused',
       skipped: 'pii-blocked',
-      refusal: reason,
+      reason: `Indexing refused by the organization's PII policy (${decision.categoryIds.join(', ')}).`,
     };
   }
 
   const chunks = chunkDocument(decision.text, {
     title: args.title ?? args.filename,
   });
-  if (chunks.length === 0) {
+  if (chunks.length === 0) return { kind: 'empty' };
+
+  // Hashed AFTER the policy, not before. The hash is the content's identity:
+  // skip-if-unchanged and the duplicate-clone lookup both key on it. Hashing
+  // the raw text would make a policy change invisible — the same file would
+  // read as unchanged and keep its old, less-masked chunks forever.
+  const contentHash = computeContentHash(decision.text);
+
+  // One vector per DISTINCT passage of the document: a chunk whose text
+  // repeats an earlier chunk's (an export of one line repeated, a templated
+  // report) is stored as a repeat — text kept, so the document reassembles
+  // exactly; no embedding, out of both search legs. A file of 4,500 identical
+  // chunks used to put 4,500 identical vectors into the shared index, where
+  // they crowded out every nearer passage and were ranked 24 times over by
+  // the keyword leg (2026-09-14 evaluation, h4).
+  const firstOfHash = new Map<string, number>();
+  const repeats = new Set<number>();
+  for (const chunk of chunks) {
+    const hash = computeContentHash(chunk.text);
+    if (firstOfHash.has(hash)) repeats.add(chunk.index);
+    else firstOfHash.set(hash, chunk.index);
+  }
+
+  return { kind: 'ready', contentHash, chunks, repeats };
+}
+
+/**
+ * Index one document, committing at most one slice of chunks.
+ *
+ * Returns `partial: true` when chunks remain; calling again with the same
+ * arguments resumes where this call stopped. A caller making several such
+ * calls passes the document `prepared` once — see `indexWholeDocument`.
+ */
+export async function indexDocument(
+  args: IndexDocumentArgs,
+): Promise<IndexDocumentResult> {
+  // A corpus whose BM25 index is being rebuilt (or whose rebuild failed)
+  // refuses the write with a coded error — before any embedding is paid for
+  // — instead of PANICking the database on the first chunk insert.
+  await assertCorpusWritable(args.dbUrl, SCHEMA);
+  const prepared = args.prepared ?? prepareDocument(args);
+  if (prepared.kind === 'refused') {
+    await markFailed(args.sql, args.orgSlug, args.fileId, prepared.reason);
+    return {
+      fileId: args.fileId,
+      chunksWritten: 0,
+      chunksTotal: 0,
+      chunksStored: 0,
+      partial: false,
+      skipped: prepared.skipped,
+      ...(prepared.reason !== null && { refusal: prepared.reason }),
+    };
+  }
+  if (prepared.kind === 'empty') {
     return {
       fileId: args.fileId,
       chunksWritten: 0,
@@ -197,11 +289,7 @@ export async function indexDocument(
     };
   }
 
-  // Hashed AFTER the policy, not before. The hash is the content's identity:
-  // skip-if-unchanged and the duplicate-clone lookup both key on it. Hashing
-  // the raw text would make a policy change invisible — the same file would
-  // read as unchanged and keep its old, less-masked chunks forever.
-  const contentHash = computeContentHash(decision.text);
+  const { contentHash, chunks, repeats } = prepared;
   const stored = await readStoredState(args.sql, args.orgSlug, args.fileId);
   const duplicate = await findDuplicate(
     args.sql,
@@ -305,22 +393,8 @@ export async function indexDocument(
   const window = chunks.slice(slice.from, slice.to);
 
   if (window.length > 0) {
-    // One vector per DISTINCT passage of the document: a chunk whose text
-    // repeats an earlier chunk's (an export of one line repeated, a
-    // templated report) is stored as a repeat — text kept, so the document
-    // reassembles exactly; no embedding, out of both search legs. A file of
-    // 4,500 identical chunks used to put 4,500 identical vectors into the
-    // shared index, where they crowded out every nearer passage and were
-    // ranked 24 times over by the keyword leg (2026-09-14 evaluation, h4).
-    const firstOfHash = new Map<string, number>();
-    for (const chunk of chunks) {
-      const hash = computeContentHash(chunk.text);
-      if (!firstOfHash.has(hash)) firstOfHash.set(hash, chunk.index);
-    }
-    const repeated = window.map(
-      (chunk) =>
-        firstOfHash.get(computeContentHash(chunk.text)) !== chunk.index,
-    );
+    // A repeated passage (see `prepareDocument`) is stored without a vector.
+    const repeated = window.map((chunk) => repeats.has(chunk.index));
     const distinct = window.filter((_chunk, position) => !repeated[position]);
     const embedded = await args.embedder.embedAll(
       distinct.map((chunk) => chunk.embedText),
@@ -357,6 +431,43 @@ export async function indexDocument(
     chunksStored: slice.to,
     partial: !slice.done,
   };
+}
+
+export interface IndexWholeDocumentHooks {
+  /** Called after every slice that leaves chunks to do, with that slice's
+   * result — the progress (`chunksStored` of `chunksTotal`) a caller relays
+   * before the next slice runs. */
+  readonly onSlice?: (result: IndexDocumentResult) => void | Promise<void>;
+}
+
+/**
+ * Index a whole document: prepare it once, then commit slices until none
+ * remain.
+ *
+ * 0.4 committed one slice per scheduled invocation (the action budget) and
+ * rescheduled until `partial` cleared; the 0.5 worker owns the whole job, so
+ * the slices drain here, in-process. Every slice is still committed and
+ * resumable — a crash resumes after the stored prefix — and the preparation
+ * is paid once for the document, not once per slice.
+ */
+export async function indexWholeDocument(
+  args: Omit<IndexDocumentArgs, 'prepared'>,
+  hooks: IndexWholeDocumentHooks = {},
+): Promise<IndexDocumentResult> {
+  // Refused before the preparation is paid for, as a single slice would be.
+  await assertCorpusWritable(args.dbUrl, SCHEMA);
+  const prepared = prepareDocument(args);
+  let result = await indexDocument({ ...args, prepared });
+  while (result.partial) {
+    if (result.chunksWritten === 0) {
+      throw new Error(
+        `Indexing made no progress at ${result.chunksStored}/${result.chunksTotal} chunks`,
+      );
+    }
+    await hooks.onSlice?.(result);
+    result = await indexDocument({ ...args, prepared });
+  }
+  return result;
 }
 
 /** What the corpus already holds for this document reference. */
