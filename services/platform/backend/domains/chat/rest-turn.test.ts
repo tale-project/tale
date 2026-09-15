@@ -235,6 +235,45 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
     });
   });
 
+  it('settles a refusal the turn returned before writing anything under the promised id', async () => {
+    const reason =
+      'Your organization’s model access policy does not allow acme/nope.';
+    vi.mocked(runChatTurn).mockResolvedValue({
+      status: 'refused',
+      steps: [],
+      step: 'input-guardrails',
+      reason,
+      persisted: false,
+    } as never);
+    await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
+    // The accepted prompt lands beside the failure, so the promised reply
+    // appears instead of the poll going idle over nothing.
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ role: 'user', text: payload.userText }),
+    );
+    const failure = vi.mocked(appendAssistantErrorMessage).mock.calls.at(-1);
+    expect(failure?.[1]).toMatchObject({ id: 'm-pre' });
+    expect(decodeChatError(failure?.[1].error ?? '')).toMatchObject({
+      code: 'generic',
+      raw: reason,
+    });
+    expect(appendAssistantErrorMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes nothing more for a refusal the pipeline already recorded', async () => {
+    vi.mocked(runChatTurn).mockResolvedValue({
+      status: 'refused',
+      steps: ['input-guardrails'],
+      step: 'input-guardrails',
+      reason: 'Blocked by the input guardrail.',
+      persisted: true,
+    } as never);
+    await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
+    expect(appendMessageRow).not.toHaveBeenCalled();
+    expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
+  });
+
   it('keeps the marker when the drain window re-queues the accepted send', async () => {
     vi.mocked(isBackendDraining).mockResolvedValue(true);
     await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });

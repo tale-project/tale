@@ -291,6 +291,7 @@ async function runAcceptedTurn(
   // refusal BEFORE that point (an unknown model, say) used to leave the
   // thread with an assistant error row and no trace of what was asked.
   let userAppended = false;
+  let unrecordedRefusal: string | undefined;
   try {
     const outcome = await runChatTurn(sql, {
       organizationId: payload.organizationId,
@@ -323,6 +324,7 @@ async function runAcceptedTurn(
       console.warn(
         `[rest-turn] turn refused for ${payload.threadId}: ${outcome.reason}`,
       );
+      if (!outcome.persisted) unrecordedRefusal = outcome.reason;
     }
   } catch (error) {
     if (
@@ -343,6 +345,21 @@ async function runAcceptedTurn(
         code: classifyChatErrorCode(error),
         model: payload.modelId,
         raw: reason,
+      }),
+      !userAppended,
+    );
+  }
+  // Refused before the pipeline wrote anything (the model access policy
+  // changed while the send was queued, say): nothing on the thread says so,
+  // and the reply the 202 promised would never appear — the poll went idle
+  // over no message at all. It settles as a failure with the refusal's
+  // sentence, beside the caller's prompt.
+  if (unrecordedRefusal !== undefined) {
+    await recordFailure(
+      encodeChatError({
+        code: 'generic',
+        model: payload.modelId,
+        raw: unrecordedRefusal,
       }),
       !userAppended,
     );
