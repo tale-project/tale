@@ -58,6 +58,7 @@ type CreateConnectorCredentialResult =
 type GovernancePolicyResult = ReturnsOf<'governance/queries:getPolicy'>;
 type MyFeatureFlagsResult = ReturnsOf<'governance/queries:getMyFeatureFlags'>;
 type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
+type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
 type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
 type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
@@ -314,6 +315,24 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
             : `/governance/my/budget-status?selectedTeamId=${encodeURIComponent(selectedTeamId)}`,
           { orgId },
         ).then((body) => body.status),
+    };
+  },
+  'governance/queries:getMyBudgetUsage': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Keyed under the policy entity, like the resolved flags: saving budget
+      // rules hints every member, so an open page shows the new caps at once.
+      queryKey: backendKey(orgId, 'governance_policy', 'my-budget-usage'),
+      queryFn: () =>
+        backendFetch<{ limits: MyBudgetUsageResult }>(
+          '/governance/my/budget-usage',
+          { orgId },
+        ).then((body) => body.limits),
+      // Booking usage pushes no hint, so an open page re-reads on its own
+      // and a return visit reads afresh (past the loader's warm-up).
+      staleTime: 10_000,
+      refetchInterval: 60_000,
     };
   },
   'governance/queries:getAccessibleModelsForUser': (args, ctx) => {

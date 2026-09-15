@@ -11,6 +11,7 @@ import { useMemo } from 'react';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
 import type { SoftDeleteResourceType } from '@/backend/core/governance/soft_delete';
 import {
@@ -64,6 +65,20 @@ export function useMyBudgetStatus(
   return useBackendQuery('governance/queries:getMyBudgetStatus', {
     organizationId,
     selectedTeamId: selectedTeamId ?? null,
+  });
+}
+
+export type MyBudgetUsageLimit =
+  ReturnsOf<'governance/queries:getMyBudgetUsage'>[number];
+
+/**
+ * Every budget cap that binds the signed-in member — personal, their teams'
+ * shared caps, the organization's — with what has been used against each
+ * this period. Unlike `useMyBudgetStatus` it answers at any usage level.
+ */
+export function useMyBudgetUsage(organizationId: string) {
+  return useBackendQuery('governance/queries:getMyBudgetUsage', {
+    organizationId,
   });
 }
 

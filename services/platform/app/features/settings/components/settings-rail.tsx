@@ -90,6 +90,8 @@ export function SettingsRail({
       { kind: 'leaf', labelKey: 'account', path: 'account' },
       { kind: 'leaf', labelKey: 'personalization', path: 'personalization' },
       { kind: 'leaf', labelKey: 'notifications', path: 'notifications' },
+      // No `can`: every role has personal limits to read.
+      { kind: 'leaf', labelKey: 'usage', path: 'usage' },
     ];
     if (!showAccountTab) personal.shift();
 
