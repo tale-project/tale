@@ -13,6 +13,16 @@ inputs:
     limit:
       type: number
       description: How many of the newest messages to read per mailbox in one pass (25 when unset).
+    # Every trigger-started run arrives inside the trigger wrapper
+    # (docs/en/platform/automations/triggers.md). A declared schema must
+    # describe that wrapper, or the pack's own schedule is refused at start
+    # and the trigger records `start_refused`.
+    trigger:
+      type: string
+      description: Which trigger started the run; a schedule sends "schedule".
+    firedAt:
+      type: number
+      description: Epoch-ms occurrence the schedule fired for.
   additionalProperties: false
 nodes:
   - id: fetch

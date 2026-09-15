@@ -9,7 +9,7 @@ Le panneau **Déclencheur** d’une automatisation définit quand elle démarre 
 
 | Type de déclencheur | Usage | Données transmises à l’exécution |
 | --- | --- | --- |
-| **Planification** | Travail périodique à une heure locale ou à intervalles réguliers. | `{ trigger: "schedule", firedAt: "…" }` |
+| **Planification** | Travail périodique à une heure locale ou à intervalles réguliers. | `{ trigger: "schedule", firedAt: <epoch ms> }` |
 | **Webhook** | Réception d’une livraison d’un autre système. | `{ trigger: "webhook", payload: … }` |
 | **Événement de la plateforme** | Un événement nommé dans l’organisation. | `{ trigger: "event", event: "…", payload: … }` |
 

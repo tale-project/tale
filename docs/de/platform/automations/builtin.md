@@ -62,7 +62,7 @@ Beide Workflows benötigen `owner` und `repo`. Gib beim **Testlauf** unter **Ein
 
 <Note>
 
-Die mitgelieferten GitHub-Zeitpläne liefern weder `owner` noch `repo`. Das Live-Schalten allein macht diese geplanten Läufe deshalb nicht ausführbar. Ein Zeitplan sendet `trigger` und `firedAt`; das unveränderte Eingabeschema des Workflows lehnt sie ab. Starte manuell mit den benötigten Eingaben oder passe Schema und Repository-Konfiguration an, bevor du geplante Läufe aktivierst. Ein abgelehnter geplanter Start erscheint am [Trigger](/de/platform/automations/triggers) als `start_refused`.
+Die mitgelieferten GitHub-Zeitpläne liefern weder `owner` noch `repo`. Das Live-Schalten allein macht diese geplanten Läufe deshalb nicht ausführbar. Ein Zeitplan sendet nur `trigger` und `firedAt`; die erforderliche Repository-Eingabe fehlt damit, und der Start wird abgelehnt. Starte manuell mit den benötigten Eingaben oder passe Schema und Repository-Konfiguration an, bevor du geplante Läufe aktivierst. Ein abgelehnter geplanter Start erscheint am [Trigger](/de/platform/automations/triggers) als `start_refused`.
 
 </Note>
 

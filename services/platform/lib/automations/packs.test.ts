@@ -8,6 +8,7 @@ import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
+import { compileSchema } from '../engine/core/validate/schema';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import type { AutomationPack } from './packs';
 import { loadAutomationPacks } from './packs';
@@ -227,6 +228,51 @@ describe('the three sync-emails packs stay one document', () => {
         expect.arrayContaining([variant.connector, 'conversation']),
       );
       expect(connectorsUsedBy(pack.automation)).toEqual(['conversation']);
+    });
+  }
+});
+
+// ------------------------------------------- the schedule-envelope contract
+
+/**
+ * A trigger-started run does not arrive as bare workflow input: the platform
+ * wraps it (`{ trigger: 'schedule', firedAt }` — see
+ * `docs/en/platform/automations/triggers.md`) and `beginRun` validates that
+ * wrapper against the deployed version's `inputs` schema. So a pack that
+ * ships a schedule but declares a schema CLOSED against the wrapper can
+ * never fire: every occurrence is refused at start and the trigger records
+ * `start_refused` forever, with no run and no error a reader of the Inbox
+ * would ever see.
+ *
+ * The assertion is deliberately narrow. A pack may still refuse its own
+ * schedule over a REQUIRED input the schedule cannot supply — the GitHub
+ * packs want `owner`/`repo`, and that is an authoring choice this test
+ * leaves alone. Being closed against the wrapper is not a choice; it is the
+ * pack forbidding the only start its own trigger can perform.
+ */
+describe('a scheduled pack accepts the trigger wrapper', () => {
+  const scheduled = packs.filter((pack) =>
+    (pack.manifest.triggers ?? []).some(
+      (trigger) => trigger.kind === 'schedule',
+    ),
+  );
+
+  it('the catalog still ships schedules to check', () => {
+    expect(scheduled.length).toBeGreaterThan(0);
+  });
+
+  for (const pack of scheduled) {
+    it(`${pack.slug} does not close its inputs against the wrapper`, () => {
+      const inputs = pack.automation.inputs;
+      // No declared schema refuses nothing — the wrapper passes untouched.
+      if (inputs === undefined) return;
+      const check = compileSchema(inputs);
+      check({ trigger: 'schedule', firedAt: Date.now() });
+      const closedAgainst = (check.errors ?? [])
+        .filter((error) => error.keyword === 'additionalProperties')
+        .map((error) => String(Reflect.get(error.params, 'additionalProperty')))
+        .filter((property) => property === 'trigger' || property === 'firedAt');
+      expect(closedAgainst).toEqual([]);
     });
   }
 });

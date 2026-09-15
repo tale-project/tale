@@ -9,7 +9,7 @@ Use the automation’s **Trigger** panel when work should start on a schedule or
 
 | Trigger type | Use it for | Input passed to the run |
 | --- | --- | --- |
-| **Schedule** | Periodic work at a local time or regular interval. | `{ trigger: "schedule", firedAt: "…" }` |
+| **Schedule** | Periodic work at a local time or regular interval. | `{ trigger: "schedule", firedAt: <epoch ms> }` |
 | **Webhook** | A delivery from another system. | `{ trigger: "webhook", payload: … }` |
 | **Platform event** | A named event inside the organization. | `{ trigger: "event", event: "…", payload: … }` |
 
