@@ -348,6 +348,8 @@ export const ACTIONABLE_INBOX_KEYS = [
   'cloudSyncFailedBody',
   'cloudSyncNeedsReauth',
   'cloudSyncNeedsReauthBody',
+  'usageCreditsRequested',
+  'usageCreditsRequestedBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -415,6 +417,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     cloudSyncNeedsReauth: 'Cloud sync needs reconnecting',
     cloudSyncNeedsReauthBody:
       'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.',
+    usageCreditsRequested: 'Usage credits requested',
+    usageCreditsRequestedBody:
+      '{name} reached a usage limit and asked for more credits.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -482,6 +487,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     cloudSyncNeedsReauth: 'Cloud-Synchronisierung muss neu verbunden werden',
     cloudSyncNeedsReauthBody:
       'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.',
+    usageCreditsRequested: 'Nutzungskontingent angefragt',
+    usageCreditsRequestedBody:
+      '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -548,6 +556,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     cloudSyncNeedsReauth: 'Synchronisation cloud à reconnecter',
     cloudSyncNeedsReauthBody:
       'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.',
+    usageCreditsRequested: 'Crédits d’utilisation demandés',
+    usageCreditsRequestedBody:
+      '{name} a atteint une limite d’utilisation et demande plus de crédits.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',

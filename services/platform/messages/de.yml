@@ -6327,6 +6327,8 @@ inbox:
   cloudSyncFailedBody: 'Die Synchronisierung von "{itemName}" aus {provider} schlägt seit über einer Stunde fehl ({reason}). Tale versucht es weiterhin alle 15 Minuten.'
   cloudSyncNeedsReauth: Cloud-Synchronisierung muss neu verbunden werden
   cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
+  usageCreditsRequested: Nutzungskontingent angefragt
+  usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
   email:
     cta: In Tale öffnen
     footer:

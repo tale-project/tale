@@ -8,8 +8,8 @@ import {
   requireOrganizationMember,
 } from '../../auth/membership.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { notifyUser } from '../collab/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
-import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
   deleteOrganization,
   getOrganization,
@@ -17,6 +17,10 @@ import {
   OrganizationError,
   recordOrgSwitch,
 } from './service.ts';
+
+/** The personal row an owner or admin gets when a member asks for credits. */
+export const USAGE_CREDITS_REQUESTED_NOTIFICATION_TYPE =
+  'usage_credits_requested';
 
 /**
  * /api/app/organizations — app-side org semantics. Better Auth's org plugin
@@ -58,8 +62,10 @@ export function createOrganizationRoutes(deps: {
     });
   });
 
-  // Budget banner: ask the org's admins for more usage credits — one
-  // system bell to every member surface (the 0.4 `requestUsageCredits`).
+  // Budget banner: ask for more usage credits. The request goes to the
+  // people who can grant them — the organization's owners and admins, one
+  // personal row each — never to the org-wide bell every member reads, which
+  // announced one member's exhausted budget to all of their colleagues.
   app.post('/:id/request-credits', async (c) => {
     const organizationId = c.req.param('id');
     const userId = c.get('sessionBundle').user.id;
@@ -72,21 +78,37 @@ export function createOrganizationRoutes(deps: {
       throw error;
     }
     const session = c.get('sessionBundle');
-    await deps.sql.begin((tx) =>
-      writeNotificationForOrgs(tx, {
-        organizationIds: [organizationId],
-        category: 'system',
-        severity: 'warning',
-        titleKey: 'creditRequestTitle',
-        bodyKey: 'creditRequestBody',
-        params: {
-          name: session.user.name || session.user.email || 'A member',
-        },
-        subjectUserId: userId,
-        // The page where an admin grants the credits this asks for.
-        link: { kind: 'budgets' },
-      }),
-    );
+    const recipients = await deps.sql<{ userId: string }[]>`
+      SELECT "userId" FROM "member"
+      WHERE "organizationId" = ${organizationId}
+        AND "role" IN ('owner', 'admin')
+        AND "userId" <> ${userId}
+    `;
+    // Nobody else can grant credits (the requester is the only admin):
+    // there is no one to tell, so the banner must not claim it asked.
+    if (recipients.length === 0) return c.json({ ok: false });
+    await deps.sql.begin(async (tx) => {
+      for (const recipient of recipients) {
+        await notifyUser(tx, {
+          userId: recipient.userId,
+          organizationId,
+          type: USAGE_CREDITS_REQUESTED_NOTIFICATION_TYPE,
+          titleKey: 'usageCreditsRequested',
+          bodyKey: 'usageCreditsRequestedBody',
+          // `budgets` opens the budget rules, where the credits are granted.
+          params: {
+            name: session.user.name || session.user.email || 'A member',
+            budgets: true,
+          },
+          // The requester is the subject: a repeated request rewrites the
+          // unread row instead of stacking a second one.
+          resourceType: 'member',
+          resourceId: userId,
+          actorType: 'user',
+          actorId: userId,
+        });
+      }
+    });
     return c.json({ ok: true });
   });
 

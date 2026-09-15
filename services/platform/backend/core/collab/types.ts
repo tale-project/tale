@@ -55,7 +55,11 @@ export type NotificationType =
   // grant is dead (only reconnecting resumes it) or the failure has lasted
   // an hour (`domains/onedrive/sync-health.ts`). One row per episode, marked
   // read by the run that recovers. Actionable.
-  | 'cloud_sync_failed';
+  | 'cloud_sync_failed'
+  // A member hit a usage limit and asked for more credits
+  // (`organizations/routes.ts`): one row per owner and admin, who alone can
+  // raise the budget. Actionable.
+  | 'usage_credits_requested';
 
 export type NotificationActorType = 'user' | 'agent' | 'system';
 

@@ -217,6 +217,15 @@ export function personalNotificationTarget(args: {
         };
   }
 
+  // A credit request (`usage_credits_requested`) opens the budget rules,
+  // where an admin raises the limit. Mirrors `buildPersonalNotificationUrl`.
+  if (params?.budgets === true) {
+    return {
+      to: '/dashboard/$id/settings/governance/policies-limits',
+      params: { id },
+    };
+  }
+
   if (args.taskId && projectId) {
     return {
       to: '/dashboard/$id/projects/$projectId/tasks',

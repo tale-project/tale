@@ -80,6 +80,11 @@ export function buildPersonalNotificationUrl(args: {
         : '';
     return `${base}/dashboard/${args.organizationId}/documents${folderSearch}`;
   }
+  // A credit request opens the budget rules — parity with
+  // `personalNotificationTarget`.
+  if (args.params?.budgets === true) {
+    return `${base}/dashboard/${args.organizationId}/settings/governance/policies-limits`;
+  }
   if (args.taskId && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${encodeURIComponent(projectId)}/tasks?task=${encodeURIComponent(args.taskId)}`;
   }
