@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@better-auth/api-key": "1.6.30",
-    "@better-auth/oauth-provider": "1.6.30",
+    "@better-auth/oauth-provider": "1.7.0",
     "@better-auth/passkey": "1.6.30",
     "@casl/ability": "6.8.0",
     "@dnd-kit/core": "6.3.1",
