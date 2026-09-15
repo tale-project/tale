@@ -6,6 +6,8 @@ markdownImage:
 search:
   close: Suche schliessen
   tipClose: zum Schliessen
+docs:
+  closeMenu: Navigationsmenü schliessen
 common:
   aria:
     close: Schliessen

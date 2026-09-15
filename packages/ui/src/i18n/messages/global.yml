@@ -3,3 +3,8 @@ languageSwitcher:
     en: English
     de: Deutsch
     fr: Français
+docs:
+  footer:
+    llmsTxt: llms.txt
+    llmsFullTxt: llms-full.txt
+    github: GitHub

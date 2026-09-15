@@ -59,6 +59,40 @@ search:
   tipSelect: to open
   tipClose: to dismiss
   results: '{count, plural, =0 {no results} =1 {# result} other {# results}}'
+docs:
+  skipToMain: Skip to main content
+  openSearch: Open search
+  openMenu: Open navigation menu
+  closeMenu: Close navigation menu
+  searchPlaceholder: Search documentation
+  breadcrumbs: Breadcrumbs
+  onThisPage: On this page
+  previous: Previous
+  next: Next
+  pagination: Page navigation
+  readingTime: '{minutes} min read'
+  lastUpdated: Last updated {date}
+  editOnGithub: Edit on GitHub
+  backToTop: Back to top
+  pageActions:
+    copyPage: Copy page
+    copied: Copied
+    viewMarkdown: View as Markdown
+    openIn: Open in
+    openChatGpt: Open in ChatGPT
+    openClaude: Open in Claude
+    openCursor: Open in Cursor
+  notFound:
+    title: Page not found
+    body: We couldn't find that page. Maybe one of these is what you were looking for, or try the search.
+    suggestions: Did you mean
+    backHome: Back to docs home
+  search:
+    title: Search documentation
+    placeholder: Search documentation
+    empty: Start typing to search the docs.
+    emptyHint: Find guides, references, and concepts across every section.
+    noResultsHint: Try different keywords or browse the navigation.
 auth:
   userButton:
     iosInstall:

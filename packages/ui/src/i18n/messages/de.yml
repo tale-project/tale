@@ -59,6 +59,40 @@ search:
   tipSelect: zum Öffnen
   tipClose: zum Schließen
   results: '{count, plural, =0 {keine Ergebnisse} =1 {# Ergebnis} other {# Ergebnisse}}'
+docs:
+  skipToMain: Zum Hauptinhalt springen
+  openSearch: Suche öffnen
+  openMenu: Navigationsmenü öffnen
+  closeMenu: Navigationsmenü schließen
+  searchPlaceholder: Dokumentation durchsuchen
+  breadcrumbs: Brotkrumennavigation
+  onThisPage: Auf dieser Seite
+  previous: Zurück
+  next: Weiter
+  pagination: Seitennavigation
+  readingTime: '{minutes} Min. Lesezeit'
+  lastUpdated: Zuletzt aktualisiert am {date}
+  editOnGithub: Auf GitHub bearbeiten
+  backToTop: Nach oben
+  pageActions:
+    copyPage: Seite kopieren
+    copied: Kopiert
+    viewMarkdown: Als Markdown anzeigen
+    openIn: Öffnen in
+    openChatGpt: In ChatGPT öffnen
+    openClaude: In Claude öffnen
+    openCursor: In Cursor öffnen
+  notFound:
+    title: Seite nicht gefunden
+    body: Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.
+    suggestions: Meintest du
+    backHome: Zurück zur Doku-Startseite
+  search:
+    title: Dokumentation durchsuchen
+    placeholder: Dokumentation durchsuchen
+    empty: Tippe los, um die Doku zu durchsuchen.
+    emptyHint: Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.
+    noResultsHint: Probiere andere Begriffe oder nutze die Navigation.
 auth:
   userButton:
     iosInstall:

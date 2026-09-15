@@ -19,6 +19,7 @@ and stories live together under `src/components/<family>/`.
 | Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
 | Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `query-state` |
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
+| Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
 
 Browse interactive stories locally:
@@ -95,6 +96,14 @@ Shared labels belong in `src/i18n/messages/{en,de,fr}.yml`, with sparse Swiss Ge
 in `de-CH.yml`. The host merges package catalogs beneath its own keys, so a service override can
 hide a shared correction. Check the rendered label as well as key and ICU parity, following the
 [translation skill](../../.agents/skills/write-translations/SKILL.md).
+
+Both documentation sites — [docs.tale.dev](../../services/docs/README.md) and
+[ui.tale.dev](../../services/ui-docs/README.md) — render the `docs/*` frame: the rail, the
+phone drawer, the header strip, the article with its outline, the footer, the 404 and the
+static-index search palette. A site resolves its navigation tree, search index and footer
+copy, and passes them in; it does not fork the frame. The rail’s logo row and the header strip
+are one `h-13` bar, border included, and `docs-layout.browser.test.tsx` holds them to the same
+line.
 
 The [Markdown registry](src/markdown/components/registry.tsx) defines the common docs components.
 Pass that registry to `Markdown` when rendering documentation components. Keep `<Frame>` tags

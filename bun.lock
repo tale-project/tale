@@ -173,6 +173,7 @@
         "micromark-core-commonmark": "2.0.3",
         "micromark-util-classify-character": "2.0.1",
         "micromark-util-types": "2.0.2",
+        "minisearch": "7.2.0",
         "react-datepicker": "9.1.0",
         "react-day-picker": "9.14.0",
         "react-file-icon": "1.6.0",
