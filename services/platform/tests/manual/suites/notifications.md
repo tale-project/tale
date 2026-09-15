@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 28 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -145,9 +145,7 @@ their own action, so a single account cannot generate those rows.
   cancelled.
 - [ ] `NOTIF-F14` · **Org alerts open their subject** — Env-gated
   documentation row (these are admin/system-driven). As an owner/admin, on
-  any org row observed in the bell: a **Usage credits requested**
-  (`notifications.creditRequestTitle`) row opens **Settings → Governance →
-  Policies & limits**; a **Website scan paused**
+  any org row observed in the bell: a **Website scan paused**
   (`notifications.websiteScanPaused`) row opens **Websites** filtered to
   `status=error`; a DSAR row (`notifications.dsarApprovalNeeded` /
   `dsarScheduled`) opens **that request**, not the requests list → No org row
@@ -169,6 +167,14 @@ their own action, so a single account cannot generate those rows.
   email with a link to the same listing. A sync failing for another reason
   (vendor outage) writes **Cloud sync failing** (`inbox.cloudSyncFailed`) only
   once the failure has lasted an hour, never on the first blip.
+- [ ] `NOTIF-F17` · **Credit request reaches owners and admins only** — As a
+  member over a usage limit, click **Request usage credits**
+  (`chat.budgetRequestCredits`) in the chat budget banner → The banner reads
+  `chat.budgetRequestCreditsSent`; each owner and admin gets a personal row
+  **Usage credits requested** (`inbox.usageCreditsRequested`) naming the member
+  (`inbox.usageCreditsRequestedBody`) that opens **Settings → Governance →
+  Policies & limits**, and an email; another plain member's bell shows nothing.
+  A second click while the row is unread rewrites it instead of adding a row.
 
 ## Boundary & error tests
 

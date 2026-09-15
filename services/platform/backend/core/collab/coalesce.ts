@@ -60,6 +60,9 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // "reconnect needed" rewrites the unread row — the fix changed, the sync
   // is still the one thing that is broken.
   cloud_sync_failed: 'sync',
+  // Whether a member is asking for more credits: asking again while the
+  // admin's row is unread is the same request, not a second one.
+  usage_credits_requested: 'credits',
   // Deliberately absent — each carries its own content, so each is its own row:
   // mention, task_commented, conversation_message.
 };
@@ -105,6 +108,7 @@ function coalesceSubject(args: {
   if (args.resourceType === 'sync_config') {
     return `sync_config:${args.resourceId}`;
   }
+  if (args.resourceType === 'member') return `member:${args.resourceId}`;
   // A dimension we can't tie to a subject would collapse unrelated rows
   // together, so it collapses nothing instead.
   return null;

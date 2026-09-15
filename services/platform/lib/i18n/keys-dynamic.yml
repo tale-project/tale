@@ -173,6 +173,10 @@ entries:
   - 'inbox.cloudSyncFailedBody'
   - 'inbox.cloudSyncNeedsReauth'
   - 'inbox.cloudSyncNeedsReauthBody'
+  # Credit requests (domains/organizations/routes.ts): a member asked the
+  # owners and admins for more usage credits.
+  - 'inbox.usageCreditsRequested'
+  - 'inbox.usageCreditsRequestedBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
   # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`

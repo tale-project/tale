@@ -6441,6 +6441,8 @@ inbox:
   cloudSyncFailedBody: 'La synchronisation de « {itemName} » depuis {provider} échoue depuis plus d’une heure ({reason}). Tale réessaie toutes les 15 minutes.'
   cloudSyncNeedsReauth: Synchronisation cloud à reconnecter
   cloudSyncNeedsReauthBody: 'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.'
+  usageCreditsRequested: Crédits d’utilisation demandés
+  usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.

@@ -30,6 +30,16 @@ const ORG = 'org_1';
 const SITE = 'https://app.example.com';
 
 describe('buildPersonalNotificationUrl — routing', () => {
+  it('opens the budget rules for a credit request', () => {
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: ORG,
+        params: { name: 'Sam Rivera', budgets: true },
+        siteUrl: SITE,
+      }),
+    ).toBe(`${SITE}/dashboard/${ORG}/settings/governance/policies-limits`);
+  });
+
   it('opens a task inside its project', () => {
     expect(
       buildPersonalNotificationUrl({

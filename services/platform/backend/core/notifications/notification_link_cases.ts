@@ -127,6 +127,11 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/documents?folderId=fld_1`,
   },
+  // The budget rules, where the owner or admin raises the requester's limit.
+  usage_credits_requested: {
+    row: { params: { name: 'Sam Rivera', budgets: true } },
+    path: `/dashboard/${ORG}/settings/governance/policies-limits`,
+  },
   workforce_digest: {
     row: { params: { title: 'Your week' } },
     path: `/dashboard/${ORG}`,

@@ -6419,6 +6419,8 @@ inbox:
   cloudSyncFailedBody: 'Syncing "{itemName}" from {provider} has been failing for over an hour ({reason}). Tale keeps retrying every 15 minutes.'
   cloudSyncNeedsReauth: Cloud sync needs reconnecting
   cloudSyncNeedsReauthBody: 'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.'
+  usageCreditsRequested: Usage credits requested
+  usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.

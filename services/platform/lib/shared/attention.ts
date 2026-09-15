@@ -26,6 +26,9 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // theirs alone to do, and a frozen mirror is invisible from inside Tale
   // until someone looks — so it leaves the app too.
   'cloud_sync_failed',
+  // A member is blocked by a usage limit until an owner or admin raises it,
+  // and the member cannot reach them from inside Tale — so it emails too.
+  'usage_credits_requested',
 ] as const;
 
 type ActionableNotificationType =

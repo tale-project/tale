@@ -1329,6 +1329,96 @@ async function checkIdentityDomains(
     `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? JSON.stringify(myFlags.data.flags) : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
   );
 
+  // A credit request reaches the people who can grant it: each owner and
+  // admin gets one personal row — a second click rewrites it — while other
+  // members get nothing and the org-wide bell every member reads stays quiet.
+  const creditRequester = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'credit-requester',
+    'member',
+  );
+  const creditPeer = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'credit-peer',
+    'member',
+  );
+  const creditAdmin = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'credit-admin',
+    'admin',
+  );
+  const requestCredits = (): Promise<Response> =>
+    fetch(`${base}/api/app/organizations/${orgId}/request-credits`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: creditRequester.cookie,
+        origin: base,
+      },
+      body: '{}',
+    });
+  const orgBellCount = async (): Promise<string> =>
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.notifications
+        WHERE org_id = ${orgId}
+      `
+    )[0]?.count ?? 'ERR';
+  const orgBellBefore = await orgBellCount();
+  const firstCreditRequest = await requestCredits();
+  const firstCreditBody = z
+    .object({ ok: z.boolean() })
+    .safeParse(await firstCreditRequest.json());
+  await requestCredits();
+  const creditRows = await sql<
+    { userId: string; read: boolean; params: Record<string, unknown> | null }[]
+  >`
+    SELECT user_id AS "userId", read, params FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'usage_credits_requested'
+  `;
+  const expectedCreditRecipients = (
+    await sql<{ userId: string }[]>`
+      SELECT "userId" FROM "member"
+      WHERE "organizationId" = ${orgId} AND "role" IN ('owner', 'admin')
+        AND "userId" <> ${creditRequester.userId}
+    `
+  )
+    .map((row) => row.userId)
+    .sort();
+  const creditRecipients = creditRows.map((row) => row.userId).sort();
+  const orgBellAfter = await orgBellCount();
+  // Leave the org as this probe found it: later lanes fan out to its owners
+  // and admins, so the admin (and the members) signed up here must go.
+  await sql`
+    DELETE FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'usage_credits_requested'
+  `;
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${orgId}
+      AND "id" = ANY(${[creditRequester.memberId, creditPeer.memberId, creditAdmin.memberId]})
+  `;
+  record(
+    'organizations: a credit request notifies owners and admins only, once each',
+    firstCreditRequest.ok &&
+      firstCreditBody.success &&
+      firstCreditBody.data.ok &&
+      expectedCreditRecipients.includes(userId) &&
+      expectedCreditRecipients.includes(creditAdmin.userId) &&
+      JSON.stringify(creditRecipients) ===
+        JSON.stringify(expectedCreditRecipients) &&
+      !creditRecipients.includes(creditPeer.userId) &&
+      creditRows.every((row) => !row.read && row.params?.budgets === true) &&
+      orgBellAfter === orgBellBefore,
+    `request → ${firstCreditRequest.status} ${firstCreditBody.success ? JSON.stringify(firstCreditBody.data) : 'UNPARSEABLE'}, rows=${creditRecipients.length} for ${expectedCreditRecipients.length} owner/admin recipient(s) (peer included: ${creditRecipients.includes(creditPeer.userId)}), org bell ${orgBellBefore} → ${orgBellAfter} (want unchanged)`,
+  );
+
   // Trash: a trashed contact appears in the admin listing and restores live.
   const trashContact = z.object({ contactId: z.string() }).safeParse(
     await (
