@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-614 boxes across 21 suites. Every suite declares the ID prefix its
+615 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -47,7 +47,7 @@ directory and greppable as one token.
 | [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 31 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 17 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav, breadcrumbs, command palette, changelog, page-loads | 25 |
-| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 28 |
+| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 29 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 13 |
 | [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads | 31 |
