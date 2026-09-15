@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 36 boxes
 
 Exercise cross-app navigation — the primary side-nav rail, the breadcrumb
 trail, browser back/forward, the chat command palette (Cmd/Ctrl+K), the org
@@ -231,6 +231,18 @@ is hidden when the org has no teams.
 - [ ] `NAV-B9` · **Two tabs do not fight** — Open the app in two browser tabs.
   In tab A open project X; in tab B open project Y. In each tab go to **Chat**
   and back to **Projects** → Tab A returns to X and tab B returns to Y.
+- [ ] `NAV-B10` · **Unknown route outside the dashboard** — Signed in, open a
+  made-up top-level path (such as login without the hyphen — deliberately no
+  such route); then repeat in a private window, signed out → Both show the
+  standalone 404: the logo home link in the top corner over a centred **Page
+  not found** (`common.notFound.title`), its message
+  (`common.notFound.description`) and a **Back to dashboard** button
+  (`common.notFound.backToDashboard`), never the bare framework "Not Found"
+  text. The tab reads **Page not found** (`metadata.notFound.title`). The
+  button opens the organization's dashboard when signed in, and **Log in**
+  (continuing to the dashboard) when signed out. Signed out, a path beneath a
+  sign-in page (such as log-in/typo) shows the same state inside the sign-in
+  frame: one logo, no second page nested in it. Both themes render.
 
 ## Accessibility (WCAG 2.1 AA)
 

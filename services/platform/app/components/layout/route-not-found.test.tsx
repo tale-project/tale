@@ -8,7 +8,8 @@ import {
 } from '@tanstack/react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import enMessages from '../../../messages/en.yml';
 import { RouteNotFound } from './route-not-found';
@@ -23,10 +24,28 @@ const notFound = enMessages.common.notFound;
 // Build a memory router whose shape mirrors the real dashboard nesting: a
 // `/dashboard/$id` layout (the shell), a nested `settings` layout with its own
 // `<Outlet/>`, and a settings index — none of the nested routes carries a splat,
-// exactly like the production tree. `RouteNotFound` is wired as the router-wide
-// `defaultNotFoundComponent`, the same wiring as `app/router.tsx`.
+// exactly like the production tree. Beside it sits a pathless layout that frames
+// its pages in the `main` landmark, like the sign-in pages' `/_auth`.
+// `RouteNotFound` is wired as the router-wide `defaultNotFoundComponent`, the
+// same wiring as `app/router.tsx`.
 function renderAt(initialPath: string) {
   const rootRoute = createRootRoute({ component: Outlet });
+
+  const authRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    id: '_auth',
+    component: () => (
+      <main id="main-content">
+        <Outlet />
+      </main>
+    ),
+  });
+
+  const logInRoute = createRoute({
+    getParentRoute: () => authRoute,
+    path: 'log-in',
+    component: () => <div>log in form</div>,
+  });
 
   const dashboardIdRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -56,6 +75,7 @@ function renderAt(initialPath: string) {
   });
 
   const routeTree = rootRoute.addChildren([
+    authRoute.addChildren([logInRoute]),
     dashboardIdRoute.addChildren([
       settingsRoute.addChildren([settingsIndexRoute]),
     ]),
@@ -103,18 +123,52 @@ describe('RouteNotFound', () => {
     await waitFor(() => expect(document.title).toBe(notFoundDocumentTitle));
   });
 
-  // Outside the dashboard subtree there is no org context, so the dashboard 404
-  // (with its org recovery link) must NOT appear; we keep the minimal fallback.
-  it('keeps the minimal fallback for a non-dashboard miss', async () => {
-    renderAt('/totally-unknown-marketing-path');
+  // Outside the dashboard subtree there is no shell and no org to name: the miss
+  // used to render the bare framework "Not Found" string. It now stands as a page
+  // of its own — the same not-found state under the logo home link — and its
+  // recovery link goes to `/dashboard`, which picks the organization (or asks for
+  // a log-in first).
+  it('renders the standalone 404 page for a non-dashboard miss', async () => {
+    const { container } = renderAt('/totally-unknown-path');
 
-    expect(await screen.findByText('Not Found')).toBeInTheDocument();
     expect(
-      screen.queryByRole('link', { name: notFound.backToDashboard }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole('heading', { level: 1, name: notFound.title }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(notFound.description)).toBeInTheDocument();
+    expect(screen.queryByText('Not Found')).not.toBeInTheDocument();
 
-    // No org context means no title override either — TanStack's default
-    // behaviour is preserved untouched outside the dashboard subtree.
-    expect(document.title).not.toBe(notFoundDocumentTitle);
+    expect(
+      screen.getByRole('link', { name: notFound.backToDashboard }),
+    ).toHaveAttribute('href', '/dashboard');
+
+    // The page keeps the skip link's target and a way home through the logo.
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+    expect(
+      within(screen.getByRole('banner')).getByRole('link'),
+    ).toHaveAttribute('href', '/');
+
+    await waitFor(() => expect(document.title).toBe(notFoundDocumentTitle));
+    await checkAccessibility(container);
+  });
+
+  // A path beneath a sign-in page bottoms out at the pathless sign-in layout,
+  // which already frames its outlet with the logo and the `main` landmark. The
+  // 404 takes that frame instead of nesting a second page inside it — one
+  // `main`, one `#main-content`.
+  it('renders the 404 inside a layout that already frames the page', async () => {
+    const { container } = renderAt('/log-in/typo');
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: notFound.title }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: notFound.backToDashboard }),
+    ).toHaveAttribute('href', '/dashboard');
+
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(container.querySelectorAll('#main-content')).toHaveLength(1);
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+
+    await waitFor(() => expect(document.title).toBe(notFoundDocumentTitle));
   });
 });
