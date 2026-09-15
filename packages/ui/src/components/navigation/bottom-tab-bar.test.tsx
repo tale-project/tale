@@ -4,7 +4,34 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
-import { BottomTabBar, type BottomTabBarItem } from './bottom-tab-bar';
+import {
+  BottomTabBar,
+  BottomTabBarPlaceholder,
+  type BottomTabBarItem,
+} from './bottom-tab-bar';
+
+describe('BottomTabBarPlaceholder', () => {
+  it('draws the requested number of masked tabs, hidden from assistive tech', () => {
+    const { container } = render(<BottomTabBarPlaceholder tabs={3} />);
+
+    const placeholder = container.firstElementChild;
+    expect(placeholder).toHaveAttribute('aria-hidden', 'true');
+    expect(
+      placeholder?.querySelectorAll('[data-skeleton-mask="circle"]'),
+    ).toHaveLength(3);
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+
+  it('renders no visible text, only zero-width line sizing', () => {
+    const { container } = render(<BottomTabBarPlaceholder tabs={3} />);
+
+    const text = (container.firstElementChild?.textContent ?? '')
+      .replaceAll('\u200B', '')
+      .trim();
+    // The only text allowed is Skeletonize's screen-reader status label.
+    expect(text === '' || text === 'Loading content').toBe(true);
+  });
+});
 
 function makeItems(activeKey: string): BottomTabBarItem[] {
   return [

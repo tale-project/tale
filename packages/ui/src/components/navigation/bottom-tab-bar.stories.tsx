@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-import { BottomTabBar } from './bottom-tab-bar';
+import { BottomTabBar, BottomTabBarPlaceholder } from './bottom-tab-bar';
 
 const meta: Meta<typeof BottomTabBar> = {
   title: 'Navigation/BottomTabBar',
@@ -124,4 +124,16 @@ export const WithAccentColor: Story = {
       },
     },
   },
+};
+
+/** The masked stand-in a loading shell renders — the live bar's exact height. */
+export const Placeholder: Story = {
+  render: () => (
+    <div className="bg-background flex min-h-105 w-full flex-col">
+      <div className="text-muted-foreground flex-1 px-4 py-6 text-sm">
+        The shell is still loading; the bar's band is already reserved.
+      </div>
+      <BottomTabBarPlaceholder tabs={3} />
+    </div>
+  ),
 };
