@@ -8,7 +8,7 @@ Add connector credentials so Tale can use services such as a mailbox, file store
 ## Add an account
 
 1. Select **Add credential**, then the connector. Already configured connectors appear first and can hold additional credentials.
-2. Enter a **Name** that an automation author will recognize, such as `Support inbox` or `EU store`.
+2. Check the **Name**. It starts as the connector's name, with a number added when another credential for that connector already uses it: `GitHub`, then `GitHub 2`. A name such as `Support inbox` or `EU store` is easier for an automation author to recognize. OAuth connections do not use this field.
 3. Complete the authentication method offered by that connector. For OAuth, select **Connect** and complete the vendor's consent flow.
 4. Complete the form and check the resulting row, including its connector, account or instance, and status.
 

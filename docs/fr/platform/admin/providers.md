@@ -15,7 +15,7 @@ Connecte un fournisseur IA avant de lancer des chats ou des agents dans Tale. Da
 
 1. Sélectionne **Ajouter des identifiants**, puis le fournisseur. Les fournisseurs déjà configurés apparaissent en premier ; les choisir à nouveau permet d’ajouter d’autres identifiants.
 2. Choisis une **Méthode d'authentification** si le fournisseur en propose plusieurs.
-3. Renseigne un **Nom** qui indique l’usage, comme `Clé de production` ou `Équipe finance`, puis les champs requis par la méthode.
+3. Vérifie le champ **Nom**. Il est prérempli avec le nom du fournisseur, suivi d’un numéro si d’autres identifiants de ce fournisseur portent déjà ce nom : `OpenRouter`, puis `OpenRouter 2`. Un nom qui indique l’usage, comme `Clé de production` ou `Équipe finance`, permet de distinguer plusieurs identifiants d’un même fournisseur. Renseigne ensuite les champs requis par la méthode.
 4. Vérifie la liste **Modèles autorisés**. Pour un fournisseur avec catalogue, une liste vide autorise les modèles du catalogue. Sans catalogue, tu dois préciser les identifiants des modèles.
 5. Sélectionne **Ajouter**. Vérifie la ligne créée et définis-la par défaut pour ce fournisseur si les requêtes habituelles doivent l’utiliser.
 

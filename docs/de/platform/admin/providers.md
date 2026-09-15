@@ -15,7 +15,7 @@ Verbinde einen KI-Anbieter, bevor Tale Chats oder Agenten ausführen soll. Unter
 
 1. Wähle **Zugangsdaten hinzufügen** und den Anbieter. Bereits konfigurierte Anbieter stehen zuerst. Du kannst sie erneut wählen, um weitere Zugangsdaten anzulegen.
 2. Wähle eine **Authentifizierungsmethode**, falls der Anbieter mehrere unterstützt.
-3. Gib unter **Name** einen Namen an, der den Zweck erkennen lässt, etwa `Produktionsschlüssel` oder `Finanzteam`. Fülle die Pflichtfelder der Methode aus.
+3. Prüfe das Feld **Name**. Es enthält bereits den Namen des Anbieters. Heißen andere Zugangsdaten dieses Anbieters schon so, hängt Tale eine Zahl an: `OpenRouter`, dann `OpenRouter 2`. Mit einem Namen, der den Zweck erkennen lässt, etwa `Produktionsschlüssel` oder `Finanzteam`, hältst du mehrere Zugangsdaten desselben Anbieters auseinander. Fülle die Pflichtfelder der Methode aus.
 4. Prüfe die Liste **Erlaubte Modelle**. Hat der Anbieter einen Katalog, erlaubt eine leere Liste dessen Modelle. Ohne Katalog sind ausdrückliche Modell-IDs erforderlich.
 5. Wähle **Hinzufügen**. Prüfe den neuen Eintrag und setze ihn als Standard für den Anbieter, wenn gewöhnliche Anfragen ihn verwenden sollen.
 

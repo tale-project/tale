@@ -41,7 +41,7 @@ Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Be
 
 </Frame>
 
-Gib dem Eintrag einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Schließe bei OAuth die Zustimmung beim Provider ab und prüfe das zurückgemeldete Konto. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
+Das Feld **Name** enthält zunächst den Namen des Connectors. Fügst du für denselben Dienst mehrere Konten hinzu, ersetze ihn durch einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Schließe bei OAuth die Zustimmung beim Provider ab und prüfe das zurückgemeldete Konto. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
 
 Confluence und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
 
