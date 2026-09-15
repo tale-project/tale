@@ -12913,12 +12913,39 @@ async function checkGovernance(
   // Budget scope alignment over the live 0.5 enforcer (the composer's Send
   // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
-  // a team rule is a SHARED cap, measured against the team aggregate with the
-  // team rule's own values. Two members whose combined tokens exceed the
-  // per-member cap must both stay allowed; the team's own cost cap must
-  // still bind the aggregate.
+  // a team rule is a SHARED cap, measured against the usage of the team's
+  // CURRENT members with the team rule's own values — read through
+  // membership, never the ledger's `team_id`, which most lanes do not book.
+  // Two members whose combined tokens exceed the per-member cap must both
+  // stay allowed; the team's own cost cap must still bind the aggregate.
   const { checkTtsBudget } = await import('./domains/tts/service.ts');
-  const teamId = 'itest-budget-team';
+  const teammate = 'itest-budget-teammate';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${teammate}, 'Budget Teammate', ${`${teammate}@example.com`},
+            true, ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${`m-${teammate}`}, ${orgId}, ${teammate}, 'member', ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const budgetTeam = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Budget Squad', ${orgId}, ${new Date()},
+            ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = budgetTeam[0]?.id ?? '';
+  for (const teamMemberId of [userId, teammate]) {
+    await sql`
+      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+      VALUES (gen_random_uuid(), ${teamId}, ${teamMemberId}, ${new Date()})
+    `;
+  }
   const monthlyKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
   const ownTokens = await sql<{ total: number }[]>`
     SELECT coalesce(sum(total_tokens), 0)::float8 AS total
@@ -12950,7 +12977,6 @@ async function checkGovernance(
     governance.incrementUsageLedger(sql, {
       organizationId: orgId,
       userId: user,
-      teamId,
       inputTokens: tokens,
       outputTokens: 0,
       costEstimateCents: cents,
@@ -12962,7 +12988,7 @@ async function checkGovernance(
   await seedTeamUsage(userId, 30, 0);
   // The teammate alone blows past the per-member cap; the team aggregate is
   // far above it — irrelevant to a personal cap.
-  await seedTeamUsage('itest-budget-teammate', 10_000, 0);
+  await seedTeamUsage(teammate, 10_000, 0);
   const budgetArgs = {
     organizationId: orgId,
     userId,
@@ -12972,7 +12998,7 @@ async function checkGovernance(
     prospectiveRequests: 0,
   };
   const mixedScopes = await checkTtsBudget(sql, budgetArgs);
-  await seedTeamUsage('itest-budget-teammate', 0, 150);
+  await seedTeamUsage(teammate, 0, 150);
   const teamCapHit = await checkTtsBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
@@ -12984,6 +13010,11 @@ async function checkGovernance(
       teamCapHit.limit === 100,
     `mixed=${mixedScopes.allowed ? 'allowed' : `refused ${mixedScopes.code}`} (want allowed), teamCap=${teamCapHit.allowed ? 'allowed' : `${teamCapHit.code} at ${teamCapHit.limit}`} (want COST_LIMIT at 100)`,
   );
+  // Later lanes count the org's teams and members: leave neither behind.
+  await sql`DELETE FROM "teamMember" WHERE "teamId" = ${teamId}`;
+  await sql`DELETE FROM "team" WHERE "id" = ${teamId}`;
+  await sql`DELETE FROM "member" WHERE "id" = ${`m-${teammate}`}`;
+  await sql`DELETE FROM "user" WHERE "id" = ${teammate}`;
 }
 
 /**
