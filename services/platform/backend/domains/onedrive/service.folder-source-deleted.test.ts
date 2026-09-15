@@ -60,6 +60,8 @@ const CONFIG: SyncConfigRow = {
   lastSyncAt: null,
   lastSyncStatus: null,
   errorMessage: null,
+  errorSince: null,
+  failureNotifiedAt: null,
 };
 
 /** One mirror this config owns, one another config owns. */

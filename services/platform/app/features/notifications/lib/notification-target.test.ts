@@ -119,6 +119,35 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  // A cloud-sync failure row opens the listing that shows the synced item —
+  // the badge is on that row — and the root listing for a top-level item.
+  it('routes a cloud-sync failure row to the folder listing that holds the synced item', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { syncConfigId: 'cfg_1', hubFolderId: 'folder_9' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/documents',
+      params: { id: ORG },
+      search: { folderId: 'folder_9' },
+    });
+  });
+
+  it('routes a root-level cloud-sync failure row to the documents root', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { syncConfigId: 'cfg_1' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/documents',
+      params: { id: ORG },
+    });
+  });
+
   it('routes a library-document review row to the documents list with the preview open', () => {
     expect(
       personalNotificationTarget({

@@ -95,6 +95,8 @@ For Microsoft 365, choose **My OneDrive** or **SharePoint Sites**. Sync is avail
 
 If a folder is too large to list completely, Tale refuses that import. Select smaller subfolders or use sync where supported. If the selected source folder or file is deleted, its mirror is removed and the sync ends.
 
+A sync runs about every 15 minutes, under the account of the member who set it up. A file added at the source shows up in its folder within that window and then indexes like an upload. When a run cannot reach the source, the folder row's **Source** cell shows **Sync failed**, or **Reconnect needed** when that member's Microsoft 365 or Google Drive connection has expired. The badge opens the cause, when the failures began, and whose account the sync uses; the files synced so far stay in place. That member is also notified in the bell and by email: at once for an expired connection, otherwise once the sync has been failing for an hour. Reconnecting the account, which the dialog offers to that member, resumes the sync on its next run. Any member who can import documents can instead start a new sync import of the same item to run it under their own account. The notice clears with the next successful run.
+
 To keep the imported files without further updates, use **Stop syncing** on the file or folder row. Deleting the imported item also stops its sync. These actions leave the originals in OneDrive or Google Drive untouched. **Disconnect Google Drive** in the import dialog revokes that connection; reconnect when you need to import again.
 
 ## Revising a controlled document

@@ -137,3 +137,34 @@ describe('inbox.taskReviewRequested — no raw {agentSlug} when slug is absent',
     });
   }
 });
+
+// The cloud-sync failure rows (`domains/onedrive/sync-health.ts`) carry the
+// vendor, the synced item and the run's error; the bell renders the title
+// WITHOUT params, so a title with a placeholder would print it raw.
+const CLOUD_SYNC_PARAMS = {
+  provider: 'OneDrive',
+  itemName: 'Reports',
+  reason: 'HTTP 503 throttled',
+};
+
+describe('inbox.cloudSync* — the sync-failure bell rows', () => {
+  for (const [locale, bundle] of Object.entries(LOCALES)) {
+    for (const title of ['cloudSyncFailed', 'cloudSyncNeedsReauth']) {
+      it(`${locale}: ${title} is a static title`, () => {
+        const template = bundle.inbox?.[title];
+        expect(template, `missing inbox.${title} in ${locale}`).toBeTruthy();
+        expect(hasRawPlaceholder(template)).toBe(false);
+      });
+    }
+    for (const body of ['cloudSyncFailedBody', 'cloudSyncNeedsReauthBody']) {
+      it(`${locale}: ${body} fully substitutes and names the item`, () => {
+        const template = bundle.inbox?.[body];
+        expect(template, `missing inbox.${body} in ${locale}`).toBeTruthy();
+        const out = render(template, CLOUD_SYNC_PARAMS);
+        expect(hasRawPlaceholder(out)).toBe(false);
+        expect(out).toContain('Reports');
+        expect(out).toContain('OneDrive');
+      });
+    }
+  }
+});

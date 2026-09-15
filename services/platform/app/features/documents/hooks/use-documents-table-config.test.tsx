@@ -2,13 +2,20 @@
 import '@testing-library/jest-dom/vitest';
 import { AppShell } from '@tale/ui/app-shell';
 import { render, renderHook, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
 import type { DocumentItem } from '@/types/documents';
 
 import { useDocumentsTableConfig } from './use-documents-table-config';
+
+// The sync-health badge names the member whose grant runs the sync and hands
+// that member the reconnect button; the viewer here is that member.
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user_owner' } }),
+}));
 
 function Providers({ children }: { children: ReactNode }) {
   return (
@@ -49,6 +56,15 @@ function renderColumnCell(
     column,
     ...render(<Providers>{cell({ row: { original: document } })}</Providers>),
   };
+}
+
+/** `renderColumnCell` plus a user for cells that open something. */
+function renderColumnCellWithUser(
+  columnId: string,
+  document: Partial<DocumentItem>,
+) {
+  const user = userEvent.setup();
+  return { user, ...renderColumnCell(columnId, document) };
 }
 
 function renderUploadedByCell(document: Partial<DocumentItem>) {
@@ -157,5 +173,71 @@ describe('useDocumentsTableConfig — teams cell', () => {
   it('names the teams of a multi-team document', () => {
     renderTeamsCell({ teamIds: ['team_a', 'team_b'] });
     expect(screen.getByText(/Compliance, Legal/)).toBeInTheDocument();
+  });
+});
+
+describe('useDocumentsTableConfig — source cell', () => {
+  const healthy = {
+    configId: 'cfg_1',
+    status: 'healthy' as const,
+    needsReauth: false,
+    ownerUserId: 'user_owner',
+    ownerName: 'Dana',
+  };
+
+  it('labels a synced folder by the provider its config names', () => {
+    renderColumnCell('source', {
+      type: 'folder',
+      name: 'Q3',
+      sourceProvider: 'google_drive',
+      sourceMode: 'auto',
+      syncHealth: { ...healthy, provider: 'google_drive' },
+    });
+    expect(screen.getByLabelText('Google Drive (synced)')).toBeInTheDocument();
+  });
+
+  // A config in `error` used to lose its "(synced)" label altogether: the
+  // folder listing decorated active configs only, so a broken sync looked
+  // like a plain folder. The badge replaces the label and opens the reason.
+  it('flags a failed sync with a badge that opens the run error', async () => {
+    const { user } = renderColumnCellWithUser('source', {
+      type: 'folder',
+      name: 'Reports',
+      sourceProvider: 'onedrive',
+      sourceMode: 'auto',
+      syncHealth: {
+        ...healthy,
+        provider: 'onedrive',
+        status: 'failed',
+        errorSince: Date.UTC(2026, 8, 15, 9, 0),
+        errorMessage: 'Failed to list folder contents: 503 throttled',
+      },
+    });
+    expect(screen.queryByText('OneDrive (synced)')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sync failed' }));
+    expect(
+      screen.getByText('Failed to list folder contents: 503 throttled'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Synced with the account of Dana/),
+    ).toBeInTheDocument();
+  });
+
+  it('names the reconnect case on the badge', () => {
+    renderColumnCell('source', {
+      type: 'folder',
+      name: 'Reports',
+      sourceProvider: 'onedrive',
+      sourceMode: 'auto',
+      syncHealth: {
+        ...healthy,
+        provider: 'onedrive',
+        status: 'failed',
+        needsReauth: true,
+      },
+    });
+    expect(
+      screen.getByRole('button', { name: 'OneDrive access expired' }),
+    ).toHaveTextContent('Reconnect needed');
   });
 });

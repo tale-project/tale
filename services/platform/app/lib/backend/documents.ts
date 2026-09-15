@@ -10,6 +10,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import type { DocumentSyncHealth } from '@/types/documents';
 
 import type {
   ActionQueryAdapter,
@@ -76,6 +77,7 @@ interface FolderWire {
   createdBy: string | null;
   createdAt: number;
   syncConfigId?: string;
+  sync?: DocumentSyncHealth;
 }
 
 function folderView(row: FolderWire): FolderDoc {
@@ -91,6 +93,7 @@ function folderView(row: FolderWire): FolderDoc {
     ...(row.projectId !== null ? { projectId: row.projectId } : {}),
     ...(row.createdBy !== null ? { createdBy: row.createdBy } : {}),
     syncConfigId: row.syncConfigId,
+    ...(row.sync !== undefined ? { sync: row.sync } : {}),
   };
 }
 

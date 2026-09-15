@@ -224,6 +224,24 @@ records and delete them after.
   shows the skipped reason `robots_noindex` with no chunks, and a search for its
   words returns nothing from it; a page whose noindex arrives as the
   `X-Robots-Tag` header reads the same.
+- [ ] `KNOW-F16` · **Broken sync is visible** — Documents with a synced
+  OneDrive or Google Drive folder (KNOW-F2's Microsoft 365 **Sync import**
+  (`documents.onedrive.syncImport`)); make its owner's grant unusable (revoke
+  the app's access in that Microsoft account, or as an operator set that
+  member's row in app.user_cloud_authorizations to needs-reauth) and let the
+  next sync run happen (≤ 15 min) → The folder row's **Source**
+  (`tables.headers.source`) cell shows the badge **Reconnect needed**
+  (`documents.syncHealth.badge.needsReauth`) in place of **OneDrive (synced)**
+  (`documents.sourceType.oneDriveSynced`), without a reload. Activating the
+  badge opens a dialog titled **OneDrive access expired**
+  (`documents.syncHealth.dialog.needsReauthTitle`) that names when the
+  failures began and whose account the sync runs under; as that member it
+  offers **Reconnect Microsoft 365** (`documents.onedrive.reconnect`), as any
+  other member it says whom to ask. Reconnect and let the next run happen →
+  the badge is gone without a reload and the row reads **OneDrive (synced)**
+  again. A run failing for another reason (vendor unreachable) shows **Sync
+  failed** (`documents.syncHealth.badge.failed`), whose dialog carries the
+  error text and says Tale retries about every 15 minutes.
 
 ## Boundary & error tests
 

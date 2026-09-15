@@ -47,6 +47,13 @@ export type NotificationTarget =
       params: { id: string };
       search: { doc: string };
     }
+  // A cloud-sync failure row: the listing that shows the synced item —
+  // its folder, or the root when the item sits at the top level.
+  | {
+      to: '/dashboard/$id/documents';
+      params: { id: string };
+      search?: { folderId?: string };
+    }
   | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
@@ -193,6 +200,21 @@ export function personalNotificationTarget(args: {
       params: { id },
       search: { doc: documentId },
     };
+  }
+
+  // A cloud-sync failure row (`cloud_sync_failed`) names its config and the
+  // hub folder whose listing shows the synced item; the root listing when
+  // the item has no parent. Mirrors `buildPersonalNotificationUrl`.
+  if (typeof params?.syncConfigId === 'string') {
+    const hubFolderId =
+      typeof params.hubFolderId === 'string' ? params.hubFolderId : undefined;
+    return hubFolderId === undefined
+      ? { to: '/dashboard/$id/documents', params: { id } }
+      : {
+          to: '/dashboard/$id/documents',
+          params: { id },
+          search: { folderId: hubFolderId },
+        };
   }
 
   if (args.taskId && projectId) {

@@ -44,6 +44,7 @@ export async function resolveDriveTokenForUser(
     success: false,
     error:
       'Google Drive is not authorized for importing. Connect Google Drive from Documents.',
+    needsReauth: true,
   };
 }
 

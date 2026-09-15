@@ -27657,7 +27657,7 @@ async function checkOneDriveSync(
   const graphAuth: string[] = [];
   let refreshCalls = 0;
   // What the fake token endpoint answers a grant refresh with.
-  let refreshAnswer: 'ok' | 'outage' = 'ok';
+  let refreshAnswer: 'ok' | 'outage' | 'dead' = 'ok';
   const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
       status,
@@ -27769,6 +27769,14 @@ async function checkOneDriveSync(
       refreshCalls++;
       if (refreshAnswer === 'outage') {
         return jsonResponse({ error: 'temporarily_unavailable' }, 503);
+      }
+      if (refreshAnswer === 'dead') {
+        // The grant is gone (revoked consent, expired refresh token): only
+        // a new consent fixes it — the token lane's `dead_grant` answer.
+        return jsonResponse(
+          { error: 'invalid_grant', error_description: 'AADSTS70000' },
+          400,
+        );
       }
       return jsonResponse({
         access_token: 'graph-refreshed-token',
@@ -28395,6 +28403,189 @@ async function checkOneDriveSync(
       `revoked: list=${revokedList.success ? `${revokedList.data.success}/${revokedList.data.error}` : 'ERR'} graphCalls=${graphCallsAfterRevoked - graphCallsBeforeRevoked} (want 0) config=${revokedConfig[0]?.status}/${revokedConfig[0]?.errorMessage}; outage: list=${outageList.success ? `${outageList.data.success}/${outageList.data.error}` : 'ERR'} grant=${statusAfterOutage} (want active) refreshCalls=${refreshCallsAfterOutage}/1; recovered: list=${recoveredList.success ? recoveredList.data.success : 'ERR'} refreshedAuth=${refreshedAuthUsed} refreshCalls=${refreshCalls}/2 grant=${await grantStatus()}`,
     );
 
+    // 7b. A DEAD grant is a failure episode the owner hears about ONCE — on
+    //     the row (needs-reauth + the episode stamps), in the bell (one
+    //     `cloud_sync_failed` row, actionable) — while the hub listing keeps
+    //     flagging the folder; a repeat failure adds nothing, and the run
+    //     that reaches the source again clears the episode, marks the bell
+    //     read and hints the folder rows (2026-09-15: an errored config
+    //     used to drop its "(synced)" label and tell nobody).
+    const episodeOf = async (): Promise<{
+      status: string;
+      lastSyncStatus: string | null;
+      errorSince: number | null;
+      failureNotifiedAt: number | null;
+    } | null> => {
+      const rows = await sql<
+        {
+          status: string;
+          lastSyncStatus: string | null;
+          errorSince: number | null;
+          failureNotifiedAt: number | null;
+        }[]
+      >`
+        SELECT status, last_sync_status AS "lastSyncStatus",
+               error_since_ms::float8 AS "errorSince",
+               failure_notified_at_ms::float8 AS "failureNotifiedAt"
+        FROM app.onedrive_sync_configs WHERE id = ${folderConfig.id}
+      `;
+      return rows[0] ?? null;
+    };
+    const syncBells = (): Promise<
+      { titleKey: string; params: unknown; read: boolean }[]
+    > =>
+      sql<{ titleKey: string; params: unknown; read: boolean }[]>`
+        SELECT title_key AS "titleKey", params, read
+        FROM app.user_notifications
+        WHERE org_id = ${orgId} AND user_id = ${userId}
+          AND type = 'cloud_sync_failed' AND resource_id = ${folderConfig.id}
+        ORDER BY seq ASC
+      `;
+    const reportsRowSync = async (): Promise<unknown> => {
+      const listing = z
+        .object({
+          folders: z.array(
+            z.object({
+              name: z.string(),
+              syncConfigId: z.string().optional(),
+              sync: z
+                .object({
+                  configId: z.string(),
+                  provider: z.string(),
+                  status: z.string(),
+                  needsReauth: z.boolean(),
+                  ownerUserId: z.string(),
+                })
+                .optional(),
+            }),
+          ),
+        })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/folders?orgId=${orgId}&parentId=`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return listing.success
+        ? listing.data.folders.find((f) => f.name === 'ODReports')
+        : null;
+    };
+    const folderHintCount = async (): Promise<number> =>
+      Number(
+        (
+          await sql<{ count: string }[]>`
+            SELECT count(*)::text AS count FROM app_realtime.outbox
+            WHERE org_id = ${orgId} AND entity = 'folder'
+          `
+        )[0]?.count ?? '0',
+      );
+    // Step 7's revoked-grant run opened an episode and told the owner. Close
+    // it the way the product does — a run that reaches the source again —
+    // then drop those bell rows, so the episode below is counted from a
+    // clean slate (an open episode is, by design, never re-notified).
+    refreshAnswer = 'ok';
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-grant-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['Files.Read'],
+    });
+    await runConfig(folderConfig.id);
+    const closedEpisode = await episodeOf();
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'cloud_sync_failed'
+    `;
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-stale-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() - 1000,
+      scopes: ['Files.Read'],
+    });
+    refreshAnswer = 'dead';
+    const hintsBeforeDead = await folderHintCount();
+    await runConfig(folderConfig.id);
+    const deadEpisode = await episodeOf();
+    const deadBells = await syncBells();
+    const deadRow = await reportsRowSync();
+    const hintsAfterDead = await folderHintCount();
+    // The same failure again: the episode keeps its start, nobody is told
+    // twice, nothing on screen changes.
+    await runConfig(folderConfig.id);
+    const repeatEpisode = await episodeOf();
+    const repeatBells = await syncBells();
+    const hintsAfterRepeat = await folderHintCount();
+    // Reconnected: the next run reaches the source, the episode closes.
+    refreshAnswer = 'ok';
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-grant-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['Files.Read'],
+    });
+    await runConfig(folderConfig.id);
+    const recoveredEpisode = await episodeOf();
+    const recoveredBells = await syncBells();
+    const recoveredRow = await reportsRowSync();
+    const hintsAfterRecovery = await folderHintCount();
+    const { isRecord } = await import('../lib/utils/type-utils.ts');
+    const recordAt = (
+      value: unknown,
+      key: string,
+    ): Record<string, unknown> | null => {
+      if (!isRecord(value)) return null;
+      const inner = value[key];
+      return isRecord(inner) ? inner : null;
+    };
+    const deadRowRecord = isRecord(deadRow) ? deadRow : null;
+    const deadRowSync = recordAt(deadRow, 'sync');
+    const deadBellParams = deadBells[0]?.params;
+    const deadBell = isRecord(deadBellParams) ? deadBellParams : null;
+    const recoveredRowSync = recordAt(recoveredRow, 'sync');
+    record(
+      'onedrive dead grant: one needs-reauth episode → bell + flagged folder, cleared by recovery',
+      closedEpisode?.status === 'active' &&
+        closedEpisode.errorSince === null &&
+        closedEpisode.failureNotifiedAt === null &&
+        deadEpisode?.status === 'error' &&
+        deadEpisode.lastSyncStatus === 'needs-reauth' &&
+        deadEpisode.errorSince !== null &&
+        deadEpisode.failureNotifiedAt !== null &&
+        deadBells.length === 1 &&
+        deadBells[0]?.titleKey === 'cloudSyncNeedsReauth' &&
+        !deadBells[0].read &&
+        deadBell?.syncConfigId === folderConfig.id &&
+        deadBell.provider === 'OneDrive' &&
+        deadRowSync?.status === 'failed' &&
+        deadRowSync.needsReauth === true &&
+        deadRowSync.provider === 'onedrive' &&
+        deadRowSync.ownerUserId === userId &&
+        deadRowRecord?.syncConfigId === folderConfig.id &&
+        hintsAfterDead > hintsBeforeDead &&
+        repeatEpisode?.errorSince === deadEpisode.errorSince &&
+        repeatEpisode.failureNotifiedAt === deadEpisode.failureNotifiedAt &&
+        repeatBells.length === 1 &&
+        hintsAfterRepeat === hintsAfterDead &&
+        recoveredEpisode?.status === 'active' &&
+        recoveredEpisode.lastSyncStatus === 'success' &&
+        recoveredEpisode.errorSince === null &&
+        recoveredEpisode.failureNotifiedAt === null &&
+        recoveredBells.length === 1 &&
+        (recoveredBells[0]?.read ?? false) &&
+        recoveredRowSync?.status === 'healthy' &&
+        hintsAfterRecovery > hintsAfterRepeat,
+      `closed: ${closedEpisode?.status}/${closedEpisode?.errorSince === null && closedEpisode?.failureNotifiedAt === null} (want active/true); dead: config=${deadEpisode?.status}/${deadEpisode?.lastSyncStatus} since=${deadEpisode?.errorSince !== null} told=${deadEpisode?.failureNotifiedAt !== null} bells=${deadBells.length}/1 (${deadBells[0]?.titleKey}, read=${deadBells[0]?.read}) row=${JSON.stringify(deadRowSync)} hints=${hintsAfterDead - hintsBeforeDead} (want ≥1); repeat: sameSince=${repeatEpisode?.errorSince === deadEpisode?.errorSince} sameTold=${repeatEpisode?.failureNotifiedAt === deadEpisode?.failureNotifiedAt} bells=${repeatBells.length}/1 hints=${hintsAfterRepeat - hintsAfterDead} (want 0); recovered: config=${recoveredEpisode?.status}/${recoveredEpisode?.lastSyncStatus} cleared=${recoveredEpisode?.errorSince === null && recoveredEpisode?.failureNotifiedAt === null} bellRead=${recoveredBells[0]?.read} row=${JSON.stringify(recoveredRowSync)} hints=${hintsAfterRecovery - hintsAfterRepeat} (want ≥1)`,
+    );
     // 8. The scan enqueues one job per syncable config; cancel wins over an
     //    in-flight run's final stamp (status write never leaves 'inactive'),
     //    and settles the run marker that stamp would have cleared — so a

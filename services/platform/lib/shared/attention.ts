@@ -22,6 +22,10 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // A conversation assigned to a member is a targeted hand-off that needs their
   // attention, so it emails the new assignee (mirrors task_assigned).
   'conversation_assigned',
+  // A cloud sync the member owns stopped working: reconnecting the account is
+  // theirs alone to do, and a frozen mirror is invisible from inside Tale
+  // until someone looks — so it leaves the app too.
+  'cloud_sync_failed',
 ] as const;
 
 type ActionableNotificationType =
