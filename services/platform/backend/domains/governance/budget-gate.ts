@@ -17,39 +17,98 @@ import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 /**
  * The org budget gate over the policy FILE + `app.usage_ledger`, with the
  * pure rule collectors/evaluators reused — ONE evaluation for every lane
- * that spends on the org's behalf: the TTS/transcription reservations, the
- * budget-status banner, the member's usage page, and the managed harness
- * turns (project agents, automation agent nodes). The api-key bucket is
- * omitted: none of these lanes carries one (the REST lane's budget wiring
- * rides its own increment).
+ * that spends on the org's behalf: chat turns (app and REST), the
+ * TTS/transcription reservations, video-link ingest, the budget-status
+ * banner, the member's usage page, and the managed harness turns (project
+ * agents, automation agent nodes).
+ *
+ * The buckets one subject is measured in: their personal caps against their
+ * own usage, each of their teams' shared caps against that team's CURRENT
+ * members' usage, the organization's caps against everyone's, and — only
+ * for a request an API key authenticated — the key's caps against the
+ * key's own usage.
  */
 
-interface UsageTotals {
+export interface UsageTotals {
   totalTokens: number;
   costEstimate: number;
   requestCount: number;
 }
 
+const NO_USAGE: UsageTotals = {
+  totalTokens: 0,
+  costEstimate: 0,
+  requestCount: 0,
+};
+
+/** Whose booked usage a bucket sums. */
+export type UsageScope =
+  | { kind: 'user'; userId: string }
+  | { kind: 'team'; teamId: string }
+  | { kind: 'apiKey'; apiKeyId: string }
+  | { kind: 'org' };
+
+/**
+ * One scope's booked usage for a period. A team's usage is read through
+ * membership — the usage of the people in the team now — not through the
+ * ledger's `team_id`: most lanes (chat, tools, agent turns) book no team,
+ * and a member of two teams counts toward both team caps without the
+ * organization's total counting them twice.
+ */
 export async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
   periodKey: string,
-  scope: { userId?: string; teamId?: string },
+  scope: UsageScope,
 ): Promise<UsageTotals> {
-  const rows = await sql<
-    { totalTokens: number; costEstimate: number; requestCount: number }[]
-  >`
-    SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
-           coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-           coalesce(sum(request_count), 0)::float8 AS "requestCount"
-    FROM app.usage_ledger
-    WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-      AND (${scope.userId ?? null}::text IS NULL
-        OR user_id = ${scope.userId ?? null})
-      AND (${scope.teamId ?? null}::text IS NULL
-        OR team_id = ${scope.teamId ?? null})
-  `;
-  return rows[0] ?? { totalTokens: 0, costEstimate: 0, requestCount: 0 };
+  let rows: UsageTotals[];
+  switch (scope.kind) {
+    case 'user':
+      rows = await sql<UsageTotals[]>`
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM app.usage_ledger
+        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+          AND user_id = ${scope.userId}
+      `;
+      break;
+    case 'team':
+      rows = await sql<UsageTotals[]>`
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM app.usage_ledger
+        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+          AND user_id IN (
+            SELECT tm."userId" FROM "teamMember" tm
+            JOIN "team" t ON t."id" = tm."teamId"
+            WHERE tm."teamId" = ${scope.teamId}
+              AND t."organizationId" = ${organizationId}
+          )
+      `;
+      break;
+    case 'apiKey':
+      rows = await sql<UsageTotals[]>`
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM app.usage_ledger
+        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+          AND api_key_id = ${scope.apiKeyId}
+      `;
+      break;
+    case 'org':
+      rows = await sql<UsageTotals[]>`
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM app.usage_ledger
+        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+      `;
+      break;
+  }
+  return rows[0] ?? NO_USAGE;
 }
 
 type Limits = ReturnType<typeof resolveEffectiveLimits>;
@@ -66,13 +125,50 @@ export interface OrgBudgetSubject {
   userId: string;
   userTeamIds: string[];
   userRole?: string;
+  /** The API key that authenticated the request. Only a keyed request is
+   * measured against `apiKey`-scoped caps. */
+  apiKeyId?: string;
 }
 
+/** Spend that work still in flight has claimed but not booked yet. */
+export interface ReservedSpend {
+  costCents: number;
+  tokens: number;
+  requests: number;
+}
+
+/** In-flight reservations per bucket, added to the booked usage so
+ * concurrent work sizing itself off the same balance cannot collectively
+ * overshoot a cap. */
+export interface BudgetReservations {
+  user?: ReservedSpend;
+  org?: ReservedSpend;
+  apiKey?: ReservedSpend;
+  teams?: Readonly<Record<string, ReservedSpend>>;
+}
+
+export type BudgetScope = 'user' | 'team' | 'org' | 'apiKey';
+
 /** The buckets one evaluation walks, in the order the ladder binds: the
- * caller's personal triple, each of their teams' shared caps, the org's. */
+ * caller's personal triple, each of their teams' shared caps, the org's,
+ * then the authenticating key's. */
 interface BudgetBucket {
+  scope: BudgetScope;
+  teamId?: string;
   rule: BudgetRule;
   usage: UsageTotals;
+}
+
+function withReserved(
+  usage: UsageTotals,
+  reserved: ReservedSpend | undefined,
+): UsageTotals {
+  if (reserved === undefined) return usage;
+  return {
+    totalTokens: usage.totalTokens + reserved.tokens,
+    costEstimate: usage.costEstimate + reserved.costCents,
+    requestCount: usage.requestCount + reserved.requests,
+  };
 }
 
 async function bucketsFor(
@@ -80,20 +176,21 @@ async function bucketsFor(
   subject: OrgBudgetSubject,
   period: BudgetRule['period'],
   limits: Limits,
-  reserved: { orgCents: number; userCents: number },
-  now: number = Date.now(),
+  reservations: BudgetReservations,
+  now: number,
 ): Promise<BudgetBucket[]> {
   const periodKey = buildPeriodKeyFromTimestamp(period, now);
-  const withReservation = (usage: UsageTotals, cents: number) =>
-    cents > 0 ? { ...usage, costEstimate: usage.costEstimate + cents } : usage;
+  const org = subject.organizationId;
   const buckets: BudgetBucket[] = [];
   buckets.push({
+    scope: 'user',
     rule: { scope: 'default', period, ...limitsTriple(limits) },
-    usage: withReservation(
-      await periodUsage(sql, subject.organizationId, periodKey, {
+    usage: withReserved(
+      await periodUsage(sql, org, periodKey, {
+        kind: 'user',
         userId: subject.userId,
       }),
-      reserved.userCents,
+      reservations.user,
     ),
   });
   // Each team's SHARED cap against that team's aggregate — the team rule's
@@ -101,6 +198,8 @@ async function bucketsFor(
   for (const teamLimit of limits.teamLimits) {
     if (!teamLimitsHasCap(teamLimit)) continue;
     buckets.push({
+      scope: 'team',
+      teamId: teamLimit.teamId,
       rule: {
         scope: 'team',
         scopeId: teamLimit.teamId,
@@ -109,9 +208,13 @@ async function bucketsFor(
         maxCostCents: teamLimit.maxCostCents,
         maxRequests: teamLimit.maxRequests,
       },
-      usage: await periodUsage(sql, subject.organizationId, periodKey, {
-        teamId: teamLimit.teamId,
-      }),
+      usage: withReserved(
+        await periodUsage(sql, org, periodKey, {
+          kind: 'team',
+          teamId: teamLimit.teamId,
+        }),
+        reservations.teams?.[teamLimit.teamId],
+      ),
     });
   }
   if (
@@ -120,6 +223,7 @@ async function bucketsFor(
     limits.orgMaxRequests != null
   ) {
     buckets.push({
+      scope: 'org',
       rule: {
         scope: 'org',
         period,
@@ -127,13 +231,147 @@ async function bucketsFor(
         maxCostCents: limits.orgMaxCostCents,
         maxRequests: limits.orgMaxRequests,
       },
-      usage: withReservation(
-        await periodUsage(sql, subject.organizationId, periodKey, {}),
-        reserved.orgCents,
+      usage: withReserved(
+        await periodUsage(sql, org, periodKey, { kind: 'org' }),
+        reservations.org,
+      ),
+    });
+  }
+  if (
+    subject.apiKeyId !== undefined &&
+    (limits.apiKeyMaxTokens != null ||
+      limits.apiKeyMaxCostCents != null ||
+      limits.apiKeyMaxRequests != null)
+  ) {
+    buckets.push({
+      scope: 'apiKey',
+      rule: {
+        scope: 'apiKey',
+        apiKeyId: subject.apiKeyId,
+        period,
+        maxTokens: limits.apiKeyMaxTokens,
+        maxCostCents: limits.apiKeyMaxCostCents,
+        maxRequests: limits.apiKeyMaxRequests,
+      },
+      usage: withReserved(
+        await periodUsage(sql, org, periodKey, {
+          kind: 'apiKey',
+          apiKeyId: subject.apiKeyId,
+        }),
+        reservations.apiKey,
       ),
     });
   }
   return buckets;
+}
+
+const PERIODS: readonly BudgetRule['period'][] = ['daily', 'weekly', 'monthly'];
+
+/** The rules that bind the subject, grouped by period (shortest first). */
+async function applicableLimitsByPeriod(
+  sql: Sql | TransactionSql,
+  subject: OrgBudgetSubject,
+): Promise<{ period: BudgetRule['period']; limits: Limits }[]> {
+  const config = await readGovernancePolicyForOrg(
+    sql,
+    subject.organizationId,
+    'budgets',
+  );
+  if (!config || !config.enabled || config.rules.length === 0) return [];
+  const applicableRules = collectAllApplicableRules(
+    config.rules,
+    subject.userId,
+    subject.userTeamIds,
+    subject.userRole,
+    subject.apiKeyId,
+  );
+  return PERIODS.flatMap((period) => {
+    const periodRules = applicableRules.filter((r) => r.period === period);
+    if (periodRules.length === 0) return [];
+    return [
+      {
+        period,
+        limits: resolveEffectiveLimits(
+          periodRules,
+          subject.userId,
+          subject.userTeamIds,
+          subject.userRole,
+          subject.apiKeyId,
+        ),
+      },
+    ];
+  });
+}
+
+/** A cap the subject's next request would breach, named precisely enough to
+ * explain it: whose bucket, which limit, and when its period resets. */
+export interface BudgetViolation {
+  scope: BudgetScope;
+  /** The team whose shared cap binds — team scope only. */
+  teamId?: string;
+  code: 'TOKEN_LIMIT' | 'COST_LIMIT' | 'REQUEST_LIMIT';
+  period: BudgetRule['period'];
+  used: number;
+  limit: number;
+  reason: string;
+  /** When the binding period rolls over (epoch ms). */
+  resetsAt: number;
+}
+
+/**
+ * The first cap the subject is at or over, after the booked usage, any
+ * in-flight `reservations`, and a `prospective` spend of their own — `null`
+ * when every cap that binds still has room (or no budget policy binds).
+ */
+export async function findBudgetViolation(
+  sql: Sql | TransactionSql,
+  subject: OrgBudgetSubject,
+  options: {
+    prospectiveCostCents?: number;
+    prospectiveRequests?: number;
+    reservations?: BudgetReservations;
+    now?: number;
+  } = {},
+): Promise<BudgetViolation | null> {
+  const now = options.now ?? Date.now();
+  for (const { period, limits } of await applicableLimitsByPeriod(
+    sql,
+    subject,
+  )) {
+    for (const bucket of await bucketsFor(
+      sql,
+      subject,
+      period,
+      limits,
+      options.reservations ?? {},
+      now,
+    )) {
+      const breach = checkRuleAgainstUsage(
+        bucket.rule,
+        bucket.usage,
+        options.prospectiveCostCents ?? 0,
+        options.prospectiveRequests ?? 0,
+      );
+      if (
+        breach?.code === undefined ||
+        breach.used === undefined ||
+        breach.limit === undefined
+      ) {
+        continue;
+      }
+      return {
+        scope: bucket.scope,
+        ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+        code: breach.code,
+        period,
+        used: breach.used,
+        limit: breach.limit,
+        reason: breach.reason ?? `The ${period} usage limit has been reached.`,
+        resetsAt: buildPeriodEndFromTimestamp(period, now),
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -148,46 +386,19 @@ export async function checkOrgBudget(
     prospectiveRequests: number;
   },
 ): Promise<BudgetCheckResult> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    args.organizationId,
-    'budgets',
-  );
-  if (!config || !config.enabled || config.rules.length === 0) {
-    return { allowed: true };
-  }
-  const applicableRules = collectAllApplicableRules(
-    config.rules,
-    args.userId,
-    args.userTeamIds,
-    args.userRole,
-    undefined,
-  );
-  if (applicableRules.length === 0) return { allowed: true };
-
-  for (const period of new Set(applicableRules.map((rule) => rule.period))) {
-    const periodRules = applicableRules.filter((r) => r.period === period);
-    const limits = resolveEffectiveLimits(
-      periodRules,
-      args.userId,
-      args.userTeamIds,
-      args.userRole,
-      undefined,
-    );
-    for (const bucket of await bucketsFor(sql, args, period, limits, {
-      orgCents: 0,
-      userCents: 0,
-    })) {
-      const violation = checkRuleAgainstUsage(
-        bucket.rule,
-        bucket.usage,
-        args.prospectiveCostCents,
-        args.prospectiveRequests,
-      );
-      if (violation) return violation;
-    }
-  }
-  return { allowed: true };
+  const violation = await findBudgetViolation(sql, args, {
+    prospectiveCostCents: args.prospectiveCostCents,
+    prospectiveRequests: args.prospectiveRequests,
+  });
+  if (violation === null) return { allowed: true };
+  return {
+    allowed: false,
+    code: violation.code,
+    period: violation.period,
+    used: violation.used,
+    limit: violation.limit,
+    reason: violation.reason,
+  };
 }
 
 /** One cap that binds the subject this period and the usage the gate
@@ -211,54 +422,27 @@ export interface BudgetStanding {
   usage: UsageTotals;
 }
 
-const PERIODS: readonly BudgetRule['period'][] = ['daily', 'weekly', 'monthly'];
-
 /**
  * Every cap that binds the subject, with what has been used against it this
  * period — the same buckets `checkOrgBudget` walks, read without a
  * prospective spend, so a reader sees exactly the numbers that would refuse
  * their next request. Only buckets that carry a cap are returned; `[]` when
- * no budget policy binds.
+ * no budget policy binds. A session reader carries no API key, so key caps
+ * never appear here.
  */
 export async function readBudgetStanding(
   sql: Sql | TransactionSql,
   subject: OrgBudgetSubject,
   now: number = Date.now(),
 ): Promise<BudgetStanding[]> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    subject.organizationId,
-    'budgets',
-  );
-  if (!config || !config.enabled || config.rules.length === 0) return [];
-  const applicableRules = collectAllApplicableRules(
-    config.rules,
-    subject.userId,
-    subject.userTeamIds,
-    subject.userRole,
-    undefined,
-  );
-
   const standings: BudgetStanding[] = [];
-  for (const period of PERIODS) {
-    const periodRules = applicableRules.filter((r) => r.period === period);
-    if (periodRules.length === 0) continue;
-    const limits = resolveEffectiveLimits(
-      periodRules,
-      subject.userId,
-      subject.userTeamIds,
-      subject.userRole,
-      undefined,
-    );
-    const buckets = await bucketsFor(
-      sql,
-      subject,
-      period,
-      limits,
-      { orgCents: 0, userCents: 0 },
-      now,
-    );
-    for (const { rule, usage } of buckets) {
+  for (const { period, limits } of await applicableLimitsByPeriod(
+    sql,
+    subject,
+  )) {
+    const buckets = await bucketsFor(sql, subject, period, limits, {}, now);
+    for (const { scope, teamId, rule, usage } of buckets) {
+      if (scope === 'apiKey') continue;
       if (
         rule.maxTokens == null &&
         rule.maxCostCents == null &&
@@ -266,8 +450,6 @@ export async function readBudgetStanding(
       ) {
         continue;
       }
-      const scope =
-        rule.scope === 'team' ? 'team' : rule.scope === 'org' ? 'org' : 'user';
       const warningThresholdPercent =
         scope === 'user'
           ? limits.warningThresholdPercent
@@ -276,9 +458,7 @@ export async function readBudgetStanding(
             : undefined;
       standings.push({
         scope,
-        ...(scope === 'team' && rule.scopeId !== undefined
-          ? { teamId: rule.scopeId }
-          : {}),
+        ...(teamId !== undefined ? { teamId } : {}),
         period,
         periodKey: buildPeriodKeyFromTimestamp(period, now),
         resetsAt: buildPeriodEndFromTimestamp(period, now),
@@ -317,41 +497,20 @@ export async function resolveTurnAllowance(
     reserved: { orgCents: number; userCents: number };
   },
 ): Promise<TurnAllowance> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    args.organizationId,
-    'budgets',
-  );
-  if (!config || !config.enabled || config.rules.length === 0) {
-    return { allowed: true, budgetCents: args.defaultCents };
-  }
-  const applicableRules = collectAllApplicableRules(
-    config.rules,
-    args.userId,
-    args.userTeamIds,
-    args.userRole,
-    undefined,
-  );
-  if (applicableRules.length === 0) {
-    return { allowed: true, budgetCents: args.defaultCents };
-  }
-
+  const reservations: BudgetReservations = {
+    user: { costCents: args.reserved.userCents, tokens: 0, requests: 0 },
+    org: { costCents: args.reserved.orgCents, tokens: 0, requests: 0 },
+  };
+  const now = Date.now();
   let allowance = args.defaultCents;
-  for (const period of new Set(applicableRules.map((rule) => rule.period))) {
-    const periodRules = applicableRules.filter((r) => r.period === period);
-    const limits = resolveEffectiveLimits(
-      periodRules,
-      args.userId,
-      args.userTeamIds,
-      args.userRole,
-      undefined,
-    );
+  for (const { period, limits } of await applicableLimitsByPeriod(sql, args)) {
     for (const bucket of await bucketsFor(
       sql,
       args,
       period,
       limits,
-      args.reserved,
+      reservations,
+      now,
     )) {
       // One more cent and one more request: refused means nothing usable
       // remains under this rule — its own wording names the cap.

@@ -396,8 +396,9 @@ describe('GET /my/budget-usage', () => {
     requestCount: number;
   }
 
-  /** The ledger sums by scope (`user_id`/`team_id` are the 3rd and 5th
-   * bindings) and the team-name read, recorded in call order. */
+  /** The ledger sums by the scope each query names (a team's members, the
+   * caller's `user_id`, or the whole org; the scoped id is the 3rd binding)
+   * and the team-name read, recorded in call order. */
   function database(answers: {
     user: Usage;
     teams: Record<string, Usage>;
@@ -408,11 +409,11 @@ describe('GET /my/budget-usage', () => {
     const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       queries.push(text);
+      if (text.includes('"teamMember"')) {
+        return [answers.teams[String(values[2])]];
+      }
       if (text.includes('FROM "team"')) return answers.teamRows;
-      const userId = values[2];
-      const teamId = values[4];
-      if (typeof userId === 'string') return [answers.user];
-      if (typeof teamId === 'string') return [answers.teams[teamId]];
+      if (text.includes('user_id =')) return [answers.user];
       return [answers.org];
     };
     return { sql: sql as never, queries };
