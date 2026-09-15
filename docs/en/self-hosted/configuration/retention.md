@@ -1,54 +1,60 @@
 ---
-title: Retention
-description: How org-wide retention is configured — operator bounds in env vars and UI controls under Governance for chats, documents, audit logs, and ledger rows.
+title: Configure retention bounds
+description: Set organization retention bounds, apply policy changes deliberately and understand which data the cleanup job removes.
 ---
+Retention controls how long Tale keeps each category of data. Operators set the allowed bounds; organization admins enable categories and choose a duration within those bounds. A shorter duration can delete existing history, so review its effect before applying it.
 
-Retention in Tale is the policy that deletes old data on a schedule — chats, documents, audit logs, workflow executions, token-usage ledger rows. The operator sets bounds (minimums and maximums) per category; each org's admin picks the actual retention window inside those bounds via **Settings > Governance > Retention policy**. The split exists so a hosting team can enforce compliance floors without micromanaging every tenant.
+## Understand bounds and policy
 
-This page covers the operator surface. The admin-facing controls and the per-category descriptions live in [Governance > Retention policy](/platform/admin/governance/policies-and-limits).
+Two files under `TALE_CONFIG_DIR/<orgSlug>/governance/` have different jobs:
 
-## How the bounds work
+| File | Purpose |
+| --- | --- |
+| `retention.yml` | Operator bounds and defaults for every category. JSON is also accepted. |
+| `retention-policy.yml` | The organization’s chosen enabled states and durations. Managed by the governance settings. |
 
-Each retention category — chat threads, documents, contacts, vendors, prompt templates, ledger rows, audit logs, workflow executions, workflow trigger logs, login attempts — has a `min` and a `max`. An org admin sets a value inside that window. Tightening the floor across an existing instance is a multi-step flow: operator proposes the new bound, every affected admin sees a banner, the change applies once accepted.
+The organization gets its own files when it is created. A change to one organization’s file does not change another organization’s policy. There is no fallback to a `default` organization when an organization’s bounds file is missing.
 
-| Category                | Typical floor | Why                                            |
-| ----------------------- | ------------- | ---------------------------------------------- |
-| Chat history            | 30 d          | Most users want recent context, not forever    |
-| Documents               | 1 y           | Knowledge tends to age out slowly              |
-| Audit logs              | 1 y minimum   | Compliance frameworks expect a year            |
-| Token-usage ledger      | 90 d          | Analytics and budget reports rely on rows      |
-| Workflow execution logs | 30 d          | Debugging rarely reaches further back          |
-| Login attempts          | 30 d          | Brute-force investigation needs the audit tail |
+Each category has `min`, `max`, `default` and `unit`. Raising `min` requires data to be kept longer; lowering `max` limits how long it may be kept. Neither value enables cleanup by itself. The applied policy determines whether the category is enabled.
 
-The shipped defaults are loose; tighten per your compliance posture.
+## Edit the organization’s bounds
 
-## Where you set bounds
+Start from the organization’s existing complete file. Preserve categories you are not changing. This fragment shows the shape of one category, rather than a replacement for the whole file:
 
-Under the org-first layout, retention bounds are **per-org**: edit `retention.json` directly inside an org's subtree under `TALE_CONFIG_DIR` (defaults to `/app/data/` inside the platform container, so the file lives at `/app/data/<org>/retention.json`, e.g. `/app/data/default/retention.json`). Each org has its own file; the `default` org's file is the template a fresh deployment picks up on first boot.
-
-```json
-{
-  "chatHistory": { "min": 30, "max": 730, "unit": "days" },
-  "documents": { "min": 1, "max": 3650, "unit": "days" },
-  "auditLog": { "min": 365, "max": 3650, "unit": "days" },
-  "tokenLedger": { "min": 90, "max": 1095, "unit": "days" }
-}
+```yaml
+chatHistory:
+  min: 30
+  max: 730
+  default: 90
+  unit: days
 ```
 
-The platform container watches the file; changes propose a bounds update for every existing org. Admins see the proposal in their **Retention policy** screen and apply it themselves. The propose-then-apply step is deliberate: tightening a floor shortens history, which is a destructive action no operator should land silently on every tenant.
+Most categories use days; `userTempHours` and `agentTempHours` use hours. The token-usage category is named `usageLedger`. Use the category identifiers already present in the file so validation can catch mistakes.
 
-The admin-chosen retention windows live in a separate file, `retention-policy.json`, alongside the bounds in the same `governance/` folder. It holds flat `<category>Enabled` / `<category>RetentionDays` fields (e.g. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), not the `min`/`max` bounds. That file is written by **Settings > Governance > Retention policy** in the app, so admins normally never edit it by hand — keep it distinct from the operator-owned bounds file.
+Environment overrides are declared explicitly by the file’s root `_metadata.envNames`, with an optional `_metadata.envPrefix`. The bundled file maps `TALE_RETENTION_AUDIT_MIN` to `auditLog.min`, for example. A minimum override can only raise the floor; a maximum override can only lower the ceiling. Restart the backend processes after changing their environment.
 
-## The retention sweep
+## Review and apply a change
 
-A scheduled job inside `tale-backend-worker` runs the actual deletion. Each category is swept independently — a slow run on one does not block the others. Deletions are audited (every category has its own `*.retention_deleted` event), and restoring an entity inside its grace window is possible from **Trash** before the final sweep.
+After editing bounds, ask the organization admin to review the proposed change in [Policies and limits](/platform/admin/governance/policies-and-limits). Cleanup uses the applied bounds snapshot; an operator’s file edit alone does not silently apply new bounds.
 
-Audit log entries are themselves subject to retention, but their floor is enforced per-deployment, not per-org: the strictest (shortest) audit-log retention across all orgs is what actually runs. A stricter tenant pulls everyone tighter — keep this in mind on multi-tenant instances.
+Review enabled categories, the old and new durations, and any grace period before applying. A value such as `auditLogRetentionDays: 730` is a chosen duration, while `auditLog.min: 365` is a lower bound. Keep those meanings separate when reviewing a diff.
 
-## Legal hold
+<Tip>
 
-A legal hold freezes retention for a specific scope: a single thread, a contact record, or an entire organization. Held entities skip the sweep until the hold is released. The hold itself is audited; org-wide holds are loud enough that the UI surfaces a confirmation before they apply.
+Test a shorter policy on synthetic data first. Confirm that a record inside the window remains, an expired record follows its category’s deletion behavior, and a held record remains protected.
 
-## Where this fits
+</Tip>
 
-The bounds file is the operator's lever; the per-category windows the admin sees are documented in [Retention policy](/platform/admin/governance/policies-and-limits). If you are setting bounds against a compliance framework (GDPR, HIPAA, SOC 2), the audit-log floor is usually what auditors check first.
+## Understand the cleanup result
+
+The backend worker runs scheduled cleanup per organization. Threads, documents, contacts and external conversations have lifecycle handling; row-level categories can be deleted directly after their applicable retention and grace period. Do not assume that every deleted record appears in Trash.
+
+Audit retention is also organization-scoped. It removes the oldest eligible prefix of that organization’s audit chain, stopping when a held row must remain. One tenant’s shorter window does not shorten another tenant’s history.
+
+`TALE_RETENTION_DISABLED=true` pauses scheduled retention cleanup for an operator-controlled maintenance window. It does not restore deleted data or disable other deletion paths. Record when you enable it and remove it when the maintenance is complete.
+
+## Preserve held data
+
+Legal holds override retention for their supported scope. An organization-wide hold protects the organization; narrower holds protect the matching entities or custodians. Review the [legal hold workflow](/platform/admin/governance/legal-hold) before changing a policy that affects held data.
+
+A hold is not a backup. Once deletion has completed outside a hold, increasing the retention duration cannot recover the data; recovery depends on a retained backup and its matching deployment state.

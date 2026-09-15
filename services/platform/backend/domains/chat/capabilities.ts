@@ -14,7 +14,7 @@ import {
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
-import { searchKnowledgeForOrg } from '../knowledge/service.ts';
+import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
 import { saveMemory, searchApprovedMemories } from './memories.ts';
 import { resolveAccessScope } from './shim.ts';
 
@@ -115,8 +115,16 @@ function buildKnowledgeBackend(
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         console.warn('[chat] knowledge retrieval refused', reason);
+        // The door's own code rides along (the REST search answers the same
+        // one), so a model branches on `code` as the MCP page promises
+        // (2026-09-14 evaluation, h9).
+        const code =
+          error instanceof KnowledgeError
+            ? error.code
+            : 'KNOWLEDGE_UNAVAILABLE';
         return {
           status: 'unavailable',
+          code,
           reason: `The knowledge base could not be searched: ${reason} Do not treat this as "nothing found".`,
         };
       }
@@ -184,6 +192,10 @@ async function registerAutomations(
       actor: scope.userId,
     });
     for (const item of await store.list()) {
+      // The registry holds DEPLOYED automations, as the MCP page says:
+      // a saved-only one is a capability invoke_capability always refuses
+      // (2026-09-14 evaluation, h9).
+      if (item.deployedVersion === null) continue;
       registry.register({
         kind: 'automation',
         id: `automation.${item.name}`,

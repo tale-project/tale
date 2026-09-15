@@ -1,156 +1,114 @@
 ---
 title: Installation
-description: Wire the packages up inside the Tale monorepo, or install them from GitHub into a repository of your own.
+description: Connect source imports, styles, translations, and providers to render your first Tale control.
 ---
 
-There are two ways to consume the design system, and which one you need depends
-on where your code lives. Inside the Tale monorepo the packages are workspace
-dependencies and everything is already connected. Outside it, you pin a GitHub
-snapshot and satisfy a short list of requirements — the packages ship
-TypeScript source rather than a build, so the toolchain has to be able to read
-it.
+The packages ship React and TypeScript source. A working installation needs a compatible source-consuming build tool, the shared stylesheet, the package message catalog, and `AppShell`. The examples below use Tale's Bun, Vite, React 19, and Tailwind 4 setup.
 
-By the end of this page you will have `@tale/ui` rendering a real button, with
-its stylesheet, its message catalog and its providers mounted.
+## Add the package
 
-## Inside the Tale monorepo
-
-Every workspace already depends on the packages:
+Inside this monorepo, add the workspace dependency to the service that uses it and run `bun install` from the repository root:
 
 ```json
 {
   "dependencies": {
-    "@tale/ui": "workspace:*",
-    "@tale/marketing-ui": "workspace:*"
+    "@tale/ui": "workspace:*"
   }
 }
 ```
 
-Import through a subpath and you are done:
+Add `"@tale/marketing-ui": "workspace:*"` only if that service renders marketing components. Existing services may already have these dependencies; check their `package.json` before changing it.
 
-```tsx
-import { Button } from '@tale/ui/button';
-import { DataTable } from '@tale/ui/data-table/data-table';
+### Consume it from another repository
+
+The release workflow publishes each package as a root-level Git snapshot. For a trial installation:
+
+```bash
+bun add 'github:tale-project/tale#dist/ui' react@19 react-dom@19 tailwindcss@4
+bun add --dev vite @vitejs/plugin-react @tailwindcss/vite typescript @types/react @types/react-dom
 ```
 
-## In another repository
+For marketing components, also install `github:tale-project/tale#dist/marketing-ui`. That package requires `@tale/ui` as a peer.
 
-Bun cannot install a git subdirectory, so each package is published as a
-**root-level snapshot branch and tag** of the Tale repository. Pin it with a
-GitHub URL:
+For a reproducible release, replace the moving branch with a published `ui-v<version>` tag and, when used, its matching `marketing-ui-v<version>` tag. `<version>` is a placeholder, not a tag to install literally. Commit the resulting lockfile. To deliberately refresh a moving Git dependency, use `bun install --force` and review the lockfile changes.
 
-```json
-{
-  "dependencies": {
-    "@tale/ui": "github:tale-project/tale#dist/ui",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "tailwindcss": "4.2.2"
-  }
-}
-```
+The packages' export maps point at TypeScript source. Run Vite through Bun (`bun --bun vite` and `bun --bun vite build`), as the Tale service scripts do. Use TypeScript's bundler module resolution and React JSX transform. Inside Tale-project repositories, select the appropriate shared `tsconfig` family rather than adding workspace-specific compiler options.
 
-`@tale/marketing-ui` is a separate branch, and it takes `@tale/ui` as a peer —
-install both:
+## Load Tailwind and YAML
 
-```json
-{
-  "dependencies": {
-    "@tale/marketing-ui": "github:tale-project/tale#dist/marketing-ui",
-    "@tale/ui": "github:tale-project/tale#dist/ui"
-  }
-}
-```
-
-> [!IMPORTANT]
-> Bun caches a git dependency **by ref**. A moving branch like `dist/ui` only
-> advances after `bun install --force` (or `bun pm cache rm`). Pin a release
-> tag — `#ui-v<version>` and `#marketing-ui-v<version>`, cut by the
-> `publish-packages` workflow on every Tale release — when you want a
-> reproducible install.
-
-### Requirements on the consumer side
-
-**Vite plus Tailwind v4, run through Bun.** The package ships TypeScript
-source, and Node refuses to strip types under `node_modules`, so `vite.config.ts`
-must load under Bun — `bun --bun vite`, `bun --bun vite build`, exactly the
-scripts every Tale service uses.
-
-Register the YAML catalog loader in your Vite config:
+This Vite configuration handles React, Tailwind, and the YAML files imported by the translation catalogs:
 
 ```ts
 // vite.config.ts
 import { yamlImports } from '@tale/ui/vite/yaml';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-export default defineConfig({ plugins: [yamlImports(), react()] });
+export default defineConfig({
+  plugins: [yamlImports(), react(), tailwindcss()],
+});
 ```
 
-`yamlImports` is what makes `import enMessages from '@/messages/en.yml'`
-resolve. Without it the i18n catalogs fail to load and every string renders as
-its raw dotted key.
-
-**One stylesheet import.** Your `globals.css` is one line:
+Load the application stylesheet from your entry module:
 
 ```css
+/* src/globals.css */
 @import '@tale/ui/globals.css';
 ```
 
-Use `@import '@tale/marketing-ui/globals.css';` instead if you need the
-marketing vocabulary — it pulls the app one in.
+For a marketing site, use `@import '@tale/marketing-ui/globals.css';` instead. Each stylesheet declares the package source that Tailwind must scan. Keep your own application source within Tailwind's scan as well.
 
-**TypeScript** with `moduleResolution: "bundler"` and `jsx: "react-jsx"`. In a
-Tale-project repository that means extending the shared `tsconfig` family; a
-workspace `tsconfig.json` carries exactly one key, `extends`.
+## Render a first control
 
-**Peers**: `react`, `react-dom`, `tailwindcss` for `@tale/ui`, plus `@tale/ui`
-itself for `@tale/marketing-ui`. `vite` and `vite-plugin-pwa` are only needed
-for the PWA plugin, and the `storybook` family only for the shared Storybook
-config. The packages' own `dependencies` are complete — a guard test fails when
-a source import is undeclared — so nothing else needs installing.
-
-## Mount the providers once
-
-`AppShell` is the standard provider stack: theme, tooltips, locale and i18n, in
-the order that matters. Mount it once, above your router:
+This complete client entry assumes `index.html` contains `<div id="root"></div>`. It uses the package's translations with empty service catalogs; replace those catalogs when you add application-specific copy.
 
 ```tsx
+// src/main.tsx
 import { AppShell } from '@tale/ui/app-shell';
+import { Button } from '@tale/ui/button';
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
 import { uiMessages } from '@tale/ui/i18n/messages';
-import { RouterProvider } from '@tanstack/react-router';
+import { Input } from '@tale/ui/input';
+import { createRoot } from 'react-dom/client';
+import './globals.css';
 
-const i18n = initServiceI18n({ bundles, regional, global, packages: [uiMessages] });
+const i18n = initServiceI18n({
+  bundles: { en: {}, de: {}, fr: {} },
+  regional: {},
+  packages: [uiMessages],
+});
 
-<AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
-  <RouterProvider router={router} />
-</AppShell>;
+const root = document.getElementById('root');
+if (!root) throw new Error('Missing root element');
+
+createRoot(root).render(
+  <AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
+    <main className="mx-auto max-w-sm space-y-4 p-6">
+      <Input label="Preview name" defaultValue="First component" />
+      <Button type="button" title="This is a local preview">
+        Preview
+      </Button>
+    </main>
+  </AppShell>,
+);
 ```
 
-Two details are load-bearing:
+`AppShell` mounts the translation and tooltip providers and imports Inter. `theme` enables light, dark, and system preferences. Client locale mode detects a saved or browser language. A URL-driven site should omit client locale mode and synchronize its route language instead; see [Internationalization](/docs/getting-started/i18n).
 
-- **`packages: [uiMessages]`** merges the package's own catalog under your
-  service's keys. Skip it and every `@tale/ui` component renders raw keys where
-  its labels should be. Add `marketingUiMessages` from
-  `@tale/marketing-ui/i18n/messages` when you use the marketing package too.
-- **`theme`** mounts `ThemeProvider` with the canonical `'system'` default.
-  Omit it only when your service deliberately never toggles the `.dark` class.
-
-## Check that it worked
-
-Render a button and a field. If the button is the right height (`h-9`), the
-field has a visible border, and neither shows a raw `common.actions.save`-style
-key, all four pieces — source resolution, stylesheet, Tailwind scan and
-catalog — are connected.
+Start the development server with `bun --bun vite`. The input should have a visible outline, the button should be 36px high, and its tooltip should appear on keyboard focus or hover. The button deliberately has no save callback.
 
 <Demo name="button/variants" />
 
-## Where to go next
+## Troubleshoot setup
 
-Read [Theming](/docs/getting-started/theming) for the token vocabularies and
-dark mode, then [i18n](/docs/getting-started/i18n) for how a component finds
-its strings. If something renders unstyled, the stylesheet import is the usual
-culprit — `@tale/ui/globals.css` carries the `@source` directive that scans the
-package's own source, so a consumer never lists it by hand; import the file
-once, from the stylesheet Vite loads.
+| Symptom | Check |
+| --- | --- |
+| Components render without styling | Import the stylesheet from the entry that Vite actually loads, and enable the Tailwind plugin. |
+| YAML import or parse errors | Register `yamlImports()` before importing the service or package catalogs. |
+| A label renders as a dotted key | Include `uiMessages` in `packages`; add `marketingUiMessages` when rendering marketing components. |
+| Theme controls do nothing | Mount `AppShell` with `theme` and import the themed stylesheet. |
+| A package import fails | Check its public export path and the installed snapshot; avoid private filesystem imports. |
+| A router link fails outside routing context | Mount your router before using `LinkButton` or `TabNavigation`; the first-control example above needs no router. |
+
+PWA and Storybook support have additional optional peers. Install them only when using those exported integrations, following the package's `peerDependencies` and `peerDependenciesMeta`.

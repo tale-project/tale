@@ -145,6 +145,11 @@ const responseHeaders: Record<string, Json> = {
       'The version of this contract (`info.version`) the serving instance implements — semver for the wire',
     schema: { type: 'string', example: API_CONTRACT_VERSION },
   },
+  Location: {
+    description:
+      'The created resource’s own path, relative to the request URL — follow it with GET whatever shape the 201 body has',
+    schema: { type: 'string' },
+  },
   RetryAfter: {
     description: 'How long to wait before retrying, in whole seconds',
     schema: { type: 'integer', minimum: 1 },
@@ -332,7 +337,19 @@ function listOf(name: string, item: Json, extra: Json = {}): Json {
   };
 }
 
-const nullable = (schema: Json): Json => ({ ...schema, nullable: true });
+/** OAS 3.0: `nullable` widens the type, never the enum — a nullable enum
+ * lists `null` itself, or a strict generated client rejects the `null` the
+ * wire sends (a successful run's `failureCode`; 2026-09-14 evaluation, h1). */
+const nullable = (schema: Json): Json => {
+  const values = schema.enum;
+  return {
+    ...schema,
+    nullable: true,
+    ...(Array.isArray(values) && !values.includes(null)
+      ? { enum: [...values, null] }
+      : {}),
+  };
+};
 const str: Json = { type: 'string' };
 const num: Json = { type: 'number' };
 /** A timestamp: whole epoch milliseconds — the integer every list orders
@@ -461,9 +478,10 @@ const triggerHealthProperties: Json = {
       'null until it has.',
   },
   lastSkipReason: {
-    type: 'string',
-    nullable: true,
-    enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+    ...nullable({
+      type: 'string',
+      enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+    }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
       'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
@@ -622,7 +640,9 @@ const projectAgentInputSpec: Json = (() => {
     description:
       'Full project-agent configuration. name, harness, model, skills and ' +
       'connectors are required. Harness must support project-agent ' +
-      'execution (Cursor is excluded). Every equipment field is checked ' +
+      'execution — one the managed lane runs unattended on the platform’s ' +
+      'own credentials; `GET /api/v1/models` lists them under `harnesses`. ' +
+      'Every equipment field is checked ' +
       'against what this organization can serve — the model pair against ' +
       '`GET /api/v1/models`, skills against `GET /api/v1/skills`, ' +
       'connectors against the connected set, tools against the grant ' +
@@ -766,7 +786,12 @@ const productInputProperties: Record<string, Json> = {
       'resolves to a private address passes here. The platform never fetches ' +
       'the URL; the rule keeps a stored URL from becoming a server-side ' +
       'request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the ' +
-      'private-network half, never the metadata half.',
+      'private-network half, never the metadata half. Exception: an exact ' +
+      'managed product-image URL returned by this deployment may be replayed, ' +
+      'including on a private deployment. It must name registered image ' +
+      'metadata in this organization that the caller uploaded or a current ' +
+      'product already uses; a missing or inaccessible image answers 404 ' +
+      '`FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route.',
   },
   stock: safeNumber,
   price: safeNumber,
@@ -918,7 +943,7 @@ export function buildSpec(): Json {
           [PAGINATION]: 'keyset',
           required: ['recipientId', 'page', 'isDone', 'continueCursor'],
           properties: {
-            recipientId: { type: ['string', 'null'] },
+            recipientId: nullable(str),
             isDone: bool,
             continueCursor: { type: 'string' },
             page: {
@@ -979,7 +1004,8 @@ export function buildSpec(): Json {
         'restore it or send a `deleted` teardown), ' +
         '`CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, ' +
         '`DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, ' +
-        '`CONVERSATION_CLOSED`',
+        '`CONVERSATION_CLOSED` (the source tore the mirror down — a content ' +
+        'snapshot onto it, or an Inbox reply to it)',
     ),
   };
   const conversationOperation = {
@@ -1001,7 +1027,10 @@ export function buildSpec(): Json {
       'organizationId',
       'version',
       'externalContactId',
+      'contactId',
       'contactStatus',
+      'sourceDeleted',
+      'status',
       'attachments',
     ],
     properties: {
@@ -1011,13 +1040,28 @@ export function buildSpec(): Json {
       externalContactId: {
         ...str,
         description:
-          'The contact externalId this conversation is bound to — the one named on first mirror, never re-resolved afterwards.',
+          'The bound contact’s current `externalId`: the one named on first mirror, following a rename of that same contact (a PATCH of its `externalId`, or a snapshot naming the new id) — never re-resolved to a different row.',
+      },
+      contactId: {
+        ...nullable(str),
+        description:
+          'The bound contact row — `GET /api/v1/contacts/{id}` takes it; null when no contact row is linked (`contactStatus: "missing"`).',
       },
       contactStatus: {
         type: 'string',
         enum: ['active', 'trashed', 'missing'],
         description:
-          'The linked contact’s state: `active`, `trashed` (a `DELETE /contacts/{id}` retired it — further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored or the mirror is torn down), or `missing` (no contact row is linked). The only read-back of a mirrored conversation’s contact link.',
+          'The linked contact’s state: `active`, `trashed` (a `DELETE /contacts/{id}` retired it — further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored with `POST /api/v1/contacts/{id}/restore` or in the app; a `deleted` teardown closes the mirror but does not lift the refusal), or `missing` (no contact row is linked).',
+      },
+      sourceDeleted: {
+        ...bool,
+        description:
+          'The source tore the mirror down with a `deleted` snapshot: the Inbox thread is closed and a later content snapshot answers 409 `CONVERSATION_CLOSED` at any version — mirror the source conversation under a new `externalId` to start again. An engine that resumes from this receipt reads it before pushing its next snapshot; it is the one field that says a teardown landed.',
+      },
+      status: {
+        ...nullable(str),
+        description:
+          'The Inbox conversation’s status — `closed` once torn down; null only when the Inbox row itself is gone (`contactStatus: "missing"`).',
       },
       attachments: {
         type: 'array',
@@ -1061,7 +1105,7 @@ export function buildSpec(): Json {
       operationId: 'getConversationSourceState',
       summary: 'Read an integration snapshot receipt',
       description:
-        'Returns the current source revision, the bound `externalContactId`, its `contactStatus` (`active` | `trashed` | `missing`) and attachment refs for safe crash recovery. This is the only read-back of a mirrored conversation’s contact link: a `trashed` status means the contact was deleted and further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED`. An unknown or differently owned source returns a null snapshot.',
+        'Returns the current source revision, the bound contact (`contactId`, the row; `externalContactId`, its current external id), its `contactStatus` (`active` | `trashed` | `missing`), whether the source tore the mirror down (`sourceDeleted`, with the Inbox `status`) and attachment refs for safe crash recovery — an engine that resumes reads `sourceDeleted` before pushing its next snapshot, because a content snapshot onto a torn-down mirror answers 409 `CONVERSATION_CLOSED` at any version. A `trashed` status means the contact was deleted and further content snapshots answer 409 `CONVERSATION_CONTACT_TRASHED` until it is restored (`POST /api/v1/contacts/{id}/restore`). `GET /api/v1/conversations?source=` lists every mirror. An unknown or differently owned source returns a null snapshot.',
       parameters: [
         conversationOrg,
         {
@@ -1100,7 +1144,7 @@ export function buildSpec(): Json {
       operationId: 'synchronizeConversationSource',
       summary: 'Apply a complete native Inbox source snapshot',
       description:
-        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: a different `externalContactId` for a source conversation already mirrored answers 409 `CONVERSATION_CONTACT_CONFLICT`, and the id it was bound to on first mirror is never re-resolved afterwards — so deleting the contact and recreating it under the same `externalId` (a common CRM re-import) never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` (restore the contact, or send a `deleted` teardown to close the mirror); the `contactStatus` on the `GET` receipt reports this. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: it is bound to a contact ROW, so a contact re-keyed in the CRM (a PATCH of its `externalId`) keeps its conversations — a snapshot naming the contact’s current id applies and the receipt follows it — while an `externalContactId` that names a different contact, or no live one, answers 409 `CONVERSATION_CONTACT_CONFLICT` naming the id the conversation is bound to; deleting the contact and recreating it under the same `externalId` (a common CRM re-import) is a different row and never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` — restore the contact (`POST /api/v1/contacts/{id}/restore`) to continue it; a `deleted` teardown closes the mirror but does not reopen it, so a later content snapshot answers the same 409 while the contact stays in the trash; the `contactStatus` on the `GET` receipt reports this. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. A torn-down mirror stays down: a later content snapshot at any version answers 409 `CONVERSATION_CLOSED` (the receipt’s `sourceDeleted` says so) — mirror the source conversation under a new `externalId` to start again. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
       requestBody: jsonBody(
         z.toJSONSchema(apiSnapshotSchema, {
           target: 'openapi-3.0',
@@ -1120,6 +1164,48 @@ export function buildSpec(): Json {
         '413': errorResponse(
           'The body exceeds 8 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a whole source snapshot (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
+      },
+    },
+  };
+  paths['/api/v1/conversations'] = {
+    get: {
+      ...conversationOperation,
+      operationId: 'listConversations',
+      summary: 'List the conversations you mirrored',
+      description:
+        'Every conversation this key user mirrored under a source, newest first — the reconciliation read: `conversationId`, the source `externalId`, the bound contact (`contactId`, the row; `externalContactId`, its current external id) and its `contactStatus`, the stored `version`, whether the source tore the mirror down (`sourceDeleted`), and the Inbox `status` and `subject`. `contactStatus=trashed` finds the mirrors a deleted contact froze. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`.',
+      parameters: [
+        conversationOrg,
+        {
+          ...queryParam('source', 'The source whose mirrors to list'),
+          required: true,
+          schema: { type: 'string', pattern: API_SOURCE_PATTERN.source },
+        },
+        {
+          ...queryParam('contactStatus', 'One contact state to narrow to'),
+          schema: { type: 'string', enum: ['active', 'trashed', 'missing'] },
+        },
+        ...paginationParams(200, 50),
+      ],
+      responses: {
+        '200': jsonResponse('The mirrors, newest first', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['conversations', 'isDone', 'continueCursor'],
+          properties: {
+            conversations: {
+              type: 'array',
+              items: ref('ConversationMirror'),
+            },
+            isDone: bool,
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
+        ...conversationErrors,
       },
     },
   };
@@ -1544,10 +1630,13 @@ export function buildSpec(): Json {
       ],
       requestBody: jsonBody(ref('DocumentPatch')),
       responses: {
-        '200': jsonResponse(
-          'The document as it now stands — the shape `GET` answers, `updatedAt` included',
-          ref('Document'),
-        ),
+        '200': {
+          ...jsonResponse(
+            'The document as it now stands — the shape `GET` answers, `updatedAt` included — with the `ETag` of that representation, the value the next `If-Match` sends',
+            ref('Document'),
+          ),
+          headers: { ETag: headerRef('ETag') },
+        },
         '403': errorResponse(
           'The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
         ),
@@ -1727,11 +1816,17 @@ export function buildSpec(): Json {
         {
           ...queryParam(
             'status',
-            'Only websites in this scan status — `idle`, `scanning`, `active`, `error` or `deleting`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page)',
+            'Only websites in this scan status — `scanning`, `active`, `error` or `deleting`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page; `idle` was declared and never observable, and left the set in 1.11.0)',
           ),
           schema: { type: 'string', enum: [...WEBSITE_STATUS_VALUES] },
         },
-        queryParam('scanInterval', 'Only websites on this scan interval'),
+        {
+          ...queryParam(
+            'scanInterval',
+            'Only websites on this scan interval — `60m`, `6h`, `12h`, `1d`, `5d`, `7d` or `30d`; any other value answers 400 `INVALID_QUERY` naming the set (it used to answer an empty page)',
+          ),
+          schema: { type: 'string', enum: [...SCAN_INTERVAL_VALUES] },
+        },
       ],
       responses: {
         '200': jsonResponse('Paginated websites', pageOf(ref('Website'))),
@@ -1748,7 +1843,13 @@ export function buildSpec(): Json {
         'The host is stored as given — `www.` is kept — and the `www.` and ' +
         'apex spellings count as one site: a domain already registered, ' +
         'under either spelling, is a 409 unless the post extends a list; ' +
-        '`data.websiteId` and `data.domain` name the existing row.',
+        '`data.websiteId` and `data.domain` name the existing row. ' +
+        'Discovery honours the site’s `robots.txt` `Disallow` rules for ' +
+        'the `*` agent on every path a URL can enter by — the sitemap, the ' +
+        'link walk and the links a rendered page reveals — and a page a ' +
+        'rule covers is never fetched; a page a rule added later covers ' +
+        'leaves the index on the next scan. Listed URLs are exempt: an ' +
+        'explicit list is your instruction.',
       operationId: 'createWebsite',
       security: sec,
       requestBody: jsonBody(ref('WebsiteInput')),
@@ -1775,7 +1876,8 @@ export function buildSpec(): Json {
         ...standardErrors,
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`), a `domain` that names ' +
-            'no http(s) host (`WEBSITE_DOMAIN_INVALID`), a domain the crawl ' +
+            'no https host (`WEBSITE_DOMAIN_INVALID` — `http://` is refused: ' +
+            'the crawler dials https only), a domain the crawl ' +
             'policy refuses — loopback, link-local, private-network or cloud ' +
             'metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL ' +
             'off the domain (`WEBSITE_INVALID_LIST_URL`)',
@@ -1891,7 +1993,11 @@ export function buildSpec(): Json {
         'immediately; `syncing` means the job is queued, not finished. The ' +
         'job is keyed per website: a second call while one is still queued ' +
         'or running folds into it — two calls answer `syncing` twice and ' +
-        'run once — so calling after every crawl costs nothing extra.',
+        'run once — so calling after every crawl costs nothing extra. The ' +
+        'row is also synced on the crawler’s own cadence — after discovery, ' +
+        'after every stored batch, at each link’s end and at the scan’s end ' +
+        '— so polling GET /api/v1/websites/{id} without this door follows a ' +
+        'running scan. Takes no body.',
       operationId: 'syncWebsite',
       security: sec,
       parameters: [pathParam('id', 'Website ID')],
@@ -1903,6 +2009,9 @@ export function buildSpec(): Json {
         }),
         '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
+        '400': errorResponse(
+          'A body that is not empty JSON — this operation takes none (`INVALID_BODY`)',
+        ),
       },
     },
   };
@@ -2057,7 +2166,13 @@ export function buildSpec(): Json {
       security: sec,
       parameters: [
         ...paginationParams(200, 25),
-        queryParam('status', 'Only products in this status'),
+        {
+          ...queryParam(
+            'status',
+            'Only products in this status — the closed set the write side takes; any other value answers 400 `INVALID_QUERY` naming the set',
+          ),
+          schema: { type: 'string', enum: [...PRODUCT_STATUSES] },
+        },
         queryParam('category', 'Only products in this category'),
       ],
       responses: {
@@ -2225,6 +2340,32 @@ export function buildSpec(): Json {
     },
   };
 
+  paths['/api/v1/contacts/{id}/restore'] = {
+    post: {
+      tags: ['Contacts'],
+      summary: 'Restore a contact from the trash',
+      operationId: 'restoreContact',
+      description:
+        'Puts a trashed contact back in the directory — the remedy a frozen conversation mirror’s 409 `CONVERSATION_CONTACT_TRASHED` names — under the create’s own rule: a live contact that has since taken its email or external id refuses the restore with 409 `CONTACT_DUPLICATE_EMAIL` or `CONTACT_DUPLICATE_EXTERNAL_ID`, so a restore never mints a twin. A contact not in the trash is a no-op that answers the contact; one that does not exist answers 404 `CONTACT_NOT_FOUND`. Its mirrored conversations resume with it — a content snapshot at a higher version applies again. Takes no body.',
+      security: sec,
+      parameters: [pathParam('id', 'Contact ID')],
+      responses: {
+        '200': jsonResponse(
+          'The contact, live again (or still live)',
+          ref('Contact'),
+        ),
+        '404': errorResponse('Contact not found (`CONTACT_NOT_FOUND`)'),
+        '409': errorResponse(
+          'A live contact took the email (`CONTACT_DUPLICATE_EMAIL`) or the external id (`CONTACT_DUPLICATE_EXTERNAL_ID`) meanwhile',
+        ),
+        ...standardErrors,
+        '400': errorResponse(
+          'A body that is not empty JSON — this operation takes none (`INVALID_BODY`)',
+        ),
+      },
+    },
+  };
+
   paths['/api/v1/contacts/{id}'] = {
     get: {
       tags: ['Contacts'],
@@ -2244,7 +2385,7 @@ export function buildSpec(): Json {
       tags: ['Contacts'],
       summary: 'Update contact',
       description:
-        'Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. A patch that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone (the document rule), so it never spends another client’s `expectedUpdatedAt`; a write that changes something advances `updatedAt`, even within one millisecond. Omit the precondition for the existing unconditional behavior.',
+        'Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. A patch that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone (the document rule), so it never spends another client’s `expectedUpdatedAt`; a write that changes something advances `updatedAt`, even within one millisecond. Omit the precondition for the existing unconditional behavior. A changed `externalId` carries through to the conversations mirrored onto this contact: their receipts name the new id and a snapshot naming it applies, while the old id names no live contact and is refused (409 `CONVERSATION_CONTACT_CONFLICT`).',
       operationId: 'patchContact',
       security: sec,
       parameters: [pathParam('id', 'Contact ID')],
@@ -2270,7 +2411,7 @@ export function buildSpec(): Json {
       summary: 'Delete contact',
       operationId: 'deleteContact',
       description:
-        'Move the contact to the trash, which frees its email and external id for a new contact; a contact already there answers 404 `CONTACT_NOT_FOUND`. Any mirrored conversation still linked to this contact keeps its messages but stops accepting content snapshots — `POST /api/v1/conversations/sync` answers 409 `CONVERSATION_CONTACT_TRASHED` for it, and its `GET` receipt reports `contactStatus: "trashed"` — until the contact is restored or the mirror is torn down with a `deleted` snapshot. Because the external id is freed, it is never re-resolved for an existing conversation, so a contact recreated under the same id never inherits the old one’s history.',
+        'Move the contact to the trash, which frees its email and external id for a new contact; a contact already there answers 404 `CONTACT_NOT_FOUND`. Any mirrored conversation still linked to this contact keeps its messages but stops accepting content snapshots — `POST /api/v1/conversations/sync` answers 409 `CONVERSATION_CONTACT_TRASHED` for it, and its `GET` receipt reports `contactStatus: "trashed"` — until the contact is restored (`POST /api/v1/contacts/{id}/restore`, or the app’s Trash); a `deleted` teardown closes such a mirror but does not reopen it. Because the external id is freed, it is never re-resolved for an existing conversation, so a contact recreated under the same id never inherits the old one’s history.',
       security: sec,
       parameters: [pathParam('id', 'Contact ID')],
       responses: {
@@ -2627,7 +2768,7 @@ export function buildSpec(): Json {
     ...standardErrors,
     '400': errorResponse(
       'A body the schema refuses (`INVALID_BODY`); a harness that cannot ' +
-        'run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider ' +
+        'run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider ' +
         'this organization has no credential for ' +
         '(`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or ' +
         'that only a subscription bound to another harness serves ' +
@@ -3702,7 +3843,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Start a deployed workflow on a project task',
       description:
-        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run, and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
+        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run, whichever automation started it: a start while one is live reuses it. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
       operationId: 'startTaskWorkflow',
       security: sec,
       parameters: taskParameters,
@@ -3711,7 +3852,13 @@ export function buildSpec(): Json {
         additionalProperties: false,
         required: ['workflowSlug'],
         properties: {
-          workflowSlug: { type: 'string', minLength: 1, maxLength: 200 },
+          workflowSlug: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200,
+            description:
+              'The automation’s name as GET /api/v1/automations lists it — the `/` form (`billing/dunning`), never the `__` spelling the `{name}` path parameter takes',
+          },
         },
       }),
       responses: {
@@ -3743,7 +3890,7 @@ export function buildSpec(): Json {
         }),
         '403': errorResponse(
           'Project is read-only or archived, the task is archived ' +
-            '(`TASK_ARCHIVED`), or the automation is bound elsewhere',
+            '(`TASK_ARCHIVED`), or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`)',
         ),
         '404': errorResponse(
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the ' +
@@ -4437,7 +4584,24 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse(
           'Available models',
-          listOf('models', ref('ChatModel')),
+          listOf('models', ref('ChatModel'), {
+            harnesses: {
+              type: 'array',
+              description:
+                'The harnesses a project agent may run on — the managed lane’s, those that run unattended on the platform’s own credentials; `harness` is the value `POST /api/v1/projects/{id}/agents` takes, and a value outside this list answers 400 `PROJECT_AGENT_HARNESS_INVALID` naming the list in `data.harnesses`',
+              items: {
+                type: 'object',
+                required: ['harness', 'label'],
+                properties: {
+                  harness: {
+                    ...str,
+                    description: 'The slug the agent input takes',
+                  },
+                  label: { ...str, description: 'The harness’s display name' },
+                },
+              },
+            },
+          }),
         ),
         ...standardErrors,
       },
@@ -4543,7 +4707,7 @@ export function buildSpec(): Json {
       patch: {
         tags: ['Threads'],
         summary: 'Archive, restore or rename a thread',
-        description: `${visibility} Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 \`CHAT_THREAD_ARCHIVED\`; \`archived: false\` restores it. Archiving stamps \`archivedAt\` and leaves \`updatedAt\` — the last message activity — untouched. \`title\` renames the thread (trimmed, 1–120 characters). Send at least one of the two.`,
+        description: `${visibility} Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 \`CHAT_THREAD_ARCHIVED\`; \`archived: false\` restores it. A thread whose turn is still running — or whose accepted send is still queued — refuses the archive with 409 \`CHAT_TURN_IN_PROGRESS\`, as the delete does: cancel the turn first (restoring and renaming stay open mid-turn). Archiving stamps \`archivedAt\` and leaves \`updatedAt\` — the last message activity — untouched. \`title\` renames the thread (trimmed, 1–120 characters). Send at least one of the two.`,
         operationId: scope.project ? 'updateProjectThread' : 'updateThread',
         security: sec,
         parameters: itemParameters,
@@ -4565,6 +4729,9 @@ export function buildSpec(): Json {
           '200': jsonResponse('The thread after the change', ref('Thread')),
           ...archivedProject,
           '404': notFound,
+          '409': errorResponse(
+            '`archived: true` while a turn is running on the thread, or an accepted send is still queued (`CHAT_TURN_IN_PROGRESS`)',
+          ),
           ...standardErrors,
         },
       },
@@ -4630,7 +4797,7 @@ export function buildSpec(): Json {
               minLength: 1,
               maxLength: 100000,
               description:
-                'The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer.',
+                'The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer.',
             },
             model: {
               type: 'string',
@@ -4741,7 +4908,7 @@ export function buildSpec(): Json {
       get: {
         tags: ['Threads'],
         summary: 'Poll the running turn',
-        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; send \`since\` (the characters of \`text\` you already hold) and \`reasoningSince\` (the characters of \`reasoning\`) to receive only what arrived after them, with \`textOffset\`/\`textLength\` and \`reasoningOffset\`/\`reasoningLength\` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE ${scope.item}/generation. \`idle\`: no turn is running — \`lastMessageId\` and \`lastStatus\` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until \`idle\`, then compare \`lastMessageId\` with the \`messageId\` the 202 named — equal means your turn settled (read that message at GET ${scope.item}/messages/{messageId}, or page the messages with \`order=desc\`), a different id means yours has not started yet.`,
+        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened) — accepted sends form one oldest-first queue shared by the whole deployment, worked in batches of up to five turns with the next batch starting only once the running one has settled, so a burst of sends completes in waves, not in parallel. \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; send \`since\` (the UTF-16 code units of \`text\` you already hold — JavaScript \`String.length\`, an emoji counting two; not code points) and \`reasoningSince\` (the same for \`reasoning\`) to receive only what arrived after them, with \`textOffset\`/\`textLength\` and \`reasoningOffset\`/\`reasoningLength\` beside them — reassemble by one rule, \`held = held.slice(0, textOffset) + text\`, and send \`textLength\` back as \`since\`; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE ${scope.item}/generation. \`idle\`: no turn is running — \`lastMessageId\` and \`lastStatus\` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until \`idle\`, then compare \`lastMessageId\` with the \`messageId\` the 202 named — equal means your turn settled (read that message at GET ${scope.item}/messages/{messageId}, or page the messages with \`order=desc\`), a different id means yours has not started yet.`,
         operationId: scope.project
           ? 'getProjectThreadGeneration'
           : 'getGeneration',
@@ -4751,14 +4918,14 @@ export function buildSpec(): Json {
           {
             ...queryParam(
               'since',
-              'The number of characters of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts and `textLength` how long the whole reply is so far. A value past the current length — the text was reset when a tool round settled — answers from 0: when `textOffset` is below the `since` you sent, replace what you hold. Ignored unless the turn is streaming',
+              'The number of UTF-16 code units (JavaScript `String.length` — an emoji counts two; not code points, not grapheme clusters) of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair (an astral character is two units, and a slice opening on its second half would put an unpaired surrogate on the wire), or 0 when a tool round reset the reply — and `textLength` how long the whole reply is so far. Reassemble by one rule, `held = held.slice(0, textOffset) + text`, and send `textLength` back as `since`: it never falls inside a pair. Ignored unless the turn is streaming',
             ),
             schema: { type: 'integer', minimum: 0 },
           },
           {
             ...queryParam(
               'reasoningSince',
-              'The number of characters of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts and `reasoningLength` how long the whole reasoning is so far. A value past the current length — the reasoning was reset with the text when a tool round settled — answers from 0: when `reasoningOffset` is below the `reasoningSince` you sent, replace what you hold. Ignored unless the turn is streaming',
+              'The number of UTF-16 code units (JavaScript `String.length`) of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts — the value you sent, one lower when that would have split a surrogate pair, or 0 when a tool round reset the reasoning with the text — and `reasoningLength` how long the whole reasoning is so far. Reassemble as `held = held.slice(0, reasoningOffset) + reasoning` and send `reasoningLength` back as `reasoningSince`. Ignored unless the turn is streaming',
             ),
             schema: { type: 'integer', minimum: 0 },
           },
@@ -4782,19 +4949,19 @@ export function buildSpec(): Json {
                 text: {
                   type: 'string',
                   description:
-                    'The reply text streamed so far — from `textOffset` on when `since` was sent (present while streaming)',
+                    'The reply text streamed so far — from `textOffset` on when `since` was sent, always whole characters (present while streaming)',
                 },
                 textOffset: {
                   ...int,
                   minimum: 0,
                   description:
-                    'The character position `text` starts at: the `since` you sent, or 0 when the reply was reset since (present while streaming)',
+                    'Where `text` starts, in UTF-16 code units: the `since` you sent, one lower when that would have split a surrogate pair, or 0 when the reply was reset since — reassemble as `held = held.slice(0, textOffset) + text` (present while streaming)',
                 },
                 textLength: {
                   ...int,
                   minimum: 0,
                   description:
-                    'The length of the whole reply streamed so far — send it back as `since` on the next poll (present while streaming)',
+                    'The length of the whole reply streamed so far, in UTF-16 code units (JavaScript `String.length`) — send it back as `since` on the next poll; it never falls inside a surrogate pair (present while streaming)',
                 },
                 lastMessageId: {
                   type: 'string',
@@ -4809,19 +4976,19 @@ export function buildSpec(): Json {
                 reasoning: {
                   type: 'string',
                   description:
-                    'The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent; display-only, may be empty (present while streaming)',
+                    'The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent, always whole characters; display-only, may be empty (present while streaming)',
                 },
                 reasoningOffset: {
                   ...int,
                   minimum: 0,
                   description:
-                    'The character position `reasoning` starts at: the `reasoningSince` you sent, or 0 when the reasoning was reset since (present while streaming)',
+                    'Where `reasoning` starts, in UTF-16 code units: the `reasoningSince` you sent, one lower when that would have split a surrogate pair, or 0 when the reasoning was reset since (present while streaming)',
                 },
                 reasoningLength: {
                   ...int,
                   minimum: 0,
                   description:
-                    'The length of the whole reasoning streamed so far — send it back as `reasoningSince` on the next poll (present while streaming)',
+                    'The length of the whole reasoning streamed so far, in UTF-16 code units — send it back as `reasoningSince` on the next poll; it never falls inside a surrogate pair (present while streaming)',
                 },
                 cancelRequested: {
                   type: 'boolean',
@@ -5438,7 +5605,7 @@ export function buildSpec(): Json {
               minimum: 0,
               maximum: 1,
               description:
-                'Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity`, never on `fusedScore`',
+                'Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity` for the hits the vector leg ranked (`matchedLegs` contains `…:dense`), never on `fusedScore` — and keep a hit only the keyword leg found (`similarity: null`, its `keywordScore` set): an exact identifier or phrase match is stronger evidence than any cosine',
             },
           },
         }),
@@ -5695,6 +5862,22 @@ export function buildSpec(): Json {
   // every operation can end in, and the 413 every operation with a body
   // answers past its byte cap. A family's own sentence for a status keeps
   // the lead; the door's clause is appended to it.
+  /** The creates whose 201 names the created resource in `Location`. */
+  const LOCATION_201_PATHS = new Set([
+    '/api/v1/contacts',
+    '/api/v1/products',
+    '/api/v1/documents',
+    '/api/v1/knowledge-entries',
+    '/api/v1/projects',
+    '/api/v1/projects/{id}/agents',
+    '/api/v1/projects/{id}/folders',
+    '/api/v1/projects/{id}/files',
+    '/api/v1/projects/{id}/tasks',
+    '/api/v1/threads',
+    '/api/v1/projects/{id}/threads',
+    '/api/v1/websites',
+    '/api/v1/skills/{slug}',
+  ]);
   for (const [path, operations] of Object.entries(paths)) {
     if (!path.startsWith('/api/v1/')) continue;
     for (const [method, operation] of Object.entries(operations)) {
@@ -5721,6 +5904,13 @@ export function buildSpec(): Json {
         op.parameters = [...(op.parameters ?? []), requestIdHeaderParam];
       }
       const responses = op.responses;
+      // A 201 that creates one addressable resource names it: `Location`,
+      // the resource’s own path, so a generic client follows it whatever
+      // shape the body has (2026-09-14 evaluation, h1). The bulk import
+      // creates many and carries none; a comment has no read of its own.
+      if (responses['201'] !== undefined && LOCATION_201_PATHS.has(path)) {
+        withHeaders(responses['201'], { Location: 'Location' });
+      }
       responses['403'] = withDoorRefusal(
         responses['403'],
         '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)',
@@ -5923,7 +6113,7 @@ fresh UUID — replaced rather than refused because a correlation id is
 best-effort: the call goes through even when the id cannot be logged, and the
 id the platform did use is on the response for you to record. An
 \`Idempotency-Key\` is the opposite kind of value, a promise the platform
-keeps byte for byte, so one it cannot keep is refused (400 \`INVALID_HEADER\`)
+keeps byte for byte, so one it cannot keep is refused (400 \`INVALID_HEADER\`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names
 instead. Every response the platform answers also names the contract it
 implements in \`X-Tale-Api-Version\`; a refusal answered at the edge — a
 dot-segment 404, a body shorter than its declared length (400
@@ -5973,7 +6163,8 @@ loop from the document rather than from this prose:
 - **keyset** — the rows sit under \`page\` on the knowledge and chat lists
   (contacts, products, documents, knowledge entries, threads, messages,
   websites) and under the resource's own key elsewhere: \`{runs, …}\`,
-  \`{deliveries, …}\`, \`{comments, …}\`, \`{projects, …}\`, \`{files, …}\`.
+  \`{deliveries, …}\`, \`{conversations, …}\`, \`{comments, …}\`,
+  \`{projects, …}\`, \`{files, …}\`.
   The last two also answer \`cursor\` — the same token under its pre-1.5.0
   name, present only while more pages remain, deprecated and served for at
   least two more minor versions; a project lookup by \`externalItemId\` is
@@ -6125,7 +6316,8 @@ curl -H "Authorization: Bearer <api-key>" \\
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          description: 'An organization API key. Create one in Settings → API.',
+          description:
+            'An organization API key. Create one in Settings → API. Pasted into the explorer on /docs it stays in the page’s memory only and is forgotten on reload — it is never stored.',
         },
       },
       schemas: {
@@ -6345,21 +6537,26 @@ curl -H "Authorization: Bearer <api-key>" \\
             title: nullable(str),
             description: nullable(str),
             scanInterval: str,
-            lastScannedAt: nullable(epochMs),
+            lastScannedAt: nullable({
+              ...epochMs,
+              description:
+                'When the last scan ENDED, epoch ms; `null` until the first scan finishes — `status: "scanning"` is the in-flight signal, and the page counts move while it runs',
+            }),
             status: nullable({
               type: 'string',
               enum: [...WEBSITE_STATUS_VALUES],
               description:
-                'The SCAN’s lifecycle, not the content’s health: `idle` — registered, never scanned; `scanning` — in flight; `active` — the last scan finished and stored at least one page; `error` — the last scan failed or stored no page (`metadata.lastSyncError` says why; a domain that does not resolve or an expired certificate lands here, never on `active`); `deleting` — mid removal. A registered site starts `scanning`. The obvious health check is `status === "active"`; `crawledPageCount - failedPageCount` says how many pages it holds.',
+                'The SCAN’s lifecycle, not the content’s health: `scanning` — in flight (a registered site starts here); `active` — the last scan finished and stored at least one page; `error` — the last scan failed or stored no page (`metadata.lastSyncError` says why; a domain that does not resolve or an expired certificate lands here, never on `active`); `deleting` — mid removal. The obvious health check is `status === "active"`; `crawledPageCount - failedPageCount` says how many pages it holds.',
             }),
             pageCount: nullable({
               ...int,
-              description: 'Pages the crawler knows on this site',
+              description:
+                'Pages the crawler knows on this site, as of the last corpus → row sync (`metadata.lastStatusSyncAt` says when): during a scan the sync runs after discovery and after every stored batch, at each link’s end and at the scan’s end, and `POST /api/v1/websites/{id}/sync` forces one',
             }),
             crawledPageCount: nullable({
               ...int,
               description:
-                'Pages the crawler ATTEMPTED in its scans so far — stored or not; a page whose every attempt failed counts here too (see `failedPageCount`), and `indexed` per page is on `GET /api/v1/websites/{id}/pages`',
+                'Pages the crawler ATTEMPTED in its scans so far — stored or not; a page whose every attempt failed counts here too (see `failedPageCount`), and `indexed` per page is on `GET /api/v1/websites/{id}/pages`. Stamped by the corpus → row sync like `pageCount`',
             }),
             failedPageCount: nullable({
               ...int,
@@ -6380,11 +6577,15 @@ curl -H "Authorization: Bearer <api-key>" \\
               ...str,
               maxLength: 2048,
               description:
-                'A public hostname or http(s) URL (`docs.example.com`, ' +
-                '`https://www.example.com/docs`); the host is what is ' +
-                'registered, spelled as given — `www.` is not stripped, and ' +
-                'the `www.`/apex pair counts as one site (registering the ' +
-                'sibling of a registered domain is the 409). Loopback, ' +
+                'A public hostname or https URL (`docs.example.com`, ' +
+                '`https://www.example.com/docs`); `http://` is refused ' +
+                '(`WEBSITE_DOMAIN_INVALID`) — the crawler dials https only. ' +
+                'The host is what is registered, spelled as given — `www.` ' +
+                'is not stripped; case is folded, an internationalised name ' +
+                'is stored in its punycode form and a trailing dot is ' +
+                'dropped — and the `www.`/apex pair counts as one site ' +
+                '(registering the sibling of a registered domain is the ' +
+                '409). Loopback, ' +
                 'link-local, private-network and cloud metadata hosts are ' +
                 'refused — the crawler dials the target from inside the ' +
                 'deployment’s network.',
@@ -6461,7 +6662,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: ['discovered', 'active'],
               description:
-                '`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A page the site answered 404/410 for leaves the listing.',
+                '`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A DISCOVERED page the site answered 404/410 for leaves the listing, and so does one `robots.txt` has come to disallow; a LISTED one the site answers 404/410 for stays `discovered` with `http_error` naming the answer and is probed again next scan.',
             },
             contentHash: nullable(str),
             lastCrawledAt: nullable({
@@ -6486,7 +6687,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: [...PAGE_FAILURE_KINDS],
               description:
-                'The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout`; `response_too_large`; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex`, honoured); `null` when the last attempt succeeded',
+                'The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name="robots" content="noindex">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log',
             }),
             lastErrorAt: nullable({
               ...epochMs,
@@ -6547,6 +6748,56 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
 
         // ── Conversations ──
+        ConversationMirror: {
+          type: 'object',
+          required: [
+            'conversationId',
+            'externalId',
+            'externalContactId',
+            'contactId',
+            'contactStatus',
+            'version',
+            'sourceDeleted',
+            'status',
+            'subject',
+            'createdAt',
+          ],
+          properties: {
+            conversationId: str,
+            externalId: {
+              ...str,
+              description: 'The source conversation’s own id',
+            },
+            externalContactId: {
+              ...str,
+              description: 'The bound contact’s current external id',
+            },
+            contactId: {
+              ...nullable(str),
+              description:
+                'The bound contact row — `GET /api/v1/contacts/{id}` takes it; null when none is linked',
+            },
+            contactStatus: {
+              type: 'string',
+              enum: ['active', 'trashed', 'missing'],
+              description:
+                '`trashed`: the contact was deleted and the mirror takes no more content until it is restored',
+            },
+            version: {
+              ...int,
+              description:
+                'The stored source revision; -1 before the first snapshot applied',
+            },
+            sourceDeleted: {
+              ...bool,
+              description:
+                'The source tore the mirror down with a `deleted` snapshot',
+            },
+            status: { ...str, description: 'The Inbox conversation’s status' },
+            subject: nullable(str),
+            createdAt: epochMs,
+          },
+        },
         ConversationDelivery: {
           type: 'object',
           description:
@@ -6686,7 +6937,12 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizationId: str,
             name: str,
             description: nullable(str),
-            imageUrl: nullable({ ...str, format: 'uri' }),
+            imageUrl: nullable({
+              ...str,
+              format: 'uri',
+              description:
+                'An absolute image URL. App-uploaded images use a stable, organization-protected app URL and require an authorized app session to view; external image URLs keep their original access rules.',
+            }),
             stock: nullable(num),
             price: nullable(num),
             currency: nullable(str),
@@ -6728,10 +6984,11 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'object',
           description:
             '`name` is required on create; every field is optional on update. ' +
-            'Strings are trimmed, and a blank optional field reads as left ' +
-            'out. Unknown keys are refused (`INVALID_BODY`).',
+            'Strings are trimmed, and a blank optional field — or one sent ' +
+            'as `null` — reads as left out. Unknown keys are refused ' +
+            '(`INVALID_BODY`).',
           additionalProperties: false,
-          properties: productInputProperties,
+          properties: nullableProperties(productInputProperties, ['name']),
         },
         ProductPatch: {
           type: 'object',
@@ -6883,11 +7140,13 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'object',
           description:
             'Unknown keys are refused (`INVALID_BODY`). Strings are trimmed, ' +
-            'and a blank optional field reads as left out (a CSV-shaped row ' +
-            'imports cleanly). A create needs at least one of `name`, ' +
-            '`email` or `externalId` to file the contact under.',
+            'and a blank optional field — or one sent as `null` — reads as ' +
+            'left out (a CSV-shaped row or a JSON export imports cleanly); ' +
+            'the same body clears the field on a PATCH. A create needs at ' +
+            'least one of `name`, `email` or `externalId` to file the ' +
+            'contact under.',
           additionalProperties: false,
-          properties: contactInputProperties,
+          properties: nullableProperties(contactInputProperties, ['source']),
         },
         ContactPatch: {
           type: 'object',
@@ -7666,7 +7925,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               minimum: 0,
               maximum: 1,
               description:
-                'The dense (vector) leg’s cosine similarity when it ranked the passage, on the embedding model’s own 0..1 scale — the one number to threshold on, and what `minSimilarity` floors; null when only the keyword leg found it',
+                'The dense (vector) leg’s cosine similarity when it ranked the passage, on the embedding model’s own 0..1 scale — the number to threshold the vector leg on, and what `minSimilarity` floors; null when only the keyword leg found it — keep such a hit, its `keywordScore` is the evidence',
             },
             keywordScore: {
               ...nullable(num),
@@ -7688,16 +7947,28 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'array',
               items: ref('KnowledgeHit'),
               description:
-                'In fused order (`fusedScore` descending), one passage per repeated text. Every candidate is checked against its live document BEFORE fusion, so a refused one never holds a rank, and the page is cut last — `limit` never costs a readable hit',
+                'In fused order (`fusedScore` descending), one passage per repeated text; at equal `fusedScore` a passage the keyword leg ranked precedes one only the vector leg found (an exact term is stronger evidence than a nearest neighbour), then the lower row identity. Every candidate is checked against its live document BEFORE fusion, so a refused one never holds a rank, and the page is cut last — `limit` never costs a readable hit',
             },
             diagnostics: {
               type: 'object',
-              required: ['bm25', 'reranked', 'cached', 'admitted', 'legs'],
+              required: [
+                'bm25',
+                'dense',
+                'reranked',
+                'cached',
+                'admitted',
+                'legs',
+              ],
               properties: {
                 bm25: {
                   ...bool,
                   description:
                     'False when the keyword index was unavailable and only the vector leg ran',
+                },
+                dense: {
+                  ...bool,
+                  description:
+                    'False when the corpus could not serve the vector leg (its table, or a column this release selects, is missing) and only the keyword leg ran — the twin of `bm25`, so a dead leg is never silent',
                 },
                 reranked: {
                   ...bool,
@@ -7719,7 +7990,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                   type: 'object',
                   additionalProperties: true,
                   description:
-                    'How many admitted candidates each leg contributed to fusion — counts after the live-document check, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`)',
+                    'Every leg that RAN, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`), with how many admitted candidates it contributed to fusion — counts after the live-document check, `0` when it ran and nothing survived that check or the `minSimilarity` floor. A leg that could not run is absent and named by `bm25` / `dense`',
                 },
               },
             },
@@ -7846,94 +8117,106 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
           },
         },
+        TextPart: {
+          type: 'object',
+          required: ['type', 'text'],
+          properties: {
+            type: { type: 'string', enum: ['text'] },
+            text: str,
+          },
+        },
+        ReasoningPart: {
+          type: 'object',
+          required: ['type', 'text'],
+          description:
+            'The model’s reasoning ahead of its reply — display-only, never replayed to the model; it may quote the assistant’s own instructions verbatim, so it is not safe to render as the answer.',
+          properties: {
+            type: { type: 'string', enum: ['reasoning'] },
+            text: str,
+          },
+        },
+        AttachmentPart: {
+          type: 'object',
+          required: ['type', 'name', 'mediaType'],
+          properties: {
+            type: { type: 'string', enum: ['attachment'] },
+            name: str,
+            mediaType: str,
+            fileId: str,
+            sizeBytes: int,
+            url: str,
+            text: { ...str, description: 'Extracted text, when any' },
+          },
+        },
+        ToolCallPart: {
+          type: 'object',
+          required: ['type', 'callId', 'capabilityId', 'input'],
+          properties: {
+            type: { type: 'string', enum: ['tool-call'] },
+            callId: str,
+            capabilityId: str,
+            input: {},
+          },
+        },
+        ToolResultPart: {
+          type: 'object',
+          required: ['type', 'callId', 'capabilityId', 'output', 'structured'],
+          properties: {
+            type: { type: 'string', enum: ['tool-result'] },
+            callId: str,
+            capabilityId: str,
+            output: {},
+            structured: {
+              ...bool,
+              description:
+                'False when the capability declares no output schema',
+            },
+          },
+        },
+        ApprovalPart: {
+          type: 'object',
+          required: ['type', 'approvalId', 'question'],
+          properties: {
+            type: { type: 'string', enum: ['approval'] },
+            approvalId: str,
+            question: str,
+            decision: { type: 'string', enum: ['approved', 'rejected'] },
+          },
+        },
+        HumanInputPart: {
+          type: 'object',
+          required: ['type', 'requestId', 'question'],
+          properties: {
+            type: { type: 'string', enum: ['human-input'] },
+            requestId: str,
+            question: str,
+            questionCount: int,
+            outcome: { type: 'string', enum: ['answered', 'skipped'] },
+          },
+        },
         MessagePart: {
           description:
-            'One ordered piece of a message, discriminated by `type`. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.',
-          discriminator: { propertyName: 'type' },
+            'One ordered piece of a message, discriminated by `type`: the `mapping` names the schema each kind validates against (`TextPart` … `HumanInputPart`), so a discriminator-honouring validator resolves every part. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.',
+          discriminator: {
+            propertyName: 'type',
+            mapping: {
+              text: '#/components/schemas/TextPart',
+              reasoning: '#/components/schemas/ReasoningPart',
+              attachment: '#/components/schemas/AttachmentPart',
+              'tool-call': '#/components/schemas/ToolCallPart',
+              'tool-result': '#/components/schemas/ToolResultPart',
+              approval: '#/components/schemas/ApprovalPart',
+              'human-input': '#/components/schemas/HumanInputPart',
+            },
+          },
           oneOf: [
-            {
-              type: 'object',
-              required: ['type', 'text'],
-              properties: {
-                type: { type: 'string', enum: ['text'] },
-                text: str,
-              },
-            },
-            {
-              type: 'object',
-              required: ['type', 'text'],
-              description:
-                'The model’s reasoning ahead of its reply — display-only, never replayed to the model; it may quote the assistant’s own instructions verbatim, so it is not safe to render as the answer.',
-              properties: {
-                type: { type: 'string', enum: ['reasoning'] },
-                text: str,
-              },
-            },
-            {
-              type: 'object',
-              required: ['type', 'name', 'mediaType'],
-              properties: {
-                type: { type: 'string', enum: ['attachment'] },
-                name: str,
-                mediaType: str,
-                fileId: str,
-                sizeBytes: int,
-                url: str,
-                text: { ...str, description: 'Extracted text, when any' },
-              },
-            },
-            {
-              type: 'object',
-              required: ['type', 'callId', 'capabilityId', 'input'],
-              properties: {
-                type: { type: 'string', enum: ['tool-call'] },
-                callId: str,
-                capabilityId: str,
-                input: {},
-              },
-            },
-            {
-              type: 'object',
-              required: [
-                'type',
-                'callId',
-                'capabilityId',
-                'output',
-                'structured',
-              ],
-              properties: {
-                type: { type: 'string', enum: ['tool-result'] },
-                callId: str,
-                capabilityId: str,
-                output: {},
-                structured: {
-                  ...bool,
-                  description:
-                    'False when the capability declares no output schema',
-                },
-              },
-            },
-            {
-              type: 'object',
-              required: ['type', 'approvalId', 'question'],
-              properties: {
-                type: { type: 'string', enum: ['approval'] },
-                approvalId: str,
-                question: str,
-                decision: { type: 'string', enum: ['approved', 'rejected'] },
-              },
-            },
-            {
-              type: 'object',
-              required: ['type', 'requestId', 'question'],
-              properties: {
-                type: { type: 'string', enum: ['human-input'] },
-                requestId: str,
-                question: str,
-                questionCount: int,
-                outcome: { type: 'string', enum: ['answered', 'skipped'] },
-              },
-            },
+            ref('TextPart'),
+            ref('ReasoningPart'),
+            ref('AttachmentPart'),
+            ref('ToolCallPart'),
+            ref('ToolResultPart'),
+            ref('ApprovalPart'),
+            ref('HumanInputPart'),
           ],
         },
         Message: {

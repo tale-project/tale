@@ -31,10 +31,25 @@ export const NOTIFICATION_HINT_ENTITY = 'notification';
 export const VIDEO_LINK_HINT_ENTITY = 'video_link';
 
 /**
+ * A thread's parked sends — the "Queued — sends when the attachments are
+ * ready" tray above the composer. Every write to `app.deferred_sends` (park,
+ * claim, settle, re-park, cancel, the watchdog's clear) hints the sender
+ * under this entity, and the app keys the tray read under it. The backend
+ * settles the row the moment the fired turn persists the user message, but
+ * before the hint existed nothing told the tab: the tray read had no signal
+ * and no poll, so the row stayed on screen as "Queued" for the whole
+ * generation, until the thread stream's settle nudged the read.
+ */
+export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
+
+/**
  * An organization's AI-provider credentials — and everything derived from
- * them: the composer's model catalog is the set of models a credential can
- * serve, so it keys under this entity and a credential write reaches every
- * open composer within a hint round-trip (it used to refetch on every
- * mount instead, twice per chat page).
+ * them. What the credentials can serve is the answer behind the composer's
+ * model catalog, the agent model pickers, the runtime status on the
+ * providers page, the resolved vision model and the embedding
+ * recommendations, so every one of those reads keys under this entity: a
+ * credential write reaches each open one within a hint round-trip. A read
+ * keyed anywhere else keeps its first answer until the page reloads — which
+ * is how a newly added provider stayed invisible to the agent pickers.
  */
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';

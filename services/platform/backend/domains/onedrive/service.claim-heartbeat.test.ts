@@ -31,6 +31,8 @@ const CONFIG_ROW = {
   lastSyncAt: null,
   lastSyncStatus: null,
   errorMessage: null,
+  errorSince: null,
+  failureNotifiedAt: null,
 };
 
 function fakeSql(log: Query[]): Sql {

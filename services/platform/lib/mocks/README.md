@@ -1,88 +1,71 @@
-# lib/mocks
+# Local API mock gateway
 
-OpenAPI-driven mock gateway for **every third-party API the platform calls** —
-the OpenAI-compatible AI provider endpoints and all the connectors
-(Slack, GitHub, Confluence, Discord, Microsoft Graph, Gmail, Google Drive,
-Twilio, Tavily, Shopify). One Bun process serves them all, offline and
-deterministically, so the Playwright e2e suite, manual QA, and the
-spec-conformance contract tests never touch a live API.
+This gateway serves deterministic fixture responses for the platform's AI and connector tests. It is
+part of `@tale/platform`, not a separate Bun workspace. A passing mock test proves a request or UI
+contract; it does not prove a real provider's availability, output quality, or credentials.
 
-## How it works
+## Run the gateway
 
-```
-                         ┌─────────────────────────────────────────┐
-  provider baseUrl ─────▶│  GET  /health                           │
-  (e2e-mock.json)        │  POST /v1/chat/completions  → override   │  ← SSE + scenarios
-                         │  …/v1/*                     → Prism      │  ← embeddings/images/audio
-  connector calls ──────▶│  …/mock/<connector>/*     → Prism      │  ← one instance per spec
-  (rewritten, see below) └─────────────────────────────────────────┘
-```
-
-- **Specs** live in [`specs/`](./specs) — trimmed OpenAPI 3.1 docs covering only the
-  operations our connectors/providers actually call. Each response carries one
-  canonical `example`; with Prism's `mock.dynamic = false` that example is
-  returned byte-for-byte every time (the determinism the assertions rely on).
-- **`src/gateway.ts`** builds one [Prism](https://github.com/stoplightio/prism)
-  instance per spec (`src/prism-instance.ts`) and mounts it at the spec's
-  `mountPrefix` (`src/registry.ts`). The prefix is stripped before Prism matches
-  an operation, so spec paths mirror the real upstream (`/repos/{owner}/{repo}`,
-  `/api/conversations.list`, …).
-- **The one exception** is `POST /v1/chat/completions`: Prism can neither stream
-  Server-Sent Events nor branch a body on the request's _content_, so the chat
-  route is owned by `src/overrides/chat-completions.ts` with its deterministic content in
-  `src/overrides/canned.ts`. Everything else is pure-spec Prism.
-
-## Running it
+From `services/platform`:
 
 ```bash
-bun --filter "lib/mocks" start     # listens on :4141 (override with MOCKS_PORT)
-curl localhost:4141/health
+bun lib/mocks/start.ts
 ```
 
-The Playwright config (`services/platform/playwright.config.ts`) boots it
-automatically in hermetic mode (`E2E_MOCK_LLM` ≠ `0`).
+In another terminal:
 
-## Wiring it into the app (fully offline)
+```bash
+curl --fail http://127.0.0.1:4141/health
+```
 
-- **AI providers** need no special wiring — the provider config `baseUrl` points
-  at the gateway (`services/platform/tests/e2e/fixtures/config/default/providers/e2e-mock.json`
-  → `http://127.0.0.1:4141/v1`), which already covers chat, embeddings, image
-  generation, transcription, and TTS.
-- **Connectors** hardcode their upstream base URLs, so they are
-  redirected at the sandbox HTTP seam: when `TALE_MOCK_CONNECTORS_BASE` is set
-  (the Playwright config sets it to the gateway), `convex/node_only/connector_sandbox/
-helpers/mock_rewrite.ts` maps a known upstream origin (`api.github.com`,
-  `slack.com`, `*.atlassian.net`, …) to `<base>/mock/<connector>/…`. That host
-  table mirrors `src/registry.ts`; the contract tests catch drift.
+`MOCKS_PORT` overrides port 4141. Keep the chosen port in sync with the provider fixture and the test
+configuration. Playwright starts the gateway in its default mock mode; the docs screenshot runbook
+starts it explicitly.
 
-## Tests (`bun test`)
+## Routes and fixtures
 
-- `src/contract/openai-compat.test.ts` — the chat override scenarios + every
-  Prism-served AI endpoint, plus a byte-identical determinism check.
-- `src/contract/connectors.test.ts` — `resolveMockUrl` rewrite mapping + each
-  connector serving the exact shape its connector parses.
+| Route | Implementation |
+| --- | --- |
+| `GET /health` | Readiness probe |
+| `POST /v1/chat/completions` | Streaming and scenario overrides in `overrides/chat-completions.ts` |
+| `POST /v1/embeddings` | Deterministic embedding override in `overrides/embeddings.ts` |
+| Other `/v1/*` operations | OpenAI-compatible fixture spec |
+| `/mock/<connector>/*` | Connector OpenAPI examples, served through Prism |
 
-The real **connector → rewrite → gateway** path is exercised end-to-end (offline)
-by the Playwright suite. The existing `*_connector.test.ts` unit tests (which mock
-`globalThis.fetch` directly) are unchanged and still assert request URLs/sequencing.
+[`registry.ts`](registry.ts) lists mounted specs and their upstream host mappings. The gateway strips
+the mount prefix before matching the spec's operation. [`gateway.ts`](gateway.ts) constructs the
+handlers; [`specs/`](specs/) owns request and response examples. The specs cover the operations they
+list, not every operation an upstream service offers.
 
-## Adding / extending a spec
+## Connect a test organization
 
-1. Read the connector (`configs/platform/system/connectors/<name>/connector.yml`) for
-   the operations, paths, and the response fields it parses.
-2. Add `specs/connectors/<name>.openapi.yaml` — `servers: [{ url: /mock/<name> }]`,
-   paths = the full upstream path **after the hostname**, one `example` per response.
-3. Register it in `src/registry.ts` (and mirror the host → prefix in the Convex
-   `mock_rewrite.ts`).
-4. Add a contract test asserting the connector-critical shape.
+Configure an AI provider whose base URL points to `http://127.0.0.1:4141/v1`, connect a synthetic
+credential, and select a model from its catalog. The backend needs
+`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` to accept the local provider address. Document indexing also
+needs its own embedding configuration, a working knowledge database, and object storage.
 
-The gateway skips a registered-but-missing spec with a warning, so partial
-authoring is safe.
+The [screenshot seeder](../../tests/docs-screenshots/seed-demo-org.ts) performs those UI setup steps.
+Its [runbook](../../tests/docs-screenshots/README.md) describes the complete stack.
 
-## Note on container tests
+Connector fixtures are available at their `/mock/...` routes. The registry's `resolveMockUrl` helper
+maps known upstream hosts to those routes, but a helper and its unit tests do not intercept runtime
+HTTP. There is no blanket connector redirect wired into the current backend by setting
+`TALE_MOCK_CONNECTORS_BASE` alone. A test that exercises a connector must explicitly verify or
+configure its mock destination before running an external action.
 
-`services/platform/tests/integration/container-smoke-test.ts` only probes health endpoints and the
-sandbox `/v1/execute` contract — it makes no external AI/connector calls, so it
-already runs offline and does not need the gateway. If that suite ever drives
-chat or connector flows, add an `api-mocks` service to `compose.test.yml` and
-set `TALE_MOCK_CONNECTORS_BASE` + the provider `baseUrl` on the convex service.
+## Test and extend a fixture
+
+From `services/platform`:
+
+```bash
+bunx vitest run --project server lib/mocks/contract lib/mocks/overrides/docs-replies.test.ts
+```
+
+The contract tests check response shapes, deterministic model scenarios, and URL mapping. For a new
+operation, inspect the real connector's requests and parsed fields, add a representative example to
+its OpenAPI spec, then add a contract assertion for the fields the caller actually uses. Register a
+new spec in `registry.ts` and check the gateway startup output for missing-spec warnings.
+
+Chat scenario strings and documentation responses live under [`overrides/`](overrides/). Use them
+for controlled UI states; do not paste a mock response into documentation as evidence of real model
+reasoning or retrieval accuracy.

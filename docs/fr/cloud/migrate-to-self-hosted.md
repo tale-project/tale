@@ -1,50 +1,39 @@
 ---
-title: Migrer vers auto-hébergé
-description: Quand l'auto-hébergement bat Cloud, ce qui est transféré et ce qui ne l'est pas, et comment transporter ton organisation sans casser les agents en cours.
+title: Préparer le passage à l’auto-hébergement
+description: Organiser une migration Cloud accompagnée, valider la destination et prévoir le retour arrière.
 ---
 
-La migration de Cloud vers l'auto-hébergement est une vraie procédure, pas un basculement de réglage. Les données s'exportent, la nouvelle instance importe, le DNS bascule vers le nouvel hôte, et ton équipe se connecte dans la même organisation qu'avant — mêmes agents, mêmes chats, même historique d'audit. Ce tutoriel parcourt la procédure et pointe vers les endroits où elle déraille.
+Passer du Cloud à une instance auto-hébergée confie l’infrastructure à ton équipe. Prépare le déplacement avec Tale et l’opérateur de destination pour garder cohérents les données applicatives, les connaissances, les fichiers, la configuration et les clés de chiffrement.
 
-Va-y quand l'auto-hébergement convient vraiment mieux : la résidence des données exige du matériel sous ton contrôle, les coûts à l'échelle rendent on-premise moins cher que au-token, ou l'organisation a décidé de faire tourner la pile elle-même. Pour la plupart des équipes, Cloud reste le bon choix — relis [Onboarding Cloud](/fr/cloud/onboarding) si tu hésites encore.
+Prévois avec l’opérateur le transfert des bases de données, des fichiers, de la configuration et des secrets nécessaires. Les exports API couvrent des ressources précises ; ils ne remplacent pas une sauvegarde cohérente de l’instance.
 
-## Avant de commencer
+## Définir ce qui doit être conservé
 
-Mets ces choses en place avant d'exporter quoi que ce soit :
+Liste les organisations et les données concernées, l’interruption acceptable, la version cible et les personnes chargées de la validation. Vérifie les prérequis d’infrastructure dans le [guide d’installation](/fr/self-hosted/install/quickstart).
 
-- Un hôte cible qui répond aux prérequis auto-hébergé — voir [Démarrage rapide](/fr/self-hosted/install/quickstart) pour le cahier des charges.
-- Le contrôle DNS sur le domaine que ton organisation utilise actuellement ; tu le balanceras lors de la bascule.
-- Une fenêtre de maintenance d'au moins une heure. L'import lui-même est plus rapide, mais la propagation DNS et la validation ajoutent du temps.
-- Une confirmation de sauvegarde récente dans le journal d'audit de ton organisation Cloud. Rien n'est supprimé dans la source pendant une migration, mais le bundle d'export est ta preuve que l'état source était cohérent.
+| Domaine | Questions à résoudre avant le déplacement |
+| --- | --- |
+| Base applicative | Quelle sauvegarde constitue une source cohérente, et quelles versions peuvent la restaurer ? |
+| Stockages de connaissances | Quels stockages, index et paramètres d’embeddings de chaque organisation faut-il déplacer ? |
+| Fichiers et configuration | Quelles données du stockage objet et quels répertoires appartiennent au déploiement ? |
+| Chiffrement | Quelles clés de chiffrement et de signature faut-il conserver en sécurité ? |
+| Services externes | Quelles URL de rappel, destinations de webhooks, règles réseau ou identifiants changent ? |
+| Travail en arrière-plan | Quelles exécutions doivent se terminer ou être suspendues avant la copie finale ? |
 
-## Ce qui est transféré et ce qui ne l'est pas
+Prépare le déplacement avec ton opérateur à l’aide du [guide de sauvegarde et de restauration](/fr/self-hosted/operate/backups-and-restore). Un ensemble d’exports API ne remplace pas ce plan.
 
-Transféré : chats, threads, messages, pièces jointes, documents, embeddings de connaissances, agents, versions d'agents, workflows, exécutions, journaux d'audit, membres, rôles, équipes, branding, clés API, métadonnées de connectors.
+## Répéter la restauration sur une destination isolée
 
-Pas transféré : les connectors externes doivent être réauthentifiées contre la nouvelle instance (les identifiants vivent chez le fournisseur, pas dans le bundle d'export) ; les workflows actifs en cours se mettent en pause et reprennent sur la nouvelle instance après la bascule ; les audios vocaux conservés au-delà de la fenêtre de rétention de l'organisation restent dans le stockage objet Cloud jusqu'à leur purge.
+Restaure une copie dans un environnement isolé avant la bascule. Contrôle les automatisations sortantes et les tâches planifiées pour éviter les messages en double ou les modifications externes involontaires pendant l’essai.
 
-## Étape 1 — Exporter
+Vérifie la connexion, les rôles, des documents représentatifs, les fichiers de projet, une réponse de chat et les intégrations critiques. Compare les nombres et quelques enregistrements avec la source. Le démarrage du service n’est que la première vérification.
 
-Ouvre **Paramètres > Organisation** sur Cloud et clique **Export**. Le dialogue lance l'export en arrière-plan et envoie par e-mail un lien de téléchargement une fois terminé. L'export est un seul bundle chiffré ; l'e-mail contient la clé de déchiffrement. Télécharge le bundle et garde la clé séparément.
+## Prévoir la bascule et le retour arrière
 
-## Étape 2 — Mettre en place l'instance cible
+Précise qui bloque les écritures, prend la dernière copie, change le routage et valide la destination. Définis les conditions de retour arrière et empêche les deux instances d’accepter des modifications simultanément. Conserve la source et les sauvegardes vérifiées jusqu’à l’acceptation.
 
-Sur l'hôte cible, suis [Démarrage rapide](/fr/self-hosted/install/quickstart) jusqu'à l'étape premier-admin. N'invite pas encore d'utilisateurs — l'import écrase la liste des membres. Confirme que la nouvelle instance démarre et que tu peux te connecter comme Owner.
+Adapte les origines publiques, TLS, les URL de rappel SSO et les destinations des intégrations à la nouvelle adresse. Les sessions et les identifiants externes peuvent nécessiter un renouvellement : teste-les sans supposer qu’ils sont transférés.
 
-## Étape 3 — Importer
+## Transmettre l’exploitation
 
-Sur l'instance cible, connecte-toi comme Owner et visite `/_internal/import` (lié depuis la page Paramètres après une installation neuve). Téléverse le bundle, colle la clé de déchiffrement, et clique **Import**. L'import est une opération longue ; la page montre la progression par classe de données. Quand la page se résout à **Import complete**, la nouvelle instance porte l'état complet de l'organisation source.
-
-## Étape 4 — Basculer le DNS
-
-Mets à jour l'enregistrement DNS du domaine de l'organisation pour pointer vers la nouvelle instance. Une fois la propagation effectuée et le TLS de la nouvelle instance en bonne santé, les utilisateurs qui se connectent arrivent sur l'instance auto-hébergée avec leurs identifiants existants. L'organisation Cloud devient en lecture seule à ce moment — pour éviter la dérive, archive-la sous **Paramètres > Organisation** sur Cloud après quelques jours de confiance.
-
-## Dépannage
-
-- **L'export reste bloqué à « preparing ».** Les très grosses organisations (>100 Go) prennent plus de temps que la fenêtre e-mail suppose. Ouvre un ticket support ; l'export va jusqu'au bout en arrière-plan.
-- **L'import échoue sur un schéma incompatible.** Ton instance cible fait tourner une version Tale plus ancienne que ce que l'export Cloud attend. Mets à jour la cible avant de retenter — le bundle est compatible vers l'avant, pas vers l'arrière.
-- **Les membres ne peuvent pas se connecter après la bascule.** Les cookies de session sont scopés à l'ancien hôte. Les membres se ré-authentifient une fois ; les réglages SSO et 2FA traversent.
-- **Les workflows affichent « en pause » après l'import.** Attendu — l'import préserve l'état mais ne reprend pas automatiquement les exécutions en cours. Ouvre chaque workflow et clique **Resume** après avoir confirmé que l'instance cible est joignable depuis les déclencheurs externes.
-
-## Où ça s'utilise
-
-La migration est en pratique une opération à sens unique — une fois auto-hébergé, tu y restes, sauf changement structurel. La migration inverse (auto-hébergé vers Cloud) suit la même forme avec les mêmes outils et est prise en charge, mais rare. Si tu es encore sur Cloud et tu lis ça pour le contexte, la page à enchaîner est [Aperçu auto-hébergé](/fr/self-hosted/overview) ; elle nomme ce que tu prends sur les épaules.
+Confirme la supervision, les sauvegardes, les responsables des restaurations, les mises à niveau et les contacts d’assistance. Consigne les vérifications acceptées et communique l’adresse à utiliser. Les tâches régulières comprennent ensuite les [mises à niveau](/fr/self-hosted/operate/upgrades), [l’observabilité](/fr/self-hosted/operate/observability/operations) et les exercices de restauration.

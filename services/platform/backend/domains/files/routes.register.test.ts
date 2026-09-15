@@ -97,6 +97,19 @@ afterEach(() => {
 });
 
 describe('POST /files/register', () => {
+  it('rejects the reserved product-image source before trusting declared image metadata', async () => {
+    const res = await register({
+      fileName: 'fake.png',
+      contentType: 'image/png',
+      source: 'product-image',
+      skipRagIndexing: true,
+    });
+
+    expect(res.status).toBe(400);
+    expect(registerUpload).not.toHaveBeenCalled();
+    expect(stampImageVisionMetadata).not.toHaveBeenCalled();
+  });
+
   it('queues indexing for a document, in the transaction that wrote the row', async () => {
     const res = await register({ threadId: 'thread_1' });
 

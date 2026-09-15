@@ -1,40 +1,36 @@
 ---
-title: Facturation
-description: Ce que Tale Cloud facture, comment les budgets coupent les coûts qui dérapent, et où la facture apparaît dans le produit.
+title: Offres, factures et utilisation
+description: Comprendre les frais Cloud, l’utilisation des modèles et les contrôles disponibles dans Tale.
 ---
 
-La facturation sur Cloud est mesurée, pas par siège. Tu paies pour les tokens consommés par les chats et les agents, les minutes vocales, les générations d'images et le stockage ; la plateforme elle-même vient avec l'organisation. Cette page parcourt une ligne de facture, liste les composants mesurés, et pointe vers les contrôles de budget qui évitent les surprises.
+Ton contrat Cloud définit les frais d’hébergement, d’assistance, de places et de stockage. L’utilisation des modèles est un poste distinct : le fournisseur et le modèle choisis influencent le coût de chaque requête IA.
 
-La facture arrive chaque mois par e-mail et est aussi visible dans le produit sous **Paramètres > Facturation**. Cloud facture dans la devise de facturation de ton organisation, qui par défaut est USD à l'inscription et peut être changée avant la première facture.
+## Distinguer les frais
 
-## Une ligne de facture déroulée
+Tale propose Community, gratuit en auto-hébergement, et Enterprise pour le Cloud géré ou les installations auto-hébergées avec assistance. Les deux éditions incluent les mêmes fonctions. Enterprise ajoute des prestations professionnelles et de l’assistance ; les contrôles du produit ne dépendent pas d’un déblocage payant.
 
-Une ligne sur la facture lit `Models — Anthropic Claude Sonnet — 1.2M tokens — $4.32`. Tale l'a assemblée depuis le ledger d'usage par message : chaque réponse de chat enregistre le modèle utilisé, le compte de tokens, et le coût au tarif actif quand l'appel s'est terminé. Les lignes s'agrègent par fournisseur et par modèle par période de facturation. Le détail est téléchargeable en CSV depuis le même écran.
+La [page des tarifs](https://tale.dev/pricing) indique les prix actuels des places et du stockage, les périodes de facturation et les services inclus. Elle présente l’utilisation IA aux tarifs des fournisseurs, sans majoration. Le devis accepté et le contrat de service définissent les conditions de ton organisation.
 
-## Plans
+## Obtenir une facture ou modifier tes coordonnées
 
-Tale propose deux plans — **Community** et **Enterprise**. Community est l'édition open source auto-hébergée ; tu la fais tourner sur ta propre infrastructure et le concept de facturation décrit sur cette page ne s'applique pas. **Enterprise** est le plan géré (Cloud ou auto-hébergé) avec un SLA de support, des contrôles de rétention des journaux d'audit, SSO, le DPA et l'accès à des régions au-delà du défaut. Le plan affecte les frais fixes mensuels et les barrières fonctionnelles, pas le coût par appel ; le tarif mesuré pour les tokens, la voix et le stockage ci-dessous s'applique à Enterprise sur Cloud.
+Contacte l’équipe Tale par ton canal d’assistance Enterprise pour les factures, les coordonnées de facturation, les changements de places ou une question sur un montant. L’interface commune du produit ne comporte pas de page **Paramètres > Facturation**. Les vues d’utilisation servent au suivi opérationnel, pas à consulter les factures.
 
-## Composants mesurés
+Indique la période, l’organisation et la référence de facture dans ta demande. N’envoie jamais de clé de fournisseur ni de clé API.
 
-| Composant  | Unité             | Compté comme                                               | Où le voir                                                                |
-| ---------- | ----------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Modèles    | Tokens (in + out) | Par appel fournisseur ; marge en plus du tarif fournisseur | [Analytique d'utilisation](/fr/platform/admin/governance/usage-analytics) |
-| Voix (TTS) | Caractères parlés | Par réponse d'agent rendue en audio                        | Analytique d'utilisation                                                  |
-| Voix (STT) | Secondes audio    | Par message utilisateur enregistré                         | Analytique d'utilisation                                                  |
-| Images     | Générations       | Par image retournée par le modèle                          | Analytique d'utilisation                                                  |
-| Stockage   | Go-mois           | Usage du stockage objet moyenné sur la période             | Page de facturation                                                       |
+## Comprendre l’utilisation des modèles
 
-## Budgets et dépassements
+Ouvre [l’analyse de l’utilisation](/fr/platform/admin/governance/usage-analytics) pour consulter l’activité enregistrée. Choisis une période, puis examine les répartitions par modèle ou par personne pour en trouver l’origine.
 
-Règle les budgets sous [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Une **Budget rule** plafonne la dépense mensuelle par utilisateur, par équipe, par rôle ou par organisation. Atteindre un budget se lit comme un toast clair — **Limite d'utilisation atteinte** — et met en pause la portée affectée jusqu'à ce que le budget soit relevé ou que la période bascule. La précédence par défaut est `utilisateur > équipe > rôle > défaut` — la règle la plus spécifique l'emporte.
+Le coût affiché dans une vue d’utilisation et le montant d’une facture répondent à des besoins différents. Ton contrat et les règles de facturation du fournisseur déterminent le montant à payer. Le total du Dashboard ne remplace ni une facture définitive ni un justificatif fiscal.
 
-Un **Warning threshold (%)** sur la même règle émet une notification quand l'usage franchit le seuil sans bloquer. Va vers l'avertissement quand tu veux savoir sans interrompre ; va vers les limites dures quand les dépassements sont une urgence.
+<Tip>
 
-## Où trouver l'usage
+Avant de proposer un nouveau modèle à toute l’équipe, teste une tâche représentative et compare la qualité du résultat avec l’utilisation enregistrée. Une requête moins chère n’est utile que si son résultat convient au travail attendu.
 
-La vue la plus riche est [Analytique d'utilisation](/fr/platform/admin/governance/usage-analytics) sous Gouvernance — elle décompose l'usage par **Top Assistants**, **Top Models**, **Top Voice Models** et **Per-User Usage**, tous filtrables par plage de dates. La page Facturation dans Paramètres montre la vue niveau facture ; Analytique d'utilisation montre la vue opérationnelle.
+</Tip>
 
-## Où ça s'inscrit
+## Définir des limites
 
-La facturation est la page phare de l'opérateur ; [Analytique d'utilisation](/fr/platform/admin/governance/usage-analytics) est la page quotidienne. Si le coût de ton organisation est surtout des tokens, la page à mettre en favori est la table Top Models — elle fait remonter quels modèles l'équipe a adoptés et te dit si un basculement vers une alternative moins chère ferait la différence. Pour les utilisateurs auto-hébergés, le concept de facturation ne s'applique pas (tu paies ton fournisseur directement) ; la page de visibilité des coûts, si.
+Configure les contrôles nécessaires dans [les politiques et les limites](/fr/platform/admin/governance/policies-and-limits). Vérifie la portée de chaque règle et teste-la avec un compte concerné. Les limites de la plateforme s’appliquent à l’activité qu’elles couvrent ; elles ne modifient pas ton contrat d’hébergement.
+
+Avec Community en auto-hébergement, tu exploites l’infrastructure et paies directement tes fournisseurs. Les mêmes pages d’utilisation et de politiques t’aident à suivre cette activité.

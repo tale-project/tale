@@ -1,14 +1,17 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ItemOf } from '@/app/lib/backend/contract';
+import { backendKey } from '@/app/lib/backend/query-keys';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
- * Read hooks for the AI-providers settings page. Credentials come from a
- * reactive Convex query (masked by construction — the server never selects
- * ciphertext), so writes through the credential mutations/actions propagate
- * without manual invalidation. The provider catalogs come from a Convex
- * ACTION (it reads shipped config files and cached live catalogs), so it goes
- * through `useActionQuery`; the explicit catalog refresh invalidates its key.
+ * Read hooks for the AI-providers settings page. Credentials are masked by
+ * construction (the server never selects ciphertext) and key under the
+ * provider-credential entity, as does every read derived from them: a
+ * credential write invalidates that entity in this tab and the backend hints
+ * it to every other session. The provider catalogs are read from the shipped
+ * config files and the cached live catalogs — no credential changes them — so
+ * only the explicit catalog refresh invalidates their key.
  */
 
 /** One masked credential row as listed for the settings page. */
@@ -22,7 +25,8 @@ export type ProviderCatalog =
 /** One model entry of a provider's catalog. */
 export type CatalogModel = ProviderCatalog['models'][number];
 
-/** React-query key of the catalog listing — shared with the refresh hook. */
+/** React-query key of the catalog listing — shared by every catalog read and
+ * the refresh hook, so one refresh reaches them all. */
 export function providerCatalogsQueryKey(organizationId: string) {
   return ['providers', 'catalogs', organizationId] as const;
 }
@@ -48,9 +52,15 @@ export function useProviderCatalogs(organizationId: string) {
 export type HarnessStatus =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 
-/** React-query key of the harness status listing. */
+/** React-query key of the harness status listing. The status is resolved
+ * from the credentials, so it keys under their entity: adding the first key
+ * flips the section from "no usable credential" without a reload. */
 function harnessStatusQueryKey(organizationId: string) {
-  return ['providers', 'harness-status', organizationId] as const;
+  return backendKey(
+    organizationId,
+    PROVIDER_CREDENTIAL_HINT_ENTITY,
+    'harness-status',
+  );
 }
 
 /** How each shipped harness would run for this org — resolved server-side

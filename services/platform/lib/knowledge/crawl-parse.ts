@@ -8,6 +8,7 @@
  * exercised only against the live web.
  */
 
+import { stripRuntimeLocations } from '../net/error-message-hygiene';
 import { decodeHtmlEntities } from './html-to-text';
 
 /** What robots.txt tells a well-behaved crawler: the paths disallowed for
@@ -306,4 +307,102 @@ export function robotsHeaderForbidsIndexing(value: string | null): boolean {
         : directive,
     )
     .some((directive) => directive === 'noindex' || directive === 'none');
+}
+
+/** True when a robots `Disallow` rule blocks this URL — judged on the path
+ * and the query together, the string robots.txt rules are written against
+ * (`Disallow: /search?q=` is a rule on the query); a URL that does not
+ * parse is nobody's to block. */
+export function isUrlDisallowed(
+  url: string,
+  disallow: readonly string[],
+): boolean {
+  if (disallow.length === 0) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return isDisallowed(parsed.pathname + parsed.search, disallow);
+}
+
+/**
+ * The same-site links of a page a scan may FOLLOW: the host, port and
+ * asset rules of {@link normalizeCandidateUrl}, then the robots rules —
+ * de-duplicated, in page order. The one seam every admission path shares.
+ * The discovery walk applied the rules and the rendered-page admission did
+ * not, so every disallowed link a rendered page carried joined the frontier,
+ * was fetched, indexed and served (2026-09-14 evaluation, h5).
+ */
+export function discoverableLinks(
+  html: string,
+  baseUrl: string,
+  hosts: ReadonlySet<string>,
+  disallow: readonly string[],
+): string[] {
+  const links = new Set<string>();
+  for (const href of extractLinks(html)) {
+    const normalized = normalizeCandidateUrl(href, baseUrl, hosts);
+    if (!normalized) continue;
+    if (isUrlDisallowed(normalized, disallow)) continue;
+    links.add(normalized);
+  }
+  return [...links];
+}
+
+/** The `<meta name="robots">` content that forbids indexing, or null:
+ * `noindex` or `none` among its comma-separated directives, whichever
+ * attribute order and quoting the page uses. A meta aimed at one named
+ * agent (`googlebot`) is not this crawler's to honour — the `*` stance of
+ * {@link parseRobots}. The header form (`X-Robots-Tag`) was honoured while
+ * the tag, the form most sites use, was not (2026-09-14 evaluation, h5). */
+export function robotsMetaNoindexDirective(html: string): string | null {
+  for (const match of html.matchAll(/<meta\s[^>]*>/gi)) {
+    const tag = match[0];
+    const name = /\bname\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(tag);
+    const nameValue = (name?.[1] ?? name?.[2] ?? name?.[3] ?? '')
+      .trim()
+      .toLowerCase();
+    if (nameValue !== 'robots') continue;
+    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(
+      tag,
+    );
+    const directives = decodeHtmlEntities(
+      (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').trim(),
+    );
+    const forbids = directives
+      .split(',')
+      .map((directive) => directive.trim().toLowerCase())
+      .some((directive) => directive === 'noindex' || directive === 'none');
+    if (forbids) return directives;
+  }
+  return null;
+}
+
+/** What a page's `lastError` may carry: the first line of the cause with
+ * the toolchain's file-and-line fragments removed — a customer-facing
+ * field, never a Playwright call log or an OpenSSL source path
+ * (2026-09-14 evaluation, h5). Secrets are the writer's redaction. */
+export function publicPageError(message: string): string {
+  const firstLine = message.split(/\r?\n/, 1)[0] ?? '';
+  return stripRuntimeLocations(firstLine);
+}
+
+/** How a rendered page's failure reads on its row: the browser's own load
+ * budget expiring is the `timeout` the contract names, not a generic render
+ * failure, and the message names the budget instead of the call log. */
+export function classifyRenderReason(reason: string): {
+  readonly kind: 'timeout' | 'render_failed';
+  readonly message: string;
+} {
+  const timeout = /^page\.goto: Timeout (\d+)ms exceeded/i.exec(reason);
+  if (timeout) {
+    const seconds = Math.round(Number(timeout[1]) / 1000);
+    return {
+      kind: 'timeout',
+      message: `The browser could not load the page within ${seconds} seconds`,
+    };
+  }
+  return { kind: 'render_failed', message: publicPageError(reason) };
 }

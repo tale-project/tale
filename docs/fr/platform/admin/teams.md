@@ -1,11 +1,9 @@
 ---
 title: Équipes
-description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations.
+description: Regroupe les personnes pour partager des ressources et attribuer les conversations.
 ---
 
-Une équipe est un groupe nommé de membres qui partage l’accès aux documents, projets, skills et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
-
-Cette page est la référence pour ce qu’une équipe possède, comment marche l’appartenance, et comment la frontière équipe interagit avec les permissions basées sur les rôles documentées sous [Membres et rôles](/fr/platform/admin/members-and-roles). Lis-la une fois quand tu mets les équipes de l’org en place ; reviens quand tu réorganises.
+Les équipes donnent à plusieurs personnes accès au même travail. Le rôle détermine les actions autorisées ; l’appartenance aux équipes contribue à définir les projets, documents, skills et conversations accessibles. Les propriétaires et les admins gèrent les équipes dans **Paramètres > Équipes**.
 
 <Frame caption="Paramètres > Équipes — chaque équipe de l’organisation avec son nombre de membres, à côté de l’action Créer une équipe.">
 
@@ -13,39 +11,49 @@ Cette page est la référence pour ce qu’une équipe possède, comment marche 
 
 </Frame>
 
-## Ce qu’une équipe possède
-
-Une équipe porte l’appartenance et un ensemble de ressources qui lui sont cadrées. Les ressources sont :
-
-- **Documents et dossiers** — un document ou un dossier cadré sur une équipe n’est visible et éditable que par les membres de cette équipe. Les documents à l’échelle de l’org restent visibles pour quiconque a le bon rôle.
-- **Projets** — un projet peut être assigné à une équipe et partagé avec d’autres ; les membres des équipes héritent de l’accès au projet sans être ajoutés un par un.
-- **Skills** — un skill enregistré avec visibilité équipe n’apparaît qu’aux membres de ces équipes ; les onglets de la bibliothèque de skills séparent **Organisation**, **Équipes** et **Personnel**.
-- **Conversations** — une conversation peut être assignée à une équipe autant qu’à un responsable individuel, depuis le sélecteur d’assignation de son en-tête. La visibilité suit cette assignation : une file d’équipe est visible pour les membres de cette équipe, une assignation personne pour cette personne, et les administrateurs et propriétaires voient tout. Les conversations vraiment non assignées (ni personne ni équipe) restent aux admins pour le triage — associe cela au [Routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations) pour que le courrier entrant atterrisse dans une équipe dès l’arrivée.
-
-Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l’autorise. Les équipes sont une couche de cadrage _additive_ — elles rétrécissent la visibilité, jamais ne l’élargissent.
-
 ## Créer une équipe
 
-Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l’équipe un nom (`Support`, `Ventes`, `Opérations`) et coche ses premiers membres dans la liste — laisse-la vide et tu es ajouté automatiquement, car une équipe doit garder au moins un membre. Le nom apparaît partout où l’équipe surgit : pickers, badges, accès aux documents cadré par équipe et champ d’assignation d’un projet.
+1. Sélectionne **Créer une équipe** et renseigne le champ **Nom de l'équipe**, par exemple `Support client`.
+2. Sélectionne les membres de l’organisation à ajouter. Si tu ne sélectionnes personne, Tale t’ajoute à l’équipe.
+3. Sélectionne **Créer une équipe**. Vérifie la nouvelle ligne et le nombre de membres dans la liste.
 
-La ligne de l’équipe porte les actions du quotidien : **Membres** gère qui est dans l’équipe, **Modifier l'équipe** la renomme, **Supprimer l'équipe** la retire. Ce qu’une équipe peut atteindre découle des endroits où elle est choisie — le cadre d’accès d’un document, l’assignation d’un projet, la visibilité d’un skill.
+Choisis un nom reconnaissable dans les sélecteurs d’accès et d’attribution. Le formulaire accepte jusqu’à 80 caractères. Créer une équipe ne lui attribue pas tous les projets ou conversations existants : sélectionne-la sur les ressources qu’elle doit partager.
 
-## Ajouter et retirer des membres
+## Modifier le nom ou les membres
 
-Ouvre la ligne de l’équipe et clique sur **Ajouter des membres**. Le picker liste les membres de l’org ; en cocher un l’ajoute à l’équipe. Un membre peut appartenir à plusieurs équipes ; son accès est l’union de chaque équipe dans laquelle il est plus la portée à l’échelle de l’org de son rôle. Retirer un membre d’une équipe arrache la visibilité cadrée équipe à la requête suivante ; les chats en vol se terminent, mais le thread suivant ne voit pas les ressources de l’équipe.
+Ouvre la ligne d’une équipe pour consulter ses membres. Son menu propose **Voir**, **Modifier** et **Supprimer**. Utilise **Modifier** pour changer le nom ou les membres, puis enregistre et vérifie le nombre de membres.
 
-## Équipe versus rôle
+Une personne peut appartenir à plusieurs équipes. Elle peut conserver un accès grâce à une autre équipe ou à une attribution directe. La retirer d’une équipe ne supprime donc pas forcément tous ses accès à une ressource. Vérifie les autres voies d’accès lorsque tu retires des droits.
 
-Le rôle décide ce qu’une personne peut faire ; l’équipe décide à quoi elle peut le faire. Un utilisateur de rôle Membre dans l’équipe Support peut lire les documents de l’équipe support mais ne peut pas les éditer ; un utilisateur de rôle Éditeur dans l’équipe Support peut les lire et les écrire mais ne peut pas voir ceux des Ventes. Les équipes n’accordent jamais des capacités que le rôle n’a pas ; les rôles n’élargissent jamais la visibilité au-delà du cadre équipe.
+<Tip>
 
-Quand tu as besoin d’une décision de permission que les rôles et équipes existants ne peuvent pas exprimer, le levier suivant est une politique de gouvernance — voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour comment les politiques s’attachent aux rôles, et la section gouvernance pour les champs de politique eux-mêmes.
+Renomme une équipe existante si son objectif change mais que les mêmes personnes doivent garder leurs accès. La supprimer puis la recréer produit une autre équipe et modifie les attributions des ressources existantes.
 
-## Supprimer une équipe
+</Tip>
 
-Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est définitive — l’équipe est partie, tous ses membres en sont retirés, et ils perdent la tranche cadrée équipe de leur accès. Pas d’annulation. Va vers supprimer quand une équipe est vraiment retirée, pas quand elle se réorganise.
+## Associer une équipe au travail
 
-Ce que l’équipe cadrait est relogé, pas abandonné : un projet qu’elle possédait passe à la première équipe avec laquelle il était partagé, ou s’ouvre à toute l’organisation s’il n’y en a aucune ; un dossier ou un document garde ses autres équipes ; une conversation dans la file de l’équipe redevient non assignée. Rien ne s’ouvre plus largement que ce que l’équipe supprimée permettait déjà.
+| Ressource | Rôle de l’équipe |
+| --- | --- |
+| Projets | Un projet peut appartenir à une équipe et être partagé avec d’autres. |
+| Documents et dossiers | L’accès par équipe limite les lecteurs, en complément des permissions du rôle. |
+| Skills | La visibilité par équipe rend un skill disponible aux équipes choisies. |
+| Conversations | L’attribution à une équipe place le travail dans sa file. |
 
-## Où cela s’inscrit
+Appartenir à une équipe n’autorise pas une action interdite par le rôle. Un Éditeur et un Membre de la même équipe peuvent avoir des droits de modification différents. Les propriétaires et les admins conservent leurs accès d’administration : une équipe ne sert pas à leur masquer du travail.
 
-Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de skills](/fr/platform/workspace/skills) pour comment une instruction partagée atteint tout le monde, [Connectors (vue Admin)](/fr/platform/admin/connectors) pour les identifiants qu’appellent les automatisations d’une équipe, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.
+Pour les conversations entrantes, [les règles de routage](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations) peuvent choisir l’équipe dès l’arrivée. Sans attribution à une personne ou à une équipe, la conversation reste dans le triage des administrateurs.
+
+## Retirer une équipe sans perdre de vue les accès
+
+Avant de supprimer une équipe, examine ses projets, les documents partagés, sa file de conversations et les imports qui lui sont associés. Réattribue le travail dont l’accès doit rester limité. Sélectionne ensuite **Supprimer** dans le menu de la ligne et lis la confirmation.
+
+<Warning>
+
+La suppression d’une équipe est irréversible. Un projet qu’elle possède passe à la première équipe restante avec laquelle il était partagé. S’il n’en reste aucune, le projet devient accessible à toute l’organisation. Vérifie les accès avant la suppression : davantage de personnes pourraient accéder au projet.
+
+</Warning>
+
+Les documents et dossiers perdent l’équipe supprimée dans leur liste d’accès, mais conservent les autres. Une conversation perd son attribution à l’équipe ; si personne ne lui est attribué non plus, elle revient au triage des administrateurs. Les configurations d’import perdent aussi cette association. Les comptes des membres ne sont pas supprimés.
+
+Les équipes synchronisées par [SSO d’entreprise ou SCIM](/fr/platform/admin/enterprise-sso) dépendent aussi des règles du fournisseur d’identité. Vérifie cette source avant de faire une modification locale que tu souhaites conserver.

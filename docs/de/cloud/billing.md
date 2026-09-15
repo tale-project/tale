@@ -1,40 +1,36 @@
 ---
-title: Abrechnung
-description: Was Tale Cloud verrechnet, wie Budgets ausufernde Kosten stoppen und wo die Rechnung im Produkt erscheint.
+title: Tarife, Rechnungen und Nutzung
+description: Cloud-Kosten, Modellnutzung und die Kostenkontrollen in Tale verstehen.
 ---
 
-Abrechnung auf Cloud ist gemessen, nicht pro Sitz. Du zahlst für Tokens, die von Chats und Agents verbraucht werden, für Sprachminuten, Bildgenerierungen und Speicher; die Plattform selbst kommt mit der Org. Diese Seite führt eine Rechnungszeile durch, listet die gemessenen Komponenten und verweist auf die Budgetkontrollen, die Überraschungen verhindern.
+Dein Cloud-Vertrag legt die Kosten für Hosting, Support, Plätze und Speicher fest. Hinzu kommt die Modellnutzung: Anbieter und Modell beeinflussen die Kosten jeder KI-Anfrage.
 
-Die Rechnung kommt monatlich per E-Mail und ist auch im Produkt unter **Einstellungen > Abrechnung** sichtbar. Cloud rechnet in der Abrechnungswährung deiner Org ab, die bei der Anmeldung auf USD voreingestellt ist und vor dem ersten Rechnungslauf geändert werden kann.
+## Die Kosten unterscheiden
 
-## Eine durchgespielte Rechnungszeile
+Tale bietet die kostenlose Community-Ausgabe für den Eigenbetrieb und Enterprise für die verwaltete Cloud oder betreute eigene Installationen. Beide enthalten dieselben Produktfunktionen. Enterprise ergänzt Dienstleistungen und Support; die Produktkontrollen sind nicht einem gesonderten Tarif vorbehalten.
 
-Eine Zeile auf der Rechnung lautet `Models — Anthropic Claude Sonnet — 1.2M tokens — $4.32`. Tale hat sie aus dem Pro-Nachricht-Nutzungs-Ledger zusammengesetzt: jede Chat-Antwort speichert das genutzte Modell, die Token-Zahl und den Preis zur Rate, die beim Abschluss des Aufrufs aktiv war. Zeilen aggregieren pro Provider und Modell pro Abrechnungsperiode. Das Detail ist als CSV vom selben Bildschirm herunterladbar.
+Die [Preisseite](https://tale.dev/pricing) nennt aktuelle Preise für Plätze und Speicher, Abrechnungszeiträume und enthaltene Leistungen. KI-Nutzung wird dort zu Anbieterpreisen ohne Aufschlag ausgewiesen. Für deine Organisation gelten das vereinbarte Angebot und der Dienstleistungsvertrag.
 
-## Plan-Tiers
+## Rechnungen finden oder Rechnungsdaten ändern
 
-Tale bietet zwei Tiers — **Community** und **Enterprise**. Community ist die selbstgehostete Open-Source-Edition; du betreibst sie auf deiner eigenen Infrastruktur, und das Abrechnungskonzept dieser Seite gilt dafür nicht. **Enterprise** ist der gemanagte Tier (Cloud oder Self-hosted) mit Support-SLA, Audit-Log-Aufbewahrungs-Kontrollen, SSO, AVV und Zugriff auf Regionen jenseits des Defaults. Der Tier beeinflusst feste Monatsgebühren und Feature-Gates, nicht Pro-Aufruf-Kosten; das gemessene Pricing für Tokens, Sprache und Speicher unten gilt für Enterprise auf Cloud.
+Wende dich bei Rechnungen, Rechnungsdaten, Änderungen der Platzanzahl oder Fragen zu einer Position an deinen Enterprise-Supportkontakt. Die gemeinsame Produktoberfläche hat keine Seite **Einstellungen > Abrechnung**. Nutzungsansichten dienen dem Betrieb und sind kein Rechnungsportal.
 
-## Gemessene Komponenten
+Nenne bei Rückfragen den Abrechnungszeitraum, die Organisation und die Rechnungsnummer. Sende keine Anbieter- oder API-Schlüssel mit.
 
-| Komponente    | Einheit              | Gezählt als                                       | Wo zu sehen                                                       |
-| ------------- | -------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
-| Modelle       | Tokens (rein + raus) | Pro Provider-Aufruf; Aufschlag auf Provider-Rate  | [Nutzungs-Analyse](/de/platform/admin/governance/usage-analytics) |
-| Sprache (TTS) | Gesprochene Zeichen  | Pro als Audio gerenderter Agent-Antwort           | Nutzungs-Analyse                                                  |
-| Sprache (STT) | Audio-Sekunden       | Pro vom User aufgenommener Nachricht              | Nutzungs-Analyse                                                  |
-| Bilder        | Generierungen        | Pro vom Modell zurückgegebenem Bild               | Nutzungs-Analyse                                                  |
-| Speicher      | GB-Monat             | Object-Store-Verbrauch über die Periode gemittelt | Abrechnungsseite                                                  |
+## Modellnutzung nachvollziehen
 
-## Budgets und Überschreitungen
+Unter [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) siehst du die erfasste Nutzung. Grenze den Zeitraum ein und prüfe die Aufschlüsselung nach Modell oder Person, um die Aktivität zuzuordnen.
 
-Setz Budgets unter [Policies and limits](/de/platform/admin/governance/policies-and-limits). Eine **Budget rule** deckelt monatliche Ausgaben pro User, pro Team, pro Rolle oder pro Org. Ein Budget zu treffen liest sich als klarer Toast — **Nutzungslimit erreicht** — und pausiert den betroffenen Bereich, bis das Budget angehoben oder die Periode umgedreht wird. Die Default-Vorrangordnung ist `user > team > role > default` — die spezifischste Regel gewinnt.
+Ein angezeigter Nutzungswert und eine Rechnung erfüllen unterschiedliche Zwecke. Der Vertrag und die Abrechnungsregeln des Anbieters bestimmen den geschuldeten Betrag. Eine Dashboard-Summe ist weder eine Schlussrechnung noch ein Steuerbeleg.
 
-Eine **Warning threshold (%)** auf derselben Regel emittiert eine Benachrichtigung, wenn die Nutzung die Schwelle überschreitet, ohne zu blockieren. Greif zur Warnung, wenn du wissen, aber nicht unterbrechen willst; greif zu harten Limits, wenn Überschreitungen ein Notfall sind.
+<Tip>
 
-## Wo Nutzung zu finden ist
+Teste ein neues Modell vor dem breiten Einsatz mit einer typischen Aufgabe. Prüfe Ergebnisqualität und erfasste Nutzung zusammen. Eine günstigere Anfrage hilft nur, wenn dein Team das Ergebnis verwenden kann.
 
-Die reichste Ansicht ist [Nutzungs-Analyse](/de/platform/admin/governance/usage-analytics) unter Governance — sie bricht die Nutzung nach **Top Assistants**, **Top Models**, **Top Voice Models** und **Per-User Usage** auf, alle nach Datumsbereich filterbar. Die Abrechnungsseite in den Einstellungen zeigt die Rechnungs-Ansicht; die Nutzungs-Analyse zeigt die operative Ansicht.
+</Tip>
 
-## Wo das hineinpasst
+## Grenzen für den Arbeitsbereich setzen
 
-Abrechnung ist die Schlagzeilenseite des Betreibers; [Nutzungs-Analyse](/de/platform/admin/governance/usage-analytics) ist die alltägliche. Sind die Kosten deiner Org hauptsächlich Tokens, ist die Top-Models-Tabelle die zu setzende Lesezeichen-Seite — sie zeigt, auf welche Modelle sich das Team festgelegt hat, und sagt dir, ob ein Wechsel zu einer billigeren Alternative etwas brächte. Für Self-hosted-User gilt das Abrechnungskonzept nicht (du zahlst deinen Provider direkt); die Kosten-Sichtbarkeitsseite schon.
+Konfiguriere die benötigten Kontrollen unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). Prüfe den Geltungsbereich jeder Regel und teste sie mit einem betroffenen Konto. Plattformlimits gelten für die jeweils erfasste Aktivität; sie ändern deinen Hosting-Vertrag nicht.
+
+Bei Community im Eigenbetrieb betreibst du die Infrastruktur und bezahlst deine Anbieter direkt. Dieselben Nutzungs- und Richtlinienseiten helfen dir, diese Aktivität nachzuvollziehen.

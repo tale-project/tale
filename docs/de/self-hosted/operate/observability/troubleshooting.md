@@ -1,180 +1,81 @@
 ---
-title: Troubleshooting
-description: Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben.
+title: Fehler einer selbst gehosteten Instanz beheben
+description: Beginne bei der fehlerhaften Aktion, prüfe den zuständigen Dienst und stelle den Betrieb ohne vorschnelles Löschen wieder her.
 ---
 
-Diese Seite ist das symptomorientierte Nachschlagen, wenn jetzt gerade etwas falsch ist. Jeder Abschnitt fängt mit dem an, was der Benutzer tatsächlich meldet — was der Browser zeigt, woran der Agent scheitert, was der Upload-Bildschirm sagt — und geht zurück zur Ursache und zum Fix. Alles, was hier nicht gelistet ist, ist ein Kandidat für einen neuen Abschnitt, sobald es zweimal aufgetaucht ist.
+Halte Zeitpunkt, betroffene Organisation, URL oder Aktion und Fehlercode fest, bevor du etwas neu startest. Prüfe, ob ein einzelner Eintrag, eine Organisation oder die gesamte Bereitstellung betroffen ist. Davon hängt ab, ob du eine Datei, eine Organisationsverbindung oder gemeinsame Infrastruktur untersuchst.
 
-Die proaktive Seite — Signale, auf die zu alarmieren sich lohnt, was in Prometheus zu verdrahten ist — lebt in [Operations](/de/self-hosted/operate/observability/operations). Diese Seite ist für den Moment, nachdem die Page gefeuert hat.
+Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <service> --tail 200`. In deinem eigenen Compose-Projekt verwendest du `docker compose ps` und `docker compose logs --tail=200 <service>`. Dienstnamen wie `platform` und `backend-api` unterscheiden sich von erzeugten Containernamen.
 
-## Browser sieht 502 oder „Bad Gateway"
+## Öffentliche URL, Zertifikat oder Anmeldung scheitert
 
-Der `tale-proxy`-Container hat die Plattform erreicht, aber die Plattform hat nicht geantwortet. Entweder ist `tale-platform` down oder sein Health-Endpoint unerreichbar. Prüf zuerst den Container-Zustand:
+| Symptom | Prüfung | Nächster Schritt |
+| --- | --- | --- |
+| Verbindung scheitert oder TLS warnt | DNS, öffentliche Ports, Hostname und Aussteller des Zertifikats, Proxy-Protokolle. | Behebe die betroffene Ebene. Installiere bei einer internen CA das öffentliche Stammzertifikat auf dem Client; `docker exec ... caddy trust` ändert dessen Vertrauensspeicher nicht. |
+| Proxy antwortet mit 502/503 | Ermittle Pfad und Zieldienst. `/api/health` und Webdateien nutzen `platform`, Anwendungsanfragen `backend-api`. | Prüfe Startfehler und Bereitschaft des Dienstes vor Änderungen am Proxy. |
+| `400 BODY_LENGTH_MISMATCH` oder `400 BODY_CHUNK_MALFORMED` | Der Anfragekörper endet vor seiner angegebenen Länge oder enthält fehlerhafte HTTP/1.1-Chunk-Grenzen. | Korrigiere Längenangabe oder Übertragungsformat beim Sender und wiederhole dann die korrekt formatierte Anfrage. |
+| Anmeldung führt zurück zur Anmeldeseite | Cookies und Callback-Anfragen im Browser; `SITE_URL`, weitere Ursprünge, Basispfad und Anbieterregistrierung. | Korrigiere Ursprung oder Callback und erstelle Dienste nach Umgebungsänderungen neu. |
 
-```bash
-docker compose ps tale-platform
-docker compose logs --tail=200 tale-platform
-```
+Eine ladende Oberfläche ohne Daten deutet zunächst auf Anwendungsanfragen, nicht zwingend auf den Webserver. Prüfe fehlgeschlagene Browseranfragen und `backend-api`-Protokolle. Proxy, abgelaufene Sitzung, fehlende Rechte und Backend-Ausfall brauchen unterschiedliche Lösungen. [TLS und Domains](/de/self-hosted/configuration/tls-and-domains) sowie [Authentifizierung](/de/self-hosted/configuration/authentication) erklären die Einrichtung.
 
-Startet der Container neu, zeigen die Logs am Boden den Crash-Grund — meist eine fehlkonfigurierte Env-Var (`SITE_URL`-Mismatch, fehlender `BETTER_AUTH_SECRET`) oder ein Postgres-Verbindungsfehler. Fix die Env, starte neu, versuche es erneut. Ist der Container healthy, aber der Browser sieht immer noch 502, ist der Proxy der Verdächtige — `docker compose restart tale-proxy` räumt die meisten davon weg.
+## Uploads oder Downloads scheitern
 
-## Browser sieht eine TLS-Warnung
+Vergleiche zuerst die Serverantwort mit der Browseranfrage an die vorsignierte URL. Ist nur eine Organisation betroffen, kann ihre eigene Speicherverbindung die Ursache sein, obwohl der Standard-Bucket erreichbar ist.
 
-`TLS_MODE=selfsigned` ist die häufigste Ursache — der Browser vertraut der internen CA von Caddy beim ersten Besuch nicht. Vertrau entweder der CA auf dem Host (`docker exec tale-proxy caddy trust`) oder wechsel zu `TLS_MODE=letsencrypt` für ein echtes Zertifikat. Der vollständige Modus-Walk lebt in [TLS und Domains](/de/self-hosted/configuration/tls-and-domains).
+| Beobachtung | Bedeutung und Reaktion |
+| --- | --- |
+| `object store (skipped)` beim Start | Das Standard-Zugangsdatenpaar fehlt. Prüfe `OBJECT_STORE_ACCESS_KEY` und `OBJECT_STORE_SECRET_KEY`. Erzeuge für einen vorhandenen Speicher keine Ersatzwerte, ohne dessen Zugangsdaten abzustimmen. |
+| `object store (ignored)` | Die Datei wird vom Betreiber verwaltet. Prüfe `default/object-storage/connection.json`; der Umgebungsabgleich lässt sie bewusst unverändert. |
+| `seeded` oder `reconciled` | Die Standardverbindung wurde aus der Umgebung geschrieben oder aktualisiert. Das beweist keine vollständigen Objektrechte oder funktionierende Browserroute. |
+| Speicherprüfung meldet Ausfall | Prüfe Endpunkt, Verbindung, Zugangsdaten, Bucket-Existenz und den genauen Backend-Fehler. |
+| Server-Verbindungstest besteht, Browser-Upload scheitert | Prüfe öffentlichen Endpunkt, Zertifikatsvertrauen und Bucket-CORS für den tatsächlichen Browser-Ursprung. Erlaube die für den Dateifluss nötigen Methoden `GET`, `PUT` und `HEAD`. |
 
-Ist der Modus bereits `letsencrypt`, prüf die Proxy-Logs auf ACME-Fehlschläge — DNS löst nicht auf die öffentliche IP des Hosts und Port 80 ist vom öffentlichen Internet nicht erreichbar sind die zwei häufigen Ursachen.
+`tale_backend_store_up` erfasst Bereitstellungsstandards und misst Erreichbarkeit, keinen vollständigen Upload. Ein Objektspeicher-`403` kann trotzdem den Wert `1` ergeben. Prüfe nach der Korrektur einen kontrollierten Upload und Download. [Datenresidenz](/de/self-hosted/configuration/data-residency) erklärt Verbindungsänderungen und Dateiumzug.
 
-## UI lädt, aber keine Daten erscheinen
+## Ein Dokument wird nicht indexiert
 
-Die UI-Shell sind statische Assets, von `tale-platform` serviert; alles andere fliesst durch `tale-backend-api` — die App-API über HTTP und der Live-Update-SSE-Stream auf `/events`. Wenn das Backend nicht erreichbar ist, lädt die Shell und bleibt leer. Symptome: Spinner, die nie auflösen, „reconnecting"-Toasts, der Chat-Input, der nie eine Nachricht annimmt.
+Prüfe Status und Fehlergrund des Dokuments, dann die `backend-worker`-Protokolle. Kontrolliere Embedding-Modell und Zugangsdaten der Organisation, Vektordimensionen, Wissensdatenbankverbindung und Dateiformat. Ein erfolgreicher Upload belegt nur, dass die Originaldatei gespeichert wurde.
 
-```bash
-docker compose logs --tail=200 backend-api
-```
+War ein Worker oder eine Abhängigkeit ausgefallen, stelle sie wieder her und prüfe, ob der Job weiterläuft oder **Jetzt indexieren** unter [Wissen](/de/platform/knowledge/documents) nötig ist. Bei beschädigten, verschlüsselten oder nicht unterstützten Dateien korrigierst du die Quelle vor einem neuen Versuch. Lösche ein Dokument nicht als ersten Diagnoseschritt: Identität, Verlauf und Referenzen können wichtig sein.
 
-Der backend-api-Container startet wahrscheinlich neu (such nach einem Crash in den Logs) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart backend-api` neu — Sessions sind serverseitig, und Clients verbinden den SSE-Stream neu, also ist der Restart sicher.
+## Ein Website-Scan meldet einen Zertifikatsfehler
 
-## Jeder Upload wird abgelehnt
+Der Crawl-Fehler `tls_error` bezeichnet einen gescheiterten TLS-Verbindungsaufbau, etwa wegen eines abgelaufenen Zertifikats, eines falschen Hostnamens oder einer nicht vertrauenswürdigen Zertifikatskette. Korrigiere das Website-Zertifikat oder die Vertrauenseinstellungen der Crawler-Laufzeit und starte danach einen neuen Scan. Dieselbe Anfrage erneut zu senden repariert kein Zertifikatsvertrauen. Deaktiviere die Zertifikatsprüfung nicht, um den Fehler zu verdecken.
 
-Keine einzige Datei kommt durch, auf keinem Screen. S3-kompatibler Speicher ist das einzige
-Blob-Backend, ein Deployment ohne einen brauchbaren lehnt deshalb jeden Upload ab, statt auf etwas
-anderes auszuweichen. Welcher Fall vorliegt, sagt das Boot-Log:
+`network_error` weist dagegen auf einen Verbindungsfehler hin. Lies die zugrunde liegende Ursache und prüfe DNS, Routing und Verfügbarkeit des Dienstes. [Websites crawlen](/de/platform/knowledge/crawling) erklärt Seitenfehler und Scan-Ergebnisse.
 
-```bash
-docker compose logs backend-api | grep 'object store'
-```
+## Wissens-Postgres stürzt beim Import ab
 
-| Zeile | Was zu tun ist |
-| ----- | -------------- |
-| `object store (skipped)` | `OBJECT_STORE_ACCESS_KEY` oder `OBJECT_STORE_SECRET_KEY` fehlt. Der Prozess hat für beide keinen Default; setz beide und starte das Backend neu. |
-| `object store (ignored)` | Die Verbindungsdatei trägt `"managedBy": "operator"`, die Variablen tun also nichts. Editiere `default/object-storage/connection.json` im Config-Volume, oder entferne die Markierung, um die Datei der Umgebung zurückzugeben. |
-| `bucket … does not exist and this key may not create it` | Leg den Bucket selbst an, oder gib `s3:CreateBucket` frei. |
-| *gar keine Zeile* | Der Store stimmte mit der Umgebung überein, und der Start hatte nichts zu melden — die Konfiguration passt, sieh dir also die Erreichbarkeit unten an. |
+Wiederholte Meldungen `PANIC: corrupted page pointers` oder `signal 6` können auf einen beschädigten BM25-Index hinweisen. Prüfe Datenbankprotokolle und das Ergebnis der automatischen Reparatur unter [Container-Architektur](/de/self-hosted/operate/container-architecture). Ermittle die genaue Korpusdatenbank: Im mitgelieferten Stack ist es `tale_knowledge` in `db`; andere Bereitstellungen verwenden einen separaten Dienst oder externen Host.
 
-Prüf dann, ob das Backend den Store wirklich erreicht, statt nur für einen konfiguriert zu sein:
-
-```bash
-curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
-```
-
-`tale_backend_store_up{store="object_store"} 0` heißt: Zugangsdaten, Endpoint oder Netzwerkpfad
-stimmen nicht; das Backend-Log benennt den Fehler, sobald die Gauge kippt.
-
-Ist der Start sauber und die Gauge `1`, liegt der Fehler im Browser, nicht im Backend: Presignte
-Uploads laufen direkt vom Browser zum Store, ein externer Bucket braucht deshalb eine CORS-Policy,
-die deinen `SITE_URL`-Origin mit `GET`, `PUT` und `HEAD` zulässt. Der Verbindungstest in der App
-läuft serverseitig und besteht trotzdem — genau deshalb zeigt sich das nur als fehlschlagender
-Upload. Die Browser-Konsole benennt es als blockierte Cross-Origin-Anfrage.
-
-## Uploads stecken in „indexing"
-
-Die Dokument-Ingestion läuft im Backend-Worker und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass der Worker die Korpus-Datenbank nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Worker-Logs und die Korpus-Datenbank:
-
-```bash
-docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
-docker compose ps db
-```
-
-Zeigen die Logs Verbindungsfehler zur Korpus-Datenbank (`knowledge-db` im Netz, auf einem Single-Host-Deploy in `db` gefaltet), starte sie neu (`docker compose restart db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
-
-## Wissensdatenbank startet bei jedem Upload neu
-
-Jede Dokument-Ingestion scheitert auf dieselbe Art: Die Korpus-Datenbank (`knowledge-db`, auf einem Single-Host-Deploy in `db` gefaltet) startet neu, der Backend-Worker verliert seine Verbindung, und der nächste Upload löst denselben Neustart aus. Das Server-Log — eine Datei unter `/var/lib/postgresql/data/log/` im Container; `docker compose logs` trägt nur die Ausgabe des Entrypoints — benennt den Fehler jedes Mal:
-
-```bash
-docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
-```
-
-```text
-PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
-LOG:  server process (PID 4711) was terminated by signal 6: Aborted
-```
-
-Der BM25-Keyword-Index auf `private_knowledge.chunks` enthält eine Seite, die nie initialisiert wurde, und ein Stopp im Crash-Modus des Datenbank-Containers lässt genau so eine zurück: Der Server erweitert die Index-Datei für einen laufenden Write, `SIGKILL` trifft ein, bevor die Seite geschrieben ist, und die Crash-Recovery hat kein WAL, das sie dafür einspielen könnte. `tale-db`-Images bis v0.5.7 haben Postgres mit `SIGTERM` gestoppt, was Postgres als *smart* shutdown liest — es wartet, bis jede Client-Session beendet ist. Ein Client außerhalb von Compose, der eine Verbindung hält (ein Backend auf dem Host, ein offenes `psql`), hat den Stopp über die Grace-Period hinausgeschoben, Docker hat den Server abgeschossen, und der nächste Start lief als Crash-Recovery. Gewöhnliche Tabellen und Indizes überstehen das; `pg_search` trifft die Null-Seite beim nächsten Write, bricht mit PANIC ab, und Postgres startet zur Recovery neu — bei jedem Upload.
-
-Bestätige, dass der Index der Schuldige ist, bevor du etwas reparierst. Öffne eine Session auf der Korpus-Datenbank — beide Statements lesen nur:
-
-```bash
-docker compose exec knowledge-db psql -U tale -d tale_knowledge
-```
+Diese Abfrage in einer berechtigten SQL-Sitzung auf der richtigen Datenbank prüft nur den genannten Index:
 
 ```sql
-select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+SELECT * FROM pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
 ```
 
-Ein gesunder Index besteht jede Prüfung (`passed = t`); ein beschädigter scheitert an `segment_metadata_valid` oder lässt sich gar nicht lesen. Um die Seite selbst zu sehen, gibt `pageinspect` den Header der letzten Index-Seite aus — `0 | 0 | 0` ist die nie initialisierte Seite, eine gesunde Seite zeigt `24 | 8184 | 8184`:
-
-```sql
-create extension if not exists pageinspect;
-select lower, upper, special
-from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
-  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
-```
-
-Dann baue den Index neu. Er ist aus `private_knowledge.chunks` abgeleitet, also geht nichts verloren und nichts muss erneut hochgeladen werden:
+Eine fehlende Funktion, ein Rechtefehler oder ein Timeout bestätigt keinen Indexschaden. Ist der Schaden belegt und die automatische Reparatur erfolglos, sichere den Zustand und plane eine Datenbankwartung. Einen abgeleiteten Index neu aufzubauen ist etwas anderes als Dokumenttabellen zu löschen:
 
 ```sql
 REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
 ```
 
-Optional baust du auch den Vektor-Index neu (er existiert, sobald das erste Embedding gespeichert wurde) und gibst die verwaisten Schluss-Seiten der Tabelle frei:
+Dieser nicht nebenläufige Befehl kann Arbeit blockieren. Stimme ihn mit dem Datenbankbetrieb ab, prüfe danach den Index erneut und kontrolliere den Import. Führe keine spekulativen Index- oder Erweiterungsbefehle in der falschen Datenbank aus. Wiederkehrende Schäden erfordern die Prüfung von Plattenzustand und erzwungenen Stopps nach Ablauf der Wartezeit.
 
-```sql
-REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
-VACUUM private_knowledge.chunks;
-```
+## Chat oder Automatisierung stoppt
 
-Die Ingestion läuft beim nächsten Durchlauf des Workers weiter. `tale-db`-Images neuer als v0.5.7 stoppen Postgres mit `SIGINT` — dem *fast* shutdown, der Clients trennt, einen Checkpoint schreibt und binnen Sekunden beendet, auch während Clients verbunden sind — und `compose.yml` setzt `stop_signal: SIGINT`, damit auch ein älteres Image dasselbe Signal bekommt. Stoppe den Stack mit `docker compose stop` oder `docker compose down` und lass die 60-Sekunden-Grace-Period laufen (die tale-CLI stoppt Container auf demselben Weg); `docker kill` und dem Host den Strom zu ziehen sind die zwei Wege, die weiterhin in einem Stopp im Crash-Modus enden.
+Prüfe den Chat- oder Lauf-Fehler und die zuständigen API-/Worker-Protokolle. Anbieter-`429`, verweigerte Zugangsdaten, Ausführungs-Timeout, ausstehende Freigabe und unterbrochener Browser-Stream sind verschiedene Zustände. Eine Freigabe braucht eine Entscheidung, keinen Neustart. Hinter einem getrennten Stream kann die Operation weiterlaufen; prüfe ihr gespeichertes Ergebnis vor einer Wiederholung.
 
-## Chat-Antworten hören mitten im Stream auf
+Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Harness-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
 
-Der Token-Stream vom Upstream-Anbieter ist abgefallen — entweder hat der Anbieter rate-limited, die Verbindung ist getimeoutet, oder der Service des Anbieters ist degradiert. Prüf zuerst die Status-Seite des Anbieters; schau dann in die Plattform-Logs:
+## Sandbox-Netzzugriff wird verweigert
 
-```bash
-docker compose logs --tail=200 tale-platform | grep -E "429|503|stream"
-```
+Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALLOWLIST` muss den benötigten Hostnamen enthalten; private Ziele und Cloud-Metadaten bleiben blockiert. Für HTTPS-Tunnel gilt die unterstützte Portregel. Bestätige das gewünschte Ziel, bevor du eine Freigabeliste erweiterst. Erstelle den Egress-Dienst nach Umgebungsänderungen neu.
 
-Ein `429` ist der häufige Fall. Entweder trifft das Budget der Org das Rate-Limit des Anbieters, oder der Anbieter-Schlüssel selbst ist gedrosselt. Das Default-Modell der Org auf einen weniger ausgelasteten Anbieter umzuschalten räumt das Symptom weg, während das Upstream abkühlt.
+Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS, Zertifikat oder Konto. Bewahre den konkreten Anfragefehler im Störungsbericht auf.
 
-## Speichern scheitert mit „saving failed"-Toast
+## Schreibzugriffe scheitern oder Speicher läuft voll
 
-Das Backend konnte nicht in Postgres schreiben. Entweder ist `tale-db` down oder seine Platte ist voll:
+Prüfe Datenbankverbindung, freien Platz, Verbindungsbelegung und Sperren. Stoppe vermeidbares Wachstum und stelle Kapazität nach deinem Datenbankverfahren wieder her. Lösche keine Volume-Inhalte, setze keine Verschlüsselungsschlüssel zurück und erwarte keine automatische Wiederholung fehlgeschlagener Schreibzugriffe. Prüfe vor einem erneuten Versuch, ob die ursprüngliche Operation bereits gespeichert wurde.
 
-```bash
-docker compose ps tale-db
-docker compose exec db df -h /var/lib/postgresql/data
-```
-
-Eine Platte bei 100 % ist der Fehler, der die meisten überraschten Gesichter erzeugt. Schaff Platz, starte `tale-db` neu, und die gepufferten Writes flushen. Hat die Platte Platz, ist der Verdächtige Verbindungs-Pool-Erschöpfung oder ein Lock — starte `backend-api` neu, um den Pool zu räumen.
-
-## „Run code"-Tool scheitert mit „egress denied"
-
-Der `tale-sandbox-egress`-Container ist der einzige ausgehende Netzwerk-Pfad für sandboxierten Code; ist er down oder fehlkonfiguriert, scheitert jede ausgehende Anfrage aus der Sandbox geschlossen. Prüf zuerst den Egress-Container:
-
-```bash
-docker compose ps tale-sandbox-egress
-docker compose logs --tail=100 tale-sandbox-egress
-```
-
-Ist der Container healthy und du hast `SANDBOX_EGRESS_ALLOWLIST` gesetzt, hat die Anfrage die Allowlist getroffen — erweitere die Variable in `.env` und erzeuge `tale-sandbox-egress` neu. Ohne Allowlist ist der Proxy auf Hostname-Ebene offen; prüf stattdessen das Ziel: für HTTPS wird nur Port 443 getunnelt, und Cloud-Metadaten-Adressen sowie private Adressbereiche sind auf IP-Ebene immer blockiert.
-
-## Sign-in läuft zurück in die Sign-in-Seite
-
-`SITE_URL` passt nicht zu dem, was der Browser tatsächlich angefragt hat. Auth-Cookies sind auf die URL gescopt, auf der die Anfrage landete; ein Mismatch (Trailing Slash, fehlender Port, `http` vs `https`, Base-Path-Präfix) bedeutet, dass das beim Callback gesetzte Cookie bei der nächsten Anfrage nicht mitgeschickt wird.
-
-Fix `.env`:
-
-```bash
-SITE_URL=https://tale.example.com  # exakt, was der Benutzer tippt
-```
-
-Erstell den Plattform-Container neu (`docker compose up -d --force-recreate tale-platform`), damit die Änderung im gerenderten HTML landet.
-
-## Wo du Hilfe bekommst
-
-Self-hosted-Instanzen telefonieren nicht heim, also fängt Support bei dir an. Die zwei Kanäle:
-
-- **GitHub Issues** — Bugs und reproduzierbare Probleme. Der [tale-project/tale](https://github.com/tale-project/tale/issues)-Tracker hat ein Template, das nach dem Diagnose-Bundle fragt, das `tale diagnostics` produziert.
-- **Discord** — Fragen, Konfigurations-Debatten, „ist das ein Bug"-Triage. Die Einladung lebt im Repo-README.
-
-Reproduzierbare Diagnose macht jeden Kanal schneller. `tale diagnostics` sammelt sanitised Logs, Env-Vars (Secrets redigiert) und Container-Health in ein einzelnes Archiv, das es wert ist, angehängt zu werden.
+Gib bei einer Hilfsanfrage Versionen, bereinigte Fehler, Zeitraum, betroffenen Umfang und Reproduktionsschritte an. `tale diagnostics` erstellt ein Diagnosepaket. Prüfe es vor dem Teilen, denn Bereitstellungsdetails können weiterhin sensibel sein. Reproduzierbare Fehler gehören in den [Issue-Tracker des Projekts](https://github.com/tale-project/tale/issues).

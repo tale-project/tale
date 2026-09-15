@@ -68,6 +68,13 @@ export function useBackendHints(orgId: string | undefined): void {
           void queryClient.invalidateQueries({
             queryKey: backendEntityPrefix(org, hint.entity),
           });
+          // Entry lists display the indexing state of their backing document.
+          // The indexing worker emits document hints as that state changes.
+          if (hint.entity === 'document') {
+            void queryClient.invalidateQueries({
+              queryKey: backendEntityPrefix(org, 'knowledge_entry'),
+            });
+          }
         }
       } catch (error) {
         console.warn('[backend-hints] unparseable hint event:', error);

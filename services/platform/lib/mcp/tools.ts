@@ -20,6 +20,7 @@
  */
 
 import { METHODS, type Method } from '../engine/api/dispatch';
+import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 
 /** The three groups the inventory is presented in — the settings page and the
  * docs table both read the list in this order. */
@@ -249,6 +250,32 @@ const SAVED_VERSION: Record<string, unknown> = {
   description: 'A saved version number — list_versions shows them.',
 };
 
+/** The REST `Idempotency-Key` rule, as a tool argument: printable ASCII,
+ * one to 255 characters. */
+const IDEMPOTENCY_KEY: Record<string, unknown> = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 255,
+  pattern: '^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$',
+  description:
+    'Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters.',
+};
+
+/** One trigger kind, strictly: a key of another kind is refused by name. */
+const TRIGGER_KIND = (
+  kind: string,
+  properties: Record<string, unknown>,
+): Record<string, unknown> => ({
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind'],
+  properties: {
+    kind: { const: kind },
+    enabled: { type: 'boolean' },
+    ...properties,
+  },
+});
+
 /** No `type`: an automation's own `inputs` schema may be an array or a
  * scalar, and the engine validates the value against it — the tool schema
  * only says where the input goes. */
@@ -325,8 +352,12 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     {
       name: AUTOMATION_NAME,
       version: {
-        ...SAVED_VERSION,
-        description: 'Read this saved version instead of the latest one.',
+        oneOf: [
+          { type: 'integer', minimum: 1 },
+          { type: 'string', enum: ['deployed'] },
+        ],
+        description:
+          'Read this saved version instead of the latest one; "deployed" reads the version that actually runs (list_automations shows deployedVersion).',
       },
     },
     ['name'],
@@ -346,14 +377,29 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     {
       name: AUTOMATION_NAME,
       trigger: {
-        type: 'object',
         description:
-          'The trigger — {kind: "schedule" | "webhook" | "event", …}; get_docs describes each kind.',
+          'The trigger — {kind: "schedule" | "webhook" | "event", …}, one shape per kind (a key of another kind is refused by name); get_docs describes each kind. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one.',
+        discriminator: { propertyName: 'kind' },
+        oneOf: [
+          TRIGGER_KIND('schedule', {
+            cron: { type: 'string', maxLength: 200 },
+            timezone: { type: 'string', maxLength: 100 },
+          }),
+          TRIGGER_KIND('webhook', { rotateToken: { type: 'boolean' } }),
+          TRIGGER_KIND('event', { event: { type: 'string', maxLength: 200 } }),
+        ],
       },
     },
     ['name', 'trigger'],
   ),
-  run_deployed: object({ name: AUTOMATION_NAME, input: RUN_INPUT }, ['name']),
+  run_deployed: object(
+    {
+      name: AUTOMATION_NAME,
+      input: RUN_INPUT,
+      idempotencyKey: IDEMPOTENCY_KEY,
+    },
+    ['name'],
+  ),
   start_run: object(
     {
       name: AUTOMATION_NAME,
@@ -368,6 +414,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
         description:
           'The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.',
       },
+      idempotencyKey: IDEMPOTENCY_KEY,
     },
     ['name'],
   ),
@@ -414,6 +461,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
     {
       query: {
         ...NON_BLANK,
+        maxLength: KNOWLEDGE_QUERY_MAX,
         description: 'What you want to do, in the words a person would use.',
       },
       limit: {
@@ -440,6 +488,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
         description:
           "Which stored credential to act as. Omit to use the organization's default.",
       },
+      idempotencyKey: IDEMPOTENCY_KEY,
     },
     ['id'],
   ),
@@ -447,7 +496,9 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
     {
       query: {
         ...NON_BLANK,
-        description: 'What to look for, in the words a person would use.',
+        maxLength: KNOWLEDGE_QUERY_MAX,
+        description:
+          'What to look for, in the words a person would use (at most 2,000 characters — the REST search’s cap).',
       },
       limit: {
         type: 'integer',
@@ -457,9 +508,9 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
       },
       corpus: {
         type: 'string',
-        enum: ['private', 'public-web', 'all'],
+        enum: ['private', 'public-web', 'all', 'documents', 'web'],
         description:
-          "Which knowledge to search: the organization's own documents, its crawled web pages, or both. Default 'all'.",
+          "Which knowledge to search: the organization's own documents ('private' — the REST search spells it 'documents'), its crawled web pages ('public-web' — REST: 'web'), or both ('all', the default). Either spelling is taken.",
       },
     },
     ['query'],

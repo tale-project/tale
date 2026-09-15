@@ -1,58 +1,46 @@
 ---
 title: Member
-description: Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox.
+description: Start with chat, shared knowledge, and the work your organization has made available to you.
 ---
 
-Member is the default role most people in most orgs carry. It is the end-user surface of Tale — chat with the assistant, browse the knowledge base, reply to contact email in an installed automation's Inbox, and leave feedback on replies. Members do not build agents, do not configure providers, do not install automations. They use the product the Editors and Developers built for them.
+As a Member, use Chat to ask questions and read the knowledge and project content shared with you. Your organization’s setup and team memberships determine the resources you see. You can also maintain your account preferences and create reusable skills.
 
-This overview names what a Member can do and points at the per-feature pages. Members typically land on Chat first; the rest of this page is what to read once chat alone is not enough — when you want to know where a citation came from, where an approval is decided, or what a project bundles.
-
-## What Member covers
-
-The Member surface is intentionally narrow. The three buckets are:
-
-- **Chat** — pick a model (or leave it on **Auto**), send a message, read the reply. The chat surfaces attachments, voice mode, arena mode for side-by-side comparison, and the Canvas pane when a reply produces more than the chat can hold inline.
-- **Knowledge** — browse documents, contacts, products, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
-- **Inbox** — reply in the **Inbox** tab an installed email automation adds. Members answer when an agent hands a conversation back; installing the automation itself is an admin action.
-
-Approvals are not a Member surface in this version. A connector write that needs sign-off parks the automation run, and the decision is made on that run's detail page by whoever opens it — [Approval concepts](/platform/approvals/concepts) explains the card.
-
-The org configuration settings — providers, connectors, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and Notifications.
-
-Opening a notification link takes you to its task, document or conversation. If you need to log in first, Tale keeps that destination and opens it after login. You still need access to the organization and the linked content. For a private deployment, connect to its required network before opening the link.
-
-## Pages in this section
-
-This section is short — the Member surface is the cross-section of pages that Editors build for and that everyone uses. The deeper reading lives in the per-feature areas.
+## Start your day
 
 <CardGroup cols="2">
 
-<Card title="Chat" icon="message-circle" href="/platform/chat/overview">
+<Card title="Ask a useful question" icon="message-circle" href="/tutorials/member/chat-effectively">
 
-The everyday entry point — chat, agents, attachments, citations.
-
-</Card>
-
-<Card title="Knowledge" icon="library" href="/platform/knowledge/overview">
-
-The read-only window into what the org has loaded.
+Practice with a source, check the facts, and ask a follow-up.
 
 </Card>
 
-<Card title="Built-in automations" icon="inbox" href="/platform/automations/builtin">
+<Card title="Read shared knowledge" icon="library" href="/platform/knowledge/overview">
 
-The email automations that add an Inbox tab — and what each one does.
+Find documents, facts, and records, and understand why a source may be unavailable.
 
 </Card>
 
-<Card title="Approvals" icon="check-check" href="/platform/approvals/concepts">
+<Card title="Understand projects" icon="folder-open" href="/platform/projects/concepts">
 
-Where a connector write waits for a decision, and what approving or rejecting does.
+Learn which files and conversations belong to a project and which chats remain personal.
+
+</Card>
+
+<Card title="Manage your account" icon="user" href="/platform/member/preferences">
+
+Edit your profile and understand saved preferences and chat management.
 
 </Card>
 
 </CardGroup>
 
-## Where this fits
+Switch between daily tasks with the [main navigation](/platform#navigation): returning to a section reopens your recent work, while choosing the active section again takes you back to its starting point.
 
-Member is the role that consumes what the Editor builds and the Admin governs. The natural first read is [Chat](/platform/chat/overview) — it is where every Member spends most of their time, and most of the other Member surfaces fan out from a chat that wanted to do something more.
+## Follow a notification
+
+A notification link opens the related task, document or conversation. If you need to sign in first, Tale keeps the destination and opens it after sign-in. Your account still needs access to the organization and the linked content. For a private deployment, connect to its required network before opening the link.
+
+## If an action is missing
+
+Members read the shared library; Editors and higher roles maintain its content. Automations and technical setup require Developer or administrator permissions. Ask for the access needed for your task rather than assuming every visible resource is editable. [Members and roles](/platform/admin/members-and-roles) explains the differences.

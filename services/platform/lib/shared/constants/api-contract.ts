@@ -58,5 +58,31 @@
  * `GET /api/v1/projects/{id}/files` lists the documents (files) in no
  * folder — the root a folder id could never name; omitting the parameter
  * still lists everything, whatever folder a row sits in.
+ *
+ * 1.11.0 — 2026-09-15: the 09-14 evaluation's eighth pass — `Location` on
+ * every 201 that creates one addressable resource; `POST
+ * /api/v1/contacts/{id}/restore` (the remedy a frozen mirror's 409 names)
+ * and `GET /api/v1/conversations` (every mirror under a source, `contactStatus`
+ * narrows); the mirror receipt carries `contactId` and a re-keyed contact's
+ * binding follows its current `externalId`; `harnesses` on `GET /models` and
+ * `PROJECT_AGENT_HARNESS_INVALID` naming them; the skill file read is
+ * validated (`ETag`, `Last-Modified`, 304); the document `PATCH` answers its
+ * `ETag`; a thread `PATCH` that archives a thread mid-turn answers 409
+ * `CHAT_TURN_IN_PROGRESS`; `websites?scanInterval=` refuses a value outside
+ * the set; `Website.status` loses the never-observable `idle`; a `null`
+ * listed in every nullable enum; `KnowledgeDiagnostics.dense`; the knowledge
+ * `query` cap named (2000); `ContactInput` and `ProductInput` declare their
+ * nullable fields; the MCP `start_run` tool takes `idempotencyKey`,
+ * `set_trigger` answers a webhook token once with `deployed`,
+ * `get_automation` reads `version: "deployed"`, `list_versions` marks the
+ * deployed one, and every capability refusal carries a `code`.
+ *
+ * 1.12.0 — 2026-09-15: the 09-15 evaluation's ninth pass — `MessagePart` is
+ * a discriminator over seven named part schemas (`TextPart` …
+ * `HumanInputPart`) with an explicit `mapping`, so a validating client
+ * accepts every message; `recipientId` on the notification export is
+ * `nullable`, not a 3.1 type list; the conversation mirror receipt carries
+ * `sourceDeleted` and `status`, and a content snapshot onto a torn-down
+ * mirror answers 409 `CONVERSATION_CLOSED` instead of reopening it.
  */
-export const API_CONTRACT_VERSION = '1.10.0';
+export const API_CONTRACT_VERSION = '1.12.0';

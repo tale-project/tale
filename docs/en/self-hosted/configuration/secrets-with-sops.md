@@ -1,76 +1,57 @@
 ---
-title: Secrets with SOPS
-description: How Tale encrypts provider keys on disk with SOPS and age, the three storage modes, and the full key rotation walk.
+title: Protect configuration secrets with SOPS
+description: Distinguish file and database encryption, configure age keys, and rotate file-encryption keys without losing access.
 ---
+Tale uses SOPS and age for supported configuration secret sidecars, including knowledge-database and object-storage connection files. Current AI-provider credentials are stored separately in the application database and use `ENCRYPTION_SECRET_HEX`. Rotating an age key does not rotate those database credentials.
 
-Tale stores provider API keys in `providers/*.secrets.json` files on disk. The default mode after `tale init` encrypts these files with SOPS using an age key; an alternative mode reads multiple keys from a file (the rotation path); a third mode keeps the files in plaintext at file mode 0600 for environments where the disk is encrypted at rest and rotation is handled externally. This page is the operator's walkthrough of the three modes and the safe rotation path.
+## Identify the secret you are changing
 
-The env vars that drive the modes are `SOPS_AGE_KEY` and `SOPS_AGE_KEY_FILE` — their reference rows live in [Environment reference](/self-hosted/configuration/environment-reference#provider-secrets-encryption). This page is the longer story.
+Use the storage mechanism to choose the correct key:
 
-## The three modes
+| Secret storage | Encryption control | Operational consequence |
+| --- | --- | --- |
+| SOPS-enabled `*.secrets.json` configuration sidecar | `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` | Preserve a key that can decrypt every retained file and backup. |
+| Database provider credentials and other secret-box values | `ENCRYPTION_SECRET_HEX` | Replacing the key makes existing ciphertext unreadable; age rotation does not migrate it. |
+| Provider credential backed by an environment variable | `TALE_PROVIDER_KEY_*` | Rotate through the deployment’s secret manager and restart the consumers. |
 
-| Mode              | Env vars                           | When to use                                                   |
-| ----------------- | ---------------------------------- | ------------------------------------------------------------- |
-| Inline age key    | `SOPS_AGE_KEY=AGE-SECRET-KEY-1...` | Default after `tale init`. Single host, single key.           |
-| Key file          | `SOPS_AGE_KEY_FILE=/path/to/keys`  | Required for rotation. One age key per line, `#` comments.    |
-| Plaintext at 0600 | Both unset                         | Disk encrypted at rest, or external tooling writes the files. |
+A retired `providers/<name>.secrets.json` file may still exist in old configuration trees. Its presence does not mean that current provider credentials use that file. See [Providers](/self-hosted/configuration/providers) for the current credential model.
 
-The platform container picks the mode at boot. The inline form is the simplest; the file form is the only one that supports multiple readers (which is what makes rotation possible without downtime); the plaintext form skips SOPS entirely and trusts the filesystem.
+## Choose an age-key source
 
-## First-boot encrypted mode
+An inline `SOPS_AGE_KEY` takes precedence over `SOPS_AGE_KEY_FILE`. Use one source deliberately. The file form accepts one private age key per line and ignores blank lines and `#` comments; all configured recipients are included when Tale writes new SOPS ciphertext.
 
-`tale init` generates an age keypair and writes the private half into `SOPS_AGE_KEY` in your `.env`. Provider secret files written through **Settings > Providers** are encrypted on save:
+The file path is resolved inside the process that reads it. A host path in `.env` is insufficient by itself: mount the key file into each container that needs it, set the in-container path and restrict filesystem access. Recreate the consuming containers after changing their environment; `docker compose restart` does not load changed environment definitions.
 
-```bash
-# Inspect — the file is SOPS-encrypted JSON, not the cleartext API key
-cat providers/openai.secrets.json
-# {
-#   "apiKey": "ENC[AES256_GCM,data:...,iv:...,tag:...]",
-#   "sops": { ... }
-# }
-```
+If both variables are unset, the SOPS helper writes supported sidecars as plaintext JSON with mode `0600`. It still recognizes existing encrypted files and refuses to read them without a key. Unsetting the variables does not decrypt existing files.
 
-Decryption happens in-process when the platform container reads the file. The age key never leaves the platform container's memory.
+## Prepare a rotation
 
-## Rotating the age key
+Inventory the SOPS-encrypted files and their backups before replacing a key. Keep a protected copy of the old key and verify that you can decrypt a representative file without printing its contents or sending them to logs.
 
-Rotation is the one path the inline form does not cover — only `SOPS_AGE_KEY_FILE` lets you accept ciphertext readable by both the old and the new key during the cutover. The walk:
+Create a new age key through your existing secret-management tooling. Build a protected key file containing **both the existing private key and the new private key**. Do not overwrite the old key file with a command that generates only the new key.
 
-```bash
-# 1. Generate a new age key
-age-keygen -o /etc/tale/age-keys.txt
+Update the deployment to mount that file and use `SOPS_AGE_KEY_FILE`. Remove the inline value from the consuming environment, or it will continue to take precedence. Roll out the environment change and confirm that existing connections still work.
 
-# 2. Append the new key as a second line in the file
-echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
+## Re-encrypt and verify
 
-# 3. Point .env at the file and restart the platform container
-sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
-sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart platform backend-api backend-worker
-```
+Rewrite each affected sidecar through its supported configuration save path or an operator-controlled SOPS re-encryption procedure. Tale addresses newly encrypted files to all currently configured recipients; merely adding a key leaves existing ciphertext unchanged.
 
-Now both old and new keys can decrypt existing files. Re-save each provider's API key under **Settings > Providers** — each save produces ciphertext readable by both keys. Once every provider has been re-saved (the **Last rotated** column in the providers table tells you which still hold old ciphertext), remove the old key from the file:
+<Warning>
 
-```bash
-# 4. Drop the old key line and restart again
-sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart platform backend-api backend-worker
-```
+Do not remove the old key until every active encrypted file has been checked with the new key alone. Keep the old key protected for historical backups that still require it.
 
-The order is load-bearing: never remove the old key before every file is re-encrypted, or the platform container will fail to read the still-old files at the next decryption.
+</Warning>
 
-## Switching to plaintext
+After that verification, deploy a key file containing only the new key. Restart the consuming processes to clear decrypted caches, then test each affected connection. A successful process restart alone does not prove that every file can be decrypted.
 
-When the host disk is encrypted at rest (LUKS, AWS EBS encryption, GCP CSEK) and you do not want a second layer of key management, the plaintext mode is the supported option. Comment out both `SOPS_AGE_KEY` and `SOPS_AGE_KEY_FILE`, restart, and re-save each provider — the files are now JSON at mode 0600.
+## Recover a decryption failure
 
-The risk model shifts: a leaked filesystem dump is now a leaked credential dump. Pick this mode only when the disk encryption is real (not a tickbox), and audit the host's backup story to confirm no plaintext snapshot escapes.
+| Symptom | Check |
+| --- | --- |
+| Encrypted file found without a key | Restore the matching key source; disabling encryption does not convert the file. |
+| Key-file read fails | Check the mount, in-container path, ownership and permissions. |
+| Old key is still selected | Remove the non-empty inline `SOPS_AGE_KEY` before relying on the file. |
+| New key cannot decrypt one file | Keep the old key and re-encrypt that file before completing the rotation. |
+| Provider credential fails after changing `ENCRYPTION_SECRET_HEX` | Follow the database-secret recovery path; changing age keys cannot repair it. |
 
-## External secret stores
-
-When your keys already live in Vault, a cloud secret manager, or Kubernetes Secrets, the first-class pattern is the env-var key source: point each provider at an **environment variable** with `secretsEnv` and let your secret store populate that variable. No cleartext file touches the disk, and the reserved-prefix gate keeps a config-write actor from reading an unrelated deployment secret. The full mechanism — the `TALE_PROVIDER_KEY_` prefix gate, resolution order, and the restart-on-change behaviour — lives in [Providers](/self-hosted/configuration/providers#environment-variable-key-source).
-
-The file-mount approach is the legacy alternative: write the cleartext `*.secrets.json` files from the external store and run Tale in plaintext mode. It still works, but it puts the cleartext key on disk and breaks if you save a provider through the UI — the UI overwrites the mount. Prefer the env-var source unless a constraint forces the file form.
-
-## Where this fits
-
-This page is the operator's full guide to the SOPS layer; the env-var reference rows are in [Environment reference](/self-hosted/configuration/environment-reference#provider-secrets-encryption), and the provider file format itself in [Providers](/self-hosted/configuration/providers). If a key is leaked, rotation is the same walk above run urgently.
+For secrets managed by Vault, Kubernetes or another external store, prefer a provider’s [environment-variable key source](/self-hosted/configuration/providers#environment-variable-key-source) where supported. Keep encryption keys with your recovery plan, separately protected from the data backups they unlock.

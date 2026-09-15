@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyRenderReason,
+  discoverableLinks,
+  isUrlDisallowed,
+  publicPageError,
+  robotsMetaNoindexDirective,
   classifyContentType,
   documentNameForUrl,
   extractLinks,
@@ -364,5 +369,141 @@ describe('robotsHeaderForbidsIndexing', () => {
     expect(robotsHeaderForbidsIndexing('nofollow, noarchive')).toBe(false);
     expect(robotsHeaderForbidsIndexing('index, follow')).toBe(false);
     expect(robotsHeaderForbidsIndexing('max-snippet:0')).toBe(false);
+  });
+});
+
+describe('isUrlDisallowed', () => {
+  const rules = ['/legal/', '/search?q=', '/tmp/*.pdf'];
+
+  it.each([
+    ['https://example.com/legal/terms', true],
+    ['https://example.com/legal', false],
+    ['https://example.com/search?q=x', true],
+    ['https://example.com/search', false],
+    ['https://example.com/tmp/report.pdf', true],
+    ['https://example.com/about', false],
+  ])('%s → %s', (url, expected) => {
+    expect(isUrlDisallowed(url, rules)).toBe(expected);
+  });
+
+  it('blocks nothing with no rules, and nothing that does not parse', () => {
+    expect(isUrlDisallowed('https://example.com/legal/terms', [])).toBe(false);
+    expect(isUrlDisallowed('not a url', rules)).toBe(false);
+  });
+});
+
+/**
+ * The one seam every admission path shares. The regression under test: the
+ * rendered-page admission ran host and asset rules only, so every disallowed
+ * link a rendered page carried joined the frontier (2026-09-14 evaluation,
+ * h5).
+ */
+describe('discoverableLinks', () => {
+  const hosts = new Set(['example.com', 'www.example.com']);
+  const html = `
+    <a href="/legal/terms-of-service">Terms</a>
+    <a href="https://example.com/de/legal/privacy-policy">Datenschutz</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/pricing#plans">Plans</a>
+    <a href="https://www.example.com/docs">Docs</a>
+    <a href="https://other.example/x">Elsewhere</a>
+    <a href="/logo.png">Logo</a>
+    <a href="https://example.com:8001/gateway">Port</a>
+    <a href="/private/report">Report</a>
+  `;
+
+  it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated', () => {
+    expect(
+      discoverableLinks(html, 'https://example.com/', hosts, [
+        '/legal/',
+        '/*/legal/',
+        '/private/*',
+      ]),
+    ).toEqual(['https://example.com/pricing', 'https://www.example.com/docs']);
+  });
+
+  it('applies the host, port and asset rules with no robots rules', () => {
+    expect(discoverableLinks(html, 'https://example.com/', hosts, [])).toEqual([
+      'https://example.com/legal/terms-of-service',
+      'https://example.com/de/legal/privacy-policy',
+      'https://example.com/pricing',
+      'https://www.example.com/docs',
+      'https://example.com/private/report',
+    ]);
+  });
+});
+
+describe('robotsMetaNoindexDirective', () => {
+  it.each([
+    ['<meta name="robots" content="noindex, follow">', 'noindex, follow'],
+    ['<meta content="none" name="robots">', 'none'],
+    ["<meta name='robots' content='NOINDEX'>", 'NOINDEX'],
+    ['<META NAME="Robots" CONTENT="index, noindex">', 'index, noindex'],
+    ['<meta name=robots content=noindex>', 'noindex'],
+  ])('reads %s as a noindex wish', (tag, expected) => {
+    expect(
+      robotsMetaNoindexDirective(
+        `<html><head>${tag}</head><body>x</body></html>`,
+      ),
+    ).toBe(expected);
+  });
+
+  it.each([
+    '<meta name="robots" content="index, follow">',
+    '<meta name="googlebot" content="noindex">',
+    '<meta name="description" content="noindex is a word here">',
+    '',
+  ])('reads %s as no wish', (tag) => {
+    expect(
+      robotsMetaNoindexDirective(
+        `<html><head>${tag}</head><body>x</body></html>`,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('publicPageError', () => {
+  it('keeps the first line of a browser call log', () => {
+    expect(
+      publicPageError(
+        'page.goto: Timeout 20000ms exceeded.\nCall log:\n  - navigating to "https://neverssl.com/", waiting until "domcontentloaded"',
+      ),
+    ).toBe('page.goto: Timeout 20000ms exceeded.');
+  });
+
+  it('drops the OpenSSL handle and source path from a TLS alert', () => {
+    expect(
+      publicPageError(
+        'TLS handshake failed: C08C3904E37E0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:../deps/openssl/openssl/ssl/record/rec_layer_s3.c:916:SSL alert number 40 (ERR_SSL_SSL_TLS_ALERT_HANDSHAKE_FAILURE)',
+      ),
+    ).toBe(
+      'TLS handshake failed: SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:SSL alert number 40 (ERR_SSL_SSL_TLS_ALERT_HANDSHAKE_FAILURE)',
+    );
+  });
+
+  it('leaves a plain cause alone', () => {
+    expect(
+      publicPageError('Connection failed: other side closed (UND_ERR_SOCKET)'),
+    ).toBe('Connection failed: other side closed (UND_ERR_SOCKET)');
+  });
+});
+
+describe('classifyRenderReason', () => {
+  it('names the browser load budget as a timeout', () => {
+    expect(
+      classifyRenderReason(
+        'page.goto: Timeout 20000ms exceeded.\nCall log:\n  - navigating to "https://x/"',
+      ),
+    ).toEqual({
+      kind: 'timeout',
+      message: 'The browser could not load the page within 20 seconds',
+    });
+  });
+
+  it('keeps any other reason as a one-line render failure', () => {
+    expect(classifyRenderReason('blocked host\nsecond line')).toEqual({
+      kind: 'render_failed',
+      message: 'blocked host',
+    });
   });
 });

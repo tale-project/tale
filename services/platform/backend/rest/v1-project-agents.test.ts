@@ -153,6 +153,9 @@ describe('REST project agents use project resources and permissions', () => {
     const { app, begin } = mount();
     const response = await send(app, 'POST', '/projects/p-1/agents', input);
     expect(response.status).toBe(201);
+    expect(response.headers.get('location')).toBe(
+      '/api/v1/projects/p-1/agents/a-1',
+    );
     expect(await response.json()).toEqual({ agent });
     expect(begin).toHaveBeenCalledWith(
       'isolation level serializable',
@@ -363,6 +366,30 @@ describe('REST project agents — precondition and secret grants', () => {
     expect(await response.json()).toMatchObject({
       code: 'PROJECT_AGENT_SECRET_UNKNOWN',
       data: { secrets: ['NO_SUCH_SECRET'] },
+    });
+  });
+
+  it('answers an ineligible harness as 400 naming the eligible ones', async () => {
+    // The refusal used to name nothing, and the set was a hard-coded pair
+    // beside the models door's list (2026-09-14 evaluation, h9).
+    service.createProjectAgent.mockRejectedValue(
+      new ProjectError(
+        'PROJECT_AGENT_HARNESS_INVALID',
+        'Unknown or ineligible harness "cursor" — a project agent runs on one of claude-code, codex; GET /api/v1/models lists them under harnesses',
+        400,
+        { harnesses: ['claude-code', 'codex'] },
+      ),
+    );
+    const { app } = mount();
+    const response = await send(app, 'POST', '/projects/p-1/agents', {
+      ...input,
+      harness: 'cursor',
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: 'PROJECT_AGENT_HARNESS_INVALID',
+      error: expect.stringContaining('GET /api/v1/models'),
+      data: { harnesses: ['claude-code', 'codex'] },
     });
   });
 

@@ -70,6 +70,16 @@ export function buildPersonalNotificationUrl(args: {
     }
     return `${base}/dashboard/${args.organizationId}/documents?${docSearch}`;
   }
+  // A cloud-sync failure row opens the listing that shows the synced item
+  // (its folder, or the root) — parity with `personalNotificationTarget`.
+  if (typeof args.params?.syncConfigId === 'string') {
+    const hubFolderId = args.params.hubFolderId;
+    const folderSearch =
+      typeof hubFolderId === 'string'
+        ? `?folderId=${encodeURIComponent(hubFolderId)}`
+        : '';
+    return `${base}/dashboard/${args.organizationId}/documents${folderSearch}`;
+  }
   if (args.taskId && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${encodeURIComponent(projectId)}/tasks?task=${encodeURIComponent(args.taskId)}`;
   }

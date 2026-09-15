@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   ThreadBusyError,
@@ -10,8 +10,10 @@ import {
   encodeChatError,
   type ChatErrorCode,
 } from '../../../lib/shared/chat-errors.ts';
+import { DEFERRED_SEND_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { isBackendDraining } from '../control/service.ts';
 import {
   bindJobsForDeferredSend,
@@ -46,6 +48,42 @@ const SLOW_AFTER_MS = 2 * 60_000;
 /** Waiting + claimed rows per thread. A bound, not a quota. */
 const MAX_DEFERRED_PER_THREAD = 10;
 const MAX_ATTACHMENTS = 20;
+
+/**
+ * Tell the sender's open tabs that the thread's parked sends changed — the
+ * `/events` hint bridge (`realtime/outbox.ts`), user-targeted because the
+ * tray is the sender's composer and no other member reads it. Every write
+ * to `app.deferred_sends` calls this on the handle it wrote with (inside
+ * the transaction where there is one): park, claim, settle, re-park, cancel
+ * and the watchdog's clear. Before the hint existed the tray read had no
+ * signal at all: a row the poller fired stayed on screen as "Queued" for
+ * the whole generation, until the thread stream's settle nudged the read.
+ *
+ * Best-effort on a pool handle: the hint is a freshness signal, never the
+ * write itself, and a claim whose hint failed must still run its turn
+ * (thrown here, the poll would leave the row wedged as `claimed` — a
+ * message lost until the watchdog clears it). Inside a transaction the
+ * failed statement has already aborted it, so the caller's next statement
+ * or commit surfaces the failure; swallowing it here hides nothing.
+ */
+async function hintDeferredSends(
+  db: Sql | TransactionSql,
+  target: { organizationId: string; userId: string; threadId: string },
+): Promise<void> {
+  try {
+    await emitHintInTx(db, {
+      orgId: target.organizationId,
+      userId: target.userId,
+      entity: DEFERRED_SEND_HINT_ENTITY,
+      entityId: target.threadId,
+    });
+  } catch (error) {
+    console.warn(
+      `[deferred-send] tray hint for thread ${target.threadId} failed:`,
+      error,
+    );
+  }
+}
 
 export interface DeferredAttachment {
   fileId: string;
@@ -221,6 +259,7 @@ export async function enqueueDeferredSend(
     `;
     const deferredSendId = rows[0]?.id;
     if (!deferredSendId) throw new Error('deferred send insert failed');
+    await hintDeferredSends(tx, args);
     // The per-send singletonKey (queue policy 'short') collapses the poll
     // self-chain to at most one queued hop, so the watchdog can blindly
     // re-enqueue a poll for a stalled row without doubling a live chain.
@@ -241,14 +280,21 @@ export async function cancelDeferredSend(
   sql: Sql,
   args: { organizationId: string; userId: string; deferredSendId: string },
 ): Promise<boolean> {
-  const rows = await sql<{ id: string; videoJobIds: unknown }[]>`
+  const rows = await sql<
+    { id: string; threadId: string; videoJobIds: unknown }[]
+  >`
     DELETE FROM app.deferred_sends
     WHERE id = ${args.deferredSendId} AND org_id = ${args.organizationId}
       AND user_id = ${args.userId} AND status = 'waiting'
-    RETURNING id, video_job_ids AS "videoJobIds"
+    RETURNING id, thread_id AS "threadId", video_job_ids AS "videoJobIds"
   `;
   const row = rows[0];
   if (!row) return false;
+  await hintDeferredSends(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    threadId: row.threadId,
+  });
   // Cancelling the message cancels its claimed media too (the 0.4
   // `cancelDeferredJobs` cascade) — the videos must not keep processing.
   await cancelDeferredJobs(
@@ -282,6 +328,7 @@ export async function cancelDeferredSendsForThread(
       args.userId,
     );
   }
+  if (rows.length > 0) await hintDeferredSends(sql, args);
   return rows.length;
 }
 
@@ -460,6 +507,7 @@ export async function pollDeferredSend(
     )) === null
   ) {
     await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    await hintDeferredSends(sql, row);
     await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
     return 'gone';
   }
@@ -505,9 +553,16 @@ export async function pollDeferredSend(
     RETURNING id
   `;
   if (claimed.length === 0) return 'gone';
+  // The tray row reads "Sending…" from here.
+  await hintDeferredSends(sql, row);
 
   const settle = async (): Promise<void> => {
-    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    const gone = await sql<{ id: string }[]>`
+      DELETE FROM app.deferred_sends WHERE id = ${row.id} RETURNING id
+    `;
+    // Idempotent — the user-append hook and the finally below both call
+    // this — and only the DELETE that removed the row tells the tray.
+    if (gone.length > 0) await hintDeferredSends(sql, row);
   };
   let parkedAgain = false;
   // Flipped by the turn's own store hook once the user row is durable: from
@@ -569,6 +624,7 @@ export async function pollDeferredSend(
           SET status = 'waiting', waiting_since_ms = ${Date.now()}
           WHERE id = ${row.id} AND status = 'claimed'
         `;
+        await hintDeferredSends(sql, row);
         await reschedule(READY_POLL_MS);
         parkedAgain = true;
         return 'busy';
@@ -684,20 +740,37 @@ export async function recoverStuckDeferredSends(
     repolled += 1;
   }
   const cleared = await sql<
-    { id: string; organizationId: string; videoJobIds: unknown }[]
+    {
+      id: string;
+      organizationId: string;
+      userId: string;
+      threadId: string;
+      videoJobIds: unknown;
+    }[]
   >`
     DELETE FROM app.deferred_sends
     WHERE status = 'claimed' AND waiting_since_ms < ${claimedCutoff}
-    RETURNING id, org_id AS "organizationId", video_job_ids AS "videoJobIds"
+    RETURNING id, org_id AS "organizationId", user_id AS "userId",
+              thread_id AS "threadId", video_job_ids AS "videoJobIds"
   `;
   // A wedged row's videos: the ones its (crashed) turn never sent go back
-  // to the composer; a job a persisted user row carries stays bound.
+  // to the composer; a job a persisted user row carries stays bound. One
+  // hint per (org, sender, thread): the tray it clears is per thread.
+  const hinted = new Set<string>();
   for (const row of cleared) {
     await releaseUnsentVideos(
       sql,
       row.organizationId,
       readVideoJobIds(row.videoJobIds),
     );
+    const trayKey = JSON.stringify([
+      row.organizationId,
+      row.userId,
+      row.threadId,
+    ]);
+    if (hinted.has(trayKey)) continue;
+    hinted.add(trayKey);
+    await hintDeferredSends(sql, row);
   }
   if (repolled > 0 || cleared.length > 0) {
     console.warn(

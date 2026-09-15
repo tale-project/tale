@@ -25,13 +25,13 @@ vi.mock('../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
 function fakeSql(
   memberOf: string[],
-  respond?: (text: string) => object[] | undefined,
+  respond?: (text: string, values: unknown[]) => object[] | undefined,
 ): { sql: Sql; queries: string[] } {
   const queries: string[] = [];
-  const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push(text);
-    const scripted = respond?.(text);
+    const scripted = respond?.(text, values);
     if (scripted !== undefined) return Promise.resolve(scripted);
     if (text.includes('FROM "member" WHERE "userId"')) {
       return Promise.resolve(
@@ -54,7 +54,7 @@ function fakeSql(
 function mount(
   memberOf: string[],
   role = 'admin',
-  respond?: (text: string) => object[] | undefined,
+  respond?: (text: string, values: unknown[]) => object[] | undefined,
 ) {
   const { sql, queries } = fakeSql(memberOf, respond);
   const app = new Hono<RestEnv>();
@@ -251,6 +251,99 @@ describe('GET /conversations/deliveries/{id}/attachments/{index}', () => {
  * and no claim token, paginated like the other lists; `status` takes the
  * four states only, and a blank cursor is refused like everywhere.
  */
+describe('GET /conversations', () => {
+  const row = {
+    conversationId: 'c-1',
+    externalId: 'x-1',
+    externalContactId: 'crm-1',
+    contactId: 'ct-1',
+    contactStatus: 'trashed',
+    version: 3,
+    sourceDeleted: false,
+    status: 'open',
+    subject: 'Invoice 12',
+    createdAt: 1_700_000_000_000,
+  };
+  const list = (rows: object[] = [row]) =>
+    mount(['org-1'], 'admin', (text) =>
+      text.includes('FROM app.conversation_api_bindings') &&
+      text.includes('bool_or')
+        ? [{ owned: true }]
+        : text.includes('WITH mirrored AS')
+          ? rows
+          : undefined,
+    );
+
+  it('answers the mirrors under the source, newest first, in the page envelope', async () => {
+    // The reconciliation read the mirror had none of (2026-09-14
+    // evaluation, h6).
+    const { app, queries } = list();
+    const res = await app.request(
+      'http://localhost/conversations?source=vatplus',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      conversations: [row],
+      isDone: true,
+      continueCursor: '',
+    });
+    const listing = queries.find((text) => text.includes('WITH mirrored AS'));
+    expect(listing).toContain('b.owner_user_id = $?');
+    expect(listing).toContain(
+      'ORDER BY "createdAt" DESC, "conversationId" DESC',
+    );
+    expect(listing).toContain('LEFT JOIN app.contacts c');
+  });
+
+  it('narrows by contactStatus and refuses a value outside the vocabulary', async () => {
+    const { app, queries } = list();
+    const res = await app.request(
+      'http://localhost/conversations?source=vatplus&contactStatus=trashed',
+    );
+    expect(res.status).toBe(200);
+    // The narrowing rides as a nested fragment (recorded on its own by the
+    // fake); an unfiltered read binds `TRUE` there instead.
+    expect(queries).toContain('"contactStatus" = $?');
+    const { app: unfiltered, queries: plain } = list();
+    await unfiltered.request('http://localhost/conversations?source=vatplus');
+    expect(plain).not.toContain('"contactStatus" = $?');
+    const outside = await app.request(
+      'http://localhost/conversations?source=vatplus&contactStatus=frozen',
+    );
+    expect(outside.status).toBe(400);
+    expect(await outside.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+
+  it('pages with a cursor signed under the source, so another source never redeems it', async () => {
+    const older = {
+      ...row,
+      conversationId: 'c-0',
+      createdAt: 1_600_000_000_000,
+    };
+    const { app } = list([row, older]);
+    const first = await app.request(
+      'http://localhost/conversations?source=vatplus&limit=1',
+    );
+    expect(first.status).toBe(200);
+    const page: {
+      conversations: object[];
+      isDone: boolean;
+      continueCursor: string;
+    } = await first.json();
+    expect(page.conversations).toEqual([row]);
+    expect(page.isDone).toBe(false);
+    expect(page.continueCursor).not.toBe('');
+    const same = await app.request(
+      `http://localhost/conversations?source=vatplus&limit=1&cursor=${encodeURIComponent(page.continueCursor)}`,
+    );
+    expect(same.status).toBe(200);
+    const other = await app.request(
+      `http://localhost/conversations?source=other&limit=1&cursor=${encodeURIComponent(page.continueCursor)}`,
+    );
+    expect(other.status).toBe(400);
+  });
+});
+
 describe('GET /conversations/deliveries', () => {
   const row = {
     messageId: 'm-1',
@@ -423,5 +516,56 @@ describe('POST /conversations/deliveries/{id}/retry', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+});
+
+/**
+ * The receipt names the teardown. It carried `version`, the contact and
+ * the attachments but not `sourceDeleted`, so an engine resuming from it
+ * pushed its next content snapshot onto a torn-down mirror — and the
+ * snapshot reopened it (2026-09-15 evaluation, i7).
+ */
+describe('GET /conversations/sync — the receipt after a teardown', () => {
+  it('reports sourceDeleted and the Inbox status beside the contact', async () => {
+    const { app, queries } = mount(['org-1'], 'admin', (text) =>
+      text.includes('FROM app.conversation_api_bindings WHERE') &&
+      text.includes('AND owner_user_id = $?')
+        ? [
+            {
+              conversationId: 'c-1',
+              version: 4,
+              organizationId: 'org-1',
+              externalContactId: 'k1',
+              sourceDeleted: true,
+            },
+          ]
+        : text.includes('LEFT JOIN app.contacts c ON c.id = conv.contact_id')
+          ? [{ id: 'ct-1', status: null, conversationStatus: 'closed' }]
+          : text.includes('FROM app.conversation_api_messages r')
+            ? []
+            : undefined,
+    );
+    const res = await app.request(STATE);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      snapshot: {
+        conversationId: 'c-1',
+        version: 4,
+        organizationId: 'org-1',
+        externalContactId: 'k1',
+        sourceDeleted: true,
+        contactId: 'ct-1',
+        contactStatus: 'active',
+        status: 'closed',
+        attachments: [],
+      },
+    });
+    expect(
+      queries.find(
+        (text) =>
+          text.includes('FROM app.conversation_api_bindings WHERE') &&
+          text.includes('AND owner_user_id = $?'),
+      ),
+    ).toContain('source_deleted AS "sourceDeleted"');
   });
 });

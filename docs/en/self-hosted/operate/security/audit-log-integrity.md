@@ -1,56 +1,46 @@
 ---
-title: Audit-log integrity alerts
-description: How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence.
+title: Investigate audit-log integrity
+description: Check the audit chain, understand the verification limits, and preserve evidence when a check fails.
 ---
 
-Tale verifies every organisation's audit-log hash chain on a schedule and raises an alert the moment a verification fails. This page is the runbook for the operator or admin who received that alert: how to read the finding, how to separate a genuine tamper signal from an ordinary retention or configuration artifact, and what to preserve before you touch anything. The alert is deliberately loud because a real break is rare and serious — but most breaks that fire in practice have an everyday explanation, so the work is to rule those out methodically rather than to panic.
+Use this runbook when **Chain integrity** reports a break or you receive an audit integrity notification. You need an Admin or Owner account to follow the settings workflow, and access to your deployment operator for database investigation.
 
-## What triggers it
+## Check the reported range
 
-A daily cron walks every organisation's append-only audit chain along with its retention and scrub checkpoints. When a chain fails to verify, the run does two things. It writes an in-band `security` audit row — on every failing run, so the durable record is always complete — and it raises an out-of-band notification to the organisation's admins, in the notification bell and in your Slack channel when one is connected.
+1. Open **Settings > Governance > Logs** and find **Chain integrity**.
+2. Record the status and last automated check. **Not yet checked** means there is no scheduled-check result; it is not a successful verification.
+3. Select **Verify now**. A successful result reports how many entries were checked. This on-demand check covers at most 1,000 entries from the beginning of the retained chain.
+4. If the result is truncated, ask the operator to verify the remaining range. Clicking again starts the same range; it does not advance a cursor. A clean first page does not establish that the entire history is intact.
 
-The out-of-band alert is deduplicated. You get one notification when a break is first detected, and one more only if it changes — a different broken row, or a different failing checkpoint — not a fresh alarm each day for the same break. A subsequent clean run clears the alert on its own; a later, different break raises a new one.
+The on-demand result and scheduled-check status are separate. Clicking **Verify now** does not update the timestamp of the last automated check.
 
-## Tampering or a configuration gap
+## Understand what is checked
 
-The alert arrives in two shapes, and the title tells you which. **Audit log integrity check failed** is the critical one: the hash chain itself does not verify, or a signed checkpoint's signature does not match the configured key. Treat this as a possible tamper signal until you have explained it.
+The current PostgreSQL backend checks the SHA-256 hash of each retained, unscrubbed audit entry and the links between entries. The first surviving row supplies the starting hash link. This detects many changes within the retained chain, but it is not an independently signed record of everything that ever existed.
 
-**Audit log signatures can't be verified** is a calm warning, not a breach: a checkpoint is signed, but the deployment has no `TALE_AUDIT_SIGNING_KEY` configured to check that signature against. Nothing was forged — Tale cannot prove the checkpoint is authentic until you restore the key. The in-product panel mirrors the split: a healthy chain shows a green **Verified** badge, an active incident shows a red **Integrity alert active** badge, and an organisation the cron has not reached yet shows **Not yet checked**.
+Retention can remove a prefix of the chain. The scheduled check can resume from its recorded progress; if retention legitimately removed its old anchor, it starts from the first surviving link. A missing anchor inside the retention window is not excused in this way.
 
-## Open the integrity panel
+For rows scrubbed during personal-data erasure, the verifier checks linkage without recomputing the erased content. It also counts scrubbed rows without a matching erasure request. Investigate such a warning against the erasure records; the current backend does not verify HMAC-signed checkpoints or use an audit signing key to repair these findings.
 
-An organisation's admins inspect the chain from **Settings > Governance > Logs**. The **Chain integrity** panel at the top of the page shows the status badge, the time of the last automated check, and a **Verify now** button that re-runs the same verification on demand. If you arrived from the notification, clicking the alert deep-links you straight to the flagged row in the audit table instead of the top of the log.
+<Warning title="Keep an independent record">
+Hash chaining does not prevent database edits or prove that every action was recorded. Protect database access and retain independent evidence appropriate to your investigation. A complete rewrite of the stored chain is outside what this check alone can establish.
+</Warning>
 
-Run **Verify now** to see the structured finding. For a hash-chain break, the panel shows **Chain integrity broken** with the **Entry ID** of the first row that fails, when it **Occurred**, the **Expected hash**, and the **Stored hash** that did not match — plus an **Open this entry** button that reveals the row in the table. For a checkpoint problem, it shows **Checkpoint verification failed** with the **Checkpoint ID** and a **Reason**. Record these details before you change anything: they are the evidence.
+## Preserve a failure
 
-## Rule out the benign causes
+A hash or linkage mismatch shows **Chain integrity broken**, the **Entry ID**, occurrence time, **Expected hash** and **Stored hash**. Use **Open this entry** to inspect the event.
 
-A hash break is a tamper signal only when nothing legitimate explains it, and the verifier already accounts for the three ordinary events that cause almost every alert — so confirming one of them is your first move.
+1. Save the finding and the affected organization, entry ID, time and deployed version. Preserve the values exactly.
+2. Keep database snapshots and relevant deployment, access and backup logs before making repairs. Restrict access to copies containing personal data.
+3. Compare the timing with retention, erasure, restore and maintenance operations. An operation occurring at the same time is a lead to investigate, not proof that the mismatch is harmless.
+4. Follow your incident procedure if the mismatch remains unexplained. Do not edit or delete the flagged row to make verification pass.
 
-**A retention cut.** When retention hard-deletes old rows, the surviving chain head points at a row that no longer exists. The verifier re-anchors across the cut using a signed retention checkpoint, so a clean cut verifies normally. If instead you see **Audit log signatures can't be verified**, the cut itself is fine — the deployment is missing the `TALE_AUDIT_SIGNING_KEY` that authenticates the checkpoint. That is a configuration gap, not tampering.
+The [audit-log guide](/platform/admin/governance/audit-logs) explains event fields and exports. Its filtered, capped export is not a full backup or necessarily a complete chain.
 
-**A GDPR scrub.** Erasing a data subject blanks their fields in place, which would change those rows' hashes — so a scrub writes a signed scrub checkpoint covering the affected rows, and the verifier trusts them on that basis. A scrub should never surface as a break on a deployment that has a signing key.
+## Follow the scheduled result
 
-**Legacy pre-chain rows.** Rows written before audit hash-chaining existed carry no integrity hash. The verifier skips them automatically; they are not a break.
+A daily job checks organizations with audit entries incrementally. A detected hash break records an active integrity incident and sends a security notification to organization admins. Repeated checks deduplicate the same finding; a changed finding can produce another notification.
 
-A genuine tamper signal is a hash mismatch with none of these explanations: no retention cut at that point, no scrub covering the row, and the signing key present and correct.
+After repair or recovery, confirm the affected range verifies successfully. A subsequent successful scheduled check clears the active incident. Explaining a failure to a colleague or dismissing a notification does not repair the chain.
 
-## Respond to a real break
-
-If the finding survives that triage — a hash mismatch you cannot account for — treat it as a security incident and preserve evidence first. Audit rows are append-only by design; do not delete or edit any row, including the flagged one, because that destroys the record an investigation depends on.
-
-1. Record the finding verbatim — the **Entry ID**, **Occurred** time, **Expected hash**, and **Stored hash** (or the **Checkpoint ID** and **Reason**) shown in the panel. Copy or screenshot them rather than relying on the alert alone.
-2. Confirm whether the signing key is configured on the host, so you can tell a real mismatch from an unverifiable checkpoint. This reports presence without printing the secret:
-   ```bash
-   grep -q '^TALE_AUDIT_SIGNING_KEY=' .env && echo configured || echo missing
-   ```
-3. Correlate the break's timestamp with recent activity — a retention sweep, a data-subject scrub, a deploy, a database restore, or direct database access. A break that lines up with a maintenance action usually has an ordinary cause you can now name.
-4. If nothing explains it, escalate through your security incident policy and treat the database as potentially compromised until proven otherwise. Keep a backup snapshot from before and after the detected break for forensics.
-
-## Clear the alert
-
-The alert is incident-based, not a recurring event. Once the break is resolved or explained — the key restored, the retention artifact understood, a tampered database rebuilt from a clean backup — the next daily run verifies cleanly and clears the alert on its own, and the **Chain integrity** badge returns to **Verified**. There is no acknowledge or dismiss step to remember. If a different break appears later, the check raises a fresh alert for that one, so muting is never necessary.
-
-## Where this fits
-
-An integrity alert is a prompt to investigate, not a verdict — the daily check runs loud so a rare real break cannot hide among the logs, and this runbook is how you separate that rare case from the retention and scrub artifacts behind most alerts. The mechanism the verifier checks — the SHA-256 hash chain and the HMAC-signed checkpoints — is documented in [Cryptography](/self-hosted/operate/security/cryptography), and the retention cuts that legitimately re-anchor it are in [Retention](/self-hosted/configuration/retention). The panel, columns, and export you use to read a flagged row live on the [Audit logs](/platform/admin/governance/audit-logs) reference; the [Hardening](/self-hosted/operate/security/hardening) checklist is where this monitoring gets switched on in the first place.
+For deployment controls, see [Hardening](/self-hosted/operate/security/hardening). For the limits that remove old evidence, see [Retention](/self-hosted/configuration/retention).

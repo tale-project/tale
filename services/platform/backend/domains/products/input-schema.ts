@@ -27,6 +27,8 @@ import { PRODUCT_STATUSES } from './service.ts';
  * `currency` is an ISO 4217 code stored uppercase, `imageUrl` an absolute
  * http(s) URL (a stored `javascript:` URL is a stored-XSS vector for any
  * surface that renders it), and `metadata` is a bounded free-form object.
+ * The app and REST doors additionally accept their verified managed-upload
+ * forms and normalize them to a protected, org-bound app path.
  */
 
 export const PRODUCT_TAG_MAX = 60;

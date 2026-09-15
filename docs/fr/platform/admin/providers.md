@@ -1,139 +1,70 @@
 ---
 title: Fournisseurs IA
-description: Relie ton organisation aux modèles qu’elle a le droit d’appeler — les connecteurs de fournisseurs livrés avec la plateforme, les identifiants que tu enregistres en face, et les défauts, listes autorisées et catalogues qui décident de ce que chacun pourra choisir.
+description: Connecte les identifiants des fournisseurs, rends les modèles disponibles et résous les choix manquants.
 ---
 
-Tale ne répond à aucun prompt tant que ton organisation ne détient pas d’identifiants valides pour au moins un fournisseur IA. **Paramètres > Fournisseurs IA** est l’endroit où vivent ces identifiants, et le seul où on peut en créer. Les Administrateurs et les Développeurs ouvrent la page ; tous les autres en rencontrent le résultat plus tard, sous la forme de la liste de modèles qu’ils peuvent choisir dans le chat, sur un agent ou sur une étape de workflow.
+Connecte un fournisseur IA avant de lancer des chats ou des agents dans Tale. Dans **Paramètres > Fournisseurs IA**, les propriétaires, admins et développeurs gèrent les identifiants de l’organisation. Le fournisseur définit la connexion et les méthodes d’authentification ; les identifiants donnent à ton organisation accès à ce fournisseur.
 
-## Connectors et identifiants
+<Frame caption="Chaque ligne correspond à des identifiants. Le badge Par défaut indique ceux utilisés lorsqu’un appel n’en désigne pas.">
 
-Deux choses distinctes se rejoignent sur cette page, et les distinguer rend tout le reste évident.
+![La page des fournisseurs IA présente des identifiants avec leur fournisseur, leur méthode d’authentification et le badge Par défaut.](/images/get-started/settings-providers.webp)
 
-Un **connecteur** est ce que la plateforme sait d’avance d’un fournisseur : le dialecte réseau qu’il parle, l’endpoint sur lequel il répond, d’où vient sa liste de modèles, et quelles méthodes d’authentification il accepte. Les connecteurs sont livrés avec la plateforme. Tu ne peux ni en ajouter, ni en modifier, ni en supprimer depuis l’interface, et une mise à niveau peut en apporter d’autres.
+</Frame>
 
-Les **identifiants** sont ta moitié — la part qui autorise réellement un appel. Tu en enregistres autant que nécessaire par connecteur : une clé de production à côté d’une clé de test, une clé par service, une variable gérée par les ops à côté d’une clé que tu fais tourner à la main. Chacun porte un nom, une méthode d’authentification, une liste de modèles autorisés facultative et un état d’activation — et l’un d’eux est le défaut.
+## Ajouter les premiers identifiants
 
-Voici les connecteurs livrés aujourd’hui :
+1. Sélectionne **Ajouter des identifiants**, puis le fournisseur. Les fournisseurs déjà configurés apparaissent en premier ; les choisir à nouveau permet d’ajouter d’autres identifiants.
+2. Choisis une **Méthode d'authentification** si le fournisseur en propose plusieurs.
+3. Vérifie le champ **Nom**. Il est prérempli avec le nom du fournisseur, suivi d’un numéro si d’autres identifiants de ce fournisseur portent déjà ce nom : `OpenRouter`, puis `OpenRouter 2`. Un nom qui indique l’usage, comme `Clé de production` ou `Équipe finance`, permet de distinguer plusieurs identifiants d’un même fournisseur. Renseigne ensuite les champs requis par la méthode.
+4. Vérifie la liste **Modèles autorisés**. Pour un fournisseur avec catalogue, une liste vide autorise les modèles du catalogue. Sans catalogue, tu dois préciser les identifiants des modèles.
+5. Sélectionne **Ajouter**. Vérifie la ligne créée et définis-la par défaut pour ce fournisseur si les requêtes habituelles doivent l’utiliser.
 
-| Connector            | Format réseau          | Catalogue de modèles           |
-| -------------------- | ---------------------- | ------------------------------ |
-| OpenRouter           | API compatible OpenAI  | Catalogue OpenRouter           |
-| OpenAI               | API compatible OpenAI  | Catalogue intégré              |
-| Anthropic            | API Anthropic Messages | Catalogue intégré              |
-| Gemini               | API compatible OpenAI  | Catalogue intégré              |
-| Azure OpenAI         | API compatible OpenAI  | Pas de catalogue               |
-| DeepSeek             | API compatible OpenAI  | Catalogue intégré              |
-| Moonshot AI (Kimi)   | API compatible OpenAI  | Catalogue intégré              |
-| Qwen (Alibaba)       | API compatible OpenAI  | Catalogue intégré              |
-| SpaceXAI             | API compatible OpenAI  | Catalogue intégré              |
-| Z.ai (GLM)           | API compatible OpenAI  | Catalogue intégré              |
-| Vercel AI Gateway    | API compatible OpenAI  | Endpoint models du fournisseur |
-| Nous Portal (Hermes) | API compatible OpenAI  | Pas de catalogue               |
+Ouvre un chat et examine le sélecteur de modèle. Le modèle doit être disponible via des identifiants actifs et autorisé par les règles de l’organisation. Enregistrer des identifiants ne prouve pas que le fournisseur acceptera les requêtes : envoie un court message de test avec le modèle prévu.
 
-## Ce que la page affiche
+## Choisir la méthode d’authentification
 
-**Identifiants** est un tableau de ce que ton organisation détient réellement — une ligne par identifiant stocké, pas une par fournisseur livré. Une ligne montre son nom, le fournisseur qu’il authentifie, sa méthode d’authentification et ses coordonnées : un aperçu masqué de la clé stockée ou le nom de la variable d’environnement qui la porte, plus l’URL d’endpoint propre à l’identifiant là où le fournisseur en réclame une et le nombre de modèles que sa liste autorise. Un badge **Par défaut** marque celui vers lequel les requêtes retombent, un badge **Désactivé** ceux qui sont coupés. Le menu d’actions de la ligne porte tout le reste.
+| Méthode | Informations à fournir | Usage |
+| --- | --- | --- |
+| **Clé API** | La clé secrète du fournisseur | Accès API facturé à l’usage. Le secret enregistré est chiffré et seul un fragment masqué reste visible. |
+| **Variable d'environnement** | Le nom d’une variable du déploiement | L’opérateur gère le secret hors de l’interface. Son nom doit commencer par `TALE_PROVIDER_KEY_`. |
+| **Clé d'abonnement** | Un secret d’abonnement pris en charge | Exécution dans l’environnement d’agent du fournisseur, plutôt que par un appel API direct. |
+| **Courtier d'abonnement** | L’adresse du courtier et la configuration de sa réponse | Le déploiement obtient des tokens d’abonnement utilisables auprès du courtier. |
 
-Deux avertissements apparaissent ici plutôt que dans une boîte de dialogue. Un fournisseur dont le catalogue de modèles n’a pas pu être récupéré le dit sur chaque ligne qui en dépend — une clé qui fonctionne ne sert à rien tant que Tale ignore quels modèles le fournisseur sert. Et un fournisseur qui a des identifiants mais aucun défaut est nommé au-dessus du tableau : les requêtes ne peuvent pas en choisir un automatiquement tant que tu n’en promeus pas un.
+Seules les méthodes du fournisseur sélectionné apparaissent. Référencer une variable ne la crée pas : demande à l’opérateur de la fournir selon le [guide de configuration des fournisseurs](/fr/self-hosted/configuration/providers).
 
-Sous le tableau, **Harnesses** indique comment chaque harness de code se résout pour ton organisation. La section est en lecture seule ; ce sont les identifiants au-dessus qui la changent.
+Pour un courtier d’abonnement, précise l’authentification de Tale auprès du courtier, le chemin de la liste de tokens et de leur valeur dans la réponse, ainsi que la variable cible qui reçoit le token. Choisis la stratégie de sélection et vérifie délai, taille de réponse, expiration et statut actif sous **Avancé**. Ces valeurs doivent correspondre au format réel de la réponse du courtier ; une clé API de fournisseur ne les remplace pas.
 
-## Ajouter des identifiants
+## Configurer Azure ou une adresse propre au compte
 
-<Steps>
+Azure OpenAI demande une **URL de l'endpoint**, généralement `https://<resource>.openai.azure.com/openai/v1`. Les identifiants appartiennent à cette ressource. Les identifiants de modèle Azure sont les noms de déploiement définis dans la ressource : saisis-les dans la liste **Modèles autorisés**. Sans catalogue, laisser cette liste vide ne rend aucun modèle disponible.
 
-<Step title="Choisir le fournisseur">
+Utilise les adresses et identifiants documentés par le fournisseur. Le nom affiché sur une page commerciale n’est pas forcément celui que son API accepte.
 
-**Ajouter des identifiants** ouvre le catalogue livré. Les fournisseurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Configuré** ; tout le reste suit en dessous. Chaque entrée nomme ses faits réseau — le format d’API et l’hôte de l’endpoint, comme `API compatible OpenAI · openrouter.ai`, ou `endpoint défini par identifiant` — et le nombre de modèles que son catalogue contient. La recherche réduit la liste ; un choix mène au formulaire, et **Retour** en ressort.
+## Connecter un serveur sur ton réseau
 
-Comme le formulaire appartient au fournisseur choisi, il ne propose que ce que celui-ci accepte — on ne te demande jamais une URL de base que la plateforme connaît déjà.
+Demande à l’opérateur de préparer la définition du fournisseur, l’accès réseau et la politique du déploiement, puis suis [Connecter un serveur de modèles local](/fr/tutorials/admin/connect-local-provider). Enregistrer des identifiants n’autorise pas une adresse privée. Teste le modèle voulu dans un chat et, si des agents de programmation l’utiliseront, dans une session d’agent. Leur trafic passe par une passerelle distincte qui doit aussi disposer de l’accès réseau et faire confiance au certificat.
 
-</Step>
+## Définir le choix par défaut et l’accès aux modèles
 
-<Step title="Choisir la méthode d’authentification">
+Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournisseur a un seul choix par défaut ; en sélectionner un autre déplace le badge. Des identifiants désactivés ne peuvent pas devenir le choix par défaut. En son absence, l’appelant doit nommer les identifiants à utiliser.
 
-La méthode change le reste du formulaire : un champ secret pour **Clé API** et **Clé d’abonnement**, un nom de variable pour **Variable d’environnement**, le formulaire complet du courtier pour **Courtier d’abonnement**.
+La liste **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
 
-</Step>
+La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration.
 
-<Step title="Le nommer pour la personne qui lira ensuite">
+## Résoudre un modèle absent ou en échec
 
-**Nom** est ce que tous les écrans suivants montrent à la place du secret. Nomme-le pour son usage — `Clé de production`, `Équipe finance`, `Géré par les ops` — parce que c’est cette étiquette que quelqu’un choisira dans une liste des mois plus tard.
+- S’il manque un choix par défaut, sélectionne les identifiants actifs prévus et définis-les par défaut.
+- Si le catalogue n’a pas pu être chargé, utilise **Actualiser les catalogues** et examine le résultat du fournisseur. Les catalogues distants sont mis en cache ; les catalogues intégrés évoluent avec la plateforme.
+- Si un modèle manque, vérifie la liste des modèles autorisés et les règles de l’organisation. Sans catalogue, vérifie les identifiants exacts des modèles.
+- Si une requête est refusée, vérifie l’activation des identifiants, les droits du compte fournisseur, l’adresse et le quota fournisseur avant de modifier les règles des modèles.
 
-</Step>
+## Renouveler ou retirer des identifiants
 
-<Step title="Décider si tu restreins">
-
-**Modèles autorisés** est facultatif. Laisse le champ vide et l’identifiant peut utiliser tout le catalogue du connecteur ; remplis-le et il reste confiné à ta sélection.
-
-</Step>
-
-</Steps>
-
-### Clé API
-
-Colle le secret dans **Clé API**. Tale le stocke chiffré et ne le réaffiche jamais — la ligne montre un aperçu masqué, pas la clé. Pour faire tourner la clé, ouvre le menu de la ligne et choisis **Remplacer la clé API** ; le remplacement prend effet partout où ces identifiants servent, immédiatement.
-
-### Variable d’environnement
-
-Ici la clé n’entre jamais dans Tale. Elle reste sur le déploiement, et l’identifiant n’enregistre que le nom de la variable qui la porte. Tu ne saisis que le suffixe ; le préfixe réservé `TALE_PROVIDER_KEY_` est fixe et ne peut pas être effacé.
-
-<Note>
-
-Tout nom hors de ce préfixe est rejeté, donc le champ ne peut jamais pointer sur un secret de déploiement étranger. Les noms sont plafonnés à 40 caractères. La variable elle-même est fournie par qui exploite le déploiement — le versant opérateur est documenté dans [Fournisseurs](/fr/self-hosted/configuration/providers).
-
-</Note>
-
-### Abonnements et courtiers
-
-Deux méthodes couvrent les abonnements plutôt que les clés API facturées à l’usage. **Clé d’abonnement** stocke directement le secret d’abonnement d’un fournisseur ; un abonnement Nous Portal en est un cas livré. **Courtier d’abonnement** pointe vers un endpoint qui distribue un pool de jetons OAuth rotatifs — la forme qu’utilise un abonnement Claude.
-
-Le formulaire du courtier demande l’**Endpoint du courtier** et sa **Méthode HTTP**, puis comment Tale s’authentifie auprès du courtier sous **Authentification du courtier** : Aucune, Jeton Bearer ou En-tête personnalisé, avec un **Nom de l’en-tête** et le **Secret du courtier**, ou **Secret depuis une variable d’environnement** quand ce sont tes ops qui le détiennent. Le reste décrit la réponse : le **Chemin du tableau de jetons**, le **Champ du jeton**, la **Variable d’environnement cible** dans laquelle le jeton choisi est injecté, et une **Sélection du jeton** parmi Aléatoire, Premier utilisable ou Round-robin. **Avancé** porte le réglage fin : **Champ de statut**, **Valeur de statut actif**, **Champ d’expiration**, **Délai de la requête (ms)**, **Taille max de la réponse (octets)** et **Marge de sécurité avant expiration (ms)**.
-
-<Info>
-
-Les deux formes se consomment dans l’outillage propre du fournisseur plutôt que par un appel d’API ordinaire, et la boîte de dialogue le dit : **S’exécute en sandbox sur le harness de son fournisseur.** Un courtier d’abonnement Anthropic tourne sur le harness `claude-code`, une clé d’abonnement Nous Portal sur `hermes`. L’appel d’API direct n’est jamais proposé pour ces identifiants.
-
-</Info>
-
-## Les connecteurs dont l’endpoint est défini par identifiant
-
-Azure OpenAI n’a pas d’endpoint fixe, parce que chaque ressource Azure sert le sien, sous la forme `https://<resource>.openai.azure.com/openai/v1`. L’en-tête de sa section indique que l’endpoint est défini par identifiant, et sa boîte de dialogue ajoute un champ **URL de l’endpoint** pour que chaque identifiant porte la ressource à laquelle il appartient.
-
-Azure ne livre pas non plus de catalogue de modèles, et la raison mérite d’être connue avant de remplir le formulaire : sur Azure, l’id de modèle dans une requête est le nom de déploiement que tu as choisi dans la ressource, ce que Tale ne peut pas deviner. Saisis ces noms dans les **Modèles autorisés** de l’identifiant, séparés par des virgules. Sans eux, l’identifiant ne rend aucun modèle disponible.
-
-## Choisir les identifiants par défaut
-
-Une requête qui ne nomme aucun identifiant utilise le défaut du connecteur. C’est le cas de la majeure partie du trafic, donc le défaut est l’identifiant sur lequel le travail ordinaire doit atterrir — la clé de production partagée, pas l’expérimentation.
-
-Ouvre le menu d’une ligne et choisis **Définir par défaut**. Un seul identifiant par connecteur tient ce rôle, et en promouvoir un autre le déplace. Un identifiant désactivé ne peut pas devenir le défaut. Laisse un connecteur sans défaut et la plateforme ne choisira pas à ta place : elle le dit sur la page, et les requêtes qui ne nomment pas d’identifiant n’ont plus rien à résoudre.
-
-## Restreindre ce qu’un identifiant peut appeler
-
-**Modèles autorisés** limite un identifiant à une partie des modèles de son connecteur. Avec un catalogue derrière, le champ est une sélection multiple cherchable ; sans catalogue, c’est une liste d’ids en texte libre. Laisse-le vide et tout le catalogue reste ouvert. Remplis-le et la ligne affiche le compte, tandis que ce qui n’y figure pas cesse de se résoudre via cet identifiant.
-
-<Tip>
-
-Une telle liste ne restreint qu’un identifiant. Pour décider d’un coup ce qu’une personne, une équipe ou un rôle peut choisir chez tous les fournisseurs, utilise les règles d’accès aux modèles sous [Contenu et modèles](/fr/platform/admin/governance/content-models). Les deux se composent : un modèle doit franchir les deux barrières avant d’apparaître dans un sélecteur.
-
-</Tip>
-
-## Garder les catalogues de modèles à jour
-
-**Actualiser les catalogues** siège dans l’en-tête de la page et recharge chaque catalogue en ligne et rend une ligne par connecteur — le nombre de modèles trouvés, ou l’erreur rencontrée, pour qu’un fournisseur en panne soit nommé plutôt qu’ignoré en silence.
-
-Les catalogues livrés avec la plateforme n’en ont pas besoin : quand chaque connecteur en a un, la carte annonce qu’il n’y a rien à actualiser. Les catalogues en ligne sont mis en cache entre deux actualisations et aucune synchronisation ne tourne en arrière-plan — un modèle publié ce matin apparaît quand quelqu’un appuie sur le bouton.
-
-## Désactiver et supprimer des identifiants
-
-**Désactiver** coupe un identifiant en conservant sa configuration et ses modèles autorisés. Sers-t’en quand une clé est suspecte, qu’un quota est épuisé ou qu’un service est en pause — le réactiver tient en un clic et rien n’est à ressaisir.
+Utilise l’action de remplacement de la ligne pour changer le secret en conservant le nom et les références. **Désactiver** suspend les identifiants sans retirer leur configuration ; **Activer** les remet en service. Vérifie le remplacement avec le modèle prévu.
 
 <Warning>
 
-La suppression est immédiate et totale. Les agents et les requêtes qui utilisent ces identifiants perdent aussitôt l’accès au fournisseur, donc redirige d’abord tout ce qui en dépend. Supprimer le défaut laisse le connecteur sans défaut jusqu’à ce que tu en promeuves un autre, ce que la confirmation t’annonce avant que tu valides.
+Supprimer des identifiants retire l’accès aux appelants qui en dépendent. Migre-les d’abord. Si tu supprimes le choix par défaut, désigne son remplacement pour que les appels sans sélection explicite puissent encore fonctionner.
 
 </Warning>
-
-## Où cela s’inscrit
-
-Cette page est le sol sur lequel tout le reste repose : un agent, une réponse de chat, une étape de workflow, un embedding pour la base de connaissances se résolvent tous vers un modèle, et un modèle n’est joignable que si des identifiants de cette page peuvent l’appeler. Ce qu’il en reste côté choix est couvert par le [Catalogue de modèles](/fr/platform/models), la couche de gouvernance qui restreint encore par [Contenu et modèles](/fr/platform/admin/governance/content-models), et les variables de déploiement qu’un opérateur fournit par [Fournisseurs](/fr/self-hosted/configuration/providers).

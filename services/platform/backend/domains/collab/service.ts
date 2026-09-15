@@ -713,6 +713,32 @@ export async function dismissReviewRequestNotifications(
   return rows.length;
 }
 
+/**
+ * Mark the owner's unread cloud-sync failure rows for one config read — the
+ * run that recovered did what the row asked for, so the bell stops ringing
+ * without a click (`domains/onedrive/sync-health.ts`). Matches only THIS
+ * config; a second broken sync keeps its own row.
+ */
+export async function dismissCloudSyncFailureNotifications(
+  db: Db,
+  args: { organizationId: string; userId: string; configId: string },
+): Promise<number> {
+  const rows = await db<{ id: string }[]>`
+    UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+      AND type = 'cloud_sync_failed' AND read = false
+      AND resource_id = ${args.configId}
+    RETURNING id
+  `;
+  if (rows.length > 0) {
+    await emitBellHint(db, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    });
+  }
+  return rows.length;
+}
+
 // ---------------------------------------------------------- task emitters
 
 interface TaskFacts {

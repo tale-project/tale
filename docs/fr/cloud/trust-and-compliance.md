@@ -1,53 +1,39 @@
 ---
-title: Trust et conformité
-description: Quelle posture de conformité Tale Cloud apporte, qui audite quoi, quels contrôles sont les tiens, et comment signaler les incidents.
+title: Sécurité et conformité
+description: Trouver les certifications, comprendre les responsabilités et réunir les preuves pour une revue de sécurité.
 ---
 
-Trust et conformité sur Cloud est la page qu'un auditeur veut. Elle nomme les cadres contre lesquels la plateforme est certifiée, sépare proprement les responsabilités entre Tale et ton organisation, liste les contrôles de protection des données à ta disposition, et te dit qui appeler quand quelque chose tourne mal.
+Tale dispose des certifications ISO/IEC 27001 et SOC 2 Type II. Pour une revue de sécurité, demande à ton contact Tale les certificats applicables, le périmètre des rapports et les pièces justificatives. Utilise les documents correspondant au service souscrit par ton organisation.
 
-Le contenu ici est descriptif — ce qui est livré aujourd'hui, quelles preuves Tale peut fournir sur demande. Les documents légaux eux-mêmes (DPA, conditions, politique de confidentialité) vivent sous [Mentions légales](/fr/legal/privacy) ; cette page est la référence rapide de l'opérateur.
+Les contrôles du produit accompagnent les procédures de ton organisation. Le respect de tes obligations dépend aussi de la configuration, des fournisseurs connectés et des pratiques d’exploitation.
 
-## Un contrôle déroulé — journaux d'audit de bout en bout
+## Préparer une revue
 
-Le responsable conformité de l'organisation doit démontrer que « chaque changement de contrôle d'accès est journalisé avec l'acteur, la cible et l'horodatage ». Les [Journaux d'audit](/fr/platform/admin/governance/audit-logs) de Tale enregistrent chaque invitation de membre, changement de rôle, suppression et réinitialisation 2FA avec l'ID utilisateur de l'acteur, l'ID du membre affecté, et un horodatage ISO. Les journaux sont immuables — restaurer un instantané ne les modifie pas — et conservés selon le plancher configuré par l'organisation. Le responsable exporte une plage de dates en CSV, la remet à l'auditeur, et l'exemple déroulé valide le contrôle.
+Rassemble le contrat de service, l’accord de traitement des données, les preuves de certification et une description du déploiement. La [politique de confidentialité](/fr/legal/privacy) et les informations sur les [sous-traitants](/fr/legal/subprocessors) complètent cet ensemble. Note la version et le périmètre de chaque document.
 
-## Certifications et cadres
+Précise l’organisation et le déploiement concernés. Une déclaration de certification ne remplace pas la vérification qu’un service ou une configuration entre dans le périmètre du rapport.
 
-Tale Cloud est actuellement audité ou attesté contre les cadres suivants ; les rapports de certification sont disponibles sous NDA via le support :
+## Répartir les responsabilités
 
-- SOC 2 Type II (annuel)
-- ISO/IEC 27001
-- Contrôles alignés RGPD (lignes directrices EDPB appliquées)
-- Contrôles alignés LPD pour la région Suisse (nLPD)
+| Domaine | Tale sur le Cloud | Ton organisation |
+| --- | --- | --- |
+| Hébergement et maintenance | Exploite le service convenu | Choisit le service et coordonne les changements |
+| Identité et accès | Fournit les comptes, rôles et contrôles SSO | Ajoute les membres et réexamine leurs droits |
+| Fournisseurs et connecteurs | Fournit les contrôles d’intégration | Choisit les services, identifiants et usages autorisés |
+| Politiques d’utilisation et de contenu | Fournit les règles et les enregistrements | Configure les règles et traite les événements |
+| Demandes de données et conservation | Fournit les procédures prises en charge | Fixe les exigences et autorise les actions |
 
-En attente ou prévus : BAA HIPAA (clients entreprise US), attestations régionales supplémentaires à mesure que la liste des régions s'agrandit.
+En auto-hébergement, ton opérateur assume aussi les responsabilités d’infrastructure. L’assistance Enterprise dépend de ton contrat.
 
-## Responsabilité partagée
+## Examiner les contrôles du produit
 
-| Contrôle                          | Tale                 | Toi                  | Preuve                                                     |
-| --------------------------------- | -------------------- | -------------------- | ---------------------------------------------------------- |
-| Disponibilité d'infrastructure    | ✓                    |                      | Page de statut, rapport SLA SOC 2                          |
-| Chiffrement des données au repos  | ✓                    |                      | Description d'architecture                                 |
-| Chiffrement en transit            | ✓                    |                      | Terminaison TLS par le edge de Tale                        |
-| Identité des membres et rôles     |                      | ✓                    | [Membres et rôles](/fr/platform/admin/members-and-roles)   |
-| Émission et rotation des clés API |                      | ✓                    | [Clés API](/fr/platform/admin/api-keys)                    |
-| Filtrage de contenu et DLP        | Fournit les crochets | Configure les règles | [Guardrails](/fr/platform/admin/governance/guardrails)     |
-| Rétention des journaux d'audit    | Fournit le stockage  | Règle la rétention   | [Rétention](/fr/self-hosted/configuration/retention)       |
-| Demandes de personnes concernées  | Fournit le workflow  | Initie et approuve   | [DSR](/fr/platform/admin/governance/data-subject-requests) |
-| Identifiants fournisseurs         |                      | ✓                    | [Providers](/fr/platform/admin/providers)                  |
+- [Membres et rôles](/fr/platform/admin/members-and-roles) définissent les accès. Vérifie les comptes inactifs et les droits élevés.
+- Le [SSO Enterprise](/fr/platform/admin/enterprise-sso) connecte ton fournisseur d’identité. Teste la connexion et la récupération avant de le rendre obligatoire.
+- Les [journaux d’audit](/fr/platform/admin/governance/audit-logs) aident à analyser les actions enregistrées. Consulte [l’intégrité des journaux](/fr/self-hosted/operate/security/audit-log-integrity) pour comprendre les preuves de modification et leurs limites.
+- Les [garde-fous](/fr/platform/admin/governance/guardrails), la [conservation légale](/fr/platform/admin/governance/legal-hold) et les [demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) couvrent des procédures précises. Vérifie leur portée avant de t’y fier.
 
-## Contrôles de protection des données
+## Signaler un incident
 
-Dans le produit, trois surfaces de contrôle comptent pour la conformité :
+Utilise ton canal d’assistance Enterprise pour un incident de service. Signale une vulnérabilité présumée avec [le signalement privé GitHub](https://github.com/tale-project/tale/security) ou à `security@tale.dev`. Indique la version et les étapes de reproduction sans publier d’identifiants ni de données personnelles dans une issue.
 
-- **Journaux d'audit** — enregistrement immuable de qui a fait quoi ; rétention configurable.
-- **Conservation légale** — exempte un ensemble d'enregistrements de la rétention jusqu'à la levée ; couvert dans [Conservation légale](/fr/platform/admin/governance/legal-hold).
-- **Demandes de personnes concernées** — le workflow demande → prise en charge → effacement → audit ; couvert dans [DSR](/fr/platform/admin/governance/data-subject-requests).
-
-## Signaler les incidents
-
-Le contact incident sécurité de Tale est `security@tale.dev`. La divulgation de vulnérabilités présumées suit la politique de divulgation responsable sur le même e-mail. Les avis de sécurité côté client sont publiés dans le [flux d’avis de sécurité](/fr/self-hosted/operate/security/advisories) et envoyés par e-mail au Propriétaire de l’organisation ; la [page de statut](/fr/develop/status-page) ne rapporte que la disponibilité et ne porte aucun avis.
-
-## Où ça s'inscrit
-
-Trust et conformité est la page du moment d'audit ; [Résidence des données](/fr/cloud/data-residency) est la page du moment d'architecture ; [Sous-traitants](/fr/legal/subprocessors) est la page liste-de-vendeurs. Un auditeur veut généralement les trois en même temps — mets-les toutes en favoris. Si tu opères en auto-hébergé, les contrôles sont les mêmes ; ce qui change est qui fait tourner l'infrastructure en dessous — voir [Aperçu auto-hébergé](/fr/self-hosted/overview).
+Pour examiner les flux de données, poursuis avec [la résidence des données Cloud](/fr/cloud/data-residency).

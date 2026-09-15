@@ -1,111 +1,82 @@
 ---
 title: Der Workflow-Editor
-description: Das Betriebshandbuch zur Seite einer Automatisierung — den Canvas lesen, eine Node bearbeiten, eine Version speichern, sie gegen Mocks laufen lassen, live schalten und zurückrollen.
+description: Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück.
 ---
 
-Diese Seite ist die praktische Hälfte der Automatisierungen: was du klickst und in welcher Reihenfolge, um aus einer Idee die Version zu machen, die deine Trigger ausführen. Das Modell darunter — ein Dokument, unveränderliche Versionen, genau eine live, Trigger am Namen — steht in den [Automatisierungskonzepten](/de/platform/automations/concepts), und diese Seite setzt es voraus. Speichern, Testen und Live-Schalten sind hier drei getrennte Schritte, und genau diese Trennung erlaubt dir, eine laufende Automatisierung zu bearbeiten, ohne einen einzigen laufenden Job zu stören.
+Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die gespeicherte Version für Live-Läufe. Änderungen brauchen Entwickler-, Admin- oder Inhaberrechte. Speichern, Testen und Bereitstellen sind getrennte Schritte: Die Arbeit an einem Entwurf lässt die bereitgestellte Version bestehen.
 
-## Wo eine Automatisierung lebt
+Öffne **Automatisierungen** und wähle einen Eintrag. Er öffnet sich im Tab **Editor**. Für einen neuen Ablauf beginne mit [Automatisierungen erstellen oder importieren](/de/platform/automations/catalog).
 
-Öffne **Automatisierungen** in der Seitenleiste. Die Liste zeigt jede Automatisierung der Organisation mit der Anzahl ihrer Versionen und entweder der Version, die live ist, oder **Nicht live**, solange es keine gibt. Klick eine an, und du landest auf ihrer Seite.
+| Tab | Wofür du ihn nutzt |
+| --- | --- |
+| **Editor** | Den Workflow ändern, eine gespeicherte Version testen und die Live-Version wählen. |
+| **Versionen** | Versionsnachrichten und gespeicherte Testergebnisse lesen. Eine Zeile öffnet diese Version im Editor. |
+| **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
-Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag, um seine neueste gespeicherte Version zu öffnen. Der Wechsel landet auf dem Tab, den du gerade offen hattest.
+Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**. Ein Punkt am Tab **Editor** kennzeichnet ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
-Diese Seite hat drei Tabs, wie ein Projekt: **Editor**, **Versionen** und **Läufe**; sie öffnet auf **Editor**. Der Name trägt das Badge **Live**, wenn die Version auf dem Canvas live ist. **Version**, **Testlauf**, **Live ausführen**, **Verwerfen** und **Speichern** stehen am rechten Ende der Tab-Leiste — **Diese Version live schalten** sitzt neben **Version**, wenn die Auswahl nicht live ist. Neben dem Canvas zeigt das Panel **Trigger** und **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keines heißt die ganze Organisation — bis du eine Box anklickst. Das Panel ist so hoch wie der Canvas, der das Fenster unter den Tabs füllt. Wählst du eine Node, bleibt der Canvas gleich hoch — überzählige Felder scrollst du im Panel. Klick **Schließen**, drück Escape, klick die ausgewählte Box noch einmal, oder in den leeren Canvas, und sie kommen zurück. **Versionen** listet jede gespeicherte Version, **Läufe** jeden Lauf — beide in ihrem eigenen Tab.
+<Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
+
+![Der Workflow-Editor zeigt verbundene Knoten, die Einstellungen eines ausgewählten Knotens die Tabs Editor, Versionen und Läufe sowie die Versions- und Laufaktionen.](/images/platform/automation-editor-canvas.webp)
+
+</Frame>
+
+Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag. Der aktuelle Tab bleibt geöffnet. Aus einem Laufdetail gelangst du zur Liste **Läufe** der anderen Automatisierung. Eine ausgewählte Versionsnummer wird nicht übernommen: Im **Editor** erscheint deren neueste gespeicherte Version.
 
 ## Den Canvas lesen
 
-Der Canvas zeichnet die Version, die du gerade ansiehst. Jede Box ist eine Node, beschriftet mit ihrer id und ihrem Typ, und Boxen, die die Ausgabe einer anderen Node lesen, sagen das: Eine Zeile **Liest** nennt die Nodes, von denen sie abhängen. Die Pfeile dazwischen zeichnest du nicht selbst — ein Pfeil existiert, weil das Feld einer Node die Ausgabe einer anderen referenziert. Der Graph passt deshalb immer zum Dokument.
+Jeder Kasten ist ein Knoten. Seine Beschriftung nennt Schritt und Typ; **Liest** zeigt verwendete Ausgaben anderer Knoten. Pfeile entstehen aus Referenzen wie `{{ nodes.draft.output.text }}`. Ändere die Referenz, um eine Abhängigkeit zu ändern. Das Zeichnen eines Pfeils erstellt keine Abhängigkeit.
 
-Die Ablaufsteuerung erscheint als Badge an der Box, für die sie gilt, im selben Vokabular wie im Dokument: `wenn …`, `sonst zu …`, `für jedes …`, `wiederholen bis …` (mit dem Deckel, wo es einen gibt) und `bei Fehler weiterlaufen`. Nichts an der Form des Graphen versteckt sich in einem separaten Einstellungsdialog.
+Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for each`, `repeat until` und `continue on error`. Eine Zykluswarnung bedeutet, dass mehrere Knoten voneinander abhängen. Entferne die kreisförmige Referenz, bevor du eine ausführbare Version speicherst.
 
-Zwei Zustände lohnen sich zu kennen. Eine Version ohne Nodes sagt das und weist dich darauf hin, dem Dokument eine hinzuzufügen. Eine Version, deren Nodes im Kreis aufeinander verweisen, warnt dich, dass die gezeigte Reihenfolge die ist, in der sie im Dokument stehen, und nicht eine, die die Engine ausführen könnte — und bittet dich, eine der Referenzen zu entfernen, um den Kreis aufzubrechen.
+## Einen Knoten bearbeiten
 
-Ein Agent, der ein Modell ohne festen Anbieter nennt, warnt auf seiner Box. Lege den Anbieter am Node fest, speichere und schalte die neue Version live.
+Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
 
-<Note>
+Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Klicke auf den leeren Canvas, auf **Schließen** oder drücke Escape außerhalb eines Textfelds, um zu Trigger und Projekteinstellungen zurückzukehren. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
 
-Der Canvas dient zum Lesen und Auswählen. Du verbindest Nodes, indem du sie referenzierst, nicht indem du eine Linie zwischen zwei Boxen ziehst.
+## Eine Version speichern und testen
 
-</Note>
+1. Ändere die nötigen Felder und klicke auf **Speichern**.
+2. Erkläre die Änderung in der **Versionsnachricht** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten.
+3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, fülle im Dialog **Eingabe für den Lauf (JSON)** aus. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu prüfen. Ungültiges JSON oder unpassende Werte verhindern den Start.
+4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 
-## Eine Node bearbeiten
+Braucht ein Workflow `owner` und `repo`, könnte seine Eingabe so aussehen:
 
-Klick eine Box an, und das Panel neben dem Canvas wechselt von **Trigger** zu den Feldern dieser Node. Klick **Schließen**, drück Escape (wenn du nicht in einem Feld tippst), klick die Box noch einmal, oder in den leeren Canvas, um zurückzuwechseln. Welche Felder auftauchen, hängt vom Typ ab: **Code** bei einer `transform`, **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema** bei einer `llm`, **Automatisierung** bei einer `subautomation`, und ein `agent` ergänzt seine Ausstattung — **Agent-Laufzeit**, **Skills**, **Connectors**, **Plattform-Tools**, **Secrets** und **Bereitgestellte Dateien** — um Prompt und Modell, die er sich mit `llm` teilt. **Eingabe** taucht überall dort auf, wo es eine gibt, und die typabhängigen Felder sitzen darüber.
-
-**Eingabe** ist ein JSON-Objekt, und dort leben die Referenzen. Ein Text-Wert darf die Ausgabe einer anderen Node referenzieren, und genau diese Referenz zeichnet den Pfeil auf dem Canvas. Solange das JSON unvollständig ist, sagt dir das Panel, dass es noch nicht gültig ist, und lässt die Node unverändert — eine halb getippte Änderung lässt sich so nie versehentlich speichern.
-
-Öffne **Ablaufsteuerung** für **Wenn**, **Sonst zu**, **Für jedes** und **Wiederholen bis**. Es sind dieselben Felder, die die Badges auf dem Canvas spiegeln: Setzt du hier eines, ändert sich das Badge sofort. Die Gruppe ist aufgeklappt, sobald eines davon gesetzt ist.
-
-## Speichern, starten, live schalten
-
-Die drei Schritte sind bewusst getrennt. Geh sie beim ersten Mal der Reihe nach durch, dann fühlt sich die Trennung nicht mehr nach Mehrarbeit an.
-
-<Steps>
-
-<Step title="Eine Version speichern">
-
-Änderungen zeigen den Hinweis **Nicht gespeicherte Änderungen**, bis du speicherst. Klick **Speichern**, schreib eine **Notiz zur Version**, die sagt, was sich geändert hat — diese Notiz unterscheidet später als Einziges zwei Versionen in der Liste —, und bestätige **Version speichern**. Das Speichern hängt eine neue Version an und lässt jede frühere genau so, wie sie war. Hat sich nichts geändert, sagt dir die Schaltfläche das, statt eine identische Version anzulegen.
-
-</Step>
-
-<Step title="Gegen Mocks laufen lassen">
-
-**Testlauf** startet einen Lauf im Testmodus: Konnektoren liefern ihre deterministischen Platzhalter, und nichts außerhalb der Plattform wird berührt. Du kannst ihn beliebig oft drücken, und genau deshalb ist er die Schleife, in der du arbeitest, solange eine Node noch Form annimmt.
-
-Ist die Automatisierung an mehr als ein Projekt gebunden, sitzt neben den Lauf-Schaltflächen ein **Projektbereich**-Auswähler. Er steht standardmäßig auf organisationsweit; wähle eines der gebundenen Projekte, damit der Lauf — und die Aufgaben- und Dokument-Tools seiner Agents — nur in diesem Projekt wirkt.
-
-</Step>
-
-<Step title="Die gewünschte Version live schalten">
-
-Wenn die Version auf dem Canvas nicht live ist, schaltet **Diese Version live schalten** neben **Version** genau diese live. Die aktuelle trägt in **Versionen** das Badge **Live**, und eine andere live zu schalten verschiebt dieses Badge, ohne den Inhalt irgendeiner Version anzufassen.
-
-</Step>
-
-</Steps>
-
-<Note>
-
-Die Schaltfläche auf dieser Seite startet immer einen Lauf gegen Mocks. Ein Lauf, der die Außenwelt erreichen darf, wird von einem Trigger oder programmatisch gestartet, und das ist eine Entwickler-Berechtigung.
-
-</Note>
-
-## Tests und das Tor zum Live-Schalten
-
-Tests sind Teil des Dokuments, kein eigenes Panel. Jeder trägt einen Namen, eine Eingabe und Erwartungen an die Ausgabe sowie an die Auswirkungen, die der Lauf erzeugen soll, und sie reisen mit der Version wie jedes andere Feld.
-
-```yaml
-tests:
-  - name: erinnert einen säumigen Zahler
-    input: { invoiceId: 'inv-1' }
-    expect:
-      effects:
-        - connector: email.send
+```json
+{
+  "owner": "your-organization",
+  "repo": "your-repository"
+}
 ```
 
-Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und der Tab **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Seite sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
+Maßgeblich ist das tatsächliche Schema des Workflows. Ein Zahlenfeld braucht eine JSON-Zahl, keinen Text in Anführungszeichen. Prüfe auch den Projektumfang, wenn ein Projektwähler angeboten wird.
 
-## Zurückrollen
+**Testlauf** führt die gewählte gespeicherte Version mit deterministischen Mocks aus. Er sendet keine E-Mails und ändert keine externen Datensätze. Ein Entwurf lässt sich vor der Bereitstellung testen. Ein erfolgreicher Mock prüft keine echten Zugangsdaten oder externen Dienste.
 
-Zurückrollen heißt, eine ältere Version live zu schalten. Wähl sie in der Tab-Leiste unter **Version** — oder öffne **Versionen**, lies die Notiz und klick die Zeile an, die den Editor mit dieser Version öffnet — und klick **Diese Version live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
+<Frame caption="Hat der Workflow Eingaben, gib JSON an und prüfe sein Schema vor dem Teststart.">
 
-Deshalb zählen Versionsnotizen mehr, als sie aussehen. Sechs Versionen später sagt dir die Notiz, welche der letzte gute Stand war — schreib sie also für die Person, die sie während einer Störung lesen wird.
+![Der Testlauf-Dialog zeigt JSON-Werte für owner und repo und das aufgeklappte Eingabeschema.](/images/platform/automation-run-input.webp)
 
-## Eine Automatisierung löschen
+</Frame>
 
-Löschen betrifft die Automatisierung als Ganzes: alle Versionen, das Deployment, der Trigger und die Projekt-Bindungen gehen zusammen — ein Zeitplan löst danach nicht mehr aus, eine Webhook-URL funktioniert sofort nicht mehr. Das passiert in der Liste, nicht auf dieser Seite: öffne **Automatisierungen**, das Zeilenmenü, und klicke **Löschen**. Die Bestätigung (**Automatisierung löschen**) nennt sie zuerst. Die bisherigen Läufe bleiben lesbar, bis die Aufbewahrungsfrist sie entfernt — was die Automatisierung getan hat, bleibt also nachvollziehbar.
+## Bereitstellen und live ausführen
 
-Zwei Leitplanken. Ein Lauf, der noch aussteht, läuft oder wartet, blockiert das Löschen — brich ihn ab oder lass ihn zu Ende laufen. Und ein gelöschtes mitgeliefertes Pack bleibt über Plattform-Upgrades hinweg gelöscht; legst du unter demselben Namen neu an, lebt der Name wieder.
+Wähle die getestete Fassung unter **Version** und klicke auf **Diese Version live schalten**. Die Kennzeichnung **Live** markiert die bereitgestellte Version. Sind die gespeicherten Tests einer Version fehlgeschlagen, lässt sie sich nicht bereitstellen. Behebe die Ursache und speichere eine neue Version.
 
-## Den letzten Lauf auf dem Canvas lesen
+**Live ausführen** startet die bereitgestellte Version, auch wenn du eine andere ansiehst. Die Bestätigung zeigt den Umfang und bei Bedarf **Eingabe für den Lauf (JSON)** für genau diese Version. Prüfe beides vor dem Bestätigen. Live-Läufe können verbundene Systeme verändern und auf eine [Freigabe](/de/platform/approvals/concepts) warten.
 
-Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diesen Lauf über den Canvas — ein Symbol auf dem Canvas schaltet das ein (es heißt **Letzten Lauf ausblenden**, solange die Überlagerung an ist). Jede Box übernimmt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler wird so als Stelle im Graphen sichtbar statt als Zeile in einem Log.
+Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wiederholte oder extern ausgelöste Läufe gewünscht sind; siehe [Automatisierungstrigger](/de/platform/automations/triggers).
 
-Wähl bei eingeblendetem Lauf eine Node, und das Panel ergänzt einen Abschnitt **In diesem Lauf**: die **Aufgelöste Eingabe**, die die Node tatsächlich bekommen hat, nachdem jedes Template ausgewertet war, ihre **Ausgabe** und die Auswirkungen, die sie erzeugt hat, oder den Hinweis, dass sie außerhalb der Plattform nichts verändert hat. Die aufgelöste Eingabe beantwortet meist am schnellsten die Frage, warum eine Node getan hat, was sie getan hat — sie zeigt den Wert, den eine Referenz ergeben hat, nicht die Referenz, die du geschrieben hast.
+## Ein Ergebnis untersuchen
 
-Öffne **Läufe** und klick eine Zeile an: Das öffnet die Lauf-Seite — die Tabs bleiben, **Läufe** ist aktiv —, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
+**Letzten Lauf anzeigen** legt Laufzustände über den Canvas. Wähle einen Knoten für die Angaben zu diesem Lauf: aufgelöste Eingabe, Ausgabe und Effekte. Häufig findest du so eine falsche Referenz. Vergleiche die Eingabe des fehlgeschlagenen Knotens mit der Ausgabe seiner Quelle.
 
-## Wo das hingehört
+Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben sichtbar; **Läufe** ist aktiv. Mit **Editor** kehrst du zum Workflow zurück. Prüfe Test- oder Live-Modus und bereits ausgeführte Aktionen, bevor du erneut startest. [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Wartezustände, Fehler, automatische Wiederholungen und Abbruch.
 
-Die Schleife ist kurz, sobald die drei Schritte klar sind: eine Node bearbeiten, eine Version mit einer lesenswerten Notiz speichern, sie gegen Mocks laufen lassen, bis sie tut, was du meintest, und sie dann live schalten — und eine ältere live schalten, wenn du etwas rückgängig machen musst. [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Modell, das diese Seite bedient; [Workflow-Trigger](/de/platform/automations/triggers) ist das, was die live geschaltete Version startet, sobald du zufrieden bist.
+## Zu einer früheren Version zurückkehren oder löschen
+
+Öffne für eine Rückkehr **Versionen**, lies die Versionsnachrichten und wähle eine frühere Fassung. Die Zeile öffnet den **Editor** mit dieser Version. Klicke dort auf **Diese Version live schalten**. Du kannst die frühere Fassung auch im Menü **Version** des Editors wählen. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
+
+Zum Löschen gehe zur Liste zurück, öffne das Zeilenmenü und wähle **Löschen**. Lies die Bestätigung mit dem Namen der Automatisierung. Versionen, Bereitstellung, Trigger und Projektzuordnungen werden entfernt. Ein offener Lauf blockiert das Löschen; beende ihn oder warte seinen Abschluss ab. Frühere Läufe unterliegen weiter der Aufbewahrung. Bereits ausgeführte Aktionen werden durch das Löschen nicht rückgängig gemacht.

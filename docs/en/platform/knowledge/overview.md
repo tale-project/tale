@@ -1,68 +1,71 @@
 ---
 title: Knowledge
-description: Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in.
+description: Choose where to store shared information, prepare it for search, and check the sources behind an answer.
 ---
 
-Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on five tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, and **Contacts**.
-
-Prefer to watch first? Episode 3 walks the whole library in three minutes — indexing, entries, records, the crawler, and scopes, captions included.
+Knowledge is your organization's shared library. Add documents, short facts, public websites, contacts, and products so people and agents can work from the same sources. Start with the information you need to answer a real question; a small, current collection is easier to trust than an unreviewed archive.
 
 <Video src="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.mp4" poster="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.webp" captions="/videos/en/tutorials/ep3-knowledge/ep3-knowledge.en.vtt" lang="en" title="Episode 3 — Knowledge" caption="Episode 3 — Knowledge (3:03)">
 
 </Video>
 
-<Frame caption="The Documents tab — the most-used corner of the knowledge base.">
+<Frame caption="Start in Documents for files, or choose the tab that matches your source. This view filters files to indexed uploads.">
 
-![The Knowledge area's Documents tab listing three uploaded text files and the three markdown documents behind the knowledge entries, with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
+![The Knowledge area shows its Documents, Knowledge entries, Websites, Products, and Contacts tabs above a table of shared files.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-## The two shapes
+## Choose the right place
 
-Everything in the area is one of two shapes. **Indexed content** — the files in Documents, the facts in Knowledge entries, the pages a website crawl brings in — runs through the indexing pipeline (extract, chunk, embed, store) so agents retrieve relevant passages and cite them. **Typed records** — Products and Contacts (the correspondent directory that covers both customers and vendors) — are rows with named fields that agents read as data, not prose: exact values, no retrieval guesswork.
+| You have | Use | Why |
+| --- | --- | --- |
+| A policy, guide, spreadsheet, or report | **Documents** | Keep the original file and retrieve passages from supported formats. |
+| A short fact such as support hours | **Knowledge entries** | Give it a stable topic and update one current answer. |
+| Public pages that change over time | **Websites** | Crawl a whole website or a chosen URL list on a schedule. |
+| People, organizations, and their contact details | **Contacts** | Keep names and other fields as structured records. |
+| Items with product details | **Products** | Look up the record's fields instead of searching a paragraph. |
+| Reference files for one piece of work | A project's **Knowledge** tab | Keep them within that project's access and chat context. |
 
-The shape you pick decides how an agent can use the content, which is why [Structured data](/platform/knowledge/structured-data) is a decision page, not just a reference.
+Members can read content within their access. Editors and higher roles curate the shared library. The [structured-data guide](/platform/knowledge/structured-data) helps when a spreadsheet could be either a source document or a set of records.
 
-## Where the index lives
+## Make a source useful for answers
 
-Indexed content is embedded into Tale's built-in vector database — a **PostgreSQL** store (ParadeDB) that combines `pgvector` embeddings with keyword (BM25) search and fuses the two, so retrieval catches both semantic matches and exact terms. It ships with the platform, so there's nothing extra to license or operate, and retrieval, citations, per-team permissions, and GDPR erasure all act on one store. Embeddings come from the org's configured **embedding model** — an org admin picks the provider, model, and vector width in **Settings > Data residency**, and knowledge search refuses with an actionable error until one is configured, rather than guessing a model.
+Uploading or saving is the first step. Documents, entries, and website pages also need to be **indexed**: Tale extracts their text and prepares it for search. Check the status before asking about newly added content. A file can remain downloadable even when its format cannot be indexed.
 
-**Bring your own vector database — it's Postgres.** Because the vector store is PostgreSQL, you can point Tale's knowledge database at any managed PostgreSQL you run (with the `pgvector` and `pg_search`/ParadeDB extensions) instead of the bundled one — your data, your infrastructure, your region. An org admin sets the connection in **Settings > Data residency** — enter the host, database, and credentials for your Postgres, the same way on a self-hosted deployment and on a dedicated cloud instance. Tale verifies the connection and that the required extensions are present before you cut over. See [Data residency](/self-hosted/configuration/data-residency) for the connection details and the extension prerequisites.
+Use a clear title, include dates and scope in the content, and remove or correct outdated guidance. If two sources disagree, tell the assistant which one is authoritative and verify its citation. Adding more files does not resolve a contradiction between them.
 
-## How agents reach in
+<Tip>
 
-An agent does not pick its own slice of the library — the server does. In the organization chat the assistant searches the hub with `rag_search` and loads what it found with `rag_fetch` whenever a question calls for it; in a project chat it searches that project's files together with the hub, and never another project's. A project agent reads it through the platform tools you equip it with, and team-scoped items stay invisible to agents and members outside the team. Every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Project agents](/platform/projects/project-agents).
+Test a new source with a question whose answer you already know: “What are our support hours? Cite the source.” Open the cited source and compare the answer. This checks usefulness more directly than asking for a general summary of everything in the library.
 
-## Pages in this section
+</Tip>
+
+## Understand access and search
+
+Organization chat can search the shared library within your permissions. Project chat can also search that project's files and uses its saved instructions; it does not search another project's files. Project agents need the corresponding platform tools in their equipment.
+
+Team restrictions continue to apply during retrieval. A file you can see in one workspace may therefore be absent from a different project's context. Use [project files](/platform/projects/manage-files) for project-specific material and document team access for shared library files.
+
+If all searches fail, ask an administrator to check the embedding model and knowledge connection in **Settings > Data residency**. Operators can find setup details in [Data residency](/self-hosted/configuration/data-residency).
+
+## Maintain each source
 
 <CardGroup cols="2">
 
 <Card title="Documents" icon="file-text" href="/platform/knowledge/documents">
-
-Uploading files, the indexing pipeline, supported formats, and the per-document lifecycle.
-
+Upload, import, check indexing, and maintain approved document revisions.
 </Card>
 
 <Card title="Knowledge entries" icon="book-open" href="/platform/knowledge/knowledge-entries">
-
-Small, topic-keyed facts — captured from chat with approval or added by hand.
-
+Add a concise fact, correct it, and read its version history.
 </Card>
 
-<Card title="Crawling" icon="globe" href="/platform/knowledge/crawling">
-
-Turning a public website into knowledge — domain, scan interval, and the indexed-pages view.
-
+<Card title="Websites" icon="globe" href="/platform/knowledge/crawling">
+Choose pages to crawl, set the interval, and investigate missing pages.
 </Card>
 
 <Card title="Structured data" icon="table" href="/platform/knowledge/structured-data">
-
-Contacts, Products, Websites — when a typed record beats a document.
-
+Choose records for exact fields and documents for supporting explanations.
 </Card>
 
 </CardGroup>
-
-## Where this fits
-
-Knowledge is the data layer every grounded reply stands on; without it, agents only know what the model already knows. Bring content in through the tab that matches its shape, then wire agents to it — the natural next read is [Documents](/platform/knowledge/documents) for files, [Structured data](/platform/knowledge/structured-data) for records, and [Project agents](/platform/projects/project-agents) for how an agent reads it.

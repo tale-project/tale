@@ -1,13 +1,8 @@
 'use client';
 
-import { LinkButton } from '@tale/ui/button';
-import { cn } from '@tale/ui/cn';
-import { Heading } from '@tale/ui/heading';
-import { Center, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
-import { FileQuestion } from 'lucide-react';
+import { PageLayout } from '@tale/ui/page-layout';
 
-import { useT } from '@/lib/i18n/client';
+import { NotFoundState } from '@/app/components/layout/not-found-state';
 
 interface DashboardNotFoundProps {
   /** Org id used to build the "Back to dashboard" recovery link. */
@@ -16,40 +11,20 @@ interface DashboardNotFoundProps {
 }
 
 /**
- * Styled 404 shown for an unknown route under `/dashboard/$id`. Renders inside
- * the dashboard layout's `<Outlet/>`, so the side-nav rail and shell stay up;
- * this only fills the content area with a heading, message, and a recovery link
- * back to the org dashboard. Mirrors the app's other empty/error states
- * (AccessDenied, GlobalErrorDisplay) for visual consistency. Composes the
- * design-system layout primitives (`Center`, `Stack`) rather than raw flex divs.
+ * The 404 for an unknown route under `/dashboard/$id`. Renders inside the
+ * dashboard layout's `<Outlet/>`, so the side-nav rail and shell stay up; this
+ * only fills the content area with the not-found state and its link back to the
+ * org dashboard. `PageLayout` is the page container every dashboard page uses:
+ * it centres the state in the remaining height and scrolls instead of clipping
+ * the recovery link when the viewport is too short to show it.
  */
 export function DashboardNotFound({
   organizationId,
   className,
 }: DashboardNotFoundProps) {
-  const { t } = useT('common');
-
   return (
-    <Center className={cn('min-h-[50vh] flex-1 px-6 text-center', className)}>
-      <Stack align="center" gap={0} className="mx-auto w-full max-w-md">
-        <Center
-          aria-hidden="true"
-          className="bg-muted text-muted-foreground mb-6 size-16 rounded-full"
-        >
-          <FileQuestion className="size-7" />
-        </Center>
-        <Heading level={1} size="2xl" className="mb-2">
-          {t('notFound.title')}
-        </Heading>
-        <Text variant="muted">{t('notFound.description')}</Text>
-        <LinkButton
-          href={`/dashboard/${organizationId}`}
-          variant="primary"
-          className="mt-8"
-        >
-          {t('notFound.backToDashboard')}
-        </LinkButton>
-      </Stack>
-    </Center>
+    <PageLayout className={className}>
+      <NotFoundState href={`/dashboard/${organizationId}`} />
+    </PageLayout>
   );
 }

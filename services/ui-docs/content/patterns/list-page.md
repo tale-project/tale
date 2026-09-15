@@ -1,20 +1,17 @@
 ---
 title: List page
-description: The most common screen in the product — page chrome, a create action, and a searchable table.
+description: Build a collection screen with one create action, connected search, and honest loading and empty states.
 ---
 
-Most of the platform is list pages: agents, automations, projects, members,
-connectors. They are all the same composition, and following it is what makes
-them feel like one product rather than five.
+A list page helps someone find an item, inspect it, or create another. Start with one page title and a `DataTable` that owns the collection toolbar. Keep data access, permissions, and filter state in your service.
 
-By the end of this page you will be able to build a list page whose header,
-create action, search and empty state sit where a reader already expects them.
-
-## The whole thing
+## Inspect the composition
 
 <Demo name="patterns/list-page" />
 
-## The composition
+This frame is an inert layout illustration. The header contains the title; the table toolbar contains search and the create action. For a working search interaction, use the [Data table example](/docs/components/data-table).
+
+The following excerpt assumes the host supplies columns, filtered rows, query state, and `openCreate`:
 
 ```tsx
 <PageLayout
@@ -28,68 +25,46 @@ create action, search and empty state sit where a reader already expects them.
     <DataTable
       columns={columns}
       data={rows}
+      getRowId={(row) => row.id}
       caption="Automations"
       search={{ value: query, onChange: setQuery }}
       addAction={{ label: 'New automation', onClick: openCreate }}
-      emptyState={{ title: 'No automations yet', description: '…' }}
+      emptyState={{ title: 'No automations yet' }}
     />
   </ContentArea>
 </PageLayout>
 ```
 
-Four decisions are already made for you:
+Import these components from their `@tale/ui` subpaths and mount the [adaptive header context and mobile slot](/docs/components/app-shell) in the surrounding application. This fragment is the page body, not a complete app entry point.
 
-1. **The title is the page's `h1`**, rendered by the header row — never by the
-   body.
-2. **The create action belongs to the table**, through `addAction`. That is
-   what keeps it at the same size and in the same place on every list, and what
-   lets the table move it into the empty state when there is nothing to show.
-3. **Search lives in the table's header bar**, not above it. A filter bar
-   outside its table never receives the table's disabled or loading signal, so
-   it goes on offering filters for a list that is not there.
-4. **The empty state is part of the table**, so "no rows" and "no matches"
-   render in the same place with different copy.
+## Connect the controls to one data source
 
-## Filtering
+The search field and filters describe the rows beneath them. Update the query in their handlers, then filter the complete local dataset or request filtered results from the backend. Reset page or cursor state when the query changes so a new search does not start halfway through the old result set.
 
-`filters` renders facets through the shared filter panel, and `onClearFilters`
-renders the affordance that resets them. Keep the filter state in the URL — a
-filtered list should survive a reload and be sendable as a link.
+Use `filters`, `dateRange`, and `onClearFilters` for the shared facet controls. Put additional filter-side content in `filtersContent`. Keep shareable filter state in the URL when reloads and copied links should preserve the view.
 
-There is exactly one filter panel in the system. If you are about to build
-facet UI, search for the existing one first.
+`addAction` creates the primary toolbar affordance; it does not open a dialog by itself. Supply `onClick`, `href`, or menu items and derive availability from the host's permission state. Do not duplicate the same create action in the page header.
 
-## Loading
+## Separate no data, no matches, and a failed request
 
-Give the table `isLoading` **and** `approxRowCount`. The second one decides the
-skeleton: `undefined` while the count is still loading, `0` when no rows are
-expected so the empty state shows immediately, and a positive number to reserve
-that many rows so the page does not jump when the data arrives.
+| State | What to communicate |
+| --- | --- |
+| Initial request pending | A loading skeleton, using `isLoading` and a meaningful `approxRowCount`. |
+| Collection has no items | `emptyState` explaining the collection and how to create the first item. |
+| Active search has no matches | The table's shared no-results state; preserve a way to clear the query. |
+| More cursor pages could contain matches | Continue loading; do not claim the entire collection has no results yet. |
+| Request failed | `error` plus `onRetry`, preserving the reader's query. |
 
-## Rows that lead somewhere
+An unknown approximate count is `undefined`, not zero. Positive counts reserve skeleton rows up to the component cap. A create action moves into the initial empty state only when no search/filter toolbar needs to remain visible.
 
-For a row that opens a detail page, use `onRowClick` plus `onRowMouseEnter` to
-preload the route, so the detail is already warm by the time the pointer
-arrives. Gate clickability with `isRowClickable` when some rows are not
-navigable — an aggregate row, or one the reader may not open.
+## Make each row usable
 
-## Paging
+Choose stable IDs with `getRowId`. Use a named link or action for the item's destination, even if `onRowClick` also makes pointer navigation convenient. Keep selection checkboxes, expansion, menus, and row navigation distinct, and check that activating one does not trigger another.
 
-Pick one model and stay with it on a given screen:
+`isRowClickable` excludes rows that should not navigate. `onRowMouseEnter` can preload a destination, but the click handler still needs to work when there was no hover, including keyboard and touch use.
 
-- **`pagination`** when the total is known and the reader may want to jump.
-- **`infiniteScroll`** when the source is cursor-based. Pass `entityLabel` as
-  `{ one, other }` so the footer count reads correctly for a single row.
+## Choose paging and prove the states
 
-## What to avoid
+Use client-side pagination only when the full set is present. For server pages, pass the one-based page and paging callbacks. For cursor sources, append batches through `infiniteScroll` and supply accurate `hasMore` and loading state. Provide singular and plural `entityLabel` values for count copy.
 
-- A create button in the header row **and** `addAction` — the reader sees two
-  primary actions.
-- A page title in the body as well as the header, which produces two `h1`s.
-- A hand-rolled empty state next to the table rather than inside it.
-- A search box that filters a different list than the one below it.
-
-## Where to go next
-
-[Settings page](/docs/patterns/settings-page) is the other half of the
-product's surface area.
+Before shipping, try an initially empty collection, a nonmatching search, a rejected request followed by Retry, and a narrow viewport. Tab to the search, a row action, and the create control. Confirm the host prevents unauthorized writes even if its UI state is bypassed.

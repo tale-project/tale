@@ -3,9 +3,19 @@ title: Release client configurations
 description: Build, verify and deploy a versioned automation pack from a client repository with the Tale CLI, then verify its native workflow and skill bytes.
 ---
 
-The Tale CLI releases automation packs from a client's own repository to an existing organization and project. The full source commit identifies each new release, so you can reproduce its workflow and owned skill files without committing generated archives. Client repositories own their content and correctness tests; deployment automation selects the destination, source commits and CLI revision, then calls Tale's deployment commands.
+A configuration release installs a reviewed workflow and its owned skills into an existing organization and project. Its identity is the full source commit. Use this procedure when the application runtime stays in place; use [managed deployments](/self-hosted/install/cli-install#managed-deployments) for a new instance or runtime change.
 
-This guide covers configuration alone. To deploy the instance and its configuration together, use the [managed deployment commands](/self-hosted/install/cli-install#managed-deployments); the CLI also owns runtime preparation, rollout and native provisioning.
+## Know what each command produces
+
+| Command | Result to check before continuing |
+| --- | --- |
+| `config build` | A manifest and compiled archives from a committed source revision. |
+| `config verify --rebuild` | Independent reconstruction agrees with the reviewed artifacts. |
+| `config stage` | A transferable directory containing only the deployment files and their hashed inventory. |
+| `config deploy` | The workflow and owned skills are installed, read back, and recorded in a persistent receipt. |
+| `config verify-native` | A read-only comparison with the currently installed content. |
+
+A **native** ID or session in these commands belongs to the target Tale instance. A **receipt** records a deployment result; it does not replace checking the current server. Format and byte verification do not prove the automation's business result, so keep domain tests in the client repository.
 
 ## Before you begin
 
@@ -17,7 +27,7 @@ For a new instance without native IDs, use managed deployment with an explicit f
 
 The examples use the synthetic `example-team` client and `document-review` automation. Inject the full operator session cookie through `TALE_CONFIG_COOKIE` from your secret manager. Keep it out of arguments, source, archives, receipts and logs.
 
-## Step 1—Keep the content in the client repository
+## Commit the descriptor and pack
 
 Store the descriptor at `tale/client.json`, packs beneath `tale/packs/`, and domain tests beside them. Keep any retained historical release catalogue there too. Descriptor paths resolve relative to its own directory.
 
@@ -43,7 +53,7 @@ Ignore `.tale/` if it is not already in the client's `.gitignore`. Default build
 
 `logicalSkillSlugs` lists the skill directories carried by this pack. `requiredExternalSkills` lists dependencies already installed in Tale: the CLI checks their presence, but this release does not pin their bytes. Keep credentials, target hostnames and project IDs in deployment configuration. Commit the descriptor and pack; the compiler reads Git objects rather than uncommitted edits.
 
-## Step 2—Build and verify the source commit
+## Build and verify the source commit
 
 Set `CONFIG_REPO` to the checkout, `CONFIG_SOURCE_COMMIT` to its full 40-character source commit, and `TALE_NATIVE_USER_ID` to the native operator ID. Choose a new absolute `CONFIG_BUILD` output directory outside the checkout. These commands build the release and independently reconstruct its bytes.
 
@@ -68,7 +78,7 @@ The default manifest uses schema 4/compiler 3 and records `releaseRef` equal to 
 
 Require identical bytes on rebuild and run the client's correctness tests against the extracted canonical ZIP. Preserve the reviewed artifacts and record `artifactSha256` as `CONFIG_ARTIFACT_SHA256`. Native format validation proves that the pack can be interpreted, not that its business results are correct. New source-based deployments do not need an extra commit containing generated release files.
 
-## Step 3—Stage the exact source commit
+## Prepare the transfer directory
 
 Use a checkout whose `HEAD` matches `CONFIG_SOURCE_COMMIT`. Set `CONFIG_STAGE` to a new absolute output directory outside that checkout. The optional `DEPLOYMENT_COMMIT` records the full commit of your deployment declaration; omit `--deployment-ref` if you do not track one.
 
@@ -88,7 +98,7 @@ The stage builds the committed descriptor and pack, independently verifies the a
 
 Pin the client repository URL and full source SHA, Tale CLI revision and optional deployment revision. Source provenance also depends on your trusted checkout: a URL in a descriptor does not establish which remote supplied a local Git object.
 
-## Step 4—Deploy and read the result back
+## Deploy and read the result back
 
 Set `TALE_CONFIG_URL`, `TALE_CONFIG_ORIGIN`, `TALE_ORG_ID` and `TALE_PROJECT_ID` to the approved native target. Keep `CONFIG_RECEIPT` on persistent storage. After reviewing the stage, supply `--yes` for an authorized unattended deployment, then run a separate read-only verification. Use the same optional deployment reference as the stage.
 
@@ -125,14 +135,22 @@ Run `verify-native` after deployment and operational tests. It imports nothing a
 
 ## Recover a stopped deployment
 
-Retain the stage and receipt. A retry can reuse exact skills and continue from a trusted saved receipt, or fully verify an already deployed matching version. If an upload response is lost and only an unpublished matching version is visible, the CLI holds because the native API cannot read its complete task contract before deployment. Do not manufacture a receipt or import a duplicate to bypass that hold.
+Keep the exact stage and receipt while investigating. Choose the next action from the state the CLI reports:
 
-Coordinate deployments that share a destination. Local locking does not provide cross-host compare-and-swap or prevent native administrator edits. Investigate drift against the retained release; an overwrite flag is not a recovery path.
+| State | Safe next step |
+| --- | --- |
+| A trusted receipt records partial progress | Retry with the same stage, target, and receipt. Exact skills can be reused. |
+| A matching version is already deployed | Read it back with `verify-native`; a repeated deploy also verifies before reporting no change. |
+| An upload response was lost and only an unpublished version is visible | Stop and investigate. The native API cannot read its complete task contract before deployment, so the CLI cannot prove that version safe to reuse. |
+| A release skill slug exists with different bytes | Preserve the evidence and identify the conflicting release or edit. Do not overwrite it to make verification pass. |
+| A receipt is unreadable or names another target | Restore the correct record or resolve the mismatch before retrying. Never manufacture a successful receipt. |
+
+Coordinate deployments that share a destination. Local locking does not prevent another host or an administrator from changing native content. After recovery, rerun the client's operational checks and the independent native verification.
+
+## Reconstruct a historical release
 
 Existing semantic releases remain a compatibility path: `build --config-version` selects schema 3/compiler 2; `stage --config-version` uses the committed catalogue and its explicit catalogue/ops pins. Keep original manifests and archives unchanged. A descriptor can register checksummed historical source snapshots for offline reconstruction; only that format's supported fields can be verified. Legacy shared skills may be reused only when explicitly allowed and already byte-identical. Restore different historical content through a new release.
 
 Historical reconstruction needs additional tools. Schema 1 uses Git's `archive --mtime` capability; check your selected Git supports it. Schema 2/compiler 1 uses Python 3's standard library. Schema 3/compiler 2, schema 4/compiler 3 and native deployment do not need Python.
 
-## Keep the release verifiable
-
-You now have a selected source commit, reproducible artifacts and a native receipt that can be checked against actual content. Retain the source, tests, reviewed artifacts and deployment pins together. The [CLI reference](/self-hosted/install/cli-install) also covers complete managed instance deployments; [Upgrades](/self-hosted/operate/upgrades) and [Backups and restore](/self-hosted/operate/backups-and-restore) cover the surrounding lifecycle.
+Retain the source, client tests, reviewed archives, CLI revision, deployment pins, and receipt together. Keep session cookies and credentials in your secret manager, outside those artifacts. [Upgrades](/self-hosted/operate/upgrades) and [Backups and restore](/self-hosted/operate/backups-and-restore) cover recovery of the surrounding runtime and data.

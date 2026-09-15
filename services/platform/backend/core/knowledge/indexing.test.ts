@@ -195,6 +195,41 @@ describe('unchanged content is not re-embedded', () => {
   });
 });
 
+describe('repeated passages are embedded once', () => {
+  it('embeds each distinct chunk text once and stores the repeats without a vector', async () => {
+    // One paragraph repeated until it fills many chunks — the shape of an
+    // export of one line, or a templated report (2026-09-14 evaluation, h4).
+    const paragraph =
+      'Filler line about routine quarterly ledger maintenance and archival procedures for the records office.';
+    const text = Array.from({ length: 400 }, () => paragraph).join('\n\n');
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({
+      ...ARGS,
+      text,
+      sql: db.sql,
+      embedder,
+      maxChunks: 1000,
+    });
+
+    const inserts = db.params.filter((_params, index) =>
+      db.statements[index]?.includes('INSERT INTO private_knowledge.chunks'),
+    );
+    expect(result.chunksWritten).toBe(inserts.length);
+    expect(inserts.length).toBeGreaterThan(1);
+    // Every distinct text once — and the repeats stored with no vector,
+    // flagged so both search legs skip them.
+    expect(new Set(embedder.embedded).size).toBe(embedder.embedded.length);
+    expect(embedder.embedded.length).toBeLessThan(inserts.length);
+    const repeats = inserts.filter((row) => row[10] === true);
+    expect(repeats.length).toBe(inserts.length - embedder.embedded.length);
+    for (const row of repeats) expect(row[5]).toBeNull();
+    for (const row of inserts.filter((first) => first[10] === false)) {
+      expect(row[5]).not.toBeNull();
+    }
+  });
+});
+
 describe('a large document finishes across several passes', () => {
   const LONG = Array.from(
     { length: 200 },

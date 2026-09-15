@@ -142,7 +142,14 @@ const send = (sql: Sql, route: string, method: string, body: unknown) =>
   });
 
 describe('website domain and field validation', () => {
-  it.each(['https://', 'a b', '::', 'x'.repeat(260), 'file:///etc/passwd'])(
+  it.each([
+    'https://',
+    'a b',
+    '::',
+    'x'.repeat(260),
+    'file:///etc/passwd',
+    'http://example.com',
+  ])(
     'POST /websites refuses the unparseable domain %j with 400',
     async (domain) => {
       const { sql, queries } = fakeSql();
@@ -166,7 +173,7 @@ describe('website domain and field validation', () => {
    */
   it.each([
     'localhost',
-    'http://localhost:3000',
+    'https://localhost:3000',
     '127.0.0.1',
     '169.254.169.254',
     'https://[::1]/',
@@ -366,6 +373,24 @@ describe('website create', () => {
    * crawl of a site already registered as `docs.example` (and the other
    * way round) — the crawler treats the pair as one site. The sibling is
    * a duplicate, and the 409 names the spelling that is stored. */
+  /** `example.com.` (the DNS root label) is `example.com`: the parser
+   * keeps the two spellings one host, so the second registration is the
+   * duplicate it always was (2026-09-14 evaluation, h5). */
+  it('reads a trailing-dot spelling as the registered host and refuses it as the duplicate', async () => {
+    vi.mocked(addJobInTx).mockClear();
+    const { sql } = fakeSql({ existingByDomain: true });
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'docs.example.',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+      data: { domain: 'docs.example' },
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
   it('refuses the www/apex sibling of a registered domain with 409 naming the stored spelling', async () => {
     vi.mocked(addJobInTx).mockClear();
     const { sql, queries } = fakeSql({ existingByDomain: true });
@@ -649,6 +674,28 @@ describe('website corpus views', () => {
     });
   });
 
+  /** `sync` is body-less like every action door: a body that is not empty
+   * JSON used to be swallowed while the sibling doors refused it
+   * (2026-09-14 evaluation, h5). */
+  it('refuses a sync body that is not empty JSON, and takes none', async () => {
+    const { sql } = fakeSql();
+    const app = mount(sql);
+    for (const body of ['{not json', '{"zzz":1}', '[1,2,3]']) {
+      const res = await app.request('http://localhost/websites/w-1/sync', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    }
+    const bare = await app.request('http://localhost/websites/w-1/sync', {
+      method: 'POST',
+    });
+    expect(bare.status).toBe(200);
+    expect(await bare.json()).toEqual({ status: 'syncing' });
+  });
+
   it('refuses a search body with an unknown key or an empty query', async () => {
     const { sql } = fakeSql();
     for (const body of [{ query: '' }, { query: 'x', page: 2 }]) {
@@ -679,6 +726,38 @@ describe('website list bounds', () => {
     expect(active.status).toBe(200);
     expect(vi.mocked(listWebsites).mock.calls[0]?.[2]).toMatchObject({
       status: 'active',
+    });
+  });
+
+  // `scanInterval` is the same closed set the write side takes: a typo used
+  // to answer an empty page that read as "no websites on that interval"
+  // (2026-09-14 evaluation, h5).
+  it('refuses a scanInterval outside the seven intervals with 400 naming the set, and passes a known one', async () => {
+    const { sql } = fakeSql();
+    const app = mount(sql);
+    vi.mocked(listWebsites).mockClear();
+    const bogus = await app.request(
+      'http://localhost/websites?scanInterval=99y',
+    );
+    expect(bogus.status).toBe(400);
+    expect(await bogus.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: {
+        issues: [
+          expect.objectContaining({
+            path: 'scanInterval',
+            message: expect.stringContaining('30d'),
+          }),
+        ],
+      },
+    });
+    expect(listWebsites).not.toHaveBeenCalled();
+    const known = await app.request(
+      'http://localhost/websites?scanInterval=6h',
+    );
+    expect(known.status).toBe(200);
+    expect(vi.mocked(listWebsites).mock.calls[0]?.[2]).toMatchObject({
+      scanInterval: '6h',
     });
   });
 

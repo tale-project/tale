@@ -1,43 +1,35 @@
 ---
-title: Den ersten Admin erstellen
-description: Eine brandneue self-hosted Instanz durch ihren einmaligen Setup-Wizard führen — das erste Konto wird ohne Key zum Owner, neue Leute kommen per Einladung dazu.
+title: Das erste Inhaberkonto erstellen
+description: Schließe die Ersteinrichtung ab, prüfe die Inhaberrolle und bereite die Instanz für dein Team vor.
 ---
+Auf einer leeren Instanz erstellt die Tale-Einrichtung das erste Konto und die erste Organisation. Dieses Konto erhält die Rolle Inhaber. Schließe die Einrichtung ab, solange du den Zugriff auf die neue Instanz kontrollierst und bevor du ihre Adresse weitergibst.
 
-Eine brandneue Tale-Instanz hat noch keine User. Die erste Person, die sie öffnet, durchläuft einen einmaligen Setup-Wizard, der ihr Konto anlegt, sie anmeldet, sie zum **Owner** macht und die erste Organisation benennt — kein Bootstrap-Key, keine manuelle Beförderung. Dieser Spaziergang deckt diesen ersten Lauf ab und wie Teammitglieder danach dazukommen.
+## Bereitschaft der Instanz prüfen
 
-Das Eine, was du aus älteren Anleitungen verlernen musst: Die erste Anmeldung fragt nicht mehr nach einem Admin-Key. Tale ist nach dem ersten Konto nur per Einladung zugänglich, also gibt es auch keine offene Sign-up-Seite, die du abriegeln müsstest.
+Öffne die konfigurierte `SITE_URL` und prüfe Zertifikat und Hostname. Bei einer CLI-Bereitstellung verwende `tale status`; bei einer eigenen Bereitstellung prüfe Dienste und Gesundheitsprüfungen. Ein fehlerhaftes Backend braucht [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting), bevor du Konten einrichtest.
 
-## Bevor du beginnst
+Eine Anmeldeseite statt der Einrichtung bedeutet meist, dass bereits ein Konto existiert. In einer vorbereiteten Entwicklungsumgebung ist das normal. Lösche nicht die Datenbank, um Zugriff zurückzubekommen. Melde dich mit dem vorhandenen Konto an oder bitte einen Admin um eine Einladung.
 
-Hab die Instanz laufen und unter `SITE_URL` erreichbar. Verifizier mit:
+## Einrichtung abschließen
 
-```bash
-docker compose ps
-```
+Öffne die Instanz-URL. Folge der Einrichtung, erstelle dein Konto und benenne die Organisation. Bewahre deine Anmeldedaten in einem Passwortmanager auf.
 
-Jeder Service sollte `running` oder `healthy` zeigen. Ist einer ungesund, benennt die [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting) die vier häufigen Ursachen.
+Den Modellanbieter richtest du während der Einrichtung oder später unter **Einstellungen > KI-Anbieter** ein. Ohne Anbieter kannst du die App ansehen; für eine echte Antwort brauchst du gültige Zugangsdaten und ein verfügbares Modell. [KI-Anbieter](/de/platform/admin/providers) beschreibt die Verbindung.
 
-## Den Setup-Wizard durchlaufen
+## Inhaberrolle bestätigen
 
-Öffne `SITE_URL`. Da es noch keine User gibt, schickt Tale dich direkt in den Setup-Wizard — es gibt keine separate Sign-up-Seite zu suchen, denn der Login-Bildschirm leitet eine leere Instanz automatisch ins Setup um. Der Wizard legt dein Konto an und meldet dich mitten im Flow an, dann benennt er deine erste Organisation.
+Öffne **Einstellungen > Mitglieder** und prüfe, ob dein Konto die Rolle **Inhaber** hat. Organisation und Konto sollten zu der Instanz passen, die du einrichten wolltest.
 
-Der Provider-Schritt ist optional: Überspring ihn und füg einen Key später unter **Einstellungen > KI-Anbieter** hinzu, oder verbinde OpenRouter jetzt, um sofort zu chatten. Hol dir einen Key auf [openrouter.ai/keys](https://openrouter.ai/keys). Der Abschluss-Schritt setzt dich ins Dashboard.
+<Frame caption="Prüfe Inhaber und Rollen eingeladener Mitglieder, bevor du dem Team Zugriff gibst.">
 
-## Bestätigen, dass du der Owner bist
+![Die Mitgliederseite der Organisation zeigt Personen und ihre zugewiesenen Rollen.](/images/get-started/settings-organization-members.webp)
 
-Das erste Konto auf einer frischen Instanz ist automatisch der **Owner** — kein Key zum Einfügen, kein Beförderungsschritt. Bestätig unter **Einstellungen > Personen**, dass deine Zeile das Owner-Badge trägt.
+</Frame>
 
-## Wie neue Leute dazukommen
+Melde dich ab und erneut an, um die Zugangsdaten unabhängig von der Einrichtungssitzung zu testen. Halte einen weiteren geprüften administrativen Wiederherstellungsweg bereit, bevor du die Authentifizierung änderst.
 
-Es gibt kein Self-Service-Signup. Sobald ein Owner existiert, leitet `SITE_URL/sign-up` Besucher auf den Login-Bildschirm um, sodass niemand sich selbst ein Konto anlegen kann. Füg Teammitglieder per Einladung unter **Einstellungen > Personen** hinzu; jede Einladung trägt die Rolle, mit der das neue Mitglied startet. Das vollständige Rollenmodell steht in [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+## Teammitglieder einladen
 
-## Fehlersuche
+Füge Personen unter **Einstellungen > Mitglieder** hinzu und wähle ihre Rollen bewusst. Nach dem ersten Konto erfolgt die lokale Kontoerstellung per Einladung, nicht über eine offene Registrierung. Für Unternehmens-SSO und Bereitstellung gelten eigene [Einrichtungs- und Mitgliedschaftsregeln](/de/platform/admin/enterprise-sso).
 
-- **Der Wizard erschien nicht — du landest auf dem Login-Bildschirm.** Es gibt bereits User auf dieser Instanz; der Wizard läuft nur auf einer wirklich leeren. Melde dich stattdessen an, oder lass dich von einem bestehenden Owner unter **Einstellungen > Personen** einladen.
-- **Ein Service ist ungesund.** Der Platform-Container ist nicht vollständig oben. `docker compose ps` sagt, welcher Service scheitert; `docker compose logs platform` zeigt warum.
-
-## Wo das eingesetzt wird
-
-Du hast jetzt einen Owner und eine Org und weisst, dass der Admin-Key ein Backend-Inspektionswerkzeug ist, kein Teil der Anmeldung. Der erste Lauf ist absichtlich keylos: Öffne die URL, der Wizard macht dich zum Owner, und alle anderen kommen per Einladung dazu.
-
-Die nächsten Schritte für den Kalender sind, den Rest der Admins einzuladen (unter **Einstellungen > Personen**), einen Modell-Provider hinzuzufügen und den ersten Agent zu veröffentlichen — der [Cloud-Onboarding](/de/cloud/onboarding)-Spaziergang ist von hier an identisch, ausser der URL.
+[Mitglieder und Rollen](/de/platform/admin/members-and-roles) hilft bei der Zugriffswahl. [Erstelle danach deinen ersten Agenten](/de/tutorials/editor/first-agent-end-to-end) und teste eine echte Antwort. Ein funktionierendes Dashboard bestätigt den App-Zugriff, aber noch nicht den Anbieter oder jeden Hintergrunddienst.

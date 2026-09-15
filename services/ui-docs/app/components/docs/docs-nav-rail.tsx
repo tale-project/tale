@@ -24,14 +24,23 @@ interface DocsNavRailProps {
 export function DocsNavRail({ activeSlug, onOpenSearch }: DocsNavRailProps) {
   const { t } = useT('nav');
   const activeRef = useRef<HTMLLIElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Bring the active row into view on first paint so a deep page isn't parked
   // below the fold of a long tree. Only on mount: later route changes scroll
   // the page, not the rail.
   useEffect(() => {
     const el = activeRef.current;
-    if (!el || typeof el.scrollIntoView !== 'function') return;
-    el.scrollIntoView({ block: 'nearest' });
+    const container = scrollRef.current;
+    if (!el || !container) return;
+    // Scroll only the rail: scrollIntoView changes Chromium's sequential
+    // keyboard starting point and makes the first Tab skip the skip link.
+    const row = el.getBoundingClientRect();
+    const viewport = container.getBoundingClientRect();
+    if (row.bottom > viewport.bottom)
+      container.scrollTop += row.bottom - viewport.bottom;
+    else if (row.top < viewport.top)
+      container.scrollTop += row.top - viewport.top;
   }, []);
 
   return (
@@ -53,7 +62,7 @@ export function DocsNavRail({ activeSlug, onOpenSearch }: DocsNavRailProps) {
       <div className="shrink-0 px-3 pt-3">
         <DocsSearchTrigger onClick={onOpenSearch} />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <DocsNavTree activeSlug={activeSlug} activeRef={activeRef} />
       </div>
     </SubPanel>

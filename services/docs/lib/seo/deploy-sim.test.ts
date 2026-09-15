@@ -15,25 +15,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { compileToDisk, createPrecompiledServer } from '@tale/ui/seo';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildDocsCompileParams } from './build';
 
 let dir: string;
+let knownMdPaths: string[];
 
-beforeEach(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'tale-docs-deploy-sim-'));
-});
+  const params = await buildDocsCompileParams();
+  const { manifest } = await compileToDisk({ ...params, outDir: dir });
+  knownMdPaths = manifest.knownMdPaths;
+}, 30_000);
 
-afterEach(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 describe('docs deploy simulation', () => {
   it('precompiled server answers /llms.txt, /sitemap.xml, /robots.txt', async () => {
-    const params = await buildDocsCompileParams();
-    await compileToDisk({ ...params, outDir: dir });
-
     const server = await createPrecompiledServer({ dir });
     for (const path of ['/llms.txt', '/sitemap.xml', '/robots.txt']) {
       const response = await server.handle(
@@ -47,11 +48,8 @@ describe('docs deploy simulation', () => {
   });
 
   it('every known .md path round-trips through the precompiled server', async () => {
-    const params = await buildDocsCompileParams();
-    const { manifest } = await compileToDisk({ ...params, outDir: dir });
-
     const server = await createPrecompiledServer({ dir });
-    for (const mdPath of manifest.knownMdPaths.slice(0, 5)) {
+    for (const mdPath of knownMdPaths) {
       const response = await server.handle(
         new Request(`https://tale.dev${mdPath}`),
       );
@@ -66,9 +64,6 @@ describe('docs deploy simulation', () => {
   });
 
   it('unknown .md paths return null (handled as 404 by caller)', async () => {
-    const params = await buildDocsCompileParams();
-    await compileToDisk({ ...params, outDir: dir });
-
     const server = await createPrecompiledServer({ dir });
     expect(
       await server.handle(
@@ -78,9 +73,6 @@ describe('docs deploy simulation', () => {
   });
 
   it('llms-full.txt is emitted and non-empty', async () => {
-    const params = await buildDocsCompileParams();
-    await compileToDisk({ ...params, outDir: dir });
-
     const server = await createPrecompiledServer({ dir });
     const response = await server.handle(
       new Request('https://tale.dev/llms-full.txt'),

@@ -282,7 +282,7 @@ export function extractCodeFences(body: string): CodeFence[] {
  * numbers so structural tests can cite them.
  */
 export function extractHeadings(body: string): Heading[] {
-  const stripped = stripFences(body);
+  const stripped = stripHtmlComments(stripFences(body));
   const headings: Heading[] = [];
   const lines = stripped.split('\n');
   for (let i = 0; i < lines.length; i++) {
@@ -309,7 +309,7 @@ export function extractOutline(body: string): number[] {
  *     straight into a sub-heading).
  */
 export function extractOpeningProse(body: string): string {
-  const lines = body.split('\n');
+  const lines = stripHtmlComments(body).split('\n');
   let i = 0;
   // Skip leading blanks.
   while (i < lines.length && lines[i].trim() === '') i++;
@@ -334,8 +334,8 @@ export function extractOpeningProse(body: string): string {
  *
  *   - Returns `null` when the page has no headings (e.g. a `kind: index` page
  *     that's just a frontmatter and a curated grid).
- *   - "Body" stops at end of file; we don't try to detect a "next" heading
- *     because there is none.
+ *   - "Body" stops at end of file. Code blocks remain useful content;
+ *     invisible author comments do not count as section content.
  */
 export function extractClosingSection(
   body: string,
@@ -343,16 +343,15 @@ export function extractClosingSection(
   const headings = extractHeadings(body);
   if (headings.length === 0) return null;
   const last = headings[headings.length - 1];
-  const stripped = stripFences(body);
-  const lines = stripped.split('\n');
+  const lines = stripHtmlComments(body).split('\n');
   const bodyLines = lines.slice(last.line).filter((l) => l.trim().length > 0);
   return { heading: last, bodyLines };
 }
 
 /** Internal: a line is "structural" (terminates the opening) when it's a
  *  heading, bullet, numbered item, table row, fence, or component tag — a
- *  hero `<Frame>` after two opening sentences ends the opening, and a page
- *  that opens with a component before two sentences correctly fails.
+ *  component or image ends the opening. Images are not introductory prose;
+ *  their alternative text describes the visual rather than the page's purpose.
  *  Blockquotes count as prose. */
 function isStructuralLine(line: string): boolean {
   const trimmed = line.trim();
@@ -362,6 +361,7 @@ function isStructuralLine(line: string): boolean {
   if (/^\d+\.\s+/.test(trimmed)) return true;
   if (trimmed.startsWith('|')) return true;
   if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) return true;
+  if (trimmed.startsWith('![')) return true;
   if (isComponentTagLine(trimmed)) return true;
   return false;
 }

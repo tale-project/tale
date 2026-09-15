@@ -8,6 +8,11 @@
  */
 
 export interface ProductsContract {
+  'products/mutations:generateImageUploadUrl': {
+    kind: 'mutation';
+    args: Record<string, never>;
+    returns: string;
+  };
   'products/mutations:bulkCreateProducts': {
     kind: 'mutation';
     args: {
@@ -75,7 +80,7 @@ export interface ProductsContract {
       category?: string;
       description?: string;
       tags?: string[];
-      imageUrl?: string;
+      imageUrl?: string | null;
       stock?: number;
       price?: number;
       currency?: string;

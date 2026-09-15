@@ -1,65 +1,40 @@
 ---
-title: Configurer les approbations
-description: Là où les exigences d’approbation sont déclarées — par opération de connector, avec un fichier de politique par organisation qui déplace la ligne — et quelles portes humaines se tiennent hors de cette politique.
+title: Décider quelles actions demandent une approbation
+description: Comprends les règles par défaut, demande une modification de politique et distingue les approbations des autres revues.
 ---
 
-Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si une exécution doit d’abord demander, et le drapeau voyage avec l’connector qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
+La politique d’approbation détermine quelles écritures de connectors doivent attendre une personne pendant une exécution réelle. Examine les actions externes avant le déploiement, surtout lorsqu’un workflow envoie des messages ou modifie un autre système. [Comprendre les approbations](/fr/platform/approvals/concepts) explique la carte de décision.
 
-Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur [Concepts d’approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration, capacité par capacité.
+## Comprendre le comportement par défaut
 
-## Opérations d’connector
+Les lectures ne demandent pas d’approbation d’opération. Par défaut, une écriture vers un système externe attend une décision : envoi d’e-mail, message Slack, création d’issue GitHub ou écriture WebDAV, par exemple. Les opérations internes, comme modifier une tâche ou enregistrer un document dans Tale, ne demandent pas cette approbation par défaut.
 
-Chaque connector déclare ses opérations, et chaque opération porte son propre drapeau d’approbation — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; une écriture marquée met l’exécution d’automatisation en pause, et la page de détail de l’exécution montre l’opération avec ses paramètres exacts jusqu’à ce que quelqu’un décide.
+Une opération autorisée reste soumise aux droits d’accès applicables. L’absence de carte ne prouve donc pas qu’elle est en lecture seule. Il peut s’agir d’une écriture interne ou explicitement approuvée automatiquement par l’organisation.
 
-Le drapeau n’est pas un réglage séparé qu’un administrateur bascule. Chaque action déclarée par un connecteur porte un effet — `read` ou `write` — et c’est le versant écriture que la politique d’approbation retient. Cela garde les deux honnêtes l’un envers l’autre : une action ne peut pas passer discrètement d’une lecture à une écriture sans changer aussi ce pour quoi elle doit demander.
+## Demander une modification de politique
 
-## Quelles écritures demandent
+La page des connectors n’a pas d’interrupteur d’approbation pour chaque action. La politique de l’organisation peut exiger ou supprimer l’approbation pour un connector ou une action précise. La règle d’une action a priorité sur celle de son connector.
 
-Une carte mérite l’attention de quelqu’un quand l’écriture **quitte ton locataire**. C’est là que passe la ligne par défaut :
+Demande au responsable du déploiement d’appliquer la [configuration des approbations](/fr/self-hosted/configuration/approvals). Précise l’opération, le motif du contrôle ou de l’exécution automatique, et le workflow concerné. Les admins Cloud coordonnent également cette modification avec le responsable de leur déploiement.
 
-- **Les écritures vers des systèmes externes demandent** — envoyer du courrier, poster dans Slack, ouvrir un ticket GitHub, écrire sur un partage WebDAV. Ces connecteurs détiennent tes identifiants et agissent sur des systèmes qui n’appartiennent pas à Tale.
-- **Les écritures sur la surface de Tale ne demandent pas** — déplacer une tâche, la commenter, déposer un document dans le projet, lancer un script dans ton propre bac à sable. Elles sont déjà bornées par les droits de qui les exécute, l’automatisation qui les effectue a passé son gate de déploiement, et chacune figure dans la trace de l’exécution et dans le journal d’audit.
+Une opération qui attend déjà une approbation conserve sa demande après la modification. Approuve ou refuse explicitement cette carte ; assouplir la politique ne la libère pas.
 
-Sans cette ligne, une seule exécution empile une demi-douzaine de cartes pour sa propre comptabilité — « passer cette carte à En cours » — et enterre la seule carte qui demandait vraiment un humain.
+## Vérifier un workflow avant le déploiement
 
-## Déplacer la ligne pour ton organisation
+1. Examine chaque nœud de connector et identifie s’il lit ou écrit.
+2. Confirme les écritures que la politique effective approuve automatiquement.
+3. Lance un test pour contrôler les entrées et sorties avec des mocks.
+4. Pendant une exécution réelle maîtrisée, examine l’opération et ses entrées exactes sur chaque carte en attente avant de décider.
 
-Les deux directions se configurent par organisation, dans `governance/approval-policy.yml` sous ton répertoire de configuration. Chaque règle nomme **une** cible — un connecteur entier, ou une action précise sous la forme `<connecteur>.<action>` — et la règle la plus spécifique gagne :
+Un test simulé ne prouve pas qu’une approbation apparaîtra en conditions réelles. Les mocks ne modifient pas les systèmes externes et ne demandent pas d’approbation.
 
-```yaml
-rules:
-  # Cette équipe relit chaque tâche que le desk touche.
-  - connector: task
-    decision: require_approval
-  # Le mail de rapport nocturne est de confiance ; les autres actions mail demandent toujours.
-  - action: imap-smtp.send
-    decision: auto_approve
-```
+## Distinguer les autres décisions humaines
 
-Une opération déjà en attente sur une carte garde sa carte même si la politique est assouplie ensuite — une décision appartient à l’opération pour laquelle elle a été demandée, et une exécution en pause n’est donc jamais laissée en plan.
+| Décision | Règles correspondantes |
+| --- | --- |
+| Accepter le résultat d’une tâche d’agent | [Automatiser les tâches](/fr/platform/projects/task-automation). Une personne passe le résultat de En revue à Terminé. |
+| Approuver une version de document maîtrisé | [Documents](/fr/platform/knowledge/documents). Le relecteur désigné décide sur la version figée. |
+| Autoriser une demande d’effacement | [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests). Un second Admin donne l’approbation requise. |
+| Répondre à la question d’un nœud agent | [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows). L’exécution a besoin d’une information pour continuer. |
 
-## Outils MCP
-
-Les serveurs MCP externes — et les drapeaux d’approbation par outil que leurs manifestes portaient — ne font pas partie de cette version : il n’y a aucun serveur à connecter ni aucune liste d’outils à relire. La seule surface MCP est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale, et une action de connector invoquée par là suit les mêmes règles d’approbation que partout ailleurs — une action retenue répond par une approbation en attente au lieu de s’exécuter. [Endpoint MCP](/fr/develop/mcp-endpoint) couvre les outils et ce que la clé de chaque rôle peut faire ; [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement.
-
-## Portes hors de cette politique
-
-Trois portes humaines du produit ne relèvent pas de la politique d’approbation et ne se désactivent pas ici, parce que chacune a sa propre entrée :
-
-- **Travail d’agent en revue** — un agent de projet ne termine jamais une tâche ; son résultat se met en pause à **En revue** jusqu’à ce qu’une personne l’accepte, et [Automatisation des tâches](/fr/platform/projects/task-automation) couvre qui peut le valider.
-- **Documents contrôlés** — un fichier marqué comme contrôlé suit un cycle de soumission, de relecture et d’approbation avec un relecteur nommé ; [Documents](/fr/platform/knowledge/documents) le couvre.
-- **Demandes d’effacement** — un effacement RGPD exige l’approbation d’un second Admin avant que la cascade s’exécute ; [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) la couvre.
-
-<Note>
-
-L’assistant de chat ne produit aucune approbation d’aucune sorte : ses outils sont en lecture seule, il n’y a donc ni carte d’écriture de document, ni carte d’écriture de connaissances, ni carte de workflow dans un chat. Une exécution qui a besoin d’une réponse plutôt que d’une permission — un nœud agent qui pose une question — est une exécution **En attente**, couverte dans [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
-
-</Note>
-
-## Vérifier ce qui demandera
-
-Avant de mettre une automatisation en service face à de vrais systèmes, lis ses nœuds connector comme le ferait un approbateur : lesquels écrivent, et lesquels ta politique approuve d’office. **Essai** te montre le graphe sans rien toucher — le mode simulation ne demande jamais — et le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produisent les exécutions réelles.
-
-## Où cela s’inscrit
-
-Configurer ici, c’est distribuer — les drapeaux vivent avec les connectors qui possèdent les capacités, et un fichier de politique par organisation déplace la ligne. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour la carte que ces drapeaux produisent, et [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) pour l’endroit où l’exécution en pause attend.
+Ces décisions suivent leurs propres règles. La politique d’approbation des connectors ne les désactive pas. Le chat utilise des outils de consultation en lecture seule et ne crée pas de carte d’approbation d’opération.

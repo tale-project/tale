@@ -1,100 +1,66 @@
 ---
-title: Durcissement
-description: La checklist de durcissement pour une instance Tale en production — utilisateur non-root, firewall, TLS, stockage des secrets, rétention d'audit logs, backups.
+title: Sécuriser un déploiement de production
+description: Protège l’accès à l’hôte, le réseau, les secrets et la restauration avant d’ouvrir Tale aux utilisateurs.
 ---
 
-Les défauts livrés par Tale sont sûrs pour le développement et raisonnables pour une petite installation en production. Passer de « raisonnable » à « prêt pour le régulateur » est une checklist, pas un flag de configuration — chaque ligne ci-dessous resserre une surface d'attaque spécifique. Walk la liste une fois avant d'ouvrir l'URL à de vrais utilisateurs, et walk-la à nouveau après chaque montée de version majeure.
+Vérifie ces protections avant le lancement et après toute modification de l’hôte, du réseau ou de l’authentification. Il te faut un accès opérateur et un moyen de récupération qui reste disponible pendant les changements de règles d’accès.
 
-Le détail de référence pour chaque ligne vit ailleurs — TLS dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains), backups dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore), rétention dans [Rétention](/fr/self-hosted/configuration/retention). Cette page est l'index qui nomme ce qu'il faut durcir et pointe vers la page qui le walk.
+## Restreindre l’administration de l’hôte
 
-## Hôte
+Utilise des comptes opérateur nominatifs, des clés SSH et un système d’exploitation pris en charge et à jour. Limite l’accès à l’hôte, au répertoire de configuration, aux sauvegardes et au socket Docker aux personnes responsables du déploiement.
 
-| Élément                                  | Pourquoi ça compte                                                 |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| Utilisateur opérateur non-root           | Limite le blast radius si l'utilisateur plateforme est compromis   |
-| Auth SSH par clé uniquement              | L'auth par mot de passe est la porte ouverte que les bots scannent |
-| Mises à jour de sécurité non surveillées | Patche l'OS sans attendre une fenêtre de maintenance               |
-| Firewall hôte (ufw / nftables)           | Ferme tout ce qui n'est pas 22, 80, 443                            |
-| Chiffrement du disque au repos           | Requis si tu fais tourner SOPS en mode clair                       |
+L’appartenance au groupe `docker` donne des capacités de niveau root via le daemon Docker. Exécuter la CLI avec un autre compte ne supprime pas ces pouvoirs. Traite l’accès à Docker comme une administration privilégiée, conformément à la [documentation Docker](https://docs.docker.com/engine/install/linux-postinstall/).
 
-L'utilisateur non-root est celui que la plupart des équipes sautent. Les conteneurs de Tale font tourner leurs propres processus non-root à l'intérieur, mais le démon Docker lui-même tourne en root — opérer ce démon en tant qu'utilisateur opérateur (membre du groupe `docker`, pas en tant que root) est le resserrement le moins cher de cette page.
+## Vérifier l’exposition publique
 
-## Réseau
+Autorise les ports publics prévus pour le proxy et limite les accès administratifs aux sources de confiance. Garde la base, l’administration du stockage, les services internes du backend et la sandbox hors du réseau public, sauf architecture particulière examinée séparément.
 
-Le proxy est la seule surface entrante. Bloque tout le reste.
+Inspecte les ports publiés par ta configuration Compose réelle et teste leur accessibilité depuis l’extérieur de l’hôte. Les règles du pare-feu de l’hôte ne suffisent pas toujours : Docker gère ses propres règles de transfert et de publication des ports. Consulte les [instructions Docker sur les pare-feu](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
+Si tu utilises l’authentification par en-têtes de confiance, seul le proxy amont doit pouvoir joindre l’application. Il doit supprimer les en-têtes d’identité fournis par l’appelant avant de définir les siens. Voir [Authentification](/fr/self-hosted/configuration/authentication).
+
+Le fichier `robots.txt` de la plateforme déconseille l’indexation de l’application, mais autorise explicitement les chemins publics destinés aux intégrateurs et au suivi d’état, dont `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` et `/status`. Ces consignes aux robots ne sont pas des contrôles d’accès. Protège les données confidentielles par authentification et examine les informations exposées dans le rapport public.
+
+## Vérifier TLS à l’adresse publique
+
+Utilise un certificat de confiance pour l’adresse réellement ouverte par les utilisateurs. Choisis `TLS_MODE=letsencrypt` pour le point d’entrée TLS public fourni, ou `TLS_MODE=external` si ton proxy amont termine TLS. Un certificat local autosigné n’établit pas une confiance publique.
+
+Vérifie la chaîne de certificats, l’expiration et le renouvellement, puis teste la connexion et les retours d’authentification à l’adresse publique. [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains) explique la configuration.
+
+## Protéger secrets et clés
+
+Remplace les valeurs d’exemple avant la production. Chaque déploiement doit avoir son propre mot de passe de base, ses secrets d’authentification et sa clé de chiffrement. Réserve l’accès à `.env` et aux fichiers secrets à l’opérateur. Conserve les copies de récupération dans ton système de gestion des secrets.
+
+Utilise [SOPS](/fr/self-hosted/configuration/secrets-with-sops) pour les fichiers secrets pris en charge lorsque cela convient à ton installation. SOPS ne chiffre pas toutes les données applicatives ni le disque entier. Conserve les clés nécessaires aux sauvegardes retenues. Prépare les rotations avec [Cryptographie](/fr/self-hosted/operate/security/cryptography) : remplacer une clé arbitrairement peut invalider des sessions ou rendre des identifiants stockés illisibles.
+
+Définis `TALE_AUDIT_PEPPER` pour pseudonymiser les données des connexions échouées. La conservation d’audit s’applique par organisation. Vérifie sa politique effective et la période de preuve requise dans [Conservation](/fr/self-hosted/configuration/retention).
+
+## Éprouver la restauration
+
+Choisis la fréquence des sauvegardes et leur conservation selon la perte de données acceptable pour ton organisation. Inclus base, configuration, stockage objet et secrets nécessaires à la restauration. Les stockages externes nécessitent une sauvegarde coordonnée distincte.
+
+Garde des copies protégées hors de l’hôte du déploiement et restaure-les régulièrement vers une destination isolée. Vérifie ensuite connexion, fichiers et parcours essentiels. [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) précise la portée des snapshots CLI et les interruptions de service.
+
+## Limiter les destinations de la sandbox
+
+Le proxy de sortie de la sandbox autorise par défaut les destinations HTTPS publiques tout en bloquant les adresses privées et les adresses de métadonnées. `SANDBOX_EGRESS_ALLOWLIST` permet de restreindre aussi les noms d’hôtes. Cet exemple va dans le fichier `.env` du projet et autorise deux hôtes de paquets Python :
+
+```dotenv .env
+SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
-Si tu fais tourner l'auth trusted-headers, le port plateforme ne doit pas être joignable directement depuis ailleurs que le proxy amont — tout ce qui peut le frapper avec les bons en-têtes devient cet utilisateur. Un réseau Docker ou une règle firewall hôte marchent tous les deux ; choisis-en un et vérifie-le depuis l'extérieur de l'hôte.
+Recrée le service de sortie avec l’environnement modifié. Vérifie qu’une destination nécessaire fonctionne et qu’une destination absente de la liste est refusée. Ajoute d’autres registres ou hôtes source seulement si tes traitements en ont besoin. Les appels aux modèles passent par la passerelle dédiée de la sandbox ; cette liste ne régit donc pas toutes les connexions sortantes de Tale.
 
-## TLS
+Examine séparément les autorisations de réseau privé. `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` admet les destinations des fournisseurs de modèles, y compris dans la passerelle sandbox ; il n’ouvre pas l’accès réseau général de la sandbox. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` admet les cibles intranet et les valeurs d’URL d’image privées des produits. Active uniquement l’accès nécessaire et garde sa configuration sous contrôle opérateur. [Fournisseurs](/fr/self-hosted/configuration/providers) décrit les vérifications des modèles ; la [référence d’environnement](/fr/self-hosted/configuration/environment-reference) distingue les deux variables.
 
-`TLS_MODE=selfsigned` est pour le développement. La production fait tourner `letsencrypt` (ou `external` si tu mets ton propre proxy TLS-terminant devant Tale). Le cron de renouvellement est automatique ; l'alerte qui sonne quand le renouvellement échoue est ce qui te sauve 90 jours plus tard. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains).
+## Surveiller et enquêter
 
-## Secrets
+Configure l’accès authentifié aux métriques avec `METRICS_BEARER_TOKEN` et connecte ton système de surveillance. Vérifie qu’une alerte atteint l’opérateur responsable. [Exploitation](/fr/self-hosted/operate/observability/operations) décrit les signaux utiles.
 
-Chaque secret dans `.env` est sensible — le secret de signature d'auth, la clé de chiffrement, le mot de passe de base, la clé age, le bearer token de métriques. La barre minimale :
+Une tâche quotidienne vérifie progressivement les lignes d’audit conservées et signale aux admins les ruptures de hachage détectées. **Vérifier maintenant**, dans **Paramètres > Gouvernance > Journaux > Intégrité de la chaîne**, contrôle au plus 1 000 entrées. Consulte [Intégrité du journal d’audit](/fr/self-hosted/operate/security/audit-log-integrity) pour les limites et la conservation des preuves.
 
-- `.env` est en mode 0600 et appartient à l'utilisateur opérateur.
-- `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` sont rotés depuis les valeurs d'exemple livrées dans `.env.example`.
-- `DB_PASSWORD` est changé du placeholder par défaut.
-- `SOPS_AGE_KEY` ou `SOPS_AGE_KEY_FILE` est défini — laisser les deux non définis est supporté mais réservé aux hôtes à disque chiffré avec gestion de secrets externe.
-- `TALE_AUDIT_PEPPER` est défini — sans lui, chaque connexion échouée laisse l'e-mail et l'IP en clair dans le journal d'audit, pendant toute la fenêtre de rétention. `tale init` le génère ; dans un `.env` écrit à la main, ajoute-le.
+## Vérifier la réponse du déploiement
 
-Le walk SOPS complet et la procédure de rotation vivent dans [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
+Inspecte les en-têtes de sécurité à l’adresse publique après une modification du proxy. Celui-ci peut changer les en-têtes produits par Tale ; la configuration source ne suffit donc pas. Examine la politique de sécurité du contenu, les restrictions d’intégration dans une page, les règles HTTPS et le traitement des types de contenu, puis teste la connexion réelle.
 
-## Audit logs
-
-Les audit logs sont immuables et bornés par rétention. Les frameworks de compliance attendent au moins un an ; la borne est imposée par déploiement, donc le réglage de l'org le plus strict est ce qui tourne effectivement. Fixe le plancher dans ta config opérateur pour correspondre au framework le plus lâche que tu supportes, et assure-toi que les backups capturent les lignes d'audit log avec le reste de la base. La référence de rétention vit dans [Rétention](/fr/self-hosted/configuration/retention).
-
-## Backups
-
-Un backup qui n'a pas été restauré est un espoir, pas un backup. Le minimum : dumps Postgres quotidiens écrits par le cron `tale-db`, copiés hors-hôte dans l'heure, et un drill de restauration trimestriel qui reconstruit une instance fonctionnelle depuis le snapshot. La procédure complète est dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
-
-## Isolation de la sandbox
-
-Run-code est la surface la plus risquée du produit — le seul endroit où un input fourni par l'utilisateur devient du code exécuté. `tale-sandbox` tourne sans cap privilégié, son réseau est interne uniquement, et `tale-sandbox-egress` est son seul chemin sortant. Au niveau des hôtes, ce chemin est ouvert par défaut : le code en sandbox atteint n'importe quel hôte public en HTTPS, tandis que les endpoints de métadonnées cloud et les plages d'adresses privées sont toujours bloqués au niveau IP — ce plancher tient dans toutes les configurations.
-
-Le levier de durcissement est `SANDBOX_EGRESS_ALLOWLIST`. Mets-la dans `.env` sur une liste de regex d'hôtes séparées par des pipes et recrée `tale-sandbox-egress` : le proxy bascule en refus par défaut — seuls les hôtes correspondants sont joignables. Un verrouillage limité aux registres, qui garde pip, npm, uv et Git via HTTPS fonctionnels :
-
-```bash
-SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
-```
-
-Garde la liste courte et préfère des hôtes spécifiques aux wildcards.
-
-## Monitoring
-
-`METRICS_BEARER_TOKEN` est non défini dans `.env.example` — c'est intentionnel, pour qu'une installation fraîche ne leak pas de métriques. Règle le token, scrape depuis ton Prometheus, et les seuils d'alerte dans [Opérations](/fr/self-hosted/operate/observability/operations) couvrent les signaux client-impactants.
-
-La chaîne de hachage du journal d'audit est vérifiée automatiquement chaque nuit. Toute rupture déclenche une alerte de sécurité critique vers les admins de l'org — dans la cloche de notifications et, lorsque Slack est connecté, dans ton canal Slack — pour que toute altération ressorte même quand personne ne surveille les logs. Tu peux re-walk la même vérification à la demande depuis la page d'administration du journal d'audit.
-
-## En-têtes de sécurité HTTP
-
-Chaque réponse HTML porte un ensemble strict d'en-têtes de sécurité, et cet ensemble est verrouillé par des tests pour qu'une mise à jour ne puisse pas en supprimer un discrètement. Le client web de la plateforme (`services/platform`) envoie une Content-Security-Policy à nonce sans scripts `unsafe-inline`, HSTS en HTTPS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` avec CSP `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, une `Permissions-Policy` restrictive et `X-Permitted-Cross-Domain-Policies: none`. Il obtient A+ au MDN HTTP Observatory, et cette note est garantie par la suite de tests CI — le calcul du score est réimplémenté dans des tests qui font échouer le build à la moindre régression. Le site vitrine et le site de documentation livrent la même famille d'en-têtes, en ajoutant `Cross-Origin-Opener-Policy` et `Cross-Origin-Resource-Policy` à `same-origin`.
-
-Vérifie-le sur ton propre déploiement :
-
-- `curl -sI https://<ton-hôte>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
-- Analyse l'hôte sur [securityheaders.com](https://securityheaders.com) ou le [MDN HTTP Observatory](https://developer.mozilla.org/fr/observatory).
-
-<!--
-  The MDN Observatory UI is only localized in some languages. When adding a new
-  docs language, check whether developer.mozilla.org/<lang>/observatory exists
-  and fall back to the en-US analyze links if it does not.
--->
-
-La démo publique est la référence en direct de ce qu’un déploiement correct rapporte : le [scan Observatory de demo.tale.dev](https://developer.mozilla.org/fr/observatory/analyze?host=demo.tale.dev) affichait A+ le 15/07/2026 — score 115/100, dix tests sur dix réussis. Le seul en-tête que le rapport liste comme non implémenté, `Cross-Origin-Resource-Policy`, ne coûte aucun point ; c’est l’exception délibérée décrite juste en dessous.
-
-L’isolation cross-origin (COOP/CORP) reste volontairement désactivée sur l’app de la plateforme : `Cross-Origin-Opener-Policy: same-origin` couperait la référence de fenêtre par laquelle un popup de connexion OAuth renvoie l’authentification terminée à l’app, et `Cross-Origin-Resource-Policy` bloquerait les ressources de marque chargées depuis un second hôte. Les sites de contenu, qui ne font ni l’un ni l’autre, activent les deux. HSTS n’est émis que lorsque `SITE_URL` est `https://`, avec un `max-age` d’un an et sans `includeSubDomains` ni `preload` : les déploiements auto-hébergés tournent sur des domaines variés — un apex avec des voisins en HTTP simple compris — et l’inscription sur la liste de preload, c’est l’opérateur qui la soumet lui-même.
-
-## Où cela s'inscrit
-
-Le durcissement n'est pas une tâche d'une seule passe — la liste ci-dessus est ce que tu walks avant le lancement, et que tu re-walks après chaque montée de version ou après chaque changement de la forme du réseau. La prochaine chose qui vaut la lecture après ceci est la ligne ci-dessus que tu n'as pas encore faite.
+Ne copie pas des réglages d’isolation entre origines ou de préchargement HSTS d’un autre déploiement sans examiner tes retours d’authentification, ressources externes et sous-domaines. Conserve les résultats avec le compte rendu de déploiement et répète les contrôles après les mises à jour.

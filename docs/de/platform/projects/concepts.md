@@ -1,48 +1,52 @@
 ---
-title: Projekt-Konzepte
-description: Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich.
+title: Projektgrundlagen
+description: Verstehe, was ein Projekt gemeinsam bereitstellt, welche Chats persönlich bleiben und wann sich ein Projekt lohnt.
 ---
 
-Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben dieselben Dateien, dieselben Anweisungen und dieselben Arbeitsflächen über viele Chats und viele Personen hinweg braucht. Diese Seite gibt dir das mentale Modell — lies sie, bevor du dein erstes Projekt erstellst, und komm zurück, wenn du entscheidest, ob ein wachsender Chat in eines befördert werden soll.
+Nutze ein Projekt, wenn mehrere Fragen oder Aufgaben auf denselben Unterlagen beruhen. Es vereint Dateien, Anweisungen, Chats, eine Aufgabenübersicht und Aufgabenagenten. Eine einmalige Frage kann im Chat bleiben. Für eine Veröffentlichung, Kundenübergabe oder laufende Untersuchung ist ein Projekt meist hilfreicher.
 
-<Frame caption="Der Tab Allgemein — die Identität des Projekts, seine Anweisungen und darunter die Freigabe.">
+## Was das Projekt zusammenhält
 
-![Der Tab Allgemein des Projekts Website relaunch mit den Feldern für Name und Beschreibung, dem ausgefüllten Anweisungen-Editor, mit dem jeder Chat im Projekt startet, und darunter der Überschrift Freigabe, dazu Speichern und Verwerfen in der Tab-Leiste.](/images/platform/project-general-tab.webp)
+| Bereich | Was hier hingehört |
+| --- | --- |
+| **Allgemein** | Name, Beschreibung, dauerhafte Anweisungen und Freigabe. |
+| **Chats** | Deine Projektgespräche und ausdrücklich mit dem Projekt geteilte Gespräche. |
+| **Wissen** | Referenzdateien in Ordnern, deren Zugriff auf dieses Projekt begrenzt ist. |
+| **Aufgaben** | Arbeit mit Zuständigkeit, Status, Kommentaren und einem prüfbaren Ergebnis. |
+| **Agenten** | Benannte Agenten, die für Aufgaben eingerichtet sind. |
+
+Ein Projektchat beginnt mit den gespeicherten Projektanweisungen. Er kann die Dateien dieses Projekts und das zugängliche Wissen der Organisation durchsuchen. So haben auch spätere Gespräche eine gemeinsame Grundlage, ohne dass du jedes Mal ein Briefing einfügen musst. Dateien anderer Projekte gehören nicht zu diesem Suchbereich.
+
+<Frame caption="Unter Allgemein stehen Projektanweisungen und Freigabe. Speichere geänderte Felder anschließend.">
+
+![Allgemein im Projekt Website relaunch zeigt Name, Beschreibung, den Editor für Anweisungen, Freigabe sowie Speichern und Verwerfen.](/images/platform/project-general-tab.webp)
 
 </Frame>
 
-## Was ein Projekt besitzt
+## Eine wiedererkennbare Identität wählen
 
-**Chats**, die im Projekt gestartet werden, tragen seinen Kontext automatisch — seine ständigen Anweisungen und Tools, die die Dateien dieses Projekts plus die Wissensdatenbank der Organisation erreichen, nie die eines anderen Projekts. Sie bleiben deine, bis du an einem Chat **Mit Projekt teilen** umlegst — der Chats-Tab teilt sich entsprechend in **Deine Chats** und **Mit Projekt geteilt**. Das Teilen eines Chats blendet deine persönlichen Erinnerungen und Anweisungen aus den Antworten aus, die andere Mitglieder sehen. Verschiebst du einen geteilten Chat in ein anderes Projekt — oder nimmst ihn aus seinem Projekt heraus —, endet das Teilen, damit ein neues Publikum ihn nicht stillschweigend erbt: Lege **Mit Projekt teilen** wieder um, wenn die Mitglieder des neuen Projekts ihn lesen sollen.
+**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel**; die Beschreibung ist optional. Der Schlüssel wird zum Präfix von Aufgaben-IDs wie `WR-1` und lässt sich nach dem Erstellen nicht mehr ändern. Wähle ein kurzes, dauerhaft passendes Kürzel.
 
-**Anweisungen** sind Kontext, der für jeden Chat im Projekt gilt — die Rahmung, die Randbedingungen und das Vokabular der Arbeit —, damit niemand sie pro Chat neu einfügt.
+Name, Beschreibung, Icon, Farbe und Anweisungen kannst du später unter **Allgemein** ändern. Mit **Speichern** übernimmst du Feldänderungen, mit **Verwerfen** gibst du sie auf. Eine vollständige Anleitung bietet [Projekte nutzen](/de/tutorials/member/use-projects).
 
-**Dateien** auf dem Tab **Wissen** sind Referenzmaterial, aus dem jeder Chat im Projekt schöpfen kann — abgelegt in einem Ordnerbaum, den du einmal befüllst, statt sie pro Chat neu anzuhängen. Sie bleiben auf dieses Projekt begrenzt — sie tauchen weder in der org-weiten Bibliothek noch in `@`-Pickern außerhalb davon auf, und der Organisations-Chat außerhalb eines Projekts erreicht sie gar nicht; wer sie sehen darf, folgt aus dem Projektzugriff, nicht aus Team-Tags — siehe [Dateien verwalten](/de/platform/projects/manage-files).
+Halte in den Anweisungen wiederkehrenden Kontext fest: Worum geht es, welche Quellen sind maßgeblich und wie soll der Assistent mit fehlenden Angaben umgehen? Einmalige Aufträge gehören in den Chat oder die Aufgabenbeschreibung. Projektanweisungen sollten kein Protokoll aller bisherigen Entscheidungen werden.
 
-**Aufgaben** machen das Projekt zu einem Ort, an dem Arbeit läuft, statt nur besprochen zu werden: ein Board mit Status und [Automatisierung](/de/platform/projects/task-automation), mit Kommentar-Threads an jeder Aufgabe für die zugehörigen Entscheidungen.
+## Prüfen, wer das Projekt öffnen kann
 
-**Agenten** ist die Crew des Projekts: benannte Agenten, jeder mit Agent-Laufzeit, einem Modell samt gewähltem Provider, Ausrüstung und stehenden Anweisungen, bereit, Aufgaben vom Board zu übernehmen ([Projekt-Agenten](/de/platform/projects/project-agents)).
+Neue Projekte sind standardmäßig **Organisationsweit** zugänglich. Wähle unter **Allgemein** ein zuständiges Team, um den Zugriff einzugrenzen. Weitere Teams lassen sich bei Bedarf ergänzen. Organisationsadministratoren behalten Zugriff. Die Freigabe erfolgt über Teams, nicht über einzelne Einladungen.
 
-## Erstellen und Identität
+Projektdateien folgen dem Projektzugriff. Sie erscheinen nicht als gewöhnliche Bibliotheksdokumente; umgekehrt macht eine Team-Zuordnung ein Bibliotheksdokument nicht zum Projektanhang. [Dateien verwalten](/de/platform/projects/manage-files) erklärt das Verschieben und warum das Entfernen aus einem Projekt den Leserkreis erweitern kann.
 
-**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel** — dem Präfix für Aufgaben-IDs wie `WR-1`. Das Kürzel steht fest; nach dem Erstellen des Projekts lässt es sich nicht mehr ändern. Beschreibung, besitzendes Team, Icon und Farbe bleiben später auf dem Tab **Allgemein** änderbar, wo die vereinheitlichten Buttons **Speichern** und **Verwerfen** in der Tab-Leiste sitzen.
+## Persönliche und geteilte Chats unterscheiden
 
-## Das Freigabe-Modell
+Ein Chat im Projekt beginnt als dein eigenes Gespräch. Andere Projektmitglieder sehen ihn nicht allein dadurch, dass sie das Projekt öffnen können. **Chats** trennt **Deine Chats** von **Mit Projekt geteilt**. Nutze **Mit Projekt teilen**, wenn das Gespräch für Kollegen bereit ist.
 
-Geteilt wird pro Team, nicht per Einzeleinladung. Ein Projekt steht standardmäßig auf **Organisationsweit**; wählst du ein besitzendes Team, gilt es nur für dieses Team, und weitere Teams kommen auf dem Tab Allgemein dazu. Org-Admins haben immer Zugriff. Umbenennen, Archivieren und Löschen liegen im Zeilenmenü der Projektliste — beim Löschen fragt Tale, was mit dem Inhalt passiert: Dateien und Chats lösen (sie werden zu Bibliotheksdokumenten und persönlichen Chats) oder sie mitlöschen.
+Lies die Nachrichten vor der Freigabe durch, auch vertrauliche Angaben, die eine Antwort zitiert. Verschiebst du einen geteilten Chat in ein anderes Projekt oder aus dem Projekt heraus, endet seine Projektfreigabe. Teile ihn bewusst erneut, wenn die neue Zielgruppe ihn lesen soll.
 
-## Wann du danach greifst
+Nutze **In Projekt verschieben…** in den Chat-Aktionen, wenn ein bestehendes Gespräch zu dieser Arbeit gehört. Organisationsweite Links auf eine Momentaufnahme sind eine eigene Funktion; siehe [Einen Chat teilen](/de/platform/chat/shared-threads).
 
-| Nimm … wenn                                                 | Projekt | Einzel-Chat |
-| ----------------------------------------------------------- | ------- | ----------- |
-| Dieselben Dateien gelten über viele Chats                   | ✓       |             |
-| Dieselben Anweisungen gelten über viele Chats               | ✓       |             |
-| Mehrere Personen arbeiten am selben Vorhaben                | ✓       |             |
-| Die Arbeit hat Aufgaben, Verantwortliche und Entscheidungen | ✓       |             |
-| Die Frage ist einmalig                                      |         | ✓           |
+## Aus einem Gespräch eine Aufgabe machen
 
-Ein Einzel-Chat ist die richtige Form, um eine Antwort einmal zu erkunden. In dem Moment, in dem der Kontext den Chat überleben soll, zieh um — die Chat-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat in ein Projekt.
+Erstelle eine [Aufgabe](/de/platform/projects/tasks), wenn eine Entscheidung eine zuständige Person oder ein Ergebnis braucht. Ein Teammitglied kann sie selbst erledigen; ein eingerichteter [Projektagent](/de/platform/projects/project-agents) kann sie ebenfalls bearbeiten. Schreibe die Abnahmekriterien in die Beschreibung, damit das Ergebnis prüfbar ist.
 
-## Wo das hingehört
-
-Projekte sind die Naht, an der Chats, Wissen und Aufgaben-Automatisierung zusammentreffen. Die natürliche nächste Lektüre ist [Projekte nutzen](/de/tutorials/member/use-projects) — ein frisches Projekt von Anfang bis Ende; die Tab-Seiten in diesem Bereich vertiefen [Dateien](/de/platform/projects/manage-files) und [Agenten und Modelle](/de/platform/projects/project-agents).
+Archiviere ein abgeschlossenes Projekt, um es aus der aktiven Liste zu nehmen. Lies vor dem Löschen die Auswahl für seine Inhalte: Beim Herauslösen bleiben Dateien in der Bibliothek und Chats als persönliche Gespräche erhalten. Beim Mitlöschen werden auch die Inhalte entfernt. Herausgelöste Dateien können einem größeren Kreis zugänglich werden. Entscheide danach, was verfügbar bleiben soll.

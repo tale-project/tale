@@ -1,62 +1,48 @@
 ---
 title: Projets
-description: Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions et tâches autour d’un même travail.
+description: Réunis les références, les conversations et les tâches de ton équipe autour d’un travail commun.
 ---
 
-Un projet est un espace de travail partagé qui regroupe tout ce dont un travail a besoin — les chats, les fichiers de référence, les instructions et le tableau des tâches — pour que le contexte suive le travail au lieu d’être recollé dans chaque chat. Là où un chat isolé répond à une question, un projet est l’endroit où une équipe fait avancer un contact, un lancement ou une enquête au long cours.
-
-Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deux minutes et demie — avec une tâche qu’un agent prend à l’écran.
+Un projet regroupe les fichiers, instructions, conversations et tâches d’un même travail. Utilise-le lorsque le contexte doit durer au-delà d’un chat ou qu’un résultat a besoin d’un responsable et d’une relecture. Commence par [Utiliser les projets](/fr/tutorials/member/use-projects) pour créer un projet et poser une question sur son fichier de référence.
 
 <Video src="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.mp4" poster="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.webp" captions="/videos/fr/tutorials/ep6-projects/ep6-projects.fr.vtt" lang="fr" title="Épisode 6 — Les projets avec l'IA" caption="Épisode 6 — Les projets avec l'IA (2:21)">
 
 </Video>
 
-<Frame caption="Le tableau des tâches d’un projet — l’un des cinq onglets que porte chaque projet.">
+<Frame caption="Le tableau réunit les propositions, le travail en cours et les résultats à relire.">
 
-![Un tableau kanban de tâches dans le projet Website relaunch, avec sept cartes de tâches réparties sur les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
+![Website relaunch présente des tâches dans les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## Les pièces d’un projet
-
-Chaque projet s’ouvre sur **Tâches** (le tableau), puis la même barre d’onglets : **Général** (nom, description, partage et chats récents), **Chats** (tes chats dans le projet plus ceux qui lui sont partagés), **Connaissances** (les fichiers du projet, dans une arborescence de dossiers) et **Agents** (les agents du projet) — plus **Automatisations** dès qu’une est liée au projet, et **Environnement** pour les admins du projet. Les apps installées dans le projet ajoutent leurs propres onglets à la suite.
-
-## Pages dans cette section
+## Trouver la prochaine étape
 
 <CardGroup cols="2">
 
-<Card title="Concepts de projet" icon="compass" href="/fr/platform/projects/concepts">
-
-Le modèle mental — ce qu’un projet possède, quand il bat un chat isolé et comment le partage fonctionne.
-
+<Card title="Comprendre l’accès au projet" icon="compass" href="/fr/platform/projects/concepts">
+Distingue ce qui est partagé, les chats personnels et les accès accordés par les équipes.
 </Card>
 
-<Card title="Gérer les fichiers" icon="folder-open" href="/fr/platform/projects/manage-files">
-
-L’onglet Connaissances — téléverser des fichiers dans des dossiers, le statut d’indexation et comment les fichiers du projet restent scopés au projet.
-
+<Card title="Gérer les fichiers de référence" icon="folder-open" href="/fr/platform/projects/manage-files">
+Importe et classe les fichiers, vérifie l’indexation et gère les révisions maîtrisées.
 </Card>
 
-<Card title="Agents de projet" icon="bot" href="/fr/platform/projects/project-agents">
-
-Les agents du projet — harness, modèle et fournisseur, équipement et instructions permanentes — et comment les tâches les mettent au travail.
-
+<Card title="Créer et suivre les tâches" icon="list-checks" href="/fr/platform/projects/tasks">
+Définis le responsable, le relecteur, les dates et les critères d’acceptation, puis suis l’avancement.
 </Card>
 
-<Card title="Automatisation des tâches" icon="workflow" href="/fr/platform/projects/task-automation">
-
-Affecter les tâches du tableau à des agents — la boucle d’exécution, le portail de revue et les garde-fous.
-
+<Card title="Configurer un agent de projet" icon="bot" href="/fr/platform/projects/project-agents">
+Choisis le harness, le modèle, les outils et les instructions d’un agent capable de prendre des tâches.
 </Card>
 
-<Card title="Backlog" icon="gauge" href="/fr/platform/projects/backlog">
+<Card title="Lancer et relire le travail d’un agent" icon="workflow" href="/fr/platform/projects/task-automation">
+Démarre une tâche, relis le résultat, demande une reprise et traite les échecs d’exécution.
+</Card>
 
-Les tâches proposées qu’une automatisation ou un coéquipier a synchronisées — Démarrer les met sur le tableau, Fermer les écarte.
-
+<Card title="Examiner les propositions" icon="gauge" href="/fr/platform/projects/backlog">
+Utilise le Backlog pour étudier les idées avant de les intégrer au travail prévu de l’équipe.
 </Card>
 
 </CardGroup>
 
-## Où cela s’inscrit
-
-Les projets vivent à côté du Chat dans la barre latérale, et le passage de relais est naturel : une question démarre dans le Chat, se révèle plus grande qu’un chat et déménage dans un projet — l’action **Déplacer vers un projet…** du chat transporte un chat existant. Si les projets sont nouveaux pour toi, commence par [Concepts de projet](/fr/platform/projects/concepts) pour le modèle, puis déroule [Utiliser les projets](/fr/tutorials/member/use-projects) de bout en bout sur un projet neuf.
+**Général**, **Chats**, **Connaissances** et **Agents** complètent les vues des tâches. Une automatisation liée au projet ajoute l’espace **Automatisations** ; les administrateurs du projet peuvent configurer l’**Environnement**. Les applications installées peuvent ajouter d’autres onglets. Elles ne sont pas nécessaires pour commencer avec les fichiers, les chats et les tâches.

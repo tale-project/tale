@@ -212,9 +212,16 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     deployHint: string,
   ): Promise<void> => {
     if (!(await automationExists(sql, organizationId, name))) {
+      // The one wrong spelling worth a hint: the `{name}` path parameter
+      // writes a name's "/" as "__", and a reader who carries that rule
+      // into a body field used to get a bare 404 (2026-09-14 evaluation,
+      // h3). Existence is still not revealed — the hint keys on the
+      // spelling alone.
       throw new AutomationError(
         'AUTOMATION_NOT_FOUND',
-        'Automation not found',
+        name.includes('__')
+          ? 'Automation not found — in a body field the name is written as it is listed ("billing/dunning"); "__" is only the URL spelling of "/"'
+          : 'Automation not found',
         404,
       );
     }

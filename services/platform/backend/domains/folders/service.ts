@@ -633,27 +633,3 @@ export async function updateFolderTeams(
   }
   return touched.filter((doc) => doc.fileRef !== null);
 }
-
-/** Active cloud-sync config ids keyed by their hub item path (both
- * providers) — the listing decoration that powers "stop syncing" + delete
- * warnings on synced folders. */
-export async function listActiveSyncConfigIdsByPath(
-  sql: Sql,
-  organizationId: string,
-): Promise<Map<string, string>> {
-  const byPath = new Map<string, string>();
-  const onedrive = await sql<{ id: string; itemPath: string | null }[]>`
-    SELECT id, item_path AS "itemPath" FROM app.onedrive_sync_configs
-    WHERE org_id = ${organizationId} AND status = 'active'
-  `;
-  const google = await sql<{ id: string; itemPath: string | null }[]>`
-    SELECT id, item_path AS "itemPath" FROM app.google_drive_sync_configs
-    WHERE org_id = ${organizationId} AND status = 'active'
-  `;
-  for (const config of [...onedrive, ...google]) {
-    if (config.itemPath !== null && config.itemPath !== '') {
-      byPath.set(config.itemPath, config.id);
-    }
-  }
-  return byPath;
-}

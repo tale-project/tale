@@ -1,87 +1,80 @@
 ---
-title: WebDAV
-description: Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV.
+title: Ouvrir les documents Tale avec WebDAV
+description: Génère un mot de passe par appareil, connecte un client WebDAV et vérifie les documents accessibles.
 ---
 
-WebDAV transforme le magasin de documents de Tale en un dossier distant que tu montes comme n’importe quel lecteur réseau partagé. Le magasin sous-jacent est le même que celui que montre le hub documentaire — ce que tu déposes dans le dossier monté apparaît dans l’interface, et inversement. Tout ce qu’il te faut tient sur un panneau : **Paramètres > API > WebDAV** porte les détails de connexion et le générateur de mots de passe applicatifs.
+WebDAV permet à un client de fichiers compatible de lire et modifier les documents de l’organisation comme un dossier distant. Les changements concernent le même stockage que **Connaissances > Documents**. Les fichiers de connaissances propres à un projet ne figurent pas dans ce montage.
+
+## Obtenir les données de connexion
+
+Ouvre **Paramètres > API > WebDAV**. Les Propriétaires, Admins et Développeurs peuvent générer leurs propres identifiants d’appareil. Copie l’URL affichée avec le slug de l’organisation et le chemin `/documents/`. Ne la reconstruis pas avec un identifiant d’organisation et n’utilise pas l’adresse d’une autre organisation.
 
 <Frame caption="Paramètres > API > WebDAV — les détails de connexion préremplis en haut, le générateur de mots de passe applicatifs en dessous.">
 
-![La page des paramètres WebDAV montrant une URL de connexion, un champ de nom d’utilisateur avec l’e-mail du compte, une explication indiquant que le mot de passe est un mot de passe applicatif généré, et un tableau de mots de passe applicatifs qui tient deux entrées — Design workstation et MacBook Pro, chacune avec son seul préfixe et sa date de création — à côté d’un bouton Générer.](/images/platform/settings-webdav.webp)
+![Les paramètres WebDAV affichent l’URL de connexion et le nom d’utilisateur au-dessus de trois mots de passe applicatifs. Retired design workstation est révoqué ; Design workstation et MacBook Pro restent actifs avec une action de révocation.](/images/platform/settings-webdav.webp)
 
 </Frame>
 
-## Générer un mot de passe applicatif
+Utilise l’adresse e-mail de ton compte Tale comme nom d’utilisateur et un mot de passe applicatif comme mot de passe. Le mot de passe habituel du compte ne fonctionne pas pour WebDAV. Sur un service déployé, utilise HTTPS. Ne place pas les identifiants dans une URL ni dans l’historique de commandes.
 
-Le point de terminaison s’authentifie avec des mots de passe applicatifs — de courts secrets que tu frappes par appareil — parce que chaque client WebDAV stocke son identifiant dans le trousseau du système, et qu’un secret cadré et révocable y a sa place, pas le mot de passe de ton compte. Le mot de passe de ton compte ne fonctionne pas sur ce point de terminaison.
+## Générer un mot de passe par appareil
 
-Clique sur **Générer**, étiquette le mot de passe d’après l’appareil (`MacBook Finder`, `ops-laptop rclone`) et copie-le — un par appareil ; le mot de passe complet ne s’affiche qu’une seule fois. Ensuite le tableau ne garde que le libellé et un court préfixe, assez pour reconnaître la ligne quand tu la révoques. Générer exige la même capacité que celle qui garde les clés API ; les simples Membres demandent à un admin.
+1. Choisis **Générer** et saisis un **Libellé**, par exemple `Portable design`.
+2. Génère le mot de passe et copie-le avant de fermer le résultat. Sa valeur complète n’apparaît qu’une fois.
+3. Enregistre-le dans le gestionnaire d’identifiants du client, puis choisis **Je l'ai sauvegardé**.
 
-Pour le nom d’utilisateur, utilise l’e-mail de ton compte Tale. Seul le mot de passe est réellement vérifié, mais l’e-mail garde les lignes d’audit lisibles et correspond à ce que les boîtes de dialogue des clients attendent.
+La liste conserve le libellé, le préfixe et les dates d’utilisation, pas un mot de passe récupérable. En cas de perte, génère un remplacement et révoque l’ancien après avoir mis le client à jour. Des mots de passe distincts permettent de retirer l’accès d’un seul appareil.
 
-## Se connecter depuis ton appareil
-
-L’adresse est l’URL du panneau — `https://<your-site>/dav/<orgSlug>/documents/`.
+## Configurer le client
 
 <Tabs>
 
-<Tab title="Finder macOS">
+<Tab title="Finder sur macOS">
 
-Appuie sur **⌘K** (Se connecter au serveur), colle l’URL et connecte-toi avec ton e-mail et le mot de passe applicatif. Le partage se monte dans la barre latérale ; glisse des fichiers dedans pour téléverser, dehors pour télécharger, et renomme ou supprime sur place. Le premier listage d’une grande arborescence peut prendre quelques secondes.
+Dans Finder, utilise **⌘K** pour ouvrir la connexion à un serveur. Colle l’URL WebDAV et connecte-toi avec ton e-mail et le mot de passe applicatif. Ouvre le dossier monté et vérifie un document connu avant d’y copier des fichiers. N’enregistre les identifiants que sur un appareil de confiance.
 
 </Tab>
 
 <Tab title="Windows">
 
-Dans **Ce PC**, choisis **Connecter un lecteur réseau**, colle l’URL comme dossier et coche **Se connecter à l’aide d’informations d’identification différentes**. Windows plafonne les transferts WebDAV à 50 Mo par fichier par défaut — augmente `FileSizeLimitInBytes` sous la clé de registre `WebClient\Parameters` et redémarre le service WebClient. Sur un port HTTPS non standard, règle `BasicAuthLevel` à `2` sous la même clé.
+Connecte un lecteur réseau dans l’Explorateur avec l’adresse WebDAV HTTPS et les identifiants générés. Le service Windows WebClient doit être disponible. En cas d’échec ou de transfert volumineux bloqué, examine les [prérequis et limites Microsoft](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector) avec l’équipe informatique, ou utilise un client WebDAV dédié. Conserve HTTPS.
 
 </Tab>
 
 <Tab title="Linux">
 
-GNOME Fichiers monte le WebDAV sous son propre schéma — appuie sur **Ctrl+L**, saisis l’URL avec `davs://` à la place de `https://` (`davs://<your-site>/dav/<orgSlug>/documents/`) et connecte-toi avec ton e-mail et le mot de passe applicatif. KDE Dolphin prend la même adresse en `webdavs://`.
-
-Les gestionnaires de fichiers dont la boîte de dialogue **Se connecter au serveur** sépare les champs (Nemo, Caja) assemblent l’adresse eux-mêmes — mets seulement le nom d’hôte (`<your-site>`) dans **Serveur**, garde le port `443` et le type **WebDAV sécurisé (HTTPS)**, et indique `/dav/<orgSlug>/documents` comme dossier.
+Un gestionnaire de fichiers compatible utilise l’hôte et le chemin affichés. GNOME Files emploie `davs://` pour WebDAV sécurisé, et KDE Dolphin `webdavs://`. Si le dialogue sépare serveur et dossier, saisis l’hôte comme serveur et `/dav/<orgSlug>/documents/` comme dossier, avec HTTPS et le port approprié.
 
 </Tab>
 
-<Tab title="Fichiers iOS">
+<Tab title="iPhone et iPad">
 
-Touche le menu à trois points, choisis **Se connecter au serveur** et saisis la même URL et les mêmes identifiants. Fichiers prend en charge la navigation et le téléchargement ; la modification sur place fonctionne pour les formats dotés d’une app iOS.
+Choisis un client qui prend explicitement en charge WebDAV et un mot de passe propre à l’appareil. La page Documents de Tale dans le navigateur convient aussi aux accès occasionnels. Le dialogue serveur générique de Fichiers ne garantit pas WebDAV. L’envoi direct depuis Pages, Numbers et Keynote [n’est plus pris en charge](https://support.apple.com/en-us/101948).
 
 </Tab>
 
 <Tab title="rclone">
 
-```bash
-rclone config create tale webdav \
-    url=https://<your-site>/dav/<orgSlug>/documents/ \
-    vendor=other \
-    user=<your-email> \
-    pass=$(rclone obscure '<app-password>')
-rclone copy ./local-folder tale: --progress
-```
-
-`vendor=other` est correct — le serveur de Tale est générique, pas une saveur nommée que rclone reconnaît.
+Lance `rclone config` et crée une connexion WebDAV avec l’URL Tale, ton e-mail et le mot de passe applicatif. Choisis le fournisseur `other` et saisis le mot de passe à l’invite. Le [guide WebDAV de rclone](https://rclone.org/webdav/) explique la liste et la copie ; commence par un petit dossier de test.
 
 </Tab>
 
 </Tabs>
 
-## Ce que le montage sait faire
+## Vérifier un petit transfert
 
-Les lectures et écritures reflètent tes permissions du hub documentaire, les fichiers que tu téléverses s’indexent et se recherchent comme des téléversements directs, et leur champ source est réglé sur `webdav` pour le filtrage dans les vues d’audit. Les fichiers de projet font exception : l’onglet **Connaissances** d’un projet est scopé à ce seul projet et n’apparaît jamais via WebDAV, le montage ne montre donc que le hub documentaire de l’organisation. L’espace `.trash/` liste les documents supprimés de façon réversible, en lecture seule — télécharge pour récupérer, restaure via l’interface. Les éditeurs qui prennent des verrous WebDAV (Office, LibreOffice) les obtiennent ; une écriture concurrente pendant une modification renvoie `423 Locked`.
+Ouvre ou télécharge un document que tu peux déjà lire dans Tale. Si ton rôle permet l’écriture, téléverse un petit fichier texte au nom unique dans un dossier de test. Vérifie son nom et son contenu sous **Connaissances > Documents**, puis son état d’indexation avant de l’attendre dans la recherche.
 
-## Révoquer
+L’envoi WebDAV suit les permissions et l’indexation des documents ; sa source est enregistrée comme `webdav`. Un transfert terminé ne signifie pas que l’indexation est achevée. Si un fichier de projet manque, ouvre plutôt les connaissances de ce projet.
 
-Révoque un mot de passe avec l’icône corbeille de sa ligne — la requête suivante qui le porte est rejetée, les autres appareils ne sont pas touchés, et les verrous qu’il tenait sont libérés. Il n’y a pas d’annulation ; frappe un nouveau mot de passe si tu révoques la mauvaise ligne.
+## Gérer les verrous et les fichiers supprimés
 
-<Warning>
+Un éditeur compatible peut verrouiller un fichier pendant sa modification. Une écriture concurrente reçoit **423 Locked**. Termine ou ferme l’autre session plutôt que de répéter l’écrasement. Révoquer un mot de passe applicatif libère aussi ses verrous.
 
-L’authentification Basic envoie le mot de passe applicatif à chaque requête. Ne monte qu’en HTTPS, garde le mot de passe dans le trousseau du système et ne le colle jamais dans une URL `https://user:pass@host/` — l’historique du shell et les journaux de proxy survivent au montage. Révoque immédiatement au moindre soupçon de fuite.
+La zone `.trash/` liste en lecture seule les documents supprimés provisoirement. Télécharge un fichier encore conservé pour l’examiner et utilise Tale pour le restaurer. Cette zone ne récupère pas un fichier déjà supprimé définitivement.
 
-</Warning>
+## Révoquer ou réparer une connexion
 
-## Où cela s’inscrit
+Choisis **Révoquer** sur la ligne du mot de passe et confirme. Les requêtes suivantes avec ce mot de passe sont refusées ; les autres mots de passe restent utilisables. La révocation est irréversible. Configure un nouveau mot de passe dans le client si nécessaire.
 
-WebDAV est la porte par utilisateur, côté appareil, vers les mêmes données que le [hub documentaire](/fr/platform/knowledge/documents) ; le protocole réseau vit sous [API WebDAV](/fr/develop/webdav-api). Pour les imports machine à machine, les [clés API](/fr/platform/admin/api-keys) plus l’API REST sont en général le meilleur choix.
+En cas de demandes de connexion répétées, vérifie l’URL exacte, ton appartenance à l’organisation et une éventuelle révocation. Un refus de permission après authentification diffère d’un mot de passe incorrect. La [référence API WebDAV](/fr/develop/webdav-api) explique les codes et le diagnostic du protocole. Les logiciels qui utilisent REST emploient plutôt des [clés API](/fr/platform/admin/api-keys).

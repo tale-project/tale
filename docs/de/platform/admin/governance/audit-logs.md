@@ -1,53 +1,49 @@
 ---
 title: Audit-Logs
-description: Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat.
+description: Finde protokollierte Änderungen, prüfe Ereignisdetails, exportiere Ergebnisse und kontrolliere die Audit-Kette.
 ---
 
-Das Audit-Log ist die unveränderliche Aufzeichnung jeder folgenreichen Aktion in deiner Organisation. Jede Anmeldung, Rollenänderung, Anbieter-Bearbeitung, Agent-Speicherung, Workflow-Ausführung und jeder Sandbox-Aufruf landet hier mit Akteur, Ressource, Vorher-/Nachher-Status und Zeitstempel. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat, wenn ein Compliance-Officer einen Export braucht, oder wenn etwas schiefläuft und die Frage ist _wer hat um 03:14 was geändert_.
+Öffne als Admin oder Inhaber **Einstellungen > Richtlinien > Protokolle**, um protokollierte Aktionen deiner Organisation zu untersuchen. Suche zuerst das Ereignis und den Zeitpunkt. Prüfe danach Akteur, Ziel, Ergebnis und vorhandene Änderungsdetails.
 
-Diese Seite ist die Referenz für die Spalten, die Filter, die Kategorien und die Exportformate. Das Aufbewahrungsfenster für Audit-Zeilen wird im selben Governance-Bereich unter der Aufbewahrungsrichtlinie gesetzt — halte es lang genug, damit deine Compliance-Anforderungen erfüllt sind, bevor Zeilen ausgesteuert werden.
+## Eine Änderung finden
 
-## Ein durchgespielter Filter
+1. Wähle **Audit-Protokolle** und öffne **Filter**.
+2. Wähle die passende Kategorie, etwa Mitgliedsänderungen, Sicherheit oder Daten.
+3. Finde das Ereignis anhand von Zeitpunkt, Aktion und Ziel. Öffne die Zeile für die Details.
+4. Prüfe den Status: Ein abgelehnter oder fehlgeschlagener Versuch belegt nicht, dass die Änderung erfolgreich war.
 
-Um den Moment zu finden, in dem die Rolle eines Mitglieds geändert wurde, öffne **Einstellungen > Richtlinien > Protokolle** und setze den Filter **Kategorie** auf **Mitglied** — die Spalten Benutzer und Ziel benennen die Beteiligten. Jede Zeile öffnet die volle Payload — vorheriger Status, neuer Status, geänderte Felder, der Akteurstyp (Benutzer, System, API, Workflow). Exportiere die gefilterte Auswahl über die Symbolleiste über der Tabelle als CSV oder JSON.
+Aktiver Tab und Kategorie stehen in der URL. Du kannst die Ansicht deshalb als Lesezeichen speichern. Der Zugriff hängt weiterhin von deinen Organisationsberechtigungen ab.
 
-## Die Spalten
+## Ein Ereignis lesen
 
-| Name        | Typ      | Pflicht | Beschreibung                                                                                         |
-| ----------- | -------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| Zeitstempel | ISO 8601 | ja      | Serverzeit, zu der die Aktion committet wurde.                                                       |
-| Aktion      | string   | ja      | Die semantische Aktion — `update_member_role`, `provider_created`, `agent_saved`.                    |
-| Benutzer    | string   | ja      | Anzeigename des Akteurs; `System`, `API` oder `Workflow`, wenn der Akteur keine Person ist.          |
-| Ressource   | string   | ja      | Der berührte Ressourcentyp — `agent`, `provider`, `member`, `workflow`.                              |
-| Ziel        | string   | nein    | Die konkret berührte Ressource, per Name oder Id.                                                    |
-| Kategorie   | enum     | ja      | Authentifizierung, Mitglied, Daten, Connector, Automatisierung, Sicherheit, Admin, KI, Skill, Agent. |
-| Status      | enum     | ja      | Erfolg, Fehlschlag, Verweigert.                                                                      |
-| Fehler      | string   | nein    | Die Fehlermeldung, wenn die Aktion fehlschlug oder verweigert wurde.                                 |
+| Feld | Worauf du achtest |
+| --- | --- |
+| Zeitstempel | Wann Tale die Aktion protokolliert hat. |
+| Aktion | Welcher Vorgang versucht oder abgeschlossen wurde. Manche neueren Aktionen erscheinen mit ihrem technischen Namen. |
+| Benutzer | Welche Person oder welcher Systemakteur verantwortlich war. |
+| Ressource und Ziel | Um welche Art von Eintrag und welchen konkreten Datensatz es geht. |
+| Kategorie | Welche Gruppe der Filter verwendet. |
+| Status | Erfolg, Fehler oder abgelehnt. |
+| Detailansicht | Vorhandener vorheriger/neuer Zustand, geänderte Felder, Metadaten und Fehlerdetails. Nicht jedes Ereignis enthält alle Angaben. |
 
-Der Diff zwischen vorherigem und neuem Status, die Liste geänderter Felder und etwaige KI-Nutzungsdaten reisen mit der Zeile und öffnen sich in ihrer Detailansicht statt als Spalten.
+Nutze das Protokoll als Nachweis der darin erfassten Ereignisse. Es enthält keine vollständige Kopie aller Gespräche, Anbieterantworten oder Aktivitäten externer Dienste.
 
-## Filter
+## Den richtigen Tab wählen
 
-Die Audit-Tabelle trägt einen Filter — **Kategorie**, Einfachauswahl. Filter und aktiver Tab spiegeln sich in der URL, sodass ein gespeicherter Link dieselbe Ansicht wieder öffnet. Die Seite teilt sich in vier Tabs: **Audit-Protokolle** (die Tabelle dieser Seite), **Anmeldeblockaden**, **Aktivitätsprotokolle** (eine Zusammenfassung pro Zeitraum mit Erfolgs-, Fehlschlag- und Verweigert-Zählern) und **Fehlerprotokolle**; der Kategorie-Filter greift auf dem Audit- und dem Fehler-Tab.
+**Audit-Protokolle** enthält einzelne Ereignisse. Die Ansicht für Anmeldesperren hilft bei blockierten Anmeldungen. Aktivitätslogs fassen Vorgänge und Ergebnisse über einen Zeitraum zusammen. Fehlerlogs konzentrieren sich auf Fehler und lassen sich nach Kategorie eingrenzen.
 
-## Exportieren
+Kann sich ein Mitglied nicht anmelden, beginne mit den Anmeldesperren und der [Anleitung zur Kontosicherheit](/de/platform/admin/two-factor-authentication). Wurde eine Konfiguration unerwartet geändert, prüfe das Audit-Ereignis und seine Details.
 
-Zwei Exportformate werden ausgeliefert: CSV für Tabellenkalkulationen und JSON für nachgelagerte Systeme. Beide respektieren den aktiven Kategorie-Filter — was du exportierst, ist was du siehst. Setz den Filter, den du willst (der durchgespielte Filter oben ist das Muster), und wähl dann CSV oder JSON aus der Symbolleiste über der Tabelle. Der Export wird serverseitig gebaut — bis zu 10.000 Zeilen —, bei den Dateien deiner Organisation abgelegt und dem Browser als kurzlebiger Download-Link übergeben.
+## Ergebnisse exportieren
 
-Die CSV kommt als `audit-logs-<timestamp>.csv`, eine Zeile pro Aktion, mit einer flachen Spalte pro Feld; Zeitstempel sind ISO 8601 in UTC und jeder Wert mit einem Komma wird in Anführungszeichen gesetzt:
+Setze den Kategoriefilter, öffne **Exportieren** und wähle CSV oder JSON. CSV liefert flache Spalten für Tabellenprogramme, darunter UTC-Zeitstempel, Akteur- und Ressourcenkennungen, Status und Fehler. JSON enthält die ausführlicheren Ereignisobjekte samt vorhandenen Änderungsdaten und Integritätshashes.
 
-```csv
-timestamp,action,category,actorEmail,actorId,actorType,actorRole,resourceType,resourceId,resourceName,status,errorMessage
-2026-01-14T03:14:07.000Z,member.role_changed,Member,admin@acme.example,usr_8f3a,user,owner,member,usr_2b91,jordan@acme.example,success,
-2026-01-14T03:15:22.000Z,provider.updated,Provider,admin@acme.example,usr_8f3a,user,owner,provider,prov_openai,OpenAI,success,
-```
-
-Der JSON-Export (`audit-logs-<timestamp>.json`) trägt dieselben Zeilen als vollständige Objekte plus die Felder, die CSV wegflacht — den `previousState`/`newState`-Diff und den `integrityHash` pro Zeile. Greif zu JSON, wenn ein nachgelagertes System die Vorher/Nachher-Payload braucht oder jede Zeile gegen die SHA-256-Kette neu verifizieren muss (siehe Abschnitt „Aufbewahrung und Integrität" weiter unten); greif zu CSV, wenn eine Person sie in einer Tabellenkalkulation öffnet.
+Exporte berücksichtigen den Kategoriefilter und enthalten höchstens 10.000 Zeilen, beginnend mit den neuesten. Sie werden auf dem Server erzeugt und über einen vorübergehend gültigen Link heruntergeladen. Ein gefilterter oder begrenzter Export ist eine Auswahl von Nachweisen, nicht zwangsläufig die gesamte Historie oder eine vollständige Hash-Kette.
 
 ## Aufbewahrung und Integrität
 
-Audit-Zeilen sind unveränderlich: Bearbeitungen und Löschungen werden selbst auditiert, und das Zeilenschema trägt einen Integritäts-Hash, den du gegen den Export prüfen kannst. Eine täglich geplante Prüfung läuft die Hash-Kette serverseitig ab — sodass Manipulation oder eine Löschung außer der Reihe auch dann auffällt, wenn niemand die manuelle Prüfung ausführt. Eine fehlgeschlagene Prüfung löst eine kritische In-App-Benachrichtigung an die Admins der Organisation aus und geht an Slack, wenn ein Slack-Benachrichtigungskanal konfiguriert ist. Admins prüfen die Kette bei Bedarf über das Panel **Ketten-Integrität** oben auf der Seite — es zeigt den aktuellen Status, die letzte automatische Prüfung und den Knopf **Jetzt prüfen** —, und die Benachrichtigung einer fehlgeschlagenen Prüfung verlinkt direkt auf die markierte Zeile, sodass ein Admin auf dem Bruch landet statt am Anfang des Logs. Die Aufbewahrung steht standardmäßig auf zwei Jahren und ist auf der Seite zur Aufbewahrungsrichtlinie konfigurierbar — zwischen einem Jahr, der Compliance-Untergrenze, und zehn. Zeilen, die altern, werden vom nächsten Cleanup-Lauf entfernt — es gibt kein Soft-Delete-Fenster für Audit-Daten.
+Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte Audit-Kette zu kontrollieren. Der Bereich zeigt den Status und die letzte automatische Prüfung. Wird eine Unterbrechung gemeldet, sichere die Details und untersuche sie mit dem Betreiber, bevor du dich auf diesen Teil der Historie verlässt.
 
-## Wo das hingehört
+Eine erfolgreiche Prüfung gilt für die aufbewahrten Datensätze, die sie untersucht hat. Sie belegt keinen unabhängig signierten Ursprung der Historie. Die [Integritätsanleitung für den Betrieb](/de/self-hosted/operate/security/audit-log-integrity) erklärt die Prüfungen und ihre Grenzen.
 
-Das Audit-Log ist die Leseseite jedes anderen Governance-Features: Legal Hold benennt die platzierten Holds, Anfragen betroffener Personen protokollieren jeden Cascade-Schritt. Wenn eine Frage mit _wer, wann, was_ beginnt, ist das Audit-Log die Antwort. Die Begleitseite ist die [Aufbewahrungsrichtlinie](/de/platform/admin/governance/policies-and-limits) — sie steuert, wie lange diese Zeilen bleiben, bevor Cleanup sie entfernt.
+Die Hash-Verkettung hilft, Veränderungen gespeicherter Datensätze zu erkennen. Sie beweist nicht, dass jede mögliche Aktion protokolliert wurde. Die Audit-Aufbewahrung ist unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) einstellbar. Prüfe die aktive Richtlinie und Deployment-Grenzen, statt eine feste Dauer anzunehmen. Wiederherstellbare Audit-Einträge können im [Papierkorb](/de/platform/admin/governance/trash) erscheinen. Endgültige Bereinigung begrenzt die verfügbare Historie.

@@ -256,7 +256,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
       <div className="mx-auto flex w-full max-w-6xl flex-1 justify-between gap-8 px-4 py-8 lg:px-6 xl:gap-10">
         <article className="w-full max-w-3xl min-w-0 flex-1">
           <DocsTocOutline entries={tocEntries} />
-          <header className="min-w-0">
+          <header className="min-w-0 [overflow-wrap:anywhere]">
             <h1 className="text-foreground text-3xl font-semibold tracking-tight md:text-4xl">
               {doc.frontmatter.title}
             </h1>

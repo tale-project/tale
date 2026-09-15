@@ -345,8 +345,7 @@ auth:
     loginButton: Log in
     continueWithSso: Continue with SSO
     ssoTitle: Sign in with SSO
-    ssoDescription: Enter your organization email address — it selects your
-      organization's sign-in.
+    ssoDescription: Choose your organization to continue to its sign-in provider.
     ssoOrgListLabel: Organizations
     ssoBackToLogin: Back to log in
     ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
@@ -592,6 +591,12 @@ automations:
       deployed version.
     runLiveTitle: Run live?
     runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
+    runInput:
+      label: Run input (JSON)
+      description: 'Input for saved version {version}. It does not change the automation.'
+      schema: Input schema
+      invalid: 'The input does not match the schema. Check these fields: {paths}.'
+      mockDescription: Test the saved version with mock responses. No external actions run.
     runScope:
       label: Project scope
       orgWide: Organization-wide
@@ -2249,11 +2254,16 @@ documents:
           configureCta: Configure embedding model
           askAdmin: Ask an organization admin to configure one, then retry indexing.
       unsupported:
-        title: Format not supported
+        title: Document cannot be indexed
         description:
-          This file type has no text extractor, so it can't be indexed for
-          RAG search. Convert it to a supported format (PDF, DOCX, TXT, …) and
-          re-upload to make it searchable.
+          These file contents cannot be indexed. Upload a readable text version
+          or a supported document with extractable text.
+        reasons:
+          unsupported_type: This file type has no supported text extractor.
+          image_no_vision: Knowledge indexing does not extract text from images.
+          empty: The file holds no text to index — it is empty, whitespace alone, or a scanned document with no text layer.
+          not_text: The file contains binary data instead of readable text. Export it as UTF-8 text.
+          malformed: The file cannot be read as its stated format. It may be damaged or password-protected.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive
@@ -2263,6 +2273,34 @@ documents:
     sharePoint: SharePoint
     sharePointSynced: SharePoint (synced)
     uploaded: Upload
+    googleDriveSynced: Google Drive (synced)
+  syncHealth:
+    badge:
+      failed: Sync failed
+      needsReauth: Reconnect needed
+    dialog:
+      failedTitle: Sync failed
+      failedDescription: >-
+        The last sync of "{name}" did not go through. Tale retries about every
+        15 minutes and clears this notice as soon as a run succeeds.
+      needsReauthTitle: '{provider} access expired'
+      needsReauthDescription: >-
+        Tale can no longer reach {provider} with the account that syncs
+        "{name}". The files synced so far stay in place; nothing new arrives
+        until that account is reconnected.
+      failingSince: Failing since {time}
+      syncedBy: Synced with the account of {ownerName}
+      syncedByUnknown: Synced with the account of a member who has since left
+      errorDetails: Error details
+      ownerNextStep: >-
+        Reconnect your account to resume syncing. The next run picks it up
+        within 15 minutes.
+      otherNextStep: >-
+        Ask {ownerName} to reconnect. A member who can import documents can
+        also start a new sync import of this item to take the sync over.
+      otherNextStepUnknown: >-
+        Start a new sync import of this item to take the sync over — the
+        account it ran under is gone.
   comparison:
     title: Compare documents
     description: Pick two files to see what changed between them.
@@ -4172,18 +4210,16 @@ personalization:
       overridingOrgDefault: Overriding organization default ({state}).
     customInstructionsToggle:
       label: Custom instructions
-      description: When on, the assistant prepends your custom instructions to every reply.
+      description: "Save preferences for your account. Chat replies do not currently use these instructions. Use project Instructions for project chats."
     memoriesToggle:
       label: Memories
-      description:
-        When on, the assistant can save and reuse facts you approve about
-        yourself across chats.
+      description: "Manage stored memories for your account. The chat assistant does not currently save or retrieve memories automatically."
     customInstructions:
       title: Custom instructions
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
     memories:
       title: Saved memories
-      empty: Memories appear here after the assistant proposes them and you save.
+      empty: "No saved memories."
       delete: Delete
       deleteLabel: 'Delete memory: {content}'
     pending:
@@ -4504,7 +4540,7 @@ skills:
     license: License
     recommendedPython: Recommended Python
     recommendedNode: Recommended Node
-    disableModelInvocation: Skill is hidden from the model — explicit invocation only.
+    disableModelInvocation: Requests explicit use of this skill; does not restrict access.
     unknownKeys:
       '{count, plural, one {# additional frontmatter key preserved} other
       {# additional frontmatter keys preserved}}'
@@ -5136,8 +5172,8 @@ settings:
   connectors:
     searchPlaceholder: Search connectors
     sectionDescription:
-      The credentials this organization authenticates connected services with.
-      Each one unlocks that service's actions for automations and chat.
+      Manage the credentials this organization uses for connector actions
+      in workflows and supported platform tools.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5154,8 +5190,8 @@ settings:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       connect: Connect
       emptyBodyOauth:
-        Connect {connector} to grant Tale access, and its actions become
-        available to automations and chat.
+        Connect {connector} so configured workflows and supported platform
+        tools can use this account.
       oauthAppMissing:
         '{connector} has no OAuth app to connect against yet. Ask an
         organization admin to configure one under Settings > Connectors.'
@@ -5421,11 +5457,7 @@ settings:
         s7:
           For group→team sync, add the Microsoft Graph GroupMember.Read.All permission
           under API permissions and grant admin consent.
-        s8:
-          For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read
-          and Sites.Read.All permissions under API permissions and grant admin
-          consent. If you only want sign-in, remove the two scopes from the
-          Scopes field above.
+        s8: Microsoft 365 file import uses a separate consent flow in Knowledge. Do not add Files.Read or Sites.Read.All to SSO scopes for sign-in. Configure import access through the connector OAuth app settings.
       google:
         intro:
           Create an OAuth client in the Google Cloud Console, then paste its
@@ -5655,13 +5687,8 @@ settings:
       resultValidTitle: Chain verified
       resultValidBody: '{count, plural, one {Checked # entry} other {Checked #
         entries}} — no tampering detected.'
-      truncatedNote:
-        Only the first {count} entries were checked. Run verification
-        again to continue down the chain.
-      unsignedScrubNote:
-        '{count, plural, one {# entry was trusted via an unsigned
-        scrub record} other {# entries were trusted via unsigned scrub
-        records}}. Review your audit signing key.'
+      truncatedNote: "Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range."
+      unsignedScrubNote: "{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history."
       brokenTitle: Chain integrity broken
       brokenBody:
         The hash chain does not match at the entry below. Preserve this
@@ -6314,6 +6341,10 @@ inbox:
   agentQuestionAsked: Agent needs your answer
   agentQuestionAskedBody: '{name} paused with a question on "{title}": {question}'
   agentQuestionAskedNoTaskBody: '{name} paused with a question: {question}'
+  cloudSyncFailed: Cloud sync failing
+  cloudSyncFailedBody: 'Syncing "{itemName}" from {provider} has been failing for over an hour ({reason}). Tale keeps retrying every 15 minutes.'
+  cloudSyncNeedsReauth: Cloud sync needs reconnecting
+  cloudSyncNeedsReauthBody: 'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -6981,7 +7012,6 @@ websites:
       fallback: Couldn't fetch this page.
   filter:
     status:
-      idle: Idle
       scanning: Scanning
       active: Active
       error: Error

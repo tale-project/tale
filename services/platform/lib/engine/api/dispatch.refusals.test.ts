@@ -318,7 +318,8 @@ describe('the name-scoped lists refuse an unknown automation', () => {
     ['list_triggers', { name: SAVED }, 'triggers'],
   ])('%s answers the list for a saved name', async (method, params, key) => {
     const result = await dispatch(method, params, { store: fullStore() });
-    expect(result).toEqual({ [key]: [] });
+    // list_versions also names the deployed version beside its list.
+    expect(result).toMatchObject({ [key]: [] });
   });
 
   it('list_runs and list_triggers without a name stay organization-wide', async () => {
@@ -377,5 +378,98 @@ describe('save_automation records the save’s own test verdict', () => {
       undefined,
     );
     expect(result).toEqual({ name: SAVED, version: 2 });
+  });
+});
+
+describe('the MCP door’s run, trigger and version tools after the 2026-09-14 round-h evaluation', () => {
+  it('hands start_run’s idempotencyKey to the store and says when the key named an earlier start', async () => {
+    const calls: unknown[][] = [];
+    const store = fullStore({
+      startRun: async (...args: unknown[]) => {
+        calls.push(args);
+        return { runId: 'run-1', version: 1, duplicate: true };
+      },
+    });
+    const result = (await dispatch(
+      'start_run',
+      { name: SAVED, input: { n: 1 }, idempotencyKey: 'k-1' },
+      { store, allowLive: true },
+    )) as { runId: string; duplicate?: boolean; note: string };
+    expect(calls[0]?.[5]).toEqual({ idempotencyKey: 'k-1' });
+    expect(result).toMatchObject({ runId: 'run-1', duplicate: true });
+    expect(result.note).toContain('no new run was started');
+    calls.length = 0;
+    await dispatch('start_run', { name: SAVED }, { store, allowLive: true });
+    expect(calls[0]?.[5]).toBeUndefined();
+  });
+
+  it('answers a webhook trigger’s token once, with whether deliveries will run', async () => {
+    const store = fullStore({
+      setTrigger: async () => ({ token: 'tok-once' }),
+      deployedVersion: async () => null,
+    });
+    const result = (await dispatch(
+      'set_trigger',
+      { name: SAVED, trigger: { kind: 'webhook' } },
+      { store, allowLive: true },
+    )) as { ok: boolean; token?: string; deployed: boolean; note: string };
+    expect(result).toMatchObject({
+      ok: true,
+      token: 'tok-once',
+      deployed: false,
+    });
+    expect(result.note).toContain('shown once');
+    expect(result.note).toContain('no deployed version');
+    const deployed = (await dispatch(
+      'set_trigger',
+      { name: SAVED, trigger: { kind: 'schedule', cron: '0 3 * * *' } },
+      {
+        store: fullStore({ setTrigger: async () => undefined }),
+        allowLive: true,
+      },
+    )) as { ok: boolean; token?: string; deployed: boolean };
+    expect(deployed).toMatchObject({ ok: true, deployed: true });
+    expect(deployed.token).toBeUndefined();
+  });
+
+  it('reads the deployed version through get_automation {version: "deployed"}', async () => {
+    const live = (await dispatch(
+      'get_automation',
+      { name: SAVED, version: 'deployed' },
+      { store: fullStore(), allowLive: false },
+    )) as { meta: { version: number } };
+    expect(live.meta.version).toBe(1);
+    const none = (await dispatch(
+      'get_automation',
+      { name: SAVED, version: 'deployed' },
+      {
+        store: fullStore({ deployedVersion: async () => null }),
+        allowLive: false,
+      },
+    )) as Refusal;
+    expect(none.code).toBe('AUTOMATION_VERSION_UNKNOWN');
+    expect(none.hint).toContain('deploy_automation');
+  });
+
+  it('marks the deployed version in list_versions and names it beside the list', async () => {
+    const store = fullStore({
+      listVersions: async () => [
+        { version: 1, createdBy: 'u', createdAt: 1 },
+        { version: 2, createdBy: 'u', createdAt: 2 },
+      ],
+    });
+    const result = (await dispatch(
+      'list_versions',
+      { name: SAVED },
+      { store, allowLive: false },
+    )) as {
+      deployedVersion: number | null;
+      versions: { version: number; deployed: boolean }[];
+    };
+    expect(result.deployedVersion).toBe(1);
+    expect(result.versions.map((row) => [row.version, row.deployed])).toEqual([
+      [1, true],
+      [2, false],
+    ]);
   });
 });

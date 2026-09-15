@@ -61,12 +61,15 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Every locale is covered, always** — a user-visible string never ships in fewer languages than
   the app supports: adding/changing/removing a key touches `en` AND every sibling locale (`de`,
-  `fr`, `de-CH` overrides, `packages/ui` messages, docs trees) in the same change, following the
+  `fr`, relevant sparse `de-CH` overrides, shared package messages, and translated docs trees) in the same change, following the
   [`write-translations`](skills/write-translations/SKILL.md) skill. A key present in one catalog
-  and missing in another is a defect, not a follow-up.
+  and missing in another full catalog is a defect, not a follow-up. Shared controls own their keys
+  in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
+  override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
+  an English-only guide with complete EN/DE/FR chrome catalogs.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
-- **Three manual layers, one shape** — `services/{platform,web,docs}/tests/manual/` each carry the
+- **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
   standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
@@ -90,7 +93,7 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 | Skill                                                      | Read before…                                                                                     |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`create-migration`](skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `backend:integration` / corpus gate |
-| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing any end-user docs page — journey-first, with the repo facts in `docs/AGENTS.md`  |
+| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract |
 | [`write-translations`](skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                             |
 
 The product skills are not repo-dev workflows: they live under
@@ -107,8 +110,10 @@ default means deleting the override and fixing what surfaces:
 - **React Compiler family** (`react/refs`, `react/set-state-in-effect`,
   `react/exhaustive-effect-dependencies`, `react/memo-dependencies`, `react/immutability`,
   `react/purity`, `react/no-deriving-state-in-effects`, `react/hooks`, and friends) — off in
-  `services/platform`, `services/web`, `services/docs`, `packages/ui` (~450 sites, 2026-08).
-- **`promise/always-return`** — off in the same four workspaces.
+  `services/platform`, `services/web`, `services/docs`, `services/ui-docs`, `packages/ui`, and
+  `packages/marketing-ui`. The original count predates the UI consolidation; inspect each
+  workspace’s explicit overrides for current scope.
+- **`promise/always-return`** — off in the same six workspaces.
 - **`import/no-cycle`** — off in `services/platform` only (21 cycles, 2026-08).
 - **jsx-a11y trio** (`no-noninteractive-element-to-interactive-role`, `interactive-supports-focus`,
   `no-noninteractive-element-interactions`, `no-noninteractive-tabindex`) — off in
@@ -211,14 +216,13 @@ default means deleting the override and fixing what surfaces:
   the note and mirrored in the in-memory executor) and a derived `repeatsExhausted: true` on
   `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
 - **The crawler's clocks and knobs are not on the wire** — `Website` carries no
-  `scanStartedAt` (the chain argument is never persisted), a `<meta name="robots"
-  content="noindex">` tag is not honoured (only the `X-Robots-Tag` header is), and the ceilings
+  `scanStartedAt` (the chain argument is never persisted), and the ceilings
   the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
   are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
   (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
-  (set in `claimScan`) surfaced as `Website.scanStartedAt`, a `robotsMetaNoindex(html)` check in
-  the render flush ahead of `storePageText` (kind `robots_noindex`, as the header path), and
-  optional `maxPages` / `includePaths` on `WebsiteInput` honoured by admission.
+  (set in `claimScan`) surfaced as `Website.scanStartedAt`, and optional `maxPages` /
+  `includePaths` on `WebsiteInput` honoured by admission (the meta-robots `noindex` tag is
+  honoured since round h, as the header is).
 - **Website search has no dense leg and its substring fallback is silent** —
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
@@ -227,8 +231,8 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
-  one-live-run-per-task invariant (the `automation_runs_one_live_per_task` partial index and
-  the in-transaction probe in `backend/domains/tasks/external-ref.ts`), so a retry while the
+  one-live-run-per-task invariant (the `automation_runs_one_live_per_task_subject` partial
+  index and the in-transaction probe in `backend/domains/tasks/external-ref.ts`), so a retry while the
   run lives answers `already_running` with its `runId`, but a retry after it finished starts
   another run (2026-09, round g). Paying it down means `beginRunIdempotentInTx` behind
   `readIdempotencyKey(c)` with a door-specific request hash over `{taskId, workflowSlug}` —
@@ -267,3 +271,46 @@ default means deleting the override and fixing what surfaces:
   a `{status, description}` map beside each registry entry, rendered into the reference by a
   docs build step with a guard test that every backticked `UPPER_SNAKE` token in
   `docs/en/develop/api-reference.md` is in the registry.
+- **Notifications are untyped and poll-only** — `GET /api/v1/notifications` rows carry `type`
+  as a free string with no closed vocabulary on the wire, and nothing pushes them (no SSE or
+  webhook lane for a machine caller; `/events` is the app session's) (2026-09, round h). Paying
+  it down means an enum over the emitters' kinds in `spec.ts` (the `notification_kinds` the
+  domain already switches on) and a `since` parameter documented as the poll cursor.
+- **A skill keeps no version history on the machine door** — `PUT /api/v1/skills/{slug}`
+  replaces the bundle, and the superseded `SKILL.md` history the app keeps is not readable
+  through `/api/v1` (2026-09, round h; the reference says so). Paying it down means
+  `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
+  entries' `…/{id}/versions`.
+- **The per-task circuit breaker is not built** — no counter pauses automation on a task after
+  N automated runs in an hour; the one-engine rule and cancel are the only stops, and the docs
+  now say so (2026-09, round h). Paying it down means a per-task window count on
+  `app.automation_runs` (org, task subject, `started_at_ms`) checked in the task-start probe
+  (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human moves the status,
+  and the guardrails bullet restored.
+- **Mirrored conversation messages have no read-back** — `GET /api/v1/conversations` lists the
+  mirrors, but the messages a snapshot applied are readable only in the app; a mirror cannot
+  verify what landed (2026-09, round h). Paying it down means
+  `GET /api/v1/conversations/{id}/messages` under the owner rule, keyset by
+  (`createdAt`, `messageId`), attachments as refs.
+- **A queued send is invisible on the message list** — while a turn waits in the deployment
+  queue, `GET …/threads/{id}/messages` answers a complete page without it and
+  `…/messages/{messageId}` 404s the id the 202 named; the generation poll is its only view
+  (2026-09, round i). The reference says so. Paying it down means listing the user turn and a
+  `pending` assistant row from the moment the send is accepted, not when a worker opens it.
+- **A webhook delivery the deployed `inputs` schema refuses moves no trigger stamp** — the
+  400 goes to the sender and `lastSkippedAt` / `lastSkipReason` stay as they were, so a binding
+  refusing every delivery reads as never called (2026-09, round i). The reference says so.
+  Paying it down means a `delivery_refused` skip reason stamped from the webhook door beside
+  `start_refused`.
+- **MCP `run_deployed` keys its idempotency apart from `start_run` and REST** — one key shared
+  across them hard-fails `IDEMPOTENCY_KEY_REUSED` both ways and never answers the `duplicate`
+  marker its schema documents (2026-09, round i). Paying it down means one ledger namespace
+  for the three doors and the marker on the reply.
+- **`robots.txt` `$` end-anchors and `Allow:` are not honoured, and a page is fetched three to
+  four times a scan** — prefix and `*` rules are enforced; a `$`-anchored `Disallow` fails open
+  (the URL is fetched, not indexed) and an `Allow` ahead of a `Disallow` does not admit its
+  path (2026-09, round i). Paying it down means the `$` and `Allow` branches of the robots
+  parser and one fetch per page per scan.
+- **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
+  so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
+  Paying it down means keeping the partial trace the way the failed path does.

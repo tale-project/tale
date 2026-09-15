@@ -1,27 +1,30 @@
-# backend/core — ported domain logic
+# Reused domain logic
 
-The domain logic ported from Tale's 0.4 Convex backend during the 0.5
-Convex → Postgres rewrite. **These are not Convex functions** — there is no
-Convex runtime; [MIGRATION.md](../MIGRATION.md) is the record of how the port
-landed and the semantics each surface carries.
+This tree contains domain logic called by the current PostgreSQL backend. Its
+`ctx.runQuery` and `ctx.runMutation` syntax is a compatibility interface, not a
+separate database runtime or an API for external clients.
 
-The doors in [`../domains/`](../domains/) and the pg-boss jobs in
-[`../jobs/`](../jobs/) drive these modules through the **ctx-shim**
-([`../lib/ctx-shim.ts`](../lib/ctx-shim.ts)): a minimal `ActionCtx` stand-in
-that dispatches a reused module's `ctx.runQuery` / `ctx.runMutation` calls, by
-function name (`path/module:export`), to SQL-backed handlers the caller
-registers — so the same 0.4 code path runs against Postgres. It is fail-loud:
-an un-shimmed call throws with the exact name rather than misbehaving silently.
+## Follow a call
 
-Keeping the ported tree here — imported unchanged (extensionless specifiers)
-via the backend's `node-loader.mjs` — is port-by-reference: reuse instead of
-fork-copying. New 0.5 code belongs in `../domains/` and `../jobs/`, not here.
+1. An authenticated route in [`../domains/`](../domains/) or a worker in
+   [`../jobs/`](../jobs/) selects a domain operation.
+2. The caller supplies SQL-backed handlers through
+   [`ctx-shim.ts`](../lib/ctx-shim.ts).
+3. A core function addresses a handler by its registered name. An unregistered
+   call throws with that name, so a missing integration cannot silently succeed.
 
-## Layout
+The Node loader resolves extensionless imports in this tree. Keep a reused
+operation here when its callers still need it; place new endpoint and persistence
+code in the native domain or job that owns the behavior. Search both locations
+before adding a second implementation.
 
-- domain directories (`chat/`, `tasks/`, `knowledge/`, `governance/`, …) — one
-  per ported 0.4 domain, snake_case, mirroring the old `convex/` tree.
-- `lib/` — the ported shared server utilities: crypto (`secret_box.ts`,
-  `crypto/`), storage, RLS, config readers, and the hand-maintained `ctx.ts` /
-  `handler_names.ts` / `rows.ts` vocabulary that replaced Convex's generated
-  `_generated/` types.
+## Find the supporting types
+
+- `lib/ctx.ts`: context interfaces used by reused functions.
+- `lib/handler_names.ts`: callable handler-name vocabulary.
+- `lib/rows.ts`: row and identifier types expected at the compatibility boundary.
+- Domain directories: shared behavior, normalization, parsing and tests.
+
+Follow the [backend transaction, authorization and testing rules](../README.md)
+when changing a call. [`MIGRATION.md`](../MIGRATION.md) records the earlier port;
+use current source and tests for today’s contract.

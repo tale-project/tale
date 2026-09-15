@@ -113,6 +113,20 @@ export const PERSONAL_LINK_CASES: Record<
     row: { params: { conversationId: 'conv_1', conversationStatus: 'open' } },
     path: `/dashboard/${ORG}/conversations/open?conversation=conv_1`,
   },
+  // The Documents listing that holds the synced item's row — its parent
+  // folder, so the failure badge is in view; a root-level sync omits
+  // `hubFolderId` and lands on the root listing.
+  cloud_sync_failed: {
+    row: {
+      params: {
+        provider: 'OneDrive',
+        itemName: 'Reports',
+        syncConfigId: 'cfg_1',
+        hubFolderId: 'fld_1',
+      },
+    },
+    path: `/dashboard/${ORG}/documents?folderId=fld_1`,
+  },
   workforce_digest: {
     row: { params: { title: 'Your week' } },
     path: `/dashboard/${ORG}`,

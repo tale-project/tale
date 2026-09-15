@@ -1,46 +1,64 @@
 ---
-title: Dein erster Tag als Agent-Autor
-description: Der Einstieg für Redakteure — erstelle einen Projekt-Agenten, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu.
+title: Einen Projektagenten erstellen und testen
+description: Einem Projektagenten einen klaren Auftrag geben, ihn starten und das Ergebnis prüfen.
 ---
 
-Dieser Einstieg ist für die Person, die aus „das Team stellt immer dieselben Fragen“ einen Agent macht, der sie beantwortet. In fünfzehn Minuten erstellst du einen Agent auf einem Projekt, formst sein Verhalten und siehst ihm bei echter Arbeit auf einer Aufgabe zu — die Schleife, die jeder spätere Agent verfeinert.
+Ein Projektagent ist ein wiederverwendbarer Arbeitsauftrag für Projektaufgaben. Du legst Anweisungen, Laufzeit, Modell und Werkzeuge fest, startest ihn an einer Aufgabe und prüfst das Ergebnis.
 
-Du brauchst Bearbeitungsrechte auf einem Projekt und mindestens einen Anbieter unter **Einstellungen > KI-Anbieter** mit einem Modell darauf; antwortet der Chat bereits, ist der Anbieter da — das ist der [Quickstart](/de/get-started/quickstart). Agenten leben in dieser Version auf Projekten: Es gibt keinen Eintrag Agenten in der Sidebar und keinen Agent, den du im Chat auswählst.
+## Was du brauchst
+
+Du brauchst Bearbeitungsrechte im Projekt, einen geeigneten Modellanbieter und eine verfügbare Agentenlaufzeit samt benötigter Infrastruktur. Ein funktionierender Chat prüft den Chat-Zugriff des Anbieters. Er belegt nicht, dass Agentenlaufzeit oder Sandbox bereitstehen. Bitte einen Admin, die [Agentenlaufzeiten](/de/platform/agents/harnesses) zu prüfen, wenn keine verfügbar ist.
+
+Erstelle oder öffne zuerst ein Projekt. [Projekte nutzen](/de/tutorials/member/use-projects) erklärt Freigaben und Wissensquellen.
+
+## Einen klaren Auftrag geben
 
 <Steps>
 
-<Step title="Erstelle den Agent">
+<Step title="Einen Agenten im Projekt erstellen">
 
-Für einen Agent, den Teammitglieder an die Arbeit schicken können, öffne den Tab **Agenten** eines Projekts und klicke auf **Neuer Agent**. Benenne ihn nach dem Job, nicht nach der Technologie — „Support-Triage“ schlägt „GPT-Helfer“ —, denn diesen Namen sehen Teammitglieder auf den Aufgabenkarten, wenn sie ihm Arbeit zuweisen.
+Öffne den Tab **Agenten** und wähle **Neuer Agent**. Benenne ihn nach seiner Aufgabe, etwa „Launch-Prüfer“. Wähle unter **Agent-Laufzeit** und **Modell** die passende Kombination, die dein Arbeitsbereich unterstützt. Gibt es mehrere Anbietereinträge für dasselbe Modell, wähle auch den vorgesehenen Anbieter.
 
-</Step>
+<Frame caption="Projektagenten verbinden eine benannte Aufgabe mit Laufzeit und Modell.">
 
-<Step title="Wähl Laufzeit und Modell">
+![Der Agenten-Tab des Projekts zeigt Agenten mit ihrer konfigurierten Laufzeit und ihrem Modell.](/images/platform/project-agents-models.webp)
 
-Der Dialog fragt nach einer **Agent-Laufzeit** — der Coding-CLI, auf der der Agent läuft — und einem **Modell**; ein Modell, das mehrere Anbieter bedienen, steht einmal pro Anbieter in der Liste, und die Wahl gilt genau so. Lass **Skills, Connectors & Tools** und **Secrets** am ersten Tag leer: Jedes Tool, das du gewährst, erweitert, was der Agent erreichen kann, und der erste Job braucht keines.
-
-</Step>
-
-<Step title="Schreib die Anweisungen">
-
-**Anweisungen** ist der Hebel, der am meisten bewegt. Schreib einen Absatz, als würdest du eine neue Kollegin briefen: die Stimme, in der er antwortet, die Domäne, die er verantwortet, und die Fälle, die er ablehnen soll. Konkret schlägt vollständig — du verfeinerst, sobald du echte Ergebnisse gesehen hast. Klicke auf **Agent erstellen**; ab diesem Moment lässt sich ihm Arbeit zuweisen, ein separater Veröffentlichungsschritt entfällt.
+</Frame>
 
 </Step>
 
-<Step title="Sieh ihm bei der Arbeit zu">
+<Step title="Prüfbare Anweisungen formulieren">
 
-Agents arbeiten auf Aufgaben — der Chat führt nur den eingebauten Assistenten aus. Erstell auf dem Projekt-Board eine Aufgabe, die die Arbeit in einem Satz benennt, weis sie dem Agent zu und klicke auf **Agent starten**. Die Karte wandert nach _In Bearbeitung_, während der Agent in seiner Sandbox arbeitet; sein Bericht landet als Aufgabenkommentar, und die Karte parkt unter **In Prüfung** — auf _Erledigt_ setzt sie nur ein Mensch.
+Beschreibe unter **Anweisungen** die Aufgabe, die Quellen, das Ausgabeformat und die Grenzen. Zum Beispiel:
 
-<Check>
+> Prüfe das an die Aufgabe angehängte Launch-Briefing. Liste fehlende Entscheidungen, unklare Zuständigkeiten und Widersprüche auf. Zitiere zu jedem Befund die betreffende Stelle. Ändere keine Dateien und kontaktiere keine externen Dienste. Fehlt das Briefing, frage danach.
 
-Folgt das Ergebnis der Stimme und dem Rahmen, die du geschrieben hast, greifen die Anweisungen — der Agent ist echt.
+Gewähre nur die **Skills, Connectors & Tools** und **Secrets**, die diese Aufgabe braucht. Speichere mit **Agent erstellen**. Nach dem ersten Ergebnis kannst du den Auftrag überarbeiten.
 
-</Check>
+</Step>
+
+<Step title="Eine konkrete Aufgabe zuweisen und starten">
+
+Erstelle eine Aufgabe mit klarer Beschreibung und den nötigen Eingabedateien. Weise den Agenten zu und wähle dann **Agent starten**. Zuweisen und Starten sind getrennte Aktionen. Beobachte während der Ausführung Status und Aktivität der Aufgabe.
+
+Kann der Agent nicht starten, lies zuerst die angezeigte Ursache. Fehlende Anbieter, nicht verfügbare Laufzeiten, Richtlinien und fehlende Eingaben erfordern unterschiedliche Lösungen.
 
 </Step>
 
 </Steps>
 
-## Wo du jetzt stehst
+## Das Ergebnis prüfen
 
-Du hast den kleinsten echten Agent ausgeliefert: einen benannten Agent im Tab **Agenten** eines Projekts mit einem Absatz Anweisungen. Das vollständige Modell hinter dem, was du angefasst hast, sind die [Agent-Konzepte](/de/platform/agents/concepts) — Anweisungen, Tools, Skills und Wissensbereich —, und [Projekt-Agenten](/de/platform/projects/project-agents) ist die Referenz Feld für Feld. Der natürliche nächste Bau ist [dein erster Agent von Anfang bis Ende](/de/tutorials/editor/first-agent-end-to-end), der dieselben vier Handgriffe an einer echten Domäne durchspielt und das Ergebnis prüft; danach sagt der [Wissens-Überblick](/de/platform/knowledge/overview), wo Wissen liegt, und [Aufgaben-Automatisierung](/de/platform/projects/task-automation), wie die Arbeit eines Agenten über das Board beim nächsten ankommt.
+Lies den Aufgabenkommentar des Agenten und mögliche Ausgabedateien. Vergleiche sie mit dem Auftrag: Wurde die richtige Quelle geprüft, ist jeder Befund belegt und blieb der Agent im vorgegebenen Rahmen? Eine abgeschlossene Ausführung bedeutet noch kein richtiges Ergebnis.
+
+Halte Prüfung und Abschluss bewusst fest. Gib über die Aufgabenfunktionen Rückmeldung, fordere bei Bedarf einen weiteren Durchlauf an und schließe akzeptierte Arbeit ab. [Projektaufgaben](/de/platform/projects/tasks) erklärt Status und Prüferfeld.
+
+<Tip>
+
+Teste neben einer normalen Aufgabe auch fehlende Eingaben. Ein Agent, der nach einem fehlenden Briefing fragt, hilft mehr als einer, der dessen Inhalt erfindet.
+
+</Tip>
+
+## Schrittweise verfeinern
+
+Verbessere die Anweisung, die zum schlechten Ergebnis geführt hat, und teste eine vergleichbare Aufgabe. Ergänze Werkzeuge nur bei Bedarf. Prüfe vor externen Schreibaktionen das [Genehmigungsverhalten](/de/platform/approvals/concepts). Ein längeres Beispiel findest du unter [Dein erster Agent von Anfang bis Ende](/de/tutorials/editor/first-agent-end-to-end).

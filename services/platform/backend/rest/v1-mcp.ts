@@ -94,6 +94,30 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   // The protocol layer reads the body itself, so the door's default byte
   // cap is applied here as middleware (a 413 in the door envelope).
   app.post('/mcp', restBodyLimit(DEFAULT_BODY_BYTES), async (c) => {
+    // A JSON-RPC batch carries up to twenty calls, so one HTTP header
+    // cannot name a start: the key is a tool argument (`idempotencyKey`
+    // on start_run, run_deployed and invoke_capability). The header used
+    // to be accepted and silently discarded — the worst of the three
+    // options (2026-09-14 evaluation, h9).
+    if (c.req.header('idempotency-key') !== undefined) {
+      return c.json(
+        {
+          error:
+            'Idempotency-Key is not read on the MCP endpoint — a batch carries up to 20 calls; pass idempotencyKey in the arguments of start_run, run_deployed or invoke_capability instead',
+          code: 'INVALID_HEADER',
+          data: {
+            issues: [
+              {
+                path: 'Idempotency-Key',
+                message:
+                  'is not read on this endpoint — pass idempotencyKey in the tool arguments',
+              },
+            ],
+          },
+        },
+        400,
+      );
+    }
     const rc = {
       ctx: createCtxShim(mcpShimHandlers(deps.sql)),
       org: {

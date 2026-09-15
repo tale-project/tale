@@ -55,6 +55,7 @@ import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -7881,6 +7882,80 @@ async function checkKnowledge(
         // running → completed is at least two moves, so at least two hints.
         Number(ragHints[0]?.count ?? '0') >= 2,
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
+    );
+
+    // Round h, h4 (S2): a document of one repeated passage is embedded once
+    // per DISTINCT passage — its repeats are stored without a vector and
+    // flagged, out of both legs — so it neither crowds the shared vector
+    // index nor ranks its copies one by one, and the earlier document
+    // stays reachable with the vector leg reporting itself in the
+    // diagnostics (the identical-vector island used to starve the HNSW
+    // post-filter into an empty dense leg).
+    const dupParagraph =
+      'Filler line about routine quarterly ledger maintenance and archival procedures for the records office.';
+    const dup = await uploadTextDocument(
+      'h-dup.txt',
+      Array.from({ length: 400 }, () => dupParagraph).join('\n\n'),
+    );
+    const dupIndexed = await waitFor(async () => {
+      const rows = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata
+        WHERE id = ${dup.fileId}
+      `;
+      return rows[0]?.status === 'completed';
+    }, 60_000);
+    const { getKnowledgePoolForOrg: dupPoolFor } =
+      await import('./core/knowledge/pool.ts');
+    const dupPool = await dupPoolFor(orgSlug);
+    const dupChunks = await dupPool<
+      { total: string; repeats: string; embedded: string }[]
+    >`
+      SELECT count(*)::text AS total,
+             count(*) FILTER (WHERE c.passage_repeat)::text AS repeats,
+             count(*) FILTER (WHERE c.embedding IS NOT NULL)::text AS embedded
+      FROM private_knowledge.chunks c
+      JOIN private_knowledge.documents d ON d.id = c.document_id
+      WHERE d.org_slug = ${orgSlug} AND d.file_id = ${dup.storageRef}
+    `;
+    const dupTotal = Number(dupChunks[0]?.total ?? '0');
+    const dupRepeats = Number(dupChunks[0]?.repeats ?? '0');
+    const dupEmbedded = Number(dupChunks[0]?.embedded ?? '0');
+    const afterDup = z
+      .object({
+        hits: z.array(
+          z.looseObject({ source: z.looseObject({ ref: z.string() }) }),
+        ),
+        diagnostics: z.looseObject({
+          dense: z.boolean(),
+          legs: z.record(z.string(), z.number()),
+        }),
+      })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/knowledge/search?orgId=${orgId}`, {
+            query: 'verdigris zeppelin ledger',
+            limit: 5,
+          })
+        ).json(),
+      );
+    const sentinelFound =
+      afterDup.success &&
+      afterDup.data.hits.some((hit) => hit.source.ref === handoff.data.s3Ref);
+    record(
+      'knowledge indexing embeds a repeated passage once per distinct text and keeps the vector leg honest beside it',
+      dupIndexed &&
+        dupTotal >= 10 &&
+        // The chunker cuts the same paragraphs into the same chunk text
+        // except at the document's edges: a handful of distinct chunks
+        // carry a vector, every other chunk is a flagged repeat.
+        dupEmbedded >= 1 &&
+        dupEmbedded <= 3 &&
+        dupRepeats === dupTotal - dupEmbedded &&
+        afterDup.success &&
+        afterDup.data.diagnostics.dense &&
+        (afterDup.data.diagnostics.legs['documents:dense'] ?? 0) >= 1 &&
+        sentinelFound,
+      `indexed=${dupIndexed} chunks=${dupTotal}>=10 embedded=${dupEmbedded} (1..3) repeats=${dupRepeats}/${dupTotal - dupEmbedded}, search=${afterDup.success ? `dense=${afterDup.data.diagnostics.dense} legs=${JSON.stringify(afterDup.data.diagnostics.legs)} sentinel=${sentinelFound}` : 'BAD SHAPE'}`,
     );
 
     // An image has no text extractor today (the vision seam is retired), so
@@ -18749,6 +18824,109 @@ async function checkRunProvenance(
         1,
     `runs=${frozenLive.length} (want 1), outcomes=${JSON.stringify(frozen.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
   );
+  // The rule is per TASK, whichever automation runs it (2026-09-14
+  // evaluation, round h, S2-3): with automation A's run live on a task, a
+  // start of automation B answers A's run as `alreadyRunning`, and a mixed
+  // burst of A and B starts on a fresh task lands exactly one run. The
+  // 0102 index keyed the rule on the name and let B through.
+  const otherAutomationName = `${automationName}-b`;
+  await sql`
+    INSERT INTO app.automations (
+      org_id, name, version, document, task_contract, created_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, ${otherAutomationName}, 1,
+      ${sql.json({ steps: [] })},
+      ${sql.json({ externalSystem: 'itest-tracker' })}, ${userId},
+      ${Date.now()}
+    )
+    ON CONFLICT DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.automation_deployments (
+      org_id, name, version, deployed_by, deployed_at_ms
+    ) VALUES (${orgId}, ${otherAutomationName}, 1, ${userId}, ${Date.now()})
+    ON CONFLICT (org_id, name) DO UPDATE SET version = 1
+  `;
+  const crossRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Cross-automation start task', 'todo', 'b4',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const crossTask = await loadRacedTask(sql, crossRows[0]?.id ?? '', orgId);
+  const startCross = (workflowSlug: string) =>
+    transactSerializable(sql, (tx) =>
+      startWorkflowForTaskInTx(tx, {
+        organizationId: orgId,
+        task: crossTask,
+        workflowSlug,
+        startedByUserId: userId,
+        startedVia: 'api-key',
+      }),
+    );
+  const crossFirst = await startCross(automationName);
+  const crossSecond = await startCross(otherAutomationName);
+  const crossLive = await sql<{ id: string; name: string }[]>`
+    SELECT id, name FROM app.automation_runs
+    WHERE org_id = ${orgId}
+      AND input->'task'->>'id' = ${crossTask.id}
+      AND status IN ('queued', 'running', 'waiting')
+  `;
+  record(
+    'automations: a second automation cannot start on a task with a live run (per task, not per name)',
+    crossFirst?.alreadyRunning === false &&
+      crossSecond?.alreadyRunning === true &&
+      crossSecond.runId === crossFirst.runId &&
+      crossLive.length === 1 &&
+      crossLive[0]?.name === automationName,
+    `first=${JSON.stringify(crossFirst)} second=${JSON.stringify(crossSecond)} (want second.alreadyRunning=true naming the first run), live=${crossLive.length}/1 name=${crossLive[0]?.name}/${automationName}`,
+  );
+  const mixedRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Mixed-automation burst task', 'todo', 'b5',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const mixedTask = await loadRacedTask(sql, mixedRows[0]?.id ?? '', orgId);
+  const startMixed = (workflowSlug: string) =>
+    transactSerializable(sql, (tx) =>
+      startWorkflowForTaskInTx(tx, {
+        organizationId: orgId,
+        task: mixedTask,
+        workflowSlug,
+        startedByUserId: userId,
+        startedVia: 'api-key',
+      }),
+    );
+  const mixed = await Promise.all([
+    startMixed(automationName),
+    startMixed(otherAutomationName),
+    startMixed(automationName),
+    startMixed(otherAutomationName),
+    startMixed(automationName),
+    startMixed(otherAutomationName),
+  ]);
+  const mixedLive = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${orgId} AND input->'task'->>'id' = ${mixedTask.id}
+  `;
+  record(
+    'automations: mixed-automation SERIALIZABLE starts land exactly one run on the task',
+    mixedLive.length === 1 &&
+      mixed.every((outcome) => outcome?.runId === mixedLive[0]?.id) &&
+      mixed.filter((outcome) => outcome?.alreadyRunning === false).length === 1,
+    `runs=${mixedLive.length} (want 1), outcomes=${JSON.stringify(mixed.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
+  );
+
   // The refusal is the caller's answer now, not a laundered "not started"
   // — and the queue's retry ladder sees a transient failure at all. On a
   // task with NO live run: the guard answers an existing run before the
@@ -27479,7 +27657,7 @@ async function checkOneDriveSync(
   const graphAuth: string[] = [];
   let refreshCalls = 0;
   // What the fake token endpoint answers a grant refresh with.
-  let refreshAnswer: 'ok' | 'outage' = 'ok';
+  let refreshAnswer: 'ok' | 'outage' | 'dead' = 'ok';
   const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
       status,
@@ -27591,6 +27769,14 @@ async function checkOneDriveSync(
       refreshCalls++;
       if (refreshAnswer === 'outage') {
         return jsonResponse({ error: 'temporarily_unavailable' }, 503);
+      }
+      if (refreshAnswer === 'dead') {
+        // The grant is gone (revoked consent, expired refresh token): only
+        // a new consent fixes it — the token lane's `dead_grant` answer.
+        return jsonResponse(
+          { error: 'invalid_grant', error_description: 'AADSTS70000' },
+          400,
+        );
       }
       return jsonResponse({
         access_token: 'graph-refreshed-token',
@@ -28217,6 +28403,189 @@ async function checkOneDriveSync(
       `revoked: list=${revokedList.success ? `${revokedList.data.success}/${revokedList.data.error}` : 'ERR'} graphCalls=${graphCallsAfterRevoked - graphCallsBeforeRevoked} (want 0) config=${revokedConfig[0]?.status}/${revokedConfig[0]?.errorMessage}; outage: list=${outageList.success ? `${outageList.data.success}/${outageList.data.error}` : 'ERR'} grant=${statusAfterOutage} (want active) refreshCalls=${refreshCallsAfterOutage}/1; recovered: list=${recoveredList.success ? recoveredList.data.success : 'ERR'} refreshedAuth=${refreshedAuthUsed} refreshCalls=${refreshCalls}/2 grant=${await grantStatus()}`,
     );
 
+    // 7b. A DEAD grant is a failure episode the owner hears about ONCE — on
+    //     the row (needs-reauth + the episode stamps), in the bell (one
+    //     `cloud_sync_failed` row, actionable) — while the hub listing keeps
+    //     flagging the folder; a repeat failure adds nothing, and the run
+    //     that reaches the source again clears the episode, marks the bell
+    //     read and hints the folder rows (2026-09-15: an errored config
+    //     used to drop its "(synced)" label and tell nobody).
+    const episodeOf = async (): Promise<{
+      status: string;
+      lastSyncStatus: string | null;
+      errorSince: number | null;
+      failureNotifiedAt: number | null;
+    } | null> => {
+      const rows = await sql<
+        {
+          status: string;
+          lastSyncStatus: string | null;
+          errorSince: number | null;
+          failureNotifiedAt: number | null;
+        }[]
+      >`
+        SELECT status, last_sync_status AS "lastSyncStatus",
+               error_since_ms::float8 AS "errorSince",
+               failure_notified_at_ms::float8 AS "failureNotifiedAt"
+        FROM app.onedrive_sync_configs WHERE id = ${folderConfig.id}
+      `;
+      return rows[0] ?? null;
+    };
+    const syncBells = (): Promise<
+      { titleKey: string; params: unknown; read: boolean }[]
+    > =>
+      sql<{ titleKey: string; params: unknown; read: boolean }[]>`
+        SELECT title_key AS "titleKey", params, read
+        FROM app.user_notifications
+        WHERE org_id = ${orgId} AND user_id = ${userId}
+          AND type = 'cloud_sync_failed' AND resource_id = ${folderConfig.id}
+        ORDER BY seq ASC
+      `;
+    const reportsRowSync = async (): Promise<unknown> => {
+      const listing = z
+        .object({
+          folders: z.array(
+            z.object({
+              name: z.string(),
+              syncConfigId: z.string().optional(),
+              sync: z
+                .object({
+                  configId: z.string(),
+                  provider: z.string(),
+                  status: z.string(),
+                  needsReauth: z.boolean(),
+                  ownerUserId: z.string(),
+                })
+                .optional(),
+            }),
+          ),
+        })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/folders?orgId=${orgId}&parentId=`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return listing.success
+        ? listing.data.folders.find((f) => f.name === 'ODReports')
+        : null;
+    };
+    const folderHintCount = async (): Promise<number> =>
+      Number(
+        (
+          await sql<{ count: string }[]>`
+            SELECT count(*)::text AS count FROM app_realtime.outbox
+            WHERE org_id = ${orgId} AND entity = 'folder'
+          `
+        )[0]?.count ?? '0',
+      );
+    // Step 7's revoked-grant run opened an episode and told the owner. Close
+    // it the way the product does — a run that reaches the source again —
+    // then drop those bell rows, so the episode below is counted from a
+    // clean slate (an open episode is, by design, never re-notified).
+    refreshAnswer = 'ok';
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-grant-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['Files.Read'],
+    });
+    await runConfig(folderConfig.id);
+    const closedEpisode = await episodeOf();
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'cloud_sync_failed'
+    `;
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-stale-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() - 1000,
+      scopes: ['Files.Read'],
+    });
+    refreshAnswer = 'dead';
+    const hintsBeforeDead = await folderHintCount();
+    await runConfig(folderConfig.id);
+    const deadEpisode = await episodeOf();
+    const deadBells = await syncBells();
+    const deadRow = await reportsRowSync();
+    const hintsAfterDead = await folderHintCount();
+    // The same failure again: the episode keeps its start, nobody is told
+    // twice, nothing on screen changes.
+    await runConfig(folderConfig.id);
+    const repeatEpisode = await episodeOf();
+    const repeatBells = await syncBells();
+    const hintsAfterRepeat = await folderHintCount();
+    // Reconnected: the next run reaches the source, the episode closes.
+    refreshAnswer = 'ok';
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-grant-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['Files.Read'],
+    });
+    await runConfig(folderConfig.id);
+    const recoveredEpisode = await episodeOf();
+    const recoveredBells = await syncBells();
+    const recoveredRow = await reportsRowSync();
+    const hintsAfterRecovery = await folderHintCount();
+    const { isRecord } = await import('../lib/utils/type-utils.ts');
+    const recordAt = (
+      value: unknown,
+      key: string,
+    ): Record<string, unknown> | null => {
+      if (!isRecord(value)) return null;
+      const inner = value[key];
+      return isRecord(inner) ? inner : null;
+    };
+    const deadRowRecord = isRecord(deadRow) ? deadRow : null;
+    const deadRowSync = recordAt(deadRow, 'sync');
+    const deadBellParams = deadBells[0]?.params;
+    const deadBell = isRecord(deadBellParams) ? deadBellParams : null;
+    const recoveredRowSync = recordAt(recoveredRow, 'sync');
+    record(
+      'onedrive dead grant: one needs-reauth episode → bell + flagged folder, cleared by recovery',
+      closedEpisode?.status === 'active' &&
+        closedEpisode.errorSince === null &&
+        closedEpisode.failureNotifiedAt === null &&
+        deadEpisode?.status === 'error' &&
+        deadEpisode.lastSyncStatus === 'needs-reauth' &&
+        deadEpisode.errorSince !== null &&
+        deadEpisode.failureNotifiedAt !== null &&
+        deadBells.length === 1 &&
+        deadBells[0]?.titleKey === 'cloudSyncNeedsReauth' &&
+        !deadBells[0].read &&
+        deadBell?.syncConfigId === folderConfig.id &&
+        deadBell.provider === 'OneDrive' &&
+        deadRowSync?.status === 'failed' &&
+        deadRowSync.needsReauth === true &&
+        deadRowSync.provider === 'onedrive' &&
+        deadRowSync.ownerUserId === userId &&
+        deadRowRecord?.syncConfigId === folderConfig.id &&
+        hintsAfterDead > hintsBeforeDead &&
+        repeatEpisode?.errorSince === deadEpisode.errorSince &&
+        repeatEpisode.failureNotifiedAt === deadEpisode.failureNotifiedAt &&
+        repeatBells.length === 1 &&
+        hintsAfterRepeat === hintsAfterDead &&
+        recoveredEpisode?.status === 'active' &&
+        recoveredEpisode.lastSyncStatus === 'success' &&
+        recoveredEpisode.errorSince === null &&
+        recoveredEpisode.failureNotifiedAt === null &&
+        recoveredBells.length === 1 &&
+        (recoveredBells[0]?.read ?? false) &&
+        recoveredRowSync?.status === 'healthy' &&
+        hintsAfterRecovery > hintsAfterRepeat,
+      `closed: ${closedEpisode?.status}/${closedEpisode?.errorSince === null && closedEpisode?.failureNotifiedAt === null} (want active/true); dead: config=${deadEpisode?.status}/${deadEpisode?.lastSyncStatus} since=${deadEpisode?.errorSince !== null} told=${deadEpisode?.failureNotifiedAt !== null} bells=${deadBells.length}/1 (${deadBells[0]?.titleKey}, read=${deadBells[0]?.read}) row=${JSON.stringify(deadRowSync)} hints=${hintsAfterDead - hintsBeforeDead} (want ≥1); repeat: sameSince=${repeatEpisode?.errorSince === deadEpisode?.errorSince} sameTold=${repeatEpisode?.failureNotifiedAt === deadEpisode?.failureNotifiedAt} bells=${repeatBells.length}/1 hints=${hintsAfterRepeat - hintsAfterDead} (want 0); recovered: config=${recoveredEpisode?.status}/${recoveredEpisode?.lastSyncStatus} cleared=${recoveredEpisode?.errorSince === null && recoveredEpisode?.failureNotifiedAt === null} bellRead=${recoveredBells[0]?.read} row=${JSON.stringify(recoveredRowSync)} hints=${hintsAfterRecovery - hintsAfterRepeat} (want ≥1)`,
+    );
     // 8. The scan enqueues one job per syncable config; cancel wins over an
     //    in-flight run's final stamp (status write never leaves 'inactive'),
     //    and settles the run marker that stamp would have cleared — so a
@@ -28995,6 +29364,40 @@ async function checkWebsitesCrawl(
   // Every answer from this host is a 503: the scan-end verdict lane
   // (2026-09-14 evaluation, g4-5).
   const DOWN_DOMAIN = 'itest-down.example';
+  // A site whose robots.txt disallows a path only its links reach — the
+  // robots lanes (2026-09-14 evaluation, h5). Its own fixture map, so the
+  // lanes can swap its robots.txt without touching the main site.
+  const ROBOTS_DOMAIN = 'itest-robots.example';
+  const robotsSite = new Map<
+    string,
+    { body: string; type: string; status?: number }
+  >();
+  const ROBOTS_RULES = `User-agent: *\nDisallow: /private/\nSitemap: https://${ROBOTS_DOMAIN}/sitemap.xml\n`;
+  robotsSite.set('/robots.txt', { body: ROBOTS_RULES, type: 'text/plain' });
+  // Two sitemap URLs — under the link-walk threshold, so the walk from the
+  // homepage runs on every scan and is what admits `/b.txt`.
+  robotsSite.set('/sitemap.xml', {
+    body: `<?xml version="1.0"?><urlset><url><loc>https://${ROBOTS_DOMAIN}/</loc></url><url><loc>https://${ROBOTS_DOMAIN}/a.txt</loc></url></urlset>`,
+    type: 'application/xml',
+  });
+  // text/plain like the main fixture (the render lane never opens a session
+  // here); the link walk reads anchors out of any 2xx body.
+  robotsSite.set('/', {
+    body: `Robots fixture home page with words about the harness and its documentation. <a href="https://${ROBOTS_DOMAIN}/private/secret.txt">secret</a> <a href="https://${ROBOTS_DOMAIN}/b.txt">bravo</a>`,
+    type: 'text/plain',
+  });
+  for (const [route, word] of [
+    ['/a.txt', 'alpha'],
+    ['/b.txt', 'bravo'],
+    ['/private/secret.txt', 'secret'],
+    ['/private/listed.txt', 'listed'],
+    ['/private/old.txt', 'old'],
+  ] as const) {
+    robotsSite.set(route, {
+      body: `Robots fixture ${word} page. Enough words about the ${word} subsystem to survive the chunking thresholds of the pipeline.`,
+      type: 'text/plain',
+    });
+  }
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -29049,6 +29452,20 @@ async function checkWebsitesCrawl(
       return new Response('down', {
         status: 503,
         headers: { 'content-type': 'text/plain' },
+      });
+    }
+    if (
+      url.hostname === ROBOTS_DOMAIN ||
+      url.hostname === `www.${ROBOTS_DOMAIN}`
+    ) {
+      const page = robotsSite.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      return new Response(page.body, {
+        status: page.status ?? 200,
+        headers: {
+          'content-type': page.type,
+          'content-length': String(page.body.length),
+        },
       });
     }
     if (FAKE_HOSTS.has(url.hostname)) {
@@ -29550,9 +29967,25 @@ async function checkWebsitesCrawl(
       organizationId: orgId,
     });
     await drainCrawlJobs();
-    const listPruned = await pool<{ status: string }[]>`
-      SELECT status FROM public_web.website_urls
-      WHERE domain = ${LIST_DOMAIN} AND url = ${listUrl}
+    // A LISTED page the site says is gone keeps its row with the answer on
+    // it — `http_error`, one failed attempt, no words, no chunks — instead
+    // of leaving the listing; pruning it used to leave a no-signal row on
+    // the next scan's revival (2026-09-14 evaluation, h5).
+    const listPruned = await pool<
+      {
+        status: string;
+        failCount: number;
+        kind: string | null;
+        chunks: string;
+        words: number | null;
+      }[]
+    >`
+      SELECT u.status, u.fail_count AS "failCount", u.last_error_kind AS kind,
+             u.word_count AS words,
+             (SELECT count(*)::text FROM public_web.chunks c
+               WHERE c.domain = u.domain AND c.url = u.url) AS chunks
+      FROM public_web.website_urls u
+      WHERE u.domain = ${LIST_DOMAIN} AND u.url = ${listUrl}
     `;
     if (listBody) site.set('/list-1.txt', listBody);
     await websites.runWebsitesScan(sql, {
@@ -29571,13 +30004,17 @@ async function checkWebsitesCrawl(
       WHERE u.domain = ${LIST_DOMAIN} AND u.url = ${listUrl}
     `;
     record(
-      'websites revival: a listed page that 404d is re-probed next scan',
-      listPruned[0]?.status === 'deleted' &&
+      'websites revival: a listed page that 404d keeps an honest row and is re-probed next scan',
+      listPruned[0]?.status === 'discovered' &&
+        listPruned[0].failCount === 1 &&
+        listPruned[0].kind === 'http_error' &&
+        Number(listPruned[0].chunks) === 0 &&
+        (listPruned[0].words ?? 0) === 0 &&
         listRevived[0]?.status === 'active' &&
         listRevived[0].listed &&
         listRevived[0].failCount === 0 &&
         Number(listRevived[0].chunks) >= 1,
-      `pruned=${listPruned[0]?.status ?? 'MISSING'}/deleted, revived=${listRevived[0]?.status ?? 'MISSING'}/active listed=${listRevived[0]?.listed} fail=${listRevived[0]?.failCount ?? '?'}/0 chunks=${listRevived[0]?.chunks ?? '0'}>=1`,
+      `gone=${listPruned[0]?.status ?? 'MISSING'}/discovered fail=${listPruned[0]?.failCount}/1 kind=${listPruned[0]?.kind}/http_error chunks=${listPruned[0]?.chunks}/0 words=${listPruned[0]?.words ?? 0}/0, revived=${listRevived[0]?.status ?? 'MISSING'}/active listed=${listRevived[0]?.listed} fail=${listRevived[0]?.failCount ?? '?'}/0 chunks=${listRevived[0]?.chunks ?? '0'}>=1`,
     );
 
     // 4c. Round d, S3-10: a listed page that redirects into a private
@@ -29800,6 +30237,116 @@ async function checkWebsitesCrawl(
       await new Promise<void>((resolve) => {
         loopback.close(() => resolve());
       });
+    }
+
+    // 4g. Round h, h5 (S2): robots.txt `Disallow` governs every path a URL
+    //     can enter by — here the link walk from the homepage — and every
+    //     non-listed fetch; the rules are kept on the website row, so a
+    //     robots.txt that answers 503 keeps the last known rules; a row an
+    //     earlier release stored under a disallowed path is retired on the
+    //     next scan; a LISTED URL under the rule is the operator's
+    //     instruction and is fetched.
+    const robotsCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: ROBOTS_DOMAIN, scanInterval: '1d' },
+        })
+      ).json(),
+    );
+    const robotsId = robotsCreated.success ? robotsCreated.data.id : '';
+    await drainCrawlJobs();
+    const robotsRows = async () =>
+      pool<{ url: string; status: string; chunks: string }[]>`
+        SELECT u.url, u.status,
+               (SELECT count(*)::text FROM public_web.chunks c
+                 WHERE c.domain = u.domain AND c.url = u.url) AS chunks
+        FROM public_web.website_urls u
+        WHERE u.domain = ${ROBOTS_DOMAIN}
+        ORDER BY u.url
+      `;
+    const robotsRules = async () =>
+      (
+        await pool<{ rules: unknown }[]>`
+          SELECT robots_disallow AS rules FROM public_web.websites
+          WHERE domain = ${ROBOTS_DOMAIN}
+        `
+      )[0]?.rules;
+    const robotsPageTotal = async () => {
+      const parsed = z
+        .object({ total: z.number() })
+        .loose()
+        .safeParse(await (await v1(`/websites/${robotsId}/pages`)).json());
+      return parsed.success ? parsed.data.total : -1;
+    };
+    const robotsFirst = await robotsRows();
+    const rulesFirst = await robotsRules();
+    const pagesFirst = await robotsPageTotal();
+    const secretUrl = `https://${ROBOTS_DOMAIN}/private/secret.txt`;
+    const bravoUrl = `https://${ROBOTS_DOMAIN}/b.txt`;
+    const short = (url: string) => url.replace(`https://${ROBOTS_DOMAIN}`, '');
+    record(
+      'websites robots: a link the sitemap omits and robots.txt disallows never joins the frontier',
+      robotsCreated.success &&
+        robotsFirst.some(
+          (row) => row.url === bravoUrl && row.status === 'active',
+        ) &&
+        !robotsFirst.some((row) => row.url === secretUrl) &&
+        JSON.stringify(rulesFirst) === JSON.stringify(['/private/']) &&
+        pagesFirst === 3,
+      `created=${robotsCreated.success} rows=${robotsFirst.map((row) => `${short(row.url)}:${row.status}`).join(',')} (want /, /a.txt, /b.txt active; no /private/secret.txt) rules=${JSON.stringify(rulesFirst)}/["/private/"] pages=${pagesFirst}/3`,
+    );
+    // Retirement: a row an earlier release stored under the rule, and a
+    // listed URL under the same rule that stays the operator's instruction.
+    // robots.txt answers 503 on this scan: the last known rules stand.
+    const oldUrl = `https://${ROBOTS_DOMAIN}/private/old.txt`;
+    const listedUrl = `https://${ROBOTS_DOMAIN}/private/listed.txt`;
+    await pool`
+      INSERT INTO public_web.website_urls
+        (domain, url, status, discovered_at, listed, last_crawled_at, word_count)
+      VALUES (${ROBOTS_DOMAIN}, ${oldUrl}, 'active', NOW(), FALSE, NOW() - INTERVAL '2 days', 12)
+      ON CONFLICT (domain, url) DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.chunks
+        (domain, url, title, content_hash, chunk_index, chunk_content)
+      VALUES (${ROBOTS_DOMAIN}, ${oldUrl}, 'old', 'old-hash', 0, 'old chunk stored under a disallowed path')
+      ON CONFLICT DO NOTHING
+    `;
+    await pool`
+      INSERT INTO public_web.website_urls (domain, url, status, discovered_at, listed)
+      VALUES (${ROBOTS_DOMAIN}, ${listedUrl}, 'discovered', NOW(), TRUE)
+      ON CONFLICT (domain, url) DO UPDATE SET listed = TRUE
+    `;
+    robotsSite.set('/robots.txt', {
+      body: 'down',
+      type: 'text/plain',
+      status: 503,
+    });
+    await websites.runWebsitesScan(sql, {
+      domain: ROBOTS_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    robotsSite.set('/robots.txt', { body: ROBOTS_RULES, type: 'text/plain' });
+    const robotsSecond = await robotsRows();
+    const rulesSecond = await robotsRules();
+    const pagesSecond = await robotsPageTotal();
+    const oldRow = robotsSecond.find((row) => row.url === oldUrl);
+    const listedRow = robotsSecond.find((row) => row.url === listedUrl);
+    record(
+      'websites robots: a stored page under a rule is retired, a listed one is fetched, and a 503 robots.txt keeps the last rules',
+      oldRow?.status === 'deleted' &&
+        Number(oldRow.chunks) === 0 &&
+        listedRow?.status === 'active' &&
+        Number(listedRow.chunks) >= 1 &&
+        !robotsSecond.some((row) => row.url === secretUrl) &&
+        JSON.stringify(rulesSecond) === JSON.stringify(['/private/']) &&
+        pagesSecond === 4,
+      `old=${oldRow?.status ?? 'MISSING'}/deleted chunks=${oldRow?.chunks ?? '?'}/0, listed=${listedRow?.status ?? 'MISSING'}/active chunks=${listedRow?.chunks ?? '?'}>=1, secret=${robotsSecond.some((row) => row.url === secretUrl) ? 'PRESENT' : 'absent'} rules=${JSON.stringify(rulesSecond)}/["/private/"] pages=${pagesSecond}/4`,
+    );
+    if (robotsId !== '') {
+      await v1(`/websites/${robotsId}`, { method: 'DELETE' });
     }
 
     // 4f. Round g, g4-5: a site whose every page failed is not "a successful
@@ -49086,6 +49633,17 @@ async function main(): Promise<void> {
             authCtx,
             `itest-${orgSuffix}`,
           ),
+      ],
+      [
+        'checkKnowledgeEntryIndexing',
+        async () => {
+          await checkKnowledgeEntryIndexing(sql);
+          record(
+            'knowledge entries: indexing status, errors, pagination and tenant isolation',
+            true,
+            'real Postgres, fixtures rolled back',
+          );
+        },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
       [

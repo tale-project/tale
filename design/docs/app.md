@@ -75,9 +75,9 @@ won't theme.
 
 ## Docs follow the app
 
-[`services/docs`](../../services/docs/) uses the **same app language and `@tale/ui`**, but is
-**light-locked** (`defaultTheme: 'light'`). Treat a docs UI change as an app change with no dark mode —
-same components, same tokens, same conventions. Page _content_ rules live in the
+[`services/docs`](../../services/docs/) uses the **same app language and `@tale/ui`**. It defaults
+to light mode and lets readers choose a theme. Use the same components, tokens, and interaction
+conventions, and verify both light and dark appearances. Page _content_ rules live in the
 [`write-docs`](../../.agents/skills/write-docs/SKILL.md) skill; this is only the visual layer.
 
 ## Accessibility (app)

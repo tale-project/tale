@@ -9,14 +9,17 @@ import { useState } from 'react';
  * A settings surface: `ContentArea variant="narrow"` declares the row field
  * layout (label left, control right from `sm` up) through `FieldShell`, so
  * every control lines up without a single layout class at the call site. The
- * save bar appears only once something is dirty — the contract `EditorGroup`
- * implements for real editors.
+ * save bar stays visible; its status and action availability follow the
+ * difference between the local draft and saved baseline.
  */
 export default function PatternSettingsPage() {
   const [name, setName] = useState('Northwind Trading');
   const [region, setRegion] = useState('ch');
   const [digest, setDigest] = useState(true);
-  const dirty = name !== 'Northwind Trading' || region !== 'ch' || !digest;
+  // This demo saves in memory only; reloading restores the initial example.
+  const [saved, setSaved] = useState({ name, region, digest });
+  const dirty =
+    name !== saved.name || region !== saved.region || digest !== saved.digest;
 
   return (
     <div className="border-border bg-background w-full overflow-hidden rounded-lg border">
@@ -54,14 +57,18 @@ export default function PatternSettingsPage() {
           variant="secondary"
           disabled={!dirty}
           onClick={() => {
-            setName('Northwind Trading');
-            setRegion('ch');
-            setDigest(true);
+            setName(saved.name);
+            setRegion(saved.region);
+            setDigest(saved.digest);
           }}
         >
           Discard
         </Button>
-        <Button size="sm" disabled={!dirty}>
+        <Button
+          size="sm"
+          disabled={!dirty}
+          onClick={() => setSaved({ name, region, digest })}
+        >
           Save
         </Button>
       </div>

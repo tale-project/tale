@@ -1,114 +1,135 @@
 ---
 title: Appeler Tale depuis un script
-description: Crée une clé API et appelle l'API REST de Tale depuis un script bash ou Python — le chemin de bout en bout le plus court du terminal à une réponse d'assistant.
+description: Crée une clé API, choisis un modèle disponible et affiche une réponse terminée avec Python.
 ---
+Envoie un message à Tale et affiche sa réponse dans ton terminal. Ce tutoriel crée un thread personnel, vérifie chaque réponse HTTP et attend la fin du tour. Il utilise curl et la bibliothèque standard de Python 3 ; aucun paquet Python supplémentaire n’est nécessaire.
 
-Appeler Tale depuis un script, c'est le chemin que tu prends quand tu veux une valeur de la plateforme sans ouvrir l'UI. L'API de Tale parle JSON sur HTTPS et prend un bearer token dans le header `Authorization` ; à partir de là, chaque groupe d'endpoints est un appel REST normal. Cette marche t'amène en une séance de « je veux scripter Tale » à une réponse d'assistant imprimée dans ton terminal.
+## Préparer l’accès
 
-Il te faut un rôle Développeur (pour les clés API), l'URL de ton instance Tale, et un shell avec `curl` et Python. La surface complète vit dans la [référence API](/fr/develop/api-reference) ; cette page en est la traversée de bout en bout la plus courte.
+Il te faut une instance accessible, le droit de créer une clé API, le slug de ton organisation et un modèle directement appelable. Les Admins et Développeurs peuvent créer des clés. Un modèle présent dans le catalogue peut encore échouer si le compte du fournisseur manque de crédit ou n’y donne pas accès.
 
-## Avant de commencer
+Ouvre **Paramètres > API > REST**, choisis **Créer une clé API**, donne-lui un nom comme `Reporting script` et choisis une expiration. Sélectionne **Créer la clé** et copie le secret affiché une seule fois. Charge-le dans `TALE_API_KEY` depuis ton gestionnaire de secrets ou un environnement shell privé ; ne le place ni dans le fichier Python ni dans Git.
 
-Vérifie trois choses. Ton instance répond en HTTPS — ouvre `https://your-host.example.com` et regarde si le tableau de bord charge. Ton rôle est au moins Développeur — les [clés API](/fr/platform/admin/api-keys) se gèrent avec les rôles Admin et Développeur. Tu connais un modèle configuré dans ton organisation — l'API n'en choisit jamais un à ta place, chaque appel de chat nomme son modèle explicitement.
+<Frame caption="Donne à la clé un nom qui explique son usage pour pouvoir la révoquer sans toucher à une autre intégration.">
 
-## Étape 1 — Créer une clé API
+![La boîte de création d’une clé API permet de choisir un nom et une durée de validité avant sa génération.](/images/get-started/settings-api-keys.webp)
 
-Le premier geste est une clé API. C'est elle que chaque appel de script transporte ; sans elle l'API répond 401, et après la création tu ne peux plus la relire.
+</Frame>
 
-Crée une clé dans le panneau [Clés API](/fr/platform/admin/api-keys) et copie ce qu'il montre — Tale l'affiche une fois et jamais plus. Range-la en variable d'environnement pour le reste de cette marche :
+Définis les valeurs non secrètes ci-dessous. Utilise le slug, pas l’ID de l’organisation. Envoie cet en-tête à chaque requête pour conserver une destination explicite si ton compte rejoint une autre organisation.
 
 ```bash
-export TALE_API_KEY="<api-key>"
 export TALE_BASE_URL="https://your-host.example.com"
-export TALE_ORG_SLUG="<org-slug>"
+export TALE_ORG_SLUG="your-org-slug"
+export TALE_MODEL="model-id-from-the-catalog"
 ```
 
-La clé agit en ton nom dans l’organisation choisie par `TALE_ORG_SLUG` ; ton appartenance et ton rôle fixent ses droits. Si tu appartiens à plusieurs organisations, l’en-tête d’organisation est obligatoire sur chaque requête, lectures comprises — sans lui, l’API répond `400` avec `"code": "ORG_SLUG_REQUIRED"` et liste les slugs que tu peux envoyer. Garde la clé comme un mot de passe.
+## Trouver un modèle accessible
 
-## Étape 2 — Test de fumée avec curl
-
-La plus petite vérification de bout en bout : lister les automatisations de l'organisation. Si ça marche, l'auth, le réseau et l'API vont bien ; si ça échoue, le mode d'échec te dit lequel des trois est cassé.
+Liste les modèles accessibles au titulaire de la clé :
 
 ```bash
-curl -sS --compressed "$TALE_BASE_URL/api/v1/automations" \
+curl --fail-with-body --silent --show-error "$TALE_BASE_URL/api/v1/models" \
   -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
 ```
 
-Un 200 avec un corps `{ "automations": [...] }` confirme l'aller-retour. Un 401 dit que la clé est fausse ; tout le reste dit que l'instance est injoignable ou le chemin mal tapé.
+Une réponse `200` contient un tableau `models`. Définis `TALE_MODEL` avec l’`id` d’une entrée. Si cet ID apparaît chez plusieurs fournisseurs, définis aussi `TALE_PROVIDER` avec le `providerSlug` choisi. Un tableau vide signifie qu’aucun modèle n’est directement accessible à ce compte. Demande à un admin de vérifier les identifiants et l’accès aux modèles.
 
-## Étape 3 — Interroger un modèle et lire la réponse
+## Envoyer et attendre une réponse
 
-Le chat par API est asynchrone : envoie un message, interroge le statut pendant le tour, puis lis la réponse. Cet exemple crée un thread personnel sans projet. Pour un chat de projet, donne à `threads_url` la valeur `f"{base}/api/v1/projects/{os.environ['TALE_PROJECT_ID']}/threads"`. Tous les appels suivants gardent ce projet, sans `projectId` dans le corps. L’accès en lecture au projet actif est requis ; le rôle Membre suffit.
+Enregistre ce code dans `tale-chat.py`, puis lance `python3 tale-chat.py` dans l’environnement préparé. Le script crée un thread dans ton historique personnel et peut entraîner des frais d’utilisation du modèle.
 
 ```python
-import os, time, requests
+import json
+import os
+import time
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
-base = os.environ["TALE_BASE_URL"]
-auth = {
+base = os.environ["TALE_BASE_URL"].rstrip("/")
+headers = {
     "Authorization": f"Bearer {os.environ['TALE_API_KEY']}",
     "X-Organization-Slug": os.environ["TALE_ORG_SLUG"],
+    "Content-Type": "application/json",
 }
-threads_url = f"{base}/api/v1/threads"
 
-# 1. Un thread à toi
-thread = requests.post(threads_url, headers=auth, json={}, timeout=30).json()
-thread_url = f"{threads_url}/{thread['id']}"
+def request(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = Request(f"{base}/api/v1{path}", data=data, headers=headers, method=method)
+    try:
+        with urlopen(req, timeout=30) as response:
+            raw = response.read()
+            return json.loads(raw) if raw else None
+    except HTTPError as error:
+        detail = error.read().decode(errors="replace")
+        raise SystemExit(f"HTTP {error.code}: {detail}") from error
 
-# 2. Envoyer un message — nomme un modèle configuré dans ton organisation. Le 202
-#    nomme la réponse avant que le modèle ait dit un mot : garde son id.
-sent = requests.post(
-    f"{thread_url}/messages",
-    headers=auth,
-    json={"content": "En une phrase : c'est quoi, Tale ?", "model": "<ton-modele>"},
-    timeout=30,
-)
-sent.raise_for_status()
-reply_id = sent.json()["messageId"]
+models = request("GET", "/models")["models"]
+model_id = os.environ["TALE_MODEL"]
+provider = os.environ.get("TALE_PROVIDER")
+candidates = [m for m in models if m["id"] == model_id
+              and (not provider or m["providerSlug"] == provider)]
+if len(candidates) != 1:
+    raise SystemExit("Choose one available model/provider pair from GET /api/v1/models")
 
-# 3. Interroger jusqu'à idle. Un tour n'a pas d'échéance fixe : borne la boucle
-#    toi-même et arrête un tour que tu as abandonné.
+thread = request("POST", "/threads", {})
+path = f"/threads/{thread['id']}"
+sent = request("POST", f"{path}/messages", {
+    "content": "In one sentence: what is Tale?",
+    "model": candidates[0]["id"],
+    "providerSlug": candidates[0]["providerSlug"],
+})
+reply_id = sent["messageId"]
 deadline = time.monotonic() + 600
 while True:
-    poll = requests.get(f"{thread_url}/generation", headers=auth, timeout=30).json()
-    if poll["status"] == "idle":
+    generation = request("GET", f"{path}/generation")
+    if generation["status"] == "idle":
         break
-    if time.monotonic() > deadline:
-        requests.delete(f"{thread_url}/generation", headers=auth, timeout=30)
-        raise SystemExit("le tour ne s'est pas réglé à temps")
+    if time.monotonic() >= deadline:
+        request("DELETE", f"{path}/generation")
+        raise SystemExit("Stopped the turn after the local 10-minute deadline")
     time.sleep(2)
-if poll.get("lastMessageId") != reply_id:
-    raise SystemExit("le tour n'a jamais tourné — vérifie le projet du thread et ton accès")
 
-# 4. Lire la réponse par son id et vérifier comment elle s'est réglée avant de s'y fier
-reply = requests.get(f"{thread_url}/messages/{reply_id}", headers=auth, timeout=30).json()
+if generation.get("lastMessageId") != reply_id:
+    raise SystemExit("The accepted turn did not finish in this thread scope")
+reply = request("GET", f"{path}/messages/{reply_id}")
 if reply["status"] != "complete":
-    raise SystemExit(f"tour {reply['status']} : {reply.get('error', '')} {reply.get('errorCode', '')}")
-print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
+    raise SystemExit(f"Turn {reply['status']}: {reply.get('errorCode', '')} {reply.get('error', '')}")
+if reply.get("finishReason") == "length":
+    raise SystemExit("The reply reached its output limit; inspect it before using it")
+text = "".join(part["text"] for part in reply["parts"] if part.get("type") == "text")
+if not text:
+    raise SystemExit("The turn completed without a text answer")
+print(text)
 ```
 
-L’envoi répond **202** avant la fin du travail et nomme la réponse : `messageId` est le message d’assistant dans lequel la réponse atterrit, et l’interrogation répond `idle` avec `lastMessageId` une fois ce tour réglé. Lis le message par son id et vérifie `status` avant d’afficher quoi que ce soit : `complete` porte le texte, `failed` porte `error` et `errorCode` (un modèle que le plan du fournisseur ne couvre pas, un solde épuisé — un modèle listé peut encore échouer), et `cancelled` ce qui avait été streamé avant un arrêt. Un tour n’a pas d’échéance fixe : la boucle se borne elle-même et annule un tour qu’elle a abandonné avec `DELETE .../generation`. Si tu perds l’accès ou déplaces le thread avant l’ouverture du tour en attente, le worker le refuse et l’interrogation se règle en `idle` sans ton id ; la [référence API](/fr/develop/api-reference) précise les règles de projet.
+L’envoi renvoie `202` et une `messageId` avant la fin de la génération. L’état `idle` indique que le tour s’est arrêté, pas forcément qu’il a réussi. Le script lit ensuite ce message précis et vérifie son statut, sa limite de sortie et son texte avant de l’afficher.
 
-## Étape 4 — Démarrer une exécution d'automatisation
+<Tip>
 
-Choisis un projet actif que tu peux modifier et une automatisation déployée pour ce projet, puis définis son `TALE_PROJECT_ID` ci-dessous. L’exemple utilise `billing/dunning`. Les noms contenant `/` s’écrivent avec `__` dans les URL : ici, `billing__dunning`. Le démarrage et le suivi nomment le même projet :
+Conserve l’ID du thread pour prolonger cette intégration. Envoie les messages suivants au même thread pour garder le contexte ; créer un thread à chaque appel démarre une nouvelle conversation.
 
-```bash
-export TALE_PROJECT_ID="<projectId>"
-RUN=$(curl -sS --compressed -X POST "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/billing__dunning/runs" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" \
-  -H "Content-Type: application/json" -d '{ "input": {} }' | jq -r .runId)
+</Tip>
 
-curl -sS --compressed "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$RUN?fields=status,finishedAt" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq .status
-```
+## Diagnostiquer un échec
 
-Une exécution live exige ton rôle Développeur et l’accès en édition au projet. `{"mode": "mock"}` utilise des mocks déterministes, mais demande toujours les droits d’édition. Un 409 signifie qu’aucune version déployée n’est disponible pour cet appel. Si l’automatisation a des liaisons, le projet choisi doit en faire partie ; installe-la dedans au préalable si nécessaire. La [référence API](/fr/develop/api-reference) explique l’installation et les exécutions sans projet.
+| Résultat | Action suivante |
+| --- | --- |
+| `401` | Vérifie si la clé a expiré, a été révoquée ou a été mal copiée. |
+| `400` avec `ORG_SLUG_REQUIRED` | Fournis le slug de l’organisation visée. |
+| `403` | Vérifie l’appartenance et les droits du titulaire de la clé. |
+| Aucun modèle correspondant | Relis `/models` et choisis une paire exacte ID/fournisseur. |
+| `429` | Respecte `Retry-After` ; consulte les [limites de débit](/fr/develop/rate-limits). |
+| Statut du message `failed` | Lis `errorCode` et corrige le compte ou le modèle avant de réessayer. |
+| Délai réseau dépassé | Vérifie l’instance et le thread existant avant de renvoyer le message. |
 
-## Où ça se place
+Un POST dont le délai expire peut déjà avoir été accepté. Ne le renvoie pas sans vérifier l’état de génération et les messages du thread.
 
-Un script est le chemin quand le plan de données est du JSON, pas un écran — jobs cron, vérifications CI, portails internes. La clé API porte ton rôle, et tout ce qui démarre du vrai travail répond 202 et te donne quelque chose à suivre.
+La limite de dix minutes est un choix de cet exemple, pas un délai du serveur. Un tour en file peut attendre derrière d’autres clients ; le raisonnement peut garder le modèle actif avant tout texte visible. Le script ne répète pas automatiquement un envoi en échec. Pour des relances autonomes, conserve un `Idempotency-Key` de 1 à 255 caractères ASCII imprimables avec le corps de la requête, réutilise les deux après une réponse perdue et respecte `Retry-After` en cas de `429`. Consulte [les relances sans doublon](/fr/develop/api-reference#relancer-un-envoi-sans-doublon).
 
-Pour les déclencheurs entrants — un système tiers poste dans une automatisation Tale — voir [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). Pour un client piloté par modèle plutôt qu'un script, l'[endpoint MCP](/fr/develop/mcp-endpoint) expose la même plateforme en outils. Pour l'inventaire complet et le modèle d'erreur, la [référence API](/fr/develop/api-reference) est la seule source de vérité.
+## Prolonger l’intégration
+
+Pour les conversations d’un projet, utilise `/api/v1/projects/{id}/threads` pour la création, les messages, la génération et les lectures. Tu dois avoir accès au projet actif. Ajouter `projectId` au corps d’une requête de thread personnel ne change pas son périmètre.
+
+La [référence API](/fr/develop/api-reference) décrit les droits sur les projets, les parties des messages et les exécutions d’automations. Pour déclencher du travail à l’arrivée d’un événement externe, poursuis avec [Déclencher une automation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook).

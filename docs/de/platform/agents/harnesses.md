@@ -1,72 +1,52 @@
 ---
-title: Harnesses
-description: Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen — welche Harnesses mitkommen, wo du eines wählst, woher der Zugang stammt und was die Box erreicht.
+title: Eine Agent-Laufzeit wählen
+description: Stimme Harness, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab.
 ---
 
-Ein **Harness** ist eine mitgelieferte Coding-CLI — Claude Code, Codex, Cursor und weitere —, die dein gewähltes Modell in einem isolierten Container ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück. Im Chat-Composer wählst du kein Harness: Chat wählt nur ein **Modell**. Das Harness legst du fest, wenn du einen **Projekt-Agenten** oder einen Automation-**Agent**-Knoten anlegst — beide Oberflächen nennen das Feld **Agent-Laufzeit**.
+Ein Harness ist das Coding-Programm, das die Sitzung eines Agenten in einer Sandbox ausführt. Es fragt das Modell nach nächsten Schritten, liest und schreibt Dateien, führt Befehle aus und liefert einen Bericht. Du wählst es für Projektagenten oder eine `agent`-Node einer Automatisierung. Die normale Modellauswahl im Chat wählt keinen Harness.
 
-Diese Seite behandelt, welche Harnesses mit Tale kommen, wo du eines bindest, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers). Unter **Einstellungen > KI-Anbieter** zeigt der Abschnitt **Harnesses**, wie jedes Harness für die Organisation aufgelöst würde.
+## Laufzeit wählen und Zugriff prüfen
 
-## Wo du ein Harness wählst
+Öffne im Tab **Agenten** eines Projekts einen Agenten und wähle die **Agent-Laufzeit**. Bei einer Agent-Node heißt das Feld **Harness**. Wähle danach Modell und Provider. Unter **Einstellungen > KI-Anbieter** zeigt **Agent-Laufzeiten**, welche Ausführungswege der Organisation derzeit zur Verfügung stehen.
 
-Öffne den Tab **Agenten** eines Projekts und leg einen Agenten an oder bearbeite einen. Der Dialog fragt nach einer **Agent-Laufzeit** — dem Harness, der Coding-CLI, auf der dieser Agent läuft — neben Modell, Ausrüstung und Anweisungen. Weist du diesem Agenten eine Board-Aufgabe zu, arbeitet er in einer Sandbox auf genau diesem Harness.
+Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform/admin/sandboxes). Ein funktionierendes Chat-Modell genügt nicht. Fehlt die Laufzeit oder bietet sie keine Modelle an, prüfe ihren Status und die Provider-Zugangsdaten, bevor du den Aufgabenauftrag änderst.
 
-In einer Automation trägt ein **Agent**-Knoten dasselbe Feld **Agent-Laufzeit**. Erreicht der Workflow diesen Knoten, läuft der Zug auf dem gewählten Harness.
+## Unterstützte Laufzeiten vergleichen
 
-Chat listet keine Harnesses. Die Auswahl im Composer ist nur Modelle; Harness-Arbeit kommt über einen Projekt-Agenten oder einen Automation-Agent-Knoten, nicht über eine Composer-Gruppe.
+„Verwaltet“ bedeutet, dass die Laufzeit Tale über das Modell-Gateway aufruft. „Direkt“ bedeutet, dass die Sitzung Zugangsdaten für die Werkzeuge des Providers erhält. Die mitgelieferten Definitionen unterstützen die folgenden Kombinationen; tatsächlich verfügbar ist, was Deployment und Zugangsdaten erlauben.
 
-## Was ein Harness-Zug ist
+| Harness | Zugangsweg | Neue Anweisungen im laufenden Prozess | MCP-Kanal von Tale |
+| --- | --- | --- | --- |
+| Claude Code | Verwaltet oder direkt | Ja | Ja |
+| Codex | Verwaltet oder direkt | Nein | Ja |
+| Cursor | Nur direkt | Nein | Nein |
+| Gemini CLI | Verwaltet oder direkt | Nein | Ja |
+| Hermes | Verwaltet oder direkt | Nein | Nein |
+| OpenClaw | Verwaltet oder direkt | Nein | Ja |
+| OpenCode | Nur verwaltet | Nein | Ja |
+| Pi | Verwaltet oder direkt | Nein | Nein |
+| Qwen Code | Verwaltet oder direkt | Nein | Ja |
 
-Beschreib die Aufgabe in normaler Sprache — „schreib ein kleines Python-CLI und teste es", „klon dieses Repository und behebe den Fehler aus Issue 42". Die Nachricht geht an das Harness und nicht direkt an das Modell. Das Harness treibt das Modell in einer Schleife im Container an und entscheidet selbst, wann es eine Datei liest, einen Befehl ausführt oder es noch einmal versucht; sein Bericht kommt, wenn der Zug abgeschlossen ist — als Kommentar an der Aufgabe eines Projekt-Agenten, als Ausgabe des Schritts in einer Automation.
+Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
 
-Daraus folgen zwei Dinge. Die Arbeit ist echt und nicht beschrieben: Dateien existieren, Befehle sind tatsächlich gelaufen, und ihre Ausgabe ist das, worüber das Modell nachgedacht hat. Und der Takt des Zuges gehört dem Harness, nicht Tale — es entscheidet, wann die Arbeit getan ist, und beendet den Zug; Tale sammelt ein, was es erzeugt hat.
+## Zugangsdaten und Kosten verstehen
 
-## Die mitgelieferten Harnesses
+Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.
 
-Neun Harnesses kommen mit der Plattform. Sie unterscheiden sich darin, wie sie einen Prompt entgegennehmen, ob sie sich mitten im Zug lenken lassen und ob sie den MCP-Kanal nutzen — die Server in der Sandbox, die Tale bei einem verwalteten Zugang einhängt, um einem Zug seine angebundenen Connectors und einen Browser zu reichen; ein externer MCP-Server ist nicht im Spiel.
+Provider-Abonnements verwenden ihren unterstützten Harness und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Harnesses. Ihre direkten Aufrufe umgehen die Kostenmessung und Ausgabengrenzen des Tale-Gateways. Prüfe die Nutzung beim Abonnement-Provider.
 
-| Harness     | Akzeptierte Zugänge         | Wissenswertes                                                                                                                    |
-| ----------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | Verwaltet oder dein eigener | Das leistungsfähigste: mitten im Zug lenkbar — ein Aufgabenkommentar erreicht es, während die Arbeit noch läuft. Nutzt den MCP-Kanal. |
-| Codex       | Verwaltet oder dein eigener | Einzelne Durchläufe. Nutzt den MCP-Kanal.                                                                                             |
-| Cursor      | Nur dein eigener            | Einzelne Durchläufe. Sein CLI kann nicht über das Gateway der Plattform laufen, ein verwalteter Zugang wird also abgelehnt.      |
-| Gemini CLI  | Verwaltet oder dein eigener | Einzelne Durchläufe. Nutzt den MCP-Kanal.                                                                                             |
-| Hermes      | Verwaltet oder dein eigener | Einzelne Durchläufe, ohne MCP-Kanal.                                                                                             |
-| OpenClaw    | Verwaltet oder dein eigener | Einzelne Durchläufe. Nutzt den MCP-Kanal.                                                                                             |
-| OpenCode    | Nur verwaltet               | Einzelne Durchläufe. Nutzt den MCP-Kanal. Läuft über das Gateway, ein eigener Schlüssel wird abgelehnt.                               |
-| Pi          | Verwaltet oder dein eigener | Einzelne Durchläufe, ohne MCP-Kanal.                                                                                             |
-| Qwen Code   | Verwaltet oder dein eigener | Einzelne Durchläufe. Nutzt den MCP-Kanal.                                                                                             |
+Diese Regeln für Modellzugänge bedeuten nicht, dass die Sandbox keinerlei Geheimnisse enthält. Ausdrücklich vergebene **Secrets** sowie ein Token für einen zugeordneten GitHub-Zugang können darin verfügbar sein. Vergib nur den für die Aufgabe nötigen Zugriff.
 
-In der Praxis macht sich der Unterschied beim Lenken bemerkbar. Einen laufenden Lauf lenkst du, indem du die Aufgabe kommentierst und den Agenten mit @ erwähnst. Bei Claude Code erreicht der Kommentar den Agenten an seiner nächsten Tool-Grenze — „nimm pnpm, nicht npm" landet also, während die Arbeit noch läuft. Jedes andere Harness nimmt nach dem Start keine Eingabe mehr an, also stoppt Tale den laufenden Prozess und setzt dieselbe Unterhaltung auf einem frischen fort, mit deinem Kommentar in der Hand.
+## Dateien und verbundene Werkzeuge verstehen
 
-## Woher der Zugang stammt
+Ein Projektagent verwendet seinen dauerhaften Workspace über mehrere Aufgaben hinweg. Aufgabenanhänge liegen schreibgeschützt unter `/agent/inputs/<task>/attachments/`. Dateien aus `/agent/output/<task>/` werden am Ende des Durchlaufs als **Ergebnisdateien** an die Aufgabe angehängt. Agent-Nodes sammeln ihre Ausgabe aus `/agent/output/`.
 
-Der Zugang gehört der Organisation, nicht dem Agenten. Ein Agent hält keine eigenen Schlüssel, und es gibt keinen Zugangs-Tab pro Agent; womit sich ein Zug ausweist, ergibt sich aus dem Provider-Zugang hinter dem Modell, das du gewählt hast, eingerichtet unter [Provider](/de/platform/admin/providers). Welche von zwei Haltungen ein Zug einnimmt, folgt daraus, welche Art von Zugang das ist.
+Zugeordnete Skill-Bundles liegen als Dateien vor und werden in den Laufanweisungen genannt. Prüfe ihre Anweisungen und Skripte vor der Freigabe. [Skills für Agenten](/de/platform/agents/skills) erklärt Bereitstellung und Sichtbarkeit.
 
-**Ein hinterlegter API-Schlüssel oder einer aus einer Umgebungsvariable der Installation** bleibt bei der Plattform. Tale erzeugt für den Zug einen auf die Sitzung begrenzten Gateway-Schlüssel, und das Harness weist sich damit aus statt mit dem echten Geheimnis — der Container hält also nie einen Zugang, der die Sitzung überdauert. Das ist die verwaltete Haltung, und das einzige Harness, das sie ablehnt, ist Cursor.
+Der Connector-Broker hält gewöhnliche Connector-Zugangsdaten bei Tale und gibt Aktionsergebnisse zurück. Er bietet Agenten Leseaktionen an und lehnt Schreibaktionen über diesen Weg ab. Verwende für einen kontrollierten Connector-Schreibvorgang eine entsprechende Automatisierungs-Node. GitHub-Werkzeuge und ausdrücklich vergebene Secrets haben eigene Zugangswege. Die Lesebeschränkung des Brokers verbietet deshalb nicht allgemein Schreibzugriffe aus der Shell.
 
-**Ein Vendor-Abonnement** — ein Coding-Plan-Schlüssel, ein Portal-Schlüssel, ein OAuth-Blob oder ein Pool rotierender Tokens von einem Broker — funktioniert anders, weil Anbieter solche Zugänge nur für ihr eigenes Agenten-Werkzeug freigeben. Ein Abo-Zugang zwingt den Zug deshalb auf genau ein Harness: Ein gewöhnlicher Chat-Zug wird mit einer Begründung abgelehnt, die dieses Harness benennt, und ein anderes Harness ebenso. Das Geheimnis wird in die Umgebung der Sitzung gelegt, also in der Bring-your-own-Haltung, und das erzwungene Harness muss sie annehmen — OpenCode läuft nur über das Gateway und lehnt ab.
+Ausgehender Netzwerkzugriff erlaubt normalerweise Paketinstallationen und das Klonen von Repositorys, blockiert aber private Adressen und Cloud-Metadatenziele. Betreiber können die erlaubten Hosts weiter begrenzen. Prüfe bei einem unerreichbaren Dienst die Netzwerkregeln, statt unmittelbar falsche Zugangsdaten anzunehmen.
 
-<Note>
+## Das Ergebnis prüfen
 
-Ein Harness-Zug benennt immer ein konkretes Harness. Nichts rät eines für dich: Der einzige Fall, in dem eines von selbst kommt, ist der Abo-Zugang, der seine erzwungene Wahl mitbringt.
-
-</Note>
-
-## Was die Sandbox erreicht
-
-Ein Projekt-Agent arbeitet in einem stehenden Arbeitsbereich, der über seine Aufgaben hinweg bestehen bleibt; er startet leer. Die Anhänge der Aufgabe werden schreibgeschützt unter `/agent/inputs/<task>/attachments/` gespiegelt, der Agent öffnet also die echten Bytes statt eines Such-Schnipsels, und was er in seine Ablagebox unter `/agent/output/<task>/` schreibt, wird am Ende des Zuges eingesammelt und der Aufgabe als **Ergebnisdateien** angehängt; ein Automation-Agent-Knoten sammelt `/agent/output/` als Ausgabe des Schritts ein. Ausgehender Netzwerkverkehr ist standardmäßig offen, die gefährlichen Ziele sind immer gesperrt — der Cloud-Metadaten-Endpunkt und private Adressbereiche —, der Agent kann also Pakete installieren und Repositories klonen, ohne je das Host-Netz zu erreichen; ein Self-hosted-Betreiber kann den Egress auf Deployment-Ebene auf eine Hostnamen-Freigabeliste verengen.
-
-Angebundene Connectors erreichen den Agenten über einen Broker statt über die Box. Ruft der Agent einen auf, geht die Anfrage zurück an Tale, das sie mit dem hinterlegten Zugang ausführt und nur das Ergebnis zurückgibt — ein kompromittierter Container kann deine Schlüssel also nicht lesen. Der Broker trägt nur Lese-Aktionen: Ein Schreibvorgang — eine Nachricht posten, eine Mail senden, ein Issue öffnen — wird mit lesbarer Begründung abgelehnt, ein Agent kann ein fremdes System also nicht aus seiner Sandbox heraus verändern; dieser Schritt gehört in den Connector-Knoten einer Automation. GitHub ist die bewusste Ausnahme: `git` und das `gh`-CLI brauchen lokal ein Token; solange der Agent den GitHub-Connector ausgerüstet hat, bekommt jeder Lauf ein eingeschränktes — es kommt pro Lauf hinein und verschwindet mit dessen Ende.
-
-An den Agenten gebundene Skills werden als Dateien in die Sitzung gelegt statt über ein Tool geholt, und ein Skill, den das ausgecheckte Repository mitbringt, gewinnt gegen die Kopie, die Tale legen würde — die Vorrangregel steht unter [Agent-Skills](/de/platform/agents/skills). Die übrigen Werte, die ein Lauf bekommt, sind die **Secrets** der Organisation, mit denen der Agent ausgerüstet ist — ein API-Schlüssel als Umgebungsvariable, pro Lauf gesetzt und mit dessen Ende weg —, so erreicht ein Token für einen Dienst ohne Connector die Arbeit; [Projekt-Agenten](/de/platform/projects/project-agents) beschreibt sie.
-
-## Kosten und Messung
-
-Ein Harness-Zug kann lang sein und das Modell viele Male aufrufen, er kostet also mehr als eine einzelne Chat-Antwort. Verwaltete Züge laufen über das Gateway, und genau das macht sie messbar: Sie landen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) neben jedem anderen Zug, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation deckeln, was sie ausgeben dürfen. Der Deckel greift vor dem Start eines Zuges, nicht danach: Sein Gateway-Budget ist, was unter den Regeln für die Person, die den Lauf gestartet hat, noch übrig ist — die bereits laufenden Züge mitgezählt —, und ein bereits erreichter Deckel verweigert den Start mit der Begründung der Regel. Der Lauf schlägt fehl statt neu zu starten, bis die Periode wechselt oder ein Admin die Regel anhebt.
-
-Züge auf einem Abo-Zugang umgehen das Gateway von Bauart her, weil das Geheimnis in den Container geht und das Werkzeug des Anbieters direkt mit ihm spricht. Diese Züge werden nicht gemessen, und die Ausgabendeckel der Organisation greifen nicht — die Abrechnung liegt bei dem, dem das Abonnement gehört.
-
-## Wo das hingehört
-
-Ein Harness macht aus einem Projekt-Agenten oder einem Automation-Agent-Knoten eine laufende Sitzung mit einem Coding-Werkzeug in einem isolierten Container: Du steuerst in normaler Sprache, es arbeitet an echten Dateien, und das Harness bestimmt den Takt des Zuges. Chat wählt nur Modelle; das Feld **Harness** sitzt am Agenten oder am Automation-Knoten. Wie viel davon unter der Kontrolle der Organisation bleibt, entscheidet der Zugang — ein hinterlegter Schlüssel hält den Zug am Gateway, unter den Deckeln und in der Messung, während ein Vendor-Abonnement ihn in die Box und auf das Konto dieses Anbieters schiebt. Lies diese Seite zusammen mit [Provider](/de/platform/admin/providers) für die Zugangsseite und [Connectors](/de/platform/connectors/overview) für das, was der Agent im Betrieb erreichen kann.
+Die Laufzeit entscheidet, wann ihr Durchlauf fertig ist; Tale sammelt Bericht und Ausgabe. Lies beides, bevor du die Aufgabe abschließt. Prüfe, welche Tests tatsächlich liefen und welche Dienste in der Sandbox fehlten. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt die Prüfung von Projektarbeit; [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Ergebnisse einer Agent-Node.

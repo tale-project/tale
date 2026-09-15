@@ -1,22 +1,81 @@
 ---
-title: Einen Workflow mit Freigabe bauen
-description: Den KI-Editor und seine Vorschlagskarte gibt es in dieser Version nicht — einen Workflow mit menschlicher Entscheidung baust du auf dem Canvas, und der Lauf wartet auf diese Entscheidung auf seiner Detailseite.
+title: Einen Workflow mit Freigabe erstellen
+description: Importiere einen kleinen Workflow, teste seine geplante E-Mail und lehne die Live-Freigabe ab, ohne die Nachricht zu senden.
 ---
 
-Dieses Tutorial schaltete einmal einen **KI-Editor** in der Werkzeugleiste des Canvas ein, beschrieb einen Drei-Schritt-Workflow in einer Nachricht, genehmigte die Vorschlagskarte, mit der er antwortete, und beantwortete danach den pausierten Lauf. Den KI-Editor gibt es in dieser Version von Tale nicht — der Canvas hat kein Assistenten-Panel, und keine Karte schlägt dir eine Definition zur Genehmigung vor. Die menschliche Entscheidung mitten im Lauf gibt es sehr wohl; sie kommt aus dem Lauf selbst, nicht aus einer Karte in einem Editor.
+Diese Übung erstellt einen Workflow mit zwei Schritten: eine Nachricht vorbereiten und die Erlaubnis zum Senden anfordern. Du prüfst Empfänger und Text im wartenden Lauf und lehnst die Aktion ab. So lernst du den vollständigen Freigabeablauf kennen, ohne eine echte Nachricht zustellen zu müssen.
 
-<Note>
+## Bevor du beginnst
 
-Der KI-Editor ist in dieser Version nicht verfügbar. Du baust die Definition auf dem Canvas und speicherst sie selbst als Version, oder du lässt sie ein Modell über den [MCP-Endpoint](/de/develop/mcp-endpoint) verfassen; den ausgehenden Schritt entscheidet zur Laufzeit weiterhin ein Mensch.
+Nutze ein Konto mit der Rolle Entwickler, Admin oder Inhaber. Prüfe, dass die Freigaberichtlinie deiner Organisation für `imap-smtp.send` eine Entscheidung verlangt. Das ist die Standardeinstellung. Eine eigene Richtlinie kann sie ändern. Lies deshalb vor dem Live-Teil [Freigaben konfigurieren](/de/platform/approvals/configure).
 
-</Note>
+Der Mock-Test braucht keine Postfach-Zugangsdaten. Für einen tatsächlich freigegebenen Versand wären ein eingerichteter IMAP-/SMTP-Connector und ein beabsichtigter Empfänger nötig. Diese Übung endet mit **Ablehnen**.
 
-## Heute einen Menschen zwischen Entwurf und Versand setzen
+## Das Beispiel importieren
 
-Bau die Form von Hand auf dem Canvas: eine **Agent**-Node, die die Zusammenfassung entwirft, dann eine Connector-Node, die sie versendet. Für die Entscheidung brauchst du nichts Zusätzliches — ein Connector-Schreibzugriff, der deinen Mandanten verlässt, etwa Mail senden oder in einen Kanal posten, parkt den Live-Lauf von sich aus. Der Lauf steht als **Wartet** in der Liste der Läufe, seine Detailseite zeigt **Wartet auf deine Freigabe** mit der exakten Nachricht, die der Schritt senden würde, und **Freigeben** gibt sie frei, während **Ablehnen** den Lauf stoppt. Ein Zeitplan auf der eigenen Seite der Automatisierung lässt sie jeden Werktagmorgen laufen, und **Testlauf** prüft den Graphen gegen Mocks, ohne etwas zu senden. [Der Workflow-Editor](/de/platform/automations/editor) geht Canvas, Speichern und Live-Schalten durch; [Automatisierungs-Trigger](/de/platform/automations/triggers) behandelt den Zeitplan.
+Speichere den folgenden Inhalt als `workflow.yml`. Der Knoten `draft` liefert festen Text, damit das Ergebnis leicht prüfbar ist. `send` liest ihn; diese Referenzen erzeugen die Verbindung auf dem Canvas.
 
-Soll die Entscheidung den Entwurf statt den Versand betreffen, lass den Agent fragen: Eine Automation-Agent-Node trägt ein Tool `ask_human`, und ein Lauf, der es aufruft, parkt als **Wartet** mit der Frage auf seiner Detailseite, bis du antwortest, und setzt dann an dieser Node mit deiner Antwort fort. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt beide Tore.
+```yaml
+version: 1
+name: docs/approval-check
+description: Practice reviewing an outgoing message before it is sent.
+nodes:
+  - id: draft
+    type: transform
+    code: |
+      return {
+        subject: "Approval practice",
+        text: "This is a test message for the approval walkthrough."
+      };
+  - id: send
+    type: imap-smtp.send
+    input:
+      to: reviewer@example.com
+      subject: '{{ nodes.draft.output.subject }}'
+      text: '{{ nodes.draft.output.text }}'
+output:
+  messageId: '{{ nodes.send.output.messageId }}'
+tests:
+  - name: prepares the outgoing message
+    input: {}
+    expect:
+      effects:
+        - connector: imap-smtp.send
+```
 
-## Wo das hinführt
+1. Öffne **Automatisierungen > Automatisierung erstellen > Paket hochladen**.
+2. Wähle `workflow.yml` und belasse **Installieren in** auf **Organisation**.
+3. Klicke auf **Paket hochladen**. Tale validiert das Dokument und speichert `docs/approval-check` als Entwurf.
+4. Wähle in der Veröffentlichungsfrage **Später** und öffne anschließend **Approval check** in der Liste. Die Automatisierung öffnet sich im Tab **Editor**.
 
-Die Form, die dieses Tutorial versprach — entwerfen, entscheiden, handeln —, ist die Form, die ein Lauf in dieser Version von sich aus annimmt: Der ausgehende Schreibzugriff fragt, ein Mensch liest den exakten Aufruf, und das Protokoll sagt, wer ihn erlaubt hat. [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Vokabular hinter Definition, Trigger und Lauf; [Genehmigungskonzepte](/de/platform/approvals/concepts) ist das Modell hinter dem Warten.
+Existiert der Name bereits, fügt der Upload eine weitere Version hinzu. Wähle einen anderen Workflow-`name`, wenn die Übung getrennt bleiben soll.
+
+<Frame caption="Paket hochladen nimmt die Workflow-Datei an und bietet Organisation oder Projekt als Ziel an.">
+
+![Der Dialog Paket hochladen zeigt die Dateiauswahl und den Zielwähler mit Organisation.](/images/platform/automations-upload-dialog.webp)
+
+</Frame>
+
+## Den Datenfluss testen
+
+Klicke im **Editor** auf **Testlauf**. Dieses Beispiel braucht keine Laufzeiteingabe und kann mit einem leeren Objekt laufen. Wechsle zu **Läufe**. Dort sollte ein **Erfolgreich** abgeschlossener Test erscheinen.
+
+Öffne den Lauf und prüfe auf dem Canvas, ob beide Knoten ausgeführt wurden. Wähle `send` und prüfe die aufgelöste Eingabe. Der Empfänger muss `reviewer@example.com` sein, der Betreff `Approval practice` und der Text der Satz aus `draft`. In diesem Modus antwortet ein deterministischer Mock des Connectors. Es wird keine E-Mail gesendet und keine Freigabekarte angezeigt.
+
+Der Workflow enthält einen Test, der den Effekt `imap-smtp.send` erwartet. Ein erfolgreicher Mock prüft Ablauf und vorgesehenen Aufruf. Er belegt weder gültige Postfach-Zugangsdaten noch die Zustellung.
+
+## Die Live-Freigabe prüfen
+
+Kehre zum **Editor** zurück und klicke auf **Diese Version live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
+
+Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Wechsle zu **Läufe** und öffne den neuen wartenden Lauf. Die Freigabekarte sollte die ausstehende Entscheidung, `imap-smtp.send`, den Knoten `send` sowie dessen geplante Eingabe zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
+
+Wartet der Lauf nicht, prüfe Status und Richtlinie, bevor du fortfährst. Ein fehlgeschlagener Connector-Aufruf beweist nicht, dass eine Freigabe angefordert wurde.
+
+## Ablehnen und das Ergebnis prüfen
+
+Klicke auf der Karte auf **Ablehnen**. Die Aktion wird verweigert und der Lauf endet als **Fehlgeschlagen**. Das ist das erwartete Ergebnis dieser Übung: Der Workflow hat die menschliche Entscheidung erreicht und die Nachricht nicht gesendet.
+
+Die Parameter eines wartenden Aufrufs lassen sich auf der Karte nicht ändern. Ist eine echte vorgeschlagene Nachricht falsch, lehne sie ab, korrigiere Definition oder Eingabe und starte einen neuen Lauf. Die spätere Freigabe eines korrekten Aufrufs erlaubt die tatsächliche Aktion; sie bestätigt nicht nur, dass du die Karte gelesen hast.
+
+Braucht ein Agent eine Antwort statt einer Erlaubnis, nutzt er `ask_human`. Diese andere Form des Wartens erklärt [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows). [Ausführungsprotokolle](/de/platform/automations/execution-logs) hilft, beide von einem noch arbeitenden Agenten zu unterscheiden.

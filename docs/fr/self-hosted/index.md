@@ -1,23 +1,29 @@
 ---
-title: Auto-hébergé
-description: Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau.
+title: Héberger Tale sur ton infrastructure
+description: Choisis une méthode d’installation, définis les responsabilités d’exploitation et retrouve les guides de configuration et de maintenance.
 kind: index
 ---
 
-Tale auto-hébergé tourne sur ta propre infrastructure — on-premise, dans ton VPC, ou coupé du réseau. Neuf conteneurs, tes données sur ton stockage, aucune facturation au siège, et aucun trafic qui rejoint les serveurs de Tale, sauf si tu y pointes un fournisseur.
+En hébergeant Tale, ton organisation choisit où l’application s’exécute, où les données sont stockées et quels modèles elle utilise. La plateforme open source offre les mêmes fonctionnalités que la version Enterprise. Ton équipe exploite l’infrastructure et décide quels services externes elle peut contacter.
 
-Cette section s'adresse aux opérateurs : les personnes qui décident où Tale tourne, l'installent, le configurent, le maintiennent à jour et récupèrent le pager quand quelque chose va de travers. Les utilisateurs finaux des instances auto-hébergées lisent surtout l'onglet Plateforme — la surface produit est identique entre les éditions.
+## Choisir ton point de départ
 
-## Pages de cette section
+| Ton objectif | Guide |
+| --- | --- |
+| Essayer une instance locale ou installer un nouvel environnement | [Démarrage de l’installation](/fr/self-hosted/install/quickstart) |
+| Comprendre les services, les données et les connexions réseau | [Vue d’ensemble de l’architecture](/fr/self-hosted/overview) |
+| Déployer avec tes propres définitions Compose ou Kubernetes | [Exploiter ton propre déploiement](/fr/self-hosted/install/own-compose) |
+| Modifier le code de l’application | [Configurer l’environnement de développement](/fr/develop/contributor-setup) |
+| Utiliser une instance déjà exploitée par une autre équipe | [Envoyer ton premier message](/fr/get-started/quickstart) |
 
-**[Vue d'ensemble de l'architecture](/fr/self-hosted/overview)** — ce que fait chaque conteneur, où vivent les données sur le stockage, qui parle à qui.
+## Répartir les responsabilités d’exploitation
 
-**[Installation](/fr/self-hosted/install)** — la CLI (`tale init` / `tale dev` / `tale deploy`), ou une stack que tu écris toi-même.
+Désigne les responsables des accès, de TLS, des mises à jour, des sauvegardes, de la surveillance et des incidents avant d’ajouter des utilisateurs. Configure un fournisseur d’IA. Pour rendre les documents interrogeables, prévois aussi un modèle d’embeddings et le stockage des connaissances. Teste un téléversement et une conversation complète avant de considérer l’instance comme prête.
 
-**[Configuration](/fr/self-hosted/configuration/environment-reference)** — chaque variable d'environnement, fichiers de fournisseur, modes d'authentification, TLS, stockage, rétention, secrets chiffrés par SOPS, observabilité.
+L’auto-hébergement ne garantit pas que toutes les requêtes restent sur ton réseau. Un fournisseur de modèles, un Connector, un robot d’exploration ou un service de surveillance externe peut recevoir des données. Vérifie les destinations réelles à l’aide du guide de [renforcement de la sécurité](/fr/self-hosted/operate/security/hardening) et de la configuration des fournisseurs. Une installation isolée nécessite des images, modèles, identifiants et dépendances disponibles localement.
 
-**[Exploitation](/fr/self-hosted/operate/container-architecture)** — montées de version, sauvegardes et restauration, observabilité et dépannage, avis de sécurité, durcissement, format des notes de version.
+## Configurer et maintenir l’instance
 
-## Où cela s'inscrit
+La [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference) décrit les paramètres du déploiement. Les guides de configuration couvrent ceux de l’organisation. Consulte l’[architecture des conteneurs](/fr/self-hosted/operate/container-architecture) pour les dépendances d’exploitation et [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) pour préparer une reprise.
 
-Auto-hébergé est l'édition où l'opérateur possède davantage de la stack. Si ton équipe est petite et que la charge d'exploitation écraserait le travail produit, [Cloud](/fr/cloud) est l'autre forme du même produit. Si tu montes une instance neuve maintenant, [Quickstart](/fr/self-hosted/install/quickstart) est la lecture suivante adéquate.
+Si ton équipe préfère confier l’exploitation à Tale, consulte [Tale Cloud](/fr/cloud). Les guides de la plateforme s’appliquent aux deux modes d’hébergement.

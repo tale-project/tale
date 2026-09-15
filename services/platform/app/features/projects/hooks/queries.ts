@@ -2,15 +2,20 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { backendKey } from '@/app/lib/backend/query-keys';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
- * The shipped harnesses a project agent can run on. Reuses the composer's
- * org-scoped listing — the same fixed set the project Agents tab equips.
- * Chat itself never renders this roster: chat is model selection only.
+ * The shipped harnesses a project agent can run on — the same fixed set the
+ * project Agents tab equips — and the models it can call. Reuses the
+ * composer's org-scoped listing; chat itself never renders this roster (chat
+ * is model selection only). The models are what the org's credentials serve,
+ * so the listing keys under their entity: a provider added in settings
+ * reaches every agent model picker without a reload.
  */
 export function useProjectHarnesses(organizationId: string) {
   return useActionQuery(
-    ['projects', 'harnesses', organizationId],
+    backendKey(organizationId, PROVIDER_CREDENTIAL_HINT_ENTITY, 'agent-roster'),
     'chat/composer:listComposerModels',
     { organizationId },
   );

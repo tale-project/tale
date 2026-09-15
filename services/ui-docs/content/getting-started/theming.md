@@ -1,132 +1,78 @@
 ---
 title: Theming
-description: The two token vocabularies, how dark mode is switched, and how a host tints the system with its own accent colour.
+description: Enable light and dark themes, choose semantic colors, and apply an optional host accent.
 ---
 
-Every colour in the system resolves through a semantic token declared in
-`packages/ui/src/globals.css`. A raw hex value in a component is a defect, not
-a shortcut: it will be wrong in dark mode, it will drift from its neighbours,
-and it cannot be retuned centrally.
+Semantic color tokens let a component keep the same classes in light and dark themes. Mount the shared theme provider, then choose colors by their purpose rather than their current appearance.
 
-By the end of this page you will know which token vocabulary to reach for,
-exactly how the `.dark` class is applied, and how to let a host organization
-tint the interface without touching a stylesheet.
+## Enable theme switching
 
-## Two vocabularies live side by side
-
-`globals.css` says so in its own header: *two token systems coexist*. Both are
-real, both are supported, and both flip with the theme.
-
-**The canonical family** is declared directly in `@theme` and overridden in
-`.dark`. It reads as prose, and it is what newer components use:
+[Installation](/docs/getting-started/installation) mounts the provider with `<AppShell theme>`. Its default choice is `system`; `ThemeProvider` resolves the operating system preference and applies `.dark` to the document when needed. An explicit choice is saved under `tale-theme` in local storage.
 
 ```tsx
-<div className="bg-bg-base text-fg-base border-border-base border">
-  <p className="text-fg-muted">A description.</p>
-</div>
+import { ThemeSwitcher } from '@tale/ui/theme-switcher';
+
+export function AppearanceControl() {
+  return <ThemeSwitcher />;
+}
 ```
 
-**The HSL family** is the shadcn-shaped set — `--background`, `--foreground`,
-`--muted`, `--border`, `--ring` — exposed through `hsl(var(--x))` aliases. It
-is the page baseline: `body` is `bg-background text-foreground`, and
-`@layer base { * { @apply border-border; } }` means a bare `border` class is
-already themed.
-
-```tsx
-<div className="bg-background text-foreground border-border border">
-  <p className="text-muted-foreground">A description.</p>
-</div>
-```
-
-Neither is deprecated. Follow the surrounding file rather than converting one
-into the other mid-component — a half-converted file is harder to read than
-either whole.
+Try the theme control in this page's header. Choose **Dark**, then **Light**, and compare the swatches below. Choose **System** to follow the operating system again.
 
 <Demo name="foundations/color-tokens" />
 
-The [Colours](/docs/foundations/colors) page lists every token with what it is
-for.
+`ThemeSwitcher` defaults to a menu. Its `segmented` variant presents the choices inline. Both must live inside the provider tree.
 
-## Dark mode is a class, not a media query
-
-```css
-/* packages/ui/src/globals.css */
-@custom-variant dark (&:where(.dark, .dark *));
-```
-
-The `dark:` variant matches the **`.dark` class** on `<html>` (or any
-descendant), never `prefers-color-scheme` directly. `tailwind-preset.ts` says
-the same thing in ten lines: `darkMode: 'class'`.
-
-`ThemeProvider` owns the class. It stores the choice under the localStorage key
-`tale-theme`, resolves `'system'` through
-`matchMedia('(prefers-color-scheme: dark)')`, toggles `.dark` on
-`document.documentElement` and sets `colorScheme` alongside it. It also
-suppresses transitions for one frame while flipping, so a theme change is a cut
-rather than a smear of every animated property on the page.
-
-Read and set the theme with `useTheme`:
+## Read the choice or the displayed result
 
 ```tsx
 import { useTheme } from '@tale/ui/theme';
 
-const { theme, resolvedTheme, setTheme } = useTheme();
-// theme: 'light' | 'dark' | 'system'  — what the user chose
-// resolvedTheme: 'light' | 'dark'     — what is actually painted
+export function ThemeSummary() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  return (
+    <button type="button" onClick={() => setTheme('system')}>
+      Preference: {theme}; displayed theme: {resolvedTheme}
+    </button>
+  );
+}
 ```
 
-`theme` is the user's choice; `resolvedTheme` is what ended up on screen. Use
-the second one whenever you need to branch on the painted result, such as
-picking a chart palette.
+`theme` is `light`, `dark`, or `system`. `resolvedTheme` is the resulting `light` or `dark`. Use the resolved value when selecting an image or chart palette. Querying `prefers-color-scheme` independently would ignore an explicit user choice.
 
-Ship the picker with `ThemeSwitcher`, which has two variants — `menu` (an icon
-button with a dropdown, the app default) and `segmented` (an inline pill, used
-by the marketing footer). The switcher in this page's header is the `menu` one.
+The Tailwind `dark:` variant follows the `.dark` class. The provider also updates CSS `color-scheme` and briefly suppresses transitions during a switch. This avoids animating every color on the page at once.
 
-### Keep the favicon honest
+## Choose a token family consistently
 
-A theme the user picked explicitly should also drive the favicon and the
-`theme-color` meta tag, otherwise those keep following the OS. Mount
-`ThemeAssets` inside the theme tree — usually from the root route — and give
-your `index.html` the four ids it looks for: `favicon-light`, `favicon-dark`,
-`theme-color`, `theme-color-dark`.
+The stylesheet exposes two supported families:
 
-```tsx
-import { ThemeAssets } from '@tale/ui/theme/assets';
-```
+| Family | Example surface | Example secondary text |
+| --- | --- | --- |
+| Canonical semantic tokens | `bg-bg-base text-fg-base border-border-base` | `text-fg-muted` |
+| HSL-compatible aliases | `bg-background text-foreground border-border` | `text-muted-foreground` |
 
-## Accent colour is a context, not a token
+Follow the surrounding component's vocabulary. Both resolve through the shared stylesheet; neither requires a second set of light and dark classes at every call site. [Colours](/docs/foundations/colors) maps common tokens to their uses.
 
-An organization's brand colour cannot be a CSS token — it is per tenant and
-arrives at runtime. It is a React context instead:
+When extending the token set, define the light and dark values together. Check the actual foreground/background pairing, including hover, disabled, error, and focus states. A semantic name does not by itself prove sufficient contrast.
+
+## Apply a host accent
+
+`AccentColorProvider` supplies a runtime accent to components that opt into it, including route-tab indicators and selected sub-panel rows:
 
 ```tsx
 import { AccentColorProvider } from '@tale/ui/accent-color';
 
-<AccentColorProvider accentColor="#056CFF">{children}</AccentColorProvider>;
+<AccentColorProvider accentColor="#056CFF">
+  {children}
+</AccentColorProvider>;
 ```
 
-Components that tint read it with `useAccentColor()` and apply it as an inline
-`style` — the active tab indicator and the active sub-panel row are the two in
-the package today. Without a provider they fall back to the neutral treatment,
-which is what this site shows. Leave the provider unmounted when you want the
-plain design system.
+This is a composition excerpt: the host supplies `children` and a validated color. Without the provider, participating components use their default treatment. The context does not recolor every component or replace all theme tokens; for example, `Tabs` uses its stylesheet classes directly.
 
-Brand blue for Tale itself is `#056CFF`. In marketing surfaces it arrives as
-`bg-brand-base` / `text-brand-fg` and is reserved for product life inside
-demos — never a body-text colour, never a large fill.
+Keep organization lookup and branding policy in the service. Review an accent on both themes before using it for a meaningful indicator.
 
-## Rules that keep theming working
+## Keep browser assets in sync
 
-- **Never write a hex value in a class.** If no token fits, the token set is
-  missing one; add it to `globals.css` with its `.dark` counterpart.
-- **Branch on `resolvedTheme`, never on `matchMedia` in a component.** The
-  provider already resolved it, and duplicating the query drifts during a flip.
-- **Charts read `bg-chart-*` / `var(--color-chart-*)`.** They have their own
-  light and dark scales precisely so a series is legible in both.
+`ThemeAssets`, mounted inside the theme tree, updates the favicon and theme-color metadata to match an explicit theme choice. Your HTML must provide the elements it updates: `favicon-light`, `favicon-dark`, `theme-color`, and `theme-color-dark`.
 
-## Where to go next
-
-[Colours](/docs/foundations/colors) has the full token list. If your component
-renders strings of its own, [i18n](/docs/getting-started/i18n) is the next
-piece of glue you need.
+If the page changes theme but its browser tab icon does not, inspect those IDs and the asset URLs. If only part of a page changes, look for hardcoded colors or an extra theme provider. Use the [accessibility checks](/docs/foundations/accessibility) to verify contrast and reduced-motion behavior in the rendered page.

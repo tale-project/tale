@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { findConnector } from '../../../lib/connectors/catalog.ts';
+import { uniqueCredentialName } from '../../../lib/shared/utils/credential-name.ts';
 import { generatePkcePair } from '../../core/enterprise_sso/pkce.ts';
 import { buildAuthorizeUrl } from '../../core/http_connectors/authorize_url.ts';
 import {
@@ -211,27 +212,7 @@ export async function claimTeamRoute(
   return { ok: true };
 }
 
-/**
- * The label a NEW credential gets among the names its (organization,
- * connector) siblings already hold: `base` itself when free, else
- * `base (2)`, `base (3)`, … — compared case-insensitively, the way the
- * table's unique index compares. Pure, so the rule is testable on its own.
- */
-export function uniqueCredentialName(
-  taken: readonly string[],
-  base: string,
-): string {
-  const held = new Set(taken.map((name) => name.trim().toLowerCase()));
-  let candidate = base;
-  let counter = 1;
-  while (held.has(candidate.toLowerCase())) {
-    counter += 1;
-    candidate = `${base} (${counter})`;
-  }
-  return candidate;
-}
-
-/** Room a workspace-named label leaves for the ` (N)` a collision appends. */
+/** Room a workspace-named label leaves for the ` N` a collision appends. */
 const NAME_COUNTER_ROOM = 6;
 
 export interface Oauth2GrantArgs {

@@ -1,64 +1,64 @@
 ---
-title: Ton premier jour d’administration
-description: Le parcours admin — crée l’espace de travail, connecte un fournisseur d’IA, fais entrer l’équipe et sache où vit la gouvernance.
+title: Configurer un espace pour ton équipe
+description: Connecter un fournisseur, ajouter les membres et vérifier les accès dont l’équipe a besoin.
 ---
 
-Ce parcours s’adresse à la personne responsable de l’espace de travail. En quinze minutes, tu crées l’organisation, tu connectes le fournisseur qui fait répondre le chat, tu fais entrer tes premiers collègues et tu apprends où vivent les contrôles de gouvernance avant d’en avoir besoin.
+Un espace utilisable nécessite une organisation, un fournisseur de modèles qui fonctionne et des comptes avec les bons accès. Mets ces bases en place, puis configure les contrôles adaptés au travail prévu.
 
-Il te faut un compte sur une instance qui tourne ([démarrage rapide](/fr/get-started/quickstart)) ; sur une instance toute neuve, le premier compte est automatiquement **Propriétaire**, ce qui porte toutes les permissions ci-dessous.
+## Avant de commencer
+
+Utilise un compte Propriétaire ou Admin sur la bonne instance. La configuration initiale crée le premier compte et l’organisation. Si ton organisation apparaît déjà dans le Dashboard, ouvre ses paramètres au lieu d’en créer une autre.
+
+Prépare les identifiants du fournisseur dans ton gestionnaire de mots de passe. Le fournisseur doit prendre en charge le modèle et les tâches souhaités. La page [Fournisseurs IA](/fr/platform/admin/providers) explique les identifiants, les catalogues et les environnements d’exécution des agents.
+
+## Connecter un fournisseur et tester le chat
 
 <Steps>
 
-<Step title="Crée l’espace de travail">
+<Step title="Ajouter les identifiants">
 
-Si tu arrives du démarrage rapide, ton organisation existe déjà — passe directement à la connexion d’un fournisseur. Une première connexion sans organisation atterrit sur l’assistant de création : le **Nom de l'organisation** est le nom affiché que ton équipe voit dans le coin de chaque page — choisis-en un qui survit à un rebranding. L’assistant propose ensuite de connecter un fournisseur d’IA et se termine sur le dashboard.
+Ouvre **Paramètres > Fournisseurs IA**, sélectionne **Ajouter des identifiants**, puis choisis le fournisseur. Renseigne les champs de sa méthode d’authentification et enregistre. Donne aux identifiants un nom qui permette à un autre admin de comprendre leur usage.
 
-<Frame caption="L’étape espace de travail de l’assistant de création.">
+<Frame caption="Les identifiants connectés rendent les modèles du fournisseur disponibles dans l’espace.">
 
-![L’assistant de création d’organisation à son étape espace de travail, avec Northlight Labs saisi dans le champ Nom de l’organisation et le bouton Suivant actif.](/images/get-started/org-create-wizard.webp)
-
-</Frame>
-
-</Step>
-
-<Step title="Connecte un fournisseur d’IA">
-
-Rien ne répond tant qu’aucun fournisseur n’est connecté. Si tu as sauté l’étape fournisseur de l’assistant, ouvre **Paramètres > Fournisseurs IA** et clique sur **Ajouter un identifiant** sur un connecteur — une clé [OpenRouter](https://openrouter.ai) atteint le catalogue de modèles le plus large, et chaque fournisseur direct apporte son propre connecteur à côté. Un identifiant est utilisable dès qu’il est enregistré ; à partir de là, chaque agent de l’espace de travail peut répondre avec n’importe quel modèle que ce connecteur expose.
-
-<Frame caption="Un fournisseur connecté avec son catalogue de modèles.">
-
-![La page des paramètres des fournisseurs d’IA listant un seul fournisseur connecté, OpenRouter, avec son URL de base et ses 52 modèles.](/images/get-started/settings-providers.webp)
+![Les paramètres des fournisseurs IA présentent les identifiants de fournisseurs connectés.](/images/get-started/settings-providers.webp)
 
 </Frame>
 
 </Step>
 
-<Step title="Fais entrer l’équipe">
+<Step title="Vérifier le modèle dans un nouveau chat">
 
-Pour ajouter des personnes, ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Chaque personne arrive avec un rôle qui borne ce qu’elle peut faire : **Membre** lit et discute, **Éditeur** construit agents et connaissances, **Développeur** câble workflows, automatisations et accès API, **Admin** gère l’espace de travail. Commence bas — monter un rôle plus tard prend un clic, et reprendre un accès qui a fuité, non.
+Ouvre **Chat**, démarre une conversation et choisis un modèle disponible. Envoie une demande autonome, par exemple « Rédige une liste de trois points pour préparer une réunion ». Attends la réponse complète. L’enregistrement des identifiants ne prouve pas à lui seul que le compte a accès au modèle choisi.
 
-<Frame caption="La page Membres — chaque compte et son rôle.">
-
-![La page de paramètres Membres listant cinq personnes et leur rôle — Alex Rivera en Propriétaire, un Admin, un Éditeur et deux Membres — à côté du bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
-
-</Frame>
-
-<Check>
-
-Un collègue qui se connecte et obtient une réponse dans le chat prouve toute la chaîne — compte, rôle, fournisseur — sans que tu sois à côté de lui.
-
-</Check>
-
-</Step>
-
-<Step title="Sache où vit la gouvernance">
-
-Tu n’auras pas besoin de politiques le premier jour, mais tu dois connaître la porte : **Paramètres > Gouvernance** regroupe journaux d’audit, analyses d’usage, politiques de contenu, garde-fous et rétention. La seule habitude qui vaut d’être prise aujourd’hui est de parcourir les [journaux d’audit](/fr/platform/admin/governance/audit-logs) après la première semaine — ils montrent ce que ton espace de travail fait vraiment.
+Si la liste reste vide ou si le fournisseur refuse la requête, suis les étapes de dépannage de la page [Fournisseurs IA](/fr/platform/admin/providers).
 
 </Step>
 
 </Steps>
 
-## Où tu en es
+## Ajouter les personnes avec les bons accès
 
-L’espace de travail tient debout : un fournisseur répond, l’équipe est entrée avec des rôles bornés et tu sais où vivent les contrôles. La matrice complète des permissions est [Membres et rôles](/fr/platform/admin/members-and-roles) ; la [vue d’ensemble admin](/fr/platform/admin/overview) cartographie chaque panneau que tu possèdes désormais ; et quand la conformité te sollicite, la [gouvernance](/fr/platform/admin/governance/audit-logs) est la section à lui montrer.
+Ouvre **Paramètres > Membres** et sélectionne **Ajouter un membre**. Pour un nouveau compte, le formulaire définit un mot de passe initial ; un compte existant conserve ses identifiants. Ce parcours n’envoie pas d’invitation par e-mail. [Membres et rôles](/fr/platform/admin/members-and-roles) détaille les champs et la remise sécurisée des premiers identifiants.
+
+<Frame caption="Vérifie le rôle de chaque membre avant de lui transmettre l’accès.">
+
+![La page Membres présente les personnes de l’organisation et le rôle attribué à chacune.](/images/get-started/settings-organization-members.webp)
+
+</Frame>
+
+Choisis le rôle selon le travail : les Membres utilisent l’espace, les Éditeurs maintiennent les contenus partagés, les Développeurs travaillent sur les intégrations et les automatisations, et les Admins gèrent l’organisation. Consulte le tableau détaillé des autorisations lorsque les tâches se recoupent. Les équipes et le partage des projets déterminent aussi les projets accessibles.
+
+## Vérifier le premier parcours de l’équipe
+
+Demande à un collègue de se connecter avec son propre compte, d’envoyer un message et d’ouvrir le projet nécessaire. Vérifie aussi les sources partagées avec ce compte. Tester uniquement comme Propriétaire peut masquer un manque de droits ou un accès trop large.
+
+<Tip>
+
+Commence avec un projet représentatif et quelques documents sources. Vérifie que les personnes trouvent le travail et que les comptes prévus accèdent aux fichiers avant d’importer une grande bibliothèque.
+
+</Tip>
+
+## Définir les règles d’exploitation
+
+Examine selon tes besoins [les politiques et les limites](/fr/platform/admin/governance/policies-and-limits), [les journaux d’audit](/fr/platform/admin/governance/audit-logs) et [le SSO](/fr/platform/admin/enterprise-sso). Désigne les responsables des identifiants, des revues d’accès et des tâches en échec. En auto-hébergement, prévois aussi un processus testé de [sauvegarde et de restauration](/fr/self-hosted/operate/backups-and-restore).

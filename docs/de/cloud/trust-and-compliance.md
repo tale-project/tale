@@ -1,53 +1,39 @@
 ---
-title: Trust und Compliance
-description: Welche Compliance-Haltung Tale Cloud ausliefert, wer was auditiert, welche Kontrollen bei dir liegen und wie du Vorfälle meldest.
+title: Sicherheit und Compliance
+description: Zertifizierungen einordnen, Zuständigkeiten klären und Nachweise für eine Sicherheitsprüfung sammeln.
 ---
 
-Trust und Compliance auf Cloud ist die Seite, die ein Auditor will. Sie benennt die Frameworks, gegen die die Plattform zertifiziert ist, trennt Verantwortlichkeiten zwischen Tale und deiner Org sauber, listet die für dich verfügbaren Datenschutzkontrollen und sagt dir, wen du anrufst, wenn etwas schiefgeht.
+Tale verfügt über Zertifizierungen nach ISO/IEC 27001 und SOC 2 Type II. Fordere für eine Sicherheitsprüfung die passenden Zertifikate, den Geltungsbereich der Berichte und ergänzende Unterlagen bei deinem Tale-Kontakt an. Verwende die Nachweise für den Dienst, den deine Organisation bezieht.
 
-Der Inhalt hier ist beschreibend — was heute ausgeliefert wird, welche Belege Tale auf Anfrage übergeben kann. Die rechtlichen Dokumente selbst (DPA, Terms, Privacy) leben unter [Legal](/de/legal/privacy); diese Seite ist die schnelle Betreiber-Referenz.
+Die Produktkontrollen unterstützen eure Prozesse. Ob ein Einsatz eure Anforderungen erfüllt, hängt auch von der Konfiguration, den angebundenen Anbietern und den betrieblichen Abläufen ab.
 
-## Eine durchgespielte Kontrolle — Audit-Logs von Anfang bis Ende
+## Eine Prüfung vorbereiten
 
-Der Compliance-Verantwortliche der Org muss nachweisen, dass „jede Änderung an Zugriffskontrollen mit Akteur, Ziel und Zeitstempel protokolliert wird". Tales [Audit-Logs](/de/platform/admin/governance/audit-logs) zeichnen jede Mitgliedseinladung, Rollenänderung, Entfernung und 2FA-Zurücksetzung mit der User-ID des Akteurs, der ID des betroffenen Mitglieds und einem ISO-Zeitstempel auf. Logs sind unveränderlich — einen Schnappschuss wiederherzustellen verändert sie nicht — und gemäss dem konfigurierten Floor der Org aufbewahrt. Der Verantwortliche exportiert einen Datumsbereich als CSV, übergibt ihn dem Auditor, und das durchgespielte Beispiel räumt die Kontrolle ab.
+Stelle den Dienstleistungsvertrag, die Vereinbarung zur Auftragsverarbeitung, die relevanten Zertifizierungsnachweise und eine Beschreibung der Installation zusammen. Die [Datenschutzerklärung](/de/legal/privacy) und die Angaben zu [Unterauftragsverarbeitern](/de/legal/subprocessors) ergänzen die Prüfung. Halte Version und Geltungsbereich jedes Dokuments fest.
 
-## Zertifizierungen und Frameworks
+Kläre, welche Organisation und Installation geprüft werden. Eine Zertifizierungsaussage ersetzt nicht die Prüfung, ob ein konkreter Dienst oder eine Konfiguration vom Bericht abgedeckt ist.
 
-Tale Cloud ist derzeit gegen die folgenden Frameworks auditiert oder attestiert; die Zertifizierungsberichte sind unter NDA über den Support verfügbar:
+## Zuständigkeiten klären
 
-- SOC 2 Type II (jährlich)
-- ISO/IEC 27001
-- DSGVO-konforme Kontrollen (EDPB-Leitlinien angewendet)
-- FADP-konforme Kontrollen für die Schweizer Region (revDSG)
+| Bereich | Tale in der Cloud | Deine Organisation |
+| --- | --- | --- |
+| Hosting und Wartung | Betreibt den vereinbarten Dienst | Wählt das Angebot und stimmt Änderungen ab |
+| Identität und Zugriff | Stellt Konten, Rollen und SSO bereit | Fügt Mitglieder hinzu und prüft deren Rechte |
+| Modellanbieter und Konnektoren | Stellt Integrationskontrollen bereit | Wählt Dienste, Zugangsdaten und zulässige Nutzung |
+| Nutzungs- und Inhaltsrichtlinien | Stellt Regeln und Aufzeichnungen bereit | Konfiguriert Regeln und bearbeitet Ereignisse |
+| Datenanfragen und Aufbewahrung | Stellt die unterstützten Abläufe bereit | Legt Anforderungen fest und genehmigt Aktionen |
 
-Geplant: HIPAA BAA (US-Enterprise-Kunden), zusätzliche regionale Attestierungen, wenn die Regionsliste wächst.
+Im Eigenbetrieb trägt dein Betreiber zusätzlich die Verantwortung für die Infrastruktur. Welche Unterstützung Enterprise umfasst, regelt euer Vertrag.
 
-## Geteilte Verantwortung
+## Kontrollen im Produkt prüfen
 
-| Kontrolle                     | Tale                   | Du                      | Beleg                                                         |
-| ----------------------------- | ---------------------- | ----------------------- | ------------------------------------------------------------- |
-| Infrastruktur-Verfügbarkeit   | ✓                      |                         | Status-Seite, SOC 2 SLA-Bericht                               |
-| Datenverschlüsselung ruhend   | ✓                      |                         | Architektur-Beschreibung                                      |
-| Verschlüsselung im Transit    | ✓                      |                         | TLS-Terminierung an Tales Edge                                |
-| Mitgliedsidentität und Rollen |                        | ✓                       | [Mitglieder und Rollen](/de/platform/admin/members-and-roles) |
-| API-Key-Ausgabe und Rotation  |                        | ✓                       | [API-Keys](/de/platform/admin/api-keys)                       |
-| Content-Filterung und DLP     | Stellt Hooks bereit    | Konfiguriert Regeln     | [Guardrails](/de/platform/admin/governance/guardrails)        |
-| Audit-Log-Aufbewahrung        | Stellt Speicher bereit | Setzt die Aufbewahrung  | [Aufbewahrung](/de/self-hosted/configuration/retention)       |
-| Auskunftsanfragen             | Stellt Workflow bereit | Initiiert und genehmigt | [DSAR](/de/platform/admin/governance/data-subject-requests)   |
-| Provider-Credentials          |                        | ✓                       | [Provider](/de/platform/admin/providers)                      |
+- [Mitglieder und Rollen](/de/platform/admin/members-and-roles) regeln den Zugriff. Prüfe inaktive Konten und erhöhte Rechte.
+- [Enterprise-SSO](/de/platform/admin/enterprise-sso) bindet euren Identitätsanbieter an. Teste Anmeldung und Wiederherstellung, bevor du SSO verpflichtend machst.
+- [Audit-Logs](/de/platform/admin/governance/audit-logs) helfen bei der Untersuchung erfasster Aktionen. Die [Integritätsprüfung](/de/self-hosted/operate/security/audit-log-integrity) erklärt Manipulationsnachweise und deren Grenzen.
+- [Schutzregeln](/de/platform/admin/governance/guardrails), [Legal Hold](/de/platform/admin/governance/legal-hold) und [Betroffenenanfragen](/de/platform/admin/governance/data-subject-requests) unterstützen bestimmte Prozesse. Prüfe ihren Geltungsbereich, bevor du dich auf sie stützt.
 
-## Datenschutz-Kontrollen
+## Einen Vorfall melden
 
-Innerhalb des Produkts zählen drei Kontroll-Oberflächen für Compliance:
+Nutze bei einem Betriebsproblem den vereinbarten Enterprise-Supportkanal. Melde vermutete Sicherheitslücken über [GitHubs vertraulichen Meldeweg](https://github.com/tale-project/tale/security) oder an `security@tale.dev`. Nenne die betroffene Version und Schritte zur Reproduktion. Veröffentliche keine Zugangsdaten oder personenbezogenen Daten in einem Issue.
 
-- **Audit-Logs** — unveränderlicher Datensatz, wer was getan hat; Aufbewahrung konfigurierbar.
-- **Legal Hold** — nimmt eine Datensatz-Menge bis zur Aufhebung aus der Aufbewahrung; abgedeckt in [Legal Hold](/de/platform/admin/governance/legal-hold).
-- **Auskunftsanfragen** — der Anfrage-→-Übernahme-→-Löschung-→-Audit-Workflow; abgedeckt in [DSAR](/de/platform/admin/governance/data-subject-requests).
-
-## Vorfälle melden
-
-Tales Sicherheitsvorfall-Kontakt ist `security@tale.dev`. Vermutete Schwachstellen-Offenlegung folgt der Responsible-Disclosure-Policy auf derselben E-Mail. Kundenseitige Sicherheits-Advisories erscheinen im [Security-Advisory-Feed](/de/self-hosted/operate/security/advisories) und gehen dem Inhaber der Org per E-Mail zu; die [Status-Seite](/de/develop/status-page) meldet nur die Verfügbarkeit und trägt keine Advisories.
-
-## Wo das hineinpasst
-
-Trust und Compliance ist die Audit-Zeit-Seite; [Daten-Residenz](/de/cloud/data-residency) ist die Architektur-Zeit-Seite; [Subprozessoren](/de/legal/subprocessors) ist die Vendor-Listen-Seite. Ein Auditor will normalerweise alle drei zugleich — leg dir Lesezeichen für alle drei. Betreibst du self-hosted, sind die Kontrollen dieselben; was sich ändert, ist, wer die Infrastruktur darunter betreibt — siehe [Self-hosted-Übersicht](/de/self-hosted/overview).
+Wo Daten verarbeitet werden, beschreibt [Datenresidenz in der Cloud](/de/cloud/data-residency).

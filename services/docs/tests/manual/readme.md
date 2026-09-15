@@ -1,6 +1,6 @@
 # Manual tests
 
-The manual layer of the docs site's test suite. The docs already have a strong **static** gate — the vitest content suite validates links, images, videos, navigation entries, redirects, locale mirrors, frontmatter and page structure at build time, and the Playwright smoke spec checks the rendered shell. What no automation covers is the reader-facing runtime: search quality, scroll-spy, copy buttons, theme, the phone drawer. That is what these suites exercise.
+Use this layer to judge the documentation as a reader: whether search results answer the query, screenshots are useful at reading width, instructions match the product, and navigation and focus remain clear. The content tests cover structure, locale parity, links and assets. Playwright covers selected runtime interactions; check [the automation register](reference/automation.md) before repeating them. A passing automated check does not establish prose quality or the usefulness of a translation.
 
 **Suites and rounds are separate things.** The files under [`suites/`](suites)
 are the tests: evergreen, re-runnable, and **never ticked in place**.
@@ -77,7 +77,7 @@ Change-scoped, by area:
 
 | What changed | Run |
 |---|---|
-| cross-cutting WCAG 2.1 AA sweep (theme | [accessibility](suites/accessibility.md) (`A11Y-`) |
+| theme, focus, image zoom and other accessibility changes | [accessibility](suites/accessibility.md) (`A11Y-`) |
 | code blocks + copy buttons | [content](suites/content.md) (`CONT-`) |
 | `/de` + `/fr` trees | [locale](suites/locale.md) (`LOC-`) |
 | rail integrity | [navigation](suites/navigation.md) (`NAV-`) |

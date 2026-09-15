@@ -1,67 +1,29 @@
 ---
 title: Run Compose yourself
-description: The production compose contract — networks, aliases, probes, volumes — so you can write the stack without the CLI.
+description: Assemble Tale's images, stores, networks, secrets, and health probes when your team owns the orchestration.
 ---
 
-This page is what a stack must reproduce when you write Compose or Kubernetes yourself instead of running `tale deploy`: which services hold state, the DNS names, the probes, the volumes. The CLI path stays in [Quickstart](/self-hosted/install/quickstart) and [Upgrades](/self-hosted/operate/upgrades).
+Use this reference when your team maintains the deployment files and rollout process. The [CLI quickstart](/self-hosted/install/quickstart) is the shorter path when you want Tale to generate those files and coordinate upgrades. There is no official Helm chart. The sandbox spawner supports Docker and Kubernetes backends; choose the matching runtime and network configuration.
 
-## When this path is the right one
+This is a deployment contract with an application-tier example, not a complete Compose file ready to start. Assemble and validate the storage, proxy, and sandbox services before using that example.
 
-Use the CLI when you can run it. Use this page when you write Compose, or when you map the same contract onto Kubernetes.
+## Choose the service layout
 
-| Use this page when | Use the CLI when |
-| ------------------ | ---------------- |
-| You write production Compose, or a cluster mapping — air-gap, existing automation, no CLI on the host | [Quickstart](/self-hosted/install/quickstart) plus `tale deploy` when you want blue-green, `tale backup`, and `tale rollback` |
+| Group | Services | Lifecycle |
+| --- | --- | --- |
+| Replicable application | `platform`, `backend-api`, `backend-worker` | Same image and release. Keep shared wire contracts compatible during replacement. |
+| Persistent stores and edge | `db`, `object-store`, `proxy` | Preserve volumes, credentials, certificates, and stable network names when replacing containers. |
+| Shared execution services | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Coordinate active sessions before replacement; the spawner needs the Docker daemon and matching workspace paths. |
+| Optional video support | `bgutil-provider` | Best-effort token provider; its failure can affect video retrieval. |
 
-There is no official Helm chart.
+The packaged layout keeps `tale_app` and `tale_knowledge` in one Postgres service with a `knowledge-db` alias. Separate database services or managed databases are also possible; configure their connections and backup coverage explicitly. Recreating a stateful container does not inherently destroy its data, but removing or replacing its volume can.
 
-## Stateful and stateless
+## Pin compatible images
 
-Ten services, two kinds. Stateful services hold disks and fixed identity — recreate them and you lose data or break DNS. Stateless services are interchangeable replicas of one image; recreate them in place on upgrade. One compose file is the default. Split files or Kubernetes is yours, as long as the DNS names, the isolated sandbox network, and the boot order stay.
-
-```mermaid
-flowchart TB
-  subgraph stateful [Stateful]
-    proxy[proxy]
-    db[db]
-    store[object-store]
-    sandbox[sandbox]
-    egress[sandbox-egress]
-    gw[sandbox-llm-gateway]
-    bg[bgutil-provider]
-  end
-  subgraph stateless [Stateless]
-    platform[platform]
-    api[backend-api]
-    worker[backend-worker]
-  end
-  proxy --> platform
-  proxy --> api
-  api --> db
-  api --> store
-  api --> sandbox
-  api --> gw
-  worker --> db
-  worker --> bg
-  sandbox --> egress
-  sandbox --> gw
-```
-
-`sandbox-llm-gateway` is the harness path: the api provisions it, and a session container reaches it as `llm-gateway`. `bgutil-provider` is the worker's YouTube PO-token sidecar and is best-effort — video-link ingest degrades without it.
-
-The three stateless services share one image (`ghcr.io/tale-project/tale/tale-platform:<version>`). `TALE_ROLE` picks `api` or `worker` at boot; the web tier is the same image without that role. Pin every `tale-*` image to the same release tag so the wire contracts cannot skew.
-
-| Kind | Services |
-| ---- | -------- |
-| Stateful | `proxy`, `db`, `object-store`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway`, `bgutil-provider` |
-| Stateless | `platform`, `backend-api`, `backend-worker` |
-
-## The images
-
-Every `tale-*` image is published on the GitHub Container Registry under the same release tag, so one version number pins the whole stack. Two services run upstream images with versions of their own.
+Set `VERSION` in Compose's `.env` to the Tale release you have reviewed and tested. Export that same value in your shell when running the separate runtime-image pull below. Keep Tale images on one release; the two upstream services have their own pinned versions.
 
 | Service | Image |
-| ------- | ----- |
+| --- | --- |
 | `platform`, `backend-api`, `backend-worker` | `ghcr.io/tale-project/tale/tale-platform:<version>` |
 | `proxy` | `ghcr.io/tale-project/tale/tale-proxy:<version>` |
 | `db` | `ghcr.io/tale-project/tale/tale-db:<version>` |
@@ -71,25 +33,34 @@ Every `tale-*` image is published on the GitHub Container Registry under the sam
 | `object-store` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
-One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. Pull that image yourself before the first `up`. The spawner warms it at boot and does not start answering on `:8003` until the pull finishes, so on a cold host the sandbox sits in `starting` for as long as several gigabytes take to arrive — `tale deploy` pulls it ahead of the stack for exactly this reason.
+Session containers use the additional image `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`. Set `SANDBOX_RUNTIME_IMAGE` on the spawner and pull it before startup. Its default local development tag is not sufficient on a host that never built it. If you enable Docker-in-container or shared build caching, also provision the compatible runtime and cache images described in the [environment reference](/self-hosted/configuration/environment-reference).
 
-Every example below reads its tag from one variable, so a stack cannot end up with a 0.5.11 api beside a 0.5.9 proxy:
+## Prepare secrets and public addresses
 
-```bash
-# .env — the one line that pins all seven tale-* images
-VERSION=0.5.11
-```
+Generate unique values before the first start, and persist them in your secret-management system. Do not copy the sample credentials from a development environment into a production stack.
 
-`0.5.11` is the release this page happened to be written against, not a recommendation. Install the current one: its number is on the [latest release](https://github.com/tale-project/tale/releases/latest) page, and that is what belongs in `VERSION`. Compose substitutes it from the `.env` in the project directory — the same file that carries your secrets.
+| Value | Requirement |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | Stable, high-entropy authentication secret. |
+| `ENCRYPTION_SECRET_HEX` | A 32-byte hex value, for example generated with `openssl rand -hex 32`; preserve it for existing encrypted database values. |
+| `DB_PASSWORD` or external database credentials | Match the database role the backend actually uses. |
+| `SANDBOX_TOKEN` | The same high-entropy token in backend and spawner. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Stable gateway management credential shared with the backend; the username defaults to `admin`. |
+| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Credentials valid for the chosen store. Map them to `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` on bundled MinIO. |
+| `OBJECT_STORE_PUBLIC_ENDPOINT` | The browser-reachable endpoint, usually `SITE_URL` when Tale's proxy forwards the bundled store. |
+| SOPS age identity | Required to decrypt the configuration sidecars you have encrypted; see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops). |
 
-## The stateless services
+The backend reconciles an environment-managed default object-store connection at startup. A `managedBy: operator` file is deliberately left alone. Changing storage credentials does not move or inherently orphan blobs, but the store and backend must agree before reads and writes work. The gateway retains its established password hash; restore the matching secret or follow its credential-rotation procedure rather than deleting its volume as routine troubleshooting.
 
-Below are the three stateless roles — aliases, `/ping` as liveness, `TALE_ROLE`, `NET_ADMIN`. Put the stateful services in the same file or elsewhere; the tables on this page are what they must still do. Pin the image tag and fill `.env` from the [Environment reference](/self-hosted/configuration/environment-reference).
+Set `HOST`, `SITE_URL`, and `TLS_MODE` for the public path. [TLS and domains](/self-hosted/configuration/tls-and-domains) covers certificates, additional origins, and subpaths.
+
+## Assemble the application tier
+
+The three roles share an image. `TALE_ROLE=api` and `TALE_ROLE=worker` select backend roles; keep that variable unset for the web service. Do not put a fixed `container_name` on roles you intend to scale.
 
 ```yaml
-# Stateless app tier. No container_name: --scale needs free names.
-# Add db, proxy, sandbox, … in this file or another — your call. In one file,
-# add depends_on: { db: { condition: service_healthy }, … } as well.
+# Application-tier fragment; add the stores, proxy, and sandbox services.
+# No container_name on replicated services.
 services:
   platform:
     image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
@@ -116,10 +87,10 @@ services:
       TALE_ROLE: api
       PORT: '3005'
       TALE_CONFIG_DIR: /app/data
-      DATABASE_URL: postgresql://tale:${DB_PASSWORD}@db:5432/tale_app
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tale:${DB_PASSWORD:?required}@db:5432/tale_app}
       SANDBOX_URL: http://sandbox:8003
       SANDBOX_HTTP_API_BASE_URL: http://backend-api:3005
-      OBJECT_STORE_ENDPOINT: http://object-store:9000
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT-http://object-store:9000}
     env_file: [.env]
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
@@ -140,10 +111,10 @@ services:
     environment:
       TALE_ROLE: worker
       TALE_CONFIG_DIR: /app/data
-      DATABASE_URL: postgresql://tale:${DB_PASSWORD}@db:5432/tale_app
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tale:${DB_PASSWORD:?required}@db:5432/tale_app}
       SANDBOX_URL: http://sandbox:8003
       SANDBOX_HTTP_API_BASE_URL: http://backend-api:3005
-      OBJECT_STORE_ENDPOINT: http://object-store:9000
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT-http://object-store:9000}
     env_file: [.env]
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
@@ -160,294 +131,119 @@ networks:
     enable_ipv6: false
 ```
 
-There is no checked-in production compose to copy. The CLI generates a split file pair and deletes it after `up`. Your file does not have to look like that.
+Explicit `environment` entries override `env_file`. The fragment therefore preserves external database and object-store overrides instead of silently forcing bundled addresses. Add health-based dependencies in a single Compose project, or enforce startup ordering in your orchestrator when services live in separate projects.
 
-## Secrets you generate before the first boot
+## Preserve network names and isolation
 
-`tale init` mints every secret and writes the `.env`; without the CLI that job is yours. The [Environment reference](/self-hosted/configuration/environment-reference) marks what each variable does — the five below are the ones a hand-rolled stack most often ships without, because the example file leaves them commented for the CLI to fill.
+| Address | Target and network requirement |
+| --- | --- |
+| `platform` | Web replicas on the internal application network. |
+| `backend-api` | API replicas on the application and sandbox networks, reachable on port 3005. |
+| `knowledge-db` | The knowledge Postgres target, or use `KNOWLEDGE_DATABASE_URL`. |
+| `object-store` | Bundled MinIO on the application network. |
+| `sandbox` | Spawner reachable by the backend on port 8003. |
+| `sandbox-egress` | Egress proxy reachable by sandbox sessions on port 3128. |
+| `sandbox-llm-gateway` / `llm-gateway` | Gateway reachable from backend and sandbox sessions on port 8080. |
+| `bgutil-provider` | Token sidecar reachable by the worker on port 4416. |
 
-| Variable | Value | What breaks without it |
-| -------- | ----- | ---------------------- |
-| `SANDBOX_TOKEN` | `openssl rand -hex 32` | The spawner exits at startup. It holds the host docker socket and answers every session container, so it has no unsigned mode; the backend signs every spawner call with the same value. |
-| `OBJECT_STORE_ACCESS_KEY` | `tale`, or a name of your own | The backend logs `object store (skipped)` at boot and refuses every upload. There is no image default for it — the store's root user must carry the same value. |
-| `OBJECT_STORE_SECRET_KEY` | `openssl rand -hex 32` | Same skip, same silence. Rotating it later orphans every blob already written under the old credential. |
-| `OBJECT_STORE_PUBLIC_ENDPOINT` | your `SITE_URL` | Uploads fail in the browser with a network error: the presigned URL the backend hands out points at the internal `http://object-store:9000`, which no browser can reach. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | `openssl rand -hex 32` | Every agent run fails with "the agent run could not start". The gateway's management API is dual-homed onto the sandbox network, so the backend refuses to call it anonymously — and no management call means no session virtual key, so no harness turn ever starts. The username defaults to `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
+The sandbox network must be isolated from direct outbound access. The generated stack names it `tale-sandbox-net`; if you choose another name, keep `SANDBOX_EGRESS_NETWORK` and the actual network consistent. Egress must still go through `sandbox-egress`.
 
-The public endpoint is the one to get right before you start, not after. The backend seeds the deployment-default blob connection into the config volume on its first boot (`default/object-storage/connection.json`) and never rewrites a default that already exists, so setting the variable on an instance that has already booted changes nothing. To repair such an instance, add `"publicEndpoint": "<your SITE_URL>"` to that file and restart the backend.
+Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file storage, set `OBJECT_STORE_UPSTREAM=object-store:9000` and use the same `OBJECT_STORE_BUCKET` on proxy and backend. Publish the public proxy's ports 80/443; keep databases, store administration, gateway, and sandbox APIs private. Preserve trusted client forwarding if another proxy sits upstream.
 
-The gateway password is the other one to get right the first time. The gateway hashes it into its own `llm-gateway-data` volume on first use and verifies against that hash from then on, so a value changed later leaves the backend with a 401 it cannot talk its way out of — recover by wiping that volume, which also throws away every virtual key it holds.
+## Mount persistent state and required capabilities
 
-## Networks and DNS names
+| Resource | Required mounts or settings |
+| --- | --- |
+| Organization configuration | `config-data:/app/data` read-write on backend roles, read-only on `platform`; read-only at `/app/platform-config` on the spawner. |
+| Application and bundled knowledge data | `db-data:/var/lib/postgresql/data`; separate knowledge service needs its own persistent volume. |
+| Bundled object storage | `object-store-data:/data` and MinIO `command: server /data`. |
+| Proxy certificates and state | `caddy-data:/data`, `caddy-config:/config`. |
+| Gateway state | `llm-gateway-data:/app/data`. |
+| Spawner | `/var/run/docker.sock` and `/var/lib/tale-sandbox` mounted at the same host/container paths. Docker-socket access gives control over the host daemon. |
+| Backend roles | `cap_add: [NET_ADMIN]` for the shipped entrypoint's network fence. |
+| Egress service | The shipped restricted capability set: `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` after dropping other capabilities. |
+| Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
+| Web and spawner shutdown | Allow the web tier's 45-second and spawner's 30-second stop grace; coordinate active work before stopping. |
 
-Two Docker networks carry every hop. An ordinary compose network is enough for the internal plane. The sandbox bridge must be named `tale-sandbox-net` and marked `internal` so the spawner can `docker run --network tale-sandbox-net` and a session container cannot reach the internet without going through `sandbox-egress`. A bridge without `internal` is an open path out.
+Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`; mounting it alone does not create a backup schedule. Older `convex-data` configuration volumes need a deliberate transfer into `config-data`, not deletion. Preserve the old copy until verified.
 
-| Name the process resolves | Who answers | Networks |
-| ------------------------- | ----------- | -------- |
-| `backend-api` | Every healthy api replica still attached | `internal`, `sandbox` |
-| `platform` | Every healthy web-tier replica still attached | `internal` |
-| `knowledge-db` | The `db` service (production folds the corpus into the same Postgres) | `internal` |
-| `object-store` | MinIO | `internal` |
-| `sandbox` | The sandbox spawner | `internal`, `sandbox` |
-| `sandbox-egress` | The egress proxy | `internal`, `sandbox` |
-| `llm-gateway` | `sandbox-llm-gateway` | `internal`, `sandbox` |
-| `bgutil-provider` | The worker's YouTube PO-token sidecar, which it reaches at `http://bgutil-provider:4416` by default | `internal` |
-| `HOST` (your public hostname) | `proxy`, so a container can hairpin to the public URL | `internal` |
+## Use the right health probes
 
-Workers have no shared alias. Nothing addresses a worker by name; they only claim jobs from the queue. Colour-suffixed aliases (`backend-api-blue`, `platform-green`) are only for a blue-green while two versions are up at once.
+| Service | Probe | Meaning |
+| --- | --- | --- |
+| `backend-api` | `curl -sf http://localhost:3005/ping` | Process liveness; stays available during drain. |
+| `backend-api` | `GET /ready` on port 3005 | Whether the backend is accepting new work; separate from external-store health. |
+| `platform` | `curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]` | Web service startup completed. |
+| `backend-worker` | Disable the image's web healthcheck. | No HTTP server; monitor jobs and worker progress separately. |
+| `proxy` | `curl -sf http://127.0.0.1:2020/health` | Proxy process responds. |
+| `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres and initialization are ready; adapt the user to your configuration. |
+| `object-store` | `mc ready local` | Bundled MinIO readiness. |
+| `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner readiness after runtime-image preparation. |
+| `sandbox-egress` | `nc -z 127.0.0.1 3128` | Local proxy port, independent of a third-party website. |
+| `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Use the image's available client; it does not ship `curl`. |
 
-The proxy sends app API lanes to `backend-api:3005` (`BACKEND_UPSTREAM`). It sends `/api/health` and the SPA to `platform:3000`, and it health-checks `platform` on `/api/health`. Fail that probe on a draining web replica and Caddy marks the whole site down.
+Give cold starts enough time: downloading the sandbox runtime can take longer than a warm-host probe budget. A successful readiness probe does not prove file access, model credentials, or an entire user task. Check those separately.
 
-## Volumes
+## Connect external stores
 
-Name these logical volumes in your compose. One file can let compose create them. Mark them external only if something outside this file must mount the same disks.
+External application Postgres replaces `DATABASE_URL`; external knowledge uses `KNOWLEDGE_DATABASE_URL`. The latter needs pgvector and, for full hybrid search, pg_search. Supply a session-compatible connection and any required `POSTGRES_CA_FILE`. Do not assume a transaction pooler preserves the session behavior Tale needs.
 
-| Volume | Who mounts it | What it holds |
-| ------ | ------------- | ------------- |
-| `config-data` | Backend read-write, platform read-only, sandbox read-only at `/app/platform-config` | Org config: agents, skills, providers, governance, SSO, branding |
-| `db-data` | `db` at `/var/lib/postgresql/data` | `tale_app` and `tale_knowledge` |
-| `db-backup` | `db` at `/var/lib/postgresql/backup` | In-container Postgres backup target |
-| `object-store-data` | `object-store` at `/data` | Blobs |
-| `caddy-data`, `caddy-config` | `proxy` at `/data` and `/config` | Certificates and Caddy state |
-| `llm-gateway-data` | `sandbox-llm-gateway` at `/app/data` | Per-session virtual keys |
+For external S3-compatible storage, set the `OBJECT_STORE_*` values and browser endpoint explicitly. AWS S3 can use an empty custom endpoint; other stores may need path-style addressing. Provision object permissions and browser CORS, then test an actual upload and download. Remove only the bundled services you no longer use, along with their `depends_on` references; keep old volumes until migration is verified.
 
-Instances upgraded from before 0.5.11 may still have a `convex-data` volume beside `config-data`. The CLI copies the store across once and never deletes the old volume. A hand-rolled first boot on a fresh host does not need `convex-data`.
+Changing URLs does not migrate existing rows or files. [Data residency](/self-hosted/configuration/data-residency) describes the per-organization and deployment-wide choices. External stores require their own coordinated backups, outside `tale backup`'s volume archives.
 
-## Health probes
+## Start and accept the installation
 
-Liveness and readiness are different questions. Mixing them cuts a draining replica out of DNS before in-flight work finishes, or keeps an unready replica in the pool.
-
-The command column is what the shipped stack runs — each one uses a client that exists in that image.
-
-| Service | Probe | What it means |
-| ------- | ----- | ------------- |
-| `backend-api` | `curl -sf http://localhost:3005/ping` | Liveness. Stays 200 while the replica drains. Docker and Caddy use this. |
-| `backend-api` | `GET /ready` on `:3005` | Readiness. 503 once this replica is draining. The deploy asks this; Docker and Caddy do not. |
-| `platform` | `curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]` | Ready to serve the SPA. Keep this 200 while the replica still holds the `platform` alias. |
-| `backend-worker` | None | The worker exposes no HTTP. Disable the image's baked web healthcheck or the replica reads permanently unhealthy. |
-| `proxy` | `curl -sf http://127.0.0.1:2020/health` | Caddy admin health. |
-| `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres accepts connections and init finished (the knowledge database and extensions). `start_period` 120s. Stop the container with `SIGINT`, not `SIGTERM`. |
-| `object-store` | `mc ready local` | MinIO is accepting writes. |
-| `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner is up. `start_period` 15s once the runtime image is on the host — long enough to cover the pull if it is not. Do not publish this port on a public host. |
-| `sandbox-egress` | `nc -z 127.0.0.1 3128` | tinyproxy is bound. Do not probe an external host. |
-| `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Gateway is up. The image ships busybox `wget` and no `curl`. |
-
-Two of these punish the obvious guess, and both fail in a way that points at the wrong container. A `curl` probe on the gateway exits 127 (`/bin/sh: curl: not found`) and the container never leaves `starting`, even though it is serving the whole time — and because `sandbox` and `backend-api` wait on it with `condition: service_healthy`, `docker compose up` aborts with `dependency failed to start` on a stack where nothing is actually broken. The sandbox has the same shape for a different reason: it stays silent on `:8003` while it warms the runtime image, so a `start_period` sized for a warm host marks it unhealthy on the first boot of a cold one.
-
-## Environment the compose must inject
-
-The [Environment reference](/self-hosted/configuration/environment-reference) is every variable the process reads from `.env`. The rows below are what the compose file itself must set — image defaults point the process at the wrong host.
-
-| Name | Value on a production stack |
-| ---- | --------------------------- |
-| `TALE_ROLE` | `api` on `backend-api`, `worker` on `backend-worker`. Unset on `platform`. |
-| `PORT` | `3005` on the api. The proxy's `BACKEND_UPSTREAM` default is `backend-api:3005`. |
-| `TALE_CONFIG_DIR` | `/app/data` |
-| `DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` — or a Postgres of your own, see [Stores you already have](#stores-you-already-have). |
-| `SANDBOX_URL` | `http://sandbox:8003` |
-| `SANDBOX_HTTP_API_BASE_URL` | `http://backend-api:3005` |
-| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` — or your own S3 endpoint; leave it unset for AWS S3 proper. |
-| `SANDBOX_EGRESS_NETWORK` | `tale-sandbox-net` |
-| `SANDBOX_EGRESS_PROXY` | `http://sandbox-egress:3128` |
-| `SANDBOX_TOKEN` | The same value everywhere. `sandbox` refuses to start without it; the backend signs its spawner calls with it. |
-| `SANDBOX_RUNTIME_IMAGE` | `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>` on `sandbox`. The default is a local build tag that a production host does not have. |
-| `BACKEND_UPSTREAM` | `backend-api:3005` on `proxy`. |
-| `OBJECT_STORE_UPSTREAM` | `object-store:9000` on `proxy`, so presigned URLs are forwarded at `/<bucket>/*`. |
-| `OBJECT_STORE_BUCKET` | `tale-blobs` by default. Rename it and the same name has to reach `proxy` and both backend roles. |
-| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | No image default. With either missing the backend configures no blob store at all and refuses every upload. |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | On `object-store`: the store reads its own names, so map `OBJECT_STORE_ACCESS_KEY` and `OBJECT_STORE_SECRET_KEY` onto them. |
-| `TALE_DB_ROLE` | Unset on the folded `db`. The default role creates `tale_knowledge` and applies the corpus migrations; `platform` skips them and leaves the corpus tableless. |
-
-## Stores you already have
-
-Writing the compose yourself is also how you run Tale against a database and an object store you
-already operate. Three variables decide it, all read on every start, so each of these is an `.env`
-change plus a restart of `backend-api` and `backend-worker` — never a rebuild.
-
-| Store | Variable | Drop the service? |
-| ----- | -------- | ----------------- |
-| Application database | `DATABASE_URL` | Yes — `db` disappears, along with `db-data` and `db-backup`. |
-| Knowledge corpus | `KNOWLEDGE_DATABASE_URL` | Only together with the application database: on the single-host stack both live in the one `db` service. |
-| Blobs | `OBJECT_STORE_*` | Yes — `object-store` and `object-store-data` disappear, and `proxy` no longer needs `OBJECT_STORE_UPSTREAM`. |
-
-Drop a service and you must also drop the `depends_on` entries pointing at it, or compose refuses
-to start the tier that waits for a container that no longer exists.
-
-<Steps>
-
-<Step title="Prepare the databases">
-
-The application database needs no extensions and no superuser — a database and a role that may
-create schemas is enough; the backend migrates it at boot. The knowledge corpus needs `pgvector`
-already installed, because Tale creates schemas and tables but never extensions:
-
-```sql
-CREATE DATABASE tale_app;
-CREATE DATABASE tale_knowledge;
-\c tale_knowledge
-CREATE EXTENSION IF NOT EXISTS vector;
--- Optional. Without it hybrid search degrades to vector-only instead of failing.
-CREATE EXTENSION IF NOT EXISTS pg_search;
-```
-
-Point Tale at the database's own port, never at a transaction-mode pooler — the job queue holds
-`LISTEN` connections, the boot migrator holds a session-scoped advisory lock, and queries use
-prepared statements.
-
-</Step>
-
-<Step title="Prepare the bucket">
-
-Create the bucket, or let Tale create it: it probes with `HeadBucket` first and only creates what
-is absent, so a key restricted to `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject` on a bucket
-you provisioned is enough.
-
-Presigned uploads and downloads run in the browser, so the bucket needs a CORS policy allowing your
-`SITE_URL` origin with `GET`, `PUT` and `HEAD`.
-
-</Step>
-
-<Step title="Point the backend at them">
-
-```bash .env
-DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_app?sslmode=verify-full
-KNOWLEDGE_DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_knowledge?sslmode=verify-full
-POSTGRES_CA_FILE=/run/secrets/postgres-ca.pem
-
-# Leave OBJECT_STORE_ENDPOINT unset for AWS S3 proper.
-OBJECT_STORE_ENDPOINT=https://minio.internal
-OBJECT_STORE_BUCKET=tale-blobs
-OBJECT_STORE_ACCESS_KEY=...
-OBJECT_STORE_SECRET_KEY=...
-OBJECT_STORE_PUBLIC_ENDPOINT=https://minio.example.com
-```
-
-`OBJECT_STORE_PUBLIC_ENDPOINT` is where the *browser* reaches the bucket. Set it when that differs
-from the endpoint the backend uses; for a bucket the browser can already reach, leave it unset and
-drop the proxy's `/<bucket>/*` forwarding with it.
-
-Mount the CA bundle into both backend services if you asked for `sslmode=verify-ca` or
-`verify-full` — managed providers usually sign with roots Node does not ship, and without the
-bundle the backend refuses the connection at boot rather than downgrading silently.
-
-</Step>
-
-<Step title="Confirm it took">
-
-The boot log states what the object-store variables did — `seeded` on a fresh config volume,
-`reconciled` after a change, `skipped` when no credential pair is set:
+Bring stores up before dependent services and use restart policies such as `unless-stopped`. Prepare `VERSION` in the shell as described above, then validate your complete Compose file:
 
 ```bash
-docker compose logs backend-api | grep 'object store'
-```
-
-Then read the reachability gauge, which is `1` per store only when the backend can actually talk to
-it:
-
-```bash
-curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
-```
-
-</Step>
-
-</Steps>
-
-<Warning>
-
-`tale backup` snapshots Docker volumes. It announces blobs that live in an external bucket and
-skips that volume, but it has no equivalent awareness of an external **database**: with
-`DATABASE_URL` or `KNOWLEDGE_DATABASE_URL` pointed off the box, a snapshot looks complete and
-contains none of that data. Back those databases up with your provider's own tooling — see
-[Backups and restore](/self-hosted/operate/backups-and-restore).
-
-</Warning>
-
-## Capabilities and mounts that break if omitted
-
-These look optional and fail closed when they are missing.
-
-| Service | Must have | What breaks without it |
-| ------- | --------- | ---------------------- |
-| `backend-api`, `backend-worker` | `cap_add: [NET_ADMIN]` | The entrypoint cannot install the SSRF iptables fence (IMDS, link-local, RFC1918). |
-| `sandbox-egress` | `cap_drop: [ALL]` then `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` | No IMDS/RFC1918 fence; tinyproxy cannot bind or drop privileges. |
-| `sandbox` | `/var/run/docker.sock` and `/var/lib/tale-sandbox` bind-mounted 1:1 | The spawner cannot create session containers; workspace paths the daemon mounts will not match. |
-| `db` | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` | A `SIGTERM` wait-for-clients stop ends in `SIGKILL` and can leave the BM25 index with a zeroed page. |
-| `platform` | `stop_grace_period: 45s` | Docker's default 10s grace `SIGKILL`s the web tier mid-drain and cuts in-flight HTTP/SSE. |
-| `object-store` | `command: server /data` | The image's entrypoint prints its usage and exits, so the container never serves and `mc ready local` never passes. |
-| `object-store` | No published ports | Presigned URLs go through the proxy. Publishing MinIO is an extra public surface. |
-
-Publish only `80` and `443` on `proxy`. Everything else stays on the internal network.
-
-Behind a Docker-published port, IPv6 clients all arrive as one address — the bridge gateway's, because Docker's userland proxy rewrites their source — unless the daemon runs with `ip6tables` and the proxy's network is IPv6-enabled; until it does, every IPv6 caller shares one per-address budget (a failed API key, the webhook door) and one address in the audit trail. The platform reads the real client from `X-Forwarded-For` only past hops it trusts — loopback and private ranges by default, which covers the `proxy` container; a proxy that reaches `backend-api` from a public address must be listed under `trustedProxies` in the deployment's login policy (`$TALE_CONFIG_DIR/default/governance/login-policy.yml`, or `.json`) before its forwarded addresses count, or every caller is charged as the proxy.
-
-## Boot order
-
-Bring the stores up first, then the sandbox plane, then the app tier. An api that starts before `db` and `object-store` are healthy crash-loops on `ENOTFOUND` and on a missing database. In one file, `depends_on` with `service_healthy` is enough.
-
-```bash
-# The pull is not a compose command, so it needs the tag .env pins in this
-# shell too.
-VERSION=$(sed -n 's/^VERSION=//p' .env)
-
-# Not a compose service, and the spawner blocks on it at boot — pull it first so
-# the sandbox probe is not waiting on several gigabytes.
+docker compose config --quiet
 docker pull "ghcr.io/tale-project/tale/tale-sandbox-runtime:$VERSION"
-
 docker compose up -d
-# Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway
-# report healthy. bgutil-provider is best-effort — YouTube ingest degrades without it.
+docker compose ps
+docker compose logs --tail=100 backend-api backend-worker
 ```
 
-Give every service a restart policy (`restart: unless-stopped`). Nothing else brings a container back after a host reboot or an OOM kill, and a stack that boots once but never again is the failure operators find weeks later.
+Confirm healthy services, successful backend migrations, and worker progress. Open the public URL, follow [First administrator](/self-hosted/install/first-admin), configure a provider and embedding model, and test a controlled chat, file upload/download, and knowledge query. If harnesses are required, verify a sandbox session too.
 
-Schema migrations run inside the backend at boot, under an advisory lock. There is no separate migrate step. A replica that cannot apply a migration fails to start; leave the previous api running until the new one is healthy.
+Database migrations run at backend boot. Your deployment procedure must keep compatible versions serving during that work, stop on migration failures, drain active work before replacement, and retain a recovery record. The CLI's blue-green coordination, pending-flip recovery, automatic snapshots, and rollback checks do not happen merely because you copied its service layout.
 
-## Kubernetes
+## Map the contract to Kubernetes
 
-There is no Helm chart and no official manifest. Map the Docker contract; do not invent a second architecture.
+Use Deployments and stable Services for the application roles, with a shared configuration volume whose storage supports the required writes and locks. Use persistent volumes or external services for stores. Configure the sandbox spawner with `SANDBOX_BACKEND=kubernetes`: it creates session Pods and workspace PVCs through the Kubernetes API instead of the host Docker socket.
 
-| Docker | Cluster |
-| ------ | ------- |
-| Stateless `platform`, `backend-api`, `backend-worker` | Deployments. Same image; `TALE_ROLE` picks the process. Scale these. |
-| Stateful `db`, `object-store`, `proxy`, sandbox plane | StatefulSets (or equivalent) plus the volumes on this page. Do not run two writers against one disk. |
-| Compose DNS names (`backend-api`, `platform`, `knowledge-db`, `sandbox`, `llm-gateway`, …) | Services with those names. The proxy and the sandbox resolve them. |
-| `tale-sandbox-net` marked `internal` | A NetworkPolicy (or isolated CNI) that blocks a session pod from the internet except through `sandbox-egress`. |
-| `GET /ping` on the api | Liveness. Stays 200 while the replica drains. |
-| `GET /ready` on the api | Your rollout's readiness question. Do not point the Service at `/ready` if you drain. |
-| Sandbox `docker.sock` and `/var/lib/tale-sandbox` bind-mounted 1:1 | The hard part. The spawner creates session containers; the workspace path the daemon mounts must match the path inside the spawner. A cluster that cannot offer a Docker socket (or an equivalent) cannot run the sandbox plane. |
-| `cap_add: [NET_ADMIN]` on the backend | The SSRF iptables fence. Without it the entrypoint cannot lock IMDS and RFC1918. |
+### Prepare the sandbox namespace
 
-Publish only 80 and 443. Leave Postgres, MinIO, and the sandbox port off the public Service list.
+Keep the session Pods, egress proxy, and model gateway in the intended sandbox namespace. Provide a StorageClass that can preserve and reattach workspace volumes where resumed Pods schedule.
 
-In-place recreate of the stateless Deployments is the default. Zero-downtime is a rolling update you own.
+| Setting | Requirement |
+| --- | --- |
+| `SANDBOX_BACKEND` | `kubernetes`. Docker-only host paths and bridge names do not configure this backend. |
+| `SANDBOX_K8S_NAMESPACE` | Session namespace; defaults to `tale-sandbox`. |
+| `SANDBOX_RUNTIME_IMAGE` | The matching Tale sandbox runtime image, available to cluster nodes. |
+| `NODE_EXTRA_CA_CERTS` | Cluster CA file, normally `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` inside the spawner. Preserve TLS verification. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Workspace PVC size, default `4Gi`; also bounds the inner Docker temporary store when enabled. |
+| `SANDBOX_K8S_CACHE_STORAGECLASS` | Workspace StorageClass; unset uses the cluster default. |
+| `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
+| `SANDBOX_EGRESS_PROXY` | Reachable egress service, default `http://sandbox-egress:3128`. |
 
-## What you give up without the CLI
+The spawner ServiceAccount needs these permissions in that namespace:
 
-`tale deploy` is not a compose up. The commands below have no equivalent in a file you maintain.
+| Resource | Verbs |
+| --- | --- |
+| `pods` | `create`, `get`, `list`, `delete`, `patch` |
+| `secrets` | `create`, `delete`, `list` |
+| `persistentvolumeclaims` | `get`, `create`, `delete` |
+| `networkpolicies` in `networking.k8s.io` | `create`, `update` |
 
-| CLI behaviour | What you do instead |
-| ------------- | ------------------- |
-| Blue-green flip: start the idle colour, wait for every replica, drain the old api, then `docker network disconnect` | In-place recreate, or implement the flip yourself. Disconnect severs live connections — drain first. |
-| `tale backup` / `tale rollback` | Your own volume snapshots. Rollback of a minor or major is a snapshot restore, not a down-migration. |
-| Flip-pending resume after a killed deploy | Your own record of which colour is live. |
-| Config-volume copy from `convex-data` on a pre-0.5.11 host | Copy the store yourself, or start fresh. |
-| Sandbox `/v1/drain` before an in-place spawner roll | `SIGTERM` plus a 30s stop grace is the backstop; in-flight runs still die if you recreate without draining. |
+Session operations use HTTP to runnerd on the Pod IP, port 8200. They do not need `pods/exec`, and session Pods do not receive a ServiceAccount token. Allow the spawner's required control-plane and runner connections in your policies. The [sandbox Kubernetes contract](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) contains the namespaced Role and runtime details.
 
-An in-place recreate of the stateless services is the default. Zero-downtime is the part you reimplement.
+### Prove isolation and lifecycle
 
-## What production must not do
+The spawner applies an egress NetworkPolicy for session Pods, allowing DNS and the sandbox namespace. Your CNI must enforce NetworkPolicy. Failure to create the policy is logged but does not stop spawner startup: verify that the effective policy exists and actually blocks an unapproved destination before admitting workloads. Proxy environment variables alone do not enforce isolation.
 
-These look local and break a public instance.
+Check the egress proxy's IPv6 protection and the [inner Docker network prerequisites](/self-hosted/configuration/environment-reference#sandbox-infrastructure). For nested Docker, choose an explicit `SANDBOX_DIND_INNER_POOL` outside the cluster's Pod, Service, and VPC ranges; a Pod cannot discover every cluster network.
 
-| Don't | Why |
-| ----- | --- |
-| Publish `5432`, `8003`, or MinIO | Extra public surface. Presigned URLs go through the proxy. |
-| Run a second Postgres for the corpus | Production folds `tale_knowledge` into `db` and aliases that service `knowledge-db`. |
-| Pin names on the app tier | Replicas cannot share a container name. |
-| Build from source on a public host | Pin `ghcr.io/tale-project/tale/<image>:<tag>`. |
-| Ship placeholder secrets | Generate them before the first up. |
-| Give session containers a path to the internet | The sandbox network (or its NetworkPolicy) must be isolated. |
+A stopped session keeps its workspace PVC for resume; explicit destruction removes it. `SANDBOX_MAX_SESSIONS` counts namespace sessions but is best effort across simultaneous replica admissions. Use ResourceQuota and measured CPU/memory limits for hard cluster bounds.
 
-## Where this fits
-
-You now have the contract: which services hold state, two networks, the DNS names the proxy and the sandbox resolve, the probes that must not be swapped, and what Kubernetes must still do. [Environment reference](/self-hosted/configuration/environment-reference) is every variable the containers read. [Container architecture](/self-hosted/operate/container-architecture) is what each container owns when one of them dies. Most teams still want the [quickstart](/self-hosted/install/quickstart) and `tale deploy` — this page is the path when that wrapper is the thing you cannot run.
+Test create, execution, runner restart, idle stop, resume with files intact, and explicit destruction. With multiple spawner replicas, test cross-replica access too. Map application readiness and drain behavior deliberately and observe in-flight requests during an update. The CLI's Docker rollout coordination does not operate a Kubernetes deployment for you.

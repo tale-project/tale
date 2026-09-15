@@ -1,32 +1,35 @@
 ---
 title: Analyse des retours
-description: Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle.
+description: Compare les évaluations de chat et les verdicts d’arène, lis les commentaires et examine la qualité des réponses.
 ---
 
-Analyse des retours est le dashboard qui transforme les pouces par message et les verdicts d'arène en courbes de tendance. Les membres laissent le retour inline dans le chat ; cette page l'agrège par assistant, par modèle et dans le temps, pour que la régression du changement de voix de la semaine dernière soit visible comme un chiffre, pas comme un pressentiment. Les Administrateurs et Propriétaires lisent cette page quand un changement de modèle ressemble à une dégradation, quand un assistant performe moins que les autres, ou quand la direction veut la posture qualité approximative de chaque assistant dans l'organisation.
+En tant qu’admin ou propriétaire, consulte **Paramètres > Métriques > Retours** pour examiner les retours soumis dans le chat. Les évaluations indiquent ce que les membres ont trouvé utile ; leurs commentaires aident à comprendre pourquoi.
 
-## Un drill-down mis en pratique
+## Trouver les retours utiles
 
-Ouvre **Paramètres > Métriques > Retours** et la vue par défaut est le sentiment org-wide sur les 7 derniers jours — élargis la période quand la fenêtre est calme. **Top assistants par retour** montre le ratio d'utilité par assistant avec son volume, pour que les assistants réellement utilisés ressortent ; filtre sur l'un d'eux et la courbe de sentiment et les commentaires récents suivent. **Top modèles par retour** est la même donnée découpée selon le modèle qui a produit chaque réponse notée.
+Choisis une période, puis filtre par type de retour, assistant ou modèle. Les fenêtres disponibles sont 1, 7, 30 et 90 jours, ainsi que toute la période ; la vue initiale utilise 7 jours. Sélectionner un assistant ou un modèle dans une répartition filtre la vue. Efface les pastilles pour l’élargir à nouveau.
 
-## Les deux signaux
+Utilise **Commentaires uniquement** pour privilégier les explications écrites. Si aucun retour n’apparaît, vérifie la période et les filtres. Les évaluations sont volontaires : une réponse non évaluée n’est ni un vote positif ni un vote négatif.
 
-**Retour pouces** est le signal par message — un pouce en haut ou un pouce en bas sur une réponse d'assistant. Le pouce porte un commentaire libre optionnel ; le commentaire est par ligne et n'entre jamais dans le ratio. Les membres peuvent changer leur pouce ou le retirer entièrement ; les chiffres reflètent le dernier état.
+## Distinguer les signaux
 
-**Verdicts d'arène** est le signal par comparaison — quand un membre fait tourner deux modèles côte à côte en [mode arène](/fr/platform/chat/arena-mode), le verdict atterrit ici. Le résumé compte les votes décisifs, les égalités et les « les deux mauvais » ; **Top duels de modèles** garde le score par paire, parce qu'un « A gagne » n'a de sens que contre le modèle battu.
+| Signal | Ce qu’il indique |
+| --- | --- |
+| Pouce vers le haut/bas | Si un membre a trouvé une réponse précise utile. Un commentaire facultatif apporte du contexte. |
+| Verdict d’arène | Quelle réponse a été préférée dans une paire donnée, ou si les réponses sont à égalité ou toutes deux mauvaises. |
 
-## Ventilations
+Les membres peuvent modifier ou retirer une évaluation. Le tableau de bord reflète l’état actuel, pas un compteur permanent de chaque clic. Le [mode arène](/fr/platform/chat/arena-mode) explique comment comparer deux réponses.
 
-Le dashboard découpe selon trois dimensions :
+## Comparer les résultats équitablement
 
-- **Assistant** — chaque assistant avec des réponses notées a sa propre ligne avec les comptes utile et pas utile et le sentiment qui en découle.
-- **Modèle** — chaque modèle qui a produit une réponse notée contribue ; les paires d'arène restent tête à tête dans le tableau des duels.
-- **Temps** — la courbe du sentiment au fil du temps suit la fenêtre choisie, d'un jour à 90 jours. Au-delà de 50 000 entrées dans une fenêtre, la page montre des résultats partiels et demande de resserrer.
+Lis le nombre d’évaluations avec la proportion de réponses utiles. Un seul vote positif apporte moins d’information que des retours répétés sur les tâches réellement traitées. Compare des périodes et des tâches similaires avant d’attribuer une variation au modèle ou à la configuration d’un assistant.
 
-## Commentaires libres
+Utilise les tableaux par assistant et modèle pour localiser la variation, la tendance pour la dater, puis les commentaires des retours récents pour la comprendre. Pour l’arène, compare la même paire de modèles : une victoire contre l’un ne prouve pas une supériorité sur tous les autres.
 
-Les commentaires apparaissent dans la liste **Retours récents** sous les chiffres agrégés. Filtre avec **Commentaires uniquement** pour masquer les pouces nus, et par type pour séparer les pouces de chat des verdicts d'arène. Les commentaires sont soumis à la même politique de rétention que les conversations auxquelles ils appartiennent ; si un thread est purgé ou mis à la corbeille, ses commentaires partent avec.
+<Tip>
+Croise cette lecture avec l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics). Un modèle peut coûter moins par requête tout en demandant davantage d’essais pour obtenir une réponse utile.
+</Tip>
 
-## Où cela s'inscrit
+## Comprendre les résultats partiels
 
-Analyse des retours est le pouls de chaque assistant dans l'organisation — l'endroit où une régression de voix ou de comportement de modèle apparaît avant que quelqu'un la signale. La page compagnon est [analyse d'utilisation](/fr/platform/admin/governance/usage-analytics) — les mêmes assistants et modèles, découpés par dépense et volume de tokens au lieu de qualité.
+Les grandes périodes peuvent atteindre la limite d’agrégation de 50 000 entrées. Si Tale signale des résultats partiels, réduis la période avant de conclure. La rétention et les suppressions déterminent aussi quels commentaires et évaluations restent disponibles. Cette vue n’est pas une archive permanente des retours.

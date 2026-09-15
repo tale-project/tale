@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
 import { HighlightedCode } from './highlighted-code';
 
@@ -76,6 +77,7 @@ function CodeBlockHeader({ label, hideCopy, code }: CodeBlockHeaderProps) {
 }
 
 function HeaderCopyButton({ code }: { code: string }) {
+  const { t } = useT('markdownCopy');
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -104,7 +106,7 @@ function HeaderCopyButton({ code }: { code: string }) {
       type="button"
       onClick={handleCopy}
       disabled={copied}
-      aria-label={copied ? 'Copied' : 'Copy code'}
+      aria-label={copied ? t('codeCopied') : t('copyCode')}
       aria-live="polite"
       className={cn(
         'text-fg-muted hover:text-fg-base hover:bg-bg-base/60 inline-flex size-7 shrink-0 items-center justify-center rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20',

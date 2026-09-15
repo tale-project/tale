@@ -38,6 +38,11 @@ const STREAM_WRITE_INTERVAL_MS = 250;
 export interface ThreadWriteScope {
   userId: string;
   projectId: string | null;
+  /** The one write an archive may still take: the settlement of a send
+   * accepted BEFORE the thread or its project was archived — its prompt
+   * beside a `cancelled` reply under the id the 202 promised. A turn's own
+   * writes never set this. */
+  allowArchived?: boolean;
 }
 
 /** Hold the metadata row that move/archive/trash update until the write
@@ -52,12 +57,14 @@ export async function assertThreadWriteScope(
       'The conversation is no longer writable in the accepted project scope.',
       409,
     );
+  const allowArchived = args.allowArchived === true;
   const threads = await tx<{ id: string }[]>`
     SELECT t.id FROM app.threads t
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
     WHERE t.id = ${args.threadId} AND t.org_id = ${args.organizationId}
       AND t.user_id = ${args.userId} AND tm.status = 'active'
-      AND tm.chat_type = 'direct' AND tm.archived = false
+      AND tm.chat_type = 'direct'
+      AND (tm.archived = false OR ${allowArchived})
       AND tm.project_id IS NOT DISTINCT FROM ${args.projectId}
     FOR UPDATE OF tm
   `;
@@ -66,7 +73,7 @@ export async function assertThreadWriteScope(
     const projects = await tx<{ id: string }[]>`
       SELECT id FROM app.projects
       WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
-        AND archived_at_ms IS NULL
+        AND (archived_at_ms IS NULL OR ${allowArchived})
       FOR SHARE
     `;
     if (

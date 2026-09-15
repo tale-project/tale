@@ -1,48 +1,86 @@
 ---
-title: Crawling
-description: Wie Tale eine Website in Wissen verwandelt — Domain registrieren, URLs über die Sitemap entdecken, geplante Re-Scans und die Ansicht der indexierten Seiten.
+title: Websites zum Wissen hinzufügen
+description: Wähle öffentliche Seiten für die Indexierung, lege ein Intervall fest und untersuche fehlende oder veraltete Inhalte.
 ---
 
-Eine Website ist die Form der Wissensdatenbank für „eine öffentliche Seite, die der Agent kennen soll“. Du gibst Tale eine Domain und ein Scan-Intervall; der Crawler entdeckt URLs, holt Seiten, extrahiert den Hauptinhalt, chunked und bettet den Text ein und serviert die Chunks zur Antwortzeit genauso wie bei Dokumenten. Brauchst du gezielte Seiten statt einer ganzen Website, übergibst du stattdessen eine URL-Liste — dieselbe Pipeline läuft dann genau über die Seiten, die du nennst. Diese Seite geht durch, was du zwischen dem Hinzufügen einer Domain und den ersten Agenten-Zitaten ihrer Seiten siehst.
+Füge eine Website hinzu, wenn dein Team Fragen zu öffentlichen, veränderlichen Inhalten stellen möchte. Tale ruft die ausgewählten Seiten ab und indexiert ihren lesbaren Text für die Wissenssuche. Zum Verwalten brauchst du Redakteurrechte oder höher. Seiten hinter einer Anmeldung benötigen einen anderen Importweg, etwa [Dokumente](/de/platform/knowledge/documents).
 
-<Frame caption="Eine Website hinzufügen — im Modus „Gesamte Website“ ist Domain plus Scan-Intervall das ganze Formular.">
+## Eine Website oder einzelne Seiten hinzufügen
 
-![Der Dialog Website hinzufügen auf dem Websites-Tab, der nach einer Domain und einem Scan-Intervall fragt, das standardmäßig auf alle sechs Stunden steht.](/images/platform/websites-add-dialog.webp)
+Öffne **Wissen > Websites** und klicke auf **Website hinzufügen**. Wähle vor der Adresse den Quelltyp:
+
+| Quelltyp | Wann er passt | Eingabe |
+| --- | --- | --- |
+| **Gesamte Website** | Du möchtest Inhalte innerhalb einer Domain entdecken lassen | Eine **Domain**, etwa `example.com` |
+| **URL-Liste** | Du brauchst bestimmte Seiten oder öffentliche Dokumente | Eine Adresse pro Zeile unter **URLs** |
+
+Bei einer ganzen Website wird aus einer URL nur der Hostname verwendet. Ein eingefügter Pfad beschränkt den Crawl nicht auf diesen Pfad. Nutze dafür die URL-Liste. Eine `http://`-Adresse wird abgewiesen, weil der Crawler nur über HTTPS holt, und ein Punkt am Ende fällt weg. Schreibweisen mit und ohne `www` zählen als dieselbe Website; beide hinzuzufügen führt zu einer Duplikatmeldung.
+
+Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; die Auswahl reicht von einer Stunde bis zu dreißig Tagen. Der Scheduler übernimmt neue Quellen. Das Speichern bedeutet nicht, dass bereits alle Seiten abgerufen und indexiert wurden.
+
+<Frame caption="Für eine ganze Website genügen Domain und Scan-Intervall. Für eine bestimmte Seitenauswahl nutze die URL-Liste.">
+
+![Der Dialog Website hinzufügen zeigt Domain und Scan-Intervall mit sechs Stunden als Standard.](/images/platform/websites-add-dialog.webp)
 
 </Frame>
 
-## Eine Website hinzufügen
+## Eine URL-Liste gezielt halten
 
-Öffne **Wissen > Websites** und klicke auf **Website hinzufügen**. Der **Quellentyp** entscheidet, was die Quelle abdeckt: **Gesamte Website** — der Standard — crawlt alles, was sich auf der Domain entdecken lässt, **URL-Liste** indexiert genau die Seiten, die du einfügst (dazu der nächste Abschnitt). Im Modus Gesamte Website hat der Dialog zwei Felder: **Domain** (zum Beispiel `example.com`) und **Scan-Intervall** — jede Stunde, alle 6 Stunden (der Standard), alle 12 Stunden, täglich, alle 5 Tage, alle 7 Tage oder alle 30 Tage. Tale liest den Host aus dem heraus, was du einfügst — `https://` und ein Pfad sind verkraftbar — und weist alles ab, was sich nicht als Hostname lesen lässt. Der Host wird so gespeichert, wie du ihn angibst, `www.` eingeschlossen, und die Schreibweisen mit `www.` und ohne (Apex) zählen als eine Site: Fügst du das Geschwister einer Domain hinzu, die du schon verfolgst, lehnt Tale das als Duplikat ab und nennt die gespeicherte Schreibweise — entscheide dich also für eine und bleib dabei. Klicke auf **Speichern**; der Scheduler nimmt neue Websites beim nächsten Takt auf, der erste Scan startet also binnen Sekunden.
+Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
 
-<Note>
+Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
 
-Es gibt kein Auth-Feld und keine Include/Exclude-Pfadliste — der Crawler sieht exakt das, was ein anonymer Besucher sieht. Alles hinter einem Login gehört stattdessen in [Dokumente](/de/platform/knowledge/documents) oder eine [Connector](/de/platform/connectors/overview).
+## Entdeckung und Aktualisierung verstehen
 
-</Note>
+Bei einer ganzen Website nutzt der Crawler Startseite und veröffentlichte Sitemaps, einschließlich Sitemap-Indizes und in `robots.txt` angegebener Sitemaps. Fehlen brauchbare Sitemaps, folgt er Links innerhalb der Domain von der Startseite aus. Seiten, die weder in Sitemaps noch über erreichbare Links vorkommen, können fehlen. Nutze eine URL-Liste, wenn bestimmte Seiten enthalten sein müssen.
 
-## Eine URL-Liste hinzufügen
+Scans arbeiten schrittweise: Unveränderte Inhalte werden übersprungen, geänderte erneut indexiert, neue Seiten hinzugefügt und entfernte aus dem Index genommen — ebenso Seiten, die die `robots.txt` inzwischen verbietet. Die Seitenzähler der Zeile folgen dem Scan, während Seiten landen, nach dem Entdecken und nach jedem gespeicherten Batch, die Tabelle bewegt sich also, während ein Scan läuft. Eine URL-Liste aktualisiert ihre feste Auswahl nach demselben Zeitplan. Nach erfolgreicher Indexierung ist keine gesonderte Veröffentlichung nötig.
 
-Stelle den **Quellentyp** auf **URL-Liste**, wenn du bestimmte Seiten willst statt einer ganzen Website — hier ein Bericht, da eine Preisseite, dazu eine Handvoll PDFs. Füge unter **URLs** eine URL pro Zeile ein; nur diese Seiten werden geholt und indexiert, Links darüber hinaus folgt der Crawler nicht. Die Zeilen dürfen mehrere Websites mischen: Der Dialog gruppiert sie zu einer Quelle pro Website, aus einem Einfügen über drei Domains werden also drei Zeilen. Fügst du für eine Website, die schon eine Liste hat, erneut URLs ein, landen die neuen in der bestehenden Quelle — nichts fällt weg, und das Scan-Intervall wechselt auf deine neue Wahl. Listen scannen im selben Takt wie ganze Websites; ihre Zeilen tragen in der Tabelle das Badge **URL-Liste**.
+Der Crawler besucht die Seiten ohne Anmeldung. Eine URL macht private Inhalte nicht zugänglich. Bei jeder Anfrage stellt er sich als `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)` vor, sodass eine `robots.txt`-Gruppe ihn beim Namen nennen kann — `User-agent: TaleBot` —, um allein ihn zu erlauben, zu drosseln oder abzuweisen.
 
-## Wie URLs entdeckt werden
+Der Crawler hält sich an die `Disallow`-Regeln der `robots.txt` für den Agenten `*` auf jedem Weg, über den eine URL hereinkommen kann — die Sitemaps, der Linklauf und die Links, die eine gerenderte JavaScript-Seite preisgibt — und noch einmal vor jedem Abruf: Eine Seite, die eine Regel abdeckt, wird nie geholt, und eine Seite, die eine später hinzugekommene Regel abdeckt, verlässt den Index beim nächsten Scan. Ausdrücklich angegebene URLs filtern die Regeln nicht: Eine gelistete Adresse ist deine Anweisung. Liefert ein Abruf den HTTP-Header `X-Robots-Tag: noindex` oder `none` oder trägt die Seite ein HTML-Tag `<meta name="robots" content="noindex">`, wird der Inhalt nicht indexiert — auch bei einer URL-Liste —, und was ein früherer Scan von der Seite gespeichert hat, fällt weg. Diese Regeln sind Höflichkeit, kein Zugriffsschutz: Wenn du die Quellwebsite verwaltest, verlass dich nicht auf den Crawler als Zugangskontrolle.
 
-Der Crawler versucht zuerst den kooperativen Weg. Er löst die Startseite auf und geht jede Sitemap durch, die die Website veröffentlicht — `sitemap.xml`, Sitemap-Indizes, gezippte und in der robots-Datei deklarierte Sitemaps — und sammelt so die URL-Liste, die die Website selbst pflegt. Websites mit gesunder Sitemap bekommen vollständige Abdeckung ohne Raten. Beim Entdecken hält sich der Crawler an die `Disallow`-Regeln der `robots.txt` für den User-Agent `*` — nicht bei URLs, die du selbst aufführst: Eine ausdrückliche Liste ist deine Anweisung — und überspringt eine Seite, die mit `X-Robots-Tag: noindex` antwortet; so eine Seite steht in der Seitenliste als `robots_noindex`. Einer URL mit ausdrücklichem Port (`:8001`) folgt er nie, und er listet sie auch nicht — eine Website wird nur über ihren Standardport erreicht.
+Verwende HTTPS am Standardport. Adressen mit einem abweichenden Port wie `:8001` werden abgewiesen. Private Adressen und Weiterleitungen in private Netze sind gesperrt, sofern der Betreiber solche internen Quellen nicht ausdrücklich für seine Installation freigegeben hat.
 
-Fehlt die Sitemap, ist sie kaputt oder leer, fällt der Crawler auf einen Breitensuche-Linklauf von der Startseite zurück: nur Links innerhalb der Domain, externe und Social-Links fallen weg, Navigations- und Footer-Chrome wird vor der Extraktion entfernt. Der Fallback deckt Websites ohne Sitemap ab, erreicht aber nie die Vollständigkeit einer gepflegten Sitemap.
+## Die Crawl-Grenzen berücksichtigen
 
-Nicht nur Seiten zählen. Verlinkte Dokumente — PDF- und Office-Dateien (`docx`, `xlsx`, `pptx`, `odt`) — werden wie Seiten geholt und indexiert, egal ob der Crawler sie auf einer Website findet oder du sie direkt in einer URL-Liste aufführst. Bilder, gescannte Dokumente ohne eingebetteten Text und Inhalte, die der Crawler nicht in Text verwandeln kann — ein JSON- oder XML-Endpoint, ein binärer Download —, werden übersprungen: Der Scan merkt sich, dass er nachgesehen hat, und speichert nichts; die Seite bleibt bloß entdeckt, und als Grund steht `unsupported_content` dabei.
+| Grenze | Auswirkung auf die Abdeckung |
+| --- | --- |
+| 10.000 erfasste URLs je Website | Bei größeren Websites können Seiten unentdeckt bleiben. Nutze eine gezielte URL-Liste für die benötigten Inhalte. |
+| Drei Minuten für die Seitensuche, höchstens 50 Sitemap-Abrufe | Große oder langsame Sitemap-Sammlungen werden möglicherweise nicht vollständig erfasst. |
+| 25 MiB und 30 Sekunden je Inhaltsabruf | Zu große Downloads und langsame Antworten schlagen fehl (`timeout` für das Download- und das 20-Sekunden-Darstellungsbudget); ebenso eine Seite hinter mehr als fünf Weiterleitungen (`redirect_limit_exceeded`). |
+| Fünf Minuten Verarbeitungsbudget je Abschnitt, bis zu 200 Fortsetzungen | Lange Scans laufen abschnittsweise weiter. Ein bereits begonnener Abruf oder Darstellungsvorgang kann das Abschnittsbudget überschreiten; daraus ergibt sich keine garantierte Gesamtdauer. |
+| Fünf aufeinanderfolgende Fehler bei einer automatisch entdeckten URL | Der Crawler plant diese URL nicht mehr ein. Ausdrücklich gelistete URLs werden bei jedem Scan erneut berücksichtigt, und eine gelistete Seite, die die Website mit 404 beantwortet, bleibt mit dieser Antwort in der Liste. |
 
-Eine Website ist auf 10.000 verfolgte URLs begrenzt. Ein Scan läuft in Abschnitten von je fünf Minuten, höchstens 200 davon, und endet, wenn keine offenen URLs mehr übrig sind; das Entdecken selbst hat ein Budget von drei Minuten und höchstens 50 Sitemap-Abrufen. Eine Seite über 25 MB oder langsamer als 30 Sekunden wird als Fehlschlag verbucht, und eine entdeckte Seite, die in fünf Scans hintereinander fehlschlägt, fliegt aus dem Zeitplan — eine gelistete Seite wird bei jedem Scan erneut versucht, solange sie gelistet bleibt. Ein eigenes Seitenlimit, einen Pfadfilter oder einen Stopp-Knopf gibt es nicht; eine Website, die größer ist, übergibst du besser als URL-Liste.
+Du kannst weder eine eigene Seitenobergrenze noch Pfadfilter festlegen oder einen laufenden Scan per Schaltfläche stoppen. Eine URL-Liste begrenzt die angefragte Auswahl; die genannten Grenzen gelten weiterhin.
 
-## Der Scan-Zeitplan
+## Die indexierten Inhalte prüfen
 
-Das Intervall entscheidet, wie oft URLs neu entdeckt und Seiten neu geholt werden. Jeder Scan ist inkrementell: Unveränderte Seiten werden übersprungen, geänderte neu extrahiert und neu eingebettet, neue Seiten kommen dazu, entfernte fliegen aus dem Index. URL-Listen folgen demselben Takt mit festem Bestand — die gelisteten Seiten werden nach Zeitplan neu geholt, Neues wird nicht entdeckt. Agenten, die auf die Website zeigen, sehen den neuen Inhalt beim nächsten Abruf — einen separaten Veröffentlichungsschritt gibt es nicht.
+Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** und **Intervall**. Öffne die Quellzeile, um die Seitenliste, Wort- und Chunk-Anzahl sowie den letzten Abruf zu prüfen. Klappe eine Seite auf, um die gespeicherten Textabschnitte zu lesen. Bei einem fehlgeschlagenen Abruf stehen dort Ursache und Anzahl aufeinanderfolgender Fehler.
 
-## Die Tabelle lesen
+| Status | Bedeutung |
+| --- | --- |
+| **Wird gescannt** | Ein Scan läuft; eine gerade hinzugefügte Quelle beginnt hier. |
+| **Aktiv** | Ein Scan ist erfolgreich abgeschlossen. Prüfe die einzelnen Seiten für die Abdeckung. |
+| **Fehler** | Der Scan ist fehlgeschlagen oder nach den Abrufversuchen sind keine Inhalte gespeichert. Öffne die Quelle für die Ursache. |
+| **Lösche…** | Die Quelle wird entfernt. |
 
-Jede Zeile zeigt die Domain (Quellen vom Typ URL-Liste tragen daneben das Badge **URL-Liste**), ihren **Status** — **Inaktiv** zwischen Scans, **Wird gescannt** im Flug, **Aktiv** nach einem erfolgreichen Scan, **Fehler**, wenn der letzte Scan fehlschlug oder nichts gespeichert hat (die geöffnete Zeile nennt den Grund), **Lösche…** während der Entfernung —, den Prozentwert **Indexiert** (Hover zeigt gecrawlte von insgesamt gefundenen Seiten), die letzte **Gescannt**-Zeit und das **Intervall**. Öffne eine Zeile für den entdeckten Titel und die Beschreibung der Website; klicke auf **Seiten anzeigen** für die Seitenliste — jede indexierte URL mit Wortzahl, Chunk-Zahl und letzter Crawl-Zeit und, bei einer Seite, die der Crawler nicht holen konnte, der Grund des Scheiterns samt der Zahl der fehlgeschlagenen Versuche in Folge (eine Weiterleitung auf eine private Adresse, die die Abrufsperre abgelehnt hat, ein Zertifikat, dem die Plattform nicht vertraut, eine `4xx`- oder `5xx`-Antwort, eine Seite, die der Browser nicht rendern konnte, ein verlinktes Dokument, das kein Extraktor lesen konnte, ein Inhaltstyp, den der Crawler nicht in Text verwandeln kann, oder eine Seite, deren Ursprung nicht indexiert werden will) — plus ein Suchfeld, das über die indexierten Chunks läuft und damit der schnellste Weg ist zu prüfen, was ein Agent wirklich abrufen würde. Der Grund verschwindet, sobald ein Scan die Seite wieder speichert; eine Seite aus einer URL-Liste wird bei jedem Scan erneut versucht, solange sie gelistet bleibt, eine entdeckte Seite gibt nach fünf fehlgeschlagenen Scans auf.
+Die Seitenansicht bietet auch eine Suche im indexierten Inhalt. Suche nach einer auffälligen Formulierung der Seite, bevor du dich im Chat darauf verlässt. Stelle anschließend eine konkrete Frage und prüfe den Quellenbeleg.
 
-## Wo das hingehört
+## Eine fehlende Seite untersuchen
 
-Crawling ist der günstige Weg, eine öffentliche Website in den Agenten-Kontext zu holen: eine Domain — oder eine handverlesene URL-Liste —, ein Takt, und der Rest ist das Problem des Crawlers. Der Preis ist die Grenze des anonymen Besuchers — private Inhalte brauchen [Dokumente](/de/platform/knowledge/documents) oder eine Connector. Wie die Website-Zeilen neben Kontakten und Produkten stehen, liest du in [Strukturierte Daten](/de/platform/knowledge/structured-data).
+Prüfe zuerst Adresse, Quelltyp und letzte Scan-Zeit. Öffne danach die Quelle und lies die Fehlermeldung der betroffenen Seite.
+
+| Gemeldetes Problem | Prüfung oder Abhilfe |
+| --- | --- |
+| Zertifikat nicht vertrauenswürdig | Der Website-Betreiber muss ein abgelaufenes, selbst signiertes, zum falschen Host gehörendes oder anderweitig nicht vertrauenswürdiges TLS-Zertifikat korrigieren. Weitere Scans beheben es nicht. |
+| Private Adresse, unzulässige Weiterleitung oder ungültige URL | Nutze die vorgesehene öffentliche HTTPS-Adresse. Frage bei Bedarf deinen Betreiber nach zugelassenen internen Quellen. |
+| HTTP-Fehler, Netzwerkfehler oder Zeitüberschreitung | Öffne die Originalseite und prüfe ihre Erreichbarkeit. Nach der Reparatur kann ein späterer Scan wieder erfolgreich sein. |
+| Antwort zu groß | Veröffentliche ein kleineres Dokument oder teile die Quelle auf. Die Abrufgrenze beträgt 25 MiB. |
+| Quelle untersagt die Indexierung | Die Antwort enthält `X-Robots-Tag: noindex` oder `none`, oder die Seite trägt `<meta name="robots" content="noindex">`. Der Website-Verantwortliche muss diese Vorgabe ändern, bevor Tale den Inhalt indexieren kann. |
+| Nicht unterstützter Inhalt oder kein lesbarer Text | JSON-/XML-Endpunkte, Binärdownloads, Bilder oder Scans liefern möglicherweise keinen verwertbaren Seitentext. Stelle eine HTML-Seite oder ein unterstütztes Dokument mit extrahierbarem Text bereit. |
+| Darstellung oder Textextraktion fehlgeschlagen | Prüfe, ob die öffentliche Seite lädt und sich das Originaldokument öffnen lässt. Repariere oder exportiere eine beschädigte Quelle erneut. |
+
+Ein späterer erfolgreicher Abruf entfernt den vorherigen Fehler. Nach einer fehlgeschlagenen Aktualisierung kann die früher indexierte Fassung weiterhin verfügbar sein: **Aktiv** und die Anzahl indexierter Seiten belegen nicht, dass jede Seite aktuell ist. Vergleiche gespeicherte Textabschnitte und Abrufdatum mit dem Original, bevor du dich auf eine kürzliche Änderung verlässt.
+
+Zeigt die Quelle **Pausiert**, haben wiederholte Verbindungsfehler zur Wissensdatenbank die Scans angehalten. Lass einen Administrator die Verbindung unter **Einstellungen > Datenresidenz** korrigieren und wähle danach **Scans fortsetzen**.

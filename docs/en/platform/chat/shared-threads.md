@@ -1,33 +1,39 @@
 ---
-title: Shared chats
-description: Sharing a chat with the rest of your organization — the share dialog and its link, the read-only snapshot the recipient sees, and how to stop sharing.
+title: Share a chat with your organization
+description: Create a read-only snapshot, choose when to include newer messages, and stop sharing later.
 ---
 
-Sharing a chat publishes a read-only snapshot of it at a link anyone in your organization can open. It takes two clicks and a paste: **Share** opens a small dialog where you pick **Share with organization** and create the link, then you paste it wherever your team talks. The mechanic is light enough to use casually — share a question and its answer the way you would share a document.
+Share a chat when a colleague needs to read the question and answer without continuing your conversation. The link publishes a snapshot for signed-in members of your organization. It is not a public link, and it does not update automatically as you keep chatting.
 
-## Sharing a chat
+## Create the snapshot
 
-Open the chat and click the **⋯** menu in the header, then **Share**. The **Share chat** dialog opens on **Keep private**; pick **Share with organization** and click **Create share link**. The link appears in the dialog with **Copy link** beside it, and **Preview** opens the snapshot the way a recipient will see it. The chat's row menu in the sidebar carries a shortcut: its **Share** entry creates the link and copies it straight to your clipboard — a **Link copied** toast confirms it.
+1. Open the chat’s header menu and choose **Share**.
+2. Select **Share with organization** in the **Share chat** dialog.
+3. Click **Create share link**.
+4. Use **Preview** to check the snapshot, then **Copy link** when it is ready to share.
 
-Two things worth knowing about the link:
+Read the transcript before distributing the link. A reply can contain details copied or summarized from a restricted source; sharing that reply makes its text readable to the organization members who have the link.
 
-- **It is org-scoped.** Only signed-in members of your organization can open it; it is not a public URL.
-- **It is a snapshot.** The recipient sees the conversation as it stood when you shared it. If the chat moves on and you want to share the newer state, open the dialog again and click **Include newer messages** — the link stays the same and the snapshot refreshes.
+<Frame caption="Recipients read the snapshot with its sharing byline; there is no message composer.">
 
-<Frame caption="What the recipient opens: the shared, read-only snapshot with its byline.">
-
-![A shared chat viewed read-only, showing the conversation transcript under a Shared chat heading with a byline naming who shared it and when.](/images/platform/chat-shared-view.webp)
+![A read-only shared chat shows its transcript and a byline identifying the person who shared it and the date.](/images/platform/chat-shared-view.webp)
 
 </Frame>
 
-## What the viewer sees
+## Include a later answer
 
-The link opens a read-only **Shared chat** view: the transcript, with a byline naming who shared it and when. There is no composer — a shared chat is something to read, not a place to reply. A viewer who wants to take the topic further starts their own chat — or a task in a [project](/platform/projects/overview), if what they want is a deliverable.
+New messages stay outside the published snapshot. Open **Share** again and choose **Include newer messages** when you want the same link to show the newer exchange. Preview it again before treating that version as the one colleagues should read.
 
-## Stopping sharing
+A recipient who wants to continue the topic starts their own chat. A snapshot does not create a collaborative conversation, and it does not grant access to every source mentioned in it.
 
-Switch the dialog back to **Keep private**, or pick **Stop sharing** on the chat's row menu once a chat is shared. The link stops working immediately; visitors land on a "no longer available" page. Deleting the chat has the same effect on the link. Sharing again later publishes a fresh snapshot.
+## Stop sharing
 
-## Where this fits
+Choose **Keep private** in the share dialog or **Stop sharing** in the chat’s row menu. The link becomes unavailable. Deleting the original chat also makes its share unavailable.
 
-Shared chats are the lightweight way to hand a conversation to a teammate without leaving the product. The heavier-weight alternative is bringing the teammate into a [Project](/platform/projects/overview) where chats, files, and agents are shared by default. Sharing is for one-off handoffs; a Project is for ongoing collaboration on the same work.
+Stopping a share prevents future viewing through that link. It cannot retract text someone already copied, which is why reviewing the snapshot before sharing matters.
+
+## Share with a project instead
+
+For ongoing collaboration, use **Share with project** on a chat in a [project](/platform/projects/concepts). The project’s **Chats** tab separates personal chats from those shared with the project. Project membership alone does not share your personal chats automatically.
+
+Arena comparisons cannot be shared while they remain Arena chats. Finish the comparison before sharing the conversation you keep; see [Arena Mode](/platform/chat/arena-mode).

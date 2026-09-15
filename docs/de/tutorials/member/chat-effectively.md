@@ -1,34 +1,68 @@
 ---
-title: Effektiv chatten
-description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen.
+title: Eine nützliche Chat-Antwort erhalten
+description: Übe eine gezielte Frage, prüfe den Quellenbeleg und verbessere die Antwort mit einer Rückfrage.
 ---
 
-Effektives Chatten in Tale dreht sich nicht um clevere Prompts; es dreht sich darum, dem Assistenten genug mitzugeben, damit er deine Absicht beim ersten Lesen erfasst — und zu wissen, welche Arbeit gar nicht in einen Chat gehört. Fünf kleine Gewohnheiten — fragen statt beauftragen, das passende Modell wählen, Wissen füttern statt einfügen, den Denkverlauf lesen, die Quellen prüfen — drehen die durchschnittliche Antwort von „danke für die Textwand" zu „genau, was ich brauchte". Diese Seite geht die Gewohnheiten der Reihe nach in einem frischen Chat durch.
+Eine nützliche Chat-Antwort beginnt mit einer klaren Frage und endet mit einer Quellenprüfung. Nutze für diese Übung ein kurzes Dokument, das du hochladen darfst. Frage nach einer enthaltenen Information und prüfe anschließend, ob der Assistent zwischen belegten Aussagen und offenen Punkten unterscheidet.
 
-Du brauchst eine Mitglied-Rolle — das Minimum für Chat. Die Konzeptseite ist [Chat-Grundlagen](/de/platform/chat/basics); dieser Spaziergang ist die Alltagsmechanik.
+Du brauchst Zugriff auf Chat und ein verfügbares Modell. Für Dokumentfragen muss außerdem die Wissensindexierung der Organisation funktionieren. Ein geeignetes, bereits indexiertes Dokument kannst du statt des Beispiels verwenden.
 
-## Gewohnheit 1 — Fragen statt beauftragen
+## Eine kleine Quelle vorbereiten
 
-Chat beantwortet Fragen und holt Material heran. Arbeitsergebnisse produziert er bewusst nicht — bitte um eine Präsentation, ein übersetztes Dokument oder einen Bericht, und der Assistent skizziert die Kurzfassung und verweist dich stattdessen auf eine Aufgabe. Arbeite mit dieser Grenze statt gegen sie: Ertappst du dich bei „erstell", „generier die Datei" oder „übersetz dieses Dokument", geh zu einer Aufgabe und weis sie einem Agent zu — du bekommst Verantwortliche, ein prüfbares Ergebnis und ein Erledigt, das ein Mensch kontrolliert. Einen eingefügten Satz zu übersetzen ist Chat-Arbeit; eine Datei zu übersetzen ist Aufgaben-Arbeit.
+Speichere diesen Text auf deinem Gerät als `launch-brief.txt`:
 
-## Gewohnheit 2 — Lass Auto arbeiten; nagle fest, wenn du es besser weißt
+```text
+Briefing zur neuen Website
+Die Kundenprüfung findet am 18. September 2026 statt.
+Maya Chen ist für die Prüfliste zuständig.
+Der Veröffentlichungstermin ist noch nicht freigegeben.
+Die Prüfung muss Barrierefreiheit, Weiterleitungen und das Kontaktformular abdecken.
+```
 
-Der Picker startet auf **Auto**: Er liest jede Nachricht und sucht ihr ein passendes Modell — der schnelle Lookup landet auf einem flotten Modell, die lange Reasoning-Frage auf einem starken, und die Nachrichtendetails nennen, welches geantwortet hat. Für die meisten Tage ist das der richtige Standard. Nagle ein Modell aus der Liste fest, wenn du etwas weißt, was Auto nicht wissen kann: Dieselbe Serie soll durchgehend ein Modell beantworten, genau ein Modell steht auf dem Prüfstand, oder du willst den Denkaufwand-Regler — den zweiten Abschnitt des Pickers, der bei einem festgenagelten Modell mit Regler erscheint. Dreh ihn für knifflige Fragen hoch, rechne auf der obersten Stufe mit langsameren, teureren Antworten — und gib die Auswahl an Auto zurück, wenn die Serie durch ist.
+Öffne einen neuen Chat und hänge die Datei über **Fotos & Dateien hinzufügen** im Menü des Nachrichtenfelds an. Warte auf das Ende von Upload und Indexierung, bevor du zum Text fragst. [Chat-Anhänge](/de/platform/chat/attachments) erklärt die angezeigten Zustände.
 
-## Gewohnheit 3 — Wissen füttern statt Textwände einfügen
+## Nach einem konkreten Ergebnis fragen
 
-Der Assistent durchsucht das Wissen der Organisation — Dokumente, Wissenseinträge, gecrawlte Websites, Produkte, Kontakte — und ihre Arbeit, also Aufgaben und Projekte, und lädt das Detail seiner Funde. Wo er sucht, folgt dem Ort, an dem du chattest: In einem Projekt erreicht er die Dateien dieses Projekts zusammen mit der Wissensdatenbank der Organisation und nichts aus anderen Projekten; im Organisations-Chat erreicht er die Wissensdatenbank — öffne den Chat eines Projekts, um nach dessen Dateien zu fragen. Arbeit muss niemand einspeisen: Sie ist schon da, weil sie hier läuft. Das funktioniert nur mit Material, das wirklich da ist: Lad die Preisliste oder das Richtlinien-Dokument einmal unter [Wissen](/de/platform/knowledge/documents) hoch, und jeder künftige Chat kann sie finden und belegen. Ein 200-Seiten-Dokument ins Nachrichtenfeld einzufügen füllt das Kontext-Budget und verdünnt die Antwort; eine spezifische Frage gegen hochgeladenes Material („was sagt die Rückgaberichtlinie zu geöffneten Kartons?") schlägt „erzähl mir alles über Rückerstattungen" jedes Mal.
+Sende:
 
-## Gewohnheit 4 — Den Denkverlauf lesen, nicht nur die Antwort
+```text
+Nenne anhand von launch-brief.txt den Prüftermin, die zuständige Person und
+die drei Prüfthemen. Belege die Antwort mit der Quelle. Nutze vier Stichpunkte.
+```
 
-Über jeder Antwort hält der Denkverlauf fest, was der Assistent getan hat: eine einklappbare Denkzeile und eine Schrittzeile pro Suche oder Seitenabruf — _Durchsucht den Workspace nach "…"_, _Liest example.com_. Wirf einen Blick darauf, bevor du der Antwort traust. Eine Antwort ohne Suchschritt hinter einer Tatsachenbehauptung kam aus dem eigenen Wissen des Modells; ein Suchschritt, der nichts findet, sagt dir, was fehlt — auch dann, wenn eine ganze Quelle nicht verfügbar ist, etwa Dokumente, die erst durchsuchbar werden, sobald ein Admin ein Embedding-Modell konfiguriert. Im Denkverlauf steht auch, warum ein Abruf gescheitert ist, statt dass die Antwort still darum herumarbeitet.
+Die Frage nennt Quelle, benötigte Informationen und Ergebnisform. Dadurch lässt sich die Antwort leichter prüfen als bei „Erzähl mir etwas über die neue Website“. **Auto** eignet sich als Ausgangspunkt. Wähle ein Modell ausdrücklich, wenn du sein Verhalten mit einem anderen vergleichen möchtest.
 
-## Gewohnheit 5 — Die Quellen prüfen, bevor du die Zusammenfassung weitergibst
+<Frame caption="Behalte die Frage im Blick, während du prüfst, ob die Antwort sie erfüllt.">
 
-Unter einer Antwort, die etwas gelesen hat, listet **Quellen** genau die Seiten und Dokumente, die der Assistent geladen hat — abgeleitet aus dem, was wirklich lief; eine leere Liste heißt also: nichts gelesen. Öffne eine, bevor du auf die Antwort hin handelst: Die Zwei-Minuten-Gewohnheit, pro Antwort eine Quelle zu bestätigen, fängt die kleine Teilmenge ab, in der die Zusammenfassung über das Ziel hinausschoss. Eine Web-Quelle öffnet die Live-Seite in einem neuen Tab; eine Dokument-Quelle benennt die Datei, die du unter Wissen findest.
+![Ein Chat zeigt eine gezielte Frage zum Onboarding-Feedback und eine tabellarisch gegliederte Antwort.](/images/platform/chat-thread-reply.webp)
 
-## Wo das eingesetzt wird
+</Frame>
 
-Fünf Gewohnheiten, ein Chat, dieselbe Schleife bei jedem Öffnen des Chat-Tabs. Die Gewohnheiten verstärken sich — wer innerhalb der Chat-Grenze fragt, hält die Antworten knapp; gefüttertes Wissen lässt die Suchen treffen; Denkverlauf und Quellen schließen die Vertrauensschleife.
+## Die Antwort mit der Datei vergleichen
 
-Für die Oberfläche, auf der diese Gewohnheiten leben, siehe [Chat-Grundlagen](/de/platform/chat/basics). Für die Datei-Seite — was der Assistent durchsuchen und belegen kann — siehe [Wissen](/de/platform/knowledge/overview).
+Der Prüftermin muss der **18. September 2026** sein, die zuständige Person **Maya Chen**. Die Themen sind **Barrierefreiheit, Weiterleitungen und das Kontaktformular**. Öffne die zitierte Quelle und vergleiche diese Angaben. Die Formatierung darf variieren, die Fakten nicht.
+
+Fehlt ein Beleg, bitte um eine Quellenangabe zum Dokument, statt anzunehmen, dass der Anhang gelesen wurde. Findet der Assistent den Inhalt nicht, prüfe den Indexierungsstatus und versuche es erneut, sobald die Datei bereit ist. Eine flüssige Antwort beweist keinen Quellenabruf.
+
+## Mit einer Rückfrage Unsicherheit sichtbar machen
+
+Frage im selben Gespräch:
+
+```text
+Wann ist der freigegebene Veröffentlichungstermin? Falls das Briefing
+keinen nennt, sage das ausdrücklich.
+```
+
+Die Quelle nennt **keinen** freigegebenen Veröffentlichungstermin. Eine gute Antwort bewahrt diesen Unterschied, statt den Prüftermin als Veröffentlichungstermin zu übernehmen. Macht die Antwort eine unbelegte Annahme, verweise auf den widersprechenden Satz und bitte um Korrektur.
+
+<Tip>
+
+Ändere jeweils einen Teil deiner Frage. „Kürzer“ prüft die Länge; „Trenne bestätigte Termine von offenen Entscheidungen“ prüft das Verständnis. Wenn du Quelle, Modell, Frage und Format gleichzeitig änderst, lässt sich kaum erkennen, was die Antwort verbessert hat.
+
+</Tip>
+
+## Den nützlichen Kontext behalten
+
+Setze verwandte Fragen im selben Chat fort. Beginne bei einem neuen Thema einen neuen Chat, damit frühere Annahmen nicht ablenken. Brauchen mehrere Gespräche dasselbe Briefing, lege es in einem [Projekt](/de/tutorials/member/use-projects) ab und nutze Projektchats.
+
+Lies vor dem [Teilen eines Chats](/de/platform/chat/shared-threads) die Nachrichten und Quellenzitate in der Antwort durch. Soll als Nächstes ein Ergebnis mit Zuständigkeit und Prüfung entstehen, erstelle eine [Projektaufgabe](/de/platform/projects/tasks) mit den geprüften Angaben und Abnahmekriterien.

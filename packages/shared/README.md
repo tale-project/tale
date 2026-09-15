@@ -44,6 +44,24 @@ same accepted values, defaults and refusal cases as the platform contracts.
   around `sql.begin`. `isTransientDbError` classifies SQLSTATE/Node socket error
   codes and timeout messages.
 
+- **`@tale/shared/db/serializable`** — transaction support for serializable operations.
+  Keep callbacks safe to retry; external effects belong outside a retried transaction.
+
+### Server and CLI helpers
+
+| Import | Responsibility |
+| --- | --- |
+| `@tale/shared/http/entity-tag` | HTTP entity tags and conditional request helpers |
+| `@tale/shared/http/range` | Byte-range parsing for file responses |
+| `@tale/shared/process` | Shared process execution helpers |
+| `@tale/shared/terminal` and `/terminal/live` | Terminal rendering and live output |
+| `@tale/shared/classify` | Classify command output |
+| `@tale/shared/tux` | Terminal user experience helpers |
+| `@tale/shared/utils/site-urls` | Resolve public site URLs |
+
+Check a module's imports before using it in browser code. Explicit subpaths keep Node/Bun-only
+process and terminal dependencies out of frontend bundles.
+
 ### Logging
 
 - **`@tale/shared/logging/logger`** — `createLogger(opts?)`: a `console`-backed,

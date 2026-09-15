@@ -852,7 +852,8 @@ async function dispatchMentionedProjectAgent(
  * dispatcher keeps. An agent- or workflow-authored comment naming the owning
  * automation would restart the very engine that wrote it, and each iteration
  * is a metered agent turn; `startWorkflowForTask`'s one-live-run-per-task
- * guard blocks a concurrent second start, not a sequential loop, so the
+ * guard (per task, whichever automation holds it) blocks a concurrent second
+ * start, not a sequential loop, so the
  * author type is the only thing standing between a comment and that loop.
  *
  * Returns whether a start was scheduled, so the caller can skip the steer

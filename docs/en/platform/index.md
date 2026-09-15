@@ -1,105 +1,112 @@
 ---
 title: Platform
-description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted.
+description: Learn the product by the work you want to do, from a first chat to projects, automations, and administration.
 kind: index
 ---
 
-Platform is the canonical product reference: every user-visible feature in Tale, identical for Cloud and self-hosted. The pages here describe the UI someone clicks, the concept behind the UI, and the trade-offs between features that look similar.
+Use these guides to work in Tale, whether your organization uses Cloud or runs its own deployment. Start with a question in Chat, keep recurring work in a project, or follow a specific feature guide when you need to change a setting.
 
-The section is organised by area, then by feature within an area. Most readers do not read it front to back — they land here from a search result or a link from a tutorial, and the page they landed on should answer the question they brought.
+## Move between sections {#navigation}
 
-## Feature areas
+Use the left sidebar on a computer or the bottom navigation on a phone. On a phone, **More** opens the remaining sections. When you return from another section, Tale remembers where you were. For example, open a project’s **Agents** tab, switch to **Chat**, then choose **Projects**: the same project and tab reopen.
+
+| You want to… | Do this |
+| --- | --- |
+| Resume work in another section | Choose that section in the main navigation. |
+| Return to the project list | Choose **Projects** while already inside Projects, or use the **Projects** breadcrumb above the project. |
+| Return to the Documents list | Choose **Knowledge** while already inside Knowledge. |
+| Start a new subject in chat | Choose **Chat** while already in Chat, or use **New chat**. |
+
+Bookmarks and shared links to a particular project, task, or document still open that destination. Remembered navigation does not change your access. [Account preferences](/platform/member/preferences#navigation-memory) explains how this works across tabs and organizations.
+
+## Choose a feature
 
 <CardGroup cols="2">
 
 <Card title="Chat" icon="message-circle" href="/platform/chat/overview">
 
-The everyday entry point — threads, the assistant, attachments, arena mode, voice mode, the Canvas pane, sharing.
+Ask questions, attach files, check sources, compare models, and share a conversation.
 
 </Card>
 
 <Card title="Projects" icon="folder-open" href="/platform/projects/overview">
 
-Shared workspaces that bundle files, instructions, threads, and project-scoped agents.
+Keep files, instructions, personal and shared chats, and tasks together.
 
 </Card>
 
 <Card title="Agents" icon="bot" href="/platform/agents/concepts">
 
-Instructions, knowledge, tools, model — plus skills, workers, versioning, and webhook triggers.
+Configure agents to work on project tasks with a chosen harness, model, and equipment.
 
 </Card>
 
-<Card title="Automations" icon="layout-grid" href="/platform/automations/concepts">
+<Card title="Automations" icon="workflow" href="/platform/automations/concepts">
 
-Installable bundles of connectors, agents, skills, and a workflow — the catalog, the install wizard, the editor and triggers behind each one, and the run history it leaves.
+Build a repeatable process, test it, deploy a version, and inspect its runs.
 
 </Card>
 
 <Card title="Knowledge" icon="library" href="/platform/knowledge/overview">
 
-Documents, contacts, products, websites — the structured-data model agents cite.
+Maintain documents, short facts, public websites, contacts, and products.
 
 </Card>
 
 <Card title="Approvals" icon="check-check" href="/platform/approvals/concepts">
 
-Inline cards, workflow gates, and the approver pool that keeps humans in the loop.
+Review an automation’s proposed operation before allowing it to proceed.
 
 </Card>
 
 <Card title="Skill library" icon="list-plus" href="/platform/workspace/skills">
 
-Reusable instruction bundles you keep private or share with the whole organisation.
+Create reusable instructions and share them with teams or the organization.
 
 </Card>
 
 <Card title="Models" icon="cpu" href="/platform/models">
 
-The model catalog behind every picker — capability tags, defaults, and the shipped list.
+Understand model capabilities, availability, and selection.
 
 </Card>
 
 <Card title="Connectors" icon="plug" href="/platform/connectors/overview">
 
-Third-party SaaS connectors and the credentials behind them.
+Connect external services and understand which actions agents and automations can use.
 
 </Card>
 
 </CardGroup>
 
-## Set up your first day
+## Find your starting point
 
-Four role-indexed entries map the same features from the reader's side of the desk — what a Member, an Editor, a Developer, or an Admin actually touches on day one.
+Your role controls which actions are available. Teams and project access decide which resources you can reach. Follow the route closest to your work; an administrator can explain a missing action.
 
 <CardGroup cols="2">
 
 <Card title="Member" icon="user" href="/platform/member/overview">
 
-Chat, knowledge, personal preferences — the surface most people in most orgs use.
+Ask, read shared knowledge, and organize your personal settings.
 
 </Card>
 
 <Card title="Editor" icon="pencil-ruler" href="/platform/editor/overview">
 
-The build surface — agents, knowledge curation, automations, projects.
+Maintain shared content and work with the projects you can edit.
 
 </Card>
 
 <Card title="Developer" icon="terminal" href="/platform/developer/overview">
 
-API keys, the MCP endpoint, connector credentials — wiring Tale to external code.
+Build automations and connect code, clients, and external services.
 
 </Card>
 
 <Card title="Admin" icon="shield" href="/platform/admin/overview">
 
-Organization settings, providers, branding, connectors, and the governance sub-tree.
+Set up people, providers, infrastructure, and organization policies.
 
 </Card>
 
 </CardGroup>
-
-## Where this fits
-
-Platform is the gravity well — Cloud and self-hosted both link into it for feature documentation, and every tutorial cites pages here for the underlying concepts. The page worth bookmarking on your first day is [Agents → concepts](/platform/agents/concepts) — almost every other product page assumes the four-knob mental model that page builds.

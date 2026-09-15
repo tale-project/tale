@@ -1,47 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
 import { extractOpeningProse, parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT } from './lib/paths';
 import { walkDocs } from './lib/walk';
 
-/**
- * Every page opens with at least two sentences of prose between the
- * frontmatter and the first structural element (heading, list, table, fence,
- * or component tag — a hero `<Frame>` ends the opening the same way a
- * heading does, and a page that leads with a component before two sentences
- * fails).
- *
- * From `.agents/skills/write-docs/SKILL.md` Rule 2:
- *
- *   > The block of prose between the frontmatter and the first sub-heading,
- *   > list, table, or fenced code block contains at least two complete
- *   > sentences, and answers three questions: what is this, who is this for,
- *   > why does it exist.
- *
- * Sentence count is a heuristic — terminal punctuation in masked prose. Inline
- * code spans are masked first so embedded periods (`v1.2.3`, `tale deploy`)
- * don't count as sentence boundaries.
- *
- * Pages marked `kind: index` in frontmatter are exempt — these are locale-
- * root landing pages whose body is a curated grid of sub-pages.
- */
-
-const SENTENCE_END = /[.!?](\s|$)/g;
-
-function countSentences(prose: string): number {
-  if (!prose) return 0;
-  const cleaned = prose.replace(/`[^`]*`/g, ' ');
-  const matches = cleaned.match(SENTENCE_END);
-  if (matches) return matches.length;
-  return cleaned.trim().length > 0 ? 1 : 0;
-}
-
+/** Require orientation, not a sentence quota. Editorial review judges whether
+ * the opening is useful; punctuation counting cannot establish that. Landing
+ * grids may use `kind: index` because their cards provide the orientation. */
 describe('opening paragraph', () => {
-  it('every page opens with ≥2 sentences of prose before any heading/list/table/code', () => {
+  it('every non-index page has introductory prose', () => {
     const findings: Finding[] = [];
     for (const rel of walkDocs()) {
       const raw = fs
@@ -49,17 +20,45 @@ describe('opening paragraph', () => {
         .replaceAll('\r\n', '\n');
       const { frontmatter, body } = parseFrontmatter(raw);
       if (/^kind:\s*index\b/m.test(frontmatter)) continue;
-      const opening = extractOpeningProse(body);
-      const sentences = countSentences(opening);
-      if (sentences < 2) {
+      if (!extractOpeningProse(body)) {
         findings.push({
           file: rel,
           line: 0,
-          rule: 'opening-too-short',
-          detail: `opening has ${sentences} sentence(s); needs ≥ 2 of prose before the first heading/list/table/code/component (covering what/who/why)`,
+          rule: 'opening-missing',
+          detail:
+            'add useful introductory prose before the first structural element; one concise sentence can be sufficient',
         });
       }
     }
     assertNoFindings(findings, 'Opening-paragraph issues');
+  });
+
+  it('accepts a concise opening without manufacturing a second sentence', () => {
+    expect(
+      extractOpeningProse(
+        'Upload a file to use it in a project.\n\n## Upload\n',
+      ),
+    ).toBe('Upload a file to use it in a project.');
+  });
+
+  it.each([
+    '## Upload\nChoose a file.',
+    '<!-- Internal author note. Not reader content. -->\n## Upload',
+    '![A project file list.](/images/project.webp)\n## Upload',
+    '<Frame caption="Project files">\n![Files.](/images/project.webp)\n</Frame>',
+    '```bash\ncurl "$URL"\n```',
+  ])(
+    'does not treat structural or invisible content as an introduction',
+    (body) => {
+      expect(extractOpeningProse(body)).toBe('');
+    },
+  );
+
+  it('ignores author comments before a useful opening', () => {
+    expect(
+      extractOpeningProse(
+        '<!-- capture notes -->\n\nChoose who can access the project.\n\n## Access',
+      ),
+    ).toBe('Choose who can access the project.');
   });
 });

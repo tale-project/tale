@@ -48,14 +48,11 @@ demo:
     app/demos/{name}.tsx et référence-le depuis une page.
 home:
   heroTitle: Le design system de Tale
-  heroDescription: Deux langages de design, un seul système — @tale/ui construit
-    le produit, @tale/marketing-ui le site autour. Chaque composant de cette
-    page est le vrai, en train de tourner dans ton navigateur.
+  heroDescription: Construis les écrans de ton application avec @tale/ui et tes sites publics avec @tale/marketing-ui. Les guides et les exemples interactifs t’aident à choisir et à assembler les composants.
   heroPrimary: Lire la doc
   heroSecondary: Voir sur GitHub
-  showcaseTitle: De vrais composants, pas des captures
-  showcaseDescription: La fenêtre ci-dessous rend le paquet publié. Change de
-    thème et elle suit, parce qu’elle lit les mêmes tokens que le produit.
+  showcaseTitle: Les composants dans un espace de travail fictif
+  showcaseDescription: Cette illustration utilise les composants publiés et suit le thème choisi. Essaie les exemples interactifs dans les guides.
   showcaseWindowTitle: Paramètres de l’espace de travail
   showcaseFormLegend: Général
   showcaseNameLabel: Nom de l’espace de travail
@@ -78,27 +75,18 @@ home:
   showcaseStatusActive: Actif
   showcaseStatusInvited: Invité
   sectionsTitle: La suite
-  sectionsDescription: Cinq sections, chacune répondant à une question
-    différente sur le système.
-  sectionsGettingStarted: Installer les paquets, comprendre comment ils
-    s’articulent, mettre en place le thème et les traductions.
-  sectionsFoundations: Les tokens sous chaque composant — couleur, typographie,
-    espacement, icônes, accessibilité.
-  sectionsComponents: Une page par composant, avec des exemples en direct et le
-    tableau de props tiré des sources.
-  sectionsPatterns: Comment les composants se combinent pour former les écrans
-    que le produit livre vraiment.
-  sectionsMarketingUi: La chrome du site, les primitives marketing et les cadres
-    de démo qui composent tale.dev.
+  sectionsDescription: Choisis un guide pour configurer les paquets, prendre une décision de conception ou construire ton écran.
+  sectionsGettingStarted: Installe les paquets, comprends leur articulation et configure les thèmes et les traductions.
+  sectionsFoundations: Choisis les couleurs, la typographie, les espacements et les icônes, puis vérifie l’accessibilité.
+  sectionsComponents: Choisis les états des composants et relie leurs propriétés, leurs fonctions de rappel et leurs noms accessibles.
+  sectionsPatterns: Compose des listes et des pages de paramètres avec recherche, brouillons et gestion de l’enregistrement.
+  sectionsMarketingUi: Utilise la navigation, les composants marketing et les cadres d’illustration pour construire un site public.
   installTitle: L’installer dans ton propre dépôt
-  installDescription: Les paquets livrent du TypeScript source, pas un build.
-    Épingle la branche snapshot — ou un tag de version pour une installation
-    reproductible.
+  installDescription: Les paquets fournissent du code source TypeScript. Essaie une branche snapshot, puis fixe un tag de version et enregistre le fichier de verrouillage dans Git pour obtenir une installation reproductible.
   installCodeLabel: package.json
   installDocsLink: Lire le guide d’installation
   closingTitle: Commence par l’introduction
-  closingDescription: Elle explique les deux langages, la relation entre les
-    paquets et ce qui doit rester dans un service.
+  closingDescription: L’introduction explique les deux langages visuels, la relation entre les paquets et les responsabilités de ton service.
   closingPrimary: Lire l’introduction
   closingSecondary: Voir la page Button
 footer:

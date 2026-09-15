@@ -1,83 +1,58 @@
 ---
-title: Contributor-Compose-Dateien
-description: Welche Compose-Overlays im Quellbaum liegen — für lokale Entwicklung, Docs und Tests. Kein Produktions-Installationsweg.
+title: Compose-Dateien für Beiträge
+description: Einen Entwicklungsablauf wählen und verstehen, wie die Compose-Erweiterungen des Repositorys zusammenwirken.
 ---
+Nutze die Compose-Dateien des Repositorys, um Tale aus dem Quellcode zu entwickeln oder zu testen. Im üblichen lokalen Ablauf [laufen App und Backend direkt auf dem Rechner, ihre Abhängigkeiten in Docker](/de/develop/contributor-setup). Wähle den folgenden Containerablauf, wenn deine Änderung die Entwicklungsimages prüfen soll.
 
-Diese Seite ist für Leute, die am Quellbaum arbeiten. Die Basis ist `compose.yml`; der Rest sind Overlays für Entwicklung, Docs und Tests. Operator, die Tale fahren, starten hier nicht — der CLI-Weg ist [Quickstart](/de/self-hosted/install/quickstart), und ein Stack, den du selbst schreibst, ist [Compose selbst fahren](/de/self-hosted/install/own-compose).
+Paketierte selbst gehostete Installationen verwenden den von der CLI erzeugten Stack aus dem [Schnellstart](/de/self-hosted/install/quickstart). Die Erweiterungsdateien im Quellbaum enthalten Entwicklungsports und Verzeichniseinbindungen. Prüfe sie, bevor du einen Host öffentlich erreichbar machst.
 
-Die Basis-Datei ist ein Build-from-Source-Stack für lokale Smoke-Tests. Jedes Overlay ist per `-f` opt-in. Eine produktive Instanz erzeugt `tale deploy` und nutzt diese Dateien nie.
+Wähle einen Ablauf für die zu prüfende Änderung. Native Entwicklung und Container-Frontend auf demselben Port führen zu einem Konflikt, nicht zu zwei isolierten Instanzen.
 
-<Note>
+## Die Containerentwicklung starten
 
-Der Produktionsvertrag — Netze, Aliase, Probes, Volumes — lebt in [Compose selbst fahren](/de/self-hosted/install/own-compose).
-
-</Note>
-
-## Ein durchgespieltes compose-up
-
-Die Basis-Datei baut jedes Image aus dem Quellcode und läuft mit diesem eingefrorenen Build. Sie exponiert Ports, die nie öffentlich sein dürfen (`5432`, `8003`), und bootet mit unsicheren Dev-Secret-Defaults, ist also für lokale Smoke-Tests, nicht für eine öffentliche Instanz:
+Führe die Befehle im Repository-Stamm mit der festgelegten Bun-Version und verfügbarem Docker Compose aus:
 
 ```bash
-docker compose up -d
+bun install
+bun run docker:dev
+bun run docker:dev:logs
 ```
 
-Ein Entwickler, der gleichzeitig an Platform und Docs hackt, schichtet zwei Overlays für Live-Quellen und Hot-Reload:
+`docker:dev` bereitet Image und Netzwerk der Sandbox vor, erzeugt eine Umgebungserweiterung und startet Basis-, Entwicklungs- und Docs-Konfiguration zusammen. Nutze diesen Einstieg statt nur seinen letzten Compose-Befehl zu kopieren: Die Vorbereitung gehört zum Ablauf. Die generierte Erweiterung reicht die meisten Hostvariablen an den Plattformcontainer weiter. Prüfe deshalb die Umgebung, aus der du sie startest.
+
+Mit `Ctrl-C` beendest du die laufende Protokollanzeige. `bun run docker:dev:down` stoppt diesen Stack. Behalte Datenvolumes und die bestehende Umgebung, wenn du dieselbe Instanz später fortsetzen möchtest. Ein zweiter Worktree braucht eigene Ports, Containernamen und Speicher, um unabhängig zu laufen.
+
+## Eine Erweiterungsdatei wählen
+
+| Datei | Zweck |
+| --- | --- |
+| `compose.yml` | Basisdienste aus dem Quellcode und ihre Abhängigkeiten. |
+| `compose.dev.yml` | Quellcodeeinbindungen und Entwicklungsbefehle. |
+| `compose.docs.yml` | Dokumentationsseite und Proxyzuordnung. |
+| `compose.web.yml` | Marketingseite und Proxyzuordnung. |
+| `compose.test.yml` | Containertests der Plattform. |
+| `compose.docs.test.yml` | Containertests der Dokumentation. |
+| `compose.web.test.yml` | Containertests der Marketingseite. |
+| `compose.test.mock.yml` | Integrationskonfiguration mit simulierten Diensten. |
+
+Lies vor dem direkten Aufruf einer Testerweiterung das zugehörige Skript. Es kann Images, Ports und Testdaten vorbereiten. Die passenden Prüfungen beschreibt [An Docker arbeiten](/de/develop/contributing-docker).
+
+## Die Zusammenführung prüfen
+
+Compose wendet Dateien von links nach rechts an. Spätere Dateien überschreiben oder ergänzen frühere Einträge nach den Zusammenführungsregeln von Compose. So prüfst du die Dienstnamen, ohne die aufgelöste Umgebung samt Geheimnissen auszugeben:
 
 ```bash
-docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml up -d
+docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml config --services
 ```
 
-Die linkeste Datei ist die Basis; jede nachfolgende Datei merged ihre Schlüssel obendrauf. Konflikte (gleicher Service, gleicher Schlüssel) lösen mit Last-File-wins auf. Der gemergte Graph ist, was Docker hochfährt.
+Der Befehl prüft die statischen Dateien. `docker:dev` ergänzt seine erzeugte Umgebungsdatei. Ein vollständiges `docker compose config` kann aufgelöste Zugangsdaten ausgeben. Halte diese Ausgabe aus öffentlichen Protokollen und Fehlerberichten heraus.
 
-## Die Compose-Dateien
+## Die wichtigsten Dienste verstehen
 
-| Datei                   | Anwendungsfall                                       | Bemerkenswerte Overrides                                                |
-| ----------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
-| `compose.yml`           | Lokale Dev-Basis (Build aus dem Quellcode)           | Die Basis — jeder Service, Healthchecks, Restart-Policy                 |
-| `compose.dev.yml`       | Lokale Entwicklung mit Hot-Reload                    | Bind-mountet Host-Quellen für Hot-Reload; liefert unsichere Dev-Secrets |
-| `compose.docs.yml`      | Fügt den Docs-Site-Service hinzu                     | Fährt `tale-docs` hoch und routet `/docs` durch den Proxy               |
-| `compose.web.yml`       | Fügt den Marketing-Site-Service hinzu                | Fährt `tale-web` hoch und routet `/` (Root) durch den Proxy             |
-| `compose.test.yml`      | Lässt die Platform-Test-Suite gegen den Stack laufen | Ersetzt das Platform-Image durch die test-geformte Variante             |
-| `compose.web.test.yml`  | Lässt Web-Tests laufen                               | Wie `web.yml`, aber die test-geformte Variante                          |
-| `compose.docs.test.yml` | Lässt Docs-Tests laufen                              | Wie `docs.yml`, aber die test-geformte Variante                         |
-| `compose.test.mock.yml` | Mock-gestützte Connectorstests                       | Tauscht Provider gegen Mock-Implementierungen                           |
+Der Quellcode-Stack trennt `backend-api` und `backend-worker`. Die API verarbeitet Anwendungsanfragen und Anmeldung; der Worker führt Aufgaben, Modellaufrufe und Wissensverarbeitung aus. `platform` stellt die Webanwendung bereit. `proxy` verteilt Anfragen; `db`, `knowledge-db` und `object-store` speichern Anwendungsdaten, Wissen und Dateien.
 
-## Services und ihre Rollen
+`sandbox`, `sandbox-egress` und `sandbox-llm-gateway` ermöglichen isolierte Ausführung samt Netzwerk- und Modellzugriff. Der Quellcode-Stack enthält außerdem den Hilfsdienst zur Videoverarbeitung. Die Produktivtopologie kann abweichen: Der generierte Einzelhost-Stack kombiniert Anwendungs- und Wissensdatenbank. Zuständigkeiten erklärt [Containerarchitektur](/de/self-hosted/operate/container-architecture), die Konfiguration die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
-Der Basis-Graph fährt elf Container hoch:
+## Den ersten Fehler eingrenzen
 
-- `tale-proxy` — Caddy. TLS, Reverse-Proxy, 301s.
-- `tale-platform` — der Web-Tier: eine Vite- + TanStack-Router-SPA plus der Bun-Server, der sie ausliefert, Branding und der Config-SSE-Watch.
-- `tale-backend-api` — das Application-Backend in der `api`-Rolle (`TALE_ROLE=api`). Jede Anwendungstür: die App-API, Auth, der SSE-Hinweis-Stream und die Maschinentüren.
-- `tale-backend-worker` — dasselbe Image in der `worker`-Rolle. Der Job-Runner hinter Schedules und Agent-Turns sowie die In-Process-Dokument-Ingestion, das Web-Crawling, die RAG-Indexierung und die Dokumentgenerierung, die früher separate Services waren.
-- `tale-db` — operatives Postgres (ParadeDB). Der `tale_app`-Anwendungsspeicher, auf Port 5432.
-- `tale-knowledge-db` — Postgres des Wissens-Korpus (ParadeDB). Die `tale_knowledge`-Datenbank mit Dokument-Chunks, Embeddings und gecrawlten Seiten, auf Port 5433, damit sie nie mit `tale-db` auf 5432 kollidiert. (Ein `tale deploy`-Produktions-Stack faltet dies stattdessen in `tale-db` — siehe [Architektur-Übersicht](/de/self-hosted/overview).)
-- `tale-object-store` — MinIO, das S3-kompatible Blob-Backend für Uploads, Anhänge und generierte Medien (rein intern).
-- `tale-sandbox-llm-gateway` — das LLM-Gateway für Harness-Turns.
-- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`), zugleich die Headless-Browser-Laufzeit, die das Backend für Web-Render und Dokumentgenerierung aufruft.
-- `tale-bgutil-provider` — ein Drittanbieter-Sidecar, der YouTube-PO-Tokens für die Video-Link-Ingestion liefert.
-
-Es gibt keinen separaten Python-Service im Graph — die Wissens-Arbeit (RAG, Crawling, Dokumentgenerierung) läuft jetzt im Backend-Worker. [Container-Architektur](/de/self-hosted/operate/container-architecture) vertieft, was was besitzt.
-
-## Overrides
-
-Operator-Anpassungen gehören in ein zusätzliches Overlay, nicht in Edits an den ausgelieferten Dateien. Erstell eine `compose.local.yml` mit den Overrides, die du brauchst:
-
-```yaml
-services:
-  platform:
-    environment:
-      - LOG_LEVEL=debug
-```
-
-Fahr den Stack mit dem lokalen Overlay zuletzt geschichtet hoch:
-
-```bash
-docker compose -f compose.yml -f compose.local.yml up -d
-```
-
-Dieses Muster hält `git pull` sauber — keine Merge-Konflikte auf den ausgelieferten Dateien. Dasselbe Muster funktioniert für jedes benutzerdefinierte Volume-Mount, jeden benutzerdefinierten Port oder jedes Environment-Override.
-
-## Wo das hineinpasst
-
-Die Compose-Referenz ist das Raster des Betreibers für den Source-Tree. Für das Innere jedes Containers deckt die Seite [Container-Architektur](/de/self-hosted/operate/container-architecture) Verantwortlichkeiten ab; für die Variablen, die die Container beim Boot lesen, ist die [Environment-Referenz](/de/self-hosted/configuration/environment-reference) die Quelle der Wahrheit.
+Lies bei einer fehlgeschlagenen Vorbereitung den ersten Fehler des Startskripts, bevor du Compose wiederholst. Prüfe bei Imagefehlern Docker und den Imagebau, bei fehlendem Sandbox-Netz die Netzwerkerstellung und bei Konflikten mit einem zweiten Checkout belegte Ports oder vorhandene Container. Sieh dir `docker compose ps` und die Protokolle des betroffenen Dienstes an. Entferne keine Volumes, um einen Startfehler zu beheben: Damit geht der Zustand verloren, den du zur Reproduktion brauchst.

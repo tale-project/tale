@@ -1132,7 +1132,7 @@ export async function listHubDocumentsPage(
  * listing and the chat fetch so the three surfaces cannot disagree.
  */
 export async function readDocumentIndexing(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   refs: readonly string[],
 ): Promise<Map<string, DocumentIndexingState>> {
@@ -1165,7 +1165,7 @@ export async function readDocumentIndexing(
 
 /** The columns REST serves beyond the standard projection. */
 export async function readDocumentRestExtras(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   documentId: string,
 ): Promise<{ content: string | null; record: unknown } | null> {
   const rows = await sql<{ content: string | null; record: unknown }[]>`

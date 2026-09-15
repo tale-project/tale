@@ -3,7 +3,7 @@ title: Install the tale CLI
 description: Install the tale CLI on macOS, Linux, or Windows — and configure it against your self-hosted instance for deploys and upgrades.
 ---
 
-The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale dev`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
+The `tale` CLI installs, deploys and operates Tale. Install it on the machine where you will run operator commands, then choose the [local quickstart](/self-hosted/install/quickstart) or the deployment workflow below.
 
 The same CLI owns workspace container operations, managed deployments from exact source commits, and client configuration releases. Your deployment automation selects destination, pins and credential references, then calls the CLI. [Release client configurations](/self-hosted/configuration/config-releases) covers content from the client's own repository.
 
@@ -11,12 +11,13 @@ The same CLI owns workspace container operations, managed deployments from exact
 
 You need:
 
-- A workstation running macOS, Linux, or Windows 10+.
-- SSH access to the host your Tale instance runs on, with the operator user able to run `docker compose`.
+- A workstation running macOS, Linux, or Windows with PowerShell.
+- For local container operations: Docker with Compose and a running Docker daemon.
+- For a remote workspace: access to its Docker daemon, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
-The installer downloads a release binary from GitHub. Corporate networks that block raw-content downloads need to allow `raw.githubusercontent.com` and `github.com`.
+The installer downloads a release binary from GitHub. It needs access to `raw.githubusercontent.com`, `api.github.com`, `github.com` and the release download destinations that GitHub redirects to.
 
-## Step 1 — Run install-cli.sh or install-cli.ps1
+## Run install-cli.sh or install-cli.ps1
 
 On macOS or Linux:
 
@@ -30,7 +31,11 @@ On Windows PowerShell:
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Both installers detect the OS and CPU architecture, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`) — asking for `sudo` when the install directory is not writable. Release binaries ship for macOS on Apple Silicon and Intel, and for Linux on x86_64 and arm64; Windows-on-ARM machines run the x64 binary through the built-in emulation. On an architecture without a released binary, the installer exits with a clear message and points you at building from source. To pin a version, set the `VERSION` environment variable before piping into the installer; to pick the install directory yourself, set `INSTALL_DIR`.
+The Unix installer selects the binary for your OS and CPU. By default, it replaces an existing `tale` executable found on `PATH`, or installs into `/usr/local/bin`; it requests `sudo` only when needed to write there. The Windows installer uses `%LOCALAPPDATA%\Programs\tale` by default and updates your user `PATH`.
+
+Release binaries cover macOS on Apple Silicon and Intel, Linux on x86_64 and arm64, and Windows x64. Windows ARM requires x64 emulation. An unsupported Unix architecture produces a build-from-source message.
+
+Set `VERSION` to a release version to pin the install, and `INSTALL_DIR` to choose another destination. In a Unix shell, **export** these variables before running the pipeline so the `bash` process receives them; setting them only before `curl` does not pass them to the installer. In PowerShell, use `$env:VERSION` and `$env:INSTALL_DIR`.
 
 | OS      | Installer script          |
 | ------- | ------------------------- |
@@ -38,17 +43,17 @@ Both installers detect the OS and CPU architecture, pull the matching release bi
 | Linux   | `scripts/install-cli.sh`  |
 | Windows | `scripts/install-cli.ps1` |
 
-## Step 2 — Verify
+## Verify
 
 ```bash
 tale --version
 ```
 
-The CLI prints its version. If the command is not found, the installer dropped the binary outside the `PATH` — the installer output names the destination directory.
+The CLI prints its installed version. If the command is not found, check the destination in the installer output and ensure that directory is on `PATH`. On Windows, open a new terminal after installation. If the download fails, check the network destinations above; an optional `GITHUB_TOKEN` environment variable authenticates the release lookup when anonymous GitHub API requests are rate limited.
 
-## Step 3 — Confirm configuration
+## Confirm configuration
 
-For workspace container operations, use the project created by `tale init`. The CLI walks up the directory tree to find its `tale.json`; check the resolved project with:
+For workspace container operations, use the project created by `tale init` in the [quickstart](/self-hosted/install/quickstart). The CLI walks up the directory tree to find its `tale.json`; check the selected project before operating on it:
 
 ```bash
 tale config show
@@ -58,7 +63,7 @@ Configuration releases and [managed deployments](#managed-deployments) select th
 
 For a workspace deployment, the host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote workspace host, point your shell's Docker context (or `DOCKER_HOST`) at it. Managed bundle deployment instead runs on its declared destination with the local Docker daemon.
 
-## Step 4 — Run tale deploy
+## Run tale deploy
 
 ```bash
 tale deploy
@@ -102,7 +107,7 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `--host <hostname>` — host alias for the proxy (default `localhost`).
 - `-y, --yes` — non-interactive: auto-accept prompts (e.g. installing or starting Docker).
 
-`tale deploy` — blue-green, zero-downtime deploy of the current CLI version. On the first deploy it prompts for your production domain and Let's Encrypt email (or pass `--host`).
+`tale deploy` — deploy the current CLI version with blue-green replacement of application roles. Shared execution services roll in place; database and proxy replacement needs `--stop`. On first deployment, the CLI asks for the production domain and TLS email unless supplied. Read [Upgrades](/self-hosted/operate/upgrades) before changing an existing installation.
 
 - `--stop` — also update the stop-gated tier (`db`, `proxy`) — recreates those containers, so accept a brief downtime; without it, running `db`/`proxy` are left untouched.
 - `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
@@ -118,6 +123,8 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 Use a reviewed deployment specification when the runtime and client configurations must follow exact source commits. Deployment automation selects the destination, credentials and pins and calls the Tale CLI. The CLI acquires source, resolves and verifies image digests, prepares the transfer, preserves supported existing state, takes recovery snapshots when required, rolls the stack, provisions the native instance and verifies configuration content. Keep those deployment internals in Tale.
 
+#### Prepare the runtime and source pins
+
 Run preparation with a compiled CLI built from a clean, committed Tale checkout on Linux, matching the destination's `linux/amd64` or `linux/arm64` architecture. That same executable is included for backend-local provisioning. Preparation needs Git and Docker for source/image verification; applying runs on the destination with its local Docker daemon, retained state directory and environment. The full CLI commit, runtime source commit and client configuration source commit are separate pins.
 
 A managed deployment records its recovery point before it changes anything: the pre-deployment snapshot and the bundle being applied, kept in the state directory until the ready receipt is written. An interrupted deployment therefore expects the same bundle on retry and refuses a different one, naming the pending bundle's sha256. When that bundle can no longer complete — a corrected CLI is now pinned, say — declare the named sha256 as `supersedesPendingBundle` in the deployment specification and prepare again: the reviewed bundle takes over the same snapshot, the ready receipt lists it under `supersededBundles`, and the declaration comes out afterwards. The backend-local phases (`deploy provision`, `deploy export-client-native`) run inside the backend as its own user, the owner of its data directory, and when one fails the deploy result repeats the inner CLI's own summary.
@@ -130,7 +137,7 @@ For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-
 
 `origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
 
-To identify an environment in container listings, set optional `runtime.containerPrefix`, for example `north-desk-prod`. Use a lowercase hyphenated slug of at most 40 characters. Every managed service receives `<prefix>-<service>` as its container name, including `north-desk-prod-db` and `north-desk-prod-backend-api`; service DNS names stay unchanged. Omit the option to retain source container names. Adding, changing or removing the prefix recreates containers and can briefly interrupt service. Keep `name`, `composeProject` and `stateDirectory` unchanged on a retained deployment so its volumes, credentials and recovery records keep their identity. The normal snapshot and exact-bundle retry flow applies. Continue to run one complete managed runtime per Docker daemon: this option does not allocate separate ports, sandbox networks or host workspaces.
+The example sets `runtime.containerPrefix` to make its environment recognizable in container listings. This optional setting is explained below.
 
 ```json
 {
@@ -174,6 +181,24 @@ To identify an environment in container listings, set optional `runtime.containe
 }
 ```
 
+#### Choose container names
+
+Set `runtime.containerPrefix` when you want names such as `north-desk-prod-db` and `north-desk-prod-backend-api` in container listings. The prefix starts with a lowercase letter and uses lowercase letters, digits and single hyphens, up to 40 characters. Spaces, underscores, repeated hyphens and a trailing hyphen are refused.
+
+| Setting | What it identifies |
+| --- | --- |
+| `runtime.containerPrefix` | Visible container names: `<prefix>-<service>` for every managed service. |
+| `name` and `composeProject` | The retained deployment and its Compose project, including volume ownership. |
+| `stateDirectory` | The existing deployment state, credentials and recovery records. |
+
+Keep the last two rows unchanged when renaming an existing deployment's containers. The prefix leaves service DNS names unchanged, so internal service addresses continue to use their existing names. Omit it to use the source's container naming policy.
+
+Adding, changing or removing a prefix recreates containers and can briefly interrupt service. Prepare a new bundle, review its dry run, then apply it through the normal snapshot and recovery flow. If application is interrupted, retry that exact bundle; a pending rollout refuses a different bundle. Once the rollout is ready, removing the prefix through another prepared bundle restores the source naming policy.
+
+Run one complete managed runtime per Docker daemon. A name prefix does not allocate separate ports, sandbox networks or host workspaces.
+
+#### Prepare, verify, and apply the bundle
+
 Set `TALE_DEPLOY_SPEC` to that JSON file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.
 
 ```bash
@@ -200,9 +225,9 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
-`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+#### Provision the native identity
 
-To change a retained managed deployment’s hostname, set its new `origin` and declare `identity.migrateOriginFrom: "https://old.example.org"` with the exact previous HTTPS origin. Keep `bootstrap: "fresh"`, the same account and organization, and the same managed client keys. Migration requires completed bootstrap, declared email-attestation and managed client journals. It authenticates the retained account and verifies client credentials before updating the origin bindings. Missing, pending or unrelated journals stop the deployment. A retry accepts completed journals at either reviewed origin, so it can finish an interrupted migration without replacing IDs or secrets. After the ready receipt, remove `migrateOriginFrom` from future deployments and export consumer configuration for the new issuer. To reverse a completed migration, explicitly swap the two origins and repeat the verified deployment flow. When native configuration is declared, migration also requires its ready receipt, preserves the organization ID and slug, and verifies every resource through the normal plan and readback flow. A configuration write interrupted at the new origin resumes its exact pending plan; a pending receipt at the old origin blocks migration.
+`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
 
 For an administratively verified fresh operator, explicitly declare `identity.emailVerification: "operator-attested"`. This is an operator assertion of the authenticated account’s email ownership, not proof of mailbox delivery. The backend uses a short-lived native verification token bound to that exact account and email, retaining native hooks without sending email, changing the address or creating another session. It is permitted only with `bootstrap: "fresh"`. Omit it to retain normal native email verification. A previously ready account whose verification changes holds for review.
 
@@ -210,10 +235,25 @@ For a fresh target, replace a config's `projectId` with `project: { "key": "NORT
 
 Each native client chooses an existing `clientId` or explicit `managed: true`. Managed creation persists its private intent before the native request, then returns only a private handoff path and SHA for client credentials. Replays preserve IDs, security policy and secrets; uncertain request acceptance without a matching native object holds. Existing clients converge only their display name and HTTPS callback URLs. On maintained 0.5 backends, necessary create/update operations use fixed backend-local auth adapters and close their connections. This enables no public registration/update route, arbitrary module path or secret rotation.
 
+#### Change a managed deployment’s hostname {#managed-origin-migration}
+
+Use the retained managed deployment and its private state directory. This changes the origin bindings of the existing account, organization and clients; it does not move a database or create replacement identities.
+
+1. Set the deployment specification’s `origin` to the new HTTPS origin and `identity.migrateOriginFrom` to the exact previous HTTPS origin, for example `https://old.example.org`. The two origins must differ. Keep `identity.bootstrap: "fresh"`, the same account and organization, and the same managed client keys.
+2. Check the retained state before preparing the bundle. Bootstrap must be complete. Every declared email attestation and managed client needs its matching completed journal. Missing, pending or unrelated identity/client journals block migration.
+3. Prepare, verify, preview and apply the bundle through the workflow above. The CLI authenticates the retained account and verifies client credentials before updating origin bindings. Completed journals at either declared origin are accepted on retry, preserving IDs and secrets.
+4. After the deployment receipt is ready, export consumer configuration for the new issuer. Remove `migrateOriginFrom` from future deployment specifications.
+
+When native configuration is declared, its retained receipt is required too. Migration preserves the organization ID and slug and checks every resource through the normal plan and readback flow. An interrupted configuration write at the new origin resumes only its exact pending plan. A pending configuration receipt at the old origin blocks migration.
+
+To reverse a completed migration, explicitly swap the two origins and repeat the verified deployment workflow. Plan DNS, certificates, callback registrations and access checks with [TLS and domains](/self-hosted/configuration/tls-and-domains); changing the bundle origin does not perform those external changes.
+
+#### Export native-client credentials
+
 To hand a managed client’s credentials to a separate application, set `NATIVE_CLIENT_KEY` to its declared key and `PRIVATE_EXPORT_DIRECTORY` to a new private output directory. Its parent must already belong to your account, have mode `0700` and have trusted ancestors. Export from the same ready deployment without interpreting backend paths or container names:
 
 ```bash
-tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
+tale --json deploy export-client --bundle "$TALE_DEPLOY_BUNDLE" \
   --client "$NATIVE_CLIENT_KEY" --output "$PRIVATE_EXPORT_DIRECTORY" \
   --env-prefix TALE_OIDC --cli-ref "$TALE_CLI_COMMIT" \
   --deployment-ref "$DEPLOYMENT_COMMIT"
@@ -338,6 +378,57 @@ Native provisioning runs after identity and before configuration releases. The `
 
 Managed deployments also activate a declared `deployment` resource before reporting ready. The CLI records the pending activation, drains the verified sandbox spawner for up to five minutes, and restarts that container once sessions have finished. If sessions remain, the operation stays pending. The `configurationActivation` receipt records the mounted configuration and observed container boot; ready requires fresh health checks. Retrying an interrupted operation verifies an already accepted restart, and an unchanged ready replay does not restart the service again.
 
+#### Replace a pending configuration plan
+
+If an interrupted plan can still complete, retry that same plan. Use explicit replacement when its declared settings can no longer work, for example because an embedding endpoint is no longer available. Keep the existing receipt: it records writes that may already have reached the platform.
+
+1. Read the pending receipt and compare the declared resources with current native state. Prepare `replacement-configuration.json` with corrected settings, the same target and exactly the same resource identities. You cannot use replacement to add or drop resources.
+2. Calculate the hash of the retained receipt’s `plan`, not the whole receipt or the replacement plan. The following command requires Bun and hashes canonical JSON: object keys sorted recursively, array order preserved, and no whitespace.
+
+```bash
+PENDING_PLAN_SHA=$(bun -e '
+  const receipt = await Bun.file(process.argv[1]).json();
+  if (receipt.phase !== "pending") throw new Error("Receipt is not pending");
+  function canonical(value) {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value !== null && typeof value === "object") {
+      return "{" + Object.keys(value).sort().map(key =>
+        JSON.stringify(key) + ":" + canonical(value[key])
+      ).join(",") + "}";
+    }
+    return JSON.stringify(value);
+  }
+  console.log(new Bun.CryptoHasher("sha256")
+    .update(canonical(receipt.plan)).digest("hex"));
+' configuration-receipt.json)
+```
+
+3. Create a fresh plan from the replacement declaration and review it before applying:
+
+```bash
+tale --json config plan --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output replacement-plan.json
+```
+
+After reviewing the plan, apply it with the original receipt path and the retained plan’s hash:
+
+```bash
+tale --json --yes config apply --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan replacement-plan.json --receipt configuration-receipt.json \
+  --supersedes-pending-plan "$PENDING_PLAN_SHA"
+tale --json config read --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Each resource must still match the pending plan’s original state, intended write, or verified result. An unrelated native edit blocks replacement before any write. Resolve that difference with the administrator who made it; do not remove the receipt to bypass the check.
+
+The receipt retains the previous plan and its verified resources under `superseded`, including across interruption and replay. Check that the receipt reaches `phase: "ready"` and that `config read` reports matching resources. Omit the one-shot selector from later operations.
+
+For a managed deployment, set `supersedesPendingConfigurationPlan` to the same retained plan hash in the deployment specification, alongside the corrected `configuration`, then prepare and review a new bundle. If that bundle also replaces a pending rollout, select its hash separately with `supersedesPendingBundle`. That bundle selector alone does not authorize replacing a native configuration plan. Remove both recovery selectors from later specifications after the operation is ready.
+
+The public `native.configuration` proof records each resource’s intended hash as `configurationSha256` and its native readback hash as `observedConfigurationSha256`. These can differ when a setting preserves an existing value, such as an omitted embedding similarity floor. The private receipt retains the exact observed state for recovery.
+
 ### Operate
 
 `tale status` — show the current deployment status. No arguments.
@@ -350,7 +441,7 @@ Managed deployments also activate a declared `deployment` resource before report
 - `-c, --color <color>` — target a specific deployment colour (`blue` or `green`).
 - `--raw` — stream raw, unfiltered log output (no classification).
 
-`tale backup` — snapshot all data volumes into the project backups volume. No arguments.
+`tale backup` — snapshot the supported, existing project volumes. No arguments. External databases and buckets need separate backups; see [Backup coverage](/self-hosted/operate/backups-and-restore).
 
 `tale restore [snapshot-id]` — restore a snapshot; omit the id to list available snapshots.
 
@@ -418,6 +509,8 @@ Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and 
 
 `tale auth reset-owner` — reset the owner account credentials.
 
+For a manual recovery, run it without flags in an interactive terminal to enter the new password through a masked prompt. This avoids putting the password in shell history or command arguments. The reset invalidates existing sessions.
+
 - `-e, --email <email>` — set a new owner email address.
 - `-p, --password <password>` — set a new owner password.
 
@@ -428,6 +521,4 @@ Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and 
 - **Installer fails on macOS because the binary cannot execute.** When the freshly installed binary refuses to run (e.g. Gatekeeper kills it), the installer fails with recovery hints instead of reporting success — follow them, then re-run the installer.
 - **`tale` not found after install on Linux.** The installer drops the binary in `/usr/local/bin`; verify the directory is on the user's `PATH` (`echo $PATH`).
 
-## Where this gets used
-
-Once the CLI is wired up, the operator's daily surface shrinks to a handful of subcommands. The pages worth reading next depend on what you came to do — [Upgrades](/self-hosted/operate/upgrades) for version bumps, [Backups and restore](/self-hosted/operate/backups-and-restore) for snapshot drills, [Container architecture](/self-hosted/operate/container-architecture) for what the CLI restarts when it deploys.
+For ongoing operations, use [Upgrades](/self-hosted/operate/upgrades), [Backups and restore](/self-hosted/operate/backups-and-restore), or [Container architecture](/self-hosted/operate/container-architecture).

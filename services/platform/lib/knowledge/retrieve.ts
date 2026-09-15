@@ -115,10 +115,15 @@ export interface CorpusReader {
    * nothing" from "could not run" and report the degrade honestly.
    */
   keyword(query: CorpusLegQuery): Promise<readonly KnowledgeHit[] | null>;
-  /** The dense leg. `embedding` is the query vector. */
+  /**
+   * The dense leg. `embedding` is the query vector. Returns `null` — not an
+   * empty list — when the corpus cannot serve the vector leg (its table or a
+   * column this release selects is missing), for the same honesty as
+   * `keyword`.
+   */
   dense(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
-  ): Promise<readonly KnowledgeHit[]>;
+  ): Promise<readonly KnowledgeHit[] | null>;
 }
 
 /** Turns the query text into a vector, using the organization's own explicitly
@@ -167,6 +172,7 @@ export async function retrieve(
     hits: [],
     diagnostics: {
       bm25: true,
+      dense: true,
       reranked: false,
       cached: false,
       admitted: 0,
@@ -217,6 +223,7 @@ export async function retrieve(
         hits: dropRepeatedPassages(kept).slice(0, limit),
         diagnostics: {
           bm25: true,
+          dense: true,
           reranked: false,
           cached: true,
           admitted: kept.length,
@@ -237,7 +244,12 @@ export async function retrieve(
   };
 
   const rankings: { leg: string; hits: readonly KnowledgeHit[] }[] = [];
+  // Every leg that RAN, in order — the diagnostics name each with its
+  // admitted count, `0` included, so "ran and found nothing" never reads
+  // like "did not run" (2026-09-14 evaluation, h4).
+  const ran: string[] = [];
   let bm25 = true;
+  let denseOk = true;
 
   for (const reader of readers) {
     const [keyword, dense] = await Promise.all([
@@ -253,15 +265,29 @@ export async function retrieve(
       logger.debug(
         `no full-text index on the ${reader.corpus} corpus — searching dense-only`,
       );
-    } else if (keyword.length > 0) {
-      rankings.push({ leg: `${reader.corpus}:keyword`, hits: keyword });
+    } else {
+      ran.push(`${reader.corpus}:keyword`);
+      if (keyword.length > 0) {
+        rankings.push({ leg: `${reader.corpus}:keyword`, hits: keyword });
+      }
     }
 
-    const floor = query.minSimilarity;
-    const kept =
-      floor === undefined ? dense : dense.filter((hit) => hit.score >= floor);
-    if (kept.length > 0) {
-      rankings.push({ leg: `${reader.corpus}:dense`, hits: kept });
+    if (dense === null) {
+      // The corpus cannot serve the vector leg (not created yet, or behind
+      // this release's schema): keyword-only is a search too, and the
+      // diagnostics say which leg was missing.
+      denseOk = false;
+      logger.debug(
+        `no vector leg on the ${reader.corpus} corpus — searching keyword-only`,
+      );
+    } else {
+      ran.push(`${reader.corpus}:dense`);
+      const floor = query.minSimilarity;
+      const kept =
+        floor === undefined ? dense : dense.filter((hit) => hit.score >= floor);
+      if (kept.length > 0) {
+        rankings.push({ leg: `${reader.corpus}:dense`, hits: kept });
+      }
     }
   }
 
@@ -290,6 +316,7 @@ export async function retrieve(
     }))
     .filter((ranking) => ranking.hits.length > 0);
   const legs: Record<string, number> = {};
+  for (const leg of ran) legs[leg] = 0;
   for (const ranking of admittedRankings) {
     legs[ranking.leg] = ranking.hits.length;
   }
@@ -297,7 +324,14 @@ export async function retrieve(
   if (admittedRankings.length === 0) {
     return {
       hits: [],
-      diagnostics: { bm25, reranked: false, cached: false, admitted: 0, legs },
+      diagnostics: {
+        bm25,
+        dense: denseOk,
+        reranked: false,
+        cached: false,
+        admitted: 0,
+        legs,
+      },
     };
   }
 
@@ -358,6 +392,7 @@ export async function retrieve(
     hits,
     diagnostics: {
       bm25,
+      dense: denseOk,
       reranked,
       cached: false,
       admitted: candidates.length,

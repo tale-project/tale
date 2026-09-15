@@ -1,47 +1,42 @@
 ---
-title: Data residency
-description: Where your Cloud data lives, where it moves during a single chat, which sub-processors touch it, and what stays in region versus what leaves.
+title: Understand Cloud data residency
+description: Separate storage location from provider and connector data flows before choosing a Cloud deployment.
 ---
 
-Data residency on Cloud answers two questions every audit eventually asks: which region holds your data at rest, and which external systems touch it in flight. This page traces a single chat round-trip end to end, lists the data classes, and names every sub-processor your messages pass through.
+Data residency covers where your data is stored and where it is processed. Choosing a Cloud region addresses the hosted service; it does not by itself determine where every model provider or connected service handles your data.
 
-The default region for new Cloud orgs is Switzerland. Switching region after sign-up is a migration, not a setting flip — re-creating an org in the EU region is faster than moving an existing one. Pick once; pick deliberately.
+## Confirm the hosting arrangement
 
-## A worked example — one chat round-trip
+Confirm your instance’s primary region, backup locations, retention, recovery objectives, and support process with Tale before onboarding. Use the service agreement and data-processing documents for the commitments that apply to your deployment. Do not infer a backup city or recovery guarantee from a region label in the product.
 
-The user in Zürich opens Chat and sends "summarise the latest customer call". The request hits Tale's edge in the chosen region, lands on `tale-platform`, which forwards it to `tale-backend-api` (the backend), reads knowledge from the corpus database when the agent's knowledge tool asks for it, and emits an outbound call to the provider behind the model the sender picked. Knowledge retrieval runs inside the backend — it queries the corpus database directly, with no separate retrieval service in the path. The model provider returns tokens; Tale streams them back across the same path. The reply and citations land in the operational database, the corpus stays in the knowledge database, and both are replicated within the region.
+The Cloud service is operated by Tale. Configuration files, database credentials, and host environment variables are operator responsibilities. The [self-hosted configuration reference](/self-hosted/configuration/data-residency) explains the technical model for operators.
 
-Two arrows cross the regional boundary in this trip: the call to the model provider (always external) and any sub-processor the agent's tools triggered (web fetch, OneDrive read, a connector's vendor API in another region). Everything else stays in region.
+## Follow the data through a request
 
-## Primary regions
+A chat message travels to your Tale instance. When the assistant uses knowledge, relevant content is retrieved from the organization’s knowledge store. The message and selected context are then sent to the model provider used for that response. A tool may contact another service, such as a website or a connected application.
 
-| Region         | Postgres  | Object store | DR replica |
-| -------------- | --------- | ------------ | ---------- |
-| Switzerland    | Zürich    | Zürich       | Geneva     |
-| European Union | Frankfurt | Frankfurt    | Dublin     |
+| Data flow | What to confirm |
+| --- | --- |
+| Stored chats, documents, and configuration | The agreed hosting and backup locations |
+| Knowledge indexing | Which embedding provider receives document content |
+| Model inference | The selected provider’s endpoint, processing terms, and retention |
+| Connectors and web tools | Which external systems receive requests and content |
+| Operational records | The agreed handling of logs, backups, and support access |
 
-The DR replica is for disaster recovery, not active traffic. A region's data never flows to the other region's primary or replica.
+A provider may offer regional or locally hosted endpoints. Verify the endpoint actually configured; its brand name alone does not establish where processing occurs.
 
-## What stays in region, what leaves
+<Tip>
 
-| Data type                          | Region-locked | Crosses | Notes                                                                          |
-| ---------------------------------- | ------------- | ------- | ------------------------------------------------------------------------------ |
-| Chats and messages                 | ✓             |         |                                                                                |
-| Documents and knowledge embeddings | ✓             |         |                                                                                |
-| Org configuration and roles        | ✓             |         |                                                                                |
-| Audit logs                         | ✓             |         |                                                                                |
-| Model provider requests            |               | ✓       | Goes to the provider you configured; pick a regional endpoint when one exists. |
-| OneDrive sync                      |               | ✓       | Microsoft's storage region applies.                                            |
-| Web tool fetches                   |               | ✓       | Wherever the URL resolves.                                                     |
+Review the embedding provider as well as the chat model. A document can be sent for embedding during indexing before anyone asks a question about it.
 
-## Backups and DR
+</Tip>
 
-Tale snapshots both Postgres databases — the operational store and the knowledge corpus — daily, and the object store hourly. Snapshots are encrypted at rest with keys held by Tale; the DR replica receives a copy within the region. Restores from snapshot are a customer-initiated operation routed through support; the SLA covers restore time.
+## Review a new integration
 
-## Changing region
+Before connecting a service, identify what data the intended task will send and which account the connector uses. Check the service’s processing terms, restrict its access, and test with non-sensitive example content. Record the decision alongside your [security review](/cloud/trust-and-compliance).
 
-A region change is implemented as an export from the current region, an import into the new region, and a DNS cutover. The procedure is the same as [Migrate to self-hosted](/cloud/migrate-to-self-hosted) except both sides are Cloud regions; expect downtime in the minutes range and a planned window. There is no in-place region toggle.
+## Change the region
 
-## Where this fits
+Arrange a region change with Tale. It requires a migration plan covering stored data, backups, external endpoints, downtime, and validation. Creating a second organization does not move the first organization’s data.
 
-Data residency is the first page every compliance review reads. Pair it with [Trust and compliance](/cloud/trust-and-compliance) (which framework covers what) and [Subprocessors](/legal/subprocessors) (the list of every external system named above). If your org is considering self-hosted because of a residency requirement, [Self-hosted overview](/self-hosted/overview) is the next read — running the stack on your hardware moves every arrow on this page inside your own boundary.
+The [migration planning guide](/cloud/migrate-to-self-hosted) lists the questions and verification steps that also apply when moving between Cloud regions.

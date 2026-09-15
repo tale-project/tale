@@ -1,68 +1,64 @@
 ---
-title: Task automation
-description: How assigning a board task to an agent runs it, the Driver/Reviewer split, human review straight from the In review status, guardrails, and the kill switch.
+title: Delegate a task to an agent
+description: Start an agent on a project task, review its result, request changes, and recover or cancel a run.
 ---
 
-Assigning a board task to an AI agent puts it to work. The task's **assignee is its driver** — a person, a project agent, or an automation — and drives the board choreography; the **Reviewer** is the named human the finished work waits on. A task an automation proposes sits in [Backlog](/platform/projects/backlog) until a human starts it — from that moment on it's a board task like any other and enters the loop below.
+A project agent works on a task and returns a result for a person to review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need project edit access; the organization also needs a working provider, compatible harness, and available sandbox capacity.
 
-<Frame caption="The project task board — assigning a card to an agent is what starts the loop below.">
+<Frame caption="Agent work uses the same board as human work: start at In progress and review the result at In review.">
 
-![A kanban task board inside the Website relaunch project, showing seven task cards spread across its status columns, from Backlog and To do through In review to Done and Cancelled.](/images/platform/projects-task-board.webp)
+![The project task board shows work distributed across Backlog, To do, In progress, In review, Done, and Cancelled.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## The execution loop
+## Prepare and start the task
 
-1. **Assign** a task to an agent. The card moves to _In progress_ and the agent works in its own sandbox session, with the task's description, comments, and input files as context.
-2. The agent **reports back**: its result lands as a task comment (deliverables in the task's Output zone), and the task parks at **_In review_** — agents can never set _Done_; that rule is enforced server-side.
-3. The park **requests a review**: the task's **Reviewer** gets an inbox bell and an email, and the card wears a _Waiting on {name}_ chip on the board. Without a designated reviewer the request lands with the task's creator (or the project's), so a finish is never silent.
-4. A human **decides on the board**: moving the card from _In review_ to _Done_ — drag or the sheet's Status field — approves, and the decision is recorded as that person's, never the agent's. To send the work back, **@-mention** the assignee in a task comment: the feedback kicks a rework run that continues the agent's previous conversation where it left off and parks the result at _In review_ again. Moving the card to any other column withdraws the review request instead — the bells let go, and the next park asks afresh.
+1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
+2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
+3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator.
+4. Click **Start agent**, or move the task to **In progress**.
 
-A failed run leaves the task where it was and explains itself on the task sheet — and the platform retries it by itself, immediately, up to three times in a row; the run card counts the attempts. An attempt that ran fifteen minutes or longer proves progress and earns a fresh retry budget, so a long task that keeps stumbling keeps getting back up. Dead ends a retry cannot fix — a deleted agent, a run past its time limit — go straight to you. Once the automatic retries are spent, the error stays on the card and **Retry** continues the same conversation from where it stopped. A parent task with open subtasks refuses to close until the last subtask is done.
+Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working.
 
-## Driver and Reviewer
+## Read and accept the result
 
-The two roles are deliberately separate fields:
+The agent posts its report as a task comment and adds produced files as deliverables. It then moves the task to **In review**. The reviewer receives a notification and, when email delivery is configured, an email.
 
-| Role         | Who                           | What it does                                                                                                                       |
-| ------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Assignee** | person, agent, or automation  | Drives the work and the board status — the polymorphic single assignee                                                             |
-| **Reviewer** | a project member who can edit | The named "waiting on" human: gets the review request and populates the **Needs my review** filter; their move to _Done_ decides it |
+Read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the human decision; the agent cannot mark its own task Done.
 
-Pick the reviewer in the task sheet's **Reviewer** field. The designation is deliberately **soft**: it routes notifications and the queue, but any project editor can still decide a review — and unlike reassigning the driver, you can set or change the reviewer while a run is live. Reviewing this way never requires taking the task over: the agent or automation stays the assignee, so the choreography keeps working after the decision.
+**Reviewer** routes the notification and review queue. It does not exclude other project editors from accepting the result, and changing the reviewer does not reassign the work away from the agent.
 
-The board names the gate: cards waiting at _In review_ carry a **Waiting on {name}** chip (or _Waiting on you_), and the board's **Review** filter reduces the board to the tasks waiting on you — your personal review queue inside the project.
+## Ask for changes
 
-## Mentions
+Add a task comment that names what needs to change and **@mention the assigned agent**. The mention is an instruction: an active agent can receive it during its run, and an idle agent starts a rework run that continues the previous conversation. The result returns to **In review**.
 
-**@-mention an agent** in a task comment and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members, the project's agents, and the automations operating this board; the composer previews whether each mentioned agent will actually respond (automation off, breaker paused, not mentionable in this project). A mention of the task's **assignee** is treated as feedback on its assigned work: a running agent picks the comment up mid-run, an idle one starts a rework run that carries the comment verbatim and picks its previous conversation up where it left off.
+A plain comment keeps a note without starting that agent action. The mention picker indicates when an agent cannot respond, for example because task automation is disabled or paused.
 
-Automation-owned tasks follow the same rule: a plain comment is just a comment, and **@-mentioning the owning automation** runs its workflow again, which reads your comment — with the rest of the timeline since its last delivery — as feedback. Mentioning any other automation starts nothing; a task runs only the workflow it belongs to, and a task with a live run keeps it. The subject panel's **Request changes** composes exactly this mention for you, so the timeline shows the same @-comment whether you typed it or clicked the button.
+For an automation-owned task, mention the owning automation to request another run. Mentioning a different automation does not transfer ownership or start it. See [Automations](/platform/automations/concepts) for workflows that coordinate several steps.
 
-## Guardrails
+A task can have only one queued, running, or waiting run at a time, whichever automation started it. Repeating a start request while one is active returns the existing run, even when it names another automation. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
 
-Every agent run — assignment, mention, review rework — passes the same admission gate:
+## Handle waiting and failed runs
 
-- **One engine per task**: a task with a live run refuses a second one, and reassigning mid-run is refused outright (cancel first — the picker offers cancel-then-reassign).
-- **Concurrency**: agent sessions draw from per-organization capacity; excess runs queue and start when a slot frees.
-- **Per-task circuit breaker**: too many automated runs within an hour on one task pauses automation on that task until a human changes its status.
+| State or symptom | What to do |
+| --- | --- |
+| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
+| Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
+| The run remains failed | Read the error and resolve its cause, then use **Retry** to continue the conversation. Deleted agents and time-limit failures need intervention. |
+| Reassignment is refused | Cancel the live run before choosing another assignee. |
+| Two automations keep mentioning each other on one task | There is no per-task rate cap: the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
+| The task cannot close | Finish its open subtasks first. |
 
-## Choosing an assignee
+Recoverable failures get up to three immediate automatic retries. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
 
-Not every task belongs on a coding harness. Use this rule of thumb:
+## Cancel or pause work
 
-| Task shape                                          | Assign                                                                                                                                         |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Research, writing, summaries, personal deliverables | A **person**                                                                                                                                   |
-| Board work driven by a deployed automation          | An **Automation** — its desk then drives the board's status verbs, and review happens on the task's subject panel                              |
-| Repository work — bugs, features, refactors, PRs    | An **Agent** on a coding [**Harness**](/platform/agents/harnesses) — create it on the project's Agents tab with the harness that fits the work |
+Use **Cancel run** to stop the active agent. Moving a running agent-owned task out of **In progress** can also cancel the run; read the confirmation before proceeding. A task cannot have two active agent runs at once.
 
-The assignee picker groups **Agents** and **Automations**. Each agent runs in a sandbox on the **Harness** chosen when it was created, pre-equipped with its skills, connectors, and instructions.
+An admin can disable task automation for the organization. That blocks new starts while existing work finishes. Organization limits and budget policies still apply to each run; see [Policies and limits](/platform/admin/governance/policies-and-limits).
 
-## The kill switch
+## Choose the right assignee
 
-The `task_automation` governance policy carries the master switch: switching it off stops the run path — in-flight work finishes, nothing new starts. It is admin-only and audited; on a self-hosted instance the policy is one of the org's governance config files, alongside the limits covered on [Policies and limits](/platform/admin/governance/policies-and-limits).
+Assign a person when the task needs human judgment or work outside an agent’s permitted access. Assign a project agent for a bounded job using its configured files and tools. Use an automation when the work follows a defined process with stages, triggers, or connector approvals.
 
-## Where this fits
-
-Task automation is what turns the project board from a to-do list into a delegation surface: a human assigns, a named human reviews, the agent runs everything in between — and _Done_ stays a human decision. The natural next read is [Backlog](/platform/projects/backlog) for how proposed work enters the loop.
+For a first run, follow [Build your first agent](/tutorials/editor/first-agent-end-to-end). Keep the task small enough that you can inspect its result yourself.

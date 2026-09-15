@@ -1,107 +1,71 @@
 ---
 title: Typography
-description: One typeface, two components, and the heading rules that keep a page's outline readable by a screen reader.
+description: Choose text styles without confusing visual size with the page's semantic heading structure.
 ---
 
-The system ships one typeface and two components that render text. `Heading`
-owns size and weight; `Text` owns the small variant scale everything else
-draws from. Between them there is almost no reason to write a raw
-`text-sm font-medium` in a component.
+Use `Heading` for section headings and `Text` for common body, label, caption, and feedback styles. Select the HTML element from the content's role, then choose its visual size. A small heading remains a heading; large text is not automatically a page title.
 
-By the end of this page you will know which component to use, how size and
-semantics stay separate, and the heading rules a page has to hold.
-
-## The scale
+## Compare the text scale
 
 <Demo name="foundations/type-scale" />
 
-## Inter, self-hosted
+Inspect the headings and supporting text in both themes. Use ordinary body text for instructions someone needs to read, and reserve captions for secondary metadata rather than shrinking important information to fit.
 
-Inter is the only family, loaded from `@fontsource/inter` at weights **400,
-500, 600 and 700**. It is imported as a JavaScript side effect from
-`packages/ui/src/fonts.ts`, which `AppShell` pulls in — not through a CSS
-`@import`, because Tailwind v4 inlines imported CSS without rebasing its
-`url()` references, which leaves the font files 404ing.
-
-Two details follow from that:
-
-- The Latin 400 and 500 files are preloaded at boot, so the first paint does
-  not flash a fallback face.
-- The fallback is metric-matched to Arial (`'Inter Fallback'`), so the swap
-  does not reflow the page.
-
-Monospace is a stack, not a bundled face:
-`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`.
-
-## `Heading` — size and level are different axes
+## Choose the heading level separately
 
 ```tsx
 import { Heading } from '@tale/ui/heading';
 
-<Heading level={2} size="lg">
-  Members
-</Heading>;
+export function MemberSectionTitle() {
+  return <Heading level={2} size="lg">Members</Heading>;
+}
 ```
 
 | Prop | Values | Default |
 | --- | --- | --- |
-| `level` | `1`–`6` — the element that is rendered | `2` |
-| `size` | `xs` `sm` `base` `lg` `xl` `2xl` | `base` |
-| `weight` | `medium` `semibold` `bold` | `semibold` |
-| `tracking` | `tighter` `tight` `normal` | — |
-| `truncate` | adds `min-w-0 truncate` | `false` |
+| `level` | `1` through `6`; selects the heading element. | `2` |
+| `size` | `xs`, `sm`, `base`, `lg`, `xl`, `2xl` | `base` |
+| `weight` | `medium`, `semibold`, `bold` | `semibold` |
+| `tracking` | `tighter`, `tight`, `normal` | Unset |
+| `truncate` | Adds an ellipsis and allows a flex child to shrink. | `false` |
 
-Keeping the two axes apart is what lets a section heading three levels deep
-still be the right size, and it is why a page never has to fake an outline with
-a `div`.
+Use one accessible `h1` for the page. In an application layout, the header title or breadcrumb leaf usually supplies it, so body sections begin at `h2`. A settings rail label is navigation, not a replacement for the heading.
 
-`truncate` adds `min-w-0` alongside the ellipsis on purpose: a flex child
-without it refuses to shrink, and the ellipsis never appears.
+`CardTitle` renders an `h3`. Use it under an `h2` section; if that is the wrong depth, choose an explicit `Heading` inside the card instead of accepting a skipped level.
 
-## `Text` — the variant scale
+## Pick a text variant
 
 ```tsx
 import { Text } from '@tale/ui/text';
 
-<Text variant="muted">Send a Monday summary to every member.</Text>;
+export function DigestDescription() {
+  return <Text variant="muted">Send a weekly summary to the selected members.</Text>;
+}
 ```
 
-| Variant | Renders as |
+| Variant | Treatment |
 | --- | --- |
-| `body` (default) | `text-foreground text-sm` |
-| `body-sm` | `text-foreground text-xs` |
-| `muted` | `text-muted-foreground text-sm` |
-| `caption` | `text-muted-foreground text-xs` |
-| `label` | `text-foreground text-sm font-medium` |
-| `label-sm` | `text-foreground text-xs font-medium` |
-| `code` | `font-mono text-xs` |
-| `error` | `text-destructive text-sm` |
-| `success` | `text-success text-sm font-medium` |
+| `body` (default) | Primary text, `text-sm`. |
+| `body-sm` | Primary text, `text-xs`. |
+| `muted` | Supporting text, `text-sm`. |
+| `caption` | Supporting metadata, `text-xs`. |
+| `label`, `label-sm` | Medium-weight primary text, at small or extra-small size. |
+| `code` | Monospace, `text-xs`. |
+| `error`, `error-sm` | Destructive-color feedback, at small or extra-small size. |
+| `success` | Medium-weight success feedback, `text-sm`. |
 
-`as` picks the element (`p`, `span`, `div`, `label`, `h3`), and `truncate` and
-`align` are available where they make sense.
+`Text` defaults to a paragraph. Its `as` prop accepts `p`, `span`, `div`, `label`, or `h3`; `align` accepts `left`, `center`, or `right`. Changing to `label` does not associate the text with a control by itself: use a form component's label API or provide a valid association.
 
-## The heading rules
+Use truncation for compact navigation or metadata only when the full content remains discoverable. Avoid truncating instructions, errors, or the only meaningful name of a record.
 
-- **One `h1` per page.** In the app that `h1` is the page title in the header
-  strip — `AdaptiveHeaderTitle` renders it, or `HeaderBreadcrumbs` renders it
-  as the leaf of the trail. The body starts at `h2`.
-- **Never skip a level.** `h1` → `h2` → `h3`. Settings pages are the usual
-  offender, because they look like a flat list of fields but are a nested
-  outline.
-- **Settings pages carry no page title.** The rail or the tab already named the
-  page; repeating it wastes the row and duplicates the `h1`.
-- **A card title is an `h3`.** `CardTitle` renders one, so a card inside a
-  section under the page title lands at the right depth.
+## Load the intended font
 
-## Marketing type is a different scale
+`AppShell` imports Inter at weights 400, 500, 600, and 700 from the shared `fonts.ts` module. The font assets are self-hosted through the application build. Latin weights 400 and 500 are preloaded; a metric-adjusted Arial fallback reduces layout movement while the font loads.
 
-The marketing language uses the same family at **weight 400** with tight
-tracking, at display sizes up to 80px, through `SectionHeading`. It is
-deliberately not reachable from an app screen — see
-[Marketing UI](/docs/marketing-ui/overview).
+Preloading reduces delay but does not guarantee that a fallback is never visible. If text uses the fallback after loading, inspect the emitted font requests and confirm the app entry mounts `AppShell`. Do not add an unrelated remote font import to hide a broken asset path.
 
-## Where to go next
+Monospace uses the system stack: `ui-monospace`, SFMono-Regular, Menlo, Monaco, Consolas, then monospace.
 
-[Spacing and layout](/docs/foundations/spacing-and-layout) covers the geometry
-these type sizes sit on.
+## Use the marketing scale on public pages
+
+`@tale/marketing-ui/section-heading` uses the same typeface with larger, normal-weight display styles. Its display size defaults to `h1`; section and subsection sizes default to `h2`. Choose the semantic `as` level explicitly when nesting it. See [Marketing UI](/docs/marketing-ui/overview) for the surrounding layout.

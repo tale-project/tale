@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
+
 import * as client from './client';
 import { SearchDialog } from './dialog';
 import type { SearchResult } from './types';
@@ -39,6 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   window.localStorage.clear();
+  void i18n.changeLanguage('en');
 });
 
 function renderDialog(props: Partial<Parameters<typeof SearchDialog>[0]> = {}) {
@@ -50,6 +53,25 @@ function renderDialog(props: Partial<Parameters<typeof SearchDialog>[0]> = {}) {
 }
 
 describe('SearchDialog', () => {
+  it.each([
+    ['de', 'Projekte'],
+    ['fr', 'Projets'],
+  ])('localizes nested search ancestors in %s', async (locale, group) => {
+    await i18n.changeLanguage(locale);
+    vi.spyOn(client, 'search').mockResolvedValue([
+      makeResult({
+        id: `${locale}:platform/projects/tasks`,
+        title: 'Task result',
+        url: `/${locale}/platform/projects/tasks`,
+      }),
+    ]);
+    const user = userEvent.setup();
+    renderDialog({ locale, labels: { placeholder: 'Find anything' } });
+    await user.type(screen.getByPlaceholderText('Find anything'), 'tasks');
+    await waitFor(() => expect(screen.getByText(group)).toBeInTheDocument());
+    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
+  });
+
   it('renders the search input when open', () => {
     renderDialog();
     expect(

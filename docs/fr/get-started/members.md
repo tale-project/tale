@@ -1,60 +1,55 @@
 ---
-title: Ton premier jour avec Tale
-description: Le parcours membre — discute avec un agent, donne un document à l’espace de travail et repère où vivent les projets et l’historique des chats.
+title: Utiliser Tale avec ton équipe
+description: Retrouver tes conversations, choisir où ranger les informations et travailler dans un projet.
 ---
 
-Ce parcours s’adresse à tous ceux qui utilisent Tale sans le configurer. En quinze minutes, tu discutes avec un agent, tu ajoutes un document que tout l’espace de travail peut exploiter et tu apprends où vit le travail partagé — les trois gestes qui couvrent la plupart des journées.
+Ton travail quotidien dans Tale commence par une conversation ou un projet. Ce guide t’aide à choisir le bon endroit pour une question, un document et un travail à partager avec ton équipe.
 
-Il te faut un compte connecté sur un espace de travail où le chat répond déjà — c’est le [démarrage rapide](/fr/get-started/quickstart). Discuter et parcourir fonctionnent avec le rôle **Membre** ; les deux gestes d’écriture ci-dessous (téléverser un document, déplacer une tâche) demandent **Éditeur** ou plus — si un bouton te manque, c’est la frontière de rôle, pas un espace de travail cassé.
+## Comprendre tes accès
 
-<Steps>
+Commence avec un compte connecté et un [premier chat](/fr/get-started/quickstart) qui répond. Ton rôle et ton accès au projet déterminent ce que tu peux lire ou modifier. Les Membres peuvent discuter et travailler dans les projets accessibles. Modifier les connaissances de l’organisation nécessite le rôle Éditeur ou supérieur ; le travail de projet suit les règles d’accès du projet. Si une commande manque, consulte [les membres et les rôles](/fr/platform/admin/members-and-roles).
 
-<Step title="Discute avec un agent">
+## Donner assez de contexte à ta question
 
-Tu as déjà envoyé un premier message dans le démarrage rapide — cette fois, regarde ce que l’agent en fait. Clique sur **Nouveau chat**, pose une question tirée de ton vrai travail et déplie les blocs repliables d’appels d’outils au-dessus de la réponse : ils montrent ce que l’agent a lu ou exécuté avant de répondre.
+Ouvre **Chat**, puis **Nouveau chat**. Décris la tâche, fournis les informations nécessaires et précise la forme du résultat. Par exemple, colle des notes de réunion et demande les décisions, les responsables et les questions ouvertes.
 
-Quand la réponse doit venir d’un document, téléverse-le d’abord sous **Connaissances** — l’assistant cherche dans les documents de l’organisation et cite ce qu’il a utilisé. L’étape suivante couvre justement ce téléversement.
+Lis le résultat avant de l’utiliser. Lorsqu’une réponse cite une source, ouvre-la et vérifie qu’elle étaye l’affirmation. Une réponse bien rédigée ne prouve pas que le modèle a utilisé le bon document. [Bien utiliser le chat](/fr/tutorials/member/chat-effectively) montre comment affiner le résultat avec des questions complémentaires.
 
-</Step>
+## Ranger les informations au bon endroit
 
-<Step title="Donne un document à l’espace de travail">
+| Tu veux… | Utilise… |
+| --- | --- |
+| Discuter d’un fichier dans cette conversation | Une [pièce jointe du chat](/fr/platform/chat/attachments) |
+| Garder les sources avec un projet | L’[onglet Connaissances du projet](/fr/platform/projects/manage-files) |
+| Rendre des contenus approuvés disponibles à l’organisation | Les [documents de connaissances](/fr/platform/knowledge/documents) |
+| Maintenir un court article réutilisable | Une [entrée de connaissances](/fr/platform/knowledge/knowledge-entries) |
 
-Les connaissances persistent d’un chat à l’autre, et les réponses les citent. Pour rendre un document disponible à chaque agent et à chaque collègue, ouvre **Connaissances > Documents** et clique sur **Téléverser des documents**, puis **Depuis ton appareil**, choisis le fichier et clique sur **Téléverser**. Le document apparaît dans le tableau et s’indexe en arrière-plan — une fois indexé, les agents le citent dans leurs réponses. Le menu de téléversement apparaît pour les Éditeurs et au-dessus ; avec le rôle Membre, tu lis et cherches dans la bibliothèque, et tu confies le fichier à un Éditeur pour l’ajouter.
+Choisis le public concerné avant le chargement. Les connaissances de l’organisation et les fichiers d’un projet n’ont pas les mêmes limites d’accès. Charger un fichier et le rendre consultable sont deux étapes distinctes : attends l’indexation avant de tester la recherche.
 
-<Frame caption="Le tableau Documents après quelques téléversements.">
+<Frame caption="La liste Documents affiche les fichiers chargés et leur état d’indexation. Le filtre ne conserve que les fichiers chargés et indexés.">
 
-![Le tableau des documents de la section Connaissances listant trois fichiers texte téléversés et les documents Markdown des entrées de connaissances, avec leur statut d’indexation.](/images/get-started/documents-list.webp)
-
-</Frame>
-
-<Check>
-
-Pose dans un nouveau chat une question à laquelle seul ton document peut répondre. Une réponse qui cite le document prouve que l’index fonctionne de bout en bout.
-
-</Check>
-
-</Step>
-
-<Step title="Retrouve le travail de l’équipe dans les projets">
-
-Ouvre **Projets** dans la barre latérale. Un projet regroupe tout ce qui touche à un même effort — des tâches sur un tableau, des fichiers partagés, des chats de projet et ses propres agents. Ouvre un projet et bascule entre **Tableau** et **Liste** dans l’onglet Tâches ; avec l’accès en édition (Éditeur et au-dessus), glisse une tâche d’une colonne à l’autre pour mettre à jour son statut, et la carte qui reste dans sa nouvelle colonne après un rechargement signifie que le changement a persisté pour tout le monde.
-
-<Frame caption="Le tableau des tâches d’un projet — glisse les cartes entre les colonnes.">
-
-![Un tableau de tâches de projet intitulé « Website relaunch » avec sept cartes réparties à une ou deux par colonne sur Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
+![Le tableau des documents présente les fichiers sources et leur état d’indexation.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-</Step>
+Si tu ne peux pas ajouter une source partagée, demande à une personne disposant des droits de modification. Précise le public visé et l’emplacement souhaité.
 
-<Step title="Retrouve ton chemin">
+## Travailler dans un projet
 
-Les chats ne disparaissent jamais en silence. Clique sur **Afficher l'historique** au-dessus du chat pour ouvrir la barre latérale d’historique — chaque chat que tu peux reprendre dans cet espace de travail, du plus récent au plus ancien. Renommer un chat lui donne un titre qui reste ; en supprimer un l’envoie dans la corbeille de l’espace de travail au lieu de le détruire.
+Ouvre **Projets** et choisis un projet accessible. Consulte **Tâches** pour le travail à réaliser, **Connaissances** pour les fichiers et **Chats** pour les conversations. Les chats de projet restent personnels jusqu’à leur partage avec le projet.
 
-</Step>
+<Frame caption="Le tableau regroupe le travail par statut ; chaque carte ouvre les détails de la tâche.">
 
-</Steps>
+![Un tableau de projet regroupe les cartes dans les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
-## Où tu en es
+</Frame>
 
-Tu sais discuter, nourrir l’espace de travail en connaissances et naviguer dans le travail partagé — la boucle quotidienne du membre. Les lectures suivantes naturelles sont [Bases du chat](/fr/platform/chat/basics) pour le modèle mental derrière le chat, et [Utiliser les projets](/fr/tutorials/member/use-projects) pour un parcours projet plus profond. Quand tu veux construire ton propre agent, passe au [parcours éditeur](/fr/get-started/editors).
+Ouvre une tâche pour lire sa description, son attribution et la discussion. Avec les droits de modification, mets-la à jour puis recharge-la pour vérifier l’enregistrement. [Gérer les tâches du projet](/fr/platform/projects/tasks) explique le travail courant ; [utiliser les projets](/fr/tutorials/member/use-projects) propose un exemple complet.
+
+## Reprendre ton travail
+
+Choisir **Projets** ou **Connaissances** depuis une autre section rouvre la dernière vue consultée. Choisis à nouveau la section active pour revenir à sa liste. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
+
+La barre latérale des chats conserve l’historique des conversations. Utilise **Afficher les chats** si elle est masquée, puis rouvre la conversation. Commence un nouveau chat pour un nouveau sujet et partage volontairement une conversation de projet lorsque tes collègues en ont besoin.
+
+La langue et le thème sont accessibles dans **Gérer le compte**. Le [guide des préférences](/fr/platform/member/preferences) explique les autres réglages et les fonctions qui les utilisent.

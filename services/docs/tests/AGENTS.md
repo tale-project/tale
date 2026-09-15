@@ -2,8 +2,8 @@
 
 The structural test suite is the pre-merge gate for everything under [`docs/`](../../../docs/),
 run from this directory. It walks the whole tree and asserts three things: the locales mirror each
-other (**parity**), each page is mechanically sound (**structure**), and each page reads like a
-real page, not a stub (**content**). A single failing assertion rarely says which rule broke —
+other (**parity**), each page is mechanically sound (**structure**), and pages have an introduction and no empty final section (**content presence**). Editorial
+quality and factual accuracy require a separate review. A single failing assertion rarely says which rule broke —
 this file names every check, what it catches, and the fix. The writing method lives in the
 [`write-docs`](../../../.agents/skills/write-docs/SKILL.md) skill; the Tale repo facts in
 [`docs/AGENTS.md`](../../../docs/AGENTS.md); cross-locale terminology in
@@ -58,21 +58,23 @@ and asserts the list is empty — the failure prints each file once with offendi
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontmatter`        | A page missing the `---` block or `title`/`description` → add the field (`title` sentence-case; `description` one sentence).                                                                                                                                                                                                                                            |
 | `filenames`          | A path segment that isn't dash-case lowercase (`API_Reference.md`) — locale segment exempt (`de-CH`) → rename and sweep inbound links.                                                                                                                                                                                                                                  |
-| `structure-headings` | A body `# H1` (the frontmatter `title` is the H1), depth past H4, or a stub heading name anywhere → demote/split/rename.                                                                                                                                                                                                                                                |
+| `structure-headings` | A body `# H1` (the frontmatter `title` is the H1) or depth past H4 → demote/split. Heading wording is reviewed for usefulness, not checked against a blacklist.                                                                                                                                                                                                                                                |
+| `structure-steps` | Bare headings, paragraphs, or other content directly inside `<Steps>`, or an untitled `<Step>` → wrap each action in `<Step title="…">` and keep its explanation and images inside that wrapper. The check uses the actual Markdown renderer. |
 | `structure-code`     | A bare ` ``` ` fence with no language → add a tag (`bash`, `typescript`, `json`, `text`, `mermaid`, …).                                                                                                                                                                                                                                                                 |
 | `structure-prose`    | A `!` in prose (outside `!=`/`!important`/image alt), or a status-chatter line opener (`Updated:`, `TODO:`, `Note that…`) → strike it.                                                                                                                                                                                                                                  |
-| `links`              | A relative/absolute-path page link resolving to no `.md`/`.mdx` (external, anchor-only, and `.ext` asset links are skipped) → fix or write the target.                                                                                                                                                                                                                  |
+| `links`              | A relative/absolute-path page link resolving to no `.md`/`.mdx` (external, anchor-only, and `.ext` asset links are skipped) → fix or write the target; German and French links must retain their locale prefix.                                                                                                                                                                                                                  |
+| `anchors` | An internal fragment without a matching rendered heading or explicit ID → use the renderer’s slug, or retain the old ID when renaming a section. |
 | `images`             | An `/images/...` reference with no file under `public/`, empty alt text, over ~200 KB, or a raw `<img>` tag (bypasses these checks) → fix the path, write a descriptive alt, export WebP, use markdown image syntax inside `<Frame>`.                                                                                                                                   |
 | `image-manifest`     | A `.webp` on disk that no page references, one missing from `public/images/manifest.json` (hand-captured — regenerate via `bun run docs:screenshots`), a manifest entry with no file, or a width over 2880/odd (the DPR-2 contract, parsed by `lib/webp-size.ts`).                                                                                                      |
 | `videos`             | A video asset outside `public/videos/manifest.json` (hand-recorded — produce via `bun run docs:videos`), a stale entry, a name off `<episode>.<locale>.(mp4\|vtt\|webp)`, an episode missing a base locale, a `<Video>` whose src/poster/captions is absent or crosses locales, an orphaned asset, an mp4 over 40 MB / poster over 250 KB, or a malformed WebVTT track. |
 | `redirects`          | A `docs/redirects.json` target that resolves to no page, a source that still exists as a page, a chain (target is itself a source), or a malformed slug → fix the entry.                                                                                                                                                                                                |
 
-**Content** — each page reads like a real page (the shape contract in the `write-docs` skill):
+**Content presence** — small mechanical checks, not prose templates:
 
 | Check (`*.test.ts`) | Catches → fix                                                                                                                                              |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `structure-opening` | Fewer than 2 sentences of prose before the first heading/list/table/fence (`kind: index` pages exempt) → add a 2–4 sentence opening covering what/who/why. |
-| `structure-closing` | A closing section that's a stub name (`Next`, `See also`, `Suite`, …) or a single bare-link line → rename for what it does, add a one-paragraph recap.     |
+| `structure-opening` | No introductory prose before the first structural element (`kind: index` pages exempt) → add useful orientation. One sentence can suffice; comments and images do not count as prose. |
+| `structure-closing` | A final heading with no content → complete or remove the empty section. A result, descriptive link, table, or code example is a valid ending; no recap is required.     |
 
 ## Fix order when several fail
 
@@ -82,20 +84,16 @@ Failures cascade top-down — fix in this order:
 2. **Frontmatter** (`frontmatter`) — two-second fix per page.
 3. **Locale parity** (`locale-tree`, then `locale-outline`) — presence before outline.
 4. **Per-page structure** (`filenames`, `links`, `images`, `structure-headings`/`-code`/`-prose`).
-5. **Prose shape** (`structure-opening`, `structure-closing`) — last, the deepest content fix.
+5. **Content presence** (`structure-opening`, `structure-closing`), then editorial review of
+   the reader's task, clarity, factual accuracy, and native locale flow.
 
 ## What this does NOT cover
 
 - **Terminology, voice, loanwords, pronouns, German grammar, ICU.** These live in the shared i18n
   framework at [`packages/ui/src/i18n/tests/`](../../../packages/ui/src/i18n/tests/), run per
   service via [`../lib/i18n/messages.test.ts`](../lib/i18n/messages.test.ts). This structural
-  suite borrows only the shared stub-heading and status-chatter wordlists.
-- **In-page anchor links** (`#section`). `links` checks page targets, not heading anchors. A
-  stripped umlaut/accent or a parenthesised heading slug passes silently — read the rendered
-  anchor once and reference it.
-- **Locale-prefix-missing links.** A `docs/de/**` link to `/self-hosted/foo` is resolved against
-  the page's own locale, so it passes even when a hand-written cross-locale link should carry the
-  prefix — double-check by eye.
+  suite borrows the shared status-chatter wordlist. The old stub-heading blacklist is no longer
+  used: the heading alone cannot tell whether a next-step section is useful.
 - **Inbound links from outside `docs/`.** When you move or rename a page, also grep the monorepo
   for references in app code and README files — and add the
   [`docs/redirects.json`](../../../docs/redirects.json) entry.
@@ -106,8 +104,13 @@ suites — out of scope here.
 
 ## Extending the suite
 
+Automate objective defects: broken links, missing translations, malformed markup, empty content,
+unreproducible assets. Do not enforce sentence counts, word budgets, required recap language,
+or images per step. These measures encourage filler without proving usefulness. Keep regression
+fixtures for concise valid content and structural false positives, including code and HTML comments.
+
 Add a new check as one `*.test.ts` in this directory using the shared helpers in [`lib/`](lib/):
-`walk.ts` (`walkDocs`, `discoverLocales`, `localeOf`, `filesInLocale`, `BASE_LOCALES`),
+`walk.ts` (`walkDocs`, `discoverLocales`, `filesInLocale`, `BASE_LOCALES`),
 `markdown.ts` (`parseFrontmatter`, `extractHeadings`, `extractCodeFences`, `extractOpeningProse`,
 `extractClosingSection`, `iterProseLines`, `COMPONENT_TAGS` + component-tag helpers, masking
 helpers), `webp-size.ts` (WebP header dimensions, no deps), `paths.ts` (`CONTENT_ROOT`,

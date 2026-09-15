@@ -344,6 +344,10 @@ export const ACTIONABLE_INBOX_KEYS = [
   'conversationTeamAssigned',
   'conversationTeamAssignedBody',
   'conversationTeamAssignedByBody',
+  'cloudSyncFailed',
+  'cloudSyncFailedBody',
+  'cloudSyncNeedsReauth',
+  'cloudSyncNeedsReauthBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -405,6 +409,12 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'The conversation "{subject}" was queued to your team — open your Inbox to reply.',
     conversationTeamAssignedByBody:
       '{actor} queued the conversation "{subject}" to your team — open your Inbox to reply.',
+    cloudSyncFailed: 'Cloud sync failing',
+    cloudSyncFailedBody:
+      'Syncing "{itemName}" from {provider} has been failing for over an hour ({reason}). Tale keeps retrying every 15 minutes.',
+    cloudSyncNeedsReauth: 'Cloud sync needs reconnecting',
+    cloudSyncNeedsReauthBody:
+      'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -466,6 +476,12 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Die Konversation "{subject}" wurde deinem Team zugewiesen — öffne deine Inbox, um zu antworten.',
     conversationTeamAssignedByBody:
       '{actor} hat die Konversation "{subject}" deinem Team zugewiesen — öffne deine Inbox, um zu antworten.',
+    cloudSyncFailed: 'Cloud-Synchronisierung schlägt fehl',
+    cloudSyncFailedBody:
+      'Die Synchronisierung von "{itemName}" aus {provider} schlägt seit über einer Stunde fehl ({reason}). Tale versucht es weiterhin alle 15 Minuten.',
+    cloudSyncNeedsReauth: 'Cloud-Synchronisierung muss neu verbunden werden',
+    cloudSyncNeedsReauthBody:
+      'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -526,6 +542,12 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'La conversation « {subject} » a été assignée à ton équipe — ouvre ta boîte de réception pour répondre.',
     conversationTeamAssignedByBody:
       '{actor} a assigné la conversation « {subject} » à ton équipe — ouvre ta boîte de réception pour répondre.',
+    cloudSyncFailed: 'Synchronisation cloud en échec',
+    cloudSyncFailedBody:
+      'La synchronisation de « {itemName} » depuis {provider} échoue depuis plus d’une heure ({reason}). Tale réessaie toutes les 15 minutes.',
+    cloudSyncNeedsReauth: 'Synchronisation cloud à reconnecter',
+    cloudSyncNeedsReauthBody:
+      'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',

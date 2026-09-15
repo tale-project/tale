@@ -7,4 +7,6 @@ bun run --filter @tale/{{kebabCase name}} typecheck
 bun run --filter @tale/{{kebabCase name}} test
 ```
 
-Source-only library — no build step. Consumers (other workspaces) import directly from `./src/`.
+This is a source-only library with no build step. Other workspaces import the package root,
+`@tale/{{kebabCase name}}`, which exports `src/index.ts`. Add deliberate package exports for
+additional public modules instead of importing another workspace's internal file paths.

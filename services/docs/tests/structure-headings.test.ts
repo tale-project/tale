@@ -1,13 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { stubsForLocale } from '@tale/ui/i18n/tests';
 import { describe, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
 import { extractHeadings, parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT } from './lib/paths';
-import { localeOf, walkDocs } from './lib/walk';
+import { walkDocs } from './lib/walk';
 
 /**
  * Heading rules from `.agents/skills/write-docs/SKILL.md`:
@@ -16,10 +15,8 @@ import { localeOf, walkDocs } from './lib/walk';
  *     `# X` in the body produces a duplicate H1.
  *   - **Max depth H4.** If the page needs H5/H6, it should be split. The
  *     theme's table of contents stops at H3 anyway.
- *   - **No stub heading names anywhere.** `## Next`, `## See also`, `## Suite`
- *     fail review whether they're the last heading or in the middle of the
- *     page. The closing-section test catches them at the end; this test
- *     catches them everywhere else.
+ *   - Heading wording is editorial. A useful "Next steps" or "Reference"
+ *     heading is valid; banning names encourages formulaic replacements.
  *
  * Sentence-case heading enforcement is intentionally NOT in this test —
  * German nouns are always capitalised so "Sentence case" doesn't map cleanly
@@ -28,7 +25,7 @@ import { localeOf, walkDocs } from './lib/walk';
  */
 
 describe('heading structure', () => {
-  it('every page respects body-H1, max-H4, and no-stub rules', () => {
+  it('every page respects body-H1 and max-H4 rules', () => {
     const findings: Finding[] = [];
     for (const rel of walkDocs()) {
       const raw = fs
@@ -36,7 +33,6 @@ describe('heading structure', () => {
         .replaceAll('\r\n', '\n');
       const { body } = parseFrontmatter(raw);
       const headings = extractHeadings(body);
-      const stubs = stubsForLocale(localeOf(rel));
 
       for (const h of headings) {
         if (h.depth === 1) {
@@ -53,14 +49,6 @@ describe('heading structure', () => {
             line: h.line,
             rule: 'heading-too-deep',
             detail: `heading depth H${h.depth} exceeds max H4; split the page`,
-          });
-        }
-        if (stubs.has(h.text)) {
-          findings.push({
-            file: rel,
-            line: h.line,
-            rule: 'heading-stub-name',
-            detail: `heading "${h.text}" is a stub name; rename for what the section does (e.g. "Where this fits", "Build one")`,
           });
         }
       }

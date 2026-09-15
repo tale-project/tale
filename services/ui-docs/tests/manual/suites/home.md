@@ -38,7 +38,7 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   first click lands on `/docs/getting-started/introduction` in the app chrome;
   Back returns to `/` with the marketing chrome, and neither transition leaves
   a stale header behind.
-- [ ] `HOME-3` · **Scroll to Real components, not screenshots** → the heading
+- [ ] `HOME-3` · **Scroll to Components in a sample workspace** → the heading
   and its sentence sit **above** the product window; the window shows
   **Workspace settings** with the General tab (a name field, a Data region
   select, a Weekly digest switch) and a Members tab holding a three-row table

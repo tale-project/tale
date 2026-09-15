@@ -14,18 +14,25 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [navigation](../suites/navigation.md) | Internal section links resolve against renderer heading IDs and translated page links retain their locale prefix | ✅ structural | `anchors.test.ts`, `links.test.ts` (full source corpus) |
 | [navigation](../suites/navigation.md) | Optional analytics: runtime disablement, safe SPA pageviews, private route templates, DNT/GPC and collector boundary | ✅ automated | `packages/ui/src/analytics/browser.test.ts`, `packages/ui/src/analytics/server.test.ts` |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `@tale/ui` component tests (`checkAccessibility()` via `vitest-axe`) + Storybook a11y addon |
+| [accessibility](../suites/accessibility.md) | `A11Y-A1` first Tab and skip activation at desktop/phone widths | ✅ automated | `page-header.spec.ts` verifies EN/DE/FR first focus reaches the skip link, then Enter focuses `main`. The rail scroll must not move the browser's sequential focus start. |
+| [accessibility](../suites/accessibility.md) | `A11Y-A8` reduced-motion section and top navigation | 🔶 partial | `docs-toc.test.tsx` and `scroll-to-top.test.tsx` check instant movement when requested and smooth movement otherwise; drawer/group animation remains manual. |
 | [accessibility](../suites/accessibility.md) | Source heading hierarchy | ✅ automated | vitest `structure-headings.test.ts` (per-page heading rules in the corpus) |
 | [accessibility](../suites/accessibility.md) | Docs chrome axe (rail tree, header strip, outline) | ✅ automated | `app/components/docs/*.test.tsx` via the service-local `tests/utils/a11y.ts` (`checkAccessibility()`) |
 | [accessibility](../suites/accessibility.md) | `A11Y-A12` (one page title) | ✅ automated | `page-header.spec.ts` (one `h1`, in the article; the trail leaf is a plain current marker) + `tests/prerender/seo.test.ts` |
 | [accessibility](../suites/accessibility.md) | Full-page audits (`A11Y-A1`–`A11Y-A11`) | ⛔ manual-only | — this guide (the shared `ImageZoom`/`Video` components carry `vitest-axe` in `@tale/ui`) |
 | [content](../suites/content.md) | `CONT-F1` (source shape) | ✅ automated | vitest `structure-code.test.ts` (every fence declares a language), `structure-headings.test.ts`, `links.test.ts` |
+| [content](../suites/content.md) | Local preview keeps the article body after a content edit or regenerated frontmatter | 🔶 unit | `lib/content/reload-content.test.ts` checks client full reload and module invalidation for content paths; editing a visible page in the dev server remains manual |
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
+| [content](../suites/content.md) | Frame captions and keyboard image zoom | ✅ automated | `@tale/ui` `frame.test.tsx` preserves captions, child images and following content through the real Markdown parser; `markdown.spec.ts` checks visible captions, zoom and Escape/focus restoration in EN/DE/FR. |
 | [content](../suites/content.md) | `CONT-F17`–`CONT-F18` (video sources) | 🔶 partial | vitest `videos.test.ts` (manifest ↔ disk parity, all-locales-or-none per episode, embed src/poster/captions resolve + match page locale, size budgets, well-formed WebVTT) |
 | [content](../suites/content.md) | `CONT-F9`–`CONT-F14` (component tags mirrored) | 🔶 partial | vitest `locale-components.test.ts` (DE/FR mirrors use the same component tags in the same order) — rendering manual |
-| [content](../suites/content.md) | `CONT-F1`–`CONT-F18` (rendered), `CONT-B1`–`CONT-B3` | ⛔ manual-only | — (the header regression renders content pages but does not judge their body components) |
+| [content](../suites/content.md) | `CONT-F2`–`CONT-F3`, `CONT-A1` | 🔶 partial | `markdown.spec.ts` checks EN/DE/FR heading/code copy labels and keyboard clipboard behavior; `@tale/ui` copy-control tests cover both code-block styles and de-CH fallback. Visual affordances remain manual. |
+| [content](../suites/content.md) | Long inline paths at 390 px | ✅ automated | `markdown.spec.ts` checks exact source text and viewport containment in EN/DE/FR. |
+| [content](../suites/content.md) | Remaining rendered body components, `CONT-B1`–`CONT-B3` | ⛔ manual-only | — |
 | [locale](../suites/locale.md) | `LOC-F2` (mirror exists) | ✅ automated | vitest `locale-tree.test.ts` (every EN page has DE/FR mirrors) + `locale-outline.test.ts` (same outline) + `docs.test.ts` (voice/terminology) |
 | [locale](../suites/locale.md) | `LOC-F5` (dialog parity) | 🔶 partial | vitest `locale-components.test.ts` + `locale-translation.test.ts` (mirrors are real translations, same component tags) — rendered chrome manual |
 | [locale](../suites/locale.md) | `LOC-F1`, `LOC-F3`–`LOC-F7`, `LOC-B1`–`LOC-B2` | 🔶 partial | `page-header.spec.ts` checks EN/DE/FR breadcrumb and action labels; switcher, full-page locale behavior and unknown routes remain manual |
@@ -35,11 +42,12 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [navigation](../suites/navigation.md) | `NAV-F13` (pinned header strip) | ✅ automated | `smoke.spec.ts` (the trail keeps its viewport position while the article scrolls) |
 | [navigation](../suites/navigation.md) | `NAV-F14` (phone drawer) | 🔶 partial | `smoke.spec.ts` (opens, carries close + search, one Escape closes, focus returns, a row navigates and closes it, and growing past `md` releases the overlay); scroll lock and the trapped tab cycle remain manual |
 | [navigation](../suites/navigation.md) | `NAV-F15` (outline breakpoints) | 🔶 partial | `smoke.spec.ts` (aside at `xl`, disclosure below, exactly one in the a11y tree) + `docs-toc.test.tsx`; scroll-spy remains manual |
-| [navigation](../suites/navigation.md) | Page header at 375 px and 1440 px | ✅ automated | `page-header.spec.ts` checks non-overlapping phone actions, desktop row alignment, viewport containment and Escape/focus restoration in EN/DE/FR |
+| [navigation](../suites/navigation.md) | Page header at 375 px, 390 px and 1440 px | ✅ automated | `page-header.spec.ts` checks non-overlapping phone actions, long-title wrapping after fonts load, desktop row alignment, viewport containment and Escape/focus restoration in EN/DE/FR |
 | [navigation](../suites/navigation.md) | `NAV-F9`–`NAV-F10` (source map) | 🔶 partial | vitest `redirects.test.ts` (slug shape, every target exists in every locale, no source shadows a page, no chains) — the **served** 301s/stubs manual |
 | [navigation](../suites/navigation.md) | `NAV-F2`–`NAV-F3`, `NAV-F5`–`NAV-F8`, `NAV-F11`–`NAV-F12`, `NAV-B1`–`NAV-B3` | ⛔ manual-only | — |
 | [search](../suites/search.md) | `SEARCH-F1` | ✅ automated | `smoke.spec.ts` (open via the rail field → placeholder input visible; the drawer carries the same trigger) |
 | [search](../suites/search.md) | `SEARCH-F2`–`SEARCH-F6` | 🔶 partial | component `app/features/search/dialog.test.tsx` (wiring); real index + navigation manual |
+| [search](../suites/search.md) | `SEARCH-F6` nested result ancestors use the localized sidebar hierarchy | 🔶 component | `app/features/search/dialog.test.tsx` renders German and French project results; real generated indexes and selection remain manual |
 | [search](../suites/search.md) | `SEARCH-F7` | 🔶 partial | vitest `redirects.test.ts` (no redirect source is still a page) — index content manual |
 | [search](../suites/search.md) | `SEARCH-B1`–`SEARCH-B3`, `SEARCH-A1`–`SEARCH-A3`, `SEARCH-P1` | ⛔ manual-only | — |
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical / JSON-LD / 404 | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/docs test:prerender`, dependsOn build) |

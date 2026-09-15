@@ -1,74 +1,72 @@
 ---
-title: Quickstart
-description: Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden.
+title: Deine erste Nachricht senden
+description: Bei Tale anmelden, einen Chat starten, ein Modell wählen und die Antwort prüfen.
 ---
 
-Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instanz besorgen, anmelden, Nachricht senden, der Antwort beim Streamen zusehen. Auf einer bereiten Instanz dauert das rund fünf Minuten, auf deiner eigenen Maschine fünfzehn — und es endet mit dem Bildschirm unten, einer echten Antwort eines Agents über deinen Arbeitsbereich.
+Beginne hier, wenn du Zugang zu einem Tale-Arbeitsbereich hast und deine erste Antwort erhalten möchtest. Du sendest einen kurzen Prompt, liest die Antwort und findest das Gespräch anschließend wieder.
 
-<Frame caption="Wo dieser Quickstart endet: eine gestreamte Agent-Antwort im Chat.">
+## Was du brauchst
 
-![Ein Chat-Verlauf mit einer Nutzerfrage zu Onboarding-Feedback und einer Assistenten-Antwort, die eine Markdown-Tabelle mit drei Themen enthält.](/images/platform/chat-thread-reply.webp)
+Du brauchst die Adresse deiner Instanz, ein Konto und einen Arbeitsbereich mit verbundenem KI-Anbieter. Bitte die zuständige Person um Zugang. Eine eigene Instanz richtest du mit dem [Schnellstart für den Eigenbetrieb](/de/self-hosted/install/quickstart) ein. Für eine verwaltete Instanz gibt es den [Cloud-Einstieg](/de/cloud/onboarding).
 
-</Frame>
+Mit deinem Konto meldest du dich an. Die Organisation ist der Arbeitsbereich für Mitglieder, Projekte und Konfiguration deines Teams. Deine Rolle legt fest, welche Aktionen du dort ausführen darfst.
 
-Lieber als Video? Episode 1 geht denselben Weg in gut drei Minuten — Untertitel inklusive.
-
-<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:25)">
-
-</Video>
-
-## Hol dir eine Instanz
-
-Beide Editionen sind dasselbe Produkt — entscheide danach, wer den Stack betreiben soll.
-
-<Tabs>
-
-<Tab title="Selbst gehostet">
-
-Mit laufendem [Docker](https://www.docker.com/products/docker-desktop) stellen drei Befehle den ganzen Stack auf deiner Maschine auf:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-tale init my-project && cd my-project
-tale dev
-```
-
-Der erste Lauf zieht die Images — rechne mit fünf bis zehn Minuten. Sobald der Browser aufgeht, registriere dich: Das erste Konto übernimmt die Rolle **Inhaber** und erstellt deine Organisation. Der [selbst gehostete Quickstart](/de/self-hosted/install/quickstart) erklärt jeden Schritt in der Tiefe, samt Windows und Fehlersuche.
-
-</Tab>
-
-<Tab title="Cloud">
-
-Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://tale.dev/de/request-demo) aus, und das Tale-Team stellt deine eigene Instanz bereit. Sobald sie steht, öffne sie und registriere dich — das Formular fragt nach Name, E-Mail und Passwort; bestätige den E-Mail-Link, sobald er ankommt, benenne deine Organisation, und du landest im Dashboard. Der Setup-Assistent bietet direkt an, einen KI-Anbieter zu verbinden — füge dort einen [OpenRouter](https://openrouter.ai)-Schlüssel ein, und der Chat funktioniert sofort. Der [Einstieg für Admins](/de/get-started/admins) geht denselben Assistenten mit Screenshots durch, wenn du mehr willst als den Happy Path.
-
-</Tab>
-
-</Tabs>
-
-## Schick deine erste Nachricht
+## Ein Gespräch beginnen
 
 <Steps>
 
-<Step title="Öffne einen neuen Chat">
+<Step title="Anmelden und Chat öffnen">
 
-Klicke in der Sidebar auf **Neuer Chat**. Die Eingabezeile am unteren Bildschirmrand ist der Ort, an dem alles beginnt: das Nachrichtenfeld und ein Picker, der das Modell benennt, aus dem die Antwort kommen wird. Zeigt der Picker bereits ein Modell, bist du bereit zu senden — der Assistent selbst ist eingebaut, mehr gibt es nicht zu wählen.
+Öffne deine Instanz und melde dich mit der vom Admin vorgesehenen Methode an. Gehörst du mehreren Organisationen an, wähle den passenden Arbeitsbereich. Öffne **Chat** und dann **Neuer Chat** in der Chat-Seitenleiste. Ist der Verlauf ausgeblendet, blende ihn mit **Chats anzeigen** ein.
 
 </Step>
 
-<Step title="Stell eine echte Frage">
+<Step title="Modell prüfen und Prompt schreiben">
 
-Wähl im Picker irgendein Chat-Modell — jede Antwort kommt von genau dem Modell, das du benannt hast, hinter den Kulissen wird nichts für dich entschieden. Tippe eine Frage und sende sie. Die Antwort streamt Token für Token herein; wenn der Agent vor dem Antworten nachdenkt, erscheint über der Antwort eine aufklappbare Denk-Zeile.
+Über die Modellauswahl unter dem Nachrichtenfeld siehst du die verfügbaren Modelle. Dort kann **Auto** stehen. Wähle ein bestimmtes Modell, wenn du selbst festlegen möchtest, welches antwortet. Das Angebot hängt von den verbundenen Anbietern und Zugriffsregeln deines Arbeitsbereichs ab.
 
-<Check>
+<Frame caption="Nachrichtenfeld und Modellauswahl liegen im selben Eingabebereich.">
 
-Eine gestreamte Antwort, die deine Frage beantwortet, heißt: Die ganze Kette funktioniert — Anbieter-Zugangsdaten, Modell und Assistent. Du hast einen funktionierenden Arbeitsbereich.
+![Der Chat-Eingabebereich enthält das Nachrichtenfeld, die Modellauswahl, die Anhangfunktionen und die Schaltfläche zum Senden.](/images/platform/chat-composer.webp)
 
-</Check>
+</Frame>
+
+Teste zuerst eine Anfrage ohne weitere Quellen: „Schreibe eine Checkliste mit drei Punkten zur Vorbereitung einer Teamsitzung. Verwende pro Punkt einen Satz.“ Dafür brauchst du weder hochgeladene Dokumente noch verbundene Werkzeuge.
+
+</Step>
+
+<Step title="Senden und Antwort lesen">
+
+Wähle **Nachricht senden** oder drücke Enter. Deine Nachricht erscheint im Gespräch, danach folgt die Antwort des Assistenten. Vor der Antwort kann ein Denkhinweis erscheinen. Warte bis zum Ende, bevor du das Ergebnis beurteilst.
+
+Prüfe, ob Länge und Format stimmen. Stelle eine Anschlussfrage, etwa: „Ergänze, wer den jeweiligen Punkt vorbereiten sollte.“ Im selben Gespräch bleiben die vorherigen Nachrichten als Kontext erhalten.
 
 </Step>
 
 </Steps>
 
-## Wo du jetzt stehst
+## Den Chat wiederfinden
 
-Du hast eine laufende Instanz und einen Agent, der antwortet. Die nächsten fünfzehn Minuten hängen von deiner Rolle ab: Der [Einstieg für Mitglieder](/de/get-started/members) behandelt Dokumente und Projekte, der [Einstieg für Redakteure](/de/get-started/editors) veröffentlicht deinen ersten Spezialisten-Agent, der [Einstieg für Admins](/de/get-started/admins) richtet Team und Anbieter ein, und der [Einstieg für Entwickler](/de/get-started/developers) bringt dir einen API-Schlüssel und deine erste Anfrage.
+Öffne das Gespräch erneut über die Chat-Seitenleiste. Ein neuer Chat beginnt ein separates Gespräch und eignet sich für einen Themenwechsel. [Chat-Grundlagen](/de/platform/chat/basics) erklärt Namen, Verlauf und Antwortfunktionen.
+
+<Tip>
+
+Nenne Ziel, benötigte Informationen und Ausgabeformat. „Fasse diese Notizen als Entscheidungen und offene Fragen zusammen“ beschreibt die Aufgabe genauer als „Hilf mir damit“.
+
+</Tip>
+
+## Wenn keine Antwort kommt
+
+| Was du siehst | Was du tun kannst |
+| --- | --- |
+| Die Anmeldung funktioniert nicht | Prüfe Instanzadresse und Anmeldemethode mit deinem Admin. |
+| Es sind keine Modelle verfügbar | Bitte einen Admin, [KI-Anbieter](/de/platform/admin/providers) und deinen Modellzugriff zu prüfen. |
+| Ein Anbieter- oder Modellfehler erscheint | Teste ein anderes verfügbares Modell und gib den angezeigten Fehler an den Admin weiter. |
+| Eine Nutzungsgrenze wurde erreicht | Bitte den Admin, die betreffende [Richtlinie](/de/platform/admin/governance/policies-and-limits) zu prüfen. |
+| Die Antwort verwendet deine Dokumente nicht | Der erste Prompt enthielt keine Quelle. Ergänze sie über [Chat-Anhänge](/de/platform/chat/attachments) oder [Wissen](/de/platform/knowledge/overview). |
+
+Lies weiter mit [Tale im Team nutzen](/de/get-started/members) oder [wirksame Prompts schreiben](/de/tutorials/member/chat-effectively).
+
+<Video src="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.mp4" poster="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.webp" captions="/videos/de/tutorials/ep1-welcome/ep1-welcome.de.vtt" lang="de" title="Episode 1 — Willkommen bei Tale" caption="Episode 1 — Willkommen bei Tale (3:25)">
+
+</Video>

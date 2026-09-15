@@ -6,7 +6,11 @@ import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
-import { defineConfig, searchForWorkspaceRoot } from 'vite';
+import {
+  defaultAllowedOrigins,
+  defineConfig,
+  searchForWorkspaceRoot,
+} from 'vite';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectBootShellPlugin } from './vite-plugins/inject-boot-shell';
@@ -77,6 +81,10 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   server: {
+    // WebDAV clients probe OPTIONS before authenticating. Let the backend
+    // advertise DAV/Allow while retaining Vite's default origin restriction.
+    // nosemgrep: trailofbits.javascript.apollo-graphql.v3-cors-audit.v3-potentially-bad-cors -- Vite's anchored localhost/loopback allowlist, not an Apollo wildcard; dev and preview reject foreign origins in webdav-preflight.test.ts.
+    cors: { origin: defaultAllowedOrigins, preflightContinue: true },
     port: 3000,
     // Fail loudly if 3000 is taken instead of silently moving to the next free
     // port: SITE_URL, the backend proxy, and the dev orchestrator all assume the

@@ -1,56 +1,75 @@
 ---
-title: Construire ton premier agent
-description: Mène un projet neuf de « je veux un agent » à un résultat de tâche relu — crée un agent de projet avec un harness, un modèle et un paragraphe d’instructions, confie-lui une vraie tâche et relis ce qui revient.
+title: Créer ton premier agent
+description: Configure un agent de projet pour une petite tâche de texte, lance-le depuis le tableau et relis son résultat.
 ---
 
-Un premier agent est la plus petite chose utile dans Tale : un nom, un harness, un modèle et un paragraphe d’instructions dans l’onglet **Agents** d’un projet. Ce parcours en crée un, lui confie une vraie tâche et relit le résultat là où le travail de chaque agent attend — la colonne **En revue**. La forme se généralise : chaque agent que tu construis plus tard, ce sont les mêmes quatre gestes avec d’autres choix, et la boucle de la fin est celle où tu passes le plus de temps.
-
-Il te faut le droit de modifier un projet et au moins un fournisseur sous **Paramètres > Fournisseurs IA** avec un modèle dessus. Le côté conceptuel vit dans [Concepts d’agent](/fr/platform/agents/concepts) et la référence champ par champ dans [Agents de projet](/fr/platform/projects/project-agents) ; ce parcours est le mécanisme de bout en bout.
+Crée un agent qui résume le message d’un contact et recommande une prochaine action. Cet exercice prend la description de la tâche comme entrée. Tu peux ainsi vérifier tout le parcours avant d’ajouter des connecteurs ou des connaissances partagées : configurer l’agent, lancer une tâche, puis relire le résultat.
 
 ## Avant de commencer
 
-Confirme trois choses. Tu peux modifier le projet — quiconque peut le modifier crée, modifie et supprime ses agents, jusqu’à 50 par projet. L’organisation a un fournisseur configuré avec au moins un modèle ; sans cela, il n’y a rien à choisir sous **Modèle**, et l’exécution de la fin n’a rien à appeler. Et tu as en tête un travail assez étroit pour qu’un paragraphe d’instructions l’encadre — ce parcours prend « résume un message de contact entrant en une phrase plus une action suivante recommandée ».
+Il te faut un projet que tu peux modifier, un harness d’agent de code disponible avec des identifiants de modèle compatibles et une allocation de sandbox fonctionnelle. Un administrateur gère les [fournisseurs d’IA](/fr/platform/admin/providers) et les [Sandboxes](/fr/platform/admin/sandboxes). Un modèle utilisable dans Chat ne suffit pas à lui seul : le harness choisi doit pouvoir utiliser ses identifiants.
 
-## Étape 1 — Nommer l’agent et choisir son moteur
+Si la page Agents ou la liste des modèles manque, règle d’abord l’accès ou la configuration. Ce tutoriel ne nécessite ni skills, ni connecteurs, ni outils de plateforme, ni secrets injectés.
 
-Ouvre l’onglet **Agents** du projet. Il liste l’équipe du projet, une ligne par agent, et c’est ici qu’atterrit l’agent que tu vas créer.
+## Créer l’agent
 
-<Frame caption="L’onglet Agents — chaque ligne nomme le harness, le fournisseur et le modèle de l’agent.">
+Ouvre l’onglet **Agents** du projet et clique sur **Nouvel agent**.
 
-![L’onglet Agents du projet Website relaunch listant deux agents nommés — Content editor sur Claude Code et Redirect auditor sur Codex — chaque ligne nommant le fournisseur et l’identifiant du modèle, à côté du bouton Nouvel agent.](/images/platform/project-agents-models.webp)
+<Frame caption="Le tableau identifie chaque agent par son harness, son fournisseur et son modèle.">
+
+![Website relaunch liste Content editor avec Claude Code et Redirect auditor avec Codex, leurs fournisseurs et modèles, à côté de Nouvel agent.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
-Clique sur **Nouvel agent**. Les trois premiers champs décident de ce qui tourne :
-
-- **Nom** — `Triage assistant`. Ton équipe le voit sur les cartes de tâches, alors nomme-le d’après le travail.
-- **Harness** — la CLI de code sur laquelle l’agent tourne. [Harnesses](/fr/platform/agents/harnesses) les compare et dit quels accès chacun accepte.
-- **Modèle** — la liste se filtre à la saisie, et un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur. Le choix est exact : les exécutions appellent ce modèle via ce fournisseur, et la dépense atterrit sur son accès.
-
-## Étape 2 — Laisser l’équipement vide
-
-**Skills, connectors & outils** décident de ce que l’agent atteint au-delà de sa sandbox : les skills fournissent des bundles de référence, les connectors relaient un service connecté, et les outils de la plateforme lui laissent lire — ou, quand tu accordes un outil d’écriture, changer — les tâches, les documents et les connaissances du projet. Pour le tri, n’accorde rien : l’agent lit une entrée et écrit une sortie, et chaque outil accordé élargit la frontière de confiance. Laisse aussi **Secrets** vide — c’est l’échappatoire pour un service sans connector, et cet agent n’en appelle aucun.
-
-Si l’agent doit plus tard écrire l’action recommandée dans un CRM, tu l’équiperas alors du connector correspondant — mais pas avant que la version texte seul fonctionne.
-
-## Étape 3 — Écrire les instructions et créer l’agent
-
-Les **Instructions** accompagnent chaque exécution comme consigne permanente — ce que l’agent prend en charge, comment il travaille et où il s’arrête. C’est le champ que la plupart des gens surchargent ; garde-le sous un paragraphe :
+1. Dans **Nom**, saisis `Assistant de triage`.
+2. Choisis un **Harness** configuré par ton administrateur.
+3. Sous **Modèle**, cherche par nom de modèle ou identifiant API, puis sélectionne l’entrée du fournisseur voulu. Un même modèle peut être proposé par plusieurs fournisseurs.
+4. Laisse **Skills, connectors & outils** et **Secrets** vides pour cet exercice.
+5. Colle les instructions ci-dessous dans **Instructions**, puis clique sur **Créer l'agent**.
 
 ```text
-You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.
+Lis le message du contact dans la description de la tâche. Réponds en deux lignes :
+Résumé : une phrase qui explique le besoin de la personne.
+Prochaine action : répondre, escalader ou clore, avec une courte justification.
+Si la demande est inexploitable, précise quelle information manque.
+Ne contacte personne et ne modifie aucune fiche.
 ```
 
-Clique sur **Créer l'agent**. La ligne affiche le harness, le fournisseur, le modèle et le nombre d’équipements — il n’y a pas d’étape de publication, et l’agent peut recevoir du travail dès cet instant.
+La nouvelle ligne est prête à recevoir une tâche. Il n’y a pas d’étape de publication. Garde les instructions de l’agent pour son travail récurrent ; le message individuel appartient à la tâche.
 
-## Étape 4 — Lui confier une tâche et relire le résultat
+## Lui confier une tâche vérifiable
 
-Crée une tâche sur le tableau du projet, colle un vrai message de contact dans sa description et choisis un **Relecteur** dans la fiche de la tâche — sans lui, la demande de revue arrive à qui a créé la tâche. Assigne la tâche à `Triage assistant` et clique sur **Démarrer l'agent**. La carte passe en _En cours_ pendant que l’agent travaille dans sa sandbox ; quand il a fini, son rapport arrive en commentaire de la tâche et la carte se gare en **En revue** — un agent ne passe jamais une carte en _Terminé_.
+Ouvre **Tâches**, crée `Trier la demande de copie de facture` et colle cette description :
 
-Lis le commentaire : il doit contenir deux lignes selon les instructions, un résumé en une phrase et une action recommandée. Déplace la carte vers _Terminé_ pour l’accepter. Si le format a dérivé, @-mentionne l’agent dans un commentaire de la tâche avec la correction — une exécution de reprise poursuit la même conversation et gare le résultat de nouveau en _En revue_ — et resserre les **Instructions** de l’agent pour la prochaine fois ; les modifications s’appliquent à partir de l’exécution suivante.
+```text
+Message du contact :
+« Bonjour, j’ai reçu la confirmation de commande, mais je ne trouve pas la
+facture. Pourriez-vous m’en envoyer une copie ? La commande est A-1042. »
 
-## Où cela se place
+Critères d’acceptation :
+- Résumer la demande en une phrase.
+- Recommander répondre, escalader ou clore, avec une justification.
+- Ne pas affirmer que la facture a déjà été envoyée.
+```
 
-Quatre gestes, un agent, un résultat relu : la même forme que suit chaque agent que tu construiras plus tard. [Automatisation des tâches](/fr/platform/projects/task-automation) est la boucle du tableau que tu viens de parcourir, de bout en bout — la séparation pilote/relecteur, les mentions, les reprises et le coupe-circuit. [Agents de projet](/fr/platform/projects/project-agents) est la référence pour chaque champ que tu as touché, et [Concepts d’agent](/fr/platform/agents/concepts) le modèle derrière.
+Assigne la tâche à `Assistant de triage`. Ouvre ses détails pour choisir un **Relecteur** si quelqu’un d’autre doit la relire ; sinon, son créateur reçoit la demande de relecture. Clique sur **Démarrer l'agent**. L’assignation seule ne lance pas le travail.
 
-Les réglages qui vivaient dans un éditeur d’agent sont ailleurs dans cette version : les connaissances appartiennent à toute l’organisation sous la [Base de connaissances](/fr/platform/knowledge/overview) et se lisent par les outils de la plateforme ([Agents de projet](/fr/platform/projects/project-agents) explique comment), et le travail qui doit tourner sans personne est une [automatisation](/fr/platform/automations/concepts), pas un second agent.
+La tâche passe à **En cours**. Une exécution réussie publie son rapport en commentaire et déplace la tâche vers **En revue**. La sandbox et le fournisseur doivent fonctionner pour que l’exécution aboutisse.
+
+## Relire et améliorer le résultat
+
+Compare le commentaire de l’agent aux critères d’acceptation. Une réponse convenable reconnaît une demande de copie de facture et recommande de répondre. Elle ne doit pas prétendre qu’un e-mail a été envoyé. La formulation peut varier selon le modèle.
+
+Passe la tâche à **Terminé** lorsque tu acceptes le résultat. S’il manque quelque chose, mentionne l’agent assigné dans un commentaire avec une correction précise : « Limite le résumé à une phrase et explique pourquoi une réponse est nécessaire. » La reprise poursuit la conversation de la tâche et fournit un nouveau résultat à relire.
+
+<Tip>
+
+Utilise un commentaire de tâche pour une correction ponctuelle. Modifie les instructions de l’agent si la règle doit aussi s’appliquer aux tâches suivantes. Ajoute des outils lorsqu’un exercice ultérieur nécessite de lire ou modifier quelque chose hors des données fournies.
+
+</Tip>
+
+## Si l’exécution ne démarre pas ou ne se termine pas
+
+Un modèle manquant appelle une vérification du fournisseur et du harness. Une erreur de sandbox nécessite qu’un administrateur vérifie la capacité et l’infrastructure. Une exécution échouée reste consultable : corrige la cause avant de la relancer. Ne redémarre pas plusieurs fois une tâche dont l’exécution est déjà active.
+
+[L’automatisation des tâches](/fr/platform/projects/task-automation) explique les relances, l’annulation, le passage en relecture et les reprises. [Agents de projet](/fr/platform/projects/project-agents) présente l’équipement à ajouter une fois cette première tâche validée.

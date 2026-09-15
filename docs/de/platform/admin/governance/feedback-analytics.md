@@ -1,32 +1,35 @@
 ---
 title: Feedback-Analyse
-description: Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell.
+description: Vergleiche Chatbewertungen und Arena-Urteile, lies Kommentare und untersuche Veränderungen der Antwortqualität.
 ---
 
-Feedback-Analyse ist das Dashboard, das die Per-Nachricht-Daumen und die Arena-Urteile in Trendlinien verwandelt. Mitglieder hinterlassen das Feedback inline im Chat; diese Seite aggregiert es pro Assistent, pro Modell und über die Zeit, sodass die Regression aus der Stimmänderung letzter Woche als Zahl sichtbar ist und nicht als Bauchgefühl. Admins und Inhaber lesen diese Seite, wenn ein Modellwechsel wie eine Verschlechterung aussieht, wenn ein Assistent schlechter abschneidet als die anderen, oder wenn die Führung die grobe Qualitätshaltung jedes Assistenten in der Organisation will.
+Als Admin oder Inhaber prüfst du unter **Einstellungen > Metriken > Feedback** die Rückmeldungen aus dem Chat. Bewertungen zeigen, was Mitglieder hilfreich fanden. Ihre Kommentare erklären die Gründe.
 
-## Eine durchgespielte Detailansicht
+## Das passende Feedback finden
 
-Öffne **Einstellungen > Metriken > Feedback** und die Default-Ansicht ist die organisationsweite Stimmung über die letzten 7 Tage — weite das Fenster, wenn es ruhig ist. **Top-Assistenten nach Feedback** zeigt das Hilfreich-Verhältnis pro Assistent samt Volumen, sodass die tatsächlich genutzten Assistenten herausstechen; filtere auf einen, und Stimmungs-Trend und aktuelle Kommentare ziehen mit. **Top-Modelle nach Feedback** sind dieselben Daten, geschnitten auf das Modell, das jede bewertete Antwort erzeugt hat.
+Wähle einen Zeitraum und grenze danach nach Feedbacktyp, Assistent oder Modell ein. Verfügbar sind 1, 7, 30 und 90 Tage sowie der gesamte Zeitraum; die erste Ansicht zeigt 7 Tage. Wählst du einen Assistenten oder ein Modell in einer Aufschlüsselung, wird die Ansicht gefiltert. Entferne Filterchips, um sie wieder zu erweitern.
 
-## Die zwei Signale
+Mit **Nur Kommentare** konzentrierst du dich auf schriftliche Erläuterungen. Prüfe bei einer leeren Ansicht zuerst Zeitraum und Filter. Feedback ist freiwillig: Eine unbewertete Antwort ist weder eine positive noch eine negative Stimme.
 
-**Daumen-Feedback** ist das Per-Nachricht-Signal — ein Daumen hoch oder ein Daumen runter auf eine Assistenten-Antwort. Der Daumen trägt einen optionalen Freitext-Kommentar; der Kommentar ist pro Zeile und fließt nie ins Verhältnis. Mitglieder können ihren Daumen ändern oder ganz zurückziehen; die Zahlen zeigen den jeweils letzten Stand.
+## Die Signale unterscheiden
 
-**Arena-Urteile** ist das Per-Vergleich-Signal — lässt ein Mitglied zwei Modelle im [Arena-Modus](/de/platform/chat/arena-mode) nebeneinander laufen, landet das Urteil hier. Die Zusammenfassung zählt entschiedene Stimmen, Unentschieden und Beide-schlecht; **Top Modell-Duelle** hält den Stand pro Paarung fest, weil ein „A gewinnt" nur gegen das geschlagene Modell etwas bedeutet.
+| Signal | Was es aussagt |
+| --- | --- |
+| Daumen hoch/runter | Ob ein Mitglied eine bestimmte Antwort hilfreich fand. Ein optionaler Kommentar liefert Kontext. |
+| Arena-Urteil | Welche Antwort in einem konkreten Paar bevorzugt wurde oder ob beide gleich gut beziehungsweise schlecht waren. |
 
-## Aufschlüsselungen
+Mitglieder können Bewertungen ändern oder zurückziehen. Das Dashboard zeigt den aktuellen Stand, keine dauerhafte Zählung aller Klicks. Im [Arena-Modus](/de/platform/chat/arena-mode) erfährst du, wie Mitglieder zwei Antworten vergleichen.
 
-Das Dashboard schneidet nach drei Dimensionen:
+## Ergebnisse fair vergleichen
 
-- **Assistent** — jeder Assistent mit bewerteten Antworten bekommt seine eigene Zeile mit Hilfreich- und Nicht-hilfreich-Zählern und der resultierenden Stimmung.
-- **Modell** — jedes Modell, das eine bewertete Antwort erzeugt hat, trägt bei; Arena-Paarungen bleiben im Duell-Tableau Kopf an Kopf.
-- **Zeit** — die Kurve Stimmung im Zeitverlauf folgt dem gewählten Fenster, von einem Tag bis 90 Tagen. Ab 50.000 Einträgen im Fenster zeigt die Seite Teilergebnisse und bittet dich, es zu verengen.
+Lies die Anzahl der Bewertungen zusammen mit dem Anteil hilfreicher Antworten. Eine einzelne positive Stimme sagt weniger aus als wiederholtes Feedback zu den tatsächlich bearbeiteten Aufgaben. Vergleiche ähnliche Zeiträume und Aufgaben, bevor du eine Veränderung einem Modell oder einer Assistentenkonfiguration zuschreibst.
 
-## Freitext-Kommentare
+Finde die Veränderung in den Tabellen nach Assistent und Modell, ihren Zeitpunkt im Verlauf und die Gründe in den aktuellen Feedback-Kommentaren. Vergleiche bei Arena-Ergebnissen dieselbe Modellpaarung. Ein Sieg gegen ein Modell belegt keinen Vorteil gegenüber allen anderen.
 
-Kommentare erscheinen in der Liste **Aktuelles Feedback** unter den aggregierten Zahlen. Filtere mit **Nur Kommentare**, um blanke Daumen auszublenden, und nach Typ, um Chat-Daumen von Arena-Urteilen zu trennen. Kommentare unterliegen derselben Aufbewahrungsrichtlinie wie die Konversationen, zu denen sie gehören; wird ein Thread gelöscht oder verworfen, gehen die Kommentare mit.
+<Tip>
+Ziehe die [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) hinzu. Ein Modell kann pro Anfrage günstiger sein und trotzdem mehr Versuche brauchen, bis eine brauchbare Antwort entsteht.
+</Tip>
 
-## Wo das hingehört
+## Teilergebnisse verstehen
 
-Feedback-Analyse ist der Puls jedes Assistenten in der Organisation — der Ort, an dem eine Regression in Stimme oder Modellverhalten auftaucht, bevor jemand sie meldet. Die Begleitseite ist [Nutzungs-Analyse](/de/platform/admin/governance/usage-analytics) — dieselben Assistenten und Modelle, geschnitten nach Kosten und Token-Volumen statt nach Qualität.
+Große Zeitfenster können die Auswertungsgrenze von 50.000 Einträgen erreichen. Zeigt Tale einen Hinweis auf Teilergebnisse, verkürze den Zeitraum, bevor du Schlüsse ziehst. Auch Aufbewahrung und Löschung bestimmen, welche Bewertungen und Kommentare noch verfügbar sind. Diese Ansicht ist kein dauerhaftes Feedback-Archiv.

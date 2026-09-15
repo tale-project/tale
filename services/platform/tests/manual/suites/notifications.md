@@ -157,6 +157,18 @@ their own action, so a single account cannot generate those rows.
 > [navigation.md](navigation.md) (its NAV-F12), which owns the changelog.
 
 - [ ] `NOTIF-F15` · **Read a connected application's notification mirror** → with a configured read-only notification integration and matching verified member, trigger a personal agent question and an organization alert visible to that member. Both copies open the same subject as the Tale bell. Read or dismiss a copy in the connected app: the Tale row stays unchanged. A removed or disabled member receives no new export; a different organization or ordinary member API key cannot export another recipient's feed.
+- [ ] `NOTIF-F16` · **Cloud sync failure row** — As the member who set up a
+  OneDrive or Google Drive sync, break its grant and let a sync run fail
+  (KNOW-F16) → Within that run the bell shows an unread **Cloud sync needs
+  reconnecting** (`inbox.cloudSyncNeedsReauth`) row whose body names the
+  provider and the synced item; activating it opens
+  `/dashboard/{org}/documents` (with the `folderId` of the folder that holds
+  the item) with the flagged row in view. A second failed run adds NO second
+  row. Reconnect and let a run succeed → the row turns read on its own, no
+  click and no reload. With actionable email on, the same notice arrives by
+  email with a link to the same listing. A sync failing for another reason
+  (vendor outage) writes **Cloud sync failing** (`inbox.cloudSyncFailed`) only
+  once the failure has lasted an hour, never on the first blip.
 
 ## Boundary & error tests
 

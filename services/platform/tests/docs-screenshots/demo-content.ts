@@ -86,6 +86,13 @@ export interface DemoDocument {
   readonly content: string;
 }
 
+/** A saved draft with no notes yet: indexing must explain its empty contents. */
+export const DEMO_EMPTY_DOCUMENT: DemoDocument = {
+  fileName: 'onboarding-notes-draft.txt',
+  mimeType: 'text/plain',
+  content: '  \n\n',
+};
+
 export const DEMO_DOCUMENTS: readonly DemoDocument[] = [
   {
     fileName: '2026-brand-guidelines.txt',
@@ -320,9 +327,11 @@ export const DEMO_API_KEYS: readonly string[] = [
 ] as const;
 
 /** WebDAV app-passwords (Settings > API > WebDAV). */
+export const DEMO_WEBDAV_RETIRED_LABEL = 'Retired design workstation';
 export const DEMO_WEBDAV_LABELS: readonly string[] = [
   'MacBook Pro',
   'Design workstation',
+  DEMO_WEBDAV_RETIRED_LABEL,
 ] as const;
 
 /** MCP server (Settings > API > MCP). `name` is lowercase alphanumeric + hyphens. */

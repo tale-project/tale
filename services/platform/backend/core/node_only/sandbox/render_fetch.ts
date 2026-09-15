@@ -26,6 +26,7 @@
 
 import { z } from 'zod';
 
+import { crawlerUserAgent } from '../../knowledge/crawler_identity';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { sessionIdForRender } from '../../sandbox/session_naming';
@@ -175,6 +176,8 @@ export async function renderUrlsInSandbox(
       ),
       maxHtmlBytes: RENDER_MAX_HTML_BYTES,
       maxTotalBytes: RENDER_MAX_TOTAL_BYTES,
+      // The same identity the probe leg sends (2026-09-15 evaluation, i6).
+      userAgent: crawlerUserAgent(process.env.TALE_VERSION),
     };
     await sessionStageFiles(sessionId, [
       {
@@ -300,6 +303,10 @@ const idleTimeoutMs = input.idleTimeoutMs || 5000;
 const softBudgetMs = input.softBudgetMs || 180000;
 const maxHtmlBytes = input.maxHtmlBytes || 6291456;
 const maxTotalBytes = input.maxTotalBytes || 15728640;
+const userAgent =
+  typeof input.userAgent === 'string' && input.userAgent !== ''
+    ? input.userAgent
+    : undefined;
 
 const startedAt = Date.now();
 const records = new Map();
@@ -337,7 +344,9 @@ if (proxyServer) {
 const browser = await chromium.launch(launchOptions);
 let budgetExhausted = false;
 try {
-  const context = await browser.newContext();
+  // The crawler's own User-Agent, handed in by the host: a site owner can
+  // name TaleBot in robots.txt and tell its traffic apart in their logs.
+  const context = await browser.newContext(userAgent ? { userAgent } : {});
   for (const url of urls) {
     if (Date.now() - startedAt > softBudgetMs) break;
     const record = records.get(url);

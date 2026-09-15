@@ -71,13 +71,42 @@ const MAX_MODEL_ID = 200;
 /** A BCP 47 language tag as the reply-language directive reads it: a
  * language subtag and optional further subtags (`de`, `en-GB`, `zh-Hant`). */
 const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
-/** The characters of one streamed field a poller already holds (`since`
- * for the text, `reasoningSince` for the reasoning): a whole number, bounded
- * here so nothing else reaches the slice. */
-const HELD_CHARACTERS = z
+/** The UTF-16 code units of one streamed field a poller already holds
+ * (`since` for the text, `reasoningSince` for the reasoning) — the unit of
+ * `String.length`, which is what `textLength` answers: a whole number,
+ * bounded here so nothing else reaches the slice. */
+const HELD_UNITS = z
   .string()
-  .regex(/^\d{1,9}$/, 'must be a whole number of characters')
+  .regex(/^\d{1,9}$/, 'must be a whole number of UTF-16 code units')
   .optional();
+
+/** Where the slice of one streamed field starts for the `since` a poller
+ * sent: `since` itself; 0 when it is past the field (the tail was reset at
+ * a tool-round boundary — the offset tells the caller to start over); and
+ * one unit lower when it would split a surrogate pair — the field is
+ * UTF-16, an astral character (an emoji) is two units, and a slice opening
+ * on the low half put an unpaired surrogate on the wire that the write side
+ * of this door refuses as unstorable (2026-09-14 evaluation, h2). The one
+ * reassembly rule `held = held.slice(0, offset) + text` covers the delta,
+ * the reset and the snap alike. `textLength` never needs the snap: the
+ * stored field is always well-formed (Postgres holds no lone surrogate), so
+ * its end is a boundary. */
+export function heldOffset(field: string, since: number): number {
+  if (since > field.length) return 0;
+  if (since > 0 && since < field.length) {
+    const unit = field.charCodeAt(since);
+    const before = field.charCodeAt(since - 1);
+    if (
+      unit >= 0xdc00 &&
+      unit <= 0xdfff &&
+      before >= 0xd800 &&
+      before <= 0xdbff
+    ) {
+      return since - 1;
+    }
+  }
+  return since;
+}
 
 /** The token usage a finished turn recorded, whitelisted to the counters
  * the turn writes, the catalog cost estimate it stamps beside them, and the
@@ -273,9 +302,24 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * output cap, capabilities, price, tags — and marks the organization's
    * default pick for this key holder, so no caller has to keep a hand-made
    * table of model facts beside the id list. */
+  /** The harnesses a project agent may run on — the managed lane's, as the
+   * app's composer lists them: `harness` is the value `POST
+   * …/projects/{id}/agents` takes, which had no discovery door and a
+   * refusal that named nothing (2026-09-14 evaluation, h9). */
+  const restHarnesses = async (c: Context<RestEnv>) => {
+    const { harnesses } = await listComposerModels(deps.sql, {
+      organizationId: c.get('organizationId'),
+      userId: c.get('userId'),
+    });
+    return harnesses
+      .map(({ harness, label }) => ({ harness, label }))
+      .sort((a, b) => a.harness.localeCompare(b.harness));
+  };
+
   app.get('/models', noQuery, async (c) => {
     try {
       const models = await restModels(c);
+      const harnesses = await restHarnesses(c);
       const governance = await resolveModelGovernanceForUser(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
@@ -283,6 +327,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       const preferred = governance.defaultModel;
       return c.json({
+        harnesses,
         models: models.map((model) => {
           const view: RestModelView = {
             id: model.id,
@@ -560,7 +605,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             ? { projectId, requireActiveProject: true }
             : {}),
         });
-        return c.json({ id: threadId }, 201);
+        // The created thread's own path — the request's collection URL
+        // plus the id, whichever scope answered.
+        return c.json({ id: threadId }, 201, {
+          location: `${c.req.path}/${threadId}`,
+        });
       } catch (error) {
         return domainErrorResponse(c, error);
       }
@@ -581,19 +630,18 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
     /** Archive, restore or rename the thread — the app's own toggle and
      * rename, audited the same way. An archived thread stays readable and
-     * refuses sends. */
+     * refuses sends — so archiving refuses the pending turn the delete
+     * refuses: the running turn would land its reply in the archived
+     * thread, and a send still queued would be dropped by its job with no
+     * row at all (2026-09-14 evaluation, h2). Restoring and renaming stay
+     * open mid-turn. */
     app.patch(scope.item, async (c) => {
       const body = await parseBody(
         c,
         z
           .object({
             archived: z.boolean().optional(),
-            title: z
-              .string()
-              .trim()
-              .min(1)
-              .max(MAX_THREAD_TITLE_CHARS)
-              .optional(),
+            title: nonBlank(MAX_THREAD_TITLE_CHARS).optional(),
           })
           .strict()
           .refine(
@@ -606,6 +654,16 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
+      if (body.archived === true && isTurnPending(thread)) {
+        return c.json(
+          {
+            error:
+              'This conversation is generating a response; cancel the turn before archiving it.',
+            code: 'CHAT_TURN_IN_PROGRESS',
+          },
+          409,
+        );
+      }
       // The archive state as the domain wrote it: the toggle answers the
       // stamp it recorded, so the echo and the next GET agree to the
       // millisecond (the door used to stamp a clock of its own).
@@ -744,14 +802,14 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     /** Poll the in-flight turn: `queued` while the accepted send waits for
      * a worker (the 202's marker), `streaming` while the generation row
      * exists — with the text and reasoning streamed so far, so a poller
-     * sees progress (`since` = the characters already held, so a long
-     * reply is not re-sent whole on every poll) — and `idle` once neither
+     * sees progress (`since` = the UTF-16 code units already held, so a
+     * long reply is not re-sent whole on every poll) — and `idle` once neither
      * is there, naming the newest assistant message and how it settled,
      * so a poller knows which turn ended without walking the transcript. */
     app.get(`${scope.item}/generation`, async (c) => {
       const query = readQuery(c, {
-        since: HELD_CHARACTERS,
-        reasoningSince: HELD_CHARACTERS,
+        since: HELD_UNITS,
+        reasoningSince: HELD_UNITS,
       });
       if (query instanceof Response) return query;
       const since = query.since === undefined ? 0 : Number(query.since);
@@ -790,18 +848,18 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ...(await newestAssistant(thread.id)),
         });
       }
-      // The delta: what arrived after the characters the caller holds. A
+      // The delta: what arrived after the code units the caller holds. A
       // `since` past the current length means the tail was reset (a tool
       // round settled its text onto the parts) — answer from 0, and the
-      // offset tells the caller to replace what it holds. The reasoning
-      // stream is sliced by the same rule under `reasoningSince`: it is
-      // reset together with the text, and re-sending it whole on every
-      // poll made a long thinking turn quadratic on the wire.
+      // offset tells the caller where the slice starts; a `since` inside a
+      // surrogate pair is snapped to the pair's start (`heldOffset`). The
+      // reasoning stream is sliced by the same rule under `reasoningSince`:
+      // it is reset together with the text, and re-sending it whole on
+      // every poll made a long thinking turn quadratic on the wire.
       const fullText = generation.text ?? '';
-      const textOffset = since <= fullText.length ? since : 0;
+      const textOffset = heldOffset(fullText, since);
       const fullReasoning = generation.reasoning ?? '';
-      const reasoningOffset =
-        reasoningSince <= fullReasoning.length ? reasoningSince : 0;
+      const reasoningOffset = heldOffset(fullReasoning, reasoningSince);
       return c.json({
         status: generation.messageId === null ? 'queued' : 'streaming',
         ...(generation.messageId !== null
@@ -876,15 +934,14 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
     /** Send a message and start the turn that answers it (202). */
     app.post(`${scope.item}/messages`, async (c) => {
-      const limited = await chargeLane(deps.sql, c, 'rest:execute');
-      if (limited) return limited;
       const body = await parseBody(
         c,
         z
           .object({
-            // Trimmed before the length check: a blank prompt is a mistake
-            // to name at the door, not a turn to spend on.
-            content: z.string().trim().min(1).max(MAX_MESSAGE),
+            // Trimmed before the length check: a blank prompt — whitespace
+            // or invisible format characters only — is a mistake to name at
+            // the door, not a turn to spend on.
+            content: nonBlank(MAX_MESSAGE),
             model: z
               .string({
                 error: (issue) =>
@@ -918,6 +975,13 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // is looked up, so nothing is claimed or queued for it.
       const idempotencyKey = readIdempotencyKey(c);
       if (idempotencyKey instanceof Response) return idempotencyKey;
+      // The lane charge after the body and the header have passed the
+      // door's own checks — a malformed send spends nothing, as on every
+      // other starting-work door; this one charged first, so 39 bodies the
+      // schema refused spent 39 of the 40 burst tokens (2026-09-14
+      // evaluation, h8) — and before the thread is looked up.
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited) return limited;
       const projectId = projectIdFor(c);
       const thread = await loadRestThread(c, threadIdFor(c), projectId);
       if (thread === null)

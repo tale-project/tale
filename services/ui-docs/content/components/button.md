@@ -1,145 +1,85 @@
 ---
 title: Button
-description: The primary control of the system — its variants, its single height, and the accessibility machinery it carries for you.
+description: Choose an action style, name icon controls, and handle loading or unavailable actions without losing context.
 ---
 
-`Button` is the control every other one is measured against. It carries one
-height, a fixed set of variants, a loading state, an explanation for why it is
-disabled, and the type-level rule that an icon-only button must be named.
-
-This page is the template every other component page on this site follows:
-what it looks like, every axis it has, its real props, its accessibility
-contract, and when to reach for something else.
+Use `Button` for an action on the current screen. Give it a specific verb, such as **Save changes** or **Export**, and choose its appearance according to the action's importance and consequence. For navigation, use a link with button styling.
 
 ```tsx
-import { Button } from '@tale/ui/button';
+import { Button, LinkButton } from '@tale/ui/button';
 ```
 
 ## Variants
 
 <Demo name="button/variants" />
 
-| Variant | Use it for |
+| Variant | Appropriate use |
 | --- | --- |
-| `primary` (default) | The one action the screen is for |
-| `secondary` | Everything beside the primary action |
-| `ghost` | A control inside a dense row or toolbar |
-| `destructive` | Deleting, revoking, disconnecting |
-| `warning` | An action with a cost that is not destruction |
-| `success` | Confirming a positive terminal state |
-| `link` | An action that reads as text in a sentence |
+| `primary` (default) | The main action in the current task. |
+| `secondary` | A supporting action such as Cancel. |
+| `ghost` | A quiet action in a toolbar or row. |
+| `destructive` | A consequential removal, such as deleting or revoking. |
+| `warning` | A consequential action that requires caution. |
+| `success` | A positive action or completion treatment where the meaning is clear. |
+| `link` | A text-style action; this remains a button unless you change its element. |
 
-One primary per view. A screen with three primary buttons has no primary
-button.
+Use one primary action per decision area. A destructive color does not ask for confirmation or enforce permissions; the host owns those behaviors. Use a [confirmation dialog](/docs/components/dialog) when the decision needs explanation.
 
-## Sizes
+## Sizes and responsive labels
 
 <Demo name="button/sizes" />
 
-`default` is `h-9` and `sm` is `h-8` — the same two heights every control in
-the system has. `icon` and `icon-sm` are their square counterparts. There is
-deliberately no large size: a page's call to action is the same height as the
-field above it.
-
-## With an icon
+`default` is 36px high (`h-9`), and `sm` is 32px (`h-8`). `icon` and `icon-sm` are square controls at those heights. There is no `lg` size. The text-style `link` variant uses an automatic height instead of the fixed control box.
 
 <Demo name="button/with-icon" />
 
-Pass a Lucide component through `icon` rather than putting an `<svg>` in the
-children. The button renders it at `size-4`, spaces it for you, and marks it
-`aria-hidden` — the label is already the accessible name.
+Pass a Lucide component through `icon`; Button supplies a 16px decorative icon and spacing. `collapseLabel` visually hides the text below `sm` while preserving the accessible name. Pair it with an icon so the mobile control still has visible content.
 
-`collapseLabel` hides the text below the `sm` breakpoint while keeping it in
-the accessibility tree, so a crowded mobile toolbar stays usable without losing
-the button's name.
-
-## Loading
+## Show work in progress
 
 <Demo name="button/loading" />
 
-`isLoading` swaps the leading icon for a spinner, sets `aria-busy`, and
-disables the button. The label stays — a button that changes its text while
-working makes the row reflow and loses the reader's place.
+Choose **Save changes** to see a short simulated operation. `isLoading` displays a spinner, sets `aria-busy`, and disables activation. The label remains in place. The example resets after 1.5 seconds; a real screen should clear loading when its request settles.
 
-## Disabled, with a reason
+Set `type="submit"` for form submission and `type="button"` for other form actions. The component does not generally override the browser's default button type. Disable duplicate submissions in your handler as well, and keep a failed save visible near the form.
+
+## Explain an unavailable action
 
 <Demo name="button/disabled-reason" />
 
-A plain `disabled` button is a dead end: the reader can see that they cannot
-act, but not why. `disabledReason` fixes that, and the implementation is the
-interesting part.
+Focus **Publish** with the keyboard to read why it is unavailable. When `disabled` and a nonempty `disabledReason` are present, the component uses `aria-disabled` instead of native `disabled`, preserves keyboard focus, and blocks clicks, Enter, and Space. A plain disabled button leaves the tab order.
 
-A natively `disabled` button emits no pointer events and leaves the tab order,
-so neither a hover nor a focus tooltip could ever reach it. When a disabled
-button carries a reason, the component keeps it focusable, swaps the native
-`disabled` attribute for `aria-disabled`, blocks Space and Enter so activation
-is still inert, and lets the tooltip wire `aria-describedby`. The reason
-reaches pointer and keyboard users alike.
+The reason only applies while `disabled` is true. Describe what would make the action available; use visible nearby text when the explanation is essential to completing the task. A disabled UI control is not an authorization check.
 
-It only applies while `disabled` is true, so you can pass it unconditionally.
-
-## `asChild`
+## Navigate with a link
 
 <Demo name="button/as-child" />
 
-`asChild` renders the button's styling onto its single child through a Radix
-`Slot` — the usual reason is to make a link look like a button.
+`asChild` merges styling onto one child element, such as an anchor. Keep link behavior on that child. Tooltips and `disabledReason` are suppressed in this mode, and an anchor does not acquire native button disabling. Do not use `disabled` as a way to prevent a link from navigating.
 
-Two things switch off under `asChild`, both deliberately: the tooltip (the
-button is then a slot, usually another overlay's trigger, and wrapping a slot
-in a tooltip trigger breaks that composition) and `disabledReason` (it needs a
-real button to soft-disable).
-
-For an internal route, prefer `LinkButton`, which is the same styling around a
-router `Link` and takes `params`, `search` and `prefetch`.
+For TanStack Router destinations, `LinkButton` accepts `href`, `params`, `search`, and `prefetch`. It requires router context. For an external URL, an anchor inside `Button asChild` keeps normal browser link behavior.
 
 ## Props
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `variant` | `'primary' \| 'secondary' \| 'ghost' \| 'destructive' \| 'warning' \| 'success' \| 'link'` | `'primary'` | |
-| `size` | `'default' \| 'sm' \| 'icon' \| 'icon-sm'` | `'default'` | An icon size requires `aria-label` or `title` |
-| `asChild` | `boolean` | `false` | Render onto the single child |
-| `isLoading` | `boolean` | `false` | Spinner, `aria-busy`, disabled |
-| `icon` | `LucideIcon` | — | Leading icon, rendered at `size-4` |
-| `iconClassName` | `string` | — | Extra classes on the icon |
-| `fullWidth` | `boolean` | `false` | Stretch to the container |
-| `collapseLabel` | `boolean` | `false` | Icon-only below `sm`, label stays `sr-only` |
-| `title` | `string` | — | Names an icon button **and** shows a tooltip |
-| `tooltip` | `ReactNode` | — | Rich tooltip content; overrides `title` visually |
-| `tooltipSide` | `'top' \| 'right' \| 'bottom' \| 'left'` | `'top'` | |
-| `tooltipOpen` | `boolean` | — | Controlled tooltip, for toggles that announce the new state |
-| `onTooltipOpenChange` | `(open: boolean) => void` | — | Pairs with `tooltipOpen` |
-| `disabledReason` | `ReactNode` | — | Why it is disabled; see above |
+Native button attributes pass through. These are the component-specific choices:
 
-Every remaining `<button>` attribute passes through.
+| Prop | Values or default | Behavior |
+| --- | --- | --- |
+| `variant` | `primary`, `secondary`, `ghost`, `destructive`, `warning`, `success`, `link`; default `primary` | Visual emphasis. |
+| `size` | `default`, `sm`, `icon`, `icon-sm`; default `default` | Control dimensions. |
+| `icon`, `iconClassName` | Lucide component; optional extra classes | Leading decorative icon. |
+| `isLoading` | `false` | Spinner, busy state, and activation blocking. |
+| `disabledReason` | Optional React content | Focusable explanation while disabled; unavailable with `asChild`. |
+| `fullWidth` | `false` | Fills the available width. |
+| `collapseLabel` | `false` | Hides text visually below `sm`. |
+| `asChild` | `false` | Styles one child instead of rendering a button. |
+| `title` | Optional string | Tooltip; also names an icon-sized Button unless `aria-label` overrides it. |
+| `tooltip` | Optional React content | Overrides the visible tooltip text. |
+| `tooltipSide` | `top`, `right`, `bottom`, `left`; default `top` | Tooltip placement. |
+| `tooltipOpen`, `onTooltipOpenChange` | Optional controlled state | Lets a caller control a state-announcing tooltip. |
 
-## Accessibility
+## Accessibility and alternatives
 
-- **An icon-only button must be named.** The prop types enforce it: a button is
-  valid when it carries `aria-label`, or `title`, or a non-icon size.
-- **`title` names an icon button only.** A text button keeps its name from its
-  children, so `title` there is a tooltip and nothing more. The native `title`
-  attribute is dropped either way, so the browser does not pop a second
-  tooltip.
-- **The focus ring is `ring-ring` over `ring-offset-background`**, on
-  `focus-visible` only.
-- **Cursor is global.** `button:not(:disabled)` is `cursor: pointer` in the
-  base layer, and a disabled one is `not-allowed`. Never re-add
-  `cursor-pointer` per button.
-- **`active:scale` and every transition drop out** under
-  `prefers-reduced-motion`.
+Icon-sized Buttons require `aria-label` or `title` at the type level. Text-sized buttons still need meaningful children; the type system cannot judge the label's quality. A tooltip alone is a description, not the control's name. `title` on a text Button adds a tooltip without replacing its visible accessible name.
 
-## When to use something else
-
-| Instead of | Use |
-| --- | --- |
-| A button that navigates a route | `LinkButton`, or `Button asChild` around a `Link` |
-| An icon-only control in a toolbar | `IconButton` — it requires a name and tunes the ring |
-| An action inside a table row | `DataTable`'s `actionMenu` / `createActionsColumn` |
-| The primary create action on a list page | `DataTable`'s `addAction`, so size and placement stay consistent |
-
-## Where to go next
-
-[Input](/docs/components/input) is the other half of every form, and it shares
-this component's height and disabled-reason contract.
+Use `IconButton` from `@tale/ui/icon-button` for a toolbar glyph: it requires `aria-label`, defaults to `ghost`, and supplies a tooltip. For a table's create action, prefer `DataTable.addAction`; for a row menu, use the table's column builders. Check keyboard focus, the disabled explanation, and the loading state in both themes.

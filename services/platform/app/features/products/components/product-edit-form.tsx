@@ -170,7 +170,7 @@ export function useProductEditForm(
         productId: product._id,
         name: data.name.trim(),
         description: data.description.trim() || undefined,
-        imageUrl: data.imageUrl.trim() || undefined,
+        imageUrl: data.imageUrl.trim() || null,
         stock: data.stock ? parseInt(data.stock) : undefined,
         price: data.price ? parseFloat(data.price) : undefined,
         currency: data.currency || undefined,

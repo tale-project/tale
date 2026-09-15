@@ -161,12 +161,12 @@ output:
       API-key provider a warning (`automations.builder.noProviders`); a sole
       provider/model pre-selects itself.
 - [ ] `AUTO-F7` · **Builder run** — (env-gated: real provider) Submit a small
-      goal → Progress notice (`automations.builder.running`); saved versions land
-      in the list as drafts while it works; on failure an alert titled
-      `automations.builder.outcomeFailedTitle`, on give-up
-      `automations.builder.outcomeGaveUpTitle` (with
-      `automations.builder.gaveUpNoReason` when the builder gave no reason) —
-      never a silent close.
+  goal → Progress notice (`automations.builder.running`); saved versions land
+  in the list as drafts while it works; on failure
+  `automations.builder.outcomeFailedTitle` with the error details; an early stop
+  shows `automations.builder.outcomeGaveUpTitle` with its reason, or
+  `automations.builder.gaveUpNoReason` when no reason is available — never a
+  silent close.
 - [ ] `AUTO-F8` · **Upload — yml lane** — Create menu → **Upload package** →
       dialog (`automations.upload.title`) → pick the Prerequisites `workflow.yml`
       in **Package files** (`automations.upload.filesLabel`) → **Upload**
@@ -262,14 +262,14 @@ output:
       (`automations.versions.deployRefused` alert). **Versions** rows have no
       **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
-      fine) → **Test run** (`automations.detail.runMock`) → A run starts on the
-      version on screen; the canvas icon **Show last run** / **Hide last run**
-      (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
-      toggles per-node status overlays on the canvas
-      (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
-      run** section (`automations.editor.runTitle`) with **Resolved input** /
-      **Output** (`automations.editor.resolvedInput` /
-      `automations.editor.output`)
+  fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
+  version on screen; the canvas icon **Show last run** / **Hide last run**
+  (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
+  toggles per-node status overlays on the canvas
+  (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
+  run** section (`automations.editor.runTitle`) with **Resolved input** /
+  **Output** (`automations.editor.resolvedInput` /
+  `automations.editor.output`)
 - [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
       after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
       heading (`automations.runs.title` + `automations.runs.description`): each
@@ -278,10 +278,10 @@ output:
       `automations.runs.empty`; clicking a run row navigates to the run route,
       where the strip stays and **Runs** remains the active tab.
 - [ ] `AUTO-F20` · **Run live** — (env-gated: deployed version + live
-      connectors) **Run live** (`automations.detail.runLive`) → Confirm dialog
-      first (`automations.detail.runLiveTitle` — real connector calls, runs the
-      DEPLOYED version once); confirming starts a run whose detail page carries
-      the orange **Live** mode badge (`automations.runs.mode.live`)
+  connectors) **Run live** (`automations.detail.runLive`) → Confirm dialog
+  first (`automations.detail.runLiveTitle` — real connector calls, runs the
+  DEPLOYED version once); input uses the deployed version’s schema, even when the canvas shows another version; cancelling starts nothing; confirming starts a run whose detail page carries
+  the orange **Live** mode badge (`automations.runs.mode.live`)
 - [ ] `AUTO-F21` · **Run detail page** —
       `/dashboard/{org}/automations/{slug}/runs/{runId}` → Under the same
       breadcrumb + tab strip (**Runs** active; the name crumb returns to the
@@ -315,38 +315,37 @@ output:
       (`automations.runs.approval.reject`) fails the step and the run stops — the
       card disappears once the run is terminal.
 - [ ] `AUTO-F26` · **Ask card** — (env-gated: a run parked on an agent
-      question) Open the parked run → Card `automations.runs.ask.title` with
-      **Your answer** (`automations.runs.ask.answerLabel`); **Send answer &
-      resume** (`automations.runs.ask.submit`) resumes the SAME agent session —
-      status leaves **Waiting** without reload.
-- [ ] `AUTO-F27` · **Trigger — schedule** — Workbench **Trigger** panel on a
-      seeded pack (e.g. `github-triage-issues`) → The seeded schedule renders:
-      **Kind** (`automations.trigger.kindLabel`) = Schedule, **Cron**
-      (`automations.trigger.cronLabel`) + **Timezone**
-      (`automations.trigger.timezoneLabel`), an **Enabled** switch
-      (`automations.trigger.enabledLabel`) and the next-run preview
-      (`automations.trigger.cronNext`); edit the cron → the panel's **Save**
-      (`automations.trigger.save`) persists on reload; an unchanged form
-      disables Save with `automations.trigger.nothingToSave`
-- [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Kind** to Webhook →
-      **Save** → Token dialog `automations.trigger.tokenTitle` shows the full
-      webhook URL ONCE (`automations.trigger.webhookEndpointLabel`, with
-      `automations.trigger.tokenHint` explaining the token is its last part);
-      after reload the panel says a token exists (`automations.trigger.hasToken`)
-      and offers **Rotate token** (`automations.trigger.rotate`) — rotating
-      mints a new one and the old URL stops working.
+  question) Open the parked run → Card `automations.runs.ask.title` with
+  **Your answer** (`automations.runs.ask.answerLabel`); **Send answer &
+  resume** (`automations.runs.ask.submit`) resumes the SAME agent session —
+  status leaves **Waiting** without reload.
+- [ ] `AUTO-F27` · **Trigger — schedule** — Open the workbench **Trigger**
+  panel on an automation with a schedule → **Trigger type**
+  (`automations.trigger.kindLabel`) is Schedule; **Cron**
+  (`automations.trigger.cronLabel`), **Timezone**, and the **Enabled** switch
+  (`automations.trigger.enabledLabel`) reflect the stored trigger. Edit the
+  cron → **Save settings** (`automations.workflow.save`) persists on reload;
+  an unchanged form disables Save with `automations.workflow.nothingToSave`.
+- [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
+  Webhook → **Save settings** → The warning
+  `automations.trigger.tokenTitle` shows the full webhook URL once. The
+  **Webhook endpoint** section (`automations.trigger.webhookEndpointLabel`)
+  shows its POST command; after reload it uses a token placeholder and says
+  a token exists (`automations.trigger.hasToken`). **Rotate token**
+  (`automations.trigger.rotate`) reveals a new URL and the old URL stops
+  working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
       (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
       → The panel reads `automations.trigger.none` after reload; versions and run
       history untouched.
 - [ ] `AUTO-F30` · **Project bindings** — Inspector **Projects** (no node
-      selected) → select project(s) → **Save** (`automations.bindings.save`) →
-      An empty picker reads the hint (`automations.bindings.hint` — leave empty
-      for all projects); after save + reload the bound-count badge
-      (`automations.bindings.countBadge`) shows and the list row gains the
-      project chip; unchanged selection disables Save
-      (`automations.bindings.nothingToSave`); a bound project cannot be deleted
-      while the binding stands.
+  selected) → select project(s) → **Save settings**
+  (`automations.workflow.save`) → The bound-count badge
+  (`automations.bindings.countBadge`) shows the saved number after reload;
+  an empty selection shows no count badge and keeps the scope hint
+  (`automations.bindings.hint`). The list row gains the project chip;
+  unchanged settings disable Save (`automations.workflow.nothingToSave`);
+  a bound project cannot be deleted while the binding stands.
 - [ ] `AUTO-F31` · **Project-scoped surface** —
       `/dashboard/{org}/projects/{projectId}/automations` then a bound
       automation's detail and one of its runs → The index lists only that

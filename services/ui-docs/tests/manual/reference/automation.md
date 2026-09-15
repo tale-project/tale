@@ -20,6 +20,10 @@ a spec failure and belongs in the gate, not in a round.
 | `/docs` redirects to the first page in nav order | `tests/e2e/specs/smoke.spec.ts` › routing | — |
 | An unknown page renders the 404 with a way back | `tests/e2e/specs/smoke.spec.ts` › routing | the real `404` status on the built server ([seo.md](../suites/seo.md) `SEO-8`) |
 | ⌘K opens the palette and finds a component page | `tests/e2e/specs/smoke.spec.ts` › search | grouping, snippets, keyboard order, recents, empty state ([search.md](../suites/search.md)) |
+| Settings demo save/discard baseline and reload reset | `tests/e2e/specs/demo-workflows.spec.ts` › settings demo | judge the explanatory copy and layout |
+| Single toast viewport and replacement | `tests/e2e/specs/demo-workflows.spec.ts` › toast examples | judge placement and readable feedback |
+| Deep-page first Tab and skip-link destination | `tests/e2e/specs/demo-workflows.spec.ts` › deep page | visible focus treatment |
+| Outline scroll behavior follows reduced motion | `app/components/docs/docs-toc.test.tsx` › outline motion preference | perceived motion and final heading position |
 | Nav ↔ file parity, group labels in every locale, nav order | `tests/navigation.test.ts` | — |
 | Every `<Demo>` resolves, every demo is used, no raw hex in a demo | `tests/demos.test.ts` | — |
 | Frontmatter present, single `h1`, manifest in sync with disk | `tests/content.test.ts` | — |

@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { resolveHostAddresses } = vi.hoisted(() => ({
+  resolveHostAddresses: vi.fn(),
+}));
+
+vi.mock('../../../../lib/net/safe-fetch', () => ({
+  resolveHostAddresses,
+}));
+
 const ORG = 'org_1';
 const PROVIDER = {
   name: 'openrouter',
@@ -150,6 +158,10 @@ const basicFor = (pw: string) =>
 
 beforeEach(() => {
   vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', DEFAULT_PW);
+  resolveHostAddresses.mockReset();
+  resolveHostAddresses.mockResolvedValue([
+    { address: '203.0.113.10', family: 4 },
+  ]);
 });
 
 afterEach(() => {
@@ -363,6 +375,34 @@ describe('provisionProviders', () => {
     });
   });
 
+  it.each(['llm.internal', 'ollama', 'models.example.com'])(
+    'admits HTTPS hostname %s resolving privately with the operator opt-in',
+    async (hostname) => {
+      vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+      resolveHostAddresses.mockResolvedValue([
+        { address: '172.21.255.254', family: 4 },
+      ]);
+      const calls = stubGateway();
+      const mod = await loadModule();
+      expect(
+        await mod.provisionProviders(ORG, [
+          {
+            name: 'selfhosted',
+            baseUrl: `https://${hostname}/v1`,
+            apiKey: 'key-P',
+            models: ['m-1'],
+          },
+        ]),
+      ).toEqual([]);
+      expect(writes(calls)[0]?.body).toMatchObject({
+        network_config: {
+          base_url: `https://${hostname}/v1`,
+          allow_private_network: true,
+        },
+      });
+    },
+  );
+
   it('refuses a private upstream before gateway I/O without the opt-in', async () => {
     vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -428,6 +468,113 @@ describe('provisionProviders', () => {
     expect(failures).toHaveLength(1);
     expect(String(failures[0]?.error)).toContain('PRIVATE_HOST_BLOCKED');
     expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a DNS-resolved private upstream without the opt-in before gateway I/O', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    resolveHostAddresses.mockResolvedValue([
+      { address: '192.168.1.20', family: 4 },
+    ]);
+    const calls = stubGateway();
+    const mod = await loadModule();
+    const failures = await mod.provisionProviders(ORG, [
+      {
+        ...PROVIDER,
+        name: 'local-models',
+        baseUrl: 'https://models.example.com/v1',
+      },
+    ]);
+    expect(String(failures[0]?.error)).toContain('PRIVATE_HOST_BLOCKED');
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    '169.254.169.254',
+    'fd00:ec2::254',
+    '100.100.100.200',
+    '192.0.0.192',
+  ])(
+    'refuses any metadata DNS answer %s even beside a public address and with opt-in',
+    async (address) => {
+      vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      resolveHostAddresses.mockResolvedValue([
+        { address: '203.0.113.10', family: 4 },
+        { address, family: address.includes(':') ? 6 : 4 },
+      ]);
+      const calls = stubGateway();
+      const mod = await loadModule();
+      const failures = await mod.provisionProviders(ORG, [
+        {
+          ...PROVIDER,
+          name: 'local-models',
+          baseUrl: 'https://models.example.com/v1',
+        },
+      ]);
+      expect(String(failures[0]?.error)).toContain('BLOCKED_HOST');
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it('refreshes private/public DNS policy for a memoized hostname and rejects later metadata', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubGateway({
+      keyExists: true,
+      keyName: `tale-${ORG}-local-models`,
+    });
+    const mod = await loadModule();
+    const provider = {
+      ...PROVIDER,
+      name: 'local-models',
+      baseUrl: 'https://models.example.com/v1',
+    };
+    expect(await mod.provisionProviders(ORG, [provider])).toEqual([]);
+    calls.length = 0;
+    resolveHostAddresses.mockResolvedValue([
+      { address: '192.168.1.20', family: 4 },
+    ]);
+    expect(await mod.provisionProviders(ORG, [provider])).toEqual([]);
+    expect(writes(calls)[0]?.body).toMatchObject({
+      network_config: { allow_private_network: true },
+    });
+    calls.length = 0;
+    resolveHostAddresses.mockResolvedValue([
+      { address: '203.0.113.10', family: 4 },
+    ]);
+    expect(await mod.provisionProviders(ORG, [provider])).toEqual([]);
+    expect(writes(calls)[0]?.body).toMatchObject({
+      network_config: { base_url: provider.baseUrl },
+    });
+    // Bifrost v1.5.13 replaces NetworkConfig from the PUT payload; an
+    // omitted boolean therefore resets to false instead of retaining true.
+    expect(writes(calls)[0]?.body?.network_config).not.toHaveProperty(
+      'allow_private_network',
+    );
+    calls.length = 0;
+    resolveHostAddresses.mockResolvedValue([
+      { address: '169.254.169.254', family: 4 },
+    ]);
+    const failures = await mod.provisionProviders(ORG, [provider]);
+    expect(String(failures[0]?.error)).toContain('BLOCKED_HOST');
+    expect(calls).toEqual([]);
+  });
+
+  it('does not provision a hostname that resolves to no addresses', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    resolveHostAddresses.mockResolvedValue([]);
+    const calls = stubGateway();
+    const mod = await loadModule();
+    const failures = await mod.provisionProviders(ORG, [
+      {
+        ...PROVIDER,
+        name: 'local-models',
+        baseUrl: 'https://models.example.com/v1',
+      },
+    ]);
+    expect(String(failures[0]?.error)).toContain('did not resolve');
+    expect(calls).toEqual([]);
   });
 
   it('never sends allow_private_network for a public upstream', async () => {

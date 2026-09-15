@@ -305,15 +305,37 @@ export async function indexDocument(
   const window = chunks.slice(slice.from, slice.to);
 
   if (window.length > 0) {
-    const vectors = await args.embedder.embedAll(
-      window.map((chunk) => chunk.embedText),
+    // One vector per DISTINCT passage of the document: a chunk whose text
+    // repeats an earlier chunk's (an export of one line repeated, a
+    // templated report) is stored as a repeat — text kept, so the document
+    // reassembles exactly; no embedding, out of both search legs. A file of
+    // 4,500 identical chunks used to put 4,500 identical vectors into the
+    // shared index, where they crowded out every nearer passage and were
+    // ranked 24 times over by the keyword leg (2026-09-14 evaluation, h4).
+    const firstOfHash = new Map<string, number>();
+    for (const chunk of chunks) {
+      const hash = computeContentHash(chunk.text);
+      if (!firstOfHash.has(hash)) firstOfHash.set(hash, chunk.index);
+    }
+    const repeated = window.map(
+      (chunk) =>
+        firstOfHash.get(computeContentHash(chunk.text)) !== chunk.index,
     );
-    for (const vector of vectors) {
+    const distinct = window.filter((_chunk, position) => !repeated[position]);
+    const embedded = await args.embedder.embedAll(
+      distinct.map((chunk) => chunk.embedText),
+    );
+    for (const vector of embedded) {
       assertVectorWidth(
         vector,
         args.embedder.dimensions,
         `the embedding model "${args.embedder.model.model}"`,
       );
+    }
+    const vectors: (readonly number[] | null)[] = [];
+    let next = 0;
+    for (const isRepeat of repeated) {
+      vectors.push(isRepeat ? null : (embedded[next++] ?? null));
     }
     await writeChunks({
       sql: args.sql,
@@ -471,21 +493,25 @@ async function claimDocumentRow(args: {
   });
 }
 
-/** Commit one slice of chunks. */
+/** Commit one slice of chunks. A `null` vector marks a repeated passage:
+ * stored for reassembly, embedded and searched once through its first
+ * occurrence. */
 async function writeChunks(args: {
   sql: Sql;
   orgSlug: string;
   documentId: string;
   chunks: readonly ContextualChunk[];
-  vectors: readonly number[][];
+  vectors: readonly (readonly number[] | null)[];
 }): Promise<void> {
   await args.sql.begin(async (tx) => {
     for (const [position, chunk] of args.chunks.entries()) {
+      const vector = args.vectors[position] ?? null;
       await tx.unsafe(
         `INSERT INTO ${SCHEMA}.chunks
             (document_id, org_slug, chunk_index, chunk_content, content_hash,
-             embedding, context_header, core_content, prefix_overlap, suffix_overlap)
-         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9, $10)
+             embedding, context_header, core_content, prefix_overlap, suffix_overlap,
+             passage_repeat)
+         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9, $10, $11)
          ON CONFLICT (document_id, chunk_index) DO UPDATE SET
              chunk_content = EXCLUDED.chunk_content,
              content_hash = EXCLUDED.content_hash,
@@ -493,7 +519,8 @@ async function writeChunks(args: {
              context_header = EXCLUDED.context_header,
              core_content = EXCLUDED.core_content,
              prefix_overlap = EXCLUDED.prefix_overlap,
-             suffix_overlap = EXCLUDED.suffix_overlap`,
+             suffix_overlap = EXCLUDED.suffix_overlap,
+             passage_repeat = EXCLUDED.passage_repeat`,
         [
           args.documentId,
           args.orgSlug,
@@ -503,11 +530,12 @@ async function writeChunks(args: {
           // keyword index matches on it too.
           chunk.embedText,
           computeContentHash(chunk.text),
-          JSON.stringify(args.vectors[position] ?? []),
+          vector === null ? null : JSON.stringify(vector),
           chunk.header,
           chunk.core,
           chunk.prefixOverlap,
           chunk.suffixOverlap,
+          vector === null,
         ],
       );
     }
@@ -532,9 +560,11 @@ async function cloneChunks(
     `WITH copied AS (
        INSERT INTO ${SCHEMA}.chunks
            (document_id, org_slug, chunk_index, chunk_content, content_hash,
-            embedding, context_header, core_content, prefix_overlap, suffix_overlap)
+            embedding, context_header, core_content, prefix_overlap, suffix_overlap,
+            passage_repeat)
        SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding,
-              context_header, core_content, prefix_overlap, suffix_overlap
+              context_header, core_content, prefix_overlap, suffix_overlap,
+              passage_repeat
        FROM ${SCHEMA}.chunks
        WHERE document_id = $3 AND org_slug = $2
        ON CONFLICT (document_id, chunk_index) DO NOTHING

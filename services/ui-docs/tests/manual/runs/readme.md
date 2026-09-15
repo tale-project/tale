@@ -22,6 +22,7 @@ Newest first. `R<n>` numbers are consumed in order and never reused.
 
 | Round | Date | Scope | Findings | Verdict |
 |---|---|---|---|---|
+| [R1](r0001.md) | 2026-09-14 | All 19 guides, native chrome, live examples and responsive rendering | 4 bug | fixed + pinned |
 
 Column rules, so the table stays diffable:
 

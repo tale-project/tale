@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
@@ -82,5 +82,114 @@ describe('the bell query keys', () => {
 
   it('pins the wire literal both ends share', () => {
     expect(NOTIFICATION_HINT_ENTITY).toBe('notification');
+  });
+});
+
+beforeEach(() => {
+  window.__ENV__ = { BASE_PATH: '' };
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete window.__ENV__;
+});
+
+describe.each([
+  ['contacts', 'listContacts', 'listContactsPaginated'],
+  ['products', 'listProducts', 'listProductsPaginated'],
+])('%s table dates', (entity, listQuery, pageQuery) => {
+  const wireRow = {
+    id: 'record-1',
+    name: 'Review record',
+    createdAt: 1770000000000,
+    updatedAt: 1770003600000,
+  };
+
+  it('supplies the Added and Updated columns in whole-list reads', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ items: [wireRow] })),
+    );
+    const adapter = engagementReadAdapters[`${entity}/queries:${listQuery}`]?.(
+      {},
+      ctx,
+    );
+    expect(await adapter?.queryFn()).toEqual([
+      {
+        ...wireRow,
+        _id: 'record-1',
+        _creationTime: wireRow.createdAt,
+        lastUpdated: wireRow.updatedAt,
+      },
+    ]);
+  });
+
+  it('supplies table dates without changing the server pagination cursor', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [wireRow],
+          nextCursor: { updatedAt: wireRow.updatedAt, id: wireRow.id },
+        }),
+      ),
+    );
+    const adapter = engagementPaginatedAdapters[
+      `${entity}/queries:${pageQuery}`
+    ]?.({}, ctx);
+    expect(await adapter?.fetchPage(null, 20)).toEqual({
+      page: [
+        {
+          ...wireRow,
+          _id: 'record-1',
+          _creationTime: wireRow.createdAt,
+          lastUpdated: wireRow.updatedAt,
+        },
+      ],
+      isDone: false,
+      continueCursor: `${wireRow.updatedAt}|record-1`,
+    });
+  });
+});
+
+describe('website creation dates', () => {
+  const wireRow = {
+    id: 'website-1',
+    domain: 'example.com',
+    createdAt: 1789383600000,
+    lastScannedAt: 1789387200000,
+    crawledPageCount: 12,
+  };
+  const wirePage = {
+    page: [wireRow],
+    isDone: false,
+    continueCursor: '1789383600000:website-1',
+  };
+  const expectedRow = {
+    ...wireRow,
+    _id: wireRow.id,
+    _creationTime: wireRow.createdAt,
+  };
+
+  it('reads the app page envelope and supplies Created for whole-list consumers', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(wirePage)),
+    );
+    const adapter = engagementReadAdapters['websites/queries:listWebsites']?.(
+      {},
+      ctx,
+    );
+    expect(await adapter?.queryFn()).toEqual([expectedRow]);
+  });
+
+  it('supplies Created without changing scan time or the opaque website cursor', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(wirePage)),
+    );
+    const adapter = engagementPaginatedAdapters[
+      'websites/queries:listWebsitesPaginated'
+    ]?.({}, ctx);
+    expect(await adapter?.fetchPage(null, 20)).toEqual({
+      ...wirePage,
+      page: [expectedRow],
+    });
   });
 });

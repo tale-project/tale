@@ -19,6 +19,10 @@ import {
 } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
+  loadSyncHealthIndex,
+  type SyncHealthView,
+} from '../onedrive/sync-health.ts';
+import {
   getProjectAuthContext,
   ProjectError,
   type ProjectAuthContext,
@@ -30,7 +34,6 @@ import {
   FolderError,
   getFolderBreadcrumb,
   getFolderView,
-  listActiveSyncConfigIdsByPath,
   listFolders,
   renameFolder,
   updateFolderTeams,
@@ -94,14 +97,14 @@ export function createFolderRoutes(deps: {
         ...(projectId !== undefined ? { projectId } : {}),
         ...(parentId !== undefined ? { parentId } : {}),
       });
-      // Hub rows carry the active sync-config id (path-keyed) so the UI can
-      // offer "stop syncing" and warn before delete; project trees never do.
-      let syncByPath = new Map<string, string>();
+      // Hub rows carry their sync config (path-keyed): the id powers "stop
+      // syncing" and the delete warning, the health flags a sync that stopped
+      // working — an `error` config is still a synced folder, and the one
+      // the row must say something about. Project trees never sync.
+      let syncByPath = new Map<string, SyncHealthView>();
       if (projectId === undefined) {
-        syncByPath = await listActiveSyncConfigIdsByPath(
-          deps.sql,
-          auth.organizationId,
-        );
+        syncByPath = (await loadSyncHealthIndex(deps.sql, auth.organizationId))
+          .byPath;
       }
       const basePath =
         syncByPath.size > 0 && parentId != null
@@ -112,10 +115,10 @@ export function createFolderRoutes(deps: {
           if (syncByPath.size === 0) return folder;
           const path =
             basePath !== null ? `${basePath}/${folder.name}` : folder.name;
-          const syncConfigId = syncByPath.get(path);
-          return syncConfigId === undefined
+          const sync = syncByPath.get(path);
+          return sync === undefined
             ? folder
-            : Object.assign(folder, { syncConfigId });
+            : Object.assign(folder, { syncConfigId: sync.configId, sync });
         }),
       });
     } catch (error) {

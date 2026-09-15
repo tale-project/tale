@@ -1,22 +1,81 @@
 ---
-title: Construire un workflow avec approbation
-description: L’éditeur IA et sa carte de proposition ne font pas partie de cette version — un workflow avec une décision humaine se construit sur le canvas, et l’exécution attend cette décision sur sa page de détail.
+title: Créer un workflow avec approbation
+description: Importe un petit workflow, teste l’e-mail proposé, puis examine et refuse l’approbation réelle sans envoyer le message.
 ---
 
-Ce tutoriel activait autrefois un **Éditeur IA** dans la barre d’outils du canvas, décrivait un workflow à trois étapes en un message, approuvait la carte de proposition qu’il renvoyait, puis répondait à l’exécution en pause. L’éditeur IA n’existe pas dans cette version de Tale — le canvas n’a pas de panneau d’assistant, et aucune carte ne te propose une définition à approuver. La décision humaine au milieu d’une exécution, elle, existe bel et bien ; elle vient de l’exécution elle-même, pas d’une carte dans un éditeur.
+Cet exercice crée un workflow en deux étapes : préparer un message, puis demander l’autorisation de l’envoyer. Tu examineras le destinataire et le texte exacts dans une exécution en attente avant de refuser l’opération. Tu parcourras ainsi une approbation complète sans avoir à distribuer de vrai message.
 
-<Note>
+## Avant de commencer
 
-L’éditeur IA n’est pas disponible dans cette version. Tu construis la définition sur le canvas et tu l’enregistres toi-même comme version, ou tu laisses un modèle la rédiger par l’[endpoint MCP](/fr/develop/mcp-endpoint) ; une personne décide toujours l’étape sortante au moment de l’exécution.
+Utilise un compte Développeur, Admin ou Propriétaire. Vérifie que la politique de ton organisation exige une approbation pour `imap-smtp.send` ; c’est le comportement par défaut. Une politique personnalisée peut le modifier. Consulte donc [Configurer les approbations](/fr/platform/approvals/configure) avant la partie réelle.
 
-</Note>
+Le test simulé n’a pas besoin d’identifiants de messagerie. Un envoi réellement approuvé nécessiterait un connecteur IMAP / SMTP configuré et un destinataire que tu souhaites contacter. Cet exercice se termine par **Rejeter**.
 
-## Mettre une personne entre le brouillon et l’envoi aujourd’hui
+## Importer l’exemple
 
-Construis la forme à la main sur le canvas : un nœud **agent** qui rédige le résumé, puis un nœud connector qui l’envoie. Rien de plus n’est nécessaire pour la décision — une écriture de connector qui quitte ton locataire, comme envoyer un courrier ou poster dans un canal, met l’exécution réelle en pause d’elle-même. L’exécution apparaît **En attente** dans la liste des exécutions, sa page de détail affiche **En attente de ton approbation** avec le message exact que l’étape enverrait, et **Approuver** le libère tandis que **Rejeter** arrête l’exécution. Une planification sur la page de l’automatisation la lance chaque matin de semaine, et **Essai** exerce le graphe contre des simulations sans rien envoyer. [L’éditeur de workflow](/fr/platform/automations/editor) déroule le canvas, l’enregistrement et la mise en service ; [Déclencheurs d’automatisation](/fr/platform/automations/triggers) couvre la planification.
+Enregistre le contenu suivant dans `workflow.yml`. Le nœud `draft` renvoie un texte fixe pour faciliter la vérification. Le nœud `send` le lit ; ces références dessinent la connexion sur le canvas.
 
-Quand la décision doit porter sur le brouillon plutôt que sur l’envoi, laisse l’agent demander : un nœud agent d’automatisation porte un outil `ask_human`, et une exécution qui l’appelle se met en pause comme **En attente**, la question sur sa page de détail, jusqu’à ce que tu répondes, puis reprend à ce nœud avec ta réponse. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre les deux portes.
+```yaml
+version: 1
+name: docs/approval-check
+description: Practice reviewing an outgoing message before it is sent.
+nodes:
+  - id: draft
+    type: transform
+    code: |
+      return {
+        subject: "Approval practice",
+        text: "This is a test message for the approval walkthrough."
+      };
+  - id: send
+    type: imap-smtp.send
+    input:
+      to: reviewer@example.com
+      subject: '{{ nodes.draft.output.subject }}'
+      text: '{{ nodes.draft.output.text }}'
+output:
+  messageId: '{{ nodes.send.output.messageId }}'
+tests:
+  - name: prepares the outgoing message
+    input: {}
+    expect:
+      effects:
+        - connector: imap-smtp.send
+```
 
-## Où ça mène
+1. Ouvre **Automatisations > Créer une automatisation > Téléverser un paquet**.
+2. Choisis `workflow.yml` et laisse **Installer dans** sur **Organisation**.
+3. Clique sur **Téléverser le paquet**. Tale valide le document et enregistre `docs/approval-check` en brouillon.
+4. Choisis **Plus tard** dans la proposition de déploiement, puis ouvre **Approval check** dans la liste. L’automatisation s’ouvre dans l’onglet **Éditeur**.
 
-La forme que ce tutoriel promettait — rédiger, décider, agir — est celle qu’une exécution prend d’elle-même dans cette version : l’écriture sortante demande, une personne lit l’appel exact, et le registre dit qui l’a autorisé. [Concepts d’automatisation](/fr/platform/automations/concepts) est le vocabulaire derrière définition, déclencheur et exécution ; [Concepts d’approbation](/fr/platform/approvals/concepts) est le modèle derrière l’attente.
+Si ce nom existe déjà, l’import ajoute une version. Choisis une autre valeur de `name` pour garder un exercice séparé.
+
+<Frame caption="Le dialogue d’import accepte le fichier de workflow et propose l’organisation ou un projet comme destination.">
+
+![Le dialogue de téléversement d’un paquet affiche le sélecteur de fichiers et la destination Organisation.](/images/platform/automations-upload-dialog.webp)
+
+</Frame>
+
+## Tester le flux de données
+
+Dans **Éditeur**, clique sur **Essai**. Cet exemple ne demande aucune donnée d’exécution ; un objet vide suffit. Passe à **Exécutions** : la liste doit afficher une exécution de test au statut **Réussie**.
+
+Ouvre l’exécution et vérifie sur le canvas que les deux nœuds ont été exécutés. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connecteur utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
+
+Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulation réussie vérifie le graphe et l’appel prévu. Elle ne prouve ni la validité des identifiants de messagerie ni la livraison du message.
+
+## Démarrer la vérification réelle
+
+Reviens à **Éditeur** et clique sur **Mettre cette version en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
+
+Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Passe à **Exécutions** et ouvre la nouvelle exécution en attente. La carte doit présenter l’approbation attendue, `imap-smtp.send`, le nœud `send` et les données de l’appel prévu. Destinataire, objet et texte doivent correspondre au test simulé.
+
+Si l’exécution ne se met pas en attente, examine son statut et la politique avant de continuer. Un appel de connecteur échoué ne prouve pas qu’une approbation a été demandée.
+
+## Refuser et examiner le résultat
+
+Clique sur **Rejeter** sur la carte. L’opération est refusée et l’exécution se termine en **En échec**. C’est le résultat attendu ici : le workflow a atteint la décision humaine et le message n’a pas été envoyé.
+
+Tu ne peux pas modifier les paramètres d’un appel en attente sur la carte. Si un vrai message proposé est incorrect, rejette-le, corrige la définition ou les données et démarre une nouvelle exécution. Approuver ensuite un appel correct autorise l’opération réelle ; cela ne signifie pas seulement que tu as lu la carte.
+
+Lorsqu’un agent a besoin d’une réponse plutôt que d’une permission, il utilise `ask_human`. Cette attente différente est expliquée dans [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows). [Journaux d’exécution](/fr/platform/automations/execution-logs) aide à distinguer ces attentes d’un agent encore au travail.

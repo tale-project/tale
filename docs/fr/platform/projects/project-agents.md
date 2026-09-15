@@ -1,9 +1,15 @@
 ---
-title: Agents de projet
-description: L'onglet Agents dote un projet d'agents nommés — chacun avec un harness, un modèle servi par le fournisseur que tu choisis, un équipement et des instructions permanentes — qui traitent les tâches du projet dans une sandbox isolée.
+title: Créer et gérer des agents de projet
+description: Configure un agent réutilisable, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat.
 ---
 
-L'onglet **Agents** d'un projet, c'est son équipe : des agents nommés que tu configures une fois puis à qui tu confies du travail — chacun combine un [harness](/fr/platform/agents/harnesses) de code, un modèle, des skills et des connectors, et des instructions permanentes. Le chat continue de tourner sur l'assistant intégré — ces agents existent pour le tableau : assigne une tâche à l'un d'eux, il travaille dans une sandbox isolée puis revient rendre compte pour revue. Toute personne qui peut modifier le projet les gère ; un projet en accueille jusqu'à 50.
+Crée un agent de projet pour disposer d’un agent réutilisable sur les tâches du projet. Il associe un environnement de code, un modèle, des instructions et un équipement autorisé. Tu dois pouvoir modifier le projet actif. Seuls un Propriétaire ou un Admin peuvent changer les secrets accordés.
+
+## Préparer la première tâche
+
+Choisis un résultat limité, comme vérifier les approbations manquantes dans un brief de lancement. L’agent nécessite des [identifiants de fournisseur](/fr/platform/admin/providers) compatibles et une [sandbox](/fr/platform/admin/sandboxes) disponible. Enregistrer sa configuration ne prouve pas encore qu’une exécution réussira.
+
+Sépare les instructions réutilisables de la tâche. « Repère les preuves manquantes et indique les contrôles effectués » appartient à l’agent. Le document, la date de revue et les critères d’acceptation appartiennent à la tâche.
 
 <Frame caption="L'onglet Agents — les agents du projet ; chaque ligne nomme le harness, le fournisseur et le modèle.">
 
@@ -11,53 +17,54 @@ L'onglet **Agents** d'un projet, c'est son équipe : des agents nommés que tu c
 
 </Frame>
 
-## Créer un agent
+## Configurer l’agent
 
 <Steps>
 
-<Step title="Ouvre l'onglet et lance-toi">
+<Step title="Choisir un nom et un environnement">
 
-Ouvre l'onglet **Agents** du projet et clique sur **Nouvel agent**. Donne-lui un **Nom** que ton équipe reconnaîtra sur les cartes de tâches, et choisis le **Harness** — la CLI de code sur laquelle l'agent tourne.
-
-</Step>
-
-<Step title="Choisis le modèle — et avec lui le fournisseur">
-
-La liste **Modèle** se filtre à la saisie ; un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur, le nom du fournisseur sous chaque entrée. Le choix est exact : les runs de l'agent appellent ce modèle via ce fournisseur — et la dépense atterrit sur son accès. Si le fournisseur choisi ne peut plus servir le modèle, le run échoue en le disant, au lieu de basculer en silence sur la facture d'un autre.
-
-Les entrées servies par abonnement — un abonnement Claude, par exemple — n'apparaissent que lorsque le **Harness** est celui que cet abonnement pilote ; le run s'authentifie alors avec l'abonnement du fournisseur plutôt qu'avec une clé API de l'organisation.
+Ouvre l’onglet **Agents** du projet et choisis **Nouvel agent**. Donne-lui un **Nom** reconnaissable, puis choisis le **Harness**, son [environnement de code](/fr/platform/agents/harnesses). Les noms sont uniques dans le projet, qui accepte jusqu’à 50 agents.
 
 </Step>
 
-<Step title="Équipe-le et fixe ses instructions">
+<Step title="Choisir le modèle et le fournisseur">
 
-**Skills, connectors & outils** décident de ce que l'agent atteint au-delà de son espace de travail ; la liste suit l'accès des équipes du projet, pas ta visibilité personnelle. Les skills fournissent des bundles de référence dans la sandbox, les connectors relaient un service connecté, et les **outils de la plateforme** laissent l'agent lire et écrire les données de ton organisation — trouver et lire des tâches, contacts, produits, documents et connaissances, et, quand tu accordes un outil d'écriture, créer des tâches, les commenter, les déplacer entre colonnes, synchroniser un élément externe vers une tâche ou enregistrer un document. Un outil d'écriture est marqué _Écrit des données_ : l'accorder vaut autorisation, un agent équipé de `Créer des tâches` crée donc de vraies tâches sans autre validation. Lecture et écriture restent limitées au projet — un agent ne voit jamais le tableau d'un autre projet.
+Recherche un **Modèle** par nom ou identifiant API. Le même modèle peut apparaître une fois par fournisseur : lis le fournisseur de l’entrée avant de la choisir. Cela fixe la combinaison pour les prochaines exécutions. Les offres par abonnement n’apparaissent qu’avec un environnement compatible.
 
-Les **secrets** remettent à l'agent une clé API sous forme de variable d'environnement — l'échappatoire pour un service sans connector. Ajoutes-en un (un nom comme `GLITCHTIP_TOKEN` et le jeton), et l'agent le reçoit dans son shell et appelle l'API de ce service directement, avec la doc du fournisseur. La valeur est stockée chiffrée et n'est plus jamais affichée ; ne stocke que des jetons peu privilégiés et renouvelables, car l'agent en cours d'exécution peut les lire. Les secrets appartiennent à l'organisation, le même est donc réutilisé entre agents et renouvelé à un seul endroit.
+Une ancienne configuration peut nommer un modèle sans fournisseur fixé. Le dialogue indique alors quel fournisseur le servirait actuellement ou pourquoi aucun ne peut le faire. Choisis une entrée pour fixer ce choix.
 
-Les **Instructions** accompagnent chaque run comme consigne permanente — ce que cet agent prend en charge, comment il doit travailler et les limites à respecter.
+</Step>
+
+<Step title="Accorder l’équipement et écrire les instructions">
+
+Sous **Skills, connectors & outils**, ajoute les bundles, services et opérations nécessaires. La liste de skills suit les accès des équipes du projet, pas seulement ta visibilité personnelle. Un skill absent peut donc demander une modification de son partage.
+
+Lis **Écrit des données** avant d’accorder un outil d’écriture : il autorise des opérations réelles selon ses règles d’accès. Le broker de connectors ne propose que des lectures aux agents. Les outils GitHub directs et les secrets explicitement accordés suivent d’autres voies.
+
+Rédige des **Instructions** qui définissent responsabilité, preuves et limites. Pour la revue du lancement : « Lis le brief fourni. Signale les approbations manquantes et les dates contradictoires avec le passage correspondant. Ne termine pas la tâche. »
+
+</Step>
+
+<Step title="Vérifier et enregistrer">
+
+Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom.
+
+Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Rouvre l’agent pour examiner l’équipement et les instructions enregistrés.
 
 </Step>
 
 </Steps>
 
-Clique sur **Créer l'agent**. La ligne affiche le harness, le fournisseur, le modèle et le nombre d'équipements — le même résumé que voient tes coéquipiers au moment d'assigner.
+## Affecter et démarrer le travail
 
-## Mets-le au travail
+Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage.
 
-Assigne une tâche du tableau à l'agent et clique sur **Démarrer l'agent** depuis la tâche. Le run travaille dans une sandbox isolée avec un espace de travail permanent qui persiste d'une tâche à l'autre, poste son rapport en commentaire de la tâche, joint ce qu'il produit sous **Fichiers produits** et gare la tâche **En revue** — un agent ne clôt jamais un travail ; c'est une personne qui le fait. Commente la tâche en mentionnant l'agent avec @ pour orienter un run en cours, ou pour lancer le suivant — il lit d'abord ton commentaire et reprend là où le run précédent s'était arrêté. [Automatisation des tâches](/fr/platform/projects/task-automation) décrit la boucle du tableau de bout en bout.
+Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
 
-## Modifier ou supprimer
+L’[automatisation des tâches](/fr/platform/projects/task-automation) explique le suivi, l’arrêt et la revue. L’assistant de chat ordinaire reste distinct, même avec un contexte de projet.
 
-Les modifications s'appliquent au run suivant — un run en cours garde sa configuration de départ ; c'est le run suivant qui reprend tes changements. Supprimer un agent conserve l'historique de chaque tâche ; seule l'assignation se vide.
+## Modifier ou retirer un agent
 
-## Assistant de chat ou agent de projet ?
+Utilise le menu de sa ligne pour le modifier ou le supprimer. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Examine le travail en cours avant de retirer l’agent concerné.
 
-| Prends…            | quand le travail est…                                                                        |
-| ------------------ | -------------------------------------------------------------------------------------------- |
-| le chat            | une conversation — questions, brouillons, recherche ; l'assistant intégré s'en charge.       |
-| un agent de projet | une tâche — du travail sur dépôt ou fichiers via un harness, fait par une équipe permanente. |
-
-## Où ça se range
-
-L'agent regroupe côté projet des choix que d'autres pages détaillent : le catalogue des harnesses et leurs capacités vivent dans [Harnesses](/fr/platform/agents/harnesses) ; savoir quels fournisseurs et quels accès servent les modèles — clés stockées sur la passerelle mesurée, ou abonnements sur le compte du fournisseur — relève de [Fournisseurs IA](/fr/platform/admin/providers).
+En cas d’échec, lis la cause affichée. Un nom déjà utilisé, un accès au projet manquant, un modèle indisponible, un skill invisible et une capacité de sandbox absente sont des problèmes distincts. Modifier les instructions ne résout pas ces prérequis.

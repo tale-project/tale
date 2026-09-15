@@ -1,40 +1,63 @@
 ---
-title: Rate limits
-description: REST and MCP rate limits — the buckets, the 429 response and its Retry-After, and how to retry without making things worse.
+title: Handle rate limits
+description: Plan REST, MCP and webhook traffic, interpret Retry-After and retry accepted work without duplicating it.
 ---
 
-The API is rate-limited with token buckets keyed on the key holder — the user your API key acts as — so a budget always belongs to an identifiable caller and no network header can mint a fresh one: bursts pass, sustained hammering answers **429**. Every key a user mints draws from that user's budget; a worker fleet that needs a budget of its own gets a machine user of its own. A key that fails to authenticate is throttled per source IP instead (20 requests a minute, burst 40), so strangers never draw from a key holder's budget, and a request without a key costs nothing at all. The budgets are sized so a normal connector never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
+Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
 
-Read this when you are wiring a client that calls the API on a schedule or under load.
+The limits below describe the current backend. An operator’s proxy or a downstream provider may impose additional limits.
 
 ## The buckets
 
-| Surface                                                                                                                           | Budget             | Burst |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
-| Reads and CRUD — every `/api/v1` endpoint not listed below, including `POST /api/v1/mcp`                                          | 120 requests / min | 200   |
-| Starting work — project automation runs (`POST /api/v1/projects/{id}/automations/{name}/runs`), messages (`POST /api/v1/projects/{id}/threads/{threadId}/messages`) and tasks (`POST /api/v1/projects/{id}/tasks/{taskId}/start`), plus non-project automation runs and thread messages | 20 requests / min | 40 |
-| The project upload flow — the upload handoff and file bind (`POST .../uploads` and `POST .../files`)                              | 240 requests / min | 300   |
-| Inbound webhook deliveries (`POST /api/automations/webhook/{token}` and the project form) — per sender address, charged before the token is checked | 120 requests / min | 240 |
-| The same deliveries, per verified trigger                                                                                          | 20 requests / min  | 40    |
+A token bucket refills continuously up to its burst capacity. A short batch can use that capacity, but sustained traffic must stay within the refill rate.
 
-The second bucket is deliberately small: each of those requests costs a whole durable run or a model turn, not a database read — and so is the per-trigger webhook bucket, for the same reason; the webhook door carries no key, so its budgets key on the sender's address and on the trigger the token names (the [Webhooks page](/develop/webhooks) has the door's own vocabulary). The third is deliberately roomy: one file costs at least two calls here — mint the handoff, bind the file — so the lane is budgeted for the whole choreography. Every request also counts against the general budget — it is the door — so a starting-work or upload POST draws from two lanes at once, and the tighter one governs; plan against it. A token bucket refills continuously — the burst capacity absorbs a batch, then the sustained rate applies. The starting-work bucket bounds how fast sends are **accepted**, not how many turns run at once: accepted thread messages join one queue shared by every organization and key holder on the deployment, worked oldest-first by the background worker in batches of up to five turns (the operator's `WORKER_CONCURRENCY`, default 5), and a new batch starts only when every turn of the running one has settled — a burst of N sends completes in waves, not in parallel.
+| Traffic | Sustained rate | Burst | Budget owner |
+| --- | --- | --- | --- |
+| General `/api/v1` traffic, including MCP | 120/minute | 200 | Key holder |
+| Run starts, model-message sends and task starts | 20/minute | 40 | Key holder |
+| Project upload handoff and file binding | 240/minute | 300 | Key holder |
+| Failed API-key authentication | 20/minute | 40 | Source IP |
+| Webhook deliveries before token validation | 120/minute | 240 | Sender address |
+| Deliveries to a verified webhook trigger | 20/minute | 40 | Trigger |
 
-Some writes also pass the same per-user or per-organization budgets as their in-app twins — a task comment, a folder change — and answer the same 429 beyond them.
+REST execution and upload requests also consume the general budget. For example, a project file needs an upload-handoff request and a file-bind request; each counts against both the general and upload budgets. The larger upload bucket does not allow a user to bypass the general limit.
+
+Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
+
+MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
+
+The execution bucket limits how quickly messages are accepted, not how many turns run at once. Accepted chat messages share a deployment-wide queue across organizations and keys. Each worker batch runs up to `WORKER_CONCURRENCY` turns, 5 by default; the next batch waits for the current one to settle. A successful send can therefore wait behind other clients’ work. Queue position and estimated start time are not exposed.
 
 ## The 429
 
-An overrun answers the API's ordinary error envelope, plus a `Retry-After` header naming the wait in whole seconds (rounded up):
+An HTTP limit refusal includes `Retry-After` in whole seconds. The JSON body provides the same wait in milliseconds. This illustrative response means wait at least two seconds:
 
-```json
-{ "error": "Too many requests — retry after 1500 ms", "code": "RATE_LIMITED", "requestId": "…", "data": { "retryAfterMs": 1500 } }
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 2
+Content-Type: application/json
+
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-`code` is the value to branch on, as everywhere in the [error model](/develop/api-reference#error-model); `error` carries a sentence naming the wait, and `requestId` the id to quote when you report it — the in-app doors keep repeating the code in `error` for their own clients, so a 429 from `/api/app` reads differently. The body names the wait in milliseconds as `data.retryAfterMs`; the `Retry-After` header rounds it up to whole seconds. For example, `1500` milliseconds gives `Retry-After: 2`.
+Branch on `code`; `error` is a sentence describing the wait, and `requestId` identifies the request for investigation. This is the REST response format. The app’s `/api/app` and webhook limit responses keep the machine code in `error`, so do not parse that text across surfaces. Tale does not expose remaining-budget counters: track your traffic and honor the server’s wait instruction.
 
-A poll that answers **304** (an unchanged `ETag`, see [caching](/develop/api-reference#caching-compression-and-partial-reads)) costs a request like any other — revalidation saves bytes, not budget — so size a polling interval by the budget: at one read a second a single key holder can watch two runs, at five seconds ten. Read only what you need (`?fields=status,finishedAt` on a run) so each request is small, and prefer a schedule to a tight loop.
+1. Stop the worker’s immediate retry loop.
+2. Wait at least `Retry-After`. If multiple workers share the identity, coordinate their pause.
+3. Retry with a bounded exponential delay and jitter when refusals continue. For example, grow a delay from one second up to sixty seconds, always honoring a longer server-provided wait.
+4. Preserve the original idempotency key for operations that support one. A timeout after a run start may mean the run was already accepted.
 
-Sleep at least `Retry-After` before the next attempt. There are no remaining-budget counters, so beyond that back off blind: start at one second, double per consecutive 429, cap at sixty, and add jitter so concurrent workers do not retry in lock-step. Because starting a run answers **202** before the work happens, a lost response is the ordinary case, not an edge: name the start with `Idempotency-Key` and retry it — the repeat answers the run the first attempt started, flagged `duplicate: true`, instead of starting a second one (the [API reference](/develop/api-reference#start-a-run-then-poll-it) has the rules).
+Other `4xx` responses usually need a corrected request, credential or permission. Do not treat every failure as a rate limit; use the [error model](/develop/api-reference#error-model).
 
-## Where this fits
+## Plan polling and retries
 
-The [API reference](/develop/api-reference) names the 429 in the error model and points here. If your workload genuinely needs more than the budgets allow, batch on your side — `POST /api/v1/contacts/bulk` exists for exactly that — or spread the schedule; the buckets are per key holder, so splitting traffic across keys minted by the same user changes nothing — an integration that genuinely needs its own budget gets its own machine user.
+An `ETag` response of `304` still costs a request. It saves response bytes, not budget. Polling one run every five seconds consumes twelve reads per minute before any retries or other work. Leave capacity for those other calls instead of filling the entire budget with polls.
+
+Request only the fields you need, such as `?fields=status,finishedAt` on a run. Slow down when a run is waiting for a human, and stop polling terminal runs. Follow [Start a run, then poll it](/develop/api-reference#start-a-run-then-poll-it) for states and idempotent starts.
+
+For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. If a workflow needs its own service identity, provision that identity through your normal account and permission process; do not use key rotation as a retry strategy.

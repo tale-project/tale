@@ -23,6 +23,7 @@ import {
   readKeysetCursor,
   readOptionalJsonBody,
   readPageLimit,
+  nonBlank,
   readQuery,
   resetCursorKeyForTests,
   type RestEnv,
@@ -442,6 +443,36 @@ describe('readQuery / readPageLimit', () => {
  * ASCII pattern refused rather than compared byte for byte, where `é` in
  * two normalizations started two durable runs of one retry.
  */
+/**
+ * The one blank rule behind the door's text fields. The regression under
+ * test: a value of zero-width spaces survived `trim()` and passed as content
+ * (on the chat send, a billed turn answering an empty prompt).
+ */
+describe('nonBlank', () => {
+  const schema = nonBlank(10);
+
+  it.each(['', '   ', '\u00a0', '\u200b\u200b', ' \u2060 ', '\u0085'])(
+    'refuses %j as blank with the house sentence',
+    (value) => {
+      const result = z.safeParse(schema, value);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe('must not be blank');
+    },
+  );
+
+  it('trims a visible value and stores everything else as sent', () => {
+    expect(z.parse(schema, '  a  ')).toBe('a');
+    const family = '\u{1f468}\u200d\u{1f469}';
+    expect(z.parse(schema, family)).toBe(family);
+    expect(z.parse(schema, 'a\u200bb')).toBe('a\u200bb');
+    expect(z.parse(schema, '```\n```')).toBe('```\n```');
+  });
+
+  it('keeps the length ceiling', () => {
+    expect(z.safeParse(schema, 'a'.repeat(11)).success).toBe(false);
+  });
+});
+
 describe('readIdempotencyKey', () => {
   function probe() {
     const app = new Hono<RestEnv>();

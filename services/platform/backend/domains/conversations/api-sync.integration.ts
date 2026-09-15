@@ -872,6 +872,64 @@ export async function checkConversationApi(
     { sourceDeleted: boolean }[]
   >`SELECT source_deleted AS "sourceDeleted" FROM app.conversation_api_bindings WHERE conversation_id = ${maxedDeletion.conversationId}`;
   assert.equal(maxedBinding[0]?.sourceDeleted, true);
+  // A torn-down mirror stays down (2026-09-15 evaluation, i7): a content
+  // snapshot at a higher version used to reopen it — `source_deleted`
+  // written back to false, the thread and its messages back in the Inbox —
+  // and the receipt an engine resumes from never said a teardown landed.
+  const resurrection = await machine('/conversations/sync', {
+    ...deletion,
+    version: 5,
+    deleted: false,
+    status: 'open',
+    subject: 'Back from the dead',
+    messages: [
+      {
+        externalId: `after-teardown-${suffix}`,
+        content: 'added after the source deleted the thread',
+        isCustomer: true,
+        authorName: 'Alice',
+        createdAt: 1,
+      },
+    ],
+  });
+  const resurrectionCode = z
+    .object({ code: z.string() })
+    .safeParse(await resurrection.json());
+  const stillDown = await sql<{ sourceDeleted: boolean; status: string }[]>`
+    SELECT b.source_deleted AS "sourceDeleted", c.status
+    FROM app.conversation_api_bindings b
+    JOIN app.conversations c ON c.id = b.conversation_id
+    WHERE b.conversation_id = ${conversationId}
+  `;
+  rows =
+    await sql`SELECT id FROM app.conversation_messages WHERE conversation_id = ${conversationId}`;
+  const downReceipt = z
+    .object({
+      snapshot: z.object({
+        sourceDeleted: z.boolean(),
+        status: z.string().nullable(),
+      }),
+    })
+    .safeParse(
+      await (
+        await machine(
+          `/conversations/sync?${new URLSearchParams({ source: 'vatplus', externalId })}`,
+        )
+      ).json(),
+    );
+  record(
+    'conversation API tombstones stay down',
+    resurrection.status === 409 &&
+      resurrectionCode.success &&
+      resurrectionCode.data.code === 'CONVERSATION_CLOSED' &&
+      (stillDown[0]?.sourceDeleted ?? false) &&
+      stillDown[0]?.status === 'closed' &&
+      rows.length === 0 &&
+      downReceipt.success &&
+      downReceipt.data.snapshot.sourceDeleted &&
+      downReceipt.data.snapshot.status === 'closed',
+    `A content snapshot onto a torn-down mirror is 409 CONVERSATION_CLOSED and writes nothing, and the receipt says the teardown landed — ${resurrection.status}/${resurrectionCode.success ? resurrectionCode.data.code : 'BAD SHAPE'}, down=${String(stillDown[0]?.sourceDeleted)}/${stillDown[0]?.status}, messages=${rows.length}, receipt=${downReceipt.success ? `${String(downReceipt.data.snapshot.sourceDeleted)}/${downReceipt.data.snapshot.status}` : 'BAD SHAPE'}`,
+  );
   assert.equal(
     (
       await app(`/${conversationId}/reply`, {
@@ -1008,5 +1066,231 @@ export async function checkConversationApi(
       afterRecycleCode === 'CONVERSATION_CONTACT_TRASHED' &&
       bindingContact[0]?.contactId === aliceRow[0]?.id,
     `afterTrash=${afterTrash.status}/${afterTrashCode}, receipt=${trashState.snapshot.contactStatus}, teardown=${teardownResponse.status}/${teardown.success ? String(teardown.data.applied) : 'BAD SHAPE'}, afterRecycle=${afterRecycle.status}/${afterRecycleCode}, link=${bindingContact[0]?.contactId === aliceRow[0]?.id}`,
+  );
+
+  // ---- round h, h6: the restore verb the frozen mirror's 409 names, the
+  //      re-key carry-through, and the listing door -----------------------
+  const verb = (path: string, body?: unknown, method = 'POST') =>
+    fetch(`${base}/api/v1${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${key}`,
+        'X-Organization-Slug': slug,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const receiptOf = async (threadId: string) =>
+    z
+      .object({
+        snapshot: z.object({
+          contactStatus: z.string(),
+          contactId: z.string().nullable(),
+          externalContactId: z.string(),
+          version: z.number(),
+        }),
+      })
+      .safeParse(
+        await (
+          await machine(
+            `/conversations/sync?${new URLSearchParams({ source: 'vatplus', externalId: threadId })}`,
+          )
+        ).json(),
+      );
+  const restoreSuffix = randomUUID();
+  const carolExternalId = `carol:client:${restoreSuffix}`;
+  const carolThreadId = `carol-thread-${restoreSuffix}`;
+  const carolSnapshot = (version: number, contactRef = carolExternalId) =>
+    apiSnapshotSchema.parse({
+      source: 'vatplus',
+      externalId: carolThreadId,
+      externalContactId: contactRef,
+      version,
+      subject: 'Restored-contact mirror',
+      status: 'open',
+      messages: [
+        {
+          externalId: `carol-msg-${version}`,
+          content: `message at version ${version}`,
+          format: 'plain',
+          isCustomer: true,
+          authorName: 'Client',
+          createdAt: 2000 + version,
+          attachments: [],
+        },
+      ],
+    });
+  assert.equal(
+    (
+      await machine('/contacts/bulk', {
+        contacts: [{ name: 'Carol', email: '', externalId: carolExternalId }],
+      })
+    ).status,
+    201,
+  );
+  const carolRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.contacts
+    WHERE org_id = ${ctx.orgId} AND external_id = ${carolExternalId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+    LIMIT 1
+  `;
+  const carolId = carolRows[0]?.id;
+  assert.ok(carolId);
+  const carolOpened = snapshotResult.parse(
+    await (await machine('/conversations/sync', carolSnapshot(1))).json(),
+  );
+  assert.equal(carolOpened.applied, true);
+  assert.equal(await deleteContactByExternalId(carolExternalId), 204);
+  const carolFrozen = await machine('/conversations/sync', carolSnapshot(2));
+  // Alice's external id is Bob's now: her restore is the create's own 409,
+  // never a second live row under one id.
+  const aliceRestore = await verb(
+    `/contacts/${aliceRow[0]?.id ?? 'none'}/restore`,
+  );
+  const aliceRestoreBody = z
+    .object({ code: z.string() })
+    .safeParse(await aliceRestore.json());
+  const carolRestore = await verb(`/contacts/${carolId}/restore`);
+  const carolRestored = z
+    .object({ id: z.string() })
+    .loose()
+    .safeParse(await carolRestore.json());
+  // A second restore of a live contact is the "already there" no-op.
+  const carolAgain = await verb(`/contacts/${carolId}/restore`);
+  const carolThawed = snapshotResult.safeParse(
+    await (await machine('/conversations/sync', carolSnapshot(2))).json(),
+  );
+  const carolReceipt = await receiptOf(carolThreadId);
+  record(
+    'conversation API restore verb thaws a frozen mirror; a recycled id refuses the restore with the create’s 409',
+    carolFrozen.status === 409 &&
+      aliceRestore.status === 409 &&
+      aliceRestoreBody.success &&
+      aliceRestoreBody.data.code === 'CONTACT_DUPLICATE_EXTERNAL_ID' &&
+      carolRestore.status === 200 &&
+      carolRestored.success &&
+      carolRestored.data.id === carolId &&
+      carolAgain.status === 200 &&
+      carolThawed.success &&
+      carolThawed.data.applied &&
+      carolReceipt.success &&
+      carolReceipt.data.snapshot.contactStatus === 'active' &&
+      carolReceipt.data.snapshot.contactId === carolId &&
+      carolReceipt.data.snapshot.version === 2,
+    `frozen=${carolFrozen.status}/409, aliceRestore=${aliceRestore.status}/${aliceRestoreBody.success ? aliceRestoreBody.data.code : 'BAD SHAPE'} (want 409/CONTACT_DUPLICATE_EXTERNAL_ID), restore=${carolRestore.status}/${carolRestored.success ? carolRestored.data.id === carolId : 'BAD SHAPE'}, again=${carolAgain.status}/200, thawed=${carolThawed.success ? String(carolThawed.data.applied) : 'BAD SHAPE'}, receipt=${carolReceipt.success ? `${carolReceipt.data.snapshot.contactStatus}/${carolReceipt.data.snapshot.contactId === carolId}/v${carolReceipt.data.snapshot.version}` : 'BAD SHAPE'}`,
+  );
+
+  // A re-key in the CRM (PATCH of the externalId) follows through to the
+  // binding: a snapshot naming the CURRENT id applies and the receipt names
+  // it; the old id names no live contact and is the conflict 409.
+  const carolNewExternalId = `carol:v2:${restoreSuffix}`;
+  const rekey = await verb(
+    `/contacts/${carolId}`,
+    { externalId: carolNewExternalId },
+    'PATCH',
+  );
+  const bindingAfterRekey = await sql<{ externalContactId: string }[]>`
+    SELECT external_contact_id AS "externalContactId"
+    FROM app.conversation_api_bindings
+    WHERE org_id = ${ctx.orgId} AND conversation_id = ${carolOpened.conversationId}
+  `;
+  const rekeyed = snapshotResult.safeParse(
+    await (
+      await machine('/conversations/sync', carolSnapshot(3, carolNewExternalId))
+    ).json(),
+  );
+  const rekeyReceipt = await receiptOf(carolThreadId);
+  const staleId = await machine('/conversations/sync', carolSnapshot(4));
+  const staleIdBody = z
+    .object({ code: z.string() })
+    .safeParse(await staleId.json());
+  record(
+    'conversation API re-keyed contact: the binding follows the CRM’s current id, the old id is the conflict 409',
+    rekey.status === 200 &&
+      bindingAfterRekey[0]?.externalContactId === carolNewExternalId &&
+      rekeyed.success &&
+      rekeyed.data.applied &&
+      rekeyReceipt.success &&
+      rekeyReceipt.data.snapshot.externalContactId === carolNewExternalId &&
+      rekeyReceipt.data.snapshot.contactId === carolId &&
+      rekeyReceipt.data.snapshot.version === 3 &&
+      staleId.status === 409 &&
+      staleIdBody.success &&
+      staleIdBody.data.code === 'CONVERSATION_CONTACT_CONFLICT',
+    `rekey=${rekey.status}/200 binding=${bindingAfterRekey[0]?.externalContactId === carolNewExternalId}, current-id snapshot=${rekeyed.success ? String(rekeyed.data.applied) : 'BAD SHAPE'}, receipt=${rekeyReceipt.success ? `${rekeyReceipt.data.snapshot.externalContactId === carolNewExternalId}/${rekeyReceipt.data.snapshot.contactId === carolId}/v${rekeyReceipt.data.snapshot.version}` : 'BAD SHAPE'}, old-id snapshot=${staleId.status}/${staleIdBody.success ? staleIdBody.data.code : 'BAD SHAPE'} (want 409/CONVERSATION_CONTACT_CONFLICT)`,
+  );
+
+  // The listing door: every mirror under the source, newest first, narrowed
+  // by contactStatus, paged by the keyset cursor.
+  const listPage = z.object({
+    conversations: z.array(
+      z
+        .object({
+          conversationId: z.string(),
+          contactStatus: z.string(),
+          contactId: z.string().nullable(),
+          externalContactId: z.string(),
+          version: z.number(),
+        })
+        .loose(),
+    ),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const listed = listPage.safeParse(
+    await (await machine('/conversations?source=vatplus')).json(),
+  );
+  const trashedListed = listPage.safeParse(
+    await (
+      await machine('/conversations?source=vatplus&contactStatus=trashed')
+    ).json(),
+  );
+  const firstPage = listPage.safeParse(
+    await (await machine('/conversations?source=vatplus&limit=1')).json(),
+  );
+  const secondPage = firstPage.success
+    ? listPage.safeParse(
+        await (
+          await machine(
+            `/conversations?source=vatplus&limit=1&cursor=${encodeURIComponent(firstPage.data.continueCursor)}`,
+          )
+        ).json(),
+      )
+    : null;
+  const carolListed = listed.success
+    ? listed.data.conversations.find(
+        (row) => row.conversationId === carolOpened.conversationId,
+      )
+    : undefined;
+  record(
+    'conversation API listing door names every mirror under a source, narrows by contactStatus and pages',
+    carolListed !== undefined &&
+      carolListed.contactStatus === 'active' &&
+      carolListed.contactId === carolId &&
+      carolListed.externalContactId === carolNewExternalId &&
+      carolListed.version === 3 &&
+      listed.success &&
+      listed.data.conversations.some(
+        (row) =>
+          row.conversationId === opened.conversationId &&
+          row.contactStatus === 'trashed',
+      ) &&
+      trashedListed.success &&
+      trashedListed.data.conversations.length >= 1 &&
+      trashedListed.data.conversations.every(
+        (row) => row.contactStatus === 'trashed',
+      ) &&
+      trashedListed.data.conversations.some(
+        (row) => row.conversationId === opened.conversationId,
+      ) &&
+      firstPage.success &&
+      firstPage.data.conversations.length === 1 &&
+      !firstPage.data.isDone &&
+      firstPage.data.continueCursor !== '' &&
+      secondPage?.success === true &&
+      secondPage.data.conversations.length === 1 &&
+      secondPage.data.conversations[0]?.conversationId !==
+        firstPage.data.conversations[0]?.conversationId,
+    `listed=${listed.success ? listed.data.conversations.length : 'BAD SHAPE'} carol=${carolListed === undefined ? 'MISSING' : `${carolListed.contactStatus}/${carolListed.contactId === carolId}/${carolListed.externalContactId === carolNewExternalId}/v${carolListed.version}`} aliceTrashed=${listed.success && listed.data.conversations.some((row) => row.conversationId === opened.conversationId && row.contactStatus === 'trashed')}, trashedOnly=${trashedListed.success ? `${trashedListed.data.conversations.length} all-trashed=${trashedListed.data.conversations.every((row) => row.contactStatus === 'trashed')}` : 'BAD SHAPE'}, page1=${firstPage.success ? `${firstPage.data.conversations.length}/done=${firstPage.data.isDone}` : 'BAD SHAPE'} page2=${secondPage?.success ? `${secondPage.data.conversations.length} distinct=${secondPage.data.conversations[0]?.conversationId !== (firstPage.success ? firstPage.data.conversations[0]?.conversationId : '')}` : 'BAD SHAPE'}`,
   );
 }

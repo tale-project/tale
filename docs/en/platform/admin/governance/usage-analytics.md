@@ -1,33 +1,31 @@
 ---
 title: Usage analytics
-description: The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard.
+description: Investigate token consumption, request volume, and recorded cost by model, assistant, and user.
 ---
 
-Usage analytics is the dashboard that aggregates every billable AI call into a single view of tokens, cost, and request volume. It slices by user, team, role, model, agent, and time so the unexpected line on the bill is traceable to the workload that drove it. Admins and Owners read this page when a bill is unexpected, when leadership wants the rough shape of AI spend, or when a budget alert fires and the next question is _who and what_.
+Open **Settings > Metrics > Usage** as an Admin or Owner to understand which workloads consume AI resources. Start with the reporting period, then use the breakdowns to investigate a change in cost or volume.
 
-## A worked drill-down
+## Investigate a usage increase
 
-Open **Settings > Metrics > Usage**. The default view is the last 30 days, org-wide, with the headline counters — total requests, total tokens, total cost, and active users — above the usage trend. Read **Per-user usage** to find the heaviest consumers, **Top models** to compare an expensive primary against a cheaper fallback, or **Top assistants** to find the assistant driving the load. The period switch (7, 30, or 90 days) drives every section at once.
+1. Open **Filter** and choose a **Period** of 7, 30, or 90 days. The initial view covers 30 days.
+2. Compare total requests, total tokens, total cost, and active users. More requests and larger replies have different causes.
+3. Choose the chart's metric and granularity in the filter menu to see when the change happened.
+4. Inspect **Top assistants**, **Top models**, and **Per-user usage**. Select an assistant or model breakdown to narrow the view; remove its filter chip to return to the wider view.
 
-## The dimensions
+Assistant names can include supporting work such as chat-title generation. A request count therefore does not always equal the number of messages members sent. Voice synthesis has its own **Top voice models** table.
 
-- **User** — every member who has triggered a billable call, with their tokens, cost, and requests.
-- **Model** — every model that produced a reply; voice models keep their own leaderboard.
-- **Assistant** — every assistant with attributed usage.
-- **Time** — the trend chart follows the chosen window: 7, 30, or 90 days.
+## Read cost alongside tokens
 
-## The cost model
+The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice or image generation may have different billing units. A token total alone cannot explain every cost.
 
-Cost is an estimate. Each request lands in the usage ledger with input tokens, output tokens, the model's published price per million tokens, and the wall-clock duration. The dashboard multiplies tokens by price; image generation calls land with a per-image cost the provider returns. The ledger row is the source of truth, and the [audit log](/platform/admin/governance/audit-logs) carries the row's actor and timestamp for cross-reference.
+Treat the displayed cost as recorded application usage, not an invoice from your provider. Provider pricing, subscriptions, credits, and unmetered calls can affect how it compares with the bill. A displayed zero does not prove that a provider charged nothing.
 
-## Budgets and usage
+## Respond to a budget warning
 
-Budgets live on [policies and limits](/platform/admin/governance/policies-and-limits); this dashboard is where you trace what drove them. When a budget warning or a budget-exceeded notice fires in chat, the per-user and per-model tables here answer the follow-up — who spent it, on which model, over which days.
+Use the same period and affected workload when investigating a budget notice. Find the user, assistant, or model behind the increase, then decide whether to change the workflow, choose another model, or adjust a cap under [Policies and limits](/platform/admin/governance/policies-and-limits).
 
-## Retention of usage rows
+Compare [feedback analytics](/platform/admin/governance/feedback-analytics) before making a model change solely for cost: lower spend is useful only if the results still meet the task.
 
-The usage ledger has its own retention window in [policies and limits](/platform/admin/governance/policies-and-limits). Default is 365 days; shorten it and the historical chart truncates accordingly. The dashboard reflects whatever the ledger holds — there is no archive layer underneath.
+## Understand missing history
 
-## Where this fits
-
-Usage analytics is the spend and volume side of the same workload [feedback analytics](/platform/admin/governance/feedback-analytics) reads for quality. Together they answer _is this agent worth its cost_. The companion is [policies and limits](/platform/admin/governance/policies-and-limits) — the page where the budgets this dashboard overlays are configured.
+Charts reflect the usage records Tale still retains. The organization and deployment retention settings determine the available history; there is no universal 365-day guarantee. Check the selected period, filters, and usage-ledger retention if expected activity is missing.

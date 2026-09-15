@@ -48,14 +48,11 @@ demo:
     app/demos/{name}.tsx an und verlinke es aus einer Seite.
 home:
   heroTitle: Das Tale Design-System
-  heroDescription: Zwei Designsprachen, ein System — @tale/ui baut das Produkt,
-    @tale/marketing-ui die Website drumherum. Jede Komponente auf dieser Seite
-    ist echt und läuft in deinem Browser.
+  heroDescription: Baue Anwendungsoberflächen mit @tale/ui und öffentliche Websites mit @tale/marketing-ui. Die Anleitungen und interaktiven Beispiele helfen dir, Komponenten auszuwählen und zu verbinden.
   heroPrimary: Zur Doku
   heroSecondary: Auf GitHub ansehen
-  showcaseTitle: Echte Komponenten statt Screenshots
-  showcaseDescription: Das Fenster unten rendert das ausgelieferte Paket. Wechsle
-    dein Theme und es zieht mit, denn es liest dieselben Tokens wie das Produkt.
+  showcaseTitle: Komponenten in einem Beispiel-Workspace
+  showcaseDescription: Diese Abbildung verwendet die veröffentlichten Komponenten und folgt deinem gewählten Theme. In den Anleitungen kannst du die interaktiven Beispiele ausprobieren.
   showcaseWindowTitle: Workspace-Einstellungen
   showcaseFormLegend: Allgemein
   showcaseNameLabel: Name des Workspace
@@ -78,26 +75,18 @@ home:
   showcaseStatusActive: Aktiv
   showcaseStatusInvited: Eingeladen
   sectionsTitle: Wie es weitergeht
-  sectionsDescription: Fünf Bereiche, jeder mit einer eigenen Frage an das System.
-  sectionsGettingStarted: Pakete installieren, ihr Zusammenspiel verstehen,
-    Theming und Übersetzungen einrichten.
-  sectionsFoundations: Die Tokens unter jeder Komponente — Farbe, Typografie,
-    Abstände, Icons, Barrierefreiheit.
-  sectionsComponents: Eine Seite pro Komponente, jeweils mit Live-Beispielen und
-    der Props-Tabelle aus dem Quelltext.
-  sectionsPatterns: Wie sich die Komponenten zu den Screens zusammensetzen, die
-    das Produkt tatsächlich ausliefert.
-  sectionsMarketingUi: Die Website-Chrome, die Marketing-Primitive und die
-    Demo-Rahmen, aus denen tale.dev entsteht.
+  sectionsDescription: Wähle eine Anleitung für die Einrichtung, eine Gestaltungsentscheidung oder die Oberfläche, die du bauen möchtest.
+  sectionsGettingStarted: Installiere die Pakete, lerne ihr Zusammenspiel kennen und richte Themes und Übersetzungen ein.
+  sectionsFoundations: Wähle Farben, Typografie, Abstände und Icons und prüfe die Barrierefreiheit.
+  sectionsComponents: Wähle Komponentenzustände und verbinde Props, Rückruffunktionen und zugängliche Namen.
+  sectionsPatterns: Baue Listen- und Einstellungsseiten mit Suche, Entwürfen und passendem Speicherverhalten.
+  sectionsMarketingUi: Verwende Seitennavigation, Marketing-Komponenten und Rahmen für Produktbeispiele auf öffentlichen Websites.
   installTitle: In dein eigenes Repository einbauen
-  installDescription: Die Pakete liefern TypeScript-Quelltext aus, keinen Build.
-    Pinne den Snapshot-Branch — oder ein Release-Tag für eine reproduzierbare
-    Installation.
+  installDescription: Die Pakete liefern TypeScript-Quelltext. Probiere einen Snapshot-Branch aus; für eine reproduzierbare Installation fixierst du anschließend einen Release-Tag und commitest die Lockdatei.
   installCodeLabel: package.json
   installDocsLink: Zur Installationsanleitung
   closingTitle: Fang bei der Einführung an
-  closingDescription: Sie erklärt die zwei Designsprachen, wie die Pakete
-    zusammenhängen und was stattdessen in einen Service gehört.
+  closingDescription: Die Einführung erklärt die beiden Designsprachen, das Zusammenspiel der Pakete und die Aufgaben, die dein Service übernimmt.
   closingPrimary: Einführung lesen
   closingSecondary: Zur Button-Seite
 footer:

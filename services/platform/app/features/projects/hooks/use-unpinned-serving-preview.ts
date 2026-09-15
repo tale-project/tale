@@ -4,10 +4,13 @@
  * would do: the automation agent node asks the workflow resolver (two-pass
  * walk), the project-agent dialog asks the task resolver (direct-only walk).
  * Disabled entirely for pinned picks; the answer is a snapshot the wording
- * must present as "currently".
+ * must present as "currently". "Currently" follows the org's credentials:
+ * the answer keys under their entity, so a credential write re-resolves it.
  */
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { backendKey } from '@/app/lib/backend/query-keys';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /** Which lane's resolver answers — they intentionally differ unpinned. */
 export type ServingPreviewLane = 'workflow' | 'task';
@@ -27,7 +30,16 @@ export function useUnpinnedServingPreview(
       ? 'automations/serving_preview:previewUnpinnedAgentServing'
       : 'tasks/serving_preview:previewUnpinnedTaskServing';
   return useActionQuery(
-    ['unpinned-serving-preview', lane, args ?? null],
+    args === undefined
+      ? ['unpinned-serving-preview', lane, null]
+      : backendKey(
+          args.organizationId,
+          PROVIDER_CREDENTIAL_HINT_ENTITY,
+          'serving-preview',
+          lane,
+          args.model,
+          args.harness,
+        ),
     func,
     args ?? { organizationId: '', model: '', harness: '' },
     { enabled: args !== undefined },

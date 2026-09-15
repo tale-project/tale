@@ -14,6 +14,8 @@ import type {
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
+import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
+import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
@@ -1894,5 +1896,160 @@ describe('validated reads in the published document', () => {
       };
       expect(ok.headers?.ETag, path).toBeUndefined();
     }
+  });
+});
+
+describe('the shapes the 2026-09-14 round-h evaluation found generated clients tripping on', () => {
+  const walk = (
+    node: unknown,
+    visit: (value: Record<string, unknown>, at: string) => void,
+    at = '$',
+  ): void => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, visit, `${at}[${index}]`));
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a non-null, non-array object
+    const record = node as Record<string, unknown>;
+    visit(record, at);
+    for (const [key, value] of Object.entries(record)) {
+      walk(value, visit, `${at}.${key}`);
+    }
+  };
+
+  it('lists null in every nullable enum — OAS 3.0 widens the type, never the enum', () => {
+    let seen = 0;
+    walk(spec, (value, at) => {
+      if (value.nullable === true && Array.isArray(value.enum)) {
+        seen += 1;
+        expect(value.enum, at).toContain(null);
+      }
+    });
+    expect(seen).toBeGreaterThan(5);
+  });
+
+  it('names the created resource in Location on every 201 that creates one addressable resource', () => {
+    const located: string[] = [];
+    const unlocated: string[] = [];
+    for (const [path, operations] of Object.entries(paths)) {
+      for (const [method, op] of Object.entries(operations)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        const created = (op.responses as Record<string, Json>)['201'] as
+          | { headers?: Record<string, Json> }
+          | undefined;
+        if (created === undefined) continue;
+        (created.headers?.Location === undefined ? unlocated : located).push(
+          `${method.toUpperCase()} ${path}`,
+        );
+      }
+    }
+    expect(located.sort()).toEqual([
+      'POST /api/v1/contacts',
+      'POST /api/v1/documents',
+      'POST /api/v1/knowledge-entries',
+      'POST /api/v1/products',
+      'POST /api/v1/projects',
+      'POST /api/v1/projects/{id}/agents',
+      'POST /api/v1/projects/{id}/files',
+      'POST /api/v1/projects/{id}/folders',
+      'POST /api/v1/projects/{id}/tasks',
+      'POST /api/v1/projects/{id}/threads',
+      'POST /api/v1/threads',
+      'POST /api/v1/websites',
+      'PUT /api/v1/skills/{slug}',
+    ]);
+    // The creates with nothing to point at: many rows, a row with no read
+    // of its own, or an install answering the project's automation view.
+    expect(unlocated.sort()).toEqual([
+      'POST /api/v1/browser-sessions/import',
+      'POST /api/v1/contacts/bulk',
+      'POST /api/v1/projects/{id}/automations/{name}',
+      'POST /api/v1/projects/{id}/tasks/{taskId}/comments',
+    ]);
+  });
+
+  it('declares the vocabulary of every enum query filter the handlers validate', () => {
+    const enumOf = (path: string, name: string) => {
+      const parameters = (paths[path]?.get?.parameters ?? []) as {
+        name: string;
+        schema?: { enum?: unknown[] };
+      }[];
+      return parameters.find((parameter) => parameter.name === name)?.schema
+        ?.enum;
+    };
+    expect(enumOf('/api/v1/conversations', 'contactStatus')).toEqual([
+      ...API_CONTACT_STATUSES,
+    ]);
+    expect(enumOf('/api/v1/products', 'status')).toEqual([...PRODUCT_STATUSES]);
+    expect(enumOf('/api/v1/websites', 'scanInterval')).toEqual([
+      '60m',
+      '6h',
+      '12h',
+      '1d',
+      '5d',
+      '7d',
+      '30d',
+    ]);
+    expect(enumOf('/api/v1/websites', 'status')).not.toContain('idle');
+  });
+});
+
+// ── OpenAPI 3.0 discipline the generators and validators hold us to ─────────
+
+describe('MessagePart is a discriminator a strict client can resolve', () => {
+  // A discriminator with no `mapping` over inline branches resolves
+  // `type: "text"` to `#/components/schemas/text`, which never existed, so
+  // a discriminator-honouring validator rejected every chat message
+  // (2026-09-15 evaluation, i9). Every branch is a named schema now and the
+  // mapping is explicit — a generated client gets a class per kind.
+  const schemas = (spec.components as { schemas: Record<string, Json> })
+    .schemas;
+  const part = schemas.MessagePart as {
+    discriminator: { propertyName: string; mapping: Record<string, string> };
+    oneOf: { $ref: string }[];
+  };
+
+  it('lists exactly the schemas its mapping names, every one a $ref', () => {
+    expect(part.discriminator.propertyName).toBe('type');
+    const mapped = Object.values(part.discriminator.mapping).sort();
+    const listed = part.oneOf.map((branch) => branch.$ref).sort();
+    expect(listed).toEqual(mapped);
+    expect(mapped).toHaveLength(7);
+  });
+
+  it('maps each kind to a schema whose required `type` is that kind alone', () => {
+    for (const [kind, target] of Object.entries(part.discriminator.mapping)) {
+      const name = target.replace('#/components/schemas/', '');
+      const schema = schemas[name] as {
+        required?: string[];
+        properties?: { type?: { enum?: string[] } };
+      };
+      expect(schema, name).toBeDefined();
+      expect(schema.required, name).toContain('type');
+      expect(schema.properties?.type?.enum, name).toEqual([kind]);
+    }
+  });
+});
+
+describe('the document is OpenAPI 3.0', () => {
+  it('declares nullability with `nullable`, never a 3.1 type list', () => {
+    // One `type: ['string', 'null']` made the whole document invalid to
+    // every 3.0 validator, and crashed one (2026-09-15 evaluation, i9).
+    const offenders: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((item, index) => walk(item, `${at}[${index}]`));
+        return;
+      }
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (Array.isArray(record.type)) offenders.push(at);
+      for (const [key, value] of Object.entries(record))
+        walk(value, `${at}.${key}`);
+    };
+    walk(spec, '$');
+    expect(offenders).toEqual([]);
+    expect(spec.openapi).toBe('3.0.3');
   });
 });

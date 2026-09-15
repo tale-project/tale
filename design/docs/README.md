@@ -1,10 +1,8 @@
 # Tale design system
 
-The developer- and agent-facing map of Tale's design. The generic
-[`design-ui`](../../.agents/skills/design-ui/SKILL.md) /
-[`implement-ui`](../../.agents/skills/implement-ui/SKILL.md) skills teach the _method_ ("find the
-project's design system, reuse its components, use its tokens"); **this directory is where that search
-lands** for Tale — the specifics those skills deliberately leave out.
+The map of Tale's design system for contributors. Start with the surface you are changing,
+then find its existing components and tokens before adding a new pattern. The
+[repository contract](../../.agents/repo.md) describes the development and review gates.
 
 > **`docs/` vs `sources/`.** This `design/docs/` directory holds the curated, navigable **docs**.
 > [`design/sources/`](../sources/) holds the **source**: the encrypted Pencil `.pen` files, their
@@ -28,12 +26,12 @@ surface's layout into another.
 | ------------------- | ------------------------ | ---------------------------------------------------- | -------------------------------------------- | ---------------- |
 | **App** (product)   | `services/platform`      | `design/sources/platform/*.pen` + `design-system.md` | `@tale/ui` product components                | light + dark     |
 | **Web** (marketing) | `services/web`           | `design/docs/web.md` + `@tale/marketing-ui` + assets | `@tale/marketing-ui` + marketing composition | light + dark     |
-| **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, app patterns                     | **light-locked** |
+| **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, app patterns                     | light + dark |
 | **Design-system docs** (ui.tale.dev) | `services/ui-docs` | front page: **web** language · `/docs/*`: **app** language | `@tale/marketing-ui` (front page) + `@tale/ui` (docs pages, live `<Demo>`s) | light + dark |
 | **Shared** (brand)  | `design/sources/shared/` | `branding.pen` / `logofolio.pen`                     | `TaleLogo`, accent `#056CFF`, Inter          | —                |
 
-Convex / auth / the SPA shell are **app only** — never add them to web or docs. **Docs follow the app**
-language (light-locked) — see [app.md](app.md).
+Platform authentication and its application shell are **app only** — never add them to web or docs. **Docs follow the app**
+language — see [app.md](app.md).
 
 ## Sources of truth — read, don't memorize
 

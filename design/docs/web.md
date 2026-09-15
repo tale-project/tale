@@ -246,7 +246,7 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 ## Theme & rendering
 
 - **Theme follows the system** (light + dark), via the same `@tale/ui` `ThemeProvider` + `.dark`
-  class. No light-lock here (that's docs). Verify every change in both themes.
+  class. Verify every change in both themes; product docs also support light and dark.
 - **Page language** — editorial-technical: weight-400 display with tight tracking, product-first
   hero (demo on a full-bleed wash stage, no photo backdrop), ink pill CTAs, hairline borders,
   minimal chrome on cool stone paper. Brand blue stays inside product demos.
@@ -257,8 +257,9 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 
 ## What the web must NOT pull in
 
-- **No Convex, no auth, no SPA-shell complexity** — those are app-only. `services/web` has no
-  `convex.json`; keep it that way.
+- **Keep platform authentication, backend queries, and organization-specific navigation in the app.**
+  Marketing pages use the shared provider and routing infrastructure without importing the
+  platform’s business components.
 - **No app product patterns** — no chat composer, no `DataTable` inboxes, no settings rails on a
   marketing page. Demos _depict_ product moments with marketing components; they never import them.
 - **No new animation/media dependencies** — no gsap/lottie/rive/video files; motion is code.

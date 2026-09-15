@@ -14,7 +14,7 @@ import {
 import { resolveModelGovernanceForUser } from '../domains/governance/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { mintCursorFor, type RestEnv } from './shared.ts';
-import { createThreadRestRoutes } from './v1-threads.ts';
+import { createThreadRestRoutes, heldOffset } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../domains/chat/composer.ts', () => ({
@@ -496,6 +496,29 @@ describe('POST /threads/{id}/messages provider choice', () => {
     const blank = await send(sql, { content: '   \n\t', model: 'model-a' });
     expect(blank.status).toBe(400);
     expect(await blank.json()).toMatchObject({ code: 'INVALID_BODY' });
+    // Invisible-only is blank too: two ZERO WIDTH SPACEs survive `trim()`
+    // and used to run a billed turn answering an empty prompt.
+    const invisible = await send(sql, {
+      content: '\u200b\u200b',
+      model: 'model-a',
+    });
+    expect(invisible.status).toBe(400);
+    expect(await invisible.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: 'content', message: 'must not be blank' }] },
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    // The predicate never rewrites: a joiner inside an emoji sequence is
+    // content and reaches the job byte for byte.
+    const family = '\u{1f468}\u200d\u{1f469}\u200d\u{1f467} hi';
+    const joined = await send(sql, { content: family, model: 'model-a' });
+    expect(joined.status).toBe(202);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({ userText: family }),
+    );
+    vi.mocked(addJobInTx).mockClear();
     const locale = await send(sql, { model: 'model-a', locale: 'not a tag!' });
     expect(locale.status).toBe(400);
     expect(await locale.json()).toMatchObject({
@@ -523,6 +546,50 @@ describe('POST /threads/{id}/messages provider choice', () => {
         userText: 'Hello',
       }),
     );
+  });
+
+  /**
+   * The lane charge used to land before the body was read, so 39 bodies
+   * the schema refused spent 39 of the 40 burst tokens (2026-09-14
+   * evaluation, h8). A malformed body or header spends nothing now, as on
+   * every other starting-work door; the thread lookup still comes after
+   * the charge.
+   */
+  it('charges the execute lane only once the body and the header have passed', async () => {
+    const empty = fakeSql();
+    const refused = await send(empty.sql, {});
+    expect(refused.status).toBe(400);
+    expect(
+      empty.queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(false);
+    const blankKey = fakeSql();
+    const header = await mount(blankKey.sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': '   ',
+        },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(header.status).toBe(400);
+    expect(await header.json()).toMatchObject({ code: 'INVALID_HEADER' });
+    expect(
+      blankKey.queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(false);
+    const accepted = fakeSql();
+    expect((await send(accepted.sql, { model: 'model-a' })).status).toBe(202);
+    expect(
+      accepted.queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(true);
   });
 
   it('leaves the reply language open when no locale is named', async () => {
@@ -753,6 +820,47 @@ describe('thread lifecycle', () => {
     expect(body).toMatchObject({ archived: false });
     expect(body).not.toHaveProperty('archivedAt');
   });
+
+  /**
+   * The archive toggle admitted a thread mid-turn while the delete refused
+   * it: the running turn landed its reply in an archived thread, and a
+   * send still queued was dropped by its job with no row (2026-09-14
+   * evaluation, h2). Both pending shapes now answer the delete's 409;
+   * restoring and renaming stay open.
+   */
+  it.each([
+    ['a running turn', { generating: true }],
+    ['a queued send', { queued: true }],
+  ])(
+    'PATCH refuses to archive a thread with %s, but still restores and renames it',
+    async (_label, pending) => {
+      const { sql } = fakeSql(pending);
+      const archive = await mount(sql).request('http://localhost/threads/t-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archived: true }),
+      });
+      expect(archive.status).toBe(409);
+      expect(await archive.json()).toMatchObject({
+        code: 'CHAT_TURN_IN_PROGRESS',
+        error: expect.stringContaining('archiving'),
+      });
+      expect(setThreadArchived).not.toHaveBeenCalled();
+      const restore = await mount(sql).request('http://localhost/threads/t-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archived: false, title: 'Still open' }),
+      });
+      expect(restore.status).toBe(200);
+      expect(setThreadArchived).toHaveBeenCalledWith(
+        sql,
+        expect.anything(),
+        't-1',
+        false,
+      );
+      expect(renameThread).toHaveBeenCalled();
+    },
+  );
 
   it('DELETE trashes the thread, and refuses one mid-turn', async () => {
     const { sql } = fakeSql();
@@ -1420,6 +1528,60 @@ describe('GET …/generation — queued, streaming with progress, idle', () => {
     });
   });
 
+  /**
+   * `since` sliced in UTF-16 code units and never snapped: a value one
+   * past an emoji's start opened the answer on the pair's low half, and the
+   * body carried an unpaired surrogate the write side of this door refuses
+   * (2026-09-14 evaluation, h2). The slice now starts at the pair, the
+   * offset says so, and every answered text is well-formed.
+   */
+  it('snaps a since inside a surrogate pair to the pair start, on the text and on the reasoning', async () => {
+    const emoji = '\u{1f600}';
+    const { sql } = fakeSql({
+      generating: true,
+      generationText: `ab${emoji}cd`,
+      generationReasoning: `x${emoji}y`,
+    });
+    const app = mount(sql);
+    const torn = await app.request(
+      'http://localhost/threads/t-1/generation?since=3&reasoningSince=2',
+    );
+    const body = (await torn.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      status: 'streaming',
+      text: `${emoji}cd`,
+      textOffset: 2,
+      textLength: 6,
+      reasoning: `${emoji}y`,
+      reasoningOffset: 1,
+      reasoningLength: 4,
+    });
+    expect((body.text as string).isWellFormed()).toBe(true);
+    expect((body.reasoning as string).isWellFormed()).toBe(true);
+    // A boundary `since` — the `textLength` an earlier poll answered — is
+    // never snapped; the delta is exact.
+    const exact = await app.request(
+      'http://localhost/threads/t-1/generation?since=4',
+    );
+    expect(await exact.json()).toMatchObject({
+      text: 'cd',
+      textOffset: 4,
+      textLength: 6,
+    });
+    // The lead's shape: a reply opening with an emoji, polled from 1.
+    const opening = mount(
+      fakeSql({ generating: true, generationText: `${emoji} The history` }).sql,
+    );
+    const fromOne = (await (
+      await opening.request('http://localhost/threads/t-1/generation?since=1')
+    ).json()) as Record<string, unknown>;
+    expect(fromOne).toMatchObject({
+      text: `${emoji} The history`,
+      textOffset: 0,
+    });
+    expect((fromOne.text as string).isWellFormed()).toBe(true);
+  });
+
   it('is idle once neither the marker nor the generation row exists, naming the newest assistant message', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
@@ -1590,5 +1752,34 @@ describe('thread reads — one join, no query per row', () => {
     for (const load of loads) {
       expect(load.text).toContain('tm.hidden IS NOT true');
     }
+  });
+});
+
+/**
+ * The slice start for a `since` on a UTF-16 field: the value itself, one
+ * lower on a surrogate pair's low half, 0 past the end (a reset). E is
+ * U+1F600, two units.
+ */
+describe('heldOffset', () => {
+  const E = '\u{1f600}';
+  it.each([
+    [`${E}abc`, 1, 0],
+    [`${E}abc`, 0, 0],
+    [`${E}abc`, 2, 2],
+    [`ab${E}cd`, 3, 2],
+    [`ab${E}cd`, 2, 2],
+    [`ab${E}cd`, 4, 4],
+    [`ab${E}`, 3, 2],
+    [`ab${E}`, 4, 4],
+    [`ab${E}`, 5, 0],
+    [`${E}${E}`, 1, 0],
+    [`${E}${E}`, 3, 2],
+    ['abc', 3, 3],
+    ['abc', 4, 0],
+    ['', 0, 0],
+    ['', 1, 0],
+  ])('%j since %i → %i', (field, since, expected) => {
+    expect(heldOffset(field, since)).toBe(expected);
+    expect(field.slice(heldOffset(field, since)).isWellFormed()).toBe(true);
   });
 });

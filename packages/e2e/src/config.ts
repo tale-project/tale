@@ -10,7 +10,7 @@ import type { PlaywrightTestConfig } from '@playwright/test';
  * reporters, and CI-aware `retries`/`forbidOnly`.
  */
 export interface CreatePlaywrightConfigOptions {
-  /** Absolute suite root, e.g. `fileURLToPath(new URL('./e2e', import.meta.url))`. */
+  /** Absolute suite root, e.g. `fileURLToPath(new URL('./tests/e2e', import.meta.url))`. */
   testDir: string;
   /** Dev/preview port; the default base URL is `http://localhost:<port>`. */
   port: number;
@@ -63,7 +63,7 @@ export function createPlaywrightConfig(
   const {
     testDir,
     port,
-    baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`,
+    baseURL = `http://localhost:${port}`,
     webServer,
     projects = DEFAULT_PROJECTS,
     testMatch,
@@ -85,7 +85,7 @@ export function createPlaywrightConfig(
     expect: { timeout: 20_000 },
     reporter: [['list'], ['html', { open: 'never' }]],
     use: {
-      baseURL,
+      baseURL: process.env.E2E_BASE_URL ?? baseURL,
       trace: 'on-first-retry',
       screenshot: 'only-on-failure',
       locale: 'en-US',

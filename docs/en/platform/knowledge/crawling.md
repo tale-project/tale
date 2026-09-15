@@ -1,48 +1,86 @@
 ---
-title: Crawling
-description: How Tale turns a website into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view.
+title: Add websites to knowledge
+description: Choose public pages to index, set a scan interval, and investigate missing or outdated content.
 ---
 
-A Website is the knowledge base's shape for "a public site the agent should know about". You hand Tale a domain and a scan interval; the crawler discovers URLs, fetches pages, extracts the main content, chunks and embeds the text, and serves the chunks back at reply time the same way it does for Documents. When you need specific pages rather than a whole site, hand it a URL list instead — the same pipeline runs on exactly the pages you name. This page walks what you see between adding a domain and agents citing its pages.
+Add a website when your team needs to ask about public content that changes over time. Tale fetches the selected pages and indexes their readable text for knowledge search. You need Editor permissions or higher to manage website sources. Pages behind a login need another import route, such as [Documents](/platform/knowledge/documents).
 
-<Frame caption="Adding a website — in Whole website mode, domain plus scan interval is the whole form.">
+## Add a website or selected pages
 
-![The Add website dialog on the Websites tab, asking for a domain and a scan interval that defaults to every six hours.](/images/platform/websites-add-dialog.webp)
+Open **Knowledge > Websites** and click **Add website**. Choose the source type before entering the address:
+
+| Source type | Use it when | What to enter |
+| --- | --- | --- |
+| **Whole website** | You want content discovered across a domain | A **Domain**, such as `example.com` |
+| **URL list** | You need a selected set of pages or public documents | One address per line under **URLs** |
+
+Whole-website mode accepts a URL but uses its hostname; pasting a path does not restrict the crawl to that path. Choose URL list for that purpose. An `http://` address is refused, because the crawler fetches over HTTPS only, and a trailing dot is dropped. The `www` and non-`www` spellings count as the same website, so adding both produces a duplicate warning.
+
+Choose **Scan interval** and **Save**. The default interval is six hours; the available choices range from one hour to thirty days. A newly saved source is picked up by the scheduler. Saving does not mean all pages have already been fetched or indexed.
+
+<Frame caption="Whole website mode asks for a domain and a scan interval. Choose URL list when the page selection matters.">
+
+![The Add website dialog shows Domain and Scan interval with a six-hour default.](/images/platform/websites-add-dialog.webp)
 
 </Frame>
 
-## Adding a website
+## Keep a URL list focused
 
-Open **Knowledge > Websites** and click **Add website**. **Source type** decides what the source covers: **Whole website** — the default — crawls everything it can discover on the domain, **URL list** indexes exactly the pages you paste (the next section). In Whole website mode the dialog has two fields: **Domain** (for example `example.com`) and **Scan interval** — every 1 hour, 6 hours (the default), 12 hours, 1 day, 5 days, 7 days, or 30 days. Tale reads the host out of what you paste — `https://` and a path are tolerated — and rejects anything that does not parse as a hostname. The host is stored as given, `www.` included, and the `www.` and apex spellings count as one site: adding the sibling of a domain you already track is refused as a duplicate that names the stored spelling, so pick one and keep it. Click **Save**; the scheduler picks new websites up on its next tick, so the first scan starts within seconds.
+A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
 
-<Note>
+Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. Images and scans without extractable text do not become searchable content.
 
-There is no auth field and no include/exclude path list — the crawler sees exactly what an anonymous visitor sees. Anything behind a login belongs in [Documents](/platform/knowledge/documents) or an [connector](/platform/connectors/overview) instead.
+## Understand discovery and refresh
 
-</Note>
+For a whole website, the crawler uses the homepage and published sitemaps, including sitemap indexes and sitemaps declared in `robots.txt`. If usable sitemaps are missing, it follows links within the domain from the homepage. A page absent from both sitemaps and reachable links may be missed; use a URL list when specific coverage matters.
 
-## Adding a URL list
+Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
-Switch **Source type** to **URL list** when you want specific pages, not a whole site — a report here, a pricing page there, a handful of PDFs. Paste one URL per line into **URLs**; only those pages are fetched and indexed, and the crawler follows no links beyond them. The lines may span several websites: the dialog groups them into one source per website, so a paste covering three domains creates three rows. Pasting another list for a website that already has one adds the new URLs to the existing source — nothing is dropped, and the scan interval moves to whatever you picked. Lists re-scan on the same cadence as whole websites; their rows carry a **URL list** badge in the table.
+The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL. It identifies itself on every request as `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, so a `robots.txt` group can address it by name — `User-agent: TaleBot` — to allow, throttle or refuse it alone.
 
-## How URLs are discovered
+The crawler applies `robots.txt` `Disallow` rules for the `*` agent on every path a URL can enter by — the sitemaps, the link walk and the links a rendered JavaScript page reveals — and again before every fetch: a page a rule covers is never fetched, and a page a rule added later covers leaves the index on the next scan. The rules do not filter an explicit URL list: a listed address is your instruction. On each content fetch, an HTTP `X-Robots-Tag: noindex` or `none`, or an HTML `<meta name="robots" content="noindex">` tag, prevents indexing, including for listed URLs, and drops whatever an earlier scan stored of that page. These rules are courtesy, not access control: do not rely on Tale's crawler as an access-control mechanism.
 
-The crawler tries the cooperative path first. It resolves the homepage and walks every sitemap the site publishes — `sitemap.xml`, sitemap indexes, gzipped and robots-declared sitemaps — collecting the URL list the site itself maintains. Sites with a healthy sitemap get complete coverage with no guessing. The crawler honours `robots.txt` `Disallow` rules for the `*` agent while discovering URLs — not for URLs you list yourself: an explicit list is your instruction — and skips a page that answers `X-Robots-Tag: noindex`; such a page reads `robots_noindex` in the page list. A URL naming an explicit port (`:8001`) is never followed or listed — a site is reached on its default port only.
+Use HTTPS on the standard port. Addresses with a non-default port, such as `:8001`, are rejected. Private addresses and redirects into private networks are blocked unless the operator has configured an allowed private-network deployment.
 
-When the sitemap is missing, broken, or empty, the crawler falls back to a breadth-first link walk from the homepage: in-domain links only, external and social links dropped, navigation and footer chrome stripped before extraction. The fallback covers sitemap-less sites, but it cannot match a well-maintained sitemap for completeness.
+## Work within crawl limits
 
-Pages are not the only content that counts. Linked documents — PDF and Office files (`docx`, `xlsx`, `pptx`, `odt`) — are fetched and indexed like pages, whether the crawler finds them linked on a website or you list them directly in a URL list. Images, scanned documents without embedded text, and content the crawler cannot turn into text — a JSON or XML endpoint, a binary download — are skipped: the scan remembers it looked and stores nothing, the page stays discovered, and its reason reads `unsupported_content`.
+| Limit | Effect on coverage |
+| --- | --- |
+| 10,000 tracked URLs per website | A larger site can have undiscovered pages. Use a focused URL list for the material you need. |
+| Three minutes for discovery, at most 50 sitemap fetches | Large or slow sitemap collections can be incomplete. |
+| 25 MiB and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
+| Five-minute processing budget per batch, up to 200 continuations | Long scans continue in batches. Work already being fetched or rendered can outlast a batch's budget; this is not a guaranteed total scan duration. |
+| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
 
-A site is capped at 10,000 tracked URLs. A scan runs in five-minute links, at most 200 of them, and finishes when the frontier is exhausted; discovery itself has a three-minute budget and at most 50 sitemap fetches. A page over 25 MB or slower than 30 seconds is recorded as a failure, and a discovered page that fails five scans in a row is dropped from the schedule — a listed page is retried on every scan for as long as it stays listed. There is no page cap, path filter or stop button of your own; a site larger than that is better handed over as a URL list.
+There is no configurable page cap, include/exclude path filter, or stop-scan button. A URL list narrows what you request; it does not remove these limits.
 
-## The scan schedule
+## Check what was indexed
 
-The interval decides how often URLs are re-discovered and pages re-fetched. Each scan is incremental: unchanged pages are skipped, changed pages are re-extracted and re-embedded, new pages are added, removed pages are dropped from the index. URL lists follow the same cadence with a fixed set — the listed pages are re-fetched on schedule, nothing new is discovered. Agents pointed at the website see the new content on the next retrieval — there is no separate publish step.
+The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures.
 
-## Reading the table
+| Status | Meaning |
+| --- | --- |
+| **Scanning** | A scan is in progress; a site you just added starts here. |
+| **Active** | A scan completed successfully. Check page-level results for coverage. |
+| **Error** | The scan failed, or attempted pages left the source with no stored content. Open the source for its reason. |
+| **Deleting** | The source is being removed. |
 
-Each row shows the domain (URL-list sources carry a **URL list** badge beside it), its **Status** — **Idle** between scans, **Scanning** in flight, **Active** after a successful scan, **Error** when the last scan failed or stored nothing (the row's detail says why), **Deleting** during removal — the **Indexed** percentage (hover for crawled-of-total page counts), the last **Scanned** time, and the **Interval**. Open a row for the site's discovered title and description; click **View pages** for the page list — every indexed URL with its word count, chunk count, and last-crawled time, and, for a page the crawler could not fetch, the reason it failed with the number of failed attempts in a row (a redirect into a private address the fetch guard refused, a certificate the platform does not trust, a `4xx` or `5xx` answer, a page the browser could not render, a linked document no extractor could read, a content type the crawler cannot turn into text, or a page whose origin asked not to be indexed) — plus a search box that runs over the indexed chunks, which is the quickest way to check what an agent would actually retrieve. The reason clears the moment a scan stores the page again; a page from a URL list is retried on every scan for as long as it stays listed, a discovered page gives up after five failed scans.
+The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
 
-## Where this fits
+## Resolve a missing page
 
-Crawling is the cheap way to bring a public site into agent context: a domain — or a hand-picked URL list — a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or a connector. For how the Website rows sit beside Contacts and Products, read [Structured data](/platform/knowledge/structured-data).
+First check the address, source type, and latest scan time. Then open the source and read the affected page's error.
+
+| Reported issue | What to check or change |
+| --- | --- |
+| Certificate not trusted | The website operator must fix an expired, self-signed, mismatched, or otherwise untrusted TLS certificate. Repeated scans do not repair it. |
+| Private address, refused redirect, or invalid URL | Use the intended public HTTPS address. Ask your operator about approved internal sources if needed. |
+| HTTP error, network failure, or timeout | Open the original page and check availability. A later scan can recover after the source service is repaired. |
+| Response too large | Publish a smaller document or split the source; the fetch limit is 25 MiB. |
+| Source requests no indexing | The response sends `X-Robots-Tag: noindex` or `none`, or the page carries `<meta name="robots" content="noindex">`. The source owner must change that directive before Tale can index it. |
+| Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
+| Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
+
+A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
+
+If the source shows **Paused**, repeated failures to reach the knowledge database stopped scans. Ask an administrator to repair the connection under **Settings > Data residency**, then use **Resume scanning**.

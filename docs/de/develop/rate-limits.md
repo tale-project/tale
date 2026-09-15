@@ -1,40 +1,63 @@
 ---
-title: Rate-Limits
-description: REST- und MCP-Rate-Limits — die Buckets, die 429-Antwort mit ihrem Retry-After und wie du wiederholst, ohne es schlimmer zu machen.
+title: Anfragelimits berücksichtigen
+description: Plane REST-, MCP- und Webhook-Aufrufe, interpretiere Retry-After und wiederhole angenommene Arbeit ohne Duplikate.
 ---
 
-Die API limitiert mit Token-Buckets, die am Schlüsselinhaber hängen — dem Benutzer, als der dein API-Schlüssel handelt. Ein Budget gehört so immer einem erkennbaren Aufrufer, und kein Netzwerk-Header kann ein frisches prägen: Bursts gehen durch, Dauerfeuer antwortet **429**. Jeder Schlüssel, den ein Benutzer erstellt, zieht aus dem Budget dieses Benutzers; eine Worker-Flotte, die ein eigenes Budget braucht, bekommt einen eigenen Maschinenbenutzer. Ein Schlüssel, der sich nicht authentifizieren lässt, wird stattdessen pro Quell-IP gedrosselt (20 Anfragen pro Minute, Burst 40) — Fremde ziehen also nie aus dem Budget eines Schlüsselinhabers, und eine Anfrage ohne Schlüssel kostet gar nichts. Die Budgets sind so bemessen, dass eine normale Connector sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
+Tale begrenzt API-Verkehr pro Schlüsselinhaber. Alle API-Schlüssel derselben Person teilen deren Budget. Berücksichtige daher sämtliche Integrationen und Polling-Prozesse dieser Identität, statt jeden Schlüssel einzeln zu planen.
 
-Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter Last aufruft.
+Die folgenden Grenzen gelten für das aktuelle Backend. Ein vorgeschalteter Proxy oder nachgelagerter Anbieter kann zusätzliche Limits setzen.
 
-## Die Buckets
+## Die Budgets
 
-| Oberfläche                                                                                                                        | Budget              | Burst |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----- |
-| Lesen und CRUD — jeder `/api/v1`-Endpoint, der unten nicht steht, einschließlich `POST /api/v1/mcp`                               | 120 Anfragen / Min. | 200   |
-| Arbeit starten — Projektläufe (`POST /api/v1/projects/{id}/automations/{name}/runs`), Nachrichten (`POST /api/v1/projects/{id}/threads/{threadId}/messages`) und Aufgaben (`POST /api/v1/projects/{id}/tasks/{taskId}/start`), außerdem Automatisierungsläufe und Threadnachrichten ohne Projekt | 20 Anfragen / Min. | 40 |
-| Der Projekt-Upload-Fluss — der Upload-Handoff und das Datei-Binden (`POST .../uploads` und `POST .../files`)                      | 240 Anfragen / Min. | 300   |
-| Eingehende Webhook-Zustellungen (`POST /api/automations/webhook/{token}` und die Projektform) — pro Absenderadresse, belastet, bevor das Token geprüft wird | 120 Anfragen / Min. | 240 |
-| Dieselben Zustellungen, pro verifiziertem Trigger                                                                                  | 20 Anfragen / Min.  | 40    |
+Ein Token-Bucket füllt sich kontinuierlich bis zu seiner Burst-Kapazität auf. Eine kurze Serie kann diese Reserve nutzen; die dauerhafte Anfragerate muss innerhalb der Auffüllrate bleiben.
 
-Der zweite Bucket ist mit Absicht klein: jede dieser Anfragen kostet einen ganzen durablen Lauf oder einen Modell-Turn, keinen Datenbank-Read — und der Webhook-Bucket pro Trigger ist es aus demselben Grund; die Webhook-Tür trägt keinen Schlüssel, also hängen ihre Budgets an der Adresse des Absenders und am Trigger, den das Token nennt (die [Webhooks-Seite](/de/develop/webhooks) hat das Vokabular dieser Tür). Der dritte ist mit Absicht geräumig: eine Datei kostet hier mindestens zwei Aufrufe — Handoff holen, Datei binden — das Budget deckt also die ganze Choreografie. Jede Anfrage zählt zusätzlich gegen das allgemeine Budget — es ist die Tür — ein Arbeit-startender oder Upload-POST zieht also aus zwei Spuren zugleich, und die engere bestimmt; plane gegen sie. Ein Token-Bucket füllt sich kontinuierlich — die Burst-Kapazität schluckt einen Stapel, danach gilt die Dauerrate. Der Bucket fürs Arbeit-Starten begrenzt, wie schnell gesendete Nachrichten **angenommen** werden, nicht, wie viele Turns zugleich laufen: Angenommene Thread-Nachrichten reihen sich in eine Warteschlange ein, die sich alle Organisationen und Schlüsselinhaber des Deployments teilen; der Hintergrund-Worker arbeitet sie von der ältesten an in Stapeln von bis zu fünf Turns ab (das `WORKER_CONCURRENCY` des Betreibers, Standard 5), und ein neuer Stapel beginnt erst, wenn jeder Turn des laufenden abgeschlossen ist — ein Burst von N Nachrichten wird also in Wellen fertig, nicht parallel.
+| Verkehr | Dauerhafte Rate | Burst | Budget gilt für |
+| --- | --- | --- | --- |
+| Allgemeine `/api/v1`-Aufrufe einschließlich MCP | 120/Minute | 200 | Schlüsselinhaber |
+| Laufstarts, Modellnachrichten und Aufgabenstarts | 20/Minute | 40 | Schlüsselinhaber |
+| Upload-Freigabe und Dateizuordnung im Projekt | 240/Minute | 300 | Schlüsselinhaber |
+| Fehlgeschlagene API-Schlüsselprüfung | 20/Minute | 40 | Quell-IP |
+| Webhook-Zustellungen vor der Tokenprüfung | 120/Minute | 240 | Absenderadresse |
+| Zustellungen an einen geprüften Webhook-Auslöser | 20/Minute | 40 | Auslöser |
 
-Manche Schreibzugriffe durchlaufen zusätzlich dieselben Budgets pro Benutzer oder Organisation wie ihre Zwillinge in der App — ein Aufgaben-Kommentar, eine Ordner-Änderung — und antworten jenseits davon mit derselben 429.
+REST-Ausführungen und Uploads verbrauchen zusätzlich das allgemeine Budget. Eine Projektdatei braucht beispielsweise eine Upload-Freigabe und eine anschließende Dateizuordnung. Beide Aufrufe zählen gegen allgemeines und Upload-Budget. Das größere Upload-Budget umgeht die allgemeine Grenze nicht.
 
-## Die 429
+Zur Ausführung gehören projektgebundene und globale Automatisierungsstarts, Thread-Nachrichten und ausdrückliche Aufgabenstarts. Die Aufgabenübernahme verbraucht ebenfalls Ausführungsbudget, wenn `runWorkflowSlug` gesetzt ist. Eine Arbeit-startende Anfrage wird belastet, sobald Body und Kopfzeilen die eigenen Prüfungen der Tür bestanden haben — eine `400 INVALID_BODY` oder `INVALID_HEADER` kostet nichts — und bevor irgendetwas nachgeschlagen wird, eine `404` für einen Thread, eine Aufgabe oder eine Automatisierung, die du nicht sehen kannst, kostet also ein Token, so wie eine `409`, die der Zustand antwortet. Manche Änderungen, etwa Aufgabenkommentare und Ordneränderungen, unterliegen weiteren Fachbereichslimits, die auch für die App gelten.
 
-Eine Überschreitung antwortet mit dem gewöhnlichen Fehlerumschlag der API, plus einem `Retry-After`-Header, der die Wartezeit in ganzen Sekunden nennt (aufgerundet):
+MCP-Batches rechnen zusätzliche Werkzeugaufrufe als zusätzliche Anfragen ab. Der [MCP-Endpunkt](/de/develop/mcp-endpoint) erklärt den Unterschied zwischen HTTP `429` und einer einzelnen abgelehnten Batch-Nachricht. Webhooks haben getrennte Budgets; sowohl Absender- als auch Auslöserlimit müssen die Zustellung zulassen.
 
-```json
-{ "error": "Too many requests — retry after 1500 ms", "code": "RATE_LIMITED", "requestId": "…", "data": { "retryAfterMs": 1500 } }
+Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Ein Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
+
+## Die Antwort 429
+
+Bei einer HTTP-Limitüberschreitung nennt `Retry-After` die Wartezeit in ganzen Sekunden. Der JSON-Body enthält dieselbe Wartezeit in Millisekunden. Dieses Beispiel verlangt mindestens zwei Sekunden Pause:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 2
+Content-Type: application/json
+
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-`code` ist der Wert, auf den du verzweigst, wie überall im [Fehlermodell](/de/develop/api-reference); `error` trägt einen Satz, der die Wartezeit nennt, und `requestId` die ID, die du beim Melden angibst — die In-App-Türen wiederholen in `error` weiterhin den Code für ihre eigenen Clients, eine 429 von `/api/app` liest sich also anders. Der Body nennt die Wartezeit in Millisekunden als `data.retryAfterMs`; die Kopfzeile `Retry-After` rundet sie auf ganze Sekunden auf. Aus `1500` Millisekunden wird zum Beispiel `Retry-After: 2`.
+Entscheide anhand von `code`. `error` beschreibt die Wartezeit als Satz; `requestId` identifiziert die Anfrage für die Fehlersuche. Das ist das REST-Format. Bei `/api/app` und Webhook-Limits bleibt der maschinenlesbare Code in `error`; werte diesen Text daher nicht oberflächenübergreifend aus. Tale liefert keinen Restbudget-Zähler. Erfasse deinen Verkehr und beachte die vorgegebene Wartezeit.
 
-Ein Poll, der **304** antwortet (unveränderter `ETag`, siehe [Caching](/de/develop/api-reference#caching-kompression-und-gezieltes-lesen)), kostet eine Anfrage wie jede andere — die Revalidierung spart Bytes, kein Budget. Bemiss ein Poll-Intervall also am Budget: Bei einem Lesen pro Sekunde kann ein Schlüsselbesitzer zwei Läufe beobachten, bei fünf Sekunden zehn. Lies nur, was du brauchst (`?fields=status,finishedAt` bei einem Lauf), damit jede Anfrage klein bleibt, und zieh einen Zeitplan einer engen Schleife vor.
+1. Stoppe die unmittelbare Wiederholungsschleife.
+2. Warte mindestens `Retry-After`. Teilen mehrere Prozesse die Identität, koordiniere ihre Pause.
+3. Vergrößere bei weiteren Ablehnungen den Abstand exponentiell mit einer Obergrenze und einer zufälligen Streuung. Beispielsweise kann er von einer auf sechzig Sekunden wachsen; eine längere Servervorgabe hat Vorrang.
+4. Behalte bei unterstützten Operationen den ursprünglichen Idempotenzschlüssel. Nach einem Timeout beim Laufstart kann der Lauf bereits angenommen worden sein.
 
-Warte mindestens `Retry-After`, bevor du es erneut versuchst. Restbudget-Zähler gibt es keine — darüber hinaus backe blind zurück: starte bei einer Sekunde, verdopple pro aufeinanderfolgendem 429, deckle bei sechzig, und füge Jitter hinzu, damit parallele Worker nicht im Gleichschritt wiederholen. Weil ein Lauf-Start mit **202** antwortet, bevor die Arbeit passiert, ist eine verlorene Antwort der Normalfall, kein Randfall: benenne den Start mit `Idempotency-Key` und wiederhole ihn — die Wiederholung antwortet mit dem Lauf, den der erste Versuch gestartet hat, markiert mit `duplicate: true`, statt einen zweiten zu starten (die Regeln stehen in der [API-Referenz](/de/develop/api-reference)).
+Andere `4xx`-Antworten erfordern meist korrigierte Daten, Zugangsdaten oder Berechtigungen. Behandle nicht jeden Fehler als Limitüberschreitung; nutze das [Fehlermodell](/de/develop/api-reference#fehlermodell).
 
-## Wo das hingehört
+## Polling und Wiederholungen planen
 
-Die [API-Referenz](/de/develop/api-reference) nennt die 429 im Fehlermodell und zeigt hierher. Braucht dein Workload wirklich mehr, als die Budgets erlauben, bündle auf deiner Seite — `POST /api/v1/contacts/bulk` existiert genau dafür — oder strecke den Zeitplan; die Buckets gelten pro Schlüsselinhaber — Traffic auf mehrere Schlüssel desselben Benutzers zu verteilen ändert nichts. Eine Integration, die wirklich ein eigenes Budget braucht, bekommt einen eigenen Maschinenbenutzer.
+Auch eine `304`-Antwort auf eine `ETag`-Prüfung zählt als Anfrage. Sie spart Datenvolumen, kein Budget. Ein Lauf, den du alle fünf Sekunden abfragst, braucht zwölf Leseaufrufe pro Minute, noch ohne Wiederholungen oder andere Arbeit. Reserviere Kapazität für diese zusätzlichen Aufrufe.
+
+Fordere nur benötigte Felder an, etwa `?fields=status,finishedAt` bei einem Lauf. Frage seltener ab, wenn ein Mensch entscheiden muss, und beende Polling bei abgeschlossenen Läufen. [Einen Lauf starten und abfragen](/de/develop/api-reference#einen-lauf-starten-dann-pollen) erklärt Zustände und idempotente Starts.
+
+Nutze bei größeren Importen unterstützte Sammelaufrufe wie `POST /api/v1/contacts/bulk` und verteile die Batches zeitlich. Weitere Schlüssel derselben Person vergrößern das Budget nicht. Benötigt ein Ablauf eine eigene Dienstidentität, richte sie über den normalen Konto- und Berechtigungsprozess ein. Schlüsselrotation ist keine Wiederholungsstrategie.

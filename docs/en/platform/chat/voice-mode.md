@@ -1,57 +1,43 @@
 ---
 title: Voice mode
-description: Speaking instead of typing — how a recording becomes a message, how a reply gets read back, and which providers touch the audio on the way.
+description: Dictate a message, check the transcript before sending, and listen to replies when voice output is available.
 ---
 
-Voice mode turns the composer into a microphone. You speak, the recording is transcribed into your next message, the agent answers in text, and the answer can be read back out loud. The loop is hands-free, which is worth a lot when you are walking, cooking, or tired of typing — and it crosses two speech providers, which is worth knowing before your organisation's data goes through it.
+Dictation lets you speak a message instead of typing it. Voice output reads an assistant reply aloud. You can use either on its own: dictating does not require spoken replies, and listening does not require microphone access.
 
-This page covers both halves of the round-trip and the boundary the audio crosses. The chat itself does not change: voice is a wrapper around the same message flow described in [Chat basics](/platform/chat/basics).
+## Dictate and check a message
 
-## Speech to text
+1. Click **Start dictation** on the composer's microphone control.
+2. Allow microphone access in the browser if asked, then speak clearly.
+3. Click **Stop dictation**. Where server transcription is used, wait for it to finish.
+4. Read and correct the text in the message field, especially names, numbers, and dates. Send when it is ready.
 
-Start recording from the composer's microphone control and speak; stop it the same way. The recording is uploaded, a speech-to-text model transcribes it, and the transcript becomes the next message in the chat — exactly as if you had typed it. You can read the transcript before it goes, which matters because a transcription error is indistinguishable from a badly phrased question once the agent has answered it.
+Dictation adds text to the composer; it does not automatically send the message. Sending stops an active dictation. The chat model receives the text you submit.
 
-Transcription runs once per spoken message. What the agent receives is text; no audio reaches the chat model.
+Tale first uses the browser's speech-recognition capability when available. Otherwise, it can record and transcribe through your organization's configured transcription model. If neither route is available, the microphone is absent or explains the missing configuration. Browser speech recognition may use a browser-vendor service; do not assume dictation works offline.
 
-## Text to speech
+## Listen to a reply
 
-Reading a reply aloud is a toggle in the composer that sets voice output for the chat you are in. Switch voice output on and the reply that comes back is sent to a text-to-speech model and played as it arrives; leave it off and the reply lands as text like any other. Playback can be stopped early, and the last reply can be played again without re-asking the question.
+Enable **Voice mode** in the composer to hear replies in the current chat. A text-to-speech model prepares audio from the answer. Use the reply's playback control to stop or play it again; the written response remains available for checking details.
 
-<Note>
+An organization policy can hide voice output. A disabled control can also mean there is no usable speech model. An administrator checks the configured [AI providers](/platform/admin/providers); changing the chat model alone does not supply a speech provider.
 
-Voice output resolves a cascade, not a single per-turn switch: an organisation-wide policy can turn it off entirely — which hides the control — and under that sit your saved default and each chat's own override. Toggling it inside a chat writes that chat's override; toggling it on a new chat sets the user default your later chats inherit. There is no per-agent voice pinned to an agent.
+The voice setting on an existing chat applies to that chat. Setting it on a new chat also establishes the default for later chats. There is no separate voice configuration on each project agent.
 
-</Note>
+## Recover a voice problem
 
-## Which provider holds which piece
+| Symptom | What to check |
+| --- | --- |
+| The microphone will not start | Browser microphone permission, the selected input device, and whether another app is using it. |
+| Words are missing or wrong | Reduce background noise and correct the transcript before sending. |
+| Server transcription failed | Use the retry control while the failed recording remains available, or discard it and type. |
+| A reply is ready but silent | Check device volume and browser playback permission, then use the reply's play control. |
+| Voice reports a configuration error | Ask an administrator to check the speech model and credential. |
 
-Two model picks matter here, and neither is the model in the model picker. Speech-to-text runs before the agent turn, on the audio. Text-to-speech runs after it, on the finished reply. The agent between them is unchanged — the same instructions, the same tools, the same context contract.
+A failed server-transcription recording is held in the current page's memory for retry. Leaving or reloading the page can lose that recording. It is not a saved audio attachment; use [attachments](/platform/chat/attachments) when you want to upload an existing recording.
 
-Both are configured by whoever administers the organisation's providers. If no speech provider is configured, the composer's voice controls have nothing to call, and the answer is to connect one rather than to change anything in the chat.
+## Understand the audio path
 
-## Privacy boundary
+Browser dictation follows the browser's speech service. The server fallback sends the recording to Tale for transcription with the organization's configured provider; this dictation path does not store it as a document. Once sent, the transcript becomes part of chat history.
 
-The recording leaves your device. It is uploaded to Tale's storage, sent to the speech-to-text provider the organisation configured, and the resulting transcript is kept in the chat history alongside the typed messages — searchable, exportable, and subject to the same retention rules as everything else in the chat. The audio itself is retained under the org's retention policy.
-
-Replies go out to the text-to-speech provider as plain text, and the returned audio streams to your device rather than being stored.
-
-<Warning>
-
-Organisations with strict data-residency rules should pick speech providers in the same region as the rest of the stack — the audio and the transcript are subject to the same rules as any other message content. See [Data residency](/cloud/data-residency).
-
-</Warning>
-
-## When voice beats text
-
-Voice is faster than typing for short, conversational questions and considerably slower for anything you would copy out afterwards. A spoken answer is heard once; a written one can be skimmed, quoted, and pasted.
-
-| Use … when                                        | Voice | Text |
-| ------------------------------------------------- | ----- | ---- |
-| You are hands-busy and want a quick fact          | ✓     |      |
-| The reply will be a long list or a code block     |       | ✓    |
-| The agent's reply will feed a later written task  |       | ✓    |
-| You are practising a language and want to hear it | ✓     |      |
-
-## Where this fits
-
-Voice is the second input shape on the same composer, beside typing. The privacy story carries the most weight here because two extra providers touch the data, so the page worth reading next depends on your edition — [Data residency](/cloud/data-residency) on Cloud, or [Providers](/self-hosted/configuration/providers) if you run Tale yourself and choose the speech providers as well as the chat ones.
+Voice output sends answer text to the configured speech provider and streams audio for playback. If the answer contains information from a restricted source, that text is included in the speech request. Administrators should choose speech services consistent with the organization's [data-residency requirements](/cloud/data-residency).

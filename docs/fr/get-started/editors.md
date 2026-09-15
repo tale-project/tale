@@ -1,46 +1,64 @@
 ---
-title: Ton premier jour de création d’agents
-description: Le parcours éditeur — crée un agent de projet, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche.
+title: Créer et tester un agent de projet
+description: Donner une tâche précise à un agent, le lancer et examiner son résultat.
 ---
 
-Ce parcours s’adresse à la personne qui transforme « l’équipe pose toujours les mêmes questions » en un agent qui y répond. En quinze minutes, tu crées un agent sur un projet, tu façonnes son comportement et tu le regardes faire un vrai travail sur une tâche — la boucle que chaque agent suivant raffine.
+Un agent de projet est une consigne réutilisable pour les tâches du projet. Tu choisis ses instructions, son environnement d’exécution, son modèle et ses outils, puis tu le lances sur une tâche et examines ce qu’il produit.
 
-Il te faut un accès en écriture à un projet et au moins un fournisseur sous **Paramètres > Fournisseurs IA** avec un modèle dessus ; si le chat répond déjà, le fournisseur est là — c’est le [démarrage rapide](/fr/get-started/quickstart). Dans cette version, les agents vivent sur les projets : il n’y a pas d’entrée Agents dans la barre latérale ni d’agent à choisir dans le chat.
+## Avant de commencer
+
+Il te faut des droits de modification sur un projet, un fournisseur de modèles adapté et un environnement d’exécution disponible avec l’infrastructure requise. Un chat qui répond valide l’accès au fournisseur pour le chat. Il ne prouve pas que l’environnement d’un agent ou sa sandbox est prêt. Demande à un admin de vérifier [les environnements d’exécution](/fr/platform/agents/harnesses) si aucun n’est disponible.
+
+Crée ou ouvre d’abord un projet. Le guide [utiliser les projets](/fr/tutorials/member/use-projects) explique le partage et les sources de connaissances.
+
+## Définir un travail précis
 
 <Steps>
 
-<Step title="Crée l’agent">
+<Step title="Créer un agent dans le projet">
 
-Pour lancer un agent que tes collègues peuvent mettre au travail, ouvre l’onglet **Agents** d’un projet et clique sur **Nouvel agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que c’est ce nom que tes collègues voient sur les cartes de tâches quand ils lui assignent du travail.
+Ouvre l’onglet **Agents** du projet et sélectionne **Nouvel agent**. Nomme-le selon son travail, par exemple « Relecteur de lancement ». Choisis un **Harness** et un **Modèle** pris en charge par ton espace. Si le même modèle apparaît avec plusieurs fournisseurs, choisis aussi celui que tu souhaites utiliser.
 
-</Step>
+<Frame caption="Un agent de projet associe un travail nommé à un environnement d’exécution et un modèle.">
 
-<Step title="Choisis le harness et le modèle">
+![L’onglet Agents du projet présente les agents avec leur environnement d’exécution et leur modèle configurés.](/images/platform/project-agents-models.webp)
 
-Le dialogue demande un **Harness** — la CLI de code sur laquelle l’agent tourne — et un **Modèle** ; un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur, et le choix est exact. Laisse **Skills, connectors & outils** et **Secrets** vides le premier jour : chaque outil accordé élargit ce que l’agent peut atteindre, et le premier travail n’en a besoin d’aucun.
-
-</Step>
-
-<Step title="Écris les instructions">
-
-**Instructions** est le levier qui compte le plus. Écris un paragraphe comme si tu briefais un nouveau collègue : la voix dans laquelle répondre, le domaine qu’il possède et les cas qu’il doit refuser. Concret bat complet — tu affineras après avoir vu de vrais résultats. Clique sur **Créer l'agent** ; on peut lui assigner du travail dès cet instant, sans étape de publication séparée.
+</Frame>
 
 </Step>
 
-<Step title="Regarde-le travailler">
+<Step title="Écrire des instructions vérifiables">
 
-Les agents font leur travail sur des tâches — le chat, lui, ne fait tourner que l’assistant intégré. Crée sur le tableau du projet une tâche qui énonce le travail en une phrase, assigne-la à l’agent et clique sur **Démarrer l'agent**. La carte passe en _En cours_ pendant que l’agent travaille dans sa sandbox ; son rapport arrive en commentaire de tâche et la carte se gare en **En revue** — seule une personne la passe en _Terminé_.
+Dans **Instructions**, décris le travail, les sources, le résultat attendu et les limites. Par exemple :
 
-<Check>
+> Examine le brief de lancement joint à la tâche. Liste les décisions manquantes, les responsabilités floues et les contradictions. Cite le passage concerné pour chaque constat. Ne modifie aucun fichier et ne contacte aucun service externe. Si le brief manque, demande-le.
 
-Un résultat qui suit la voix et le périmètre que tu as écrits prouve que les instructions tiennent — l’agent est réel.
+Accorde seulement les **Skills, connectors & outils** et les **Secrets** nécessaires. Sélectionne **Créer l’agent** pour enregistrer. Tu pourras revoir les instructions après avoir examiné un résultat.
 
-</Check>
+</Step>
+
+<Step title="Attribuer une tâche concrète et lancer l’agent">
+
+Crée une tâche avec une description précise et les fichiers d’entrée requis. Attribue-la à l’agent, puis sélectionne **Démarrer l’agent**. L’attribution et le démarrage sont deux actions distinctes. Observe le statut et l’activité pendant l’exécution.
+
+Si le démarrage échoue, lis la cause affichée avant de réessayer. Un fournisseur absent, un environnement indisponible, une restriction de politique ou une entrée manquante demandent des corrections différentes.
 
 </Step>
 
 </Steps>
 
-## Où tu en es
+## Examiner le travail
 
-Tu as livré le plus petit agent réel : un agent nommé dans l’onglet **Agents** d’un projet, avec un paragraphe d’instructions. Le modèle complet derrière ce que tu viens de toucher est [Concepts d’agent](/fr/platform/agents/concepts) — instructions, outils, skills et portée des connaissances —, et [Agents de projet](/fr/platform/projects/project-agents) est la référence champ par champ. La construction suivante naturelle est [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end), qui rejoue les mêmes quatre gestes sur un vrai domaine et relit le résultat ; ensuite, l’[aperçu des connaissances](/fr/platform/knowledge/overview) dit où vivent les connaissances, et [Automatisation des tâches](/fr/platform/projects/task-automation) comment le travail d’un agent parvient au suivant par le tableau.
+Lis le commentaire de l’agent et les éventuels fichiers produits. Compare le résultat aux consignes : la bonne source a-t-elle été examinée, chaque constat est-il étayé et les limites ont-elles été respectées ? Une exécution terminée ne garantit pas un résultat correct.
+
+Consigne explicitement la revue et l’acceptation. Utilise les commandes de la tâche pour donner un retour, demander un nouveau passage si nécessaire et terminer le travail accepté. [Les tâches de projet](/fr/platform/projects/tasks) expliquent les statuts et le champ de relecture.
+
+<Tip>
+
+Teste aussi le cas où une entrée manque. Un agent qui demande le brief absent est plus utile qu’un agent qui en invente le contenu.
+
+</Tip>
+
+## Améliorer un point à la fois
+
+Corrige l’instruction à l’origine d’un mauvais résultat, puis teste une tâche comparable. Ajoute des outils seulement lorsque le travail le nécessite. Avant d’autoriser des écritures externes, examine [les approbations](/fr/platform/approvals/concepts). Pour un exemple plus complet, suis [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end).

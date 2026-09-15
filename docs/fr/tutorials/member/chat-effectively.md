@@ -1,34 +1,68 @@
 ---
-title: Chatter efficacement
-description: Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait ».
+title: Obtenir une réponse utile dans Chat
+description: Exerce-toi à poser une question précise, vérifier une citation et améliorer la réponse par une relance.
 ---
 
-Chatter efficacement dans Tale ne tient pas à des prompts astucieux ; il s’agit de donner à l’assistant de quoi lire ton intention du premier coup — et de savoir quel travail n’a pas sa place dans un chat. Cinq petites habitudes — demander au lieu de passer commande, choisir le bon modèle, nourrir la base de connaissances au lieu de coller, lire le déroulé de réflexion, vérifier les sources — font passer la réponse moyenne de « merci pour le pavé » à « exactement ce qu’il me fallait ». Cette page déroule les habitudes dans l’ordre sur un chat neuf.
+Une réponse utile commence par une question claire et se termine par une vérification de la source. Pour cet exercice, utilise un court document que tu as le droit d’importer. Interroge-le sur un fait, puis vérifie si l’assistant distingue ce qui est écrit de ce qui reste ouvert.
 
-Il te faut un rôle Membre — le plancher pour le chat. Le côté conceptuel vit dans [Bases du chat](/fr/platform/chat/basics) ; ce parcours est le mécanisme quotidien.
+Tu dois avoir accès à Chat et à un modèle disponible. Les questions sur les documents nécessitent aussi une indexation fonctionnelle dans l’organisation. Si tu disposes déjà d’un document adapté et indexé, tu peux l’utiliser à la place de l’exemple.
 
-## Habitude 1 — Demande ; ne passe pas commande
+## Préparer une petite source
 
-Le chat répond aux questions et retrouve du matériel. Il ne produit délibérément pas de livrables — demande une présentation, un document traduit ou un rapport, et l’assistant esquisse la version courte puis te dit de créer une tâche à la place. Travaille avec cette frontière plutôt que contre elle : quand tu te surprends à écrire « crée », « génère le fichier » ou « traduis ce document », prends le chemin de la tâche et assigne-la à un agent — tu y gagnes un responsable, un résultat à relire et un Terminé qu’une personne contrôle. Traduire une phrase que tu as collée est un travail de chat ; traduire un fichier est un travail de tâche.
+Enregistre ce texte sur ton appareil dans `launch-brief.txt` :
 
-## Habitude 2 — Laisse Auto travailler ; épingle quand tu en sais plus
+```text
+Brief de refonte du site
+La relecture avec le client est prévue le 18 septembre 2026.
+Maya Chen est responsable de la checklist de relecture.
+La date de lancement n’est pas approuvée.
+La relecture doit couvrir l’accessibilité, les redirections et le formulaire de contact.
+```
 
-Le sélecteur s’ouvre sur **Auto** : il lit chaque message et lui assortit un modèle — la recherche rapide tombe sur un modèle vif, la longue question de raisonnement sur un modèle fort, et les détails de la réponse nomment lequel a répondu. C’est le bon défaut presque tous les jours. Épingle un modèle de la liste quand tu sais une chose qu’Auto ne peut pas savoir : la même série doit être répondue par un seul modèle, c’est un modèle précis qui est à l’essai, ou tu veux le réglage d’effort de raisonnement — la deuxième section du sélecteur, qui apparaît pour un modèle épinglé qui en a un. Monte-le pour les questions épineuses, attends-toi, au niveau le plus haut, à des réponses plus lentes et plus chères — et rends le sélecteur à Auto une fois la série finie.
+Ouvre un nouveau chat et joins le fichier avec **Ajouter photos et fichiers** dans le menu du champ de message. Attends la fin de l’import et de l’indexation avant de poser une question sur son texte. [Pièces jointes du chat](/fr/platform/chat/attachments) explique les états affichés.
 
-## Habitude 3 — Nourris la base de connaissances ; ne colle pas de pavés
+## Demander un résultat précis
 
-L’assistant cherche dans les connaissances de l’organisation — documents, entrées de connaissances, sites web explorés, produits, contacts — et dans son travail, tâches et projets, puis charge le détail de ce qu’il trouve. Où il cherche suit l’endroit où tu discutes : dans un projet, il atteint les fichiers de ce projet avec le hub de connaissances de l’organisation et rien des autres projets ; dans le chat de l’organisation, il atteint le hub — ouvre le chat d’un projet pour l’interroger sur les fichiers de ce projet. Le travail n’a rien à alimenter : il est déjà là, puisqu’il se mène ici. Cela ne marche que pour le matériel qui s’y trouve vraiment : téléverse la liste de prix ou le document de politique une fois sous [Connaissances](/fr/platform/knowledge/documents), et chaque chat à venir saura le trouver et le citer. Coller un document de 200 pages dans le champ de message remplit le budget de contexte et dilue la réponse ; une question précise sur du matériel téléversé (« que dit la politique de remboursement sur les boîtes ouvertes ? ») bat à chaque fois « dis-moi tout sur les remboursements ».
+Envoie :
 
-## Habitude 4 — Lis le déroulé, pas seulement la réponse
+```text
+À partir de launch-brief.txt, indique la date de relecture, la personne
+responsable et les trois sujets à vérifier. Cite la source. Utilise quatre puces.
+```
 
-Au-dessus de chaque réponse, le déroulé de réflexion consigne ce que l’assistant a fait : une ligne de réflexion repliable, et une ligne d’étape par recherche ou récupération de page — _Recherche de « … » dans l’espace de travail_, _Lecture de example.com_. Jette-y un œil avant de croire la réponse. Une réponse sans étape de recherche derrière une affirmation factuelle vient du savoir propre du modèle ; une étape de recherche qui ne rapporte rien te dit ce qui manque — y compris quand toute une source est indisponible, comme des documents impossibles à chercher tant qu’une personne admin n’a pas configuré de modèle d’embedding. Le déroulé est aussi l’endroit où une récupération échouée dit pourquoi, au lieu que la réponse contourne l’échec en silence.
+La demande précise la source, les informations nécessaires et la forme attendue. Elle est plus facile à évaluer que « Parle-moi du lancement ». **Auto** convient pour commencer. Choisis explicitement un modèle lorsque tu veux comparer son comportement à celui d’un autre.
 
-## Habitude 5 — Vérifie les sources avant de transférer le résumé
+<Frame caption="Garde la question sous les yeux pour vérifier si la réponse y satisfait.">
 
-Sous une réponse qui a lu quelque chose, **Sources** liste exactement les pages et les documents que l’assistant a chargés — la liste dérive de ce qui a réellement tourné, donc une liste vide veut dire que rien n’a été lu. Ouvres-en une avant d’agir sur la réponse : l’habitude de deux minutes qui consiste à confirmer une source par réponse attrape la petite part de résumés qui en disent plus que leur source. Une source web ouvre la page en direct dans un nouvel onglet ; une source document nomme le fichier à retrouver sous Connaissances.
+![Un chat montre une question ciblée sur les retours d’onboarding et une réponse présentée en tableau.](/images/platform/chat-thread-reply.webp)
 
-## Où cela s’inscrit
+</Frame>
 
-Cinq habitudes, un chat, la même boucle à chaque ouverture de l’onglet Chat. Les habitudes se cumulent — demander à l’intérieur de la frontière du chat garde les réponses nettes ; une base de connaissances nourrie fait aboutir les recherches ; le déroulé et les sources ferment la boucle de confiance.
+## Comparer la réponse au fichier
 
-Pour la surface sur laquelle ces habitudes vivent, voir [Bases du chat](/fr/platform/chat/basics). Pour le côté fichiers — ce que l’assistant peut chercher et citer — voir la [Base de connaissances](/fr/platform/knowledge/overview).
+La date de relecture doit être le **18 septembre 2026**, la responsable **Maya Chen** et les sujets **l’accessibilité, les redirections et le formulaire de contact**. Ouvre la source citée et compare ces valeurs. La présentation peut varier ; les faits doivent rester les mêmes.
+
+Si la réponse ne cite pas de source, demande une citation du document au lieu de supposer que la pièce jointe a été lue. Si le contenu reste introuvable, vérifie l’indexation et réessaie lorsque le fichier est prêt. Une réponse fluide ne prouve pas que la source a été consultée.
+
+## Poser une relance qui révèle l’incertitude
+
+Dans la même conversation, demande :
+
+```text
+Quelle est la date de lancement approuvée ? Si le brief n’en donne pas,
+indique-le clairement.
+```
+
+La source ne donne **pas** de date de lancement approuvée. Une bonne réponse conserve cette distinction au lieu de prendre la date de relecture pour celle du lancement. Si une réponse fait une supposition sans preuve, cite la phrase contradictoire et demande une correction.
+
+<Tip>
+
+Modifie un élément de la demande à la fois. « Fais plus court » teste la longueur ; « Sépare les dates confirmées des décisions ouvertes » teste l’interprétation. Changer en même temps source, modèle, question et format empêche de comprendre ce qui a amélioré le résultat.
+
+</Tip>
+
+## Conserver le contexte utile
+
+Poursuis dans le même chat pour les questions liées au sujet. Commence un autre chat pour un sujet sans rapport, afin que les anciennes hypothèses ne gênent pas la nouvelle demande. Si plusieurs conversations ont besoin de ce brief, place-le dans un [projet](/fr/tutorials/member/use-projects) et utilise le chat du projet.
+
+Avant de [partager un chat](/fr/platform/chat/shared-threads), relis les messages et les extraits de sources cités dans la réponse. Si la suite consiste à produire un livrable avec un responsable et une relecture, crée une [tâche de projet](/fr/platform/projects/tasks) avec les faits vérifiés et les critères d’acceptation.

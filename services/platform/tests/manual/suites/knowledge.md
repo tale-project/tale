@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 30 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -74,8 +74,9 @@ records and delete them after.
   the list to matching names. The **Delete folder** dialog shows the cascade
   requirement **"All files and subfolders inside this folder will also be
   permanently deleted."** (`documents.deleteFolder.requirement`); after
-  confirm + reload the folder row is gone. The **From Microsoft 365** menu
-  item is present iff a Microsoft account is linked.
+  confirm + reload the folder row is gone. **From Microsoft 365** remains
+  available before an account is connected; its first-use flow shows the
+  required setup or connection step.
 - [ ] `KNOW-F3` · **Knowledge entry CRUD** — Knowledge entries → **Add entry**
   (`knowledgeEntries.addButton`) → **Topic** (`knowledgeEntries.topic`) +
   **Content** (`knowledgeEntries.content`) → **Save** (`common.actions.save`);
@@ -220,13 +221,37 @@ records and delete them after.
   stored. Re-list the same three URLs → the two reasons persist and their
   attempt counts grow. Then register a whole site whose only page answers
   `500` → after the scan its **Status** reads **Error** (not **Active**).
-- [ ] `KNOW-F15` · **Product row opens details** — Products → click a product
+- [ ] `KNOW-F15` · **Meta-noindex page** — Websites → **Add website** for a site
+  whose HTML page carries `<meta name="robots" content="noindex">` (the render
+  lane must run, so an HTML page, not a text file) → After the scan the page row
+  shows the skipped reason `robots_noindex` with no chunks, and a search for its
+  words returns nothing from it; a page whose noindex arrives as the
+  `X-Robots-Tag` header reads the same.
+- [ ] `KNOW-F16` · **Broken sync is visible** — Documents with a synced
+  OneDrive or Google Drive folder (KNOW-F2's Microsoft 365 **Sync import**
+  (`documents.onedrive.syncImport`)); make its owner's grant unusable (revoke
+  the app's access in that Microsoft account, or as an operator set that
+  member's row in app.user_cloud_authorizations to needs-reauth) and let the
+  next sync run happen (≤ 15 min) → The folder row's **Source**
+  (`tables.headers.source`) cell shows the badge **Reconnect needed**
+  (`documents.syncHealth.badge.needsReauth`) in place of **OneDrive (synced)**
+  (`documents.sourceType.oneDriveSynced`), without a reload. Activating the
+  badge opens a dialog titled **OneDrive access expired**
+  (`documents.syncHealth.dialog.needsReauthTitle`) that names when the
+  failures began and whose account the sync runs under; as that member it
+  offers **Reconnect Microsoft 365** (`documents.onedrive.reconnect`), as any
+  other member it says whom to ask. Reconnect and let the next run happen →
+  the badge is gone without a reload and the row reads **OneDrive (synced)**
+  again. A run failing for another reason (vendor unreachable) shows **Sync
+  failed** (`documents.syncHealth.badge.failed`), whose dialog carries the
+  error text and says Tale retries about every 15 minutes.
+- [ ] `KNOW-F17` · **Product row opens details** — Products → click a product
   row (the name cell, not the checkbox and not **Open menu**) → a dialog titled
   the product's name; **Edit** (`common.actions.edit`) is in the header. Click
   Edit → dialog title `products.edit.title` ("Edit product"); **Product name**
   (`products.edit.labels.name`) is prefilled. Close without saving → the row
   is unchanged on reload.
-- [ ] `KNOW-F16` · **Website scan failure reason** — Websites → open a site
+- [ ] `KNOW-F18` · **Website scan failure reason** — Websites → open a site
   whose table badge is **Error** (`websites.filter.status.error`) after a
   scan that never started (sandbox/runtime missing, or the crawler refused
   the host) and that has nothing indexed (`crawledPageCount` 0, no failed

@@ -36,20 +36,24 @@
  */
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { chunkDocument } from '../../../lib/knowledge/chunking';
 import {
   classifyContentType,
+  classifyRenderReason,
+  discoverableLinks,
   documentNameForUrl,
-  extractLinks,
-  isDisallowed,
   isSitemapIndex,
+  isUrlDisallowed,
   normalizeCandidateUrl,
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
+  publicPageError,
+  type RobotsRules,
   robotsHeaderForbidsIndexing,
+  robotsMetaNoindexDirective,
   siteHosts,
   stripBoilerplate,
 } from '../../../lib/knowledge/crawl-parse';
@@ -64,6 +68,7 @@ import {
   safeFetchBinary,
   SafeFetchError,
 } from '../../../lib/net/safe-fetch';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 
 /**
  * Refuse to dial a URL the crawl-target policy would never have let in.
@@ -91,6 +96,7 @@ import {
 import type { PageFailureKind } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
+import { crawlerRequestHeaders } from './crawler_identity';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import { assertCorpusWritable } from './index_health';
@@ -218,7 +224,11 @@ export async function scanWebsiteImpl(
     }
 
     try {
-      const kind = await domainKind(sql, args.domain);
+      const facts = await domainFacts(sql, args.domain);
+      const kind = facts.kind;
+      // The robots rules every non-listed admission and fetch of this link
+      // judges by: read fresh on link 0, from the row on every later link.
+      let disallow = facts.disallow;
       if (continuation === 0) {
         const claim = await claimScan(sql, args.domain);
         if (claim === 'held') {
@@ -254,11 +264,32 @@ export async function scanWebsiteImpl(
         // frontier, and robots.txt does not govern explicitly requested
         // pages (the same stance web_fetch takes).
         if (kind === 'site') {
+          const robots = await loadRobotsRules(
+            sql,
+            args.domain,
+            facts.disallow,
+          );
+          disallow = robots.disallow;
           await discoverAndRecordUrls(
             sql,
             args.domain,
             actionStartedAt + DISCOVERY_BUDGET_MS,
+            robots,
           );
+          const retired = await retireDisallowedRows(
+            sql,
+            args.domain,
+            disallow,
+          );
+          if (retired > 0) {
+            console.log(
+              `[crawl] ${args.domain}: ${retired} page(s) retired — robots.txt disallows them`,
+            );
+          }
+          // The frontier is known: stamp the row now, so the page counts
+          // move within the discovery budget instead of at the first
+          // link's end (2026-09-14 evaluation, h5).
+          await fanOutRowSync(ctx, sql, args.domain);
         }
       }
 
@@ -310,9 +341,24 @@ export async function scanWebsiteImpl(
             console.warn(
               `[crawl] ${page.url}: render failed: ${outcome.reason}`,
             );
+            await recordPageFailure(
+              sql,
+              args.domain,
+              page.url,
+              classifyRenderReason(outcome.reason),
+            );
+            continue;
+          }
+          // The origin's wish in the HTML form: a `<meta name="robots">`
+          // that says noindex stores nothing and drops what an earlier
+          // scan stored — the header form was honoured, the tag most
+          // sites use was not (2026-09-14 evaluation, h5).
+          const noindex = robotsMetaNoindexDirective(outcome.html);
+          if (noindex !== null) {
+            await purgePageContent(sql, args.domain, page.url);
             await recordPageFailure(sql, args.domain, page.url, {
-              kind: 'render_failed',
-              message: outcome.reason,
+              kind: 'robots_noindex',
+              message: `The origin asked not to index this page (<meta name="robots" content="${noindex}">)`,
             });
             continue;
           }
@@ -330,6 +376,7 @@ export async function scanWebsiteImpl(
               args.domain,
               outcome.html,
               outcome.finalUrl,
+              disallow,
             );
           }
         }
@@ -345,7 +392,12 @@ export async function scanWebsiteImpl(
         if (pages.length === 0) break;
         for (const page of pages) {
           if (Date.now() >= deadline) break;
-          const outcome = await fetchAndStorePage(sql, args.domain, page);
+          const outcome = await fetchAndStorePage(
+            sql,
+            args.domain,
+            page,
+            disallow,
+          );
           if (outcome === 'render') renderQueue.push(page);
           else if (outcome === 'changed') await indexer.indexPage(page.url);
           await sleep(FETCH_DELAY_MS);
@@ -354,6 +406,10 @@ export async function scanWebsiteImpl(
         // Settle the partial batch BEFORE re-querying the frontier — the
         // queued rows are unmarked and would come straight back.
         await flushRenderBatch();
+        // The row follows the scan: one keyed job per stored batch (bursts
+        // fold into one run), so the page counts move as pages land instead
+        // of at the link's end (2026-09-14 evaluation, h5).
+        await fanOutRowSync(ctx, sql, args.domain);
       }
       await indexer.finish();
 
@@ -529,15 +585,95 @@ export async function scanDueWebsitesImpl(ctx: ActionCtx): Promise<null> {
   }
 }
 
-/** What this domain row is: a crawled site (pages discovered) or a curated
- * URL list (exactly the listed rows are fetched). Rows that predate the
- * distinction read as 'site'. */
-async function domainKind(sql: Sql, domain: string): Promise<'site' | 'list'> {
-  const rows = await sql.unsafe<{ kind: string }[]>(
-    `SELECT kind FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1`,
+interface DomainFacts {
+  /** A crawled site (pages discovered) or a curated URL list (exactly the
+   * listed rows are fetched). Rows that predate the distinction read as
+   * 'site'. */
+  readonly kind: 'site' | 'list';
+  /** The robots `Disallow` rules the last scan persisted — what every
+   * continuation link judges by; `[]` for a list row (its rows are the
+   * operator's instruction) or before the first scan of this release. */
+  readonly disallow: readonly string[];
+}
+
+/** What this domain row is, and the rules it is crawled under. */
+async function domainFacts(sql: Sql, domain: string): Promise<DomainFacts> {
+  const rows = await sql.unsafe<{ kind: string; robots_disallow: unknown }[]>(
+    `SELECT kind, robots_disallow FROM ${PUBLIC_WEB_SCHEMA}.websites
+      WHERE domain = $1`,
     [domain],
   );
-  return rows[0]?.kind === 'list' ? 'list' : 'site';
+  const row = rows[0];
+  const kind = row?.kind === 'list' ? 'list' : 'site';
+  return {
+    kind,
+    disallow: kind === 'list' ? [] : readDisallowRules(row?.robots_disallow),
+  };
+}
+
+function readDisallowRules(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((rule): rule is string => typeof rule === 'string')
+    : [];
+}
+
+/**
+ * The robots.txt rules a scan honours (`User-agent: *`), read at the start
+ * of every scan and persisted on the corpus row so the discovery walk, every
+ * continuation link, the rendered-page admission and the retirement pass
+ * judge by the same rules. A robots.txt that answers 2xx is the rules; one
+ * that answers anything else is "no rules" — a site without one allows
+ * everything; a fetch that fails keeps the last persisted rules rather than
+ * crawling unruled, which is what a transient miss used to do.
+ */
+async function loadRobotsRules(
+  sql: Sql,
+  domain: string,
+  persisted: readonly string[],
+): Promise<RobotsRules> {
+  const hosts = siteHosts(domain);
+  const url = `https://${domain}/robots.txt`;
+  let rules: RobotsRules;
+  try {
+    assertCrawlableUrl(url);
+    const robots = await safeFetch(url, {
+      timeoutMs: PAGE_TIMEOUT_MS,
+      maxResponseBytes: ROBOTS_MAX_BYTES,
+      allowedHosts: [...hosts],
+      allowPrivateAddresses: privateCrawlHostsAllowed(),
+      httpsOnly: true,
+      headers: crawlerRequestHeaders(),
+    });
+    if (robots.status >= 200 && robots.status < 300) {
+      rules = parseRobots(robots.body);
+    } else if (robots.status >= 500 || robots.status === 429) {
+      // A server error or a throttle is no answer about the rules (RFC 9309
+      // §2.3.1.4 has a crawler keep a cached copy): the last known rules
+      // stand, and the fetch time is not stamped.
+      console.warn(
+        `[crawl] ${domain}: robots.txt answered ${robots.status}, keeping the last known rules`,
+      );
+      return { disallow: persisted, sitemaps: [] };
+    } else {
+      // A 4xx is an answer: the site publishes no rules (§2.3.1.3).
+      rules = { disallow: [], sitemaps: [] };
+    }
+  } catch (error) {
+    console.warn(
+      `[crawl] ${domain}: robots.txt unavailable, keeping the last known rules:`,
+      error instanceof Error ? error.message : error,
+    );
+    return { disallow: persisted, sitemaps: [] };
+  }
+  // The `::jsonb` cast types the parameter, so the driver serializes the
+  // value itself — a pre-stringified array would be stored as a JSON string.
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
+        SET robots_disallow = $2::jsonb, robots_fetched_at = NOW()
+      WHERE domain = $1`,
+    [domain, [...rules.disallow]],
+  );
+  return rules;
 }
 
 /** Take the corpus-side claim on a domain (`claimed`), or report that
@@ -566,53 +702,36 @@ async function claimScan(
   return present.length > 0 ? 'held' : 'missing';
 }
 
-/** Discover the domain's URLs (robots.txt sitemaps first, link-walk as the
- * fallback) and record them as `discovered` rows for the fetch loop.
- * `deadline` bounds the fetching: a discovery cut short records what it
- * has — the next scan's discovery pass tops the frontier up. */
+/** Discover the domain's URLs (the robots-declared sitemaps first, link-walk
+ * as the fallback) under the robots rules the scan read, and record them as
+ * `discovered` rows for the fetch loop. `deadline` bounds the fetching: a
+ * discovery cut short records what it has — the next scan's discovery pass
+ * tops the frontier up. */
 async function discoverAndRecordUrls(
   sql: Sql,
   domain: string,
   deadline: number,
+  robots: RobotsRules,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
+  const disallow = robots.disallow;
 
-  let disallow: readonly string[] = [];
   let sitemapCandidates: string[] = [`https://${domain}/sitemap.xml`];
-  try {
-    assertCrawlableUrl(`https://${domain}/robots.txt`);
-    const robots = await safeFetch(`https://${domain}/robots.txt`, {
-      timeoutMs: PAGE_TIMEOUT_MS,
-      maxResponseBytes: ROBOTS_MAX_BYTES,
-      allowedHosts: [...hosts],
-      allowPrivateAddresses: privateCrawlHostsAllowed(),
-      httpsOnly: true,
-    });
-    if (robots.status >= 200 && robots.status < 300) {
-      const rules = parseRobots(robots.body);
-      disallow = rules.disallow;
-      const advertised = rules.sitemaps.filter((sitemapUrl) => {
-        try {
-          return hosts.has(new URL(sitemapUrl).hostname.toLowerCase());
-        } catch {
-          return false;
-        }
-      });
-      if (advertised.length > 0) sitemapCandidates = advertised;
+  const advertised = robots.sitemaps.filter((sitemapUrl) => {
+    try {
+      return hosts.has(new URL(sitemapUrl).hostname.toLowerCase());
+    } catch {
+      return false;
     }
-  } catch (error) {
-    console.warn(
-      `[crawl] ${domain}: robots.txt unavailable, crawling without it:`,
-      error instanceof Error ? error.message : error,
-    );
-  }
+  });
+  if (advertised.length > 0) sitemapCandidates = advertised;
 
   const urls = new Set<string>();
   const admit = (candidate: string): boolean => {
     const normalized = normalizeCandidateUrl(candidate, baseUrl, hosts);
     if (!normalized) return false;
-    if (isDisallowed(new URL(normalized).pathname, disallow)) return false;
+    if (isUrlDisallowed(normalized, disallow)) return false;
     if (urls.size >= MAX_URLS_PER_DOMAIN) return true;
     urls.add(normalized);
     return urls.size >= MAX_URLS_PER_DOMAIN;
@@ -640,6 +759,7 @@ async function discoverAndRecordUrls(
         allowedHosts: [...hosts],
         allowPrivateAddresses: privateCrawlHostsAllowed(),
         httpsOnly: true,
+        headers: crawlerRequestHeaders(),
       });
       if (response.status < 200 || response.status >= 300) {
         console.warn(
@@ -697,12 +817,15 @@ async function discoverAndRecordUrls(
           allowedHosts: [...hosts],
           allowPrivateAddresses: privateCrawlHostsAllowed(),
           httpsOnly: true,
+          headers: crawlerRequestHeaders(),
         });
         if (response.status < 200 || response.status >= 300) continue;
-        for (const href of extractLinks(response.body)) {
-          const normalized = normalizeCandidateUrl(href, next.url, hosts);
-          if (!normalized) continue;
-          if (isDisallowed(new URL(normalized).pathname, disallow)) continue;
+        for (const normalized of discoverableLinks(
+          response.body,
+          next.url,
+          hosts,
+          disallow,
+        )) {
           if (urls.size < MAX_URLS_PER_DOMAIN) urls.add(normalized);
           if (next.depth + 1 <= BFS_MAX_DEPTH && !visited.has(normalized)) {
             queue.push({ url: normalized, depth: next.depth + 1 });
@@ -734,6 +857,9 @@ async function discoverAndRecordUrls(
 interface DuePage {
   readonly url: string;
   readonly content_hash: string | null;
+  /** An operator-listed URL: the robots rules do not govern it, and a 404
+   * keeps its row. */
+  readonly listed: boolean;
 }
 
 const DUE_PAGE_PREDICATE = `
@@ -751,7 +877,7 @@ async function nextDuePages(
   limit: number,
 ): Promise<DuePage[]> {
   return await sql.unsafe<DuePage[]>(
-    `SELECT url, content_hash
+    `SELECT url, content_hash, listed
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls
       WHERE ${DUE_PAGE_PREDICATE}
       ORDER BY last_crawled_at ASC NULLS FIRST, url ASC
@@ -789,8 +915,18 @@ async function fetchAndStorePage(
   sql: Sql,
   domain: string,
   page: DuePage,
+  disallow: readonly string[],
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
+
+  // Defence in depth for a row admitted before the rules were known — an
+  // earlier release's discovery, a rule the site added since: a non-listed
+  // URL robots.txt disallows is never dialed, and leaves the index the way
+  // the retirement pass would have retired it.
+  if (!page.listed && isUrlDisallowed(page.url, disallow)) {
+    await retirePage(sql, domain, page.url);
+    return 'unchanged';
+  }
 
   let response;
   try {
@@ -801,41 +937,49 @@ async function fetchAndStorePage(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      headers: crawlerRequestHeaders(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const cause = error instanceof Error ? error.message : String(error);
     // The refusal is the row's record, kind included: a redirect into a
     // private address the guard refused before dialing, a DNS miss and a
     // timeout used to leave the same silent `discovered` row — from the
-    // API nobody could tell a blocked redirect from a dialed one.
+    // API nobody could tell a blocked redirect from a dialed one. A page
+    // slower than the budget is the `timeout` the contract names, in the
+    // crawler's own words (2026-09-14 evaluation, h5).
     const kind: PageFailureKind =
       error instanceof SafeFetchError ? error.kind : 'network_error';
-    console.warn(`[crawl] ${page.url}: fetch failed (${kind}): ${message}`);
+    const message =
+      kind === 'timeout'
+        ? `The page did not finish downloading within ${PAGE_FETCH_TIMEOUT_MS / 1000} seconds`
+        : cause;
+    console.warn(`[crawl] ${page.url}: fetch failed (${kind}): ${cause}`);
     await recordPageFailure(sql, domain, page.url, { kind, message });
     return 'failed';
   }
 
   if (response.status === 404 || response.status === 410) {
+    const answer = `The page answered HTTP ${response.status}${
+      response.statusText === '' ? '' : ` ${response.statusText}`
+    }`;
+    if (page.listed) {
+      // A LISTED page the site says is gone keeps its row: the operator
+      // asked for it by name, so the list shows the answer — content and
+      // chunks purged, `http_error` naming the status, `failCount` counting
+      // the scans it has been gone — and it is probed again every scan, as
+      // listed rows are. Pruning it used to leave a no-signal `discovered`
+      // row on the next scan's revival (2026-09-14 evaluation, h5).
+      await purgePageContent(sql, domain, page.url);
+      await recordPageFailure(sql, domain, page.url, {
+        kind: 'http_error',
+        message: answer,
+      });
+      return 'failed';
+    }
     // The page is gone — drop it from the index. Discovery being partial
     // (BFS depth, the URL cap) means absence from a scan proves nothing,
     // but a 404 from the site itself does.
-    await sql.begin(async (tx) => {
-      await tx.unsafe(
-        `DELETE FROM ${PUBLIC_WEB_SCHEMA}.chunks WHERE domain = $1 AND url = $2`,
-        [domain, page.url],
-      );
-      await tx.unsafe(
-        `DELETE FROM ${PUBLIC_WEB_SCHEMA}.page_paragraph_hashes
-          WHERE domain = $1 AND url = $2`,
-        [domain, page.url],
-      );
-      await tx.unsafe(
-        `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-            SET status = 'deleted', content = NULL, last_crawled_at = NOW()
-          WHERE domain = $1 AND url = $2`,
-        [domain, page.url],
-      );
-    });
+    await retirePage(sql, domain, page.url);
     return 'unchanged';
   }
   if (response.status < 200 || response.status >= 300) {
@@ -852,11 +996,13 @@ async function fetchAndStorePage(
   // honest terminal reason on the row, nothing stored. The crawler reads
   // robots.txt at discovery; it used to ignore this directive entirely
   // (2026-09-14 evaluation, g4-10).
-  if (robotsHeaderForbidsIndexing(response.headers.get('x-robots-tag'))) {
+  const robotsHeader = response.headers.get('x-robots-tag');
+  if (robotsHeaderForbidsIndexing(robotsHeader)) {
+    // What an earlier scan stored leaves the index with the wish.
+    await purgePageContent(sql, domain, page.url);
     await recordPageFailure(sql, domain, page.url, {
       kind: 'robots_noindex',
-      message:
-        'The origin asked not to index this page (X-Robots-Tag: noindex)',
+      message: `The origin asked not to index this page (X-Robots-Tag: ${robotsHeader ?? ''})`,
     });
     return 'failed';
   }
@@ -977,18 +1123,106 @@ async function storePageText(
 }
 
 /**
+ * Drop what a page put in the index — its chunks, its paragraph hashes, its
+ * stored text — for a page the crawler may no longer serve: gone from the
+ * site, or asked not to be indexed. The row stays, so the page list still
+ * says why; a stored row falls back to `discovered`.
+ */
+async function purgePageContentIn(
+  tx: TransactionSql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await tx.unsafe(
+    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.chunks WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
+  await tx.unsafe(
+    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.page_paragraph_hashes
+      WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
+  await tx.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET content = NULL, content_hash = NULL, word_count = 0,
+            status = CASE WHEN status = 'deleted' THEN status ELSE 'discovered' END
+      WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
+}
+
+async function purgePageContent(
+  sql: Sql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await sql.begin((tx) => purgePageContentIn(tx, domain, url));
+}
+
+/**
+ * Retire a page from the site: its content purged and the row `deleted` —
+ * out of every listing and count — for a page the site answered 404/410
+ * for, or one robots.txt disallows. A `deleted` row is revived only when
+ * discovery admits the URL again, which for a disallowed one is the day the
+ * site drops the rule.
+ */
+async function retirePage(
+  sql: Sql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    await purgePageContentIn(tx, domain, url);
+    await tx.unsafe(
+      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+          SET status = 'deleted', last_crawled_at = NOW()
+        WHERE domain = $1 AND url = $2`,
+      [domain, url],
+    );
+  });
+}
+
+/**
+ * Retire every NON-listed page robots.txt now disallows — rows an earlier
+ * release admitted unruled, or a rule the site added since: a well-behaved
+ * crawler stops fetching them and stops serving what it stored. Listed URLs
+ * are the operator's instruction and stay. Returns how many were retired.
+ */
+async function retireDisallowedRows(
+  sql: Sql,
+  domain: string,
+  disallow: readonly string[],
+): Promise<number> {
+  if (disallow.length === 0) return 0;
+  const rows = await sql.unsafe<{ url: string }[]>(
+    `SELECT url FROM ${PUBLIC_WEB_SCHEMA}.website_urls
+      WHERE domain = $1 AND NOT listed AND status <> 'deleted'`,
+    [domain],
+  );
+  let retired = 0;
+  for (const row of rows) {
+    if (!isUrlDisallowed(row.url, disallow)) continue;
+    await retirePage(sql, domain, row.url);
+    retired += 1;
+  }
+  return retired;
+}
+
+/**
  * Admit same-site links found in a rendered page (site kind only) so SPA
  * sites — whose anchors exist only after JS runs — still grow the frontier.
- * Honours the host and asset-suffix rules and the per-domain cap; robots
- * disallow rules apply at discovery time only (accepted residue until a
- * robots-sensitive JS site matters). Freshly admitted rows have no
- * `last_crawled_at`, so the running scan picks them up.
+ * The links pass the same seam discovery uses — host, port and asset rules,
+ * then the robots rules — so a page a `Disallow` covers never joins the
+ * frontier from here either (it used to: 2026-09-14 evaluation, h5).
+ * Freshly admitted rows have no `last_crawled_at`, so the running scan picks
+ * them up.
  */
 async function admitRenderedLinks(
   sql: Sql,
   domain: string,
   html: string,
   baseUrl: string,
+  disallow: readonly string[],
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const countRows = await sql.unsafe<{ n: string }[]>(
@@ -997,15 +1231,13 @@ async function admitRenderedLinks(
     [domain],
   );
   let tracked = Number(countRows[0]?.n ?? 0);
-  for (const href of extractLinks(html)) {
+  for (const normalized of discoverableLinks(html, baseUrl, hosts, disallow)) {
     if (tracked >= MAX_URLS_PER_DOMAIN) {
       console.warn(
         `[crawl] ${domain}: URL cap of ${MAX_URLS_PER_DOMAIN} reached during rendered-link admission`,
       );
       return;
     }
-    const normalized = normalizeCandidateUrl(href, baseUrl, hosts);
-    if (!normalized) continue;
     // Inserted or revived rows are newly tracked (`deleted` rows are not in
     // the count above); unchanged live rows report zero.
     tracked += await admitUrls(sql, domain, [normalized], { listed: false });
@@ -1020,7 +1252,7 @@ interface PageFailure {
 }
 
 /** A runaway error text (a provider's whole HTML page) must not become the
- * row; the first lines say what went wrong. */
+ * row; the first line says what went wrong. */
 const PAGE_ERROR_MAX_CHARS = 500;
 
 /**
@@ -1041,7 +1273,13 @@ async function recordPageFailure(
         SET fail_count = fail_count + 1, last_crawled_at = NOW(),
             last_error = $3, last_error_kind = $4, last_error_at = NOW()
       WHERE domain = $1 AND url = $2`,
-    [domain, url, failure.message.slice(0, PAGE_ERROR_MAX_CHARS), failure.kind],
+    [
+      domain,
+      url,
+      // Customer-facing: one line, no toolchain locations, no secrets.
+      sanitizeError(publicPageError(failure.message), PAGE_ERROR_MAX_CHARS),
+      failure.kind,
+    ],
   );
 }
 

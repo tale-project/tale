@@ -25,10 +25,9 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
 > **Agent note**: the switcher trigger is the footer button aria-labelled
 > **Switch language** (`languageSwitcher.ariaLabel`) showing the current
 > locale name; items are `menuitem`s **English** / **Deutsch** / **Français**.
-> Remaining hard-coded English chrome (shared `@tale/ui`): the code **Copy
-> code** button and heading **Copy link to this section**. Skip link, rail
-> landmark, and page actions are i18n-wired — on `/de` they should read
-> German. Sweep the newer surfaces too: the video player (native controls are
+> Copy controls, callout labels, code-group labels, diagram controls, skip
+> link, navigation rail landmark, and page actions follow the selected language —
+> English labels on `/de` or `/fr` are findings. Sweep the newer surfaces too: the video player (native controls are
 > browser chrome; the captions `<track>` label comes from a hard-coded
 > language-name map in `@tale/ui` `video.tsx` — **Deutsch**/**Français** on
 > their own pages is correct) and the PWA update banner (`pwa.*` is translated

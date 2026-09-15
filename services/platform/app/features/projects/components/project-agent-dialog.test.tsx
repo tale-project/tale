@@ -66,7 +66,7 @@ const LEGACY_AGENT = {
   connectors: [],
 } as unknown as ProjectAgentRow;
 
-function renderDialog(agent: ProjectAgentRow) {
+function renderDialog(agent: ProjectAgentRow, models = MODELS) {
   return render(
     <ProjectAgentDialog
       open
@@ -74,7 +74,7 @@ function renderDialog(agent: ProjectAgentRow) {
       projectId={'p1' as string}
       organizationId="org-1"
       harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
-      models={MODELS}
+      models={models}
       skills={[]}
       connectors={[]}
       agent={agent}
@@ -88,6 +88,28 @@ beforeEach(() => {
 });
 
 describe('ProjectAgentDialog model pin', () => {
+  it('finds a friendly-named model by its API id and saves its provider', async () => {
+    const { user } = renderDialog(LEGACY_AGENT, [
+      { ...MODELS[0], label: 'Claude Fable 5' },
+      MODELS[1],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Model' }));
+    await user.type(
+      screen.getByRole('combobox', { name: 'Search models' }),
+      'anthropic/claude-fable-5',
+    );
+    await user.click(screen.getByRole('option', { name: /Claude Fable 5/ }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'anthropic/claude-fable-5',
+        modelProvider: 'openrouter',
+      }),
+    );
+  });
+
   it('shows the provider a run would ACTUALLY use for a pinless row', async () => {
     previewState.data = {
       ok: true,

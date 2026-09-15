@@ -198,7 +198,7 @@ function toolResult(
 
 // ------------------------------------------------------ argument validation
 
-const ajv = new Ajv({ allErrors: false, strict: false });
+const ajv = new Ajv({ allErrors: false, strict: false, discriminator: true });
 const validators = new Map<string, ValidateFunction>();
 
 function describeIssue(issue: ErrorObject): string {
@@ -211,6 +211,17 @@ function describeIssue(issue: ErrorObject): string {
     const extra = (issue.params as { additionalProperty?: unknown })
       .additionalProperty;
     return `${where} has an unexpected property "${String(extra)}"`;
+  }
+  if (issue.keyword === 'enum') {
+    // Name the set, as the REST door does — a model reading its own error
+    // could not self-correct from "one of the allowed values" (2026-09-14
+    // evaluation, h9).
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ajv's params for this keyword
+    const allowed = (issue.params as { allowedValues?: unknown[] })
+      .allowedValues;
+    if (Array.isArray(allowed)) {
+      return `${where} must be one of ${allowed.map((value) => JSON.stringify(value)).join(', ')}`;
+    }
   }
   return `${where} ${issue.message ?? 'does not match the schema'}`;
 }

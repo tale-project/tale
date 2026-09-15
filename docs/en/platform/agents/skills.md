@@ -1,40 +1,45 @@
 ---
-title: Skills on agents
-description: How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session.
+title: Equip agents with skills
+description: Choose reusable skill bundles for project agents and automation nodes, understand their access scope, and check how they run.
 ---
 
-An agent reaches a skill only when it is equipped, and equipping is a pick from the organization's [skill library](/platform/workspace/skills). This page is about the surfaces that pick — a project's agents and an automation's agent nodes. One rule decides what they may pick: **the project's own visibility counts, never the configuring member's.**
+Equip an agent with a skill when it needs a reusable procedure or reference material from the organization's [skill library](/platform/workspace/skills). The library stores the bundle; the agent's equipment determines which bundles are available to its runs.
 
-## What equipping decides
+## Choose a skill for the task
 
-An equipped skill is offered to the model by its description. When the model judges that description relevant to what you asked, it reads the `SKILL.md` body, then opens individual bundle files where the body points at them. Nothing is executed and nothing is pasted in up front, so a skill costs context only on the turns where the model actually reaches for it.
+A useful skill explains when to use it, how to perform the work, and what a good result looks like. For example, equip a release-note skill with the agent that prepares releases, then give it a small set of changes and check its output against your expected format.
 
-A bundle whose frontmatter carries `disable-model-invocation: true` behaves differently. It stays equipped and stays readable, but the model must not reach for it unprompted; it waits for a turn where somebody names it.
+The bundle contains `SKILL.md` and may include references, assets, or scripts. Importing it does not execute those files. Once equipped, its instructions can guide a coding agent that has a shell or other tools, including running a bundled script. Review the whole bundle before use; a skill does not add a separate permission boundary.
 
-## Equip a project's agents
+## Equip a project agent
 
-A [project agent](/platform/projects/project-agents) carries its own equipment, picked in the capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's legacy private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
+Open the [project agent](/platform/projects/project-agents) and select the needed skills in its equipment. The available list follows the project's access, even if you personally can read more skills:
 
-The same scope holds at run time. A task run stages the agent's skills as the project; an org-level automation stages as the organization. A skill that stops being visible to that scope fails the run by name rather than quietly running without it — deliberate equipment silently missing is worse than a failed run.
+| Project scope | Available skills |
+| --- | --- |
+| Organization-wide project | Organization skills |
+| Project shared with teams | Organization skills and team skills shared with at least one of the project's teams |
 
-## Skills in a sandbox session
+Legacy private skills cannot be equipped on a project agent. The same access rule is checked when a task runs; selecting a skill does not grant the project permanent access to it.
 
-When a turn runs in a sandbox, equipped bundles do not arrive through a tool call. They are staged into the session as files, in the layout the runtime already knows how to discover, so the harness finds them the way it would find a skill on any machine it works on.
+## Use skills in an automation
 
-One rule governs collisions: the repository wins. If the checked-out repository ships a skill under the same slug as one Tale would stage, Tale withholds its copy and the repository's version stands. A repository can always override what the platform would otherwise teach the agent, and the session never holds two bundles claiming the same name.
+An automation's agent nodes declare the skills they need. A run bound to a project uses that project's scope. An organization-level run can use organization skills only. Your personal membership in additional teams does not expand either scope.
 
-## Skill or instructions
+During sandbox setup, Tale stages the equipped bundles as files and gives the agent paths to their `SKILL.md` instructions. Supporting files are available alongside those instructions. Keep the equipment focused and tell the agent which procedure matters for the task; availability alone does not prove that the result followed it.
 
-| Use … when                                              | Skill | Agent instructions |
-| ------------------------------------------------------- | ----- | ------------------ |
-| The pattern repeats across several agents               | ✓     |                    |
-| The behaviour needs reference files alongside the prose | ✓     |                    |
-| The behaviour is this one agent's voice                 |       | ✓                  |
-| One edit should reach everyone who uses the behaviour   | ✓     |                    |
-| The agent's instructions still fit on one screen        |       | ✓                  |
+## Resolve missing or changed skills
 
-Instructions are the right shape for one agent's own character. A skill is the right shape as soon as the same behaviour turns up in a second and third agent and keeping their instructions in step starts to cost you.
+If a required skill is missing or is no longer shared with the run's scope, staging fails and names the unavailable skill. Check its slug, visibility, the project's teams, and whether it was deleted or replaced. Restore the intended access or remove the obsolete equipment before retrying.
 
-## Where this fits
+Changes to a shared bundle affect later staging for its users. Review replacements and test an agent with a known input after a substantial change. Do not assume a repository's similarly named skill overrides the equipped bundle.
 
-Equipping is the narrow half of skills: the library decides what exists and who may see it; a project's agent dialog and an automation's agent nodes decide where it gets used — always through the project's or the organization's own visibility. Keep equipment lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a folder, and sharing a bundle — is the [skill library](/platform/workspace/skills).
+## Choose skills or agent instructions
+
+| Put it in a skill when… | Put it in agent instructions when… |
+| --- | --- |
+| Several agents share the procedure. | It defines this agent's role or voice. |
+| The procedure needs reference files or scripts. | It is a short, stable rule for this agent. |
+| Maintainers should update the procedure in one place. | It describes how this agent should use its equipped skills. |
+
+Use the [skill library guide](/platform/workspace/skills) to create, import, edit, and share a bundle.

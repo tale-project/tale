@@ -1,18 +1,35 @@
 ---
-title: Projekt-Backlog
-description: Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat.
+title: Den Projekt-Backlog sichten
+description: Sammle Arbeitsvorschläge, entscheide über ihre Aufnahme und unterscheide Zuweisung vom tatsächlichen Start.
 ---
 
-Eine Aufgabe im Status **Backlog** ist vorgeschlagene Arbeit, zu der sich noch niemand verpflichtet hat. Sie liegt in der linken Spalte des Boards und im obersten Abschnitt der Liste, mit derselben Karte, demselben Detail-Sheet, demselben Status-Picker und demselben Zuweisungs-Picker wie jeder andere Status — Backlog-eigene Steuerelemente gibt es nicht. Nichts Mitgeliefertes füllt die Spalte in dieser Version von selbst: [GitHub-Issues sichten](/de/platform/automations/builtin) bewertet Issues und liefert einen Bericht, und keine Automatisierung synchronisiert Issues in Aufgaben. Das Backlog füllt sich, wenn ein Mensch oder ein Agent einen Vorschlag ablegt.
+Verwende **Backlog** für vorgeschlagene Arbeit, die das Team noch nicht zugesagt hat. Dieser normale Aufgabenstatus steht im Board und in der Liste an erster Stelle. Ein Vorschlag darf bereits zugewiesen sein; dadurch wird er noch nicht zu laufender Arbeit.
 
-## Wie eine Aufgabe ins Backlog kommt
+## Einen Vorschlag erfassen
 
-Leg eine Aufgabe an und wähl im Status-Picker des Erstellungsformulars **Backlog** — voreingestellt ist **Zu erledigen**. Auch ein Agent kann eine ablegen: Ein Projekt-Agent, der mit dem Tool zum Anlegen von Aufgaben ausgerüstet ist, darf nur nach **Backlog** oder **Zu erledigen** anlegen und nirgendwo sonst; ein Vorschlag eines Agenten landet also nie in einer Arbeits- oder Endspalte. Dieselbe Regel gilt für eine Automatisierung, die mit den Aufgaben-Tools eines Projekts läuft.
+Öffne die **Aufgaben** des Projekts und erstelle eine Aufgabe. Wähle im Statusfeld **Backlog**; ohne Änderung beginnt eine neue Aufgabe mit **Zu erledigen**. Beschreibe das gewünschte Ergebnis im Titel und ergänze genug Kontext für die Entscheidung, ob das Team den Vorschlag verfolgen soll.
 
-## Arbeit weiterbewegen
+Zum Beispiel lässt sich „Fehler beim mobilen Checkout prüfen“ besser beurteilen, wenn die betroffene Seite, ein nachvollziehbares Fehlerbild und ein Screenshot beigefügt sind. Lege die Umsetzung erst fest, wenn das Problem verstanden ist.
 
-Zieh die Karte in eine andere Spalte, öffne das Detail-Sheet und wähl einen neuen Status, oder weis jemanden zu — dieselben Wege wie bei **Zu erledigen** oder **In Bearbeitung**. Zuweisen ist erlaubt, solange eine Aufgabe im Backlog liegt; du kannst einen Vorschlag also einer Person oder einem Projekt-Agenten übergeben, bevor er sich bewegt. Weist du einen Projekt-Agenten zu und klickst auf **Agent starten**, legt er los, und [Aufgaben-Automatisierung](/de/platform/projects/task-automation) behandelt, was von da an passiert. Einen Vorschlag verwirfst du wie jede andere Aufgabe: Setz seinen Status auf **Abgebrochen**.
+Auch ein Projektagent mit dem Tool zum Erstellen von Aufgaben kann Vorschläge erfassen. Dieses Tool erlaubt als Anfangsstatus **Backlog** oder **Zu erledigen**, keinen laufenden oder abgeschlossenen Status. Die gleiche Grenze gilt für Automatisierungen, die Aufgaben-Tools des Projekts verwenden.
 
-## Wo das hingehört
+## Den nächsten Schritt entscheiden
 
-Das Backlog ist die Eingangsspalte zwischen einem Vorschlag — deinem, dem einer Kollegin oder dem eines Agenten — und dem Team, das sich dazu verpflichtet. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) ist die nächste Lektüre für die Schleife, in die eine Aufgabe nach der Zuweisung eintritt; [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) erklärt, warum das mitgelieferte GitHub-Paket berichtet, statt Aufgaben anzulegen.
+| Entscheidung | Aktion |
+| --- | --- |
+| Es fehlen Informationen | Behalte **Backlog** und benenne die Lücke in Beschreibung oder Kommentar. |
+| Das Team nimmt die Arbeit an | Setze **Zu erledigen** und weise eine Person zu. |
+| Die Arbeit hat begonnen | Verschiebe die Aufgabe nach **In Bearbeitung**. |
+| Der Vorschlag wird nicht weiterverfolgt | Setze **Abgebrochen**; die Diskussion bleibt erhalten. |
+
+Ändere den Status im Aufgabendetail oder ziehe die Karte in eine andere Board-Spalte. Es gelten die üblichen Aufgabensteuerungen. Der Backlog hat keinen eigenen Ablauf zum Annehmen oder Ablehnen.
+
+## Die Aufgabe einem Agenten übergeben
+
+Wähle einen Agenten desselben Projekts und beschreibe das erwartete Ergebnis, bevor du **Agent starten** wählst. Die Zuweisung ersetzt diesen Start nicht. Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Voraussetzungen, Fortschritt und Prüfung.
+
+## Die Herkunft der Vorschläge verstehen
+
+Die mitgelieferte Automatisierung **GitHub-Issues sichten** liefert einen nach Priorität sortierten Bericht. Sie erstellt keine Projektaufgaben und füllt den Backlog nicht automatisch. Eine Person oder ein passend ausgestatteter Agent muss aus einem ausgewählten Issue eine Aufgabe machen. Der Bericht gibt damit eine Empfehlung; die Entscheidung über die Aufnahme der Arbeit bleibt ein eigener Schritt.
+
+[Projektaufgaben verwalten](/de/platform/projects/tasks) erklärt Details, Kommentare, Abhängigkeiten und die weiteren Board-Funktionen.

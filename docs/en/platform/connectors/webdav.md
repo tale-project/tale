@@ -1,87 +1,80 @@
 ---
-title: WebDAV
-description: Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client.
+title: Open Tale documents through WebDAV
+description: Generate a device password, connect a WebDAV client and verify file access without confusing project and organization storage.
 ---
 
-WebDAV turns Tale's document store into a remote folder you mount like any shared network drive. The backing store is the same one the Document Hub shows — what you drop into the mounted folder appears in the UI, and vice versa. Everything you need is on one panel: **Settings > API > WebDAV** carries the connection details and the app-password generator.
+WebDAV lets a compatible file client read and edit Tale’s organization documents as a remote folder. Changes use the same document store as **Knowledge > Documents**. Project-specific Knowledge files are not included in this mount.
+
+## Get the connection details
+
+Open **Settings > API > WebDAV**. Owners, Admins and Developers can generate their own device credentials. Copy the displayed URL, including the organization slug and `/documents/` path; do not construct it from an organization ID or use another organization’s address.
 
 <Frame caption="Settings > API > WebDAV — the pre-filled connection details on top, the app-password generator below.">
 
-![The WebDAV settings page showing a connection URL, a username field with the account email, an explanation that the password is a generated app-password, and an app-passwords table holding two entries — Design workstation and MacBook Pro, each with only its prefix and creation date — beside a Generate button.](/images/platform/settings-webdav.webp)
+![The WebDAV settings page shows the connection URL and username above three app-password rows. Retired design workstation is revoked; Design workstation and MacBook Pro remain active with Revoke actions.](/images/platform/settings-webdav.webp)
 
 </Frame>
 
-## Generate an app-password
+Use your Tale account email as the username and an app-password as the password. Your normal account password does not authenticate WebDAV. On a deployed service, connect over HTTPS; avoid credentials embedded in URLs or saved in command history.
 
-The endpoint authenticates with app-passwords — short secrets you mint per device — because every WebDAV client stores its credential in the system keychain, and a scoped, revocable secret belongs there rather than your account password. Your account password does not work on this endpoint.
+## Generate one password per device
 
-Click **Generate**, label the password after the device (`MacBook Finder`, `ops-laptop rclone`), and copy it — use one per device; the full password is only shown once. Afterwards the table keeps only the label and a short prefix, enough to recognise the row when you revoke it. Generating requires the same capability that gates API keys; plain members ask an admin.
+1. Select **Generate** and enter a **Label** such as `Design laptop`.
+2. Generate the password and copy it before closing the result. The full value appears only once.
+3. Store it in the device client’s credential manager, then select **I have saved it**.
 
-For the username, use your Tale account email. Only the password is actually verified, but the email keeps audit rows readable and matches what client dialogs expect.
+The list keeps the label, prefix and usage dates, not the recoverable password. If you lose it, generate a replacement and revoke the old one once you have updated the client. Separate passwords let you disconnect one device without changing every other connection.
 
-## Connect from your device
-
-The address is the URL from the panel — `https://<your-site>/dav/<orgSlug>/documents/`.
+## Configure your client
 
 <Tabs>
 
 <Tab title="macOS Finder">
 
-Press **⌘K** (Connect to Server), paste the URL, and sign in with your email and the app-password. The share mounts in the sidebar; drag files in to upload, out to download, and rename or delete in place. The first listing of a large tree can take a few seconds.
+In Finder, press **⌘K** to open **Connect to Server**. Paste Tale’s WebDAV URL and connect with your email and app-password. Open the mounted folder and inspect a known document before copying files into it. Save the credential only on a device you trust.
 
 </Tab>
 
 <Tab title="Windows">
 
-In **This PC**, choose **Map network drive**, paste the URL as the folder, and pick **Connect using different credentials**. Windows caps WebDAV transfers at 50 MB per file by default — raise `FileSizeLimitInBytes` under the `WebClient\Parameters` registry key and restart the WebClient service. On a non-standard HTTPS port, set `BasicAuthLevel` to `2` under the same key.
+Use File Explorer’s network-drive connection with the HTTPS WebDAV address and your generated credentials. The Windows WebClient service must be available. If connection or large transfers fail, check Microsoft’s [WebDAV client requirements and limits](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector) with IT, or use a dedicated WebDAV client. Keep HTTPS authentication enabled.
 
 </Tab>
 
 <Tab title="Linux">
 
-GNOME Files mounts WebDAV under its own scheme — press **Ctrl+L**, enter the URL with `https://` swapped for `davs://` (`davs://<your-site>/dav/<orgSlug>/documents/`), and sign in with your email and the app-password. KDE Dolphin takes the same address as `webdavs://`.
-
-File managers with a split **Connect to Server** dialog (Nemo, Caja) build the address from their fields — put only the hostname (`<your-site>`) in **Server**, keep port `443` and type **Secure WebDAV (HTTPS)**, and enter `/dav/<orgSlug>/documents` as the folder.
+A desktop file manager with WebDAV support can use the displayed host and path. GNOME Files uses `davs://` for secure WebDAV; KDE Dolphin uses `webdavs://`. If the dialog separates server and folder, enter the host in the server field and `/dav/<orgSlug>/documents/` as the folder, with HTTPS and the correct port.
 
 </Tab>
 
-<Tab title="iOS Files">
+<Tab title="iPhone and iPad">
 
-Tap the three-dot menu, choose **Connect to Server**, and enter the same URL and credentials. Files supports browsing and downloading; in-place editing works for formats with an iOS app.
+Choose a client that explicitly supports WebDAV and give the device its own app-password. Tale’s browser-based Documents page also works for occasional access. Do not assume the Files app’s generic server dialog supports this protocol. Direct WebDAV upload from Pages, Numbers and Keynote is [no longer supported](https://support.apple.com/en-us/101948).
 
 </Tab>
 
 <Tab title="rclone">
 
-```bash
-rclone config create tale webdav \
-    url=https://<your-site>/dav/<orgSlug>/documents/ \
-    vendor=other \
-    user=<your-email> \
-    pass=$(rclone obscure '<app-password>')
-rclone copy ./local-folder tale: --progress
-```
-
-`vendor=other` is correct — Tale's server is generic, not a named flavour rclone recognises.
+Run `rclone config` and create a WebDAV remote with Tale’s URL, your email and app-password. Choose vendor `other`. Enter the password through the interactive prompt. Follow [rclone’s WebDAV guide](https://rclone.org/webdav/) to list files and copy a small test directory before a larger transfer.
 
 </Tab>
 
 </Tabs>
 
-## What the mount can do
+## Verify a small transfer
 
-Reads and writes mirror your Document Hub permissions, files you upload index and search like direct uploads, and their source field is set to `webdav` for filtering in audit views. Project files are the exception: a project's **Knowledge** tab is scoped to that one project and never appears over WebDAV, so the mount shows only the org-wide Document Hub. The `.trash/` namespace lists soft-deleted documents read-only — download for recovery, restore through the UI. Editors that take WebDAV locks (Office, LibreOffice) get them; a competing write during an edit returns `423 Locked`.
+Open or download a document you can already read in Tale. If your role permits writes, upload a small uniquely named text file in a test folder. Confirm its name and content in **Knowledge > Documents**, then check its indexing status before expecting it in search.
 
-## Revoking
+A WebDAV upload follows document permissions and indexing rules; the source is recorded as `webdav`. A successful file transfer does not mean indexing has finished. If a project file seems missing from the mount, open that project’s Knowledge tab instead.
 
-Revoke a password with the trash icon on its row — the next request with it is rejected, other devices are untouched, and any locks it held are released. There is no undo; mint a new password if you revoke the wrong row.
+## Handle locks and deleted files
 
-<Warning>
+A compatible editor can lock a file while editing. A conflicting write receives **423 Locked**; finish or close the other editing session rather than repeatedly overwriting. Revoking an app-password also releases locks held by that credential.
 
-Basic auth sends the app-password on every request. Mount only over HTTPS, keep the password in the OS keychain, and never paste it into a `https://user:pass@host/` URL — shell history and proxy logs outlive the mount. Revoke immediately on any suspected leak.
+The `.trash/` area lists soft-deleted documents read-only. Download a retained file if you need to inspect it; use Tale’s UI to restore it. You cannot use this area to retrieve a file that has already been permanently removed.
 
-</Warning>
+## Revoke or repair a connection
 
-## Where this fits
+Use **Revoke** on the password’s row and confirm. Subsequent requests with it are rejected, while other app-passwords remain usable. Revocation cannot be undone; update the client with a new password if needed.
 
-WebDAV is the per-user, device-facing door to the same data as the [Document Hub](/platform/knowledge/documents); the wire protocol lives under [WebDAV API](/develop/webdav-api). For machine-to-machine imports, [API keys](/platform/admin/api-keys) plus the REST API are usually the better fit.
+Repeated sign-in prompts usually warrant checking the exact URL, organization membership and whether the password was revoked. A permission refusal after authentication is different from a wrong password. Use the [WebDAV API reference](/develop/webdav-api) for status codes and protocol diagnostics, or [API keys](/platform/admin/api-keys) for software that needs the REST API instead.

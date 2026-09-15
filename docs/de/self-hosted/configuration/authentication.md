@@ -1,57 +1,67 @@
 ---
-title: Authentifizierung
-description: Die vier Sign-in-Modi, die Tale mitbringt — lokales Passwort, Microsoft Entra, generisches OIDC und trusted Headers — und wie ein Operator zwischen ihnen umschaltet.
+title: Authentifizierung einrichten
+description: Wähle lokale Konten, Unternehmens-SSO oder einen vertrauenswürdigen Authentifizierungsproxy.
 ---
+Tale unterstützt lokale Konten mit E-Mail und Passwort, Unternehmens-SSO je Organisation und Identitäten aus einem vertrauenswürdigen Reverse Proxy. Entscheidend ist, wo dein Team Identitäten verwaltet und wer Konten bereitstellt. Anmeldung und Bereitstellung sind getrennt: SSO authentifiziert eine Person; Einladungen, Bereitstellung bei der Anmeldung oder SCIM regeln die Mitgliedschaft.
 
-Tale bringt vier Sign-in-Modi mit, die ein Operator pro Instanz wählt. Der Default ist lokales Passwort, mit einem Benutzer pro E-Mail; Microsoft Entra und generisches OIDC delegieren die Identität an einen externen Anbieter; trusted Headers übergibt die Verantwortung an einen Reverse-Proxy, der SSO upstream bereits terminiert. Die Entscheidung ist insofern dauerhaft, als sie prägt, wie Benutzer provisioniert werden — Modi nach Rollout zu wechseln ist möglich, aber jeder bestehende Benutzer muss auf die neue Identitätsquelle umgemappt werden.
+## Passende Integration wählen
 
-Lokales Passwort und trusted Headers schalten Env-Vars um ([Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference)); Microsoft Entra und generisches OIDC werden pro Organisation in der laufenden App konfiguriert. Diese Seite ist der Modus-für-Modus-Durchgang — wann du jeden wählst, was er für den Benutzer verändert, was bricht, wenn er fehlkonfiguriert ist.
+| Umgebung | Einrichtung | Zentrale Voraussetzung |
+| --- | --- | --- |
+| Tale verwaltet lokale Konten | Lokale Anmeldung und Einladungen | Stabile Bereitstellungsgeheimnisse und eine erreichbare Instanz-URL. |
+| Ein Unternehmens-Identitätsanbieter ist vorhanden | Unternehmens-SSO mit Microsoft Entra ID, generischem OIDC, OAuth2 oder SAML 2.0 | Eine IdP-Anwendung mit exakt passenden Callback- oder Metadaten-URLs. |
+| Ein vorgeschalteter Proxy authentifiziert jede Anfrage | Vertrauenswürdige Kopfzeilen | Eine private Backend-Verbindung und ein gemeinsames internes Geheimnis. |
 
-## Lokales Passwort (Default)
+Diese Verfahren bilden keinen einzigen Schalter für die gesamte Instanz. Unternehmens-SSO gilt je Organisation, vertrauenswürdige Kopfzeilen werden für die Bereitstellung aktiviert. Plane und teste die Identitätszuordnung, bevor du bestehende Konten auf ein anderes Verfahren umstellst.
 
-Lokales Passwort ist der Modus, den du bekommst, wenn du nichts setzt. Die Plattform speichert einen bcrypt-Hash in Postgres, signiert die Session mit `BETTER_AUTH_SECRET`, und der Benutzer meldet sich mit einer E-Mail und einem Passwort an, mit dem der Admin ihn eingeladen hat. Kein externer Identitäts-Anbieter ist beteiligt.
+## Zuerst die öffentliche URL festlegen
 
-Greif danach auf kleinen Instanzen und Air-gapped-Deployments, wo das Hinzufügen eines IdP mehr Reibung erzeugt als es löst. Der Preis: Passwort-Reset läuft über den Admin (oder über E-Mail, wenn `SMTP_*` konfiguriert ist), und es gibt keine SSO-Story.
+Setze `SITE_URL` und eine gegebenenfalls unterstützte Basispfad-Konfiguration auf die tatsächlich verwendete Adresse. Schließe [TLS- und Domain-Einrichtung](/de/self-hosted/configuration/tls-and-domains) ab, bevor du Weiterleitungsadressen beim Identitätsanbieter registrierst.
 
-```bash
-# .env — keine Flags für lokales Passwort nötig
-HOST=localhost
-SITE_URL=https://localhost
-BETTER_AUTH_SECRET=...
-```
+Halte `BETTER_AUTH_SECRET` über alle Backend-Prozesse der Instanz hinweg konstant. Verwende das von der Bereitstellung erzeugte Geheimnis oder lade es aus deinem Secret-Manager. Unterschiedliche Werte können die Anmeldung unterbrechen, obwohl der Identitätsanbieter die Person akzeptiert.
 
-## Microsoft Entra
+## Lokale Konten verwenden
 
-Der Microsoft-Entra-Modus fügt einen **Weiter mit SSO**-Button zum Sign-in-Bildschirm hinzu und nimmt Benutzer aus einem Tenant an, den du kontrollierst. Es gibt keinen Env-Var-Schalter: Die Verbindung wird pro Organisation unter **Einstellungen > Enterprise-SSO** konfiguriert, sobald die Plattform läuft — wähle das Protokoll **Microsoft Entra ID** und trage Client-ID, Client-Secret und Issuer-URL aus deiner App-Registrierung ein. Der vollständige Durchgang, inklusive Rollen-Mapping und Gruppen-zu-Teams-Sync, ist [Enterprise-SSO und Bereitstellung](/de/platform/admin/enterprise-sso).
+Die lokale Anmeldung speichert Passwort-Hashes in der Anwendungsdatenbank. Die [Ersteinrichtung](/de/self-hosted/install/first-admin) erstellt den ersten Inhaber; weitere Mitglieder kommen per Einladung hinzu. Richte den E-Mail-Versand ein, wenn Einladung und Passwortwiederherstellung darauf angewiesen sind.
 
-Zwei Deployment-Werte müssen stimmen, bevor der Flow funktionieren kann: `SITE_URL`, weil die Sign-in-Redirect-URL daraus abgeleitet wird, und `BETTER_AUTH_SECRET`, das den OAuth-State signiert. Der Redirect-URI, den du in Entra registrierst, ist `${SITE_URL}${BASE_PATH}/http_api/api/sso/callback` — die Einstellungsseite zeigt die exakte URL zum Kopieren, und sie muss Byte für Byte übereinstimmen, sonst lehnt Entra den Sign-in mit `AADSTS50011` ab. Die Tenant-ID in der Entra-App-Registrierung grenzt ein, wer sich anmelden kann; eine Multi-Tenant-Registrierung akzeptiert jeden mit einem Microsoft-Konto, was selten ist, was du willst.
+Prüfe mit einem Testkonto Einladung, Anmeldung, Abmeldung und Wiederherstellung. Eine funktionierende Inhabersitzung bestätigt noch nicht, dass neue Mitglieder beitreten können.
 
-## Generisches OIDC
+## Unternehmens-SSO verbinden
 
-Generisches OIDC akzeptiert jeden spec-konformen Identitäts-Anbieter — Keycloak, Authentik, Okta, Google Workspace. Die Konfiguration lebt auf der **Single Sign-On**-Karte unter **Einstellungen > Connectors**: Wähle den Anbietertyp **Generisches OIDC**, trag Aussteller-URL, Client-ID und Client-Secret ein, und Tale liest die Authorization-, Token- und Userinfo-Endpunkte aus dem `.well-known/openid-configuration`-Dokument des Ausstellers. Der Flow nutzt den Standard Authorization-Code-Grant mit PKCE (S256). Tale speichert kein Secret auf Platte für OIDC; Client-ID und Client-Secret liegen im verschlüsselten Credential-Store. Der Redirect-URI, den du bei deinem Anbieter registrierst, ist `${SITE_URL}/http_api/api/sso/callback`.
+Konfiguriere die Organisation unter **Einstellungen > Enterprise-SSO**. Microsoft Entra ID und generisches OIDC lesen die Endpunkte über den Aussteller; OAuth2 verwendet ausdrücklich angegebene Autorisierungs-, Token- und Userinfo-Endpunkte. SAML verwendet Metadaten, eine Assertion-Consumer-URL und Signaturzertifikate.
 
-Identitäts-Anbieter sind sich uneins, wo Claims liegen, also lässt dich die Karte auf deine zeigen. Die Felder **E-Mail-Claim**, **Namens-Claim** und **Gruppen-Claim** nehmen einen Claim-Namen oder einen Punktpfad in die Userinfo-Antwort — Keycloaks Realm-Rollen liegen zum Beispiel unter `realm_access.roles`. Rollenzuordnungsregeln weisen Plattformrollen beim Sign-in zu: Eine **Gruppe**-Regel matcht die Gruppen des Benutzers gegen ein Platzhalter-Muster (`platform-admin*` → Admin), eine **Claim**-Regel matcht einen beliebigen per Punktpfad aufgelösten Claim. **Teams automatisch bereitstellen** spiegelt die Gruppen, die dein Anbieter zurückgibt, bei jedem Sign-in als Tale-Teams — abzüglich der Gruppen, die du ausschließt.
+<Frame caption="Kopiere die URLs aus der laufenden Instanz, damit Domain und Bereitstellungspfad stimmen.">
 
-Ein durchgerechnetes Keycloak-Beispiel: Lege einen Confidential Client `tale-platform` mit dem Redirect-URI oben an, ergänze einen Group-Membership-Mapper, damit der Client `groups` in Userinfo ausgibt, setze dann in Tale den Aussteller auf `https://keycloak.example.com/realms/<realm>`, füge eine Gruppen-Regel `platform-admin*` → Admin hinzu und klicke **Verbindung testen** — das validiert die Discovery, bevor irgendetwas gespeichert wird.
+![Die Seite für Unternehmens-SSO zeigt die Protokollauswahl und die Verbindungsfelder für Microsoft Entra ID.](/images/platform/settings-enterprise-sso.webp)
 
-Das ist der Modus für Teams, die bereits einen IdP betreiben und ihre bestehende Identitäts-Oberfläche in Tale haben wollen.
+</Frame>
 
-## Trusted Headers
+Verwende die dort angezeigten Callback- und Metadaten-URLs. Aktuelle native OIDC-Callbacks nutzen `/api/sso/callback`; für vorhandene Registrierungen wird auch `/http_api/api/sso/callback` unterstützt. Die Registrierung beim IdP muss zu der im Ablauf verwendeten URL passen.
 
-Trusted Headers ist der Modus für Sites, die SSO an einem vorgelagerten Reverse-Proxy terminieren — oauth2-proxy, Pomerium, Authelia. Der Proxy authentifiziert den Benutzer und leitet Identitäts-Header weiter; Tale liest standardmäßig `Remote-Email`, `Remote-Name`, `Remote-Role` und `Remote-Teams`, vertraut ihnen und legt den Benutzer-Datensatz on-the-fly an oder aktualisiert ihn. Nennt dein Proxy seine Header anders (oauth2-proxy schickt `X-Auth-Request-Email`), bildest du sie mit den `TRUSTED_*_HEADER`-Variablen aus der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) ab.
+[Unternehmens-SSO und Bereitstellung](/de/platform/admin/enterprise-sso) beschreibt Protokolle, Claim-Zuordnung, Standardrollen, Team-Synchronisierung und SCIM. Teste die Anmeldung in einer separaten Browsersitzung, bevor du deine Administratorsitzung beendest. Eine gelungene Discovery-Prüfung bestätigt weder Claims und Gruppenrechte noch die vollständige Anmeldung.
 
-```bash
-# .env
-TRUSTED_HEADERS_ENABLED=true
-TRUSTED_HEADERS_INTERNAL_SECRET=<langer zufälliger Wert>
-```
+## Einem Authentifizierungsproxy vertrauen
 
-Das Secret ist keine Option: Die Identitäts-Header kann jeder fälschen, der das Backend erreicht — deshalb verweigert der Endpunkt den Dienst, bis `TRUSTED_HEADERS_INTERNAL_SECRET` gesetzt ist. Konfiguriere den authentifizierenden Proxy so, dass er denselben Wert bei jeder Anfrage an Tale im Header `Remote-Internal-Secret` mitschickt (der Header-Name lässt sich über `TRUSTED_SECRET_HEADER` umbenennen, falls dein Proxy eigene Namen vorgibt) — eine Anfrage ohne den passenden Wert wird abgewiesen, bevor irgendein Benutzer nachgeschlagen wird.
+Aktiviere vertrauenswürdige Kopfzeilen nur, wenn dein Proxy die Anmeldung übernimmt und die Verbindung zu Tale schützen kann. Die Standardkopfzeilen heißen `Remote-Email`, `Remote-Name`, `Remote-Role` und `Remote-Teams`.
 
-`Remote-Teams` trägt Team-Zugehörigkeiten als kommagetrennte `id:name`-Einträge — `t-fin:Finance, t-ops:Operations`. Bei jeder Anmeldung legt Tale jedes genannte Team in der Organisation an, falls es noch fehlt, und nimmt den Benutzer auf; ein Team, das der Header nicht mehr nennt, verlässt er wieder. Der Abgleich fasst nur Zugehörigkeiten an, die er selbst vergeben hat — was ein Admin von Hand zugewiesen hat, bleibt. Lass den Header weg, wenn Tale sich aus der Team-Verwaltung heraushalten soll; schick ihn gesetzt, aber leer, um alle vom Proxy vergebenen Zugehörigkeiten zu entziehen. Ein gesetzter Wert ohne einen einzigen `id:name`-Eintrag (etwa bloße Namen) zählt als leer und hinterlässt eine Warnung im Log des Plattform-Containers — schau dort nach, wenn Benutzer nach einer Proxy-Änderung ihre Teams verlieren.
+Setze `TRUSTED_HEADERS_ENABLED=true` und übergib `TRUSTED_HEADERS_INTERNAL_SECRET`. Der Proxy muss dieses Geheimnis bei weitergeleiteten Anfragen in `Remote-Internal-Secret` senden. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) nennt die Variablen `TRUSTED_*_HEADER` zum Ändern dieser Namen.
 
-Das Bedrohungsmodell bleibt heikel. Alles, was den Plattform-Container mit diesen Headern **und** dem Secret erreichen kann, wird zum Benutzer, der in ihnen genannt ist. Beschränke den Plattform-Port so, dass nur der Proxy mit ihm sprechen kann (ein Docker-Netzwerk oder eine Host-Firewall-Regel), und exponier den Plattform-Container nie direkt zum Internet, wenn dieser Modus an ist.
+<Warning>
 
-## Wo das hingehört
+Der Proxy muss Identitätskopfzeilen des Clients entfernen und eigene authentifizierte Werte setzen. Beschränke den Backend-Zugriff auf diesen Proxy. Wer passende Identitätskopfzeilen und das interne Geheimnis senden kann, kann als die genannte Person auftreten.
 
-Die vier Modi sind im Geist gegenseitig ausschliessend, aber technisch additiv — Microsoft Entra und trusted Headers können auf derselben Instanz koexistieren, wenn deine IdP-Story mitten in der Migration steckt. Die volle per-Modus-Abwägungstabelle lebt in [Mitglieder und Rollen](/de/platform/admin/members-and-roles) auf der Benutzerseite; diese Seite deckt den Schalter des Operators ab. Die nächste Konfigurationsseite, die zu lesen sich lohnt, ist [Anbieter](/de/self-hosted/configuration/providers) — sobald Benutzer sich anmelden können, brauchst du immer noch mindestens einen Modell-Anbieter verdrahtet, bevor sie irgendetwas tun können.
+</Warning>
+
+`Remote-Teams` enthält kommagetrennte Einträge im Format `id:name`, etwa `t-fin:Finance,t-ops:Operations`. Ohne Kopfzeile bleibt die Teamverwaltung unberührt. Eine vorhandene, aber leere Kopfzeile entfernt zuvor von dieser Synchronisierung vergebene Mitgliedschaften. Ungültige Einträge können deshalb synchronisierte Mitgliedschaften entfernen. Manuell vergebene Mitgliedschaften bleiben erhalten.
+
+## Anmeldefehler eingrenzen
+
+| Symptom | Erste Prüfung |
+| --- | --- |
+| Der IdP lehnt eine Weiterleitung ab | Vergleiche registrierte und angezeigte URL einschließlich Schema, Host und Pfad. |
+| Die Weiterleitung endet ohne Anmeldung | Prüfe Erreichbarkeit des Callbacks, Cookies und Claim-Namen. |
+| Ein Mitglied erhält die falsche Rolle | Prüfe Standardrolle und Zuordnung anhand seiner tatsächlichen Claims. |
+| Synchronisierte Teams verschwinden | Prüfe Gruppen-Claim oder `Remote-Teams`; unterscheide fehlende und leere Werte. |
+| Die Kopfzeilen-Anmeldung wird abgelehnt | Prüfe Aktivierung, gemeinsames Geheimnis und Kopfzeilennamen im Proxy. |
+
+Teste Zuordnungsänderungen in einer Staging-Organisation und halte einen geprüften administrativen Wiederherstellungsweg bereit. Änderungen können alle Mitglieder betreffen, deren Identität von dieser Verbindung abhängt.

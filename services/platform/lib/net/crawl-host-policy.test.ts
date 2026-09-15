@@ -86,8 +86,13 @@ describe('parseCrawlTarget', () => {
     ['example.com', 'example.com'],
     ['  Example.COM/path?q=1 ', 'example.com'],
     ['https://www.example.com/docs', 'www.example.com'],
-    ['http://example.com:8080', 'example.com'],
+    ['https://example.com:8080', 'example.com'],
     ['example.com:8443', 'example.com'],
+    // DNS's root label is the same host — WHATWG keeps the dot, and the
+    // two spellings registered twice (2026-09-14 evaluation, h5).
+    ['example.com.', 'example.com'],
+    ['https://EXAMPLE.COM./x', 'example.com'],
+    ['例え.テスト', 'xn--r8jz45g.xn--zckzah'],
   ])('reads %s as the host %s', (input, host) => {
     expect(parseCrawlTarget(input, opts)).toBe(host);
   });
@@ -100,7 +105,14 @@ describe('parseCrawlTarget', () => {
     'a b',
     '::',
     '',
-  ])('refuses %j as no http(s) host at all', (input) => {
+    // The crawler dials https only: an http:// target is refused up front
+    // instead of failing a plaintext-only site scan after scan.
+    'http://example.com',
+    'http://example.com:8080',
+    // An empty label names nothing.
+    'example..com',
+    '.',
+  ])('refuses %j as no https host at all', (input) => {
     expect(() => parseCrawlTarget(input, opts)).toThrow(CrawlTargetError);
     try {
       parseCrawlTarget(input, opts);
@@ -111,10 +123,10 @@ describe('parseCrawlTarget', () => {
 
   it.each([
     'localhost',
-    'http://localhost:3000',
+    'https://localhost:3000',
     '127.0.0.1',
     'https://169.254.169.254/latest/meta-data/',
-    'http://[::1]/',
+    'https://[::1]/',
     'intranet',
   ])('refuses %s as not crawlable', (input) => {
     try {

@@ -133,12 +133,14 @@ function WebdavAppPasswordsTable({
         accessorKey: 'label',
         header: t('list.label'),
         cell: ({ row }) => (
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <Text as="span" variant="label">
               {row.original.label}
             </Text>
-            {row.original.revokedAt !== undefined && (
-              <Badge variant="outline">{t('list.revoked')}</Badge>
+            {row.original.revokedAt != null && (
+              <Badge variant="outline" className="shrink-0">
+                {t('list.revoked')}
+              </Badge>
             )}
           </span>
         ),
@@ -216,7 +218,7 @@ function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
   const [open, setOpen] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
 
-  if (row.revokedAt !== undefined) return null;
+  if (row.revokedAt != null) return null;
 
   const handleRevoke = async () => {
     if (isRevoking) return;

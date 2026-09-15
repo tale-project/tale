@@ -1,5 +1,6 @@
 import { cn } from '@tale/ui/cn';
 import type { TocEntry } from '@tale/ui/markdown/extract-toc';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,6 +24,7 @@ const ACTIVATION_OFFSET = 120;
  */
 export function DocsToc({ entries }: DocsTocProps) {
   const { t } = useT('docs');
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -74,7 +76,10 @@ export function DocsToc({ entries }: DocsTocProps) {
     const el = document.getElementById(id);
     if (!el) return;
     e.preventDefault();
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.scrollIntoView({
+      behavior: reducedMotion ? 'instant' : 'smooth',
+      block: 'start',
+    });
     setActiveId(id);
     if (history.replaceState) history.replaceState(null, '', `#${id}`);
   };

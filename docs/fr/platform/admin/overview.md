@@ -1,90 +1,38 @@
 ---
-title: Admin
-description: Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance.
+title: Administration
+description: Configure les accès, les services IA, la sécurité et les paramètres de ton organisation.
 ---
 
-Admin est le plan de configuration de Tale. Cela couvre les personnes qui peuvent se connecter, les équipes qui les regroupent, les fournisseurs IA derrière chaque réponse, les clés API qui permettent à du code externe de parler à l’organisation, les connectors tierces que les agents traversent, et le branding que le reste de l’organisation voit. Seuls les Administrateurs et Propriétaires voient le menu Admin complet ; les Développeurs en voient un sous-ensemble, et les autres rôles ne le voient pas du tout.
-
-Ces pages décrivent ce que fait chaque réglage et ce qu’il change au produit en cours. La plupart se lisent une fois au montage, puis se revisitent quand quelque chose change — un nouveau collègue, une clé rotée, un nouveau fournisseur. L’histoire des rôles et permissions derrière tout le menu vit dans [Membres et rôles](/fr/platform/admin/members-and-roles) ; commence par là, car chaque autre page Admin renvoie aux noms de rôles qu’elle définit.
-
-Tu préfères regarder d’abord ? L’épisode 9 traverse toute la salle de contrôle — fournisseurs, garde-fous, audit, coûts — en trois minutes, sous-titres compris.
+Les paramètres de l’organisation servent à donner accès à Tale, à connecter les services utiles et à définir les règles de traitement du travail et des données. Commence par la tâche dont tu as besoin : tous les paramètres ne sont pas nécessaires pour que ton équipe puisse démarrer.
 
 <Video src="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.mp4" poster="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.webp" captions="/videos/fr/tutorials/ep9-governance/ep9-governance.fr.vtt" lang="fr" title="Épisode 9 — Gouvernance, coûts & confiance" caption="Épisode 9 — Gouvernance, coûts & confiance (2:48)">
 
 </Video>
 
-## Domaines de configuration
+## Préparer une organisation
 
-<CardGroup cols="2">
+1. [Ajoute les membres et choisis leurs rôles](/fr/platform/admin/members-and-roles), en fonction du travail de chacun.
+2. [Crée des équipes](/fr/platform/admin/teams) lorsque plusieurs personnes ont besoin des mêmes accès aux projets ou aux conversations.
+3. [Connecte un fournisseur IA](/fr/platform/admin/providers) pour rendre des modèles disponibles dans les chats et les agents.
+4. [Ajoute les identifiants des connecteurs](/fr/platform/admin/connectors) utilisés par tes workflows.
 
-<Card title="Membres et rôles" icon="users" href="/fr/platform/admin/members-and-roles">
+Les propriétaires et les admins gèrent les paramètres de l’organisation. Les développeurs ont accès aux paramètres techniques des intégrations, mais ne peuvent ni gérer les membres ni ouvrir toute la partie gouvernance. Les paramètres personnels du compte restent distincts.
 
-Les six rôles et la matrice au niveau ressource qui dit qui peut lire, écrire, configurer et gouverner.
+## Trouver le bon réglage
 
-</Card>
+| Tu veux… | Ouvre… |
+| --- | --- |
+| Choisir les modèles par défaut ou limiter les modèles proposés | [Modèles](/fr/platform/admin/governance/content-models) |
+| Limiter l’utilisation, les fichiers ou la conservation | [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) |
+| Filtrer les messages et définir les instructions de l’organisation | [Garde-fous](/fr/platform/admin/governance/guardrails) |
+| Examiner des actions ou des dépenses | [Journaux d’audit](/fr/platform/admin/governance/audit-logs) ou [métriques d’utilisation](/fr/platform/admin/governance/usage-analytics) |
+| Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [gel juridique](/fr/platform/admin/governance/legal-hold) |
+| Traiter une demande d’effacement | [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) |
 
-<Card title="Équipes" icon="users-round" href="/fr/platform/admin/teams">
+## Connexion, intégrations et apparence
 
-Regroupe les membres en équipes qui partagent documents, projets, skills et conversations.
+Configure [le SSO d’entreprise](/fr/platform/admin/enterprise-sso) pour ton fournisseur d’identité et [l’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) pour protéger les comptes. Les [clés API](/fr/platform/admin/api-keys) permettent à un logiciel d’appeler Tale.
 
-</Card>
+La page [Personnalisation visuelle](/fr/platform/admin/branding) sert à modifier le logo et les couleurs. [Sandboxes](/fr/platform/admin/sandboxes) présente la capacité d’exécution et les limites par type de tâche. Pour les accès d’un agent de projet à ces ressources, consulte [Agents côté administration](/fr/platform/admin/agents).
 
-<Card title="Agents" icon="bot" href="/fr/platform/admin/agents">
-
-Chaque agent de l’organisation, et là où un Administrateur intervient quand l’un a besoin de gouvernance.
-
-</Card>
-
-<Card title="Fournisseurs IA" icon="cpu" href="/fr/platform/admin/providers">
-
-Enregistre les identifiants derrière chaque réponse et choisis quels modèles l’organisation peut appeler.
-
-</Card>
-
-<Card title="Connectors" icon="plug" href="/fr/platform/admin/connectors">
-
-Enregistre et remplace les identifiants derrière Slack, Gmail, Outlook, Google Drive, GitHub, Shopify et plus.
-
-</Card>
-
-<Card title="Enterprise SSO" icon="shield-check" href="/fr/platform/admin/enterprise-sso">
-
-Branche la connexion à ton fournisseur d’identité via SAML ou OIDC.
-
-</Card>
-
-<Card title="Clés API" icon="key" href="/fr/platform/admin/api-keys">
-
-Émets les clés que le code externe utilise pour joindre l’API REST de Tale.
-
-</Card>
-
-<Card title="Branding" icon="palette" href="/fr/platform/admin/branding">
-
-Le logo, le favicon et la couleur d’accent que le reste de l’organisation voit.
-
-</Card>
-
-<Card title="Authentification à deux facteurs" icon="smartphone" href="/fr/platform/admin/two-factor-authentication">
-
-Exige un second facteur à la connexion et gère l’enrôlement dans toute l’organisation.
-
-</Card>
-
-<Card title="Changelog" icon="history" href="/fr/platform/admin/changelog">
-
-Le journal in-produit de ce qui a été livré et quand.
-
-</Card>
-
-<Card title="Gouvernance" icon="scale" href="/fr/platform/admin/governance/audit-logs">
-
-Journaux d’audit, politiques et limites, garde-fous, analyses, rétention et legal hold.
-
-</Card>
-
-</CardGroup>
-
-## Où cela s’inscrit
-
-Admin est la surface que suppose chaque autre onglet. Chat résout un modèle via les fournisseurs configurés ici ; les agents appellent des outils via les connectors configurées ici ; la bibliothèque de skills et l’inbox respectent les frontières d’équipe configurées ici. La lecture naturelle en premier est [Membres et rôles](/fr/platform/admin/members-and-roles) — chaque autre page Admin renvoie aux noms de rôles qu’elle définit.
+Après une mise à jour, [les nouveautés](/fr/platform/admin/changelog) t’aident à repérer les changements qui concernent ton équipe.

@@ -9,6 +9,26 @@ export type RagStatus =
   | 'not_indexed'
   | 'stale';
 
+/**
+ * One cloud-sync config's health as the listings ship it (the backend's
+ * `SyncHealthView`). `failed` is a config whose last run did not reach the
+ * source; `needsReauth` narrows that to a dead grant — only the owner
+ * reconnecting (or a re-import under another account) resumes it.
+ */
+export interface DocumentSyncHealth {
+  configId: string;
+  provider: 'onedrive' | 'google_drive';
+  status: 'healthy' | 'failed';
+  needsReauth: boolean;
+  /** Last run, successful or not. */
+  lastSyncAt?: number;
+  /** First failed run of the open failure episode. */
+  errorSince?: number;
+  errorMessage?: string;
+  ownerUserId: string;
+  ownerName?: string;
+}
+
 export interface DocumentItem {
   id: string;
   name?: string;
@@ -32,6 +52,10 @@ export interface DocumentItem {
   uploadedAt?: number;
   syncConfigId?: string;
   isDirectlySelected?: boolean;
+  /** Health of the cloud sync this row runs under: a synced folder, or a
+   *  file picked directly for sync (a folder member shows it on the folder
+   *  row). Absent for anything that is not synced. */
+  syncHealth?: DocumentSyncHealth;
   ragStatus?: RagStatus;
   /** Timestamp when the document was indexed (for completed status) */
   ragIndexedAt?: number;

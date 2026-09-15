@@ -1,60 +1,37 @@
 ---
-title: How to read release notes
-description: The shape Tale's release notes follow — the semver promise, where breaking changes and deprecations sit, how security entries are flagged, and where the per-release migration notes live.
+title: Review a release before upgrading
+description: Find the target release, assess changes that affect your deployment, and prepare the upgrade.
 ---
 
-Tale ships a release per minor version and patches as bug-fix tags between them. The release notes for every tag follow the same shape so you can scan one in a minute and know whether the upgrade is a five-minute bump or a maintenance window. This page covers the format: the semver promise, what each section guarantees, and where to read deeper when a row points at a migration.
+Read the [GitHub release notes](https://github.com/tale-project/tale/releases) for the version you plan to deploy. Start with your installed version, then review every release you will cross. A patch number alone does not establish that there are no migrations or operator actions.
 
-The notes themselves live on the GitHub release page for each tag. The CLI also surfaces them — `tale update --notes` prints the notes for the version it is about to install.
+## Identify your starting point
 
-## The semver promise
+Run `tale --version` to identify the CLI. Also check the deployed runtime version: updating the CLI and rolling the running containers are separate operations. For a managed deployment, use the deployment receipt and its pinned runtime source and image digests.
 
-Tale versions are semver, and the version number is the headline fact about an upgrade.
+The current CLI's `tale update` selects a newer version within its existing `x.y` release line. Moving between release lines requires an explicit `--version`. Use `tale update --help` for the options in your installed CLI; read the notes on GitHub.
 
-- **Patch (`0.9.0 → 0.9.1`)** — bug fixes only. No schema migrations, no config changes, no behaviour changes other than the fix itself. Safe to upgrade without reading past the security section.
-- **Minor (`0.9.x → 0.10.x`)** — new features, possibly forward-only migrations. Backwards-compatible by default; deprecations are announced one minor in advance. The one standing exception is 0.4.0: a breaking minor that requires a fresh deployment (see [Upgrades → 0.3 → 0.4](/self-hosted/operate/upgrades)).
-- **Major (`0.x → 1.x`)** — breaking changes are allowed. Always carries a migration-notes link at the top of the release; read it end-to-end before starting.
+## Read for deployment impact
 
-The version line at the top of every release page names the bump kind in plain English so you do not have to do the arithmetic yourself.
+Use this order when scanning a release. Headings and detail vary by release; follow any linked migration or advisory before applying the change.
 
-## The sections every release has
+| Information | Decision to make |
+| --- | --- |
+| Breaking and behavior changes | Which user workflows, defaults or configuration values change? |
+| Migrations and upgrading instructions | What prerequisites, downtime or recovery preparation does this version require? |
+| API contract changes | Do clients need updated request fields, endpoint behavior or error handling? |
+| Security | Is your deployment affected, and what patched version or mitigation applies? |
+| Known issues | Can you accept the remaining limitations, and are the workarounds practical? |
+| Highlights and full change list | Which new capabilities or fixes should your users know about? |
 
-Each release page is the same ordered list of sections. Empty sections are omitted, not left blank — if you do not see a section, there is nothing to report there.
+Tale is a rolling-release 0.x project. Patch releases can include additive migrations and behavior changes. Security fixes target the latest release, without backports to older versions; see the [security policy](https://github.com/tale-project/tale/security/policy).
 
-- **Highlights** — a short section per landed change naming what it is for. Read this first.
-- **Breaking changes** — every change that requires the operator to do something before or after the upgrade. Each row names the symptom you would hit if you skipped, and the action that avoids it.
-- **Deprecations** — features still working in this release but flagged for removal. Each row names the removal version so you can plan the cutover.
-- **Behaviour changes** — what a person or an operator will notice doing the same thing as before: a default that moved, a refusal that is new, a screen that reads differently.
-- **API contract changes** — every wire change to the REST surface (`/api/v1`), the MCP endpoint, WebDAV or OpenID Connect, one row per change naming the old and the new behaviour (`GET …/content` answers **200** with the bytes — was a 302), with the `info.version` of the OpenAPI document it lands in. An integrator who pins a contract version reads this section and nothing else; the [API reference](/develop/api-reference#versioning) explains how the version moves.
-- **Security** — CVE-format entries for fixes that close a vulnerability. The full feed lives under [Security advisories](/self-hosted/operate/security/advisories); the release notes carry the one-line summary plus the advisory link.
-- **Known issues** — what the release ships with and has not fixed, each with the workaround if there is one.
-- **Migration notes** _(major versions and some minors)_ — the linked walk through schema migrations, config-file changes, or operator-facing renames. Always read for majors.
-- **Upgrading** — the `tale update` + `tale deploy` sequence for this release, with anything it needs beyond the usual.
-- **What's Changed** — the generated list of every merged change, one line each with its pull request. The long list; the sections above are the reading order.
+## Prepare the change
 
-## How to scan a release
+1. Record the current and target versions, including exact source pins for a managed deployment.
+2. Read the notes between them and identify changes to configuration, authentication, data storage and integrations.
+3. Arrange the backup, recovery path and maintenance window required by [Upgrades](/self-hosted/operate/upgrades).
+4. Try the target in a separate environment and exercise your important workflows, including API clients and approval policies.
+5. After deployment, check health and repeat those workflows. Keep the release notes with the deployment record.
 
-Read the version line, the highlights, and the breaking-changes section. If breaking changes is empty and the security section does not name a fix that touches your install, the upgrade is the `tale update` + `tale deploy` sequence from [Upgrades](/self-hosted/operate/upgrades). If either section has rows, walk them before running `tale deploy`.
-
-```text
-0.12.0 (minor) — 2026-05-14
-
-Highlights
-  Streaming tool calls now stream into the chat as they emit.
-
-Breaking changes
-  (none)
-
-Deprecations
-  AGENTS_LEGACY_PROMPT env var — removed in 0.14.
-
-Security
-  CVE-2026-XXXX — patched bypass in the run-code sandbox.
-  See: advisory TAL-2026-007.
-```
-
-The shape above is what `tale update --notes` prints. The web version of the same release adds links on every advisory and migration row.
-
-## Where this fits
-
-The release-notes format is the contract between the project and the operator — the same shape every release so the upgrade decision is a scan, not a deep read. The natural next steps are [Upgrades](/self-hosted/operate/upgrades) for the deploy mechanics and [Security advisories](/self-hosted/operate/security/advisories) for the long-form vulnerability feed the security section links into.
+A successful image pull is not proof that the application works after a migration. Verify the running platform before considering the upgrade complete. [Security advisories](/self-hosted/operate/security/advisories) explains how to assess and report a vulnerability.

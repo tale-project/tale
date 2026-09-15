@@ -36,17 +36,65 @@ function recorder(rows: unknown[] = []): {
     return Promise.resolve(rows);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js types `unsafe` as returning a rich PendingQuery; the readers only await it, so a promise of rows is all the double has to be
   }) as unknown as Sql['unsafe'];
+  // The dense leg runs inside a transaction (its plan is a SET LOCAL); the
+  // double hands the same recorder back as the transaction.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the recorder stands in for the transaction handle
+  (sql as unknown as { begin: unknown }).begin = (
+    fn: (tx: Sql) => Promise<unknown>,
+  ) => fn(sql as Sql);
   return { sql: sql as Sql, sent };
 }
 
 const LEG = { query: 'parental leave', limit: 30 };
 const EMBEDDING = [0.1, 0.2, 0.3];
 
-/** Statements that actually query the corpus — the capability probe is not
- * one, and would otherwise dilute the "every statement is scoped" assertions. */
+/** Statements that actually query the corpus — the capability probes, the
+ * dense leg's scope count and its SET LOCALs are not, and would otherwise
+ * dilute the "every statement is scoped" assertions. */
 function corpusStatements(sent: readonly Recorded[]): Recorded[] {
-  return sent.filter((entry) => entry.text.includes('.chunks'));
+  return sent.filter(
+    (entry) =>
+      entry.text.includes('.chunks') &&
+      !entry.text.includes('count(*)') &&
+      !entry.text.startsWith('SET LOCAL'),
+  );
 }
+
+/**
+ * The dense leg's plan follows the scope's size: an exact scan for a small
+ * scope, so the shared approximate index can neither starve a small scope
+ * with other organizations' rows nor let a cluster of identical vectors crowd
+ * out nearer passages (2026-09-14 evaluation, h4); and both legs skip the
+ * repeated passages the indexer marks.
+ */
+describe('the dense leg runs exactly for a small scope', () => {
+  it('counts the scoped rows, then disables the index scan for the vector statement', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const texts = sent.map((entry) => entry.text.trim());
+    const count = texts.findIndex((text) => text.startsWith('SELECT count(*)'));
+    const setLocal = texts.indexOf('SET LOCAL enable_indexscan = off');
+    const dense = texts.findIndex((text) => text.includes('<=> $1::vector'));
+    expect(count).toBeGreaterThanOrEqual(0);
+    expect(setLocal).toBeGreaterThan(count);
+    expect(dense).toBeGreaterThan(setLocal);
+    expect(texts[count]).toContain('c.org_slug = $1');
+    expect(sent[count]?.params[0]).toBe('acme');
+  });
+
+  it('skips repeated passages on both legs', async () => {
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    await reader.keyword(LEG);
+    await reader.dense({ ...LEG, embedding: EMBEDDING });
+    for (const statement of corpusStatements(sent)) {
+      expect(statement.text).toContain('NOT c.passage_repeat');
+    }
+  });
+});
 
 describe('the documents corpus is scoped to one organization', () => {
   it('filters both legs by the organization it was constructed for', async () => {
@@ -388,7 +436,7 @@ describe('the keyword leg degrades instead of failing', () => {
           ...LEG,
           embedding: EMBEDDING,
         }),
-      ).toEqual([]);
+      ).toBeNull();
 
       const lines = warn.mock.calls.map((call) => call.join(' '));
       expect(lines).toHaveLength(2);
@@ -426,12 +474,14 @@ describe('the keyword leg degrades instead of failing', () => {
       unsafe: () =>
         Promise.reject(Object.assign(new Error('no table'), { code: '42P01' })),
     } as unknown as Sql;
+    // "Could not run" is `null` — the diagnostics name it `dense: false` —
+    // never an empty list a caller would read as "ran, found nothing".
     expect(
       await new DocumentCorpusReader(missing, 'acme').dense({
         ...LEG,
         embedding: EMBEDDING,
       }),
-    ).toEqual([]);
+    ).toBeNull();
   });
 });
 
@@ -454,7 +504,7 @@ describe('rows become hits', () => {
       ...LEG,
       embedding: EMBEDDING,
     });
-    expect(hits[0]).toEqual({
+    expect(hits?.[0]).toEqual({
       id: '42',
       corpus: 'documents',
       text: 'Handbook › Leave\n\nParental leave is 16 weeks.',
@@ -489,6 +539,6 @@ describe('rows become hits', () => {
       ...LEG,
       embedding: EMBEDDING,
     });
-    expect(hits[0]?.offset).toBe(12480);
+    expect(hits?.[0]?.offset).toBe(12480);
   });
 });

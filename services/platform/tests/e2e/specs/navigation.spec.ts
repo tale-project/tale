@@ -18,7 +18,8 @@ import { STARTER_PROJECT_NAME } from '../helpers/seed';
  * NOT-FOUND NOTE: a splat/catch-all route (`/dashboard/$id/$`) renders a styled
  * 404 inside the matched `$id` layout's `<Outlet/>` for any unmatched child —
  * a heading, message, and a "Back to dashboard" recovery link — so the copy is
- * translated and asserted via `t('common.notFound.*')`.
+ * translated and asserted via `t('common.notFound.*')`. An unmatched URL outside
+ * the dashboard renders the same 404 as a standalone page.
  */
 
 function dashboardUrl(organizationId: string, path = ''): string {
@@ -317,6 +318,34 @@ test.describe('navigation: 404 and history', () => {
     // The route `head` sets a sensible document title instead of falling back
     // to the marketing default — part of the issue's reported regression.
     await expect(page).toHaveTitle(new RegExp(t('metadata.notFound.title')));
+  });
+
+  test('renders the standalone not-found page for an unknown route outside the dashboard', async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+
+    await page.goto('/__nope__');
+
+    // No shell to keep: the same not-found state stands as its own page, not
+    // the bare framework "Not Found" string the root outlet used to render.
+    await expect(
+      page.getByRole('heading', { name: t('common.notFound.title'), level: 1 }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(page.getByRole('main')).toHaveAttribute('id', 'main-content');
+    await expect(page).toHaveTitle(new RegExp(t('metadata.notFound.title')));
+
+    // With no organization in the URL, the recovery link leaves the choice to
+    // `/dashboard`, which resumes the signed-in owner's organization.
+    const backLink = page.getByRole('link', {
+      name: t('common.notFound.backToDashboard'),
+    });
+    await expect(backLink).toHaveAttribute('href', /\/dashboard$/);
+    await backLink.click();
+    await expect(page).toHaveURL(new RegExp(`/dashboard/${organizationId}`), {
+      timeout: TIMEOUT.NAV,
+    });
   });
 
   test('back/forward navigation tracks the URL and content', async ({

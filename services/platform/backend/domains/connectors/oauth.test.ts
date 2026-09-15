@@ -31,11 +31,7 @@ import {
   hashStateToken,
   mintStateToken,
 } from '../../core/http_connectors/oauth_state.ts';
-import {
-  completeOauth2,
-  storeOauth2Grant,
-  uniqueCredentialName,
-} from './oauth.ts';
+import { completeOauth2, storeOauth2Grant } from './oauth.ts';
 
 interface Route {
   organizationId: string;
@@ -122,18 +118,6 @@ beforeEach(() => {
   updateCredential.mockResolvedValue(undefined);
 });
 
-describe('uniqueCredentialName', () => {
-  it('keeps the base when no sibling holds it', () => {
-    expect(uniqueCredentialName(['Gmail'], 'Slack')).toBe('Slack');
-  });
-
-  it('counts past every taken label, case-insensitively', () => {
-    expect(uniqueCredentialName(['slack', 'Slack (2)'], 'Slack')).toBe(
-      'Slack (3)',
-    );
-  });
-});
-
 describe('storeOauth2Grant', () => {
   it('stores the first connection under the connector display name', async () => {
     listCredentials.mockResolvedValue([]);
@@ -191,12 +175,12 @@ describe('storeOauth2Grant', () => {
   it('falls back to a counter when the workspace name is unknown or taken', async () => {
     listCredentials.mockResolvedValue([
       credential('cred-1', 'Slack'),
-      credential('cred-2', 'Slack (2)'),
+      credential('cred-2', 'Slack 2'),
     ]);
     await grant(sqlWithRoutes({}), { ...TOKENS, teamId: 'T-3' });
     expect(createCredentialInTransaction).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ name: 'Slack (3)' }),
+      expect.objectContaining({ name: 'Slack 3' }),
     );
   });
 
@@ -218,7 +202,7 @@ describe('storeOauth2Grant', () => {
 
   it('reconnects a connector without a workspace notion through its default grant', async () => {
     listCredentials.mockResolvedValue([
-      credential('cred-old', 'Gmail (2)', { createdAt: 1 }),
+      credential('cred-old', 'Gmail 2', { createdAt: 1 }),
       credential('cred-default', 'Gmail', { isDefault: true, createdAt: 2 }),
       credential('cred-key', 'Gmail key', { authMethod: 'api-key' }),
     ]);

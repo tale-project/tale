@@ -25,9 +25,9 @@ import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
-  DEMO_API_KEYS,
   DEMO_CHAT_PROMPTS,
   DEMO_DOCUMENTS,
+  DEMO_EMPTY_DOCUMENT,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
@@ -35,6 +35,7 @@ import {
   DEMO_PROJECTS,
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_SSO_EXAMPLE,
+  DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
 } from './demo-content';
 
@@ -132,6 +133,32 @@ const replaceRigOrigin = async (page: Page): Promise<void> => {
   });
 };
 
+/** Keep catalog examples reproducible when the local organization also has
+ * manual-test automations. Filter through the real search control; never
+ * delete other fixtures or remove rows from the captured DOM. */
+async function showTriageAutomationExamples(page: Page): Promise<void> {
+  const search = page.getByRole('textbox', {
+    name: t('automations.list.searchPlaceholder'),
+    exact: true,
+  });
+  // SearchInput is readonly until focus to suppress password-manager
+  // autofill. Enter it as a reader does before Playwright checks editability.
+  await search.click();
+  await search.fill('Triage');
+  for (const slug of [
+    'github-triage-issues',
+    'gmail-triage-inbox',
+    'imap-smtp-triage-inbox',
+    'outlook-triage-inbox',
+  ]) {
+    await expect(page.getByText(slug, { exact: true })).toBeVisible({
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+  }
+  // Four matching examples plus the table's column-heading row.
+  await expect(page.getByRole('row')).toHaveCount(5);
+}
+
 export const SHOTS: readonly Shot[] = [
   {
     // The flagship hero: a finished, believable chat conversation.
@@ -177,6 +204,60 @@ export const SHOTS: readonly Shot[] = [
         .filter({ has: composer(page) })
         .filter({ has: sendButton(page) })
         .last(),
+  },
+  {
+    name: 'chat-document-attachment',
+    section: 'platform',
+    route: FRESH_CHAT_ROUTE,
+    prepare: async (page) => {
+      const document = DEMO_DOCUMENTS[0];
+      await expect(composer(page)).toBeVisible();
+      await page.locator('input[type="file"]').setInputFiles({
+        name: document.fileName,
+        mimeType: document.mimeType,
+        buffer: Buffer.from(document.content),
+      });
+      await expect(
+        page.getByText(document.fileName, { exact: true }),
+      ).toBeVisible();
+      await composer(page).fill(
+        'Summarize the changes in these brand guidelines.',
+      );
+      // The completed attachment shows its size instead of pipeline progress.
+      // Send can queue a message while indexing, so it is not a readiness gate.
+      await expect(
+        page
+          .getByText(document.fileName, { exact: true })
+          .locator('..')
+          .getByText(/^[\d.,]+\s*(?:B|KB|MB|GB)$/),
+      ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+      await expect(
+        page.getByText(t('chat.indexingFailed'), { exact: true }),
+      ).toBeHidden();
+    },
+    readyWhen: (page) =>
+      page.getByRole('button', { name: t('chat.removeAttachment') }),
+    capture: (page) =>
+      page
+        .locator('div')
+        .filter({ has: composer(page) })
+        .filter({ has: sendButton(page) })
+        .last(),
+  },
+  {
+    name: 'project-task-detail',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      await page.goto(projectRoute(ctx, '/tasks/board'));
+      await page
+        .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
   },
   {
     name: 'projects-task-board',
@@ -264,6 +345,23 @@ export const SHOTS: readonly Shot[] = [
         { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
       );
     },
+  },
+  {
+    name: 'skill-library-detail',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/skills',
+    prepare: async (page) => {
+      await page
+        .getByRole('row')
+        .filter({ has: page.getByText('docx', { exact: true }) })
+        .click();
+      await expect(
+        page.getByRole('textbox', { name: t('skills.section.body') }),
+      ).toBeVisible();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', { name: 'docx', exact: true }),
+    capture: (page) => page.getByRole('dialog', { name: 'docx', exact: true }),
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -391,17 +489,72 @@ export const SHOTS: readonly Shot[] = [
         .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
   },
   {
-    // The knowledge documents table with the seeded believable files. Wait
-    // for the LAST file's Indexed badge, not its name: the rows paint with
-    // their RAG status still Queued/Indexing right after the seed, and the
-    // badge column is in frame.
+    // Show the indexed uploads through the real filters, keeping unrelated
+    // manual-review records out of the introductory library view. The active
+    // filter indicator remains visible; no rows or statuses are changed for capture.
     name: 'documents-list',
     section: 'get-started',
+    viewport: { width: 1440, height: 540 },
     route: '/dashboard/:orgId/documents',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('common.labels.filter'), exact: true })
+        .click();
+      const filters = page.getByRole('dialog');
+      await filters
+        .getByRole('button', {
+          name: t('tables.headers.ragStatus'),
+          exact: true,
+        })
+        .click();
+      await filters
+        .getByRole('checkbox', {
+          name: t('documents.filter.ragStatus.indexed'),
+          exact: true,
+        })
+        .check();
+      await filters
+        .getByRole('button', { name: t('tables.headers.source'), exact: true })
+        .click();
+      await filters
+        .getByRole('checkbox', {
+          name: t('documents.filter.source.upload'),
+          exact: true,
+        })
+        .check();
+      await page.keyboard.press('Escape');
+      await expect(filters).not.toBeVisible();
+    },
     readyWhen: (page) =>
       page
         .getByText(t('documents.rag.status.indexed'), { exact: true })
         .nth(DEMO_DOCUMENTS.length - 1),
+  },
+  {
+    name: 'document-indexing-unsupported',
+    section: 'platform',
+    route: '/dashboard/:orgId/documents',
+    prepare: async (page) => {
+      const row = page.getByRole('row').filter({
+        has: page.getByText(DEMO_EMPTY_DOCUMENT.fileName, { exact: true }),
+      });
+      await expect(
+        row.getByText(t('documents.rag.status.unsupported'), { exact: true }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await row
+        .getByRole('button', {
+          name: t('documents.rag.dialog.unsupported.title'),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.rag.dialog.unsupported.title'),
+      }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.rag.dialog.unsupported.title'),
+      }),
   },
   {
     // A controlled record's one-file replacement dialog. The prepare step
@@ -532,21 +685,33 @@ export const SHOTS: readonly Shot[] = [
     },
   },
   {
-    // The API keys table with the seeded keys. Gating on the Create button
-    // captured the loading skeleton — the button renders long before the rows
-    // do. Gate on a seeded ROW instead.
+    // Show the choices before creating a key; never capture its one-time secret.
     name: 'settings-api-keys',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/api/rest',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('settings.apiKeys.createKey') })
+        .click();
+      await page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByLabel(t('settings.apiKeys.form.name'))
+        .fill('Project reporting');
+    },
     readyWhen: (page) =>
-      page.getByRole('row').filter({ hasText: DEMO_API_KEYS[0] }).first(),
+      page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByLabel(t('settings.apiKeys.form.name')),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
-    // The Automations page — the seeded pack rows with their version count
-    // and deployment state, plus the Create automation menu.
+    // Four shipped triage examples, found with the real list search, show
+    // their versions and deployment state beside Create automation.
     name: 'automations-catalog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
+    prepare: showTriageAutomationExamples,
     readyWhen: (page) =>
       page.getByText('gmail-triage-inbox', { exact: true }).first(),
   },
@@ -557,6 +722,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
+      await showTriageAutomationExamples(page);
       await page
         .getByRole('button', { name: t('automations.list.createButton') })
         .click();
@@ -568,21 +734,32 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The automation workbench — the saved version's step graph on the canvas
-    // with the node inspector beside it. The seeded Gmail triage pack stands
-    // in for every automation: they all render this same workbench.
+    // The Editor tab — the saved version's step graph on the canvas with the
+    // node inspector beside it and the version/run actions in the tab strip.
     name: 'automation-editor-canvas',
     section: 'platform',
     // A pack's automation is NAMED after its path with the separator
     // flattened (`gmail/triage-inbox` → `gmail-triage-inbox`, see
     // lib/automations/packs), so the route param is that name — the `__`
     // codec is only for names that carry a real `/`.
-    route: '/dashboard/:orgId/automations/gmail-triage-inbox',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     // Select the LLM step so the inspector shows a node's fields instead of
     // its "select a node" hint — the frame then teaches both halves at once.
     // A node box is a button carrying `data-automation-node=<id>` (the same
     // attribute the inspector's Close restores focus to).
     prepare: async (page) => {
+      await expect(
+        page.getByRole('link', {
+          name: t('automations.navigation.editor'),
+          exact: true,
+        }),
+      ).toHaveAttribute('aria-current', 'page');
+      await expect(
+        page.getByRole('button', {
+          name: t('automations.detail.versionSelect'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       const triageStep = page.locator('[data-automation-node="triage"]');
       await triageStep.waitFor({ timeout: 30_000 });
       await triageStep.click();
@@ -594,6 +771,53 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByText(t('automations.editor.fields.input'), { exact: true })
         .first(),
+  },
+  {
+    name: 'automation-run-input',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/github-triage-issues/editor',
+    prepare: async (page) => {
+      // The run button can paint before the saved document has loaded. Wait
+      // for its version picker so Test run has the saved input schema.
+      await expect(
+        page.getByRole('button', {
+          name: t('automations.detail.versionSelect'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await page
+        .getByRole('button', {
+          name: t('automations.detail.runMock'),
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      });
+      await dialog
+        .getByRole('textbox', { name: t('automations.detail.runInput.label') })
+        .fill(JSON.stringify({ owner: 'tale-project', repo: 'tale' }, null, 2));
+      await dialog
+        .getByText(t('automations.detail.runInput.schema'), { exact: true })
+        .click();
+      await expect(
+        dialog.getByRole('button', {
+          name: t('automations.detail.runMock'),
+          exact: true,
+        }),
+      ).toBeEnabled();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      }),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the
@@ -648,8 +872,14 @@ export const SHOTS: readonly Shot[] = [
     name: 'settings-webdav',
     section: 'platform',
     route: '/dashboard/:orgId/settings/api/webdav',
-    readyWhen: (page) =>
-      page.getByText(t('webdav.connectionDetails.title')).first(),
+    prepare: async (page) => {
+      // Wait for the organization-derived URL, not the static section title;
+      // a late query render would replace the sanitized origin again.
+      await expect(
+        page.getByText(/\/dav\/[^/]+\/documents\//).first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    },
+    readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
     sanitize: replaceRigOrigin,
   },

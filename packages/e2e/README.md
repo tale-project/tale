@@ -1,69 +1,79 @@
 # @tale/e2e
 
-Shared Playwright building blocks for Tale's frontend **services** (`platform`,
-`web`, `docs`, and any service scaffolded from the plop `service` generator's
-`react` kind). The goal is that every service's `playwright.config.ts` is a thin,
-declarative call instead of a copy of the same boilerplate.
+Use this package to configure Playwright tests for Tale’s frontend services and
+resolve test locators from the same message catalogs as the application. It is a
+source package; consumers import its explicit subpaths without a build step.
 
-> Scope: this package is for the frontend _services_. `packages/ui` keeps its
-> Storybook interaction tests (`@storybook/addon-vitest`) and does not use this.
+## Configure a service
 
-## What it provides
-
-- **`@tale/e2e/config`** — `createPlaywrightConfig(opts)`. House defaults:
-  `en-US`/UTC locale, `list` + non-opening `html` reporters, `on-first-retry`
-  traces, failure-only screenshots, CI-aware `retries`/`forbidOnly`, a 180s
-  per-test budget (cold Vite compiles), and a single `chromium` project unless
-  you pass your own `projects`. Override `baseURL`/`port`/`webServer`/`projects`
-  per service; `E2E_BASE_URL` always wins over the port-derived URL.
-- **`@tale/e2e/i18n`** — `createI18n(messagesUrl, { packages })` returns `{ t }`,
-  a dot-path resolver over a service's `messages/en.yml`, so locators never
-  hardcode English literals (AGENTS.md i18n rule). `packages` lists the package
-  catalogs the service merges at runtime (`packages/ui/src/i18n/messages/en.yml`
-  and `global.yml`, `@tale/marketing-ui`'s for the marketing site) beneath its
-  own, so a locator can name `common.actions.delete` the way the app resolves it.
-- **`@tale/e2e/smoke`** — `collectConsoleErrors(page)` and
-  `expectPageRenders(page)`: dependency-free assertions for the mostly-static
-  marketing/docs sites.
-
-## Minimal service config
+Start with the service generator’s existing `playwright.config.ts`. The shared
+factory supplies Chromium, English/UTC defaults, one worker, failure screenshots,
+retry traces, and CI retry/`forbidOnly` settings. Keep authentication, fixtures,
+server startup, and additional browser projects in the consuming service.
 
 ```ts
 // services/<name>/playwright.config.ts
 import { fileURLToPath } from 'node:url';
 import { createPlaywrightConfig } from '@tale/e2e/config';
 
-const port = 3001;
 export default createPlaywrightConfig({
-  testDir: fileURLToPath(new URL('./e2e', import.meta.url)),
-  port,
+  testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),
+  port: 3001,
   webServer: {
     command: 'bun run dev',
-    url: `http://localhost:${port}`,
+    url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });
 ```
 
+The request target is chosen in this order: `E2E_BASE_URL`, the factory’s
+`baseURL` option, then `http://localhost:<port>`. Setting a remote request target
+does not remove the configured `webServer`; make that startup conditional in the
+service config when testing a deployment that needs no local server.
+
+## Use application labels in locators
+
+`createI18n` reads YAML and resolves a dotted key to a string. Pass the package catalogs the
+service uses in `packages`; they merge in order beneath the service’s own keys. The merge is
+deep, so a service override replaces one key without removing its siblings. The resolver throws
+for a missing key or a group. It does not interpolate ICU arguments or apply locale fallback,
+so provide the catalogs for the language the test actually renders.
+
 ```ts
-// services/<name>/e2e/specs/smoke.spec.ts
-import { test, expect } from '@playwright/test';
-import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
+// services/<name>/tests/e2e/specs/example.spec.ts
 import { createI18n } from '@tale/e2e/i18n';
 
-const { t } = createI18n(new URL('../../messages/en.yml', import.meta.url));
-
-test('home renders without console errors', async ({ page }) => {
-  const errors = collectConsoleErrors(page);
-  await page.goto('/');
-  await expectPageRenders(page);
-  expect(errors).toEqual([]);
-});
+const uiCatalogs = new URL(
+  '../../../../../packages/ui/src/i18n/messages/', import.meta.url,
+);
+const { t } = createI18n(
+  new URL('../../../messages/en.yml', import.meta.url),
+  { packages: [new URL('global.yml', uiCatalogs), new URL('en.yml', uiCatalogs)] },
+);
+// t('common.actions.delete') resolves the shared label, unless the service overrides it.
 ```
 
-Run with `bun run --filter @tale/<name> test:e2e`.
+For a marketing service, add its `@tale/marketing-ui` catalogs after the UI catalogs, matching
+the package order in `initServiceI18n`. The [platform helper](../../services/platform/tests/e2e/helpers/i18n.ts)
+shows this setup for an app service.
 
-The platform suite keeps its app-specific helpers (auth setup, mock-LLM,
-hermetic fixtures) under `services/platform/e2e/`; it consumes this package only
-for the config factory and shared defaults.
+`@tale/e2e/smoke` provides `collectConsoleErrors(page)` and
+`expectPageRenders(page)` for basic page checks. They complement assertions about
+the actual task; a visible body alone does not establish a working workflow.
+
+## Run and maintain tests
+
+From the repository root:
+
+```bash
+bun run --filter @tale/<name> test:e2e
+bun run --filter @tale/e2e test
+bun run --filter @tale/e2e typecheck
+bun run --filter @tale/e2e lint
+```
+
+See the [platform suite](../../services/platform/tests/e2e/README.md) for its
+isolated database, accounts and model fixtures. Shared UI browser/component tests
+live in `packages/ui`; they do not use this service config factory.

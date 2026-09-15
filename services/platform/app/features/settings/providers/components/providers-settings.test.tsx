@@ -42,11 +42,6 @@ vi.mock('../hooks/queries', () => ({
     'catalogs',
     organizationId,
   ],
-  harnessStatusQueryKey: (organizationId: string) => [
-    'providers',
-    'harness-status',
-    organizationId,
-  ],
   useProviderCatalogs: () => ({
     data: fixtures.catalogs,
     isPending: false,
@@ -270,6 +265,17 @@ async function pickProvider(
   return picker;
 }
 
+/** Replace the name the setup step suggests with the test's own. */
+async function rename(
+  user: Awaited<ReturnType<typeof render>>['user'],
+  form: ReturnType<typeof within>,
+  name: string,
+) {
+  const field = form.getByRole('textbox', { name: /^Name/ });
+  await user.clear(field);
+  await user.type(field, name);
+}
+
 describe('ProvidersSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -407,15 +413,79 @@ describe('ProvidersSettings', () => {
       ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
     });
 
+    it('names the credential after its provider, numbered past a name that provider already holds', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      fixtures.credentials = [
+        ...defaultCredentials,
+        credential({
+          id: 'c4',
+          name: 'OpenRouter',
+          providerSlug: 'openrouter',
+        }),
+      ];
+      const { user } = renderPage();
+
+      // Anthropic's three keys carry names of their own, so its name is free.
+      const form = await pickProvider(user, 'Anthropic');
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Anthropic',
+      );
+      await user.click(form.getByRole('button', { name: 'Back' }));
+
+      await user.click(form.getByRole('button', { name: /OpenRouter/ }));
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'OpenRouter 2',
+      );
+      await user.type(
+        form.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-or-secret',
+      );
+      await user.click(form.getByRole('button', { name: 'Add credential' }));
+
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: 'openrouter',
+          authMethod: 'api-key',
+          name: 'OpenRouter 2',
+          secret: 'sk-or-secret',
+        }),
+      );
+    });
+
+    it('closes over an untouched suggestion without asking, but guards a typed name', async () => {
+      const confirmSpy = vi
+        .spyOn(globalThis, 'confirm')
+        .mockImplementation(() => false);
+      try {
+        const { user } = renderPage();
+        let form = await pickProvider(user, 'Anthropic');
+        // The suggestion is the dialog's own words, not the reader's — there
+        // is nothing to discard.
+        await user.click(form.getByRole('button', { name: 'Cancel' }));
+        expect(confirmSpy).not.toHaveBeenCalled();
+        await waitFor(() =>
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+        );
+
+        form = await pickProvider(user, 'Anthropic');
+        await rename(user, form, 'Staging key');
+        await user.click(form.getByRole('button', { name: 'Cancel' }));
+        expect(confirmSpy).toHaveBeenCalledOnce();
+        expect(
+          screen.getByRole('dialog', { name: 'Add credential' }),
+        ).toBeInTheDocument();
+      } finally {
+        confirmSpy.mockRestore();
+      }
+    });
+
     it('creates an api-key credential without ever rendering the secret', async () => {
       createCredential.mockResolvedValue({ credentialId: 'cred-9' });
       const { user } = renderPage();
       const form = await pickProvider(user, 'Anthropic');
 
-      await user.type(
-        form.getByRole('textbox', { name: /^Name/ }),
-        'Staging key',
-      );
+      await rename(user, form, 'Staging key');
       await user.type(
         form.getByLabelText(/^API key/, { selector: 'input' }),
         'sk-ant-secret',
@@ -440,12 +510,15 @@ describe('ProvidersSettings', () => {
     it('steps back to the catalog without keeping the abandoned draft', async () => {
       const { user } = renderPage();
       const form = await pickProvider(user, 'Anthropic');
-      await user.type(form.getByRole('textbox', { name: /^Name/ }), 'Draft');
+      await rename(user, form, 'Draft');
 
       await user.click(form.getByRole('button', { name: 'Back' }));
       await user.click(form.getByRole('button', { name: /Anthropic/ }));
 
-      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue('');
+      // The abandoned name is gone; the fresh step suggests again.
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Anthropic',
+      );
     });
 
     it('prefixes the env-var name and requires an instance URL where the provider has one', async () => {
@@ -454,7 +527,6 @@ describe('ProvidersSettings', () => {
       const { user } = renderPage();
       const form = await pickProvider(user, 'Azure OpenAI');
 
-      await user.type(form.getByRole('textbox', { name: /^Name/ }), 'Prod');
       await user.type(
         form.getByLabelText(/^API key/, { selector: 'input' }),
         'azure-key',
@@ -472,7 +544,8 @@ describe('ProvidersSettings', () => {
           organizationId: 'org-1',
           providerSlug: 'azure',
           authMethod: 'api-key',
-          name: 'Prod',
+          // The suggested name, kept.
+          name: 'Azure OpenAI',
           secret: 'azure-key',
           endpointUrl: 'https://acme.openai.azure.com/openai/v1',
         }),

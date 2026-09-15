@@ -1,67 +1,56 @@
-# Screenshots
+# Useful, reproducible screenshots
 
-Show, then tell: every UI step the reader performs is visualized, and every feature page opens
-with a hero shot of its surface. A screenshot earns its place when it carries the point — a
-location, a state, a layout — better than the sentence would; reach for words alone only when the
-picture would show nothing. This file is the contract for every image that ships; the repo's docs
-guide names the concrete pipeline, paths, and ceilings.
+Add an image when it helps readers locate a control, recognize a state, compare choices, or
+understand a result. An unfamiliar picker may need a close-up; a routine Save action may need
+only a sentence. Neither a screenshot at every step nor a hero image on every page is required.
 
-## The manifest rule — no hand-captured screenshot ever ships
+Write down the question the image answers before capturing it. Place it near the instruction or
+explanation it supports. The surrounding text must still let readers complete the task without
+seeing the image. Text, code, and terminal output normally belong in selectable fenced blocks.
 
-Every image is declared in the repo's screenshot manifest: one entry per image mapping a stable
-name to the route, the interaction steps that reach the state, the viewport, the crop, and the
-seeded data it expects. Regeneration is one command; an image that can't be regenerated from the
-manifest doesn't merge.
+## Capture through the repository pipeline
 
-Why: screenshots rot silently. The UI ships weekly; a hand-captured image is stale the day the
-surface changes, and nobody can tell what state produced it. The manifest is the coupling point —
-when a change touches a route, grep the manifest for it and regenerate the affected images in the
-same change.
+Every shipped screenshot must be declared in the capture manifest and reproducible with the
+repository's capture command. The manifest owns the route, interaction, seeded state, viewport,
+and crop. Read the runbook named by `docs/AGENTS.md`; do not ship manual browser screenshots,
+retouched UI, or images generated to resemble the product.
 
-## The believable-data rule — fix the seed, not the screenshot
+Use synthetic but plausible projects, people, documents, and dates. Never use customer data or
+real credentials. Improve fixtures when the scene is empty or implausible, then capture it again.
+Keep transient data deterministic through the pipeline. Do not conceal a broken state by painting
+pixels over it.
 
-The captured workspace must look like a real customer's: named people, plausible projects and
-documents, realistic counts and dates. Never `test test 123`, never lorem ipsum, never an
-obviously synthetic account name — and never real customer data, real emails, or real colleagues.
-The seed fixtures own believability; when a screenshot looks fake, fix the seed and recapture,
-don't retouch the image.
+When the UI changes, search the manifest for the affected route or surface. Regenerate the
+relevant assets and inspect them. A successful capture command proves the file exists, not that
+the image communicates the intended state.
 
-## Locale rule — capture the source locale only
+## Frame and crop
 
-Layout and interaction are locale-invariant, so one source-locale image serves every locale's
-page; the alt text and caption translate, the pixels don't. Capture a locale variant only when the
-visible string _is_ the subject — a translated label, a locale-specific format — and store it
-alongside the original with a locale suffix.
+Use the smallest region that explains the point while keeping enough orientation to recognize
+where it is. A panel title or active navigation item often supplies that context. Keep a consistent
+viewport and device-pixel ratio. Capture a settled state without browser chrome, pointer, loading
+placeholders, clipped menus, or partially finished animations unless that state is the subject.
 
-## Crop rules
+Follow the repository's image format and byte/dimension budgets. Check legibility at actual docs
+content width and on a narrow screen. Reconsider a full-window image before reducing it until all
+text is unreadable. Use focused views for materially different states, not a filmstrip of clicks.
 
-- **Capture the smallest region that carries the point** — an element or panel over a full page —
-  but keep exactly one orienting landmark (the dialog title, the active sidebar item) so the
-  reader knows where they are.
-- **Fixed viewport and device-pixel ratio across all captures** — mixed scales read as sloppy and
-  break visual rhythm.
-- **No browser chrome, no cursor, no half-open animations** — capture settled state.
-- **Respect the repo's format and size ceiling** — an over-budget file is an unoptimized export or
-  an under-cropped capture; tighten the crop before lowering the quality.
+## Locale and accessibility
 
-## Embedding
+Tale normally shares English capture pixels across locales. Translate the instructions, alt text,
+and captions; use the exact localized UI labels in the prose. If the difference would confuse a
+reader, explain that the image shows the English interface. A locale-specific capture is warranted
+when translated layout or locale formatting is itself the subject; declare it in the pipeline.
 
-Every screenshot lives in a frame with a caption, embedded with the repo's image syntax and a
-**full descriptive sentence as alt text**. Caption and alt do different jobs: the caption directs
-attention (what to look at here), the alt replaces the image (what a reader who can't see it needs
-to know). "Chat composer" fails as alt; "The chat composer with the model picker open, showing
-three available models." passes. Lead-in prose names why the reader is looking — a bare image with
-no surrounding prose is the code-wall anti-pattern in another medium.
+Embed Markdown image syntax inside a Frame. Supply a concise descriptive sentence as alt text
+under Tale's image checks, focusing on the state that matters. The caption adds why it matters
+or what to inspect. Do not encode essential instructions only in arrows, color, or image text.
+An instructional screenshot needs useful alternative text; decorative images rarely belong in
+task documentation.
 
-## CLI output
+## Review evidence
 
-Prefer a fenced code block: it is searchable, translatable, and weightless. Reserve a terminal
-image for output where colour or alignment is the point — and even then capture through the
-repo's sanitizing path so no real username, hostname, or email ever ships.
-
-## Where this fits
-
-Screenshots carry the same bar as prose: reproducible, truthful, and owned by the page that embeds
-them. The repo's image checks are the floor (existence, alt, size); the manifest rule and
-believable-data rule are the parts a test can't judge. When you add a page's first screenshot, the
-asset, its manifest entry, and the page ship in the same change.
+Before handing off an asset, confirm the manifest entry, successful regeneration, truthful state,
+readable crop, safe fixture data, translated alt/caption, and rendered placement. Include any
+capture limitations in the task note. Retain video assets unchanged when the user excludes videos
+from the assignment.

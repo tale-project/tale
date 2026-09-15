@@ -358,9 +358,7 @@ auth:
     loginButton: Anmelden
     continueWithSso: Weiter mit SSO
     ssoTitle: Mit SSO anmelden
-    ssoDescription:
-      Gib die E-Mail-Adresse deiner Organisation ein — sie bestimmt
-      die passende Anmeldung.
+    ssoDescription: Wähle deine Organisation, um dich bei ihrem Identitätsanbieter anzumelden.
     ssoOrgListLabel: Organisationen
     ssoBackToLogin: Zurück zur Anmeldung
     ssoNoOrganizations:
@@ -615,6 +613,12 @@ automations:
       die Version aus, die live ist.
     runLiveTitle: Live ausführen?
     runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
+    runInput:
+      label: Eingabe für den Lauf (JSON)
+      description: 'Eingabe für die gespeicherte Version {version}. Die Automatisierung bleibt unverändert.'
+      schema: Eingabeschema
+      invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
+      mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
     runScope:
       label: Projektbereich
       orgWide: Organisationsweit
@@ -2328,21 +2332,55 @@ documents:
             Bitte einen Admin deiner Organisation, eines einzurichten, und
             starte die Indexierung danach neu.
       unsupported:
-        title: Format nicht unterstützt
+        title: Dokument kann nicht indexiert werden
         description:
-          Für diesen Dateityp gibt es keine Textextraktion, daher kann er
-          nicht für die RAG-Suche indexiert werden. Konvertiere die Datei in ein
-          unterstütztes Format (PDF, DOCX, TXT, …) und lade sie erneut hoch,
-          damit sie durchsuchbar wird.
+          Dieser Dateiinhalt lässt sich nicht indexieren. Lade eine lesbare
+          Textversion oder ein unterstütztes Dokument mit extrahierbarem Text hoch.
+        reasons:
+          unsupported_type: Für diesen Dateityp gibt es keinen unterstützten Textextraktor.
+          image_no_vision: Die Wissensindexierung extrahiert keinen Text aus Bildern.
+          empty: Die Datei enthält keinen indexierbaren Text. Sie ist leer, besteht nur aus Leerzeichen oder ist ein Scan ohne Textebene.
+          not_text: Die Datei enthält Binärdaten statt lesbarem Text. Exportiere sie als UTF-8-Text.
+          malformed: Die Datei lässt sich nicht im angegebenen Format lesen. Sie kann beschädigt oder kennwortgeschützt sein.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive
     webDav: WebDAV
     oneDrive: OneDrive
     oneDriveSynced: OneDrive (synchronisiert)
+    googleDriveSynced: Google Drive (synchronisiert)
     sharePoint: SharePoint
     sharePointSynced: SharePoint (synchronisiert)
     uploaded: Upload
+  syncHealth:
+    badge:
+      failed: Sync-Fehler
+      needsReauth: Neu verbinden
+    dialog:
+      failedTitle: Synchronisierung fehlgeschlagen
+      failedDescription: >-
+        Die letzte Synchronisierung von „{name}“ ist fehlgeschlagen. Tale
+        versucht es etwa alle 15 Minuten erneut und entfernt diesen Hinweis,
+        sobald ein Durchlauf gelingt.
+      needsReauthTitle: Zugriff auf {provider} abgelaufen
+      needsReauthDescription: >-
+        Tale erreicht {provider} mit dem Konto, das „{name}“ synchronisiert,
+        nicht mehr. Die bisher synchronisierten Dateien bleiben erhalten;
+        Neues kommt erst an, wenn dieses Konto erneut verbunden ist.
+      failingSince: Fehlgeschlagen seit {time}
+      syncedBy: Synchronisiert über das Konto von {ownerName}
+      syncedByUnknown: Synchronisiert über das Konto eines Mitglieds, das inzwischen gegangen ist
+      errorDetails: Fehlerdetails
+      ownerNextStep: >-
+        Verbinde dein Konto erneut, um die Synchronisierung fortzusetzen. Der
+        nächste Durchlauf nimmt sie innerhalb von 15 Minuten wieder auf.
+      otherNextStep: >-
+        Bitte {ownerName}, das Konto erneut zu verbinden. Wer Dokumente
+        importieren darf, kann die Synchronisierung auch mit einem neuen
+        Synchronisierungsimport dieses Elements übernehmen.
+      otherNextStepUnknown: >-
+        Übernimm die Synchronisierung mit einem neuen Synchronisierungsimport
+        dieses Elements — das Konto, unter dem sie lief, gibt es nicht mehr.
   comparison:
     title: Dokumente vergleichen
     description: Wähle zwei Dateien, um die Unterschiede zu sehen.
@@ -4322,20 +4360,16 @@ personalization:
       overridingOrgDefault: Überschreibt den Organisations-Standard ({state}).
     customInstructionsToggle:
       label: Benutzerdefinierte Anweisungen
-      description: Wenn aktiv, stellt der Assistent deine benutzerdefinierten
-        Anweisungen jeder Antwort voran.
+      description: "Speichere Einstellungen für dein Konto. Chatantworten nutzen diese Anweisungen derzeit nicht. Für Projektchats gelten die Anweisungen des Projekts."
     memoriesToggle:
       label: Erinnerungen
-      description: Wenn aktiv, kann der Assistent von dir freigegebene Fakten
-        chat-übergreifend speichern und wiederverwenden.
+      description: "Verwalte gespeicherte Erinnerungen für dein Konto. Der Chat-Assistent speichert oder lädt Erinnerungen derzeit nicht automatisch."
     customInstructions:
       title: Benutzerdefinierte Anweisungen
       placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
     memories:
       title: Gespeicherte Erinnerungen
-      empty:
-        Erinnerungen erscheinen hier, nachdem der Assistent sie vorgeschlagen hat
-        und du sie speicherst.
+      empty: "Keine gespeicherten Erinnerungen."
       delete: Löschen
       deleteLabel: 'Erinnerung löschen: {content}'
     pending:
@@ -4659,7 +4693,7 @@ skills:
     license: Lizenz
     recommendedPython: Empfohlenes Python
     recommendedNode: Empfohlenes Node
-    disableModelInvocation: Skill ist vor dem Modell verborgen — nur explizite Aufrufe.
+    disableModelInvocation: Bittet um ausdrückliche Verwendung dieses Skills; beschränkt den Zugriff nicht.
     unknownKeys:
       '{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt}
       other {# zusätzliche Frontmatter-Einträge bewahrt}}'
@@ -4995,9 +5029,8 @@ settings:
   connectors:
     searchPlaceholder: Connectors durchsuchen
     sectionDescription:
-      Die Zugangsdaten, mit denen sich diese Organisation bei verbundenen
-      Diensten authentifiziert. Jeder Eintrag schaltet die Aktionen seines
-      Dienstes für Automationen und den Chat frei.
+      Verwalte die Zugangsdaten für Connector-Aktionen in den Workflows
+      und unterstützten Plattform-Werkzeugen deiner Organisation.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5014,8 +5047,8 @@ settings:
       actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
       connect: Verbinden
       emptyBodyOauth:
-        Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
-        Aktionen in Automationen und im Chat bereit.
+        Verbinde {connector}, damit konfigurierte Workflows und unterstützte
+        Plattform-Werkzeuge dieses Konto nutzen können.
       oauthAppMissing:
         'Für {connector} ist noch keine OAuth-App hinterlegt. Bitte einen
         Admin deiner Organisation, sie unter Einstellungen > Connectors
@@ -5302,11 +5335,7 @@ settings:
           Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
           die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
           erteilen Sie die Administratorzustimmung.
-        s8: Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter
-          API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und
-          Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst
-          du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld
-          Scopes.
+        s8: Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge Files.Read oder Sites.Read.All nicht zu den SSO-Scopes für die Anmeldung hinzu. Richte den Importzugriff über die OAuth-App-Einstellungen der Konnektoren ein.
       google:
         intro:
           Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
@@ -5546,14 +5575,8 @@ settings:
       resultValidBody:
         '{count, plural, one {# Eintrag geprüft} other {# Einträge
         geprüft}} – keine Manipulation festgestellt.'
-      truncatedNote:
-        Nur die ersten {count} Einträge wurden geprüft. Führe die Prüfung
-        erneut aus, um die Kette weiter zu prüfen.
-      unsignedScrubNote:
-        '{count, plural, one {# Eintrag wurde über einen unsignierten
-        Bereinigungsnachweis als vertrauenswürdig eingestuft} other {# Einträge
-        wurden über unsignierte Bereinigungsnachweise als vertrauenswürdig
-        eingestuft}}. Überprüfe deinen Audit-Signaturschlüssel.'
+      truncatedNote: "Nur die ersten {count} Einträge wurden geprüft. Bitte den Betreiber deiner Installation, den restlichen Bereich zu prüfen."
+      unsignedScrubNote: "{count, plural, one {Für # bereinigten Eintrag fehlt ein passender Löschantrag} other {Für # bereinigte Einträge fehlt ein passender Löschantrag}}. Prüfe die Löschvorgänge, bevor du dich auf diesen Verlauf verlässt."
       brokenTitle: Ketten-Integrität verletzt
       brokenBody:
         Die Hash-Kette stimmt beim unten stehenden Eintrag nicht überein.
@@ -6224,6 +6247,10 @@ inbox:
   agentQuestionAsked: Agent braucht deine Antwort
   agentQuestionAskedBody: '{name} hat eine Frage zu "{title}" und wartet auf dich: {question}'
   agentQuestionAskedNoTaskBody: '{name} hat eine Frage und wartet auf dich: {question}'
+  cloudSyncFailed: Cloud-Synchronisierung schlägt fehl
+  cloudSyncFailedBody: 'Die Synchronisierung von "{itemName}" aus {provider} schlägt seit über einer Stunde fehl ({reason}). Tale versucht es weiterhin alle 15 Minuten.'
+  cloudSyncNeedsReauth: Cloud-Synchronisierung muss neu verbunden werden
+  cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
   email:
     cta: In Tale öffnen
     footer:
@@ -6918,7 +6945,6 @@ websites:
       fallback: Seite konnte nicht geladen werden.
   filter:
     status:
-      idle: Inaktiv
       scanning: Wird gescannt
       active: Aktiv
       error: Fehler
@@ -7035,7 +7061,7 @@ projects:
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
     folderDeleteHeld: Eine Datei in diesem Ordner unterliegt einem Legal Hold —
-      heben Sie ihn zuerst auf.
+      hebe ihn zuerst auf.
     folderDeleteAction: Ordner löschen
     folderDeleteConfirm:
       „{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus

@@ -48,6 +48,7 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import { hasVisibleText } from '@/lib/shared/utils/visible-text';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import {
@@ -244,9 +245,11 @@ export const Composer = memo(
     const blocked = sendBlockedReason !== undefined;
     // An image is a message too: staged attachments (and pasted video
     // links) make an empty field sendable. An upload still in flight holds
-    // the send — the turn must never race its own attachment bytes.
+    // the send — the turn must never race its own attachment bytes. Text
+    // counts only when a reader would see it — the REST door's blank rule,
+    // so a pasted run of zero-width characters is not a message.
     const hasContent =
-      text.trim().length > 0 ||
+      hasVisibleText(text) ||
       attachments.length > 0 ||
       videoLinkJobs.length > 0;
     const canSend =

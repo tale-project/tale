@@ -66,11 +66,12 @@ export const router = createTanStackRouter({
   defaultErrorComponent: ({ error, reset }) => (
     <GlobalErrorDisplay error={error} reset={reset} />
   ),
-  // Unmatched URLs render at the deepest matched route's outlet; this routes a
-  // dashboard-subtree miss to the styled 404 (heading + recovery link, shell
-  // intact) instead of the bare unstyled "Not Found". The `/dashboard/$id/$`
-  // splat still wins for direct `$id` children (it also sets a 404 title); this
-  // covers misses under nested dashboard layouts that have no splat of their own.
+  // Unmatched URLs render at the deepest matched route's outlet; this replaces
+  // the bare unstyled "Not Found" with the platform 404 (heading + recovery
+  // link): inside the shell for a dashboard-subtree miss, as a standalone page
+  // anywhere else. The `/dashboard/$id/$` splat still wins for direct `$id`
+  // children (it also sets a 404 title); this covers misses under nested
+  // dashboard layouts that have no splat of their own, and outside the dashboard.
   defaultNotFoundComponent: RouteNotFound,
 });
 

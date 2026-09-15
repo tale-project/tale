@@ -17,17 +17,16 @@ import { BASE_LOCALES, walkDocs } from './lib/walk';
  *
  * Scope rules (identical for both syntaxes):
  *   - External URLs (`http(s)://`, `mailto:`) are skipped.
- *   - Anchor-only links (`#section`) are skipped — that's
- *     `markdown-anchor-parity` territory.
+ *   - Anchor-only links (`#section`) are checked by `anchors.test.ts`.
  *   - Links with file extensions (e.g. `screenshots/x.png`, `foo.svg`)
  *     are skipped; this check is about docs page slugs, not arbitrary
  *     assets.
  *   - Fenced code blocks are stripped so example links in code samples
  *     don't trip the check.
  *
- * Absolute paths are interpreted relative to `docs/<locale>/`, matching
- * how the docs site resolves them at runtime (`/cloud/billing` in an
- * `en/` page resolves to `docs/en/cloud/billing.md`).
+ * Unprefixed absolute paths reach English at runtime. Other locales must
+ * include their prefix; resolving a target in the current locale alone
+ * would hide accidental language switches.
  */
 
 const LINK = /\]\(([^)\s]+?)(?:#[^)\s]*)?\)/g;
@@ -119,6 +118,14 @@ describe('page link targets', () => {
       const findings: Finding[] = [];
       for (const page of pages) {
         for (const link of extractLinks(page)) {
+          if (locale !== 'en' && !link.url.startsWith(`/${locale}/`)) {
+            findings.push({
+              file: link.file,
+              line: link.line,
+              rule: 'link-locale-prefix-missing',
+              detail: `"${link.url}" must keep the reader in /${locale}/`,
+            });
+          }
           const target = resolveTargetFile(link.url, locale);
           if (targetExists(target)) continue;
           findings.push({

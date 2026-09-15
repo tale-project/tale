@@ -1,52 +1,64 @@
 ---
 title: Politiques et limites
-description: Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités.
+description: Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités et le routage des conversations entrantes.
 ---
 
-Politiques et limites est la surface où tu plafonnes ce que tes membres et agents peuvent consommer. Les budgets plafonnent les tokens, le coût et les requêtes par période de facturation ; les contrôles de fonctionnalité plafonnent la fenêtre de contexte par scope ; la politique d’upload régit les types et tailles de fichiers qu’un membre peut joindre ; la politique de rétention décide combien de temps chaque type de donnée vit avant le nettoyage. Les Administrateurs et Propriétaires lisent cette page quand une charge dépasse le budget, quand un groupe doit travailler avec une fenêtre de contexte plus petite, ou quand un régulateur nomme une fenêtre de rétention différente du défaut.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités ou destinataires des conversations entrantes.
 
-<Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’upload et des contrôles de rétention.">
+<Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’import et des contrôles de rétention.">
 
-![La page de gouvernance Politiques et limites montrant trois règles de budget mensuelles — une pour l’organisation entière, une par défaut pour tous les utilisateurs et une pour le rôle developer, chacune plafonnant les tokens, le coût et les requêtes — au-dessus des champs de politique d’upload pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
+![La page de gouvernance Politiques et limites montrant trois règles de budget mensuelles — une pour l’organisation entière, une par défaut pour tous les utilisateurs et une pour le rôle Développeur, chacune plafonnant les tokens, le coût et les requêtes — au-dessus des champs de politique d’import pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
 
 </Frame>
 
-## Un budget mis en pratique
+## Ajouter un budget
 
-Pour plafonner la dépense mensuelle d’un Éditeur, ouvre **Paramètres > Gouvernance > Politiques et limites** et clique sur **Ajouter une règle** sous **Règles de budget**. Choisis **Rôle** comme scope, **Éditeur** comme cible, règle la période sur **Mensuel** et entre un coût max en USD. Enregistre et dès que la dépense de période d’un Éditeur franchit le plafond, le composer de chat bloque les nouveaux envois avec un avis budget-dépassé — et les requêtes vocales sont refusées net. Un run d’agent géré — la tâche d’un agent de projet, le nœud agent d’une automatisation — est refusé à son démarrage de la même façon, et un run qui démarre ne peut dépenser que ce qui reste sous le plafond. Un seuil d’avertissement sous le plafond affiche un bandeau avant que le plafond ne soit atteint. Les scopes plus étroits l’emportent sur les plus larges — une règle utilisateur bat une règle équipe bat une règle rôle — et les limites au niveau org s’appliquent toujours par-dessus comme plafond additionnel.
+1. Dans les règles de budget, choisis **Ajouter une règle**.
+2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
+3. Sélectionne une période quotidienne, hebdomadaire ou mensuelle. Renseigne au moins une limite positive de tokens, de coût ou de requêtes. Le coût est en USD ; un champ vide ne plafonne pas cette dimension par cette règle.
+4. Définis si besoin le seuil d’alerte entre 0 et 100 pour avertir avant d’atteindre le plafond.
+5. Choisis **Confirmer**, enregistre les changements de la page et vérifie la portée, la cible, la période et les limites enregistrées.
 
-## Les quatre couches de politique
+Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-**Budgets** sont des plafonds de tokens, coût et requêtes par scope et période. Les scopes sont org, rôle, équipe, utilisateur ou clé API. Chaque règle porte un plafond de tokens, un plafond de coût en USD, un plafond de requêtes optionnel et un seuil d’avertissement exprimé en pourcentage du plafond. Une règle sur clé API vise une seule clé émise (choisis **Clé API** comme scope, puis la clé depuis **Paramètres > API**) et ne plafonne que le trafic authentifié avec cette clé — l’API REST — pour que tu mesures une connector précise sans toucher à l’usage in-app. La génération d’images est mesurée par coût et nombre de requêtes, pas par tokens — une requête d’image ne rapporte aucun token, alors plafonne les dépenses d’images avec le plafond de coût ou de requêtes, pas celui de tokens.
+Les budgets concernent les nouveaux travaux facturables, dont le chat et les exécutions d’agents gérés. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
-**Contrôles de fonctionnalité** plafonnent les tokens de contexte max pour les réponses AI par utilisateur, équipe ou rôle. Il n’y a pas d’interrupteur par fonctionnalité.
+## Comprendre les plafonds applicables
 
-**Politique d'upload** régit les extensions de fichiers, types MIME et tailles qu’un membre peut joindre. Elle plafonne aussi le volume total par utilisateur — utile quand le stockage est mesuré. Désactive la politique pour un défaut permissif ; active-la pour appliquer les listes.
+Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé de l’équipe, même si un membre a une règle personnelle plus précise. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, pas les autres actions dans l’interface.
 
-**Politique de rétention** décide combien de temps chaque type de donnée (historique de chat, documents, prompts, journaux d’audit, registre d’utilisation, exécutions de workflow et plus) reste avant que la passe de nettoyage ne retire la ligne. La page affiche les bornes imposées par l’opérateur, la surcharge par organisation dans ces bornes, et une fenêtre de grâce avant la suppression dure.
+Si une requête est refusée de façon inattendue, vérifie tous les plafonds applicables et leurs périodes. Augmenter une limite personnelle ne retire pas un plafond d’organisation, d’équipe ou de clé API.
 
-## Priorité
+## Contrôler les imports
 
-Les quatre couches partagent la même échelle de scope : utilisateur > équipe > rôle > org > défaut. La règle la plus étroite l’emporte. Là où une couche porte un plafond au niveau org (budgets), le plafond s’applique comme plafond additionnel au-dessus de toute règle plus étroite. Un budget sur clé API sort de l’échelle comme son propre bucket indépendant : il lie le trafic de la clé elle-même, indépendamment des plafonds utilisateur, équipe ou org de son propriétaire, si bien qu’une seule clé peut être tenue à une allocation plus serrée que la personne qui l’a émise.
+La politique d’import définit les extensions autorisées et bloquées, les types MIME autorisés, la taille maximale par fichier en Mo et le volume total par personne en Go. Choisis les types nécessaires et teste un fichier autorisé et un fichier refusé après l’enregistrement.
 
-## Bornes de rétention et approbations
+L’extension, le type de contenu et la taille sont des vérifications distinctes. En cas d’échec, compare les trois avec la règle. Vérifie le stockage déjà utilisé si les fichiers respectent individuellement les limites mais que les nouveaux imports sont refusés.
 
-La politique de rétention vit à l’intérieur de bornes imposées par l’opérateur — l’opérateur en self-hosted règle un plancher et un plafond par catégorie, et la valeur de l’organisation se clampe à cette plage. Quand l’opérateur propose un plancher plus serré ou un plafond plus bas, le changement remonte comme proposition que les Administrateurs peuvent appliquer ou rejeter. Les réductions de la politique atterrissent avec un bandeau de changement en attente et une fenêtre de grâce avant prise d’effet — la même grâce donne aux Administrateurs la chance d’annuler.
+## Définir la rétention et la récupération
 
-## Délai d’inactivité de session
+Dans la règle de rétention, choisis **Modifier** et configure les catégories nécessaires. Le résumé montre les valeurs effectives, les catégories désactivées et le nettoyage des fichiers temporaires. Désactiver la rétention planifiée d’une catégorie n’empêche pas une suppression explicite ni une demande d’effacement.
 
-Le délai d’inactivité de session déconnecte les membres après une période d’inactivité — le contrôle lié aux sessions que les référentiels de conformité demandent (SOC 2 CC6.1). Ouvre **Paramètres > Gouvernance > Sécurité**, active **Activer le délai d'inactivité de session** et règle **Délai d'inactivité (minutes)** (1–1440, 30 par défaut). Les membres voient un avertissement peu avant la coupure ; ensuite l’onglet actif se déconnecte et la page de connexion explique la déconnexion au lieu d’afficher un simple formulaire.
+Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
-La fenêtre peut uniquement raccourcir la limite définie pour le déploiement, jamais l’allonger. Les opérateurs en self-hosted règlent ce plafond dur par variable d’environnement (voir la [référence d’environnement](/fr/self-hosted/configuration/environment-reference)) ; la politique d’organisation s’applique par-dessus, et la plus stricte des deux fenêtres l’emporte. Un membre de plusieurs organisations reçoit la fenêtre la plus stricte de toutes ses organisations.
+Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation juridique](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
-L’application a deux moitiés. Le watchdog côté navigateur termine à la minute près les sessions ouvertes et visibles. Les onglets fermés et les appareils abandonnés sont rattrapés côté serveur par une passe de révocation qui tourne environ toutes les cinq minutes — une session peut donc survivre quelques minutes au-delà de la fenêtre ; quand tu présentes le contrôle à un auditeur, compte la fenêtre plus une demi-heure environ dans le pire cas. Chaque révocation côté serveur atterrit dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs) comme `session.idle_revoked`. Une réserve pour les déploiements trusted headers : le reverse proxy y possède l’authentification, donc une session révoquée se rétablit dès que le membre confirme l’avis de connexion — associe la politique à un délai d’inactivité côté proxy ou IdP pour un vrai verrouillage.
+Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
+
+## Examiner les contrôles de fonctionnalités
+
+Les contrôles comprennent les limites de fenêtre de contexte par portée et le commutateur de sortie vocale pour l’organisation. Une limite de contexte détermine la quantité de contexte transmise à une réponse d’IA ; elle diffère d’un budget. Désactiver la sortie vocale empêche les membres de l’activer par leurs réglages personnels ou leurs conversations.
+
+Les commutateurs par défaut des instructions personnalisées et des souvenirs enregistrent des valeurs d’organisation. Leur présence ne signifie pas que les instructions personnelles ou la création de souvenirs sont déjà actives dans le chat. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
 
 ## Routage des conversations
 
-Le courrier entrant arrive non assigné tant qu’une règle de routage ne le revendique pas. Sous **Paramètres > Gouvernance > Politiques et limites**, ouvre **Routage des conversations** et ajoute une règle associant une adresse destinataire à une équipe, une personne, ou les deux : la prochaine conversation qui arrive à cette adresse est assignée dès sa création, avant que quiconque n’ouvre la boîte de réception. Une règle correspond à l’adresse à laquelle l’expéditeur a écrit — le `À` de la conversation — sans tenir compte de la casse ; une adresse sans règle reste non assignée.
+Utilise le routage pour attribuer les nouvelles conversations entrantes selon l’adresse destinataire. Ajoute une règle, choisis une équipe, une personne ou les deux, puis enregistre. La comparaison des adresses ignore la casse.
 
-La visibilité est intégrée : une conversation assignée à une équipe n’est visible que par ses membres, et une conversation assignée à une personne n’est visible que par elle (l’union quand les deux sont définis). Les conversations vraiment non assignées — ni personne ni équipe — ne sont visibles que par les administrateurs et propriétaires, qui les trient. Les Membres et Éditeurs ne voient que le travail routé ou assigné dans leur file personnelle ou d’équipe. Associe le routage au contrôle **Responsable** de l’en-tête pour que le courrier entrant atterrisse dans la bonne file dès l’arrivée. Le routage ne fait qu’assigner ; il ne réassigne jamais une conversation qui a déjà un responsable ou une équipe, de sorte qu’une réponse s’enchaînant dans un fil existant est laissée intacte. Une règle pointant vers une équipe ou une personne supprimée depuis est ignorée — la conversation arrive quand même, simplement non assignée pour le triage admin.
+Une attribution d’équipe rend la conversation visible à ses membres ; une attribution individuelle la rend visible à cette personne. Avec les deux, l’une ou l’autre appartenance donne accès. Les conversations non attribuées sont réservées au triage des admins et propriétaires.
 
-## Où cela s’inscrit
+Les règles s’appliquent à l’arrivée d’une nouvelle conversation. Elles ne réattribuent pas une conversation existante lorsqu’une réponse la rejoint. Si une règle vise une personne ou équipe supprimée, la conversation arrive quand même sans cette attribution. Teste avec un nouveau message à l’adresse destinataire et vérifie la personne ou l’équipe obtenue.
 
-Politiques et limites est la couche budget et porte qui protège l’organisation des dépenses qui s’emballent et des accès non voulus. Associe-la à [contenu et modèles](/fr/platform/admin/governance/content-models), pour que le modèle plafonné par budget soit aussi celui que la liste d’accès autorise, et à [politique de rétention sur la même page](#bornes-de-retention-et-approbations), pour que les données que l’organisation garde soient aussi bornées. La page compagnon est [journaux d’audit](/fr/platform/admin/governance/audit-logs) — chaque changement de politique ici y atterrit comme enregistrement permanent.
+## Configurer les limites de connexion séparément
+
+Les exigences de mot de passe, limites de tentatives, délais d’inactivité de session et [règles de double facteur](/fr/platform/admin/two-factor-authentication) se trouvent dans **Paramètres > Gouvernance > Sécurité**. Le délai d’inactivité de l’organisation peut renforcer celui du déploiement. Avec l’authentification par en-têtes de confiance, coordonne l’expiration avec le proxy ou l’IdP, qui peut authentifier le membre à nouveau.

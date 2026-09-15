@@ -1,206 +1,90 @@
 ---
-title: Upgrades
-description: How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story.
+title: Upgrade and recover a deployment
+description: Preview a workspace upgrade, deploy with a recovery plan, verify the result, and choose the correct rollback path.
 ---
 
-Workspace upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern—the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
+For a workspace deployment, `tale update` changes the CLI and workspace files; `tale deploy` changes the running services. Choose the target version and recovery point before either step. A blue-green rollout overlaps application replicas, but snapshots, drain periods, and stateful-service replacements can interrupt work.
 
-**One hard exception:** there is no upgrade path onto 0.5 from an earlier line. 0.5 is a breaking cutover that requires a fresh deployment — see [0.4 → 0.5: breaking cutover](#04--05-breaking-cutover) before anything else if your instance is on 0.4.x or older (0.4 itself was the previous such cutover, severing 0.3.x).
+Managed deployments use pinned source revisions and prepared bundles instead of this workspace procedure. Follow [Managed deployments](/self-hosted/install/cli-install#managed-deployments) for that workflow, or [Configuration releases](/self-hosted/configuration/config-releases) when only client content changes.
 
-What you no longer do is keep the CLI in sync by hand: the CLI aligns itself to the instance automatically (see below), so the only deliberate step is choosing when to move versions with `tale update`.
+## Prepare the upgrade
 
-The CLI install lives in [Install the tale CLI](/self-hosted/install/cli-install). This page covers what each command does and how the version model works.
+1. Run `tale status` in the intended workspace. Record the running version, workspace version, and current deployment state.
+2. Read the target release notes for compatibility, required configuration, and known limitations. A pre-0.5 instance needs the separate cutover below.
+3. Confirm a restorable off-host backup, the matching keys, and coverage of external databases and buckets. [Backups and restore](/self-hosted/operate/backups-and-restore) defines the recovery set.
+4. Allow capacity for old and new application replicas at the same time. Agree on a maintenance window when snapshots, sandbox replacement, or stateful updates can interrupt required work.
+5. Preview the selected update and deployment. Inspect warnings rather than treating a successful preview as proof that a live migration will succeed.
 
-## The CLI tracks the instance automatically
+## Select the version
 
-Workspace instance commands align the CLI with the version recorded in the workspace's `tale.json`. If the versions differ, the CLI attempts to update itself to match before running. When they match, alignment is a local read with no network call. If the download fails, the CLI warns and continues with its current version; check that warning before deploying.
+Workspace instance commands try to align the CLI with the version recorded in `tale.json`. If downloading that version fails, the CLI warns and continues with the current binary. Resolve an unexpected mismatch before making deployment changes.
 
-Use `tale update` to choose another workspace instance version. For a managed deployment, change the runtime/configuration source pins, prepare and verify a new bundle, then apply it with the pinned CLI. [Managed deployments](/self-hosted/install/cli-install#managed-deployments) owns that complete workflow and its retained-state recovery. Configuration-only commands use explicit source and native targets without rolling containers; see [Release client configurations](/self-hosted/configuration/config-releases).
-
-## Before you upgrade
-
-Two things are worth confirming first:
-
-- Your off-host copy of the `backups` volume is current — see [Backups and restore](/self-hosted/operate/backups-and-restore). `tale update` snapshots the data volumes automatically before any step that can migrate data, but the snapshot lives on the same host; the off-host copy is what survives a dead disk.
-- The release notes for the target version do not name a breaking change. The notes are linked from the GitHub release page; breaking changes are flagged as such at the top.
-
-If the upgrade crosses a major version (1.x → 2.x), read the migration notes end-to-end before starting. Major versions are where schema migrations and config-file format changes land.
-
-## The two commands
-
-`tale update` updates the CLI binary and then syncs your project files to that version's templates. It does **not** touch the running containers — that is `tale deploy`'s job. If the file sync fails, the CLI rolls its own binary back to the version your workspace was on, so the binary and `tale.json` never drift apart.
-
-Run bare, the command targets the newest release **in your current x.y release line** — a 0.3.x instance moves to the newest 0.3.x. Releases on a newer line can be breaking, so `tale update` never crosses that boundary on its own: when a newer line exists it says so and stays put. Moving lines is a deliberate step — read the release notes for the new line first, then pin it with `--version`.
+Without a version argument, `tale update` selects the newest release in the workspace's current `major.minor` line. Moving to another line is explicit:
 
 ```bash
-# Move the CLI + project files to the newest release in the current x.y line
-tale update
-
-# Pin a specific version — the only way to change lines; allows downgrades (see Rolling back)
-tale update --version 0.10.2
-
-# Preview the version change and file sync without touching anything
 tale update --dry-run
+tale update --version <target-version> --dry-run
+tale update --version <target-version>
 ```
 
-`tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
+The update replaces the CLI and synchronizes workspace templates, leaving running containers alone. If file synchronization fails, it attempts to return the binary to the workspace's prior version. Review the resulting files and output before deploying.
 
-- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy with zero downtime, as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_PLATFORM_REPLICAS` in `.env` (range `1`–`16`). Raise the worker first. A deploy doubles every count for the drain. Stores and the sandbox plane stay singletons.
-- **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rolls on every deploy too, but **in place**: the spawner holds the Docker socket, the session directory and the gateway volume, so it is a singleton by construction. The deploy drains its in-flight agent runs first, so the brief restart doesn't cut a live one.
-- **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
+## Preview and deploy
 
 ```bash
-# After tale update, roll the containers to match (app tier + backend)
-tale deploy
-
-# Also update db/proxy (brief downtime while they recreate)
-tale deploy --stop
-
-# Roll only specific services
-tale deploy --services platform
-
-# Preview without changes
 tale deploy --dry-run
-```
-
-`--dry-run` is worth running before every production upgrade — it surfaces missing images, missing migrations, and dependency mismatches without touching the running containers.
-
-## The blue-green pattern
-
-A running instance is one of two colours (blue or green) at any given time. A colour is the whole application tier at one version — every replica of `platform`, `backend-api` and `backend-worker`. The deploy brings up the other colour beside the live one, waits for every replica to pass its healthcheck, records the flip, then retires the old colour.
-
-Both colours are up at once for the length of that overlap, and the order of the retirement is what keeps it from dropping requests:
-
-<Steps>
-
-<Step title="The idle colour starts">
-
-Its containers hold the same `platform` and `backend-api` network aliases as the live colour, but a replica that is still booting is not listening on its port — so the resolver falls through to the colour that is. A half-started colour takes no traffic.
-
-</Step>
-
-<Step title="Every replica reports healthy">
-
-Not the first one to answer: all of them, per role. A colour that only partly came up never becomes live, and the deploy aborts with the old one still serving.
-
-</Step>
-
-<Step title="Traffic splits, briefly">
-
-Once the new colour is listening, requests reach both. This is the same forward-compatible window a rolling migration already assumes — the previous image keeps serving while the new one migrates, so a release never ships a change that breaks the version it replaces.
-
-</Step>
-
-<Step title="The old colour stops taking new work">
-
-Its API is told to refuse **new** chat turns. The UI does not resend a drain 503 — that turn is refused. The deploy waits for in-flight turns to finish, up to 3 minutes. The web tier stays healthy on `/api/health` while it still shares the `platform` alias: Caddy health-checks that hostname as one upstream, so failing the probe would mark the whole site down. Traffic leaves the old colour when `docker network disconnect` cuts it out of DNS, and in-flight HTTP finishes during the drain window (`DRAIN_TIMEOUT`, default 30 s).
-
-</Step>
-
-<Step title="Only then is it cut out of DNS">
-
-`docker network disconnect` removes the old colour's containers from the serving networks. It severs live connections on those networks, which is exactly why it comes after both drains and not before them.
-
-</Step>
-
-</Steps>
-
-Two more guarantees the pattern gives you:
-
-- **Patch rollback is one command.** `tale rollback` redeploys the previous patch release on the idle colour and flips traffic back, by the same steps. It refuses minor and major downgrades — those can leave the database ahead of the binary, and their recovery path is a snapshot restore.
-- **Failed healthchecks block the flip.** If the new colour does not pass within `HEALTH_CHECK_TIMEOUT`, the deploy aborts and the old colour continues serving.
-
-<Note>
-
-The first deploy after upgrading to 0.5.11 also removes the previous
-`tale-backend-api` and `tale-backend-worker` containers. They were singletons
-outside both colours; the tier now runs inside each colour, so they are swept
-once the new colour is serving. Later deploys find nothing to sweep.
-
-</Note>
-
-<Warning>
-
-During the overlap the host runs **two** application tiers. On a single box with the default one replica per role, that is two `platform`, two `backend-api` and two `backend-worker` containers for the length of the drain. Size the host for the peak, not the steady state — and for the doubled count before you raise a replica number on a machine that is already tight.
-
-</Warning>
-
-The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale update && tale deploy && tale status` and visual confirmation in the browser.
-
-## How schema changes reach a deployment
-
-Database schema changes are not a separate step you run. Each release's backend applies its own SQL migrations **at boot**, under an advisory lock so the api and worker containers (and any scaled replicas) apply them exactly once while the others wait. A deployed container is therefore always at its own schema — there is nothing to check, apply, or roll forward by hand.
-
-Migrations are **forward-only** and written to be safe under a rolling deploy: the previous version keeps serving while the new one migrates, so a release never ships a change that breaks the version it is replacing. Going BACK a version is a snapshot restore, not a down-migration — which is why `tale rollback` refuses minor and major downgrades (see below).
-
-```bash
-# Re-provision the built-in defaults into every organization (idempotent).
-# The same step every deploy runs — use it when you want it on demand.
-tale migrate
-```
-
-If the backend cannot apply a migration it fails to start, and the deploy's healthcheck blocks the traffic flip: the previous colour keeps serving while you read `docker compose logs` and fix the cause. Nothing half-migrated is ever put in front of users.
-
-## Rolling back
-
-```bash
-# Back to the previous patch version (prompts for confirmation)
-tale rollback
-
-# Skip the prompt when running non-interactively
-tale rollback --yes
-```
-
-`tale rollback` is gated to patch-level steps: it only targets the recorded previous version, and refuses unless that version shares `major.minor` with the running platform. Patch releases never carry migrations, so redeploying the previous patch is always safe. Anything bigger may have migrated data forward — redeploying an older binary on top of migrated data corrupts the instance instead of recovering it. For those, the recovery path is restoring the pre-upgrade snapshot and moving back to the version that matches it with `tale update --version <version>` followed by `tale deploy --stop` (so `db`/`proxy` roll back too); the refusal message prints the exact commands, and the full walk lives in [Backups and restore](/self-hosted/operate/backups-and-restore).
-
-Because the rollback tears down the running containers, the command warns what it is about to do and asks for confirmation before it pulls a single image; pass `--yes` to skip that prompt in scripts or CI.
-
-## Version compatibility
-
-Tale versions are semver. The compatibility rules:
-
-- Patch (`0.9.0 → 0.9.1`) — no migrations, no config changes, `tale rollback` is always safe.
-- Minor (`0.9.x → 0.10.x`) — may include forward-only migrations; `tale rollback` refuses, recovery is restore-snapshot-and-redeploy.
-- Major (`0.x → 1.x`) — read the migration notes, schedule the maintenance window, expect surprises.
-- **The 0.5.0 baseline** — versions below 0.5.0 and versions from 0.5.0 on are separate worlds: no upgrade in either direction, see the cutover section below.
-
-Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate schema migrations are still in the image; the release notes call it out when this is not the case. The 0.5.0 baseline is the standing instance of that exception: the application store itself changed at 0.5, so no 0.5+ release can read what came before.
-
-To move _down_ a version deliberately — say a minor release misbehaves — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version; downgrade only to a version whose schema migrations are a prefix of what the database has applied, or restore a volume snapshot from before the upgrade. A downgrade below 0.5.0 crosses the cutover backwards and is not supported: a 0.4.x release cannot read data created by 0.5+ — restore a pre-0.5 snapshot or deploy 0.4.x fresh instead.
-
-## 0.4 → 0.5: breaking cutover
-
-0.5 replaced the application backend's runtime and store: application data now lives in Postgres, where 0.4 kept it in the bundled Convex service's own database. No importer bridges the two, so **a 0.4.x instance cannot be upgraded in place — 0.5 requires a fresh deployment.**
-
-**What this means in practice:**
-
-- `tale deploy` with a 0.5+ CLI **refuses** to touch an instance whose running version is below 0.5.0, before pulling an image or writing anything.
-- Nothing from a 0.4 instance's database is carried over: chats, automations and their run history, knowledge entries, task history, users and sign-ins. The org **config tree** (agents, skills, providers, governance policies) lives on the shared config volume as files and does carry forward; files in a BYO-S3 bucket physically remain in the bucket, but the new instance has no references to them.
-- The 0.4.x line stays maintained for security and critical fixes on the `release/0.4` branch — staying on 0.4.x for a while is a supported choice, moving to 0.5 is a re-onboarding, not an upgrade.
-
-**Moving to 0.5:**
-
-```bash
-# 1. Leave the 0.4 instance untouched (it keeps serving).
-# 2. Create a NEW project directory with a 0.5 CLI:
-mkdir tale-05 && cd tale-05
-tale init
 tale deploy
-
-# 3. Re-onboard: organizations, users (invite / SSO), configuration,
-#    documents and knowledge re-upload.
-# 4. Decommission the 0.4 instance once the new one is accepted.
+tale status
 ```
 
-The expert override — `tale deploy --accept-data-loss` — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.5 data on that instance becomes permanently unreadable.
+A version-changing deployment or host-config override takes a local snapshot before mutation unless `--skip-backup` is supplied. This snapshot is additional protection, not an off-host recovery plan.
 
-**The legacy `tale_platform` database.** Every `tale-db` container used to create an empty `tale_platform` database on start — the database the bundled Convex service used in 0.4, which nothing in 0.5 reads. Fresh installs no longer create it, and nothing drops it for you: an instance first deployed on an earlier 0.5 release still carries it, and so does a reused 0.4 host. It is harmless. Once you are sure you need nothing from the Convex era, take a snapshot and drop it by hand — on `db`, and on `knowledge-db` where your stack runs one:
+| Service group | Ordinary deployment | When to plan extra interruption |
+| --- | --- | --- |
+| `platform`, `backend-api`, `backend-worker` | Roll together as the new application colour. | Old and new replicas overlap, and draining can refuse new turns. |
+| `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Replace in place after draining relevant work. | These are shared execution dependencies, not a second blue-green application group. |
+| `db`, `object-store`, `proxy` | Keep the running services; the CLI reports skipped updates. | Add `--stop` when these services need replacement. |
 
 ```bash
-tale backup
-docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+tale deploy --stop
 ```
 
-## Where this fits
+The role replica variables `TALE_PLATFORM_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_BACKEND_WORKER_REPLICAS` accept 1–16. Increase the role that measurements show is constrained; adding workers does not solve an unavailable database or provider quota.
 
-The upgrade flow ties together every other operate page — backups are what makes a failed upgrade recoverable, observability is what tells you the new colour is healthy, hardening is what you re-walk after a major version. If you are setting up the CLI for the first time, [Install the tale CLI](/self-hosted/install/cli-install) covers the workstation-side setup; if you are picking up the pager mid-rollout, [Troubleshooting](/self-hosted/operate/observability/troubleshooting) names the symptoms.
+## Understand the handover
+
+The CLI starts the idle colour and waits for its replicas to pass health checks before completing the handover. Both versions can serve during the overlap, so releases must remain compatible with the previous application version while migrations run.
+
+The old API is drained before removal: new chat turns can receive a drain refusal while existing turns get time to finish. The chat drain waits up to three minutes; the web drain uses `DRAIN_TIMEOUT`, which defaults to 30 seconds. The web health route stays healthy while its alias is still shared. Disconnecting the old containers from serving networks removes them from DNS and can sever remaining connections, so it follows the drains.
+
+If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the deploy does not complete the flip. Inspect the recorded deployment state and logs before retrying. An interrupted rollout can leave both groups or pending handover state; use the CLI's recovery output rather than deleting containers or state files by hand.
+
+## Check migrations and the user outcome
+
+The backend applies numbered SQL migrations at boot under a session advisory lock. Other replicas wait for that migration path. A migration error prevents the new backend from starting normally; inspect its error and the database before retrying. Forward-only migrations are not undone by changing an image tag.
+
+`tale migrate` refreshes built-in organization defaults; it is not a command for rolling database migrations backward. Review whether local configuration was meant to be replaced before using host-config override options.
+
+After deployment, verify the public certificate and sign-in, open an existing project or conversation, download a known file, and run a controlled check of the knowledge and automation paths you use. Check worker progress, store health, and the final deployed version. Keep the pre-upgrade recovery set until the deployment has met your acceptance criteria.
+
+## Choose a rollback path
+
+| Situation | Recovery path |
+| --- | --- |
+| Return to the recorded previous version in the same `major.minor` line | `tale rollback` checks that boundary and asks for confirmation before redeploying. Review that release's compatibility notes as well. |
+| Return across a minor or major boundary | Restore the coordinated pre-upgrade data and deploy its matching version. `tale rollback` refuses this image-only downgrade. |
+| Target version or data compatibility is unknown | Resolve the version and backup provenance before starting an older binary. |
+
+```bash
+tale rollback
+```
+
+`--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
+
+## 0.4 → 0.5: a separate installation
+
+The 0.5 application store replaced the earlier Convex database with Postgres. There is no in-place importer between those stores. Keep the old instance and its backups intact while preparing a fresh deployment in a separate workspace and data set.
+
+Recreate organizations and users, review and transfer compatible configuration, and reimport required documents. Files left in an external bucket do not automatically acquire references in the new application database. Accept the replacement environment before decommissioning the old one.
+
+The CLI refuses the unsupported cutover by default. Its expert `--accept-data-loss` override is not a migration tool and must not be used to preserve old application data. Historical volumes or databases can remain after earlier upgrades; their presence alone is not a reason to delete them during this procedure.

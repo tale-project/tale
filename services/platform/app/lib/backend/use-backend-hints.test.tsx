@@ -87,6 +87,23 @@ function abandon(source: FakeEventSource | undefined): void {
 }
 
 describe('useBackendHints', () => {
+  it('refreshes knowledge-entry indexing when its backing document changes', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'document', entityId: null }),
+      );
+    });
+    expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
+      [
+        ['backend', 'org1', 'document'],
+        ['backend', 'org1', 'knowledge_entry'],
+      ],
+    );
+  });
+
   it('subscribes the org stream and invalidates the entity prefix on a hint', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });

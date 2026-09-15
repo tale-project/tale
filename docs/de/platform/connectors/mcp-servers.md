@@ -1,30 +1,30 @@
 ---
-title: MCP-Server
-description: Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht.
+title: Einen externen Client über MCP verbinden
+description: Finde den MCP-Endpunkt von Tale und erfahre, wie externe Clients damit arbeiten.
 ---
 
-Diese Seite hat früher ein Formular **MCP-Server hinzufügen** beschrieben: einen Transport, eine Authentifizierungsmethode, eine Liste erlaubter Agenten und eine Tabelle erkannter Tools mit Genehmigungs-Flags pro Tool. Nichts davon gibt es in dieser Version von Tale. Es gibt kein Panel für MCP-Server, kein Registrierungsformular und keinen Werkzeugkasten der Agenten, in den sich ein externer Server einreihen könnte — eine Capability, die zu einem externen MCP-Tool führen würde, lehnt die Laufzeit mit einer lesbaren Begründung ab. Ausgeliefert wird die Gegenrichtung: Tale ist selbst ein MCP-Server, mit dem sich Clients von außen verbinden.
+Über den MCP-Endpunkt verbindet sich ein externer Coding-Assistent oder anderer MCP-Client mit deiner Organisation in Tale. Er kann verfügbare Funktionen finden, Automationen erstellen und Läufe prüfen. Der Zugriff folgt dem Organisations-API-Schlüssel und den Berechtigungen seines Inhabers.
 
-<Note>
+## Den Endpunkt finden
 
-Ausgehende MCP-Server sind in dieser Version nicht verfügbar. Die frühere Adresse **Einstellungen > MCP-Server** leitet auf **Einstellungen > Connectors** weiter, und dort stehen die von Tale mitgelieferten Connectors — nichts MCP-Spezifisches.
+Öffne **Einstellungen > API > MCP**. Die Seite zeigt die Endpunkt-URL, den Organisations-Slug, die verfügbaren Tool-Gruppen und eine kopierbare Anfrage zum Verbindungstest. Falls du noch keinen passenden Schlüssel hast, erstelle ihn unter **Einstellungen > API**.
 
-</Note>
+<Frame caption="Die MCP-Einstellungen zeigen Endpunkt, Organisationskontext und verfügbare Tools.">
 
-## Die MCP-Oberfläche, die es gibt
-
-Tale stellt pro Deployment einen MCP-Endpoint unter `/api/v1/mcp` bereit, authentifiziert mit einem API-Schlüssel der Organisation. Dahinter liegen zweiundzwanzig Tools in drei Gruppen — Automatisierungen autorieren und live schalten, sie ausführen und ihre Läufe lesen, und durchsuchen und aufrufen, was die Organisation kann. Unter **Einstellungen > API > MCP** findest du die Endpoint-URL deines Deployments, das Inventar in genau diesen drei Gruppen und unter **Ausprobieren** eine kopierbare `tools/list`-Anfrage. [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz — Protokoll, Tool-Tabelle und was der Schlüssel jeder Rolle darf; wie du den Schlüssel erzeugst, steht auf [API-Schlüssel](/de/platform/admin/api-keys).
-
-<Frame caption="Einstellungen > API > MCP — die Endpoint-URL für deinen Client, den Organisations-Slug, den ein Schlüssel mehrerer Organisationen mitschickt, das Tool-Inventar in seinen drei Gruppen und eine Anfrage, mit der du den Schlüssel ausprobierst.">
-
-![Die MCP-Seite unter Einstellungen > API mit der Zeile MCP-Endpunkt, deren URL auf /api/v1/mcp endet und einen Kopieren-Button trägt, einer Zeile Organisations-Slug, drei Zeilen mit Tool-Namen nach Gruppe — Autorieren, Lauf- & Trigger-Verwaltung, Capabilities & Wissen — und einer Zeile Ausprobieren mit einer curl-Anfrage, die tools/list mit einem API-Schlüssel als Bearer-Token und dem Organisations-Slug-Header aufruft.](/images/platform/settings-mcp-endpoint.webp)
+![Die MCP-Seite zeigt eine Endpunkt-URL mit /api/v1/mcp, einen Organisations-Slug, Tool-Gruppen und eine Beispielanfrage zum Verbindungstest.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 
-## Eigenen Code heute aus einem Agenten erreichen
+Unter [MCP-Endpunkt](/de/develop/mcp-endpoint) stehen Client-Konfiguration, Authentifizierung und benötigte Berechtigungen. Hinterlege den Schlüssel in der Zugangsdatenverwaltung des Clients, nicht in einem Prompt oder geteilten Dokument.
 
-Einen eigenen Dienst so zu verpacken, dass ein Agent ihn nutzen kann, hat in dieser Version drei Formen. Ein [Connector](/de/platform/connectors/overview) ist die herstellerspezifische Brücke, die Tale mitliefert — nimm ihn, wenn es für das Zielsystem einen gibt. Eine [Automatisierung](/de/platform/automations/catalog) ruft Connector-Aktionen auf und führt dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook; du lädst sie als Paket hoch. Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt **Secrets** — einen API-Schlüssel, den er als Umgebungsvariable bekommt — und ruft damit direkt aus seiner Sandbox einen Dienst auf, für den es keinen Connector gibt.
+## Die Verbindungsrichtung wählen
 
-## Wo das hingehört
+Der MCP-Endpunkt von Tale nimmt Verbindungen externer Clients an. In Tale gibt es kein Einstellungsformular, um einen externen MCP-Server als Ausstattung eines Projektagenten zu registrieren.
 
-Die MCP-Oberfläche dieser Version zeigt nach innen: Externe Clients steuern Tale, nicht umgekehrt. Soll ein Modell außerhalb von Tale Automatisierungen autorieren oder das Wissen der Organisation durchsuchen, verbinde es mit dem [MCP-Endpoint](/de/develop/mcp-endpoint); soll ein Agent in Tale deinen Code erreichen, nimm einen Connector, eine Automatisierung oder die Secrets eines Projekt-Agenten — der [Connectors-Überblick](/de/platform/connectors/overview) öffnet diesen Weg.
+Soll ein Agent innerhalb von Tale einen anderen Dienst verwenden, prüfe den [Connector-Katalog](/de/platform/connectors/overview). Gibt es keinen passenden Connector, kann ein [Projektagent](/de/platform/projects/project-agents) den Dienst mit einem passend begrenzten Secret aus seiner Sandbox aufrufen. Der laufende Agent erhält dabei Zugriff auf das Secret. Begrenze seine Rechte deshalb auf die konkrete Aufgabe.
+
+## Den Zugriff vor dem Erstellen prüfen
+
+Beginne mit der Testanfrage auf der MCP-Seite und prüfe, ob der Client die Tools auflisten kann. Lies vor einem Schreibzugriff, welche Berechtigung das Tool verlangt. Eine Automation zu speichern und bereitzustellen sind getrennte Schritte. Eine Client-Verbindung umgeht weder die Freigabe zur Bereitstellung noch Genehmigungsregeln.
+
+[API-Schlüssel](/de/platform/admin/api-keys) erklärt Austausch und Widerruf. Unter [Automationen verstehen](/de/platform/automations/concepts) findest du den Ablauf zum Speichern, Testen und Bereitstellen.

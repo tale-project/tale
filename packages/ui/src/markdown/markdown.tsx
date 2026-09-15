@@ -26,6 +26,7 @@ import { Mermaid } from './components/mermaid';
 import { isHttpUrl } from './is-http-url';
 import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
 import { rehypePreserveCodeMeta } from './plugins/rehype-preserve-code-meta';
+import { remarkFrame } from './plugins/remark-frame';
 
 type AlertTone = 'note' | 'tip' | 'info' | 'warning' | 'danger';
 
@@ -257,7 +258,7 @@ export const baseComponents: Components = {
       typeof className === 'string' && className.includes('language-');
     if (isBlock) return <code className={className}>{children}</code>;
     return (
-      <code className="bg-bg-elevated text-fg-base rounded px-1.5 py-0.5 font-mono text-[0.875em]">
+      <code className="bg-bg-elevated text-fg-base rounded px-1.5 py-0.5 font-mono text-[0.875em] [overflow-wrap:anywhere]">
         {children}
       </code>
     );
@@ -383,7 +384,11 @@ export function Markdown({ children, components, className }: MarkdownProps) {
         // nodes so `rehypeKatex` can render them; without it TeX would show
         // verbatim. It sits after `remarkGfm` so GFM tables/lists/fences are
         // unaffected.
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[
+          remarkGfm,
+          remarkMath,
+          ...(components && 'tale-frame' in components ? [remarkFrame] : []),
+        ]}
         // `rehypePreserveCodeMeta` lifts each code fence's metastring
         // (the part after the language, e.g. `` ```python Python ``) onto
         // a `data-meta` attribute. It must run before `rehype-raw`, which

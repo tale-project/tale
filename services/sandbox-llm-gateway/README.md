@@ -24,15 +24,35 @@ Ports:
 - `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` — management API basic-auth password. **Required**: the backend refuses every management call without it, so the plane is never anonymous on the sandbox network (`tale deploy` / `bun run dev` mint it; `compose.dev.yml` carries an insecure dev default). Keep it stable — the gateway stores its hash in its volume.
 - `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` — per-stream idle timeout passed to the gateway.
 
-The pre-rename `LLM_GATEWAY_*` names are still read as a fallback for one release.
+The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SANDBOX_LLM_GATEWAY_*` names for new configuration.
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container.
+
+## Connect private model providers
+
+Set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the **backend** environment when a
+custom model provider uses a private address. On session creation, the backend
+checks both the hostname and its resolved addresses before configuring the
+gateway. It enables `network_config.allow_private_network` only for an admitted
+private destination. Cloud-metadata names and resolved addresses remain refused;
+public destinations keep the gateway’s default restriction.
+
+The provider hostname must resolve from both the backend and gateway networks.
+Both must reach the endpoint and trust its HTTPS certificate. The preflight is
+not a DNS pin for later gateway requests. Keep provider definitions and DNS under
+operator control. A successful ordinary chat checks the backend path; verify a
+new agent session separately to exercise this gateway.
+
+Recreate the backend processes after changing their environment. This setting
+does not change the general sandbox `SANDBOX_EGRESS_ALLOWLIST`. Follow the
+[provider configuration guide](../../docs/en/self-hosted/configuration/providers.md)
+for endpoint syntax, credentials and verification.
 
 ## Development
 
 ```bash
-bun run logs   --filter=@tale/sandbox-llm-gateway   # docker compose logs -f sandbox-llm-gateway
-bun run shell  --filter=@tale/sandbox-llm-gateway   # exec into the running container
+bun run --filter @tale/sandbox-llm-gateway logs   # docker compose logs -f sandbox-llm-gateway
+bun run --filter @tale/sandbox-llm-gateway shell   # exec into the running container
 ```
 
 ## Layout

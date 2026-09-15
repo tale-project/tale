@@ -117,7 +117,17 @@ export function fuseByRank<T extends { readonly score: number }>(
 
   const ids = [...scores.keys()].sort((a, b) => {
     const delta = (scores.get(b) ?? 0) - (scores.get(a) ?? 0);
-    return delta !== 0 ? delta : a.localeCompare(b);
+    if (delta !== 0) return delta;
+    // Equal fused scores are common — a keyword rank 1 and a dense rank 1
+    // tie exactly — and the tie used to fall to the lexical order of the row
+    // ids, so which passage came first was creation order (2026-09-14
+    // evaluation, h4). An exact-term rank is stronger evidence than a
+    // nearest-neighbour rank ("the nearest passages, however weak"), so a
+    // keyword-ranked candidate precedes one only a vector leg found; then
+    // the lower row identity, numerically where the ids are numbers.
+    const keywordDelta =
+      keywordRanked(sources.get(b)) - keywordRanked(sources.get(a));
+    return keywordDelta !== 0 ? keywordDelta : compareIdentity(a, b);
   });
 
   const fused: FusedItem<T>[] = [];
@@ -137,4 +147,22 @@ export function fuseByRank<T extends { readonly score: number }>(
     });
   }
   return fused;
+}
+
+/** 1 when any leg that ranked the candidate is a keyword leg. */
+function keywordRanked(from: readonly FusedSource[] | undefined): number {
+  return from?.some((source) => source.leg.endsWith(':keyword')) ? 1 : 0;
+}
+
+/** The last-resort order of a tie: the row identity, as a number when both
+ * ids end in one (`documents:9999` before `documents:10000`), else as text. */
+function compareIdentity(a: string, b: string): number {
+  const numberOf = (id: string): number | null => {
+    const match = /(\d+)$/.exec(id);
+    return match ? Number(match[1]) : null;
+  };
+  const left = numberOf(a);
+  const right = numberOf(b);
+  if (left !== null && right !== null && left !== right) return left - right;
+  return a.localeCompare(b);
 }

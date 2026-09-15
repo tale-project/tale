@@ -14,20 +14,18 @@ guide covers the **rendered** behaviour it can't see.
 
 ## Scope & routes
 
-One representative page per component family (picked by corpus grep — usage
-counts across `docs/en/`: Card ×89, Frame ×45, Step ×40, Note ×24, Video ×19,
-CardGroup ×18, Warning ×12, Tab ×12, Steps ×11, Check ×8, Info ×6, Tip ×4,
-Tabs ×4, CodeGroup ×1):
+Representative pages for each component family:
 
 | Surface                       | Route                                                                          |
 | ----------------------------- | ------------------------------------------------------------------------------ |
-| Code blocks, Steps, Tabs      | `{base}/self-hosted/install/quickstart` (bash + powershell fences inside Tabs) |
+| Code blocks, Tabs      | `{base}/self-hosted/install/quickstart` (bash + powershell fences inside Tabs) |
+| Steps | `{base}/get-started/quickstart` |
 | Callouts (Info, Tip)          | `{base}/platform/models`                                                       |
 | Callout (Warning) + Frame     | `{base}/platform/connectors/webdav`                                            |
 | Cards / CardGroup             | `{base}/` (landing card groups)                                                |
 | Frame with caption            | `{base}/platform/chat/overview`                                                |
 | CodeGroup (corpus's only one) | `{base}/self-hosted/configuration/providers`                                   |
-| Images                        | `{base}/platform/chat/basics` (2 screenshots)                                  |
+| Images                        | `{base}/platform/chat/basics` (chat screenshot)                                  |
 | Video                         | `{base}/tutorials/videos/welcome-to-tale` (episode 1)                          |
 
 Renderer: `app/pages/docs-page.tsx` → shared `@tale/ui` markdown stack
@@ -50,9 +48,9 @@ clipboard permission.
 > `group-hover`/`focus-visible`) — focus or hover their container first. All
 > three copy affordances flip to a "copied" label for **1.5 s** with
 > `aria-live="polite"`; assert the clipboard content, not the flash. The
-> page-actions labels are i18n-wired (`docs.pageActions.*`); the code-copy and
-> heading-link labels are still **hard-coded English** (see
-> [locale.md](locale.md)). `<Step title>` renders a plain `<h3>` with **no
+> labels follow the selected language: page actions use `docs.pageActions.*`,
+> code-copy and heading-link controls use shared `markdownCopy.*` messages
+> (see [locale.md](locale.md)). `<Step title>` renders a plain `<h3>` with **no
 > id** (`packages/ui/src/markdown/components/steps.tsx`) — Step titles are not
 > deep-linkable and never appear in the **On this page** outline; anchor rows
 > must target real markdown H2/H3s. The **Open in** cluster is the shared
@@ -62,22 +60,20 @@ clipboard permission.
 
 - [ ] `CONT-F1` · **Code highlighting** — On the install quickstart, inspect
   the `bash` (macOS / Linux tab) and `powershell` (Windows tab) blocks — in
-  **both** themes → Shiki token colouring renders (not a plain `<pre>`); the
-  palette follows the active theme; long blocks (> 12 lines) show line
-  numbers.
+  the docs light theme → Shiki token colouring renders (not a plain `<pre>`);
+  blocks with more than three lines show line numbers.
 - [ ] `CONT-F2` · **Copy code** — Hover/focus a code block; click **Copy
-  code** (hard-coded aria-label) → The button flips to **Copied**
+  code** (`markdownCopy.copyCode`) → The button flips to **Copied**
   (`aria-live="polite"`, reverts after 1.5 s); the clipboard holds the block's
   source **without** a trailing newline artefact; paste matches what's
   displayed.
 - [ ] `CONT-F3` · **Heading anchors** — On the install quickstart, hover the
-  H2 **Before you begin**; click the anchor, then **Copy link to this
-  section** → The heading has a stable GitHub-style id (`#before-you-begin` —
-  its real H2s are Before you begin / From zero to signed in / Prefer raw
-  Docker Compose? / Troubleshooting / Where this gets used); the URL hash
-  updates; the copy-link button flips to **Link copied** and the clipboard
-  holds the absolute URL incl. hash. Step titles (h3, no id) are **not**
-  anchorable — see the agent note.
+  H2 **Prepare the local machine**; click its anchor, then **Copy link to
+  this section** → The URL hash updates to `#prepare-the-local-machine`;
+  the copy-link button flips to **Link copied** and the clipboard holds the
+  absolute URL including the hash. Labels use the current locale
+  (`markdownCopy.copyLink` / `markdownCopy.linkCopied`). Step titles (h3,
+  no id) are not anchorable — see the agent note.
 - [ ] `CONT-F4` · **Deep link entry** — Open the CONT-F3 URL (with hash) in a
   fresh tab → The page loads scrolled to that heading, offset below the sticky
   header strip (`scroll-mt`), the outline's active row matches
@@ -100,20 +96,20 @@ clipboard permission.
 - [ ] `CONT-F8` · **Page metadata** — Read the meta row under the H1 → **{n}
   min read** (`docs.readingTime`) with a plausible n, and — when the build
   carries a date — **Last updated {date}** (`docs.lastUpdated`)
-- [ ] `CONT-F9` · **Steps list** — On the install quickstart, read the **From
-  zero to signed in** step sequence → An ordered list with numbered circular
+- [ ] `CONT-F9` · **Steps list** — On `{base}/get-started/quickstart`, read the **Start
+  a conversation** step sequence → An ordered list with numbered circular
   markers (1, 2, 3…) on a left border rail; each `<Step title>` renders its
   title as an `<h3>`; step bodies keep full markdown (fences, tabs, callouts
   nest inside)
-- [ ] `CONT-F10` · **Tabs switch** — In the **Install the CLI** step, click
+- [ ] `CONT-F10` · **Tabs switch** — In the **Install the CLI** section, click
   **Windows (PowerShell)**, then back to **macOS / Linux**; try
   ArrowLeft/ArrowRight → Real `role="tablist"`/`role="tab"` semantics with
   `aria-selected`; clicking (or arrow keys on a focused tab) swaps the visible
   panel — the powershell fence shows only under the Windows tab; switching
   never navigates or scrolls the page.
 - [ ] `CONT-F11` · **Callout flavors** — Compare **Info**/**Tip** on
-  `{base}/platform/models`, **Warning** on the WebDAV page, **Note**/**Check**
-  on the quickstart → Each renders as an `<aside role="note">` with a distinct
+  `{base}/platform/models`, **Warning** on the WebDAV page, **Note**
+  on the install quickstart and **Check** on `{base}/get-started/developers` → Each renders as an `<aside role="note">` with a distinct
   icon and tint per flavor (Note neutral, Tip/Check green, Info blue, Warning
   amber); links and inline code inside callouts stay readable (full-contrast
   foreground)
@@ -130,8 +126,8 @@ clipboard permission.
   tabs swaps the code panel instantly (panels stay mounted); each panel keeps
   its own **Copy code** button copying only the visible variant.
 - [ ] `CONT-F15` · **Images render** — On `{base}/platform/chat/basics`,
-  inspect both screenshots — **in mode A** (or any base-path deploy) if
-  possible → Both `.webp` images render (no broken-image icon), with non-empty
+  inspect the screenshots — **in mode A** (or any base-path deploy) if
+  possible → The `.webp` images render (no broken-image icon), with non-empty
   descriptive `alt`, `loading="lazy"`, inside the body column (no overflow);
   the served src is rebased under the deploy base path —
   `/docs/images/platform/…` on mode A, never a bare `/images/…` that 404s.
@@ -170,7 +166,7 @@ clipboard permission.
 
 - [ ] `CONT-A1` · **Copy controls** → All copy affordances are real
   `<button>`s with accessible names that update on state (**Copy code** →
-  **Copied**), reachable by keyboard (focus reveals the hover-hidden ones)
+  **Copied**, translated for the selected locale), reachable by keyboard (focus reveals the hover-hidden ones)
 - [ ] `CONT-A2` · **Content markup** → The body is semantic HTML — real
   headings (levels never skip), `<ul>/<ol>` lists, `<code>`/`<pre>` for code;
   callouts are `<aside role="note">` with an `aria-label` naming the flavor;

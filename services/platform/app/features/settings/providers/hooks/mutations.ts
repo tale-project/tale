@@ -7,12 +7,15 @@ import { providerCatalogsQueryKey } from './queries';
 
 /**
  * Write hooks for the AI-providers settings page. The secret-carrying writes
- * (create, update) are Convex ACTIONS — plaintext must reach the `'use node'`
- * encryption layer — while delete and default-swap are plain mutations. The
- * credential list is a reactive Convex query, so none of these invalidate it;
- * only the explicit catalog refresh invalidates the action-backed catalog
- * listing. Error feedback is handled at the call sites (dialog-inline or
- * toast, via `mapProviderError`), so the mutation hooks opt out of the
+ * (create, update) are actions — plaintext must reach the encryption layer —
+ * while delete and default-swap are plain mutations. None of them invalidates
+ * anything here: their adapter rows refresh the provider-credential entity,
+ * which holds the credential list and every read derived from it (the model
+ * pickers, the runtime status, the resolved vision model). The catalog
+ * refresh's row does the same — those reads answer from the catalogs too —
+ * and its hook also invalidates the catalog listing, which only a refresh
+ * changes. Error feedback is handled at the call sites (dialog-inline or
+ * toast, via `mapCredentialError`), so the mutation hooks opt out of the
  * generic error toast.
  */
 

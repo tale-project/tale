@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 57 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 58 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications), **Organization** (Organization, Teams, Members,
@@ -238,15 +238,24 @@ any toggled setting after the run.
   catalog pane (`settings.credentials.catalog.title`) lists configured
   providers first with a **Configured** badge
   (`settings.credentials.catalog.configured`), then the rest alphabetically →
-  pick a vendor → fill **Name** (`settings.credentials.name`) + **API key**
+  pick a vendor → **Name** (`settings.credentials.name`) arrives filled with
+  the vendor's name; keep it, fill **API key**
   (`settings.providers.dialog.secret`), optionally narrow the **Model
   allowlist** (`settings.providers.dialog.allowlist`) → **Add credential**
   (`settings.credentials.create`) → Toast **Credential added**
   (`settings.credentials.createdToast`); after reload the row is in the table
-  with the vendor column (`settings.providers.vendorColumn`), the auth method
+  under the vendor's name, with the vendor column
+  (`settings.providers.vendorColumn`), the auth method
   (`settings.credentials.columns.method`), and — as the vendor's first
   credential — the **Default** badge (`settings.credentials.default`); the
   stored secret is never echoed back.
+- [ ] `SET-F21a` · **Second credential for the same provider** — With
+  SET-F21's row still named after its provider, **Add credential** → the same
+  provider → **Name** arrives numbered (`OpenRouter` → `OpenRouter 2`), never
+  a name that provider's rows already carry; Escape closes the untouched step
+  with no discard prompt (`common.discardChangesConfirm` asks only once
+  something was typed). Rename the first row (**Edit credential**) and add
+  again → the suggestion is the bare provider name once more.
 - [ ] `SET-F22` · **Credential row actions** — A credential row's action menu
   (`settings.credentials.actionsLabel`) → **Make default**
   (`settings.credentials.makeDefault`) on a second credential; **Disable** /
@@ -263,6 +272,23 @@ any toggled setting after the run.
   `settings.credentials.deletedToast` and the row is gone; with no default
   left for a vendor the table shows the no-default notice
   (`settings.credentials.noDefault`)
+- [ ] `SET-F22a` · **Provider changes apply without a reload** — On an org
+  whose only provider credential is disabled, open a project's **Agents** tab
+  → **New agent** (`projects.agents.newAgent`) → **Model**
+  (`projects.agents.modelLabel`), which reads
+  `projects.agents.modelSearchEmpty`; in the same tab **Enable**
+  (`settings.credentials.enable`) the credential on the providers page, then
+  revisit each surface without reloading → the **Agent runtimes** rows
+  (`settings.providers.harnesses.title`) trade
+  `settings.providers.harnesses.noDirectCredential` for a model count
+  (`settings.providers.harnesses.modelPool`); the agent **Model** picker
+  lists the provider's models; **Governance → Models** names the model that
+  reads images (`governance.visionModel.resolved.*`, no longer
+  `governance.visionModel.resolvedNone`); **Data residency** offers the
+  credential's embedding model
+  (`settings.dataResidency.orgEmbedding.recommendationBody`). With the
+  **Model** picker open, **Disable** (`settings.credentials.disable`) the
+  credential from a second tab → the open picker empties within seconds.
 - [ ] `SET-F23` · **Vendor filter & search** — On providers: the **Provider**
   filter (`settings.providers.vendorFilterLabel`) and the search field
   (`settings.credentials.searchPlaceholder`); on connectors the same filter is
@@ -484,6 +510,8 @@ any toggled setting after the run.
   `settings.branding.hexValueAria`); credential row-action menus are labelled
   per row (`settings.credentials.actionsLabel`)
 - [ ] `SET-A6` · **Sandbox total feedback** — `/dashboard/{org}/settings/sandboxes` → edit a workload limit by keyboard until **Total organization sessions** (`sandboxes.limits.total`) exceeds the deployment capacity → a screen reader announces the updated total and explains `sandboxes.limits.totalExceedsDeployment` when a workload field receives focus. The total, validation text and capacity-card hints remain readable without clipping or horizontal scrolling in `en`, `de` and `fr`; return to valid values and use **Discard** to leave saved limits unchanged.
+
+- [ ] `SET-A7` · **WebDAV status labels** — on `/dashboard/{org}/settings/api/webdav`, generate an app-password with a descriptive multiword device label, then revoke it → at desktop and narrow widths in `en`, `de` and `fr`, the full revoked status (`webdav.list.revoked`) remains readable beside or below the device label; active rows keep a labelled Revoke control and revoked rows have none.
 
 ## Performance
 

@@ -1,68 +1,64 @@
 ---
-title: Aufgaben-Automatisierung
-description: Wie die Zuweisung einer Board-Aufgabe an einen Agenten ihn arbeiten lässt, die Trennung von Zuständig und Reviewer, die Prüfung direkt über den Status In Prüfung, Leitplanken und der Notausschalter.
+title: Eine Aufgabe an einen Agenten delegieren
+description: Starte einen Agenten, prüfe sein Ergebnis, fordere Änderungen an und setze fehlgeschlagene Läufe fort oder brich sie ab.
 ---
 
-Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Wer bei der Aufgabe als **Zuständig** eingetragen ist — eine Person, ein Projekt-Agent oder eine Automatisierung — treibt die Arbeit und die Board-Choreografie; der **Reviewer** ist der benannte Mensch, auf den das fertige Ergebnis wartet. Eine Aufgabe, die eine Automatisierung vorschlägt, liegt im [Backlog](/de/platform/projects/backlog), bis ein Mensch sie startet — von diesem Moment an ist sie eine Board-Aufgabe wie jede andere und tritt in die Schleife unten ein.
+Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur Prüfung vor. Weise ihm die Arbeit zu, starte den Lauf und halte Rückmeldungen an der Aufgabe fest. Du brauchst Bearbeitungszugriff auf das Projekt; außerdem müssen Anbieter, passende Agent-Laufzeit und Sandbox-Kapazität verfügbar sein.
 
-<Frame caption="Das Aufgaben-Board eines Projekts — eine Karte einem Agenten zuzuweisen startet die Schleife unten.">
+<Frame caption="Agentenarbeit nutzt dasselbe Board wie menschliche Arbeit: Sie startet unter In Bearbeitung und wartet unter In Prüfung auf die Abnahme.">
 
-![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über seine Status-Spalten, von Backlog und Zu erledigen über In Prüfung bis Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
+![Das Aufgabenboard zeigt Arbeit in Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## Die Ausführungsschleife
+## Die Aufgabe vorbereiten und starten
 
-1. **Weise** die Aufgabe einem Agenten zu. Die Karte wandert nach _In Bearbeitung_, und der Agent arbeitet in seiner eigenen Sandbox-Session — mit Beschreibung, Kommentaren und Eingabedateien der Aufgabe als Kontext.
-2. Der Agent **meldet sich zurück**: Sein Ergebnis landet als Kommentar an der Aufgabe (Dateien in der Output-Zone), und die Aufgabe parkt auf **_In Prüfung_** — Agenten können nie auf _Erledigt_ stellen; diese Regel setzt der Server durch.
-3. Mit dem Parken geht die **Review-Anfrage** raus: Der **Reviewer** der Aufgabe bekommt eine Glocke im Posteingang und eine E-Mail, und die Karte trägt auf dem Board den Chip _Wartet auf {name}_. Ist niemand benannt, landet die Anfrage bei der Person, die die Aufgabe angelegt hat (sonst beim Projekt-Ersteller) — ein Abschluss bleibt nie stumm.
-4. Ein Mensch **entscheidet auf dem Board**: Die Karte von _In Prüfung_ auf _Erledigt_ zu ziehen — per Drag oder über das Status-Feld im Aufgabenblatt — gibt frei, und die Entscheidung wird als die dieser Person festgehalten, nie als die des Agenten. Zum Zurückschicken **@-erwähnst** du den Zuständigen in einem Kommentar: Das Feedback startet einen Überarbeitungslauf, der das vorige Gespräch dort fortsetzt, wo es aufgehört hat, und das Ergebnis wieder auf _In Prüfung_ parkt. Wandert die Karte in eine andere Spalte, wird die Review-Anfrage stattdessen zurückgezogen — die Glocken verstummen, und das nächste Parken fragt neu.
+1. Erstelle eine [Aufgabe](/de/platform/projects/tasks) mit gewünschtem Ergebnis, Abschlusskriterien und Eingabedateien.
+2. Wähle unter **Zuständig** einen [Projektagenten](/de/platform/projects/project-agents).
+3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts.
+4. Klicke auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**.
 
-Ein fehlgeschlagener Lauf lässt die Aufgabe, wo sie war, und erklärt sich im Aufgabenblatt — und die Plattform versucht es von selbst erneut, sofort und bis zu dreimal in Folge; die Lauf-Zeile zählt die Versuche mit. Ein Versuch, der fünfzehn Minuten oder länger lief, beweist Fortschritt und bekommt ein frisches Kontingent — eine lange Aufgabe, die immer wieder stolpert, steht also immer wieder auf. Sackgassen, die kein neuer Versuch heilt — ein gelöschter Agent, ein Lauf über seinem Zeitlimit — landen direkt bei dir. Sind die automatischen Versuche aufgebraucht, bleibt der Fehler auf der Karte stehen, und **Erneut ausführen** setzt dieselbe Konversation dort fort, wo sie stehen geblieben ist. Eine übergeordnete Aufgabe mit offenen Teilaufgaben lässt sich erst schließen, wenn die letzte Teilaufgabe erledigt ist.
+Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet.
 
-## Zuständig und Reviewer
+## Das Ergebnis lesen und annehmen
 
-Die beiden Rollen sind bewusst getrennte Felder:
+Der Agent schreibt seinen Bericht als Aufgabenkommentar und legt erzeugte Dateien als Ergebnisse ab. Danach wechselt die Aufgabe auf **In Prüfung**. Der Reviewer erhält eine Benachrichtigung und bei eingerichtetem E-Mail-Versand auch eine E-Mail.
 
-| Rolle         | Wer                                         | Aufgabe                                                                                                                                                  |
-| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Zuständig** | Person, Agent oder Automatisierung          | Treibt die Arbeit und den Board-Status — der eine, polymorphe Zuständige                                                                                 |
-| **Reviewer**  | ein Projektmitglied mit Bearbeitungsrechten | Der benannte Mensch, auf den gewartet wird: erhält die Review-Anfrage und füllt den Filter **Wartet auf mein Review**; sein Zug auf _Erledigt_ entscheidet |
+Lies den Bericht, öffne die Dateien und vergleiche sie mit den Abschlusskriterien. Setze die Aufgabe erst auf **Erledigt**, wenn du die Arbeit annimmst. Tale hält die menschliche Entscheidung fest. Ein Agent darf seine eigene Aufgabe nicht als erledigt markieren.
 
-Den Reviewer wählst du im Aufgabenblatt im Feld **Reviewer**. Die Benennung ist bewusst **weich**: Sie steuert Benachrichtigungen und die Warteschlange, aber jedes Projektmitglied mit Bearbeitungsrechten kann weiterhin ein Review entscheiden — und anders als beim Zuständigen darfst du den Reviewer auch ändern, während ein Lauf läuft. Zum Prüfen musst du die Aufgabe nie übernehmen: Agent oder Automatisierung bleiben zuständig, die Choreografie läuft nach der Entscheidung weiter.
+**Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Andere Projektmitglieder mit Bearbeitungsrechten dürfen das Ergebnis ebenfalls annehmen. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten.
 
-Das Board benennt die Wartestelle: Karten auf _In Prüfung_ tragen einen Chip **Wartet auf {name}** (bzw. _Wartet auf dein Review_), und der Board-Filter **Review** reduziert das Board auf die Aufgaben, die auf dich warten — deine persönliche Review-Warteschlange im Projekt.
+## Änderungen anfordern
 
-## Erwähnungen
+Beschreibe die nötige Änderung in einem Aufgabenkommentar und **erwähne den zuständigen Agenten mit @**. Die Erwähnung ist eine Anweisung: Ein aktiver Agent kann sie während seines Laufs erhalten. Ein wartender Agent beginnt einen Überarbeitungslauf, der das bisherige Gespräch fortsetzt. Das Ergebnis landet erneut unter **In Prüfung**.
 
-**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder, die Agenten des Projekts und die Automatisierungen dieses Boards; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt und das vorige Gespräch dort fortsetzt, wo es aufgehört hat.
+Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist.
 
-Aufgaben, die einer Automatisierung gehören, folgen derselben Regel: Ein einfacher Kommentar bleibt ein Kommentar; erwähnst du die **besitzende Automatisierung mit @**, läuft ihr Workflow erneut und liest deinen Kommentar — samt der übrigen Timeline seit der letzten Lieferung — als Feedback. Die Erwähnung einer anderen Automatisierung startet nichts: Eine Aufgabe führt nur den Workflow aus, dem sie gehört, und eine Aufgabe mit laufendem Lauf behält ihn. **Änderungen anfordern** im Subjekt-Panel setzt genau diese Erwähnung für dich zusammen — die Timeline zeigt denselben @-Kommentar, ob du ihn getippt oder den Button geklickt hast.
+Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 
-## Leitplanken
+Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich haben, egal welche Automatisierung ihn gestartet hat. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf, auch wenn er eine andere Automatisierung nennt. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
 
-Jeder Agenten-Lauf — Zuweisung, Erwähnung, Review-Überarbeitung — passiert dasselbe Zulassungstor:
+## Wartende und fehlgeschlagene Läufe behandeln
 
-- **Ein Motor pro Aufgabe**: Eine Aufgabe mit laufendem Lauf lehnt einen zweiten ab, und eine Neuzuweisung mitten im Lauf wird verweigert (erst abbrechen — der Picker bietet Abbrechen-und-neu-zuweisen an).
-- **Parallelität**: Agent-Sessions schöpfen aus der Kapazität der Organisation; überzählige Läufe reihen sich ein und starten, sobald ein Platz frei wird.
-- **Sicherung pro Aufgabe**: Zu viele automatische Läufe innerhalb einer Stunde auf einer Aufgabe pausieren die Automatisierung dort, bis ein Mensch ihren Status ändert.
+| Zustand oder Problem | Maßnahme |
+| --- | --- |
+| Warten auf einen Sandbox-Platz | Die Kapazität der Organisation oder der gemeinsam genutzten Infrastruktur kann ausgeschöpft sein. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
+| Automatischer Wiederholungsversuch | Tale wiederholt einen behebbaren Fehler. Beobachte die Versuchszahl und starte keinen zusätzlichen Lauf. |
+| Der Lauf bleibt fehlgeschlagen | Lies den Fehler und behebe die Ursache. Nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. Gelöschte Agenten und Zeitlimits erfordern einen Eingriff. |
+| Neuzuweisung wird verweigert | Brich den aktiven Lauf ab, bevor du neu zuweist. |
+| Zwei Automatisierungen erwähnen einander auf einer Aufgabe immer wieder | Eine Ratenbegrenzung pro Aufgabe gibt es nicht: Die Ein-Engine-Regel ist, was eine Schleife stoppt. Brich den lebenden Lauf ab und lies die Zeitleiste, bevor eine von beiden wieder starten darf. |
+| Die Aufgabe lässt sich nicht abschließen | Schließe zuerst ihre offenen Teilaufgaben ab. |
 
-## Den Zuständigen wählen
+Bei behebbaren Fehlern folgen bis zu drei sofortige Wiederholungsversuche. Ein Lauf, der mindestens fünfzehn Minuten Fortschritt macht, erhält ein neues Versuchskontingent. So kann lange Arbeit Unterbrechungen überstehen. Die Richtigkeit des Ergebnisses musst du trotzdem prüfen.
 
-Nicht jede Aufgabe gehört auf einen Coding-Harness. Als Faustregel:
+## Arbeit abbrechen oder pausieren
 
-| Aufgabentyp                                                 | Zuweisen an                                                                                                                                                 |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recherche, Texte, Zusammenfassungen, persönliche Ergebnisse | Eine **Person**                                                                                                                                             |
-| Board-Arbeit, die ein bereitgestellter Desk treibt          | Eine **Automatisierung** — ihr Desk treibt dann die Status-Verben des Boards, und die Prüfung findet im Subjekt-Panel der Aufgabe statt                     |
-| Repository-Arbeit — Bugs, Features, Refactorings, PRs       | Einen **Agenten** auf einem Coding-[**Harness**](/de/platform/agents/harnesses) — angelegt im Agents-Tab des Projekts mit dem Harness, der zur Arbeit passt |
+Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.
 
-Der Zuständigen-Picker gruppiert **Agenten** und **Automatisierungen**. Jeder Agent läuft in einer Sandbox auf dem **Harness**, der bei seiner Erstellung gewählt wurde — vorab ausgestattet mit seinen Skills, Konnektoren und Anweisungen.
+Ein Admin kann die Aufgabenautomatisierung für die Organisation ausschalten. Neue Läufe starten dann nicht; bestehende Arbeit endet regulär. Organisationslimits und Budgets gelten weiterhin für jeden Lauf. Siehe [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
 
-## Der Notausschalter
+## Die passende Zuständigkeit wählen
 
-Die Governance-Richtlinie `task_automation` trägt den Hauptschalter: Ausschalten stoppt den Startpfad — laufende Arbeit endet regulär, Neues startet nicht. Nur Admins dürfen das, und es wird auditiert; auf einer selbst gehosteten Instanz ist die Richtlinie eine der Governance-Konfigurationsdateien der Organisation, neben den Limits auf [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
+Weise einer Person Arbeit zu, die menschliches Urteilsvermögen oder Zugriff außerhalb der Agentenrechte braucht. Nutze einen Projektagenten für eine klar begrenzte Aufgabe mit seinen konfigurierten Dateien und Tools. Eine Automatisierung passt zu festen Abläufen mit mehreren Schritten, Auslösern oder Connector-Freigaben.
 
-## Wo das hingehört
-
-Aufgaben-Automatisierung macht aus dem Projekt-Board eine Delegationsfläche statt einer To-do-Liste: Ein Mensch weist zu, ein benannter Mensch prüft, der Agent erledigt alles dazwischen — und _Erledigt_ bleibt eine menschliche Entscheidung. Als Nächstes lohnt sich [Backlog](/de/platform/projects/backlog): wie vorgeschlagene Arbeit in die Schleife gelangt.
+Für den ersten Lauf folge [Deinen ersten Agenten erstellen](/de/tutorials/editor/first-agent-end-to-end). Halte die Aufgabe so klein, dass du ihr Ergebnis selbst prüfen kannst.

@@ -15,7 +15,7 @@ markdown corpus. The site is public — **no sign-in exists or is needed**.
 
 | Mode         | Command / URL                                               | Notes                                                                 |
 | ------------ | ----------------------------------------------------------- | --------------------------------------------------------------------- |
-| **A. Live**  | `https://tale.dev/docs`                                     | production base path is `/docs/` (`DOCS_BASE_URL`)                    |
+| **A. Live**  | `https://docs.tale.dev`                                     | default dedicated docs origin; a subpath deployment can set `DOCS_BASE_URL`                    |
 | **B. Local** | `bun run --filter @tale/docs dev` → `http://localhost:3002` | builds the per-locale search index first, then Vite; base path is `/` |
 
 Mode B is the **dev** server — it serves no prerendered HTML, no 301
@@ -38,18 +38,17 @@ German at `{base}/de/platform/chat/basics`.
 
 ## 2. Conventions
 
-- **`{base}`** in the guides = `https://tale.dev/docs` (mode A) or
+- **`{base}`** in the guides = `https://docs.tale.dev` (mode A) or
   `http://localhost:3002` (mode B).
 - **Labels**: controls name their i18n key from
   [`services/docs/messages/en.yml`](../../messages/en.yml) (shared-UI
-  controls from `packages/ui/src/i18n/messages/en.yml`). A few controls are
-  hard-coded English (noted inline in the guides) — treat untranslated output
-  on `/de`/`/fr` for those as a **candidate finding**, not a locale bug in
-  your run.
+  controls from `packages/ui/src/i18n/messages/en.yml`). Resolve service overrides
+  and regional fallback when checking a label. Code-copy, heading-link, search
+  and page-action controls must follow the selected language.
 - **Checkable expectations**: URL/hash changes, visible elements, clipboard
   contents, values that survive a reload.
-- **Screenshots**: `services/docs/tests/screenshots/<YYYY-MM-DD_HH_MM>/<area>/`
-  — create the folder before a run.
+- **Screenshots**: a task-specific directory outside the clone, recorded in the
+  session log. These QA captures are evidence; shipped images use the docs pipeline.
 
 ## 3. Smoke — the shell renders
 

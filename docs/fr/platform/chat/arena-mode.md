@@ -1,15 +1,15 @@
 ---
-title: Mode Arène
-description: La comparaison de modèles côte à côte dans le Chat — comment elle s’affiche, comment choisir les concurrents, comment les verdicts alimentent l’analyse des retours et quand y recourir.
+title: Comparer les modèles dans l’Arène
+description: Envoie une même demande à deux modèles, évalue leurs réponses et choisis comment poursuivre le chat.
 ---
 
-Le Mode Arène exécute le même prompt contre deux modèles à la fois et te demande quelle réponse est la meilleure. Le verdict alimente l’analyse des retours de l’organisation ; avec le temps, les données disent quel modèle l’équipe préfère vraiment pour quel type de question, indépendamment du ressenti de chacun.
+Le **Mode Arène** compare deux modèles à partir du même message. Les deux côtés utilisent l’assistant de chat et le même contexte de départ. Choisis une question dont tu peux vérifier la réponse : une préférence ne suffit pas à établir l’exactitude.
 
-Va vers l’Arène quand le choix d’un modèle a été un débat plutôt qu’une décision — comparer des réponses côte à côte casse l’impasse avec des preuves plutôt qu’avec des opinions. Pour le travail ordinaire, le sélecteur de modèles classique suffit ; la valeur de l’Arène, ce sont les verdicts qu’elle produit, pas la vue de comparaison elle-même.
+## Lancer une comparaison
 
-## Comment l’Arène s’affiche
+Ouvre un chat privé, puis le menu **+** de la zone de saisie et choisis **Mode Arène**. Un chat partagé ne peut pas entrer dans ce mode. Choisis les modèles sous **Modèle A** et **Modèle B**, puis envoie ton message. Tu peux sélectionner deux fois le même modèle pour observer les variations, ou deux modèles différents pour comparer leur comportement.
 
-Ouvre le menu plus du chat et choisis **Mode Arène** — le chat fait pousser deux sélecteurs de modèles étiquetés **Modèle A** et **Modèle B**. Envoyer un message exécute les deux modèles en parallèle ; l’écran se sépare et chaque réponse arrive en streaming dans sa propre colonne. Une fois les deux terminées, une rangée de verdict apparaît sous les colonnes avec quatre boutons : **A est meilleur**, **B est meilleur**, **Égalité**, **Les deux sont mauvais**.
+Pour commencer, fournis une source courte et une demande précise, par exemple : « Liste les trois décisions de ces notes de réunion et cite la phrase qui justifie chacune. » Conserve la même source, les mêmes instructions et le même format demandé des deux côtés.
 
 <Frame caption="Le même prompt traité par deux modèles, avec la rangée de verdict en dessous.">
 
@@ -17,33 +17,28 @@ Ouvre le menu plus du chat et choisis **Mode Arène** — le chat fait pousser d
 
 </Frame>
 
-<Note>
+Chaque réponse apparaît dans sa colonne. Attends qu’elles soient toutes deux terminées avant de choisir un verdict ; les boutons restent indisponibles tant qu’un côté répond. Le délai fait aussi partie du résultat. Si un côté échoue, examine son erreur avant d’en tirer un jugement sur la qualité.
 
-Les deux colonnes tournent avec le même assistant de chat, si bien que les instructions, les tools et la connaissance sont identiques de part et d’autre et que seul le modèle diffère — c’est tout l’intérêt de la comparaison.
+## Évaluer les réponses
 
-</Note>
+Vérifie les faits dans la source, le respect des instructions, les informations essentielles manquantes et les corrections nécessaires avant utilisation. Une réponse plus longue ou plus assurée n’est pas forcément meilleure.
 
-## Choisir les concurrents
+| Verdict | Quand le choisir | Le chat continue avec |
+| --- | --- | --- |
+| **A est meilleur** | A est plus utile ou plus exact. | La colonne A. |
+| **B est meilleur** | B est plus utile ou plus exact. | La colonne B. |
+| **Égalité** | Les deux répondent aussi bien à la demande. | La colonne A. |
+| **Les deux sont mauvais** | Aucune réponse n’est acceptable. | La colonne A. |
+| **Quitter sans verdict** | Tu ne souhaites pas noter ce résultat. | La colonne A, sans verdict. |
 
-Les deux sélecteurs sont indépendants — n’importe quel modèle que ton organisation met à disposition est valable de chaque côté. Choisir le même modèle des deux côtés est permis, mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les tools de l’assistant s’appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
+Chaque choix termine la comparaison à deux colonnes. Le message suivant est envoyé dans le chat conservé. Réactive l’Arène pour comparer à nouveau : une égalité ne maintient pas les deux colonnes actives.
 
-## Émettre un verdict
+## Retrouver le feedback enregistré
 
-Le verdict se donne en un clic. **A est meilleur** et **B est meilleur** parlent d’eux-mêmes ; **Égalité** sert quand les deux réponses se valent à peu près ; **Les deux sont mauvais** quand aucune n’est acceptable. Le bouton que tu cliques enregistre le verdict et résout le chat sur la colonne gagnante — le message suivant que tu envoies ne va qu’à ce modèle. **Égalité** ou **Les deux sont mauvais** laissent les deux colonnes actives pour un tour de plus.
+Lorsque les deux modèles ont répondu, le verdict alimente l’[analyse des retours](/fr/platform/admin/governance/feedback-analytics) de l’organisation. Les administrateurs peuvent y examiner les verdicts de l’Arène et les comparaisons entre modèles. Quitter sans verdict n’ajoute aucune note.
 
-## Où les verdicts apparaissent
+Essaie plusieurs questions représentatives avant de conclure sur un modèle. Un bon résumé court ne prédit pas forcément ses résultats sur du code ou de longs documents. Les préférences de l’organisation incluent aussi les tâches des autres personnes.
 
-Les verdicts remontent dans l’[Analyse des retours](/fr/platform/admin/governance/feedback-analytics) sous **Verdicts d'arène**, à côté d’un tableau **Top duels de modèles** qui classe les paires par taux de victoire. Les données sont à l’échelle de l’organisation plutôt que par utilisateur : une poignée de verdicts délibérés peut donc peser plus lourd qu’un gros tas d’habitudes quand quelqu’un lit le tableau pour décider vers quel modèle l’équipe devrait aller.
+## Débloquer une comparaison
 
-## Quand y recourir
-
-| Utilise … quand                                                         | Mode Arène | Sélecteur classique |
-| ----------------------------------------------------------------------- | ---------- | ------------------- |
-| Tu décides quel modèle mettre par défaut                                | ✓          |                     |
-| Tu soupçonnes une régression de modèle après une mise à niveau          | ✓          |                     |
-| Tu sais déjà quel modèle tu veux ; tu veux juste une réponse maintenant |            | ✓                   |
-| La requête est courte et ordinaire                                      |            | ✓                   |
-
-## Où ça s’inscrit
-
-L’Arène est la boucle de retour légère par-dessus le choix de modèle. La surface lourde est l’[Analyse des retours](/fr/platform/admin/governance/feedback-analytics) — c’est là que les verdicts que tu émets deviennent un graphique avec lequel quelqu’un argumentera plus tard sur les défauts. Si c’est toi qui liras le graphique, fais une poignée de tours d’Arène avant de le lire ; les verdicts que tu émets toi-même te diront si le cadrage du tableau correspond à ton expérience.
+Si un modèle manque, consulte le [catalogue des modèles](/fr/platform/models) pour vérifier son fournisseur et les règles d’accès. Si les boutons de verdict restent indisponibles, les deux générations doivent d’abord se terminer. Un échec peut venir des identifiants, de la disponibilité ou d’une règle : utilise la cause affichée pour décider quoi corriger avant de réessayer.

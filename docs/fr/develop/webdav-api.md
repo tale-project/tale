@@ -1,136 +1,183 @@
 ---
 title: API WebDAV
-description: Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites.
+description: Connecte un client de fichiers, vérifie les transferts et gère les droits, les verrous et les limites du protocole WebDAV.
 ---
 
-Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Connectors > WebDAV](/fr/platform/connectors/webdav).
+Utilise WebDAV lorsqu'un client de fichiers a besoin de dossiers, de téléchargements, d'envois et de verrous d'édition sur HTTP. Le point d'accès expose le centre de documents de l'organisation ; les fichiers des projets restent hors de cette arborescence. Pour Finder, l'Explorateur de fichiers ou un autre client existant, commence par [Configurer WebDAV](/fr/platform/connectors/webdav).
 
-L’identifiant est créé par un humain : un mot de passe d’application qu’une personne crée sous **Paramètres > WebDAV**. Rien sur l’API n’en frappe un, et une clé API n’est pas acceptée sur cette surface — chaque méthode sauf `OPTIONS` lui répond `401` —, un essai scripté, un smoke test de CI ou un runbook d’onboarding a donc besoin qu’une personne crée d’abord le mot de passe et le remette au client.
+Cette référence s'adresse aux développeurs de clients. Vérifie d'abord une lecture de dossier authentifiée, puis l'envoi d'un petit fichier. Une réponse `207` confirme l'accès ; retrouver exactement les mêmes octets au téléchargement confirme aussi le chemin de stockage.
 
 ## Schéma d’URL
 
-```text
-/dav/<orgSlug>/documents/<path>      R/W  arbre de documents actifs
-/dav/<orgSlug>/.trash/<path>         R/O  documents soft-supprimés (vue corbeille)
-/dav/<orgSlug>/                      R/O  collection contenant les deux ci-dessus
-```
+| Chemin | Accès | Contenu |
+| --- | --- | --- |
+| `/dav/<orgSlug>/documents/<path>` | Lecture et écriture | Documents et dossiers actifs du centre de documents |
+| `/dav/<orgSlug>/.trash/<path>` | Lecture seule | Documents dans la corbeille |
+| `/dav/<orgSlug>/` | Lecture seule | Les deux collections ci-dessus |
 
-Les segments sont URL-encodés. Le serveur rejette les segments contenant `/`, `\`, NUL, ou les noms relatifs `.` et `..`. Chaque segment doit faire 1–255 octets. Le `orgSlug` correspond à `[a-zA-Z0-9_-]{1,64}`.
+Encode chaque segment séparément. L'analyseur normalise Unicode en NFC et retire les espaces en début et fin de nom. Il refuse les noms vides, `.` et `..`, `/`, `\`, les caractères de contrôle et les noms de plus de 255 unités de code UTF-16. Il ne s'agit donc pas d'une limite de 255 octets. Le slug d'organisation respecte `[a-zA-Z0-9_-]{1,64}`.
 
-La politique de slash final suit la convention WebDAV : les collections (dossiers) sont référencées avec un slash final, les ressources (fichiers) sans. Beaucoup de clients normalisent à la volée ; le serveur accepte les deux formes à la résolution et émet la forme canonique dans les réponses PROPFIND.
+Ajoute une barre oblique finale aux dossiers, mais pas aux fichiers. Les réponses renvoient des URL canoniques. Pour accéder à un élément existant, reprends son `href` au lieu de le reconstruire à partir du nom affiché, surtout si plusieurs documents d'un dossier portent le même titre.
 
 ## Authentification
 
-HTTP Basic uniquement. Le champ nom d’utilisateur peut être n’importe quelle valeur non vide — le mot de passe applicatif est la vraie information d’identification, et le serveur ne compare pas le nom d’utilisateur à ton enregistrement de compte. Utiliser l’e-mail de ton compte Tale est la convention pour la lisibilité des journaux d’audit, et les clients qui pré-remplissent depuis le trousseau attendent une chaîne en forme d’e-mail, mais la décision d’authentification se fait uniquement sur le mot de passe. Le mot de passe est un **mot de passe applicatif** généré sous Paramètres > WebDAV. Le mot de passe principal n’est pas accepté sur ce point de terminaison.
+Génère un mot de passe d'application dans **Paramètres > WebDAV** avec un compte autorisé à accéder aux paramètres développeur. Le mot de passe complet n'apparaît qu'une fois. Donne un libellé distinct à chaque client pour pouvoir révoquer son accès séparément.
 
-```http
-Authorization: Basic <base64(email-ou-autre:mot-de-passe-applicatif)>
+| Champ | Valeur |
+| --- | --- |
+| Schéma HTTP | Basic |
+| Nom d'utilisateur | L'adresse e-mail de ton compte ; le serveur accepte toute valeur non vide |
+| Mot de passe | Le mot de passe d'application WebDAV généré |
+| Organisation | Le slug dans l'URL, vérifié avec l'appartenance actuelle |
+
+Le mot de passe d'application identifie l'utilisateur. Le mot de passe du compte et les clés API REST ne sont pas acceptés. Un mot de passe valide ne remplace pas l'appartenance à l'organisation : si tu n'en es plus membre, la réponse est `403`. Seul `OPTIONS` est accessible sans authentification.
+
+### Vérifier une lecture de dossier
+
+Renseigne l'URL de ton installation et ton e-mail ci-dessous. Chaque commande `curl --user` demande le mot de passe d'application de manière interactive, sans l'inscrire dans la commande ni dans l'historique du terminal.
+
+```bash
+export TALE_DAV_URL="https://your-host.example.com/dav/acme/documents"
+export TALE_DAV_USER="you@example.com"
+
+curl --user "$TALE_DAV_USER" --request PROPFIND \
+  --header 'Depth: 1' "$TALE_DAV_URL/"
 ```
 
-Les mots de passe applicatifs sont hachés avec HMAC-SHA256 sous le secret de déploiement `WEBDAV_APP_PASSWORD_HMAC_KEY`. La clé est dérivée de manière déterministe depuis `INSTANCE_SECRET` par l’entrypoint de la plateforme (prod) et `server.ts` (dev), donc les opérateurs n’ont pas à la définir manuellement ; une valeur explicite dans `.env` remplace la valeur dérivée. La recherche restreint via les quatre premiers caractères du mot de passe (stockés à côté du hash pour une recherche indexée) et vérifie avec une comparaison HMAC à temps constant.
+La réponse attendue est `207 Multi-Status`, avec du XML décrivant la collection et ses enfants directs. Même un dossier vide possède son propre bloc de réponse. Lis le résultat comme du XML, et non du JSON ; un `207` ne garantit pas la réussite de chaque statut qu'il contient.
 
-Chaque requête authentifiée vérifie aussi que l’utilisateur est membre actif de l’organisation dans l’URL — une ligne périmée (appartenance retirée après l’émission) est rejetée avec `403`.
+### Vérifier un envoi et un téléchargement
 
-`OPTIONS` est la seule méthode autorisée sans authentification ; les clients l’utilisent pour sonder la capacité DAV avant de se connecter.
+Choisis un nom de dossier encore inutilisé pour préserver les fichiers existants. Ces commandes créent un dossier, envoient un petit fichier texte puis le téléchargent :
+
+```bash
+curl --user "$TALE_DAV_USER" --request MKCOL "$TALE_DAV_URL/Client%20test/"
+printf 'Hello from WebDAV.\n' > webdav-test.txt
+curl --user "$TALE_DAV_USER" --upload-file webdav-test.txt \
+  --header 'Content-Type: text/plain' "$TALE_DAV_URL/Client%20test/webdav-test.txt"
+curl --user "$TALE_DAV_USER" "$TALE_DAV_URL/Client%20test/webdav-test.txt"
+```
+
+Les réponses attendues sont `201` pour le dossier, `201` pour le fichier, puis le texte `Hello from WebDAV.` au téléchargement. Un envoi sur un fichier existant remplace son contenu et renvoie `204`. Le fichier apparaît aussi dans le centre de documents sans synchronisation supplémentaire.
 
 ## Méthodes
 
-| Méthode    | Comportement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Auth       |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| OPTIONS    | Annoncer les capacités. Renvoie `DAV: 1, 2`, `Microsoft-Server-WebDAV-Extensions: 1` pour la compatibilité Windows, et un `Allow` qui nomme ce que la cible elle-même accepte (RFC 9110 §10.2.1) : l’arbre des documents annonce chaque méthode ci-dessous ; un fichier `.trash` `OPTIONS, GET, HEAD, PROPFIND` ; la collection `.trash` et la racine de l’org `OPTIONS, PROPFIND`, si bien qu’un montage de l’une ou l’autre se présente en lecture seule avant que la première écriture n’échoue. Un chemin qui ne se parse pas annonce encore l’ensemble complet, pour qu’un client détecte la prise en charge DAV avant d’avoir le contexte d’org. | Anonyme OK |
-| PROPFIND   | Lister une ressource (Depth 0) ou les enfants directs d’une collection (Depth 1). La liste de propriétés émise est documentée plus bas. **Depth: infinity est rejeté avec 403** pour éviter des réponses sans borne.                                                                                                                                                                                                                                                                                                                                                                                                                                   | Requise    |
-| PROPPATCH  | Renvoie succès 207 par propriété sans stocker les valeurs. Les dead properties ne sont pas persistées en v1 ; PROPPATCH réussit de manière optimiste pour la compatibilité client.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Requise    |
-| GET / HEAD | Streamer le blob du document. Pose `Content-Type`, `Content-Length`, `ETag` et `Last-Modified`. GET sur une collection renvoie 405.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Requise    |
-| PUT        | Créer ou remplacer un document. Le nouveau blob est stocké dans le stockage objet ; la ligne du document reçoit `sourceProvider: "webdav"`. Renvoie 201 à la création, 204 à l’écrasement. Exige `Content-Length` ; un corps en chunked est refusé avec 411.                                                                                                                                                                                                                                                                                                                                                                                           | Requise    |
-| DELETE     | Soft-supprimer un document (`lifecycleStatus: "trashed"`) ou un dossier (corbeille en cascade sur les documents contenus, hard-supprime les lignes de dossier). Renvoie 204.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Requise    |
-| MKCOL      | Créer un dossier sous un parent existant. Corps vide uniquement. Renvoie 201, 405 si la cible existe, 409 si le parent manque.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Requise    |
-| MOVE       | Renommer ou déplacer. Atomique pour les documents. Pour les dossiers, met à jour le `parentId` du dossier déplacé. Respecte `Overwrite: T/F` et `If`. Renvoie 201 (nouvelle destination) ou 204 (écrasement).                                                                                                                                                                                                                                                                                                                                                                                                                                          | Requise    |
-| COPY       | Copie côté serveur. Les copies de documents réutilisent le même objet stocké. Les copies de dossiers sont récursives. Respecte `Overwrite` et `If`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Requise    |
-| LOCK       | Verrou d’écriture Class 2 exclusif ou partagé. Timeout depuis le header `Timeout: Second-N`, plafonné à 3600. Rafraîchissement en renvoyant LOCK avec `If: (<opaquelocktoken:...>)` et un corps vide.                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Requise    |
-| UNLOCK     | Libérer un verrou par son jeton. Seul le propriétaire peut libérer. Renvoie 204.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Requise    |
+Toutes les méthodes sauf `OPTIONS` exigent le mot de passe d'application.
 
-`HEAD` partage son handler avec `GET`, corps en moins.
+| Méthode | Rôle | Réponse réussie |
+| --- | --- | --- |
+| `OPTIONS` | Découvrir les capacités et les méthodes autorisées sur la cible | `200`, `DAV: 1, 2`, `Allow` |
+| `PROPFIND` | Lire les propriétés ; `Depth: 0` pour la cible seule, `Depth: 1` avec ses enfants directs | `207` en XML |
+| `PROPPATCH` | Soumettre des modifications de propriétés ; voir les limites de persistance ci-dessous | `207`, avec un statut par propriété |
+| `GET`, `HEAD` | Télécharger un fichier ou lire ses en-têtes | `200` ; les requêtes conditionnelles et par plage peuvent modifier le statut |
+| `PUT` | Créer ou remplacer un fichier | `201` créé, `204` remplacé |
+| `DELETE` | Mettre les documents à la corbeille ; traiter récursivement un dossier et supprimer ses lignes de dossiers | `204` |
+| `MKCOL` | Créer un dossier sous un parent existant | `201` |
+| `MOVE` | Renommer ou déplacer un document ou un dossier | `201` nouvelle destination, `204` remplacement |
+| `COPY` | Copier côté serveur un document ou une arborescence ; les copies de fichiers partagent les octets stockés | `201` nouvelle destination, `204` remplacement |
+| `LOCK` | Obtenir ou renouveler un verrou d'écriture | `200`, avec un jeton de verrou |
+| `UNLOCK` | Libérer un verrou appartenant à l'utilisateur appelant | `204` |
+
+`GET` sur un dossier renvoie `405` : utilise `PROPFIND`. Sans en-tête `Depth`, la valeur est `1` ; `Depth: infinity` est refusé avec `403`. Le corps de `MKCOL` doit être vide. `PUT` exige `Content-Length` : envoie un fichier de taille connue plutôt qu'un transfert chunked.
+
+`MOVE` et `COPY` utilisent `Destination` et respectent `Overwrite: T/F` ainsi que `If`. La destination doit rester sur le même hôte et dans la même organisation. Un parent absent produit `409` ; `Overwrite: F` vers une destination existante produit `412`. Le déplacement d'un document est atomique ; celui d'un dossier change son parent. Les opérations destructives respectent aussi les gels juridiques et les restrictions des documents contrôlés.
+
+`Allow` décrit la cible : l'arbre de documents annonce toutes les méthodes ci-dessus, un fichier de la corbeille `OPTIONS, GET, HEAD, PROPFIND`, et la corbeille ou la racine de l'organisation `OPTIONS, PROPFIND`. Une sonde sur un chemin encore impossible à analyser reçoit la liste complète pour découvrir le service. Windows reçoit aussi `MS-Author-Via: DAV` et `Microsoft-Server-WebDAV-Extensions: 1`.
 
 ## Propriétés
 
-PROPFIND renvoie ces propriétés vivantes pour chaque ressource :
+| Propriété DAV | Signification |
+| --- | --- |
+| `resourcetype` | `<collection/>` pour un dossier, vide pour un fichier |
+| `displayname` | Nom du dossier ou titre du document |
+| `getlastmodified` | Horodatage RFC 1123 ; modification de la source, sinon création |
+| `creationdate` | Date de création en ISO 8601 |
+| `getcontenttype` | Type MIME du fichier |
+| `getcontentlength` | Taille du fichier en octets |
+| `getetag` | Le même validateur que dans `GET` et `HEAD` |
+| `supportedlock` | Prise en charge des verrous d'écriture exclusifs |
+| `lockdiscovery` | Informations disponibles sur les verrous actifs |
 
-- `resourcetype` — `<collection/>` sur les dossiers, vide sur les documents.
-- `displayname` — le nom du dossier ou le titre du document.
-- `getlastmodified` — horodatage RFC 1123. Les documents utilisent `sourceModifiedAt` s’il est défini, sinon l’heure de création de la ligne.
-- `creationdate` — ISO 8601 de l’heure de création de la ligne.
-- `getcontenttype` — documents uniquement ; le MIME type au moment du téléversement.
-- `getcontentlength` — documents uniquement ; en octets.
-- `getetag` — documents uniquement ; le hash de contenu s’il est connu, sinon l’identifiant du document.
-- `supportedlock` — annonce le support des verrous d’écriture exclusifs.
-- `lockdiscovery` — présent sur les ressources avec verrous actifs.
+Les propriétés de fichier ne s'appliquent pas aux collections. L'ETag est le hachage du contenu entre guillemets lorsqu'il existe, sinon un validateur faible fondé sur la taille et la date de modification, par exemple `W/"42-1789373842855"`. Conserve les guillemets et le préfixe `W/`. Ne le remplace pas par l'ID du document et ne déduis pas une égalité octet par octet d'un validateur faible. `GET` accepte les requêtes conditionnelles et les plages d'octets.
 
-Les dead properties ne sont pas stockées. PROPPATCH renvoie 200 pour une dead property définie seule, mais définir une propriété live/protégée renvoie un 403 par propriété (`cannot-modify-protected-property`), et toutes les dead properties de la même requête sont alors signalées en 424 Failed Dependency (RFC 4918 §9.2 atomicité). Aucune valeur n’est jamais persistée.
+<Warning>
+
+Les propriétés personnalisées ne sont pas conservées. Un `PROPPATCH` ne contenant que des propriétés mortes reçoit un `200` par propriété pour la compatibilité des clients, mais une lecture ultérieure ne retrouve pas ces valeurs. Une propriété active protégée reçoit `403` ; les propriétés mortes de la même requête reçoivent alors `424 Failed Dependency`. N'y stocke pas de métadonnées métier.
+
+</Warning>
 
 ## Sémantique des verrous
 
-Les verrous vivent dans leur propre table Postgres (`app.webdav_locks`), indexés par `(organizationId, resourcePath)`. La forme filaire est `opaquelocktoken:<uuid>`. Le serveur :
+Utilise un verrou d'écriture exclusif et conserve son jeton `opaquelocktoken:<uuid>`. C'est le mode annoncé par le serveur. L'analyseur accepte aussi une portée partagée, mais le stockage n'autorise qu'un verrou actif par ressource. Ne fonde donc pas une édition simultanée sur les verrous partagés.
 
-- Plafonne le timeout à 3600 secondes. Les requêtes pour des fenêtres plus longues sont silencieusement bornées.
-- Traite `LOCK` avec un header `If: (<opaquelocktoken:UUID>)` et un corps vide comme un refresh — l’expiration du verrou existant est repoussée.
-- Renvoie `412 Precondition Failed` au refresh si le jeton fourni est inconnu.
-- Renvoie `423 Locked` sur `PUT / DELETE / MOVE / COPY / MKCOL / PROPPATCH` contre un chemin verrouillé quand la requête n’a pas de header `If` correspondant.
-- Renvoie `412 Precondition Failed` si le jeton `If` fourni ne correspond pas au verrou vivant.
-- Expire les verrous paresseusement — la requête de lookup renvoie null pour les lignes expirées et planifie une suppression fire-and-forget.
-- Hard-supprime tout verrou détenu sous un mot de passe applicatif quand ce mot de passe est révoqué.
+| Action du client | Requête nécessaire |
+| --- | --- |
+| Acquérir | `LOCK` avec un corps XML de verrou d'écriture et `Timeout: Second-N` |
+| Écrire sous verrou | Ajouter `If: (<opaquelocktoken:...>)` |
+| Renouveler | `LOCK` avec un corps vide et le même jeton `If` |
+| Libérer | Envoyer `UNLOCK` avec `Lock-Token: <opaquelocktoken:...>` en tant que propriétaire |
 
-`UNLOCK` requiert à la fois un header `Lock-Token` valide et que l’utilisateur soit le propriétaire du verrou.
+La durée est bornée entre 1 et 3600 secondes. Renouvelle le verrou avant son expiration si l'édition dure plus longtemps. Une écriture protégée sans jeton reçoit `423` ; un jeton incorrect ou inconnu lors du renouvellement reçoit `412`. Un verrou peut couvrir les descendants : celui d'un dossier parent peut donc bloquer une écriture en dessous.
+
+Les verrous sont stockés dans Postgres et nettoyés à la demande après expiration. Un verrou expiré ne protège plus la ressource, même si sa ligne existe encore. Révoquer un mot de passe d'application supprime immédiatement ses verrous. Cela permet aussi de débloquer un client qui a disparu pendant une édition, mais déconnecte tous les montages utilisant ce mot de passe.
 
 ## Codes de statut
 
-- `200` — OPTIONS, GET, HEAD, LOCK, refresh LOCK, PROPPATCH (par propriété)
-- `201` — création PUT, MKCOL, MOVE/COPY vers une nouvelle destination
-- `204` — DELETE, UNLOCK, écrasement PUT, écrasement MOVE/COPY
-- `207` — PROPFIND, PROPPATCH (enveloppe multi-status)
-- `400` — header `Destination` / `If` / `Lock-Token` / `Timeout` mal formé
-- `401` — Basic auth absente ou invalide
-- `403` — Depth: infinity rejeté ; tentative d’écriture .trash ; suppression/déplacement de la racine ; mauvais propriétaire de mot de passe applicatif sur UNLOCK ; utilisateur pas membre de l’org ; MOVE/COPY sur lui-même ou dans son propre sous-arbre ; `Destination` cross-org
-- `404` — ressource introuvable
-- `405` — GET sur une collection ; PUT sur un chemin de collection ; MKCOL sur un chemin existant ; MKCOL racine
-- `409` — MKCOL, MOVE ou COPY quand le parent de destination n’existe pas
-- `411` — PUT sans `Content-Length` (le transfert chunked n’est pas pris en charge : le corps part vers une URL de stockage objet pré-signée qui a besoin de la longueur dès le départ)
-- `412` — non-correspondance de jeton `If` ; précondition `If-Match` / `If-None-Match` échouée ; MOVE/COPY avec `Overwrite: F` sur une destination existante
-- `413` — corps PUT au-delà de la limite de taille, ou un corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) au-delà de 64 Ko
-- `415` — MKCOL avec corps XML non vide (extended MKCOL non implémenté)
-- `423` — écriture tentée sur un chemin verrouillé sans `If` correspondant
-- `502` — `Destination` cross-host ; fetch du stockage objet échoué
-- `503` — limite du nombre de LOCK dépassée pour le mot de passe applicatif (avec `Retry-After`)
-- `507` — sous-arbre de dossier trop volumineux pour être supprimé, déplacé ou copié en une seule requête
+| Statut | Signification et action |
+| --- | --- |
+| `200`, `201`, `204` | Lecture, création ou modification réussie ; voir le tableau des méthodes |
+| `207` | Examiner chaque résultat de ressource ou de propriété dans le XML |
+| `400` | Corriger un en-tête `Destination`, `If`, `Lock-Token` ou `Timeout` mal formé |
+| `401` | Fournir un mot de passe d'application valide et non révoqué avec Basic |
+| `403` | Vérifier appartenance, zone en lecture seule, règles de conservation/document, profondeur, propriétaire et destination |
+| `404` | Vérifier le `href` reçu, le slug d'organisation et l'existence de la ressource |
+| `405` | Consulter `Allow` ; un dossier ne se télécharge ni ne s'écrase comme un fichier |
+| `409` | Créer d'abord le dossier parent de destination |
+| `411` | Ajouter `Content-Length` à `PUT` |
+| `412` | Relire la ressource ou le verrou ; vérifier `If`, `If-Match`, `If-None-Match` et `Overwrite` |
+| `413` | Réduire le fichier ou le XML, ou revoir la limite avec l'opérateur |
+| `415` | Envoyer un corps `MKCOL` vide ; le MKCOL étendu n'est pas pris en charge |
+| `423` | Obtenir le bon jeton ou attendre/libérer le verrou |
+| `502` | Vérifier une destination sur un autre hôte et la connexion au stockage objet |
+| `503` | Libérer les verrous inutilisés de ce mot de passe et respecter `Retry-After` |
+| `507` | Fractionner l'opération sur l'arborescence |
+
+Ne relance pas automatiquement tous les refus. Un parent absent ou un mauvais identifiant exige une correction ; un conflit de verrou exige de se coordonner avec l'autre personne qui édite.
 
 ## Conformité
 
-- DAV Class **1** (base) : complète.
-- DAV Class **2** (verrouillage) : complète, avec le comportement d’expiration paresseuse décrit ci-dessus.
-- DAV Class **3** (calendrier, contacts, recherche, ACL) : non implémentée.
+Le point d'accès annonce `DAV: 1, 2`. Les méthodes et limites de cette page constituent le contrat d'implémentation ; cette annonce ne garantit pas chaque fonction facultative de WebDAV. En particulier, les propriétés personnalisées ne persistent pas et les verrous d'édition partagée ne sont pas disponibles. Les extensions de calendrier, de contacts, de recherche et d'ACL ne sont pas fournies.
 
-Le serveur annonce `DAV: 1, 2` dans la réponse OPTIONS.
+Consulte la [RFC 4918](https://www.rfc-editor.org/rfc/rfc4918) pour la syntaxe réseau. La classe de conformité DAV 3 concerne une révision du protocole, et non les extensions de calendrier ou de contacts.
 
 ## Limites
 
-- `Depth: infinity` sur PROPFIND est rejeté avec `403`.
-- `Timeout: Second-N` sur LOCK est borné à `[1, 3600]`.
-- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL S3 pré-signée sans qu’un gros upload soit mis en mémoire tampon côté plateforme. Comme cette URL a besoin de la longueur dès le départ, un PUT sans `Content-Length` (transfert chunked) est refusé avec `411`.
-- Les corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) sont plafonnés à **64 Ko** (`413` au-delà) — ces enveloppes sont minuscules par conception.
-- Les mots de passe applicatifs sont hachés avec HMAC-SHA256 ; le secret n’apparaît dans aucune réponse après l’appel de création.
-- `lastUsedAt` est patché au plus une fois par minute par mot de passe applicatif pour éviter les write-storms sur les montages actifs.
+| Périmètre | Limite ou comportement |
+| --- | --- |
+| Liste récursive | `Depth: infinity` refusé ; parcourir un niveau à la fois |
+| Durée d'un verrou | 1–3600 secondes |
+| Verrous actifs | 200 par mot de passe d'application |
+| Taille d'envoi | 5 Go par défaut ; `WEBDAV_MAX_PUT_BYTES` fixe la limite en octets |
+| Corps XML | 64 Kio pour `PROPFIND`, `PROPPATCH`, `MKCOL` et `LOCK` |
+| Mots de passe | Jusqu'à 50 actifs par utilisateur dans une organisation |
+| Dernière utilisation | Mise à jour au plus une fois par minute et par mot de passe |
+
+Les envois sont transmis en flux au stockage objet avec régulation du débit. Le serveur a besoin de la taille avant de créer la requête d'envoi ; un transfert chunked reçoit `411`. Les opérations sur des dossiers disposent d'un budget de parcours limité et peuvent recevoir `507`. Fractionne les grandes arborescences plutôt que de répéter la même opération trop volumineuse.
 
 ## Prérequis réseau
 
-Le point de terminaison WebDAV tourne dans le serveur Hono de la plateforme (`platform:3000` en compose). Caddy route `/dav/*` vers lui via le fallback par défaut — aucune configuration supplémentaire n’est requise. Le handler parle directement à Postgres via la connexion base de données du backend ; il n’y a aucun service séparé à joindre.
+Le backend dessert `/dav/*` ; le proxy de la plateforme l'expose sur le même hôte public que Tale. En développement local, Vite relaie `/dav` du port 3000 vers le backend. Les clients peuvent donc utiliser l'origine habituelle de l'application locale. Aucun service WebDAV séparé n'est à déployer.
 
-Pour le dev (`bun run dev`), Vite proxie `/dav` vers le backend — `curl` et les clients peuvent atteindre `http://localhost:3000/dav/<orgSlug>/...` contre un serveur dev qui tourne sans rebuild.
+Une liste peut fonctionner alors qu'un téléchargement ou un envoi échoue : les dossiers dépendent de la base de données, les octets des fichiers dépendent aussi du stockage objet. Teste les deux chemins après une modification du proxy ou du stockage. Aligne la limite du proxy sur `WEBDAV_MAX_PUT_BYTES`.
 
 ## Sécurité
 
-WebDAV envoie le mot de passe applicatif à chaque requête sous forme de header HTTP Basic — pas de session, pas de rafraîchissement de jeton, juste l’identifiant brut rejoué à chaque PROPFIND, PUT, LOCK et ainsi de suite. Ne monte le point de terminaison que sur HTTPS ; sur HTTP en clair, le mot de passe fuite vers quiconque se trouve sur le câble, et révoquer la ligne est le seul moyen de récupérer. Ne mets jamais le mot de passe applicatif dans l’URL elle-même (la forme abrégée `https://user:pass@host/...`) — la plupart des clients consignent les URL dans l’historique du shell, les rapports de crash et les journaux d’accès du proxy, où l’identifiant survivrait bien après le démontage. Laisse le client WebDAV stocker le mot de passe dans le trousseau du système d’exploitation (macOS Keychain, Windows Credential Manager, GNOME Keyring) et le présenter via l’invite d’identifiants standard.
+Utilise HTTPS pour les montages distants. Basic transmet le mot de passe d'application à chaque requête ; Base64 est un encodage, pas un chiffrement. Le HTTP en clair convient seulement à un test contrôlé sur localhost. Saisis les identifiants dans l'invite du client ou le trousseau du système, jamais dans une URL telle que `https://user:password@host/`.
 
-Le serveur impose TLS au niveau du reverse proxy en production ; le mode dev sur HTTP en clair est uniquement prévu pour les tests `localhost`. Les journaux d’audit enregistrent chaque requête authentifiée avec le préfixe du mot de passe utilisé, donc un identifiant fuité peut être tracé et révoqué sans faire tourner le reste de la flotte d’appareils.
+Le backend conserve des hachages HMAC-SHA256 et un préfixe de recherche de quatre caractères, puis compare les hachages en temps constant. La configuration de démarrage dérive `WEBDAV_APP_PASSWORD_HMAC_KEY` de `INSTANCE_SECRET`, sauf valeur explicite. Conserve ces secrets stables et sauvegardés : changer la clé HMAC invalide les mots de passe existants.
+
+La liste affiche libellé, préfixe, date de création et dernière utilisation. Ces informations aident à repérer et révoquer le mot de passe d'un appareil perdu. La dernière utilisation est une métadonnée actualisée à fréquence limitée, pas un journal complet de chaque requête.
 
 ## Comment ça s’intègre
 
-WebDAV est la surface mount-protocole du même dépôt de documents que la [référence de l’API REST](/fr/develop/api-reference) anime pour l’import en lot et la recherche — les deux voies écrivent dans la table que le [Hub de documents](/fr/platform/knowledge/documents) lit, donc un fichier créé via Finder apparaît dans l’interface web sans aucune étape de synchronisation. Le protocole est le bon choix quand un utilisateur veut que ses documents se comportent comme un dossier local ; l’API REST est le bon choix quand un script ou un agent veut un contrôle au niveau de l’octet sur ce qui est écrit et quand. La RFC 4918 est l’autorité au niveau filaire pour tout ce qui se trouve sur cette page.
+Utilise [REST](/fr/develop/api-reference) pour les imports rattachés à un projet, les IDs explicites et la recherche. WebDAV convient aux clients du centre de documents qui attendent des chemins et des verrous. Les deux accèdent aux documents Tale, mais WebDAV n'expose ni l'arbre de fichiers d'un projet ni toutes les opérations REST.
