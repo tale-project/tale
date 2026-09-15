@@ -17,6 +17,8 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 
+Hat deine Organisation einen Vertraulichkeitshinweis eingeschaltet, steht er unter dem Nachrichtenfeld und erinnert dich daran, was du im Chat nicht teilen solltest.
+
 Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Beim Stoppen bleibt der bereits empfangene Text erhalten, auch wenn er mitten im Satz endet. Stelle eine Rückfrage, um dein Anliegen zu präzisieren oder fehlende Details anzufordern.
 
 ## Ein Modell gezielt auswählen

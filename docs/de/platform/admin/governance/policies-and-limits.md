@@ -1,9 +1,9 @@
 ---
 title: Richtlinien und Limits
-description: Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen und die Zuordnung eingehender Konversationen fest.
+description: Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat und die Zuordnung eingehender Konversationen fest.
 ---
 
-Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtlinien & Limits** Ressourcenverbrauch und Datenverarbeitung. Wähle den Bereich für dein Anliegen: Ausgaben, Uploads, Aufbewahrung, Funktionsverfügbarkeit oder die Zuständigkeit für eingehende Konversationen.
+Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtlinien & Limits** Ressourcenverbrauch und Datenverarbeitung. Wähle den Bereich für dein Anliegen: Ausgaben, Uploads, Aufbewahrung, Funktionsverfügbarkeit, den Hinweis im Chat oder die Zuständigkeit für eingehende Konversationen.
 
 <Frame caption="Richtlinien > Richtlinien & Limits — die Tabelle der Budget-Regeln über der Upload-Richtlinie und den Aufbewahrungs-Kontrollen.">
 
@@ -50,6 +50,17 @@ Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/d
 Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisationsweiten Schalter für Sprachausgabe. Ein Kontextlimit bestimmt, wie viel Kontext eine KI-Antwort erreicht. Es ist etwas anderes als ein Ausgabenbudget. Ist die Sprachausgabe ausgeschaltet, können Mitglieder sie weder über eigene Standardwerte noch einzelne Konversationen aktivieren.
 
 Die Standardschalter für benutzerdefinierte Anweisungen und Erinnerungen speichern Organisationsvorgaben. Ihre Anzeige bedeutet nicht, dass persönliche Anweisungen oder das Erzeugen von Erinnerungen bereits im Chat aktiv sind. Verbindliche Organisationsanweisungen stehen separat unter [Guardrails](/de/platform/admin/governance/guardrails).
+
+## Einen Vertraulichkeitshinweis im Chat anzeigen
+
+**Vertraulichkeitshinweis** blendet für alle Mitglieder deiner Organisation eine kurze Zeile unter dem Nachrichtenfeld im Chat ein, etwa die Erinnerung, keine sensiblen Daten zu teilen. Der Hinweis bleibt aus, bis du ihn einschaltest.
+
+1. Schalte **Vertraulichkeitshinweis** ein. Mitglieder sehen den Hinweis sofort im Chat, in ihrer Sprache; geöffnete Chats aktualisieren sich ohne Neuladen.
+2. Gib bei Bedarf unter **English**, **Deutsch** und **Français** eigene Texte mit jeweils höchstens 280 Zeichen ein. Speichere danach die ausstehenden Seitenänderungen.
+
+Mitglieder sehen den Text in ihrer Sprache. Für eine leere Sprache erscheint dein englischer Text oder, wenn auch dieser fehlt, der Standardhinweis. Jedes leere Feld zeigt als Vorschau den Text, den diese Mitglieder sehen. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
+
+Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine Nachrichten. Um auf sensible Inhalte zu reagieren, richte [Guardrails](/de/platform/admin/governance/guardrails) ein.
 
 ## Konversations-Routing
 

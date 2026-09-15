@@ -17,6 +17,8 @@ Open **Chat**. It may reopen a recent conversation. Choose **New chat**, or choo
 
 For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 
+If your organization turned on a confidentiality notice, it appears under the message field as a reminder of what not to share in chat.
+
 While the reply streams, the send control becomes a stop control. Stopping keeps the text already received, which may end mid-sentence. Use a follow-up message to clarify the question or ask for missing detail.
 
 ## Choose a model when the choice matters

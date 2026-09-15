@@ -17,6 +17,8 @@ Ouvre **Chat**. Une conversation récente peut se rouvrir. Choisis **Nouveau cha
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 
+Si ton organisation a activé un avis de confidentialité, il s’affiche sous le champ de message pour te rappeler ce qu’il ne faut pas partager dans le chat.
+
 Pendant la génération, la commande d’envoi devient une commande d’arrêt. L’arrêter conserve le texte déjà reçu, même s’il se termine au milieu d’une phrase. Pose une question de suivi pour clarifier la demande ou obtenir un détail manquant.
 
 ## Choisir un modèle lorsque c’est utile
