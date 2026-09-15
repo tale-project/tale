@@ -46,6 +46,8 @@ export const CHAT_ERROR_CODES = [
   'provider_unreachable',
   'provider_error',
   'thread_busy',
+  // A budget cap that binds the sender is used up (`BUDGET_EXCEEDED`).
+  'budget_exceeded',
   'generic',
 ] as const;
 
@@ -68,6 +70,7 @@ export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
   unsupported_parameter: 'errorHintUnsupportedParameter',
   output_cap_too_high: 'errorHintOutputCapTooHigh',
   token_limit: 'errorHintTokenLimit',
+  budget_exceeded: 'errorHintBudgetExceeded',
   rate_limited: 'errorHintRateLimited',
   content_filter: 'errorHintContentFilter',
   context_length: 'errorHintContextLength',
@@ -182,6 +185,11 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   // The pipeline's own busy claim (`ThreadBusyError`): another turn holds
   // the thread — a stable code, never the generic bucket.
   if (code === 'THREAD_BUSY') return 'thread_busy';
+
+  // The platform's budget admission (`ChatBudgetExceededError`): a cap that
+  // binds the sender is used up — its own code, never read as the
+  // provider's rate limit or spent credits.
+  if (code === 'BUDGET_EXCEEDED') return 'budget_exceeded';
 
   // The platform's own credential refusals, by code: no usable key at all
   // is a setup error; a key that exists but cannot serve is an auth error.

@@ -6,7 +6,6 @@ import {
   detectPlatform,
   normalizeUrlForHash,
 } from '../../../lib/shared/video-url.ts';
-import { getUserTeamIds } from '../../auth/membership.ts';
 import { ingestVideoLinkImpl } from '../../core/video_links/ingest_video_link.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -22,6 +21,7 @@ import {
 } from '../browser_sessions/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
+import { loadBudgetSubject } from '../governance/budget-gate.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { checkTtsBudget } from '../tts/service.ts';
 import { hintVideoJobs, type VideoJobHintRow } from './hints.ts';
@@ -947,11 +947,8 @@ async function assertVideoBudget(
   organizationId: string,
   userId: string,
 ): Promise<void> {
-  const userTeamIds = await getUserTeamIds(sql, organizationId, userId);
   const budget = await checkTtsBudget(sql, {
-    organizationId,
-    userId,
-    userTeamIds,
+    ...(await loadBudgetSubject(sql, { organizationId, userId })),
     prospectiveCostCents: PROSPECTIVE_VIDEO_LINK_COST_CENTS,
     prospectiveRequests: 1,
   });

@@ -6,6 +6,7 @@ import {
   type ExecuteTurnArgs,
 } from '../../core/chat/turn_action.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { assertChatTurnBudget } from './budget-admission.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
 
@@ -29,6 +30,9 @@ import { createPgTurnStore, createPgUsageLedger } from './store.ts';
 export interface ChatTurnRequest {
   readonly organizationId: string;
   readonly userId: string;
+  /** REST: the API key that authenticated the send — its own budget caps
+   * bind the turn, and the turn's usage is booked against it. */
+  readonly apiKeyId?: string;
   readonly threadId: string;
   /** REST pins the accepted URL scope; session turns omit this. */
   readonly expectedProjectId?: string | null;
@@ -66,10 +70,19 @@ export async function runChatTurn(
   sql: Sql,
   request: ChatTurnRequest,
 ): Promise<TurnOutcome> {
+  // Every lane's budget admission, before the turn spends anything (an
+  // attachment's transcript, the model call): a cap that binds the sender
+  // and is already reached refuses with `BUDGET_EXCEEDED`, nothing written.
+  await assertChatTurnBudget(sql, {
+    organizationId: request.organizationId,
+    userId: request.userId,
+    ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+  });
   const shim = createCtxShim(chatShimHandlers(sql));
   const args: ExecuteTurnArgs = {
     organizationId: request.organizationId,
     userId: request.userId,
+    ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
     threadId: request.threadId,
     ...(request.expectedProjectId !== undefined
       ? { expectedProjectId: request.expectedProjectId }

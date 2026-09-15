@@ -2,6 +2,10 @@ import type { BudgetRule } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  findOrganizationMember,
+  getUserTeamIds,
+} from '../../auth/membership.ts';
+import {
   type BudgetCheckResult,
   checkRuleAgainstUsage,
   collectAllApplicableRules,
@@ -128,6 +132,29 @@ export interface OrgBudgetSubject {
   /** The API key that authenticated the request. Only a keyed request is
    * measured against `apiKey`-scoped caps. */
   apiKeyId?: string;
+}
+
+/**
+ * The subject as the member is NOW — their teams in this organization and
+ * their role — so every lane that asks is measured in the same buckets: a
+ * team joined or a role changed binds the next request, whichever lane it
+ * takes.
+ */
+export async function loadBudgetSubject(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; userId: string; apiKeyId?: string },
+): Promise<OrgBudgetSubject> {
+  const [member, userTeamIds] = await Promise.all([
+    findOrganizationMember(sql, args.organizationId, args.userId),
+    getUserTeamIds(sql, args.organizationId, args.userId),
+  ]);
+  return {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    userTeamIds,
+    ...(member !== null ? { userRole: member.role } : {}),
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+  };
 }
 
 /** Spend that work still in flight has claimed but not booked yet. */

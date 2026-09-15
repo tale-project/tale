@@ -1,8 +1,11 @@
 import type { Sql } from 'postgres';
 
-import { getUserTeamIds } from '../../auth/membership.ts';
 import type { ReserveTurnBudgetResult } from '../../core/node_only/sandbox/turn_budget.ts';
-import { resolveTurnAllowance } from '../governance/budget-gate.ts';
+import {
+  loadBudgetSubject,
+  type OrgBudgetSubject,
+  resolveTurnAllowance,
+} from '../governance/budget-gate.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import { resolveSessionOpAttribution } from './op-attribution.ts';
 
@@ -36,18 +39,13 @@ export async function reserveTurnBudget(
     await lockOrgAdmission(tx, args.organizationId);
     const attribution = await resolveSessionOpAttribution(tx, args);
     const userId = attribution?.userId ?? '';
-    const [userTeamIds, role] =
+    const subject: OrgBudgetSubject =
       userId === ''
-        ? [[] as string[], undefined]
-        : await Promise.all([
-            getUserTeamIds(tx, args.organizationId, userId),
-            tx<{ role: string }[]>`
-              SELECT "role" FROM "member"
-              WHERE "userId" = ${userId}
-                AND "organizationId" = ${args.organizationId}
-              LIMIT 1
-            `.then((rows) => rows[0]?.role),
-          ]);
+        ? { organizationId: args.organizationId, userId, userTeamIds: [] }
+        : await loadBudgetSubject(tx, {
+            organizationId: args.organizationId,
+            userId,
+          });
     const reserved = await tx<{ orgCents: number; userCents: number }[]>`
       SELECT coalesce(sum(budget_cents), 0)::float8 AS "orgCents",
              coalesce(sum(budget_cents) FILTER (WHERE user_id = ${userId}), 0)::float8
@@ -58,10 +56,7 @@ export async function reserveTurnBudget(
         AND NOT (session_id = ${args.sessionId} AND exec_id = ${args.execId})
     `;
     const allowance = await resolveTurnAllowance(tx, {
-      organizationId: args.organizationId,
-      userId,
-      userTeamIds,
-      ...(role !== undefined ? { userRole: role } : {}),
+      ...subject,
       defaultCents,
       reserved: {
         orgCents: reserved[0]?.orgCents ?? 0,

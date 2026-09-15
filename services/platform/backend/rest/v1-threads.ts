@@ -11,6 +11,11 @@ import {
 } from '../../lib/chat/types.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
+import {
+  assertChatTurnBudget,
+  budgetRetryAfterSeconds,
+  ChatBudgetExceededError,
+} from '../domains/chat/budget-admission.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
 import {
   claimSendIdempotency,
@@ -278,6 +283,32 @@ function restMessageError(stored: string): {
     error: info.raw ?? 'The turn failed.',
     ...(info.code !== undefined ? { errorCode: info.code } : {}),
   };
+}
+
+/** A reached budget cap: 429 with the cap that binds in `data` — whose
+ * bucket, which period and limit, the usage and the limit, and when the
+ * period resets (epoch ms) — and that wait as `Retry-After`. */
+function restBudgetExceeded(
+  c: Context<RestEnv>,
+  error: ChatBudgetExceededError,
+): Response {
+  const refusal = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(refusal.resetsAt)));
+  return c.json(
+    {
+      error: refusal.message,
+      code: refusal.code,
+      data: {
+        scope: refusal.scope,
+        period: refusal.period,
+        limitCode: refusal.limitCode,
+        used: refusal.used,
+        limit: refusal.limit,
+        resetsAt: refusal.resetsAt,
+      },
+    },
+    429,
+  );
 }
 
 export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
@@ -1097,6 +1128,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               threadId: thread.id,
               key: idempotencyKey,
             });
+      // The key that authenticated the send: its own caps bind the turn,
+      // and the worker books the turn's usage against it.
+      const apiKeyId = c.get('apiKeyId') === '' ? undefined : c.get('apiKeyId');
       let replay: Record<string, unknown> | undefined;
       try {
         await deps.sql.begin(async (tx) => {
@@ -1126,9 +1160,19 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           RETURNING thread_id AS "threadId"
         `;
           if (claimed.length === 0) throw new TurnInProgress();
+          // The caps that bind the caller — their own, their teams', the
+          // organization's and this key's — are measured after the claim,
+          // so a repeat of an accepted send still answers its 202 and a busy
+          // thread its 409. A reached cap throws, rolling the claim back.
+          await assertChatTurnBudget(tx, {
+            organizationId: c.get('organizationId'),
+            userId: c.get('userId'),
+            ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+          });
           await addJobInTx(tx, 'chat.api_turn', {
             organizationId: c.get('organizationId'),
             userId: c.get('userId'),
+            ...(apiKeyId !== undefined ? { apiKeyId } : {}),
             threadId: thread.id,
             expectedProjectId: projectId,
             userText: body.content,
@@ -1171,6 +1215,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             },
             409,
           );
+        }
+        if (error instanceof ChatBudgetExceededError) {
+          return restBudgetExceeded(c, error);
         }
         // A reused key with another body (`IDEMPOTENCY_KEY_REUSED`) and any
         // other domain refusal keep their own status and code.

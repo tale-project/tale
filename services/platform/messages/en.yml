@@ -1367,6 +1367,7 @@ chat:
   errorHintTokenLimit:
     The model's output token limit was exceeded. Try a shorter
     request or ask your administrator to adjust the model settings.
+  errorHintBudgetExceeded: A usage limit that applies to you has been reached. Settings > Usage shows when it resets, and your administrator can raise it.
   errorHintToolFailure: The agent encountered an error while accessing data. Try
     rephrasing your request or asking for a smaller set of data.
   errorHintUnsupportedParameter:

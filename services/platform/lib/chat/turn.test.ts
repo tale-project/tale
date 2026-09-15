@@ -340,6 +340,15 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('books the usage against the API key that authenticated the turn', async () => {
+    const d = deps();
+    await runTurn(request({ apiKeyId: 'key_1' }), d.deps);
+
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', apiKeyId: 'key_1' }),
+    ]);
+  });
+
   it('opens the generation row before streaming and always closes it', async () => {
     const d = deps();
     await runTurn(request(), d.deps);

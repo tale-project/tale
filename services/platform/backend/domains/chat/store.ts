@@ -574,6 +574,7 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
       await incrementUsageLedger(sql, {
         organizationId: entry.organizationId,
         userId: entry.userId,
+        ...(entry.apiKeyId !== undefined ? { apiKeyId: entry.apiKeyId } : {}),
         inputTokens: entry.inputTokens,
         outputTokens: entry.outputTokens,
         costEstimateCents,

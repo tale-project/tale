@@ -42,6 +42,7 @@ vi.mock('./store.ts', () => ({
   assertThreadWriteScope: boundary.assertThreadWriteScope,
 }));
 
+import { ChatBudgetExceededError } from './budget-admission.ts';
 import { apiTurnPayloadSchema, runApiTurn } from './rest-turn.ts';
 import { runChatTurn } from './service.ts';
 import {
@@ -127,6 +128,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
   it('keeps every field of the accepted payload through the handler schema', () => {
     const parsed = apiTurnPayloadSchema.parse({
       ...payload,
+      apiKeyId: 'key-1',
       providerSlug: 'provider-a',
       providerStrict: true,
       assistantMessageId: 'm-pre',
@@ -136,6 +138,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
       localeFixed: true,
     });
     expect(parsed).toMatchObject({
+      apiKeyId: 'key-1',
       providerStrict: true,
       assistantMessageId: 'm-pre',
       reasoningEffort: 'high',
@@ -152,6 +155,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
     vi.mocked(runChatTurn).mockResolvedValue({ status: 'completed' } as never);
     await runApiTurn(sql, {
       ...payload,
+      apiKeyId: 'key-1',
       assistantMessageId: 'm-pre',
       reasoningEffort: 'low',
       maxOutputTokens: 256,
@@ -159,6 +163,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
     expect(runChatTurn).toHaveBeenCalledWith(
       sql,
       expect.objectContaining({
+        apiKeyId: 'key-1',
         placeholderId: 'm-pre',
         reasoningEffort: 'low',
         maxOutputTokens: 256,
@@ -195,6 +200,39 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
     await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
     expect(runChatTurn).toHaveBeenCalledTimes(1);
     expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
+
+  it('settles a send a budget cap stops after the 202 as budget_exceeded, keeping the prompt', async () => {
+    const sentence =
+      "Usage limit reached. This API key's daily request limit is used up until 2026-09-16T00:00:00.000Z.";
+    vi.mocked(runChatTurn).mockRejectedValue(
+      new ChatBudgetExceededError({
+        code: 'BUDGET_EXCEEDED',
+        message: sentence,
+        scope: 'apiKey',
+        limitCode: 'REQUEST_LIMIT',
+        period: 'daily',
+        used: 100,
+        limit: 100,
+        resetsAt: Date.UTC(2026, 8, 16),
+      }),
+    );
+    await runApiTurn(sql, {
+      ...payload,
+      apiKeyId: 'key-1',
+      assistantMessageId: 'm-pre',
+    });
+    // The caller's prompt is the only copy — it lands beside the failure.
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ role: 'user', text: payload.userText }),
+    );
+    const failure = vi.mocked(appendAssistantErrorMessage).mock.calls.at(-1);
+    expect(failure?.[1]).toMatchObject({ id: 'm-pre' });
+    expect(decodeChatError(failure?.[1].error ?? '')).toMatchObject({
+      code: 'budget_exceeded',
+      raw: sentence,
+    });
   });
 
   it('keeps the marker when the drain window re-queues the accepted send', async () => {

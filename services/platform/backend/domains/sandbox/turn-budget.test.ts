@@ -8,12 +8,18 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const gate = vi.hoisted(() => ({ resolveTurnAllowance: vi.fn() }));
+const gate = vi.hoisted(() => ({
+  resolveTurnAllowance: vi.fn(),
+  loadBudgetSubject: vi.fn(
+    async (_tx: unknown, args: { organizationId: string; userId: string }) => ({
+      ...args,
+      userTeamIds: ['team-1'],
+      userRole: 'member',
+    }),
+  ),
+}));
 
 vi.mock('../governance/budget-gate.ts', () => gate);
-vi.mock('../../auth/membership.ts', () => ({
-  getUserTeamIds: vi.fn(async () => ['team-1']),
-}));
 
 const { reserveTurnBudget } = await import('./turn-budget.ts');
 
@@ -60,7 +66,6 @@ describe('reserveTurnBudget', () => {
         match: 'FROM app.project_agent_runs r',
         rows: [{ startedBy: 'user-1', agentName: 'Alice' }],
       },
-      { match: 'FROM "member"', rows: [{ role: 'member' }] },
       {
         match: 'coalesce(sum(budget_cents), 0)',
         rows: [{ orgCents: 700, userCents: 200 }],
@@ -72,6 +77,12 @@ describe('reserveTurnBudget', () => {
     expect(result).toEqual({ allowed: true, budgetCents: 300 });
     // The org admission lock comes first.
     expect(statements[0]?.text).toContain('pg_advisory_xact_lock');
+    // The starter is measured as they are now — teams and role — through
+    // the one subject reader every budget lane uses.
+    expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      userId: 'user-1',
+    });
     expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -150,6 +161,7 @@ describe('reserveTurnBudget', () => {
       expect.objectContaining({ userId: '', userTeamIds: [] }),
     );
     // No membership lookups for an unknown starter.
+    expect(gate.loadBudgetSubject).not.toHaveBeenCalled();
     expect(statements.some((s) => s.text.includes('FROM "member"'))).toBe(
       false,
     );

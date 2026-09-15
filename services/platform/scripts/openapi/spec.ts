@@ -4783,7 +4783,7 @@ export function buildSpec(): Json {
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
         parameters: [...itemParameters, sendIdempotencyKeyParam],
@@ -4881,6 +4881,10 @@ export function buildSpec(): Json {
             'The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), a turn is already running or still queued (`CHAT_TURN_IN_PROGRESS`) — nothing is queued and the running turn keeps its `messageId` — or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)',
           ),
           ...standardErrors,
+          '429': withDoorRefusal(
+            standardErrors['429'],
+            'a budget cap that binds the key holder is reached (`BUDGET_EXCEEDED`): nothing is queued, `data` names the cap — `scope`, `period`, `limitCode`, `used`, `limit`, `resetsAt` — and `Retry-After` the wait in whole seconds until its period resets',
+          ),
           '400': errorResponse(
             'Invalid body (`INVALID_BODY`), a model the list does not carry (`CHAT_MODEL_UNKNOWN`), a model listed under several providers with none named (`CHAT_MODEL_AMBIGUOUS`), an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)',
           ),
@@ -6390,6 +6394,38 @@ curl -H "Authorization: Bearer <api-key>" \\
                       message: { type: 'string' },
                     },
                   },
+                },
+                scope: {
+                  type: 'string',
+                  enum: ['user', 'team', 'org', 'apiKey'],
+                  description:
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                },
+                period: {
+                  type: 'string',
+                  enum: ['daily', 'weekly', 'monthly'],
+                  description:
+                    'For BUDGET_EXCEEDED, what the cap counts over — a calendar day, ISO week or calendar month in UTC',
+                },
+                limitCode: {
+                  type: 'string',
+                  enum: ['TOKEN_LIMIT', 'COST_LIMIT', 'REQUEST_LIMIT'],
+                  description:
+                    'For BUDGET_EXCEEDED, which cap is reached: tokens, cost in cents, or requests',
+                },
+                used: {
+                  type: 'number',
+                  description:
+                    'For BUDGET_EXCEEDED, the usage the cap measured this period, in its unit (tokens, cents or requests)',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'For BUDGET_EXCEEDED, the cap, in the same unit',
+                },
+                resetsAt: {
+                  type: 'number',
+                  description:
+                    'For BUDGET_EXCEEDED, when the period resets, in epoch milliseconds — `Retry-After` names the same wait in whole seconds',
                 },
               },
             },
@@ -8254,7 +8290,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: [...CHAT_ERROR_CODES],
               description:
-                'Stable chat error classification when available. `credit_exhausted` and `model_not_entitled` mean the provider account, not the request; neither is `rate_limited`.',
+                'Stable chat error classification when available. `credit_exhausted` and `model_not_entitled` mean the provider account, not the request; neither is `rate_limited`. `budget_exceeded` means a budget cap that binds the key holder was reached after the send was accepted, so the turn never ran; a send made once a cap is reached is refused up front with 429 `BUDGET_EXCEEDED`.',
             },
             usage: {
               type: 'object',

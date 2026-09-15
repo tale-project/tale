@@ -37,6 +37,10 @@ import {
 export interface ApiTurnPayload {
   organizationId: string;
   userId: string;
+  /** The API key that authenticated the send: its caps bind the turn and
+   * the turn's usage is booked against it. Absent for a job an older image
+   * enqueued. */
+  apiKeyId?: string;
   threadId: string;
   /** The URL scope accepted by REST; null means an unfiled thread. */
   expectedProjectId: string | null;
@@ -70,6 +74,7 @@ export interface ApiTurnPayload {
 export const apiTurnPayloadSchema = z.object({
   organizationId: z.string().min(1),
   userId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
   threadId: z.string().min(1),
   expectedProjectId: z.string().min(1).nullable(),
   userText: z.string().min(1),
@@ -290,6 +295,7 @@ async function runAcceptedTurn(
     const outcome = await runChatTurn(sql, {
       organizationId: payload.organizationId,
       userId: payload.userId,
+      ...(payload.apiKeyId !== undefined ? { apiKeyId: payload.apiKeyId } : {}),
       threadId: payload.threadId,
       expectedProjectId: payload.expectedProjectId,
       userText: payload.userText,

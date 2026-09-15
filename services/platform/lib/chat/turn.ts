@@ -326,6 +326,9 @@ export class ThreadBusyError extends Error {
 export interface UsageLedgerEntry {
   readonly organizationId: string;
   readonly userId: string;
+  /** The API key that authenticated the turn — booked so the key's own
+   * budget caps see its spend. Absent for a session turn. */
+  readonly apiKeyId?: string;
   readonly agentSlug?: string;
   readonly model: string;
   readonly provider: string;
@@ -359,6 +362,8 @@ export interface TurnAttachment {
 export interface TurnRequest {
   readonly organizationId: string;
   readonly userId: string;
+  /** The API key that authenticated the turn (REST); absent in the app. */
+  readonly apiKeyId?: string;
   readonly threadId: string;
   /** What the user just sent. */
   readonly userText: string;
@@ -1026,6 +1031,7 @@ async function recordUsage(
   await deps.usage.record({
     organizationId: request.organizationId,
     userId: request.userId,
+    ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
     agentSlug: request.agent?.slug,
     model: request.model.id,
     provider: request.model.provider,

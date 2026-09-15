@@ -17,7 +17,6 @@ import {
   TTS_WATCHDOG_BUFFER_MS,
 } from '../../../lib/shared/constants/tts.ts';
 import { TTS_SLUG } from '../../../lib/shared/constants/usage.ts';
-import { getUserTeamIds } from '../../auth/membership.ts';
 import type { BudgetCheckResult } from '../../core/governance/budget_enforcement.ts';
 import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
 import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
@@ -44,7 +43,10 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
-import { checkOrgBudget } from '../governance/budget-gate.ts';
+import {
+  checkOrgBudget,
+  loadBudgetSubject,
+} from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -421,20 +423,19 @@ export async function reserveChunk(
       throw error;
     }
 
-    const userTeamIds = await getUserTeamIds(
-      tx,
-      args.organizationId,
-      args.userId,
-    );
-    const teamId = userTeamIds[0];
+    // Measured as the member is now — their teams and their role, so a
+    // role's cap binds voice as it binds chat.
+    const subject = await loadBudgetSubject(tx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    });
+    const teamId = subject.userTeamIds[0];
     const prospectiveCostCents = estimateTtsCostCents(
       args.text.length,
       args.prospectiveCostCentsPerMChars ?? PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
     );
     const budget = await checkTtsBudget(tx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      userTeamIds,
+      ...subject,
       prospectiveCostCents,
       prospectiveRequests: 1,
     });

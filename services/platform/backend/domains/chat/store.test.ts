@@ -113,6 +113,17 @@ describe('createPgUsageLedger', () => {
       expect(values).toContain(200);
     }
   });
+
+  it('books a REST turn against the API key that authenticated it', async () => {
+    const { sql, calls } = capturingSql();
+    await createPgUsageLedger(sql).record({ ...ENTRY, apiKeyId: 'key_1' });
+    // Every period bucket carries the key, so the key's own caps see the
+    // spend.
+    expect(calls.length).toBe(4);
+    for (const values of calls.slice(1)) {
+      expect(values).toContain('key_1');
+    }
+  });
 });
 
 interface Statement {
