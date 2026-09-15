@@ -9,7 +9,7 @@ Im Bereich **Trigger** einer Automatisierung legst du fest, wann sie selbststän
 
 | Trigger-Typ | Geeignet für | Eingabe des Laufs |
 | --- | --- | --- |
-| **Zeitplan** | Wiederkehrende Arbeit zu einer Ortszeit oder in festen Abständen. | `{ trigger: "schedule", firedAt: "…" }` |
+| **Zeitplan** | Wiederkehrende Arbeit zu einer Ortszeit oder in festen Abständen. | `{ trigger: "schedule", firedAt: <epoch ms> }` |
 | **Webhook** | Zustellungen eines anderen Systems. | `{ trigger: "webhook", payload: … }` |
 | **Plattform-Ereignis** | Ein benanntes Ereignis innerhalb der Organisation. | `{ trigger: "event", event: "…", payload: … }` |
 

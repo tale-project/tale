@@ -62,7 +62,7 @@ Both workflows require `owner` and `repo`. In **Test run**, supply **Run input (
 
 <Note>
 
-The shipped GitHub schedules do not supply `owner` and `repo`; deploying alone does not make those scheduled runs valid. A schedule sends `trigger` and `firedAt`, which the unmodified workflow’s input schema rejects. Run manually with the required input, or adapt the workflow’s schema and repository configuration before enabling scheduled execution. A refused scheduled start appears as `start_refused` on the [trigger](/platform/automations/triggers).
+The shipped GitHub schedules do not supply `owner` and `repo`; deploying alone does not make those scheduled runs valid. A schedule sends only `trigger` and `firedAt`, so the required repository input is missing and the start is refused. Run manually with the required input, or adapt the workflow’s schema and repository configuration before enabling scheduled execution. A refused scheduled start appears as `start_refused` on the [trigger](/platform/automations/triggers).
 
 </Note>
 

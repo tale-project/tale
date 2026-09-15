@@ -62,7 +62,7 @@ Les deux workflows exigent `owner` et `repo`. Dans **Essai**, renseigne **Donné
 
 <Note>
 
-Les planifications GitHub fournies ne transmettent ni `owner` ni `repo` : la mise en service seule ne suffit donc pas à rendre ces exécutions planifiées valides. Une planification envoie `trigger` et `firedAt`, que le schéma d’entrée inchangé refuse. Lance le workflow manuellement avec les données requises, ou adapte le schéma et la configuration du dépôt avant d’activer les exécutions planifiées. Un démarrage planifié refusé apparaît comme `start_refused` sur le [déclencheur](/fr/platform/automations/triggers).
+Les planifications GitHub fournies ne transmettent ni `owner` ni `repo` : la mise en service seule ne suffit donc pas à rendre ces exécutions planifiées valides. Une planification n’envoie que `trigger` et `firedAt` : l’entrée de dépôt requise est donc absente et le démarrage est refusé. Lance le workflow manuellement avec les données requises, ou adapte le schéma et la configuration du dépôt avant d’activer les exécutions planifiées. Un démarrage planifié refusé apparaît comme `start_refused` sur le [déclencheur](/fr/platform/automations/triggers).
 
 </Note>
 
