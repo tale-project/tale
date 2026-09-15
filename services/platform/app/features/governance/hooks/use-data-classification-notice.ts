@@ -3,45 +3,43 @@
 import { useTranslation } from 'react-i18next';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { isRecord } from '@/lib/utils/type-utils';
 
-interface DataNoticeConfig {
-  enabled: boolean;
-  messages?: Record<string, string>;
-}
+import {
+  dataNoticePolicyArgs,
+  readDataNoticeSettings,
+  resolveDataNoticeMessage,
+} from '../lib/data-notice';
 
 export interface ResolvedDataNotice {
   /** Whether the notice should be rendered at all. */
   enabled: boolean;
-  /** Final resolved message for the current i18n locale, after the
-   *  org-override → org-default-locale → platform-default → 'en'
-   *  fallback chain. */
+  /** The text for the current locale (see `resolveDataNoticeMessage`). */
   message: string;
+  /** The policy read has answered — `enabled` is the org's real setting
+   *  rather than the hidden stand-in shown while loading or after a failure. */
+  settled: boolean;
 }
 
 /**
  * Resolve the org's confidentiality notice for the current i18n locale.
  *
- * Resolution order:
- *   1. Org override `messages[currentLocale]`
- *   2. Org override `messages.en` as a sane "any locale" fallback
- *   3. Platform default from `messages/{locale}.json` `dataNotice.default`
- *   4. Hardcoded English fallback in case the i18n bundle is missing
- *
- * `enabled === false` short-circuits everything — render nothing.
+ * The notice is opt-in: it shows only once the policy read answers with
+ * `enabled: true`. While the read is loading, when no org is in scope, when
+ * the org has no policy file, and when the read fails, nothing renders —
+ * never a default that could flash in and then vanish for an org that keeps
+ * the notice off.
  *
  * Acknowledgment removed: the prior `requireAcknowledgment` + version
  * fields drove a blocking modal that did not actually gate input
  * (Esc/X/Later all bypassed). The B2B self-host model treats the
  * deploying org as the data controller, so end-user explicit consent
- * UX is product-incongruent. The server-side `policyAcknowledgements`
- * API + schema are preserved unchanged for a future regulated-customer
- * rewire; this hook simply stops returning the ack-related fields.
+ * UX is product-incongruent. Both fields stay in the policy schema for a
+ * future regulated-customer rewire; this hook does not return them.
  */
 export function useDataClassificationNotice(
   organizationId: string | undefined,
 ): ResolvedDataNotice {
-  // Each top-level key in messages/{locale}.json is a separate i18next
+  // Each top-level key in messages/{locale}.yml is a separate i18next
   // namespace; calling useTranslation() with no arg binds to the default
   // namespace ('translation'), which doesn't exist in this app — so the
   // DE/FR fallbacks under `dataNotice.default` were unreachable and the
@@ -49,50 +47,26 @@ export function useDataClassificationNotice(
   const { t, i18n } = useTranslation('dataNotice');
   const policy = useBackendQuery(
     'governance/queries:getPolicy',
-    organizationId
-      ? { organizationId, policyType: 'data_classification_notice' }
-      : 'skip',
+    organizationId ? dataNoticePolicyArgs(organizationId) : 'skip',
   );
 
-  const fallback = t(
+  const platformDefault = t(
     'default',
-    'Treat this chat as you would email — avoid customer data, credentials, and unreleased information.',
+    'AI can make mistakes—verify responses and do not share sensitive data.',
   );
 
-  // While the query is loading (`data === undefined`) or skipped (no org),
-  // render nothing. Defaulting to `enabled: true` during load caused a
-  // show→hide flash for orgs whose stored policy resolves to disabled: the
-  // notice appeared on the loading default, then vanished once the real
-  // config arrived. Once the policy resolves, a missing row (`data === null`)
-  // falls through to the product default (on) below, so a never-configured
-  // org still gets a stable notice — it just appears when the data lands
-  // rather than flashing in and out.
   if (policy.data === undefined) {
-    return {
-      enabled: false,
-      message: fallback,
-    };
+    return { enabled: false, message: platformDefault, settled: false };
   }
 
-  const config = isRecord(policy.data?.config) ? policy.data.config : {};
-  const cfg: DataNoticeConfig = {
-    enabled: typeof config.enabled === 'boolean' ? config.enabled : true,
-    messages: isRecord(config.messages)
-      ? Object.fromEntries(
-          Object.entries(config.messages).filter(
-            (entry): entry is [string, string] => typeof entry[1] === 'string',
-          ),
-        )
-      : undefined,
-  };
-
-  const locale = i18n.language;
-  const langPrefix = locale.split('-')[0];
-  const overrideMsg =
-    cfg.messages?.[locale] ?? cfg.messages?.[langPrefix] ?? cfg.messages?.en;
-
+  const settings = readDataNoticeSettings(policy.data?.config);
   return {
-    enabled: cfg.enabled,
-    message: overrideMsg ?? fallback,
+    enabled: settings.enabled,
+    message: resolveDataNoticeMessage(
+      settings.messages,
+      i18n.language,
+      platformDefault,
+    ),
+    settled: true,
   };
 }

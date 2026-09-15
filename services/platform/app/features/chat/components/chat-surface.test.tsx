@@ -29,9 +29,17 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // send write. The defaults mirror the provider-less test environment
 // (everything unavailable); suites override per scenario and the shared
 // afterEach below restores the defaults.
+// The notice resolves its own policy (data-notice-footer.test.tsx covers
+// that); this stand-in pins only WHERE the surface mounts it.
 vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
-  DataNoticeFooter: () => null,
+  DataNoticeFooter: () => (
+    <div role="note" aria-label="Confidentiality notice" />
+  ),
 }));
+
+function queryNotice() {
+  return screen.queryByRole('note', { name: 'Confidentiality notice' });
+}
 
 // The draft key wants the signed-in user's id; this harness has no Convex
 // auth provider, so the hook answers "still loading" and the key falls back
@@ -477,6 +485,19 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(
       screen.queryByRole('heading', { name: "Chat isn't connected yet" }),
     ).toBeNull();
+  });
+
+  it('mounts the confidentiality notice below the composer', () => {
+    render(<ChatSurface organizationId="org-1" />);
+
+    const composer = screen.getByRole('textbox', { name: 'Message input' });
+    const notice = queryNotice();
+    expect(notice).not.toBeNull();
+    // After the field it governs, so it reads before the first send.
+    expect(
+      composer.compareDocumentPosition(notice as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('fills the composer from a starter instead of firing it as a message', async () => {
@@ -1043,6 +1064,12 @@ describe('ChatSurface on a dead thread link', () => {
     expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
 
+  it('shows no confidentiality notice without a composer', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-gone" />);
+
+    expect(queryNotice()).toBeNull();
+  });
+
   it('routes the way out to a fresh chat', async () => {
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="thread-gone" />,
@@ -1204,6 +1231,12 @@ describe('ChatSurface on an archived thread', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
+
+  it('takes the confidentiality notice away with the composer', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
+
+    expect(queryNotice()).toBeNull();
+  });
 });
 
 /**
@@ -1345,6 +1378,20 @@ describe('ChatSurface when a question is pending', () => {
       screen.queryByText("What's the purpose of this email?"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/Answer the question/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the confidentiality notice below the question panel', () => {
+    armQuestion();
+    render(<ChatSurface organizationId="org-1" threadId="thread-1" />);
+
+    const question = screen.getByText("What's the purpose of this email?");
+    const notice = queryNotice();
+    expect(notice).not.toBeNull();
+    // The panel takes the composer's place; the notice stays with the input.
+    expect(
+      question.compareDocumentPosition(notice as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('retires the question outright on Skip', async () => {

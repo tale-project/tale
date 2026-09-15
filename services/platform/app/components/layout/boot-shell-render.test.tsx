@@ -25,4 +25,12 @@ describe('renderBootShell', () => {
     // when the navigation targets a chat route with the panel open.
     expect(renderBootShell()).toContain('boot-chat-panel-open');
   });
+
+  it('bakes the confidentiality notice row, sized by the remembered text rather than a text node', () => {
+    // Revealed by `boot-chat-notice`; the row's text is the generated content
+    // of `--boot-chat-notice`, which the no-text rule above keeps honest.
+    const html = renderBootShell();
+    expect(html).toContain('[.boot-chat-notice_&amp;]:flex');
+    expect(html).toContain('after:content-(--boot-chat-notice)');
+  });
 });

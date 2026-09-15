@@ -61,7 +61,12 @@
          `boot-chat-panel-open` additionally gates the sub-panel skeleton
          (ChatSubPanelPlaceholder) on the persisted panel state. Key mirrors
          ChatLayoutProvider's `chat-history-panel-open-<orgId>` (org-scoped
-         precisely so this script can read it pre-auth). -->
+         precisely so this script can read it pre-auth). `boot-chat-notice`
+         reserves the confidentiality notice's row under the composer stand-in
+         when this device last saw the org show one: `chat-data-notice-<orgId>`
+         (written by DataNoticeFooter, see data-notice-boot.ts) holds its text
+         as a ready-escaped CSS string, copied to `--boot-chat-notice` so the
+         row wraps like the live notice. -->
     <script>
       (function () {
         try {
@@ -77,6 +82,14 @@
           );
           if (stored !== 'false') {
             document.documentElement.classList.add('boot-chat-panel-open');
+          }
+          var notice = localStorage.getItem('chat-data-notice-' + match[1]);
+          if (notice) {
+            document.documentElement.classList.add('boot-chat-notice');
+            document.documentElement.style.setProperty(
+              '--boot-chat-notice',
+              notice,
+            );
           }
         } catch (error) {
           console.warn('Failed to apply the boot chat-panel state', error);
