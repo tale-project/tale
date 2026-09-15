@@ -230,33 +230,52 @@ export const ThreadList = memo(function ThreadList({
     <ThreadListFrameProvider value={frame}>
       <Stack gap={0} className="min-h-0 flex-1 px-2.5 pt-2.5 pb-3.5">
         <ThreadDndProvider organizationId={organizationId}>
-          <Stack gap={0} className="min-h-0 flex-1 gap-0.5 overflow-y-auto">
+          {/* The two sections share the height above ARCHIVED so neither can
+              push the other out of view: PROJECTS takes what its folders
+              need, up to half, and CHATS takes the rest — even when that
+              leaves room under a short chat list. Each section scrolls its
+              own rows under a header that stays put. */}
+          <Stack gap={0} className="min-h-0 flex-1 gap-0.5">
             {/* PROJECTS — always rendered (even empty) so the section never
                 appears/disappears on drag and the "new project" action always
                 has a home. Each folder is a drop target. */}
-            <SubPanelSectionHeader
-              sticky
-              label={t('projectsSection')}
-              action={newProjectButton}
-            />
-            {projectsLoading ? (
-              <Skeletonize loading className="flex shrink-0 flex-col gap-0.5">
-                <ProjectRowsSkeleton />
-              </Skeletonize>
-            ) : (
-              sortedProjects.map((project) => (
-                <ProjectFolder
-                  key={project.id}
-                  project={project}
-                  threads={byProject.get(project.id) ?? []}
-                  explicitCollapsed={collapsedProjects[project.id]}
-                  onSetCollapsed={(collapsed) =>
-                    setProjectCollapsed(project.id, collapsed)
-                  }
-                  draftNewChat={draftNewChat && draftProjectId === project.id}
-                />
-              ))
-            )}
+            <Stack
+              gap={0}
+              role="group"
+              aria-label={t('projectsSection')}
+              className="max-h-1/2 min-h-0 gap-0.5"
+            >
+              <SubPanelSectionHeader
+                label={t('projectsSection')}
+                action={newProjectButton}
+                className="shrink-0"
+              />
+              <Stack gap={0} className="min-h-0 gap-0.5 overflow-y-auto">
+                {projectsLoading ? (
+                  <Skeletonize
+                    loading
+                    className="flex shrink-0 flex-col gap-0.5"
+                  >
+                    <ProjectRowsSkeleton />
+                  </Skeletonize>
+                ) : (
+                  sortedProjects.map((project) => (
+                    <ProjectFolder
+                      key={project.id}
+                      project={project}
+                      threads={byProject.get(project.id) ?? []}
+                      explicitCollapsed={collapsedProjects[project.id]}
+                      onSetCollapsed={(collapsed) =>
+                        setProjectCollapsed(project.id, collapsed)
+                      }
+                      draftNewChat={
+                        draftNewChat && draftProjectId === project.id
+                      }
+                    />
+                  ))
+                )}
+              </Stack>
+            </Stack>
 
             {isEmpty ? (
               // Both sections answered and both are empty: one combined hint
@@ -284,43 +303,54 @@ export const ThreadList = memo(function ThreadList({
                 </Text>
               </Stack>
             ) : (
-              <>
-                {/* CHATS — loose chats not filed under any project. Also a
-                    drop target: a chat dragged here (from a project) is moved
-                    back out to "Chats". Always rendered so that target exists
-                    even when every chat currently lives in a project. */}
+              // CHATS — loose chats not filed under any project. Also a drop
+              // target: a chat dragged here (from a project) is moved back out
+              // to "Chats". Always rendered so that target exists even when
+              // every chat currently lives in a project; the zone fills the
+              // section, so the room under a short list takes a drop too.
+              <Stack
+                gap={0}
+                role="group"
+                aria-label={t('chatsSection')}
+                className="min-h-0 flex-1 gap-0.5"
+              >
                 <div
                   aria-hidden
                   className="border-border mt-1.5 mb-2 border-t"
                 />
                 <SubPanelSectionHeader
-                  sticky
                   label={t('chatsSection')}
                   action={chatHeaderActions}
+                  className="shrink-0"
                 />
-                {threadsLoading ? (
-                  <Skeletonize
-                    loading
-                    className="flex shrink-0 flex-col gap-0.5"
-                  >
-                    <ChatRowsSkeleton />
-                  </Skeletonize>
-                ) : (
-                  <LooseThreadsDropZone
-                    hasThreads={looseThreads.length > 0 || looseDraft !== null}
-                  >
-                    {looseDraft}
-                    {looseThreads.map((thread) => (
-                      <ThreadRow key={thread.id} thread={thread} />
-                    ))}
-                  </LooseThreadsDropZone>
-                )}
-              </>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {threadsLoading ? (
+                    <Skeletonize
+                      loading
+                      className="flex shrink-0 flex-col gap-0.5"
+                    >
+                      <ChatRowsSkeleton />
+                    </Skeletonize>
+                  ) : (
+                    <LooseThreadsDropZone
+                      hasThreads={
+                        looseThreads.length > 0 || looseDraft !== null
+                      }
+                      className="min-h-full"
+                    >
+                      {looseDraft}
+                      {looseThreads.map((thread) => (
+                        <ThreadRow key={thread.id} thread={thread} />
+                      ))}
+                    </LooseThreadsDropZone>
+                  )}
+                </div>
+              </Stack>
             )}
           </Stack>
 
-          {/* ARCHIVED — pinned under the scroller, outside it, so the drawer
-              is reachable however long the active list grows. */}
+          {/* ARCHIVED — pinned under both sections, outside their scrollers,
+              so the drawer is reachable however long either list grows. */}
           <ArchivedSection />
         </ThreadDndProvider>
 

@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 66 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -386,6 +386,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   and `chat.errorHintBudgetExceeded` below it; a composer send keeps its text,
   no user message or reply lands, and the banner switches to
   `chat.budgetExceededDetail` without a reload
+- [ ] `CHAT-B11` · **Long project and chat lists** — In an org with 30+
+  projects (one holding 20+ chats, expanded) and 40+ unfiled chats, open the
+  chats panel in a desktop window, shorten the window, then open the phone
+  drawer at 390px → **Projects** (`chat.projectsSection`) never takes more
+  than half of the list above **Archived** (`chat.archived.title`), even
+  when only a few chats remain, and **Chats** (`chat.chatsSection`) takes
+  the rest; both headers stay in view, each list scrolls on its own (a wheel
+  or swipe over one never moves the other), a chat dragged onto a folder
+  near the edge of the projects list scrolls that list, and a chat dropped
+  in the empty room under a short chat list lands under **Chats**, never in
+  a folder scrolled out of view
 
 ## Accessibility (WCAG 2.1 AA)
 

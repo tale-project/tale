@@ -247,9 +247,11 @@ export function ProjectFolder({
  */
 export function LooseThreadsDropZone({
   hasThreads,
+  className,
   children,
 }: {
   hasThreads: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   const { t } = useT('chat');
@@ -257,7 +259,7 @@ export function LooseThreadsDropZone({
   const { setNodeRef, isOver } = useProjectDropZone(null);
 
   return (
-    <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
+    <div ref={setNodeRef} className={cn(dropZoneClassName(isOver), className)}>
       <Stack as="ul" gap={0} className="gap-0.5">
         {children}
       </Stack>
