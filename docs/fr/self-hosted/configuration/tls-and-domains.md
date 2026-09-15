@@ -83,6 +83,8 @@ Une origine comprend un schéma, un hôte et éventuellement un port, sans chemi
 
 Tale n’accepte que les origines configurées pour construire les URL publiques. Un hôte inconnu retombe sur `SITE_URL`. N’utilise pas ce repli à la place d’une configuration de domaine.
 
+Pour un déploiement géré, déclare ces origines dans `additionalOrigins` de la spécification de déploiement plutôt que de modifier l’environnement du runtime ; voir [Servir des origines supplémentaires](/fr/self-hosted/install/cli-install#managed-additional-origins). La CLI y gère `ADDITIONAL_SITE_URLS` et conserve l’identité native sur l’origine principale.
+
 ### Garder les paramètres canoniques stables
 
 | Paramètre | Pourquoi le domaine principal compte |

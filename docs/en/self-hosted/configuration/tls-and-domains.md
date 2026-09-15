@@ -83,6 +83,8 @@ An origin has a scheme, host, and optional port, but no path. Caddy serves the l
 
 Tale accepts only configured origins when deriving browser-facing URLs; an unrecognized host falls back to `SITE_URL`. Do not use that fallback as a domain-configuration shortcut.
 
+In a managed deployment, declare these origins as `additionalOrigins` in the deployment specification instead of editing the runtime environment; see [Serve additional origins](/self-hosted/install/cli-install#managed-additional-origins). The CLI manages `ADDITIONAL_SITE_URLS` there and keeps the native identity on the primary origin.
+
 ### Keep canonical settings stable
 
 | Setting | Why the canonical domain matters |

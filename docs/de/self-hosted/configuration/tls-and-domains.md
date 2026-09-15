@@ -83,6 +83,8 @@ Ein Ursprung besteht aus Schema, Host und optionalem Port, aber keinem Pfad. Cad
 
 Beim Ableiten öffentlicher URLs akzeptiert Tale nur konfigurierte Ursprünge. Ein unbekannter Host fällt auf `SITE_URL` zurück. Verwende diesen Rückfall nicht als Ersatz für die Domainkonfiguration.
 
+Bei einem verwalteten Deployment deklarierst du diese Ursprünge als `additionalOrigins` in der Deployment-Spezifikation, statt die Laufzeitumgebung zu bearbeiten; siehe [Zusätzliche Ursprünge bedienen](/de/self-hosted/install/cli-install#managed-additional-origins). Die CLI verwaltet dort `ADDITIONAL_SITE_URLS` und belässt die native Identität beim primären Ursprung.
+
 ### Kanonische Einstellungen stabil halten
 
 | Einstellung | Warum die Hauptdomain wichtig ist |

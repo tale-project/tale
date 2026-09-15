@@ -197,6 +197,26 @@ Ajouter, modifier ou retirer un préfixe recrée les conteneurs et peut interrom
 
 Exécute une seule instance gérée complète par démon Docker. Un préfixe de nom n’attribue pas de ports, de réseaux sandbox ou de répertoires de travail distincts sur l’hôte.
 
+#### Servir des origines supplémentaires {#managed-additional-origins}
+
+Déclare `additionalOrigins` lorsque la même instance doit aussi répondre sur d’autres origines HTTPS, par exemple un domaine partenaire ou l’ancien nom d’hôte pendant un déménagement. Chaque entrée est une origine HTTPS nue sur le port par défaut, ou une référence d’environnement que la préparation résout en une telle origine. La liste compte de 1 à 16 origines distinctes ; aucune ne peut reprendre `origin`.
+
+```json
+{
+  "origin": "https://desk.example.org",
+  "additionalOrigins": [
+    "https://desk.partner.example",
+    { "env": "TALE_EXTRA_ORIGIN" }
+  ]
+}
+```
+
+La CLI écrit la liste dans la variable `ADDITIONAL_SITE_URLS` du runtime et la gère elle-même : une entrée de `environment` ne peut donc pas la définir. Chaque origine est un point d’entrée complet, avec ses propres sessions, liens de fichiers, accès de connexion et callbacks de connecteurs. Avec `tlsMode: "letsencrypt"`, le proxy obtient un certificat pour chaque origine, et les noms d’hôte locaux ou les adresses IP sont refusés. Avec `tlsMode: "external"`, ton proxy TLS doit transmettre l’en-tête `Host` d’origine de chaque origine et envoyer `X-Forwarded-Proto: https` depuis une adresse à laquelle le proxy de Tale fait confiance. Si cette plage est plus étroite que les plages d’adresses privées, définis `TRUSTED_PROXIES` par une référence dans `environment`.
+
+L’identité native reste sur `origin` : les liaisons du compte et de l’organisation, les journaux des clients, l’émetteur OIDC, les passkeys et les liens envoyés par e-mail n’utilisent que celle-ci. Une entrée peut être égale à `identity.migrateOriginFrom` pour que l’ancien nom d’hôte continue de répondre pendant une migration.
+
+La préparation refuse une révision du runtime dont le proxy ne peut pas faire confiance à un terminateur TLS externe, avec le message `Runtime does not serve additional origins`. Ajouter, modifier ou retirer la liste recrée les services qui la lisent. Une fois la déclaration retirée, le bundle appliqué suivant supprime aussi la variable. Enregistre les URL de callback de chaque origine auprès de tes fournisseurs d’identité et de connecteurs, et prépare le DNS et les certificats avec [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois).
+
 #### Préparer, vérifier et appliquer le bundle
 
 Définis `TALE_DEPLOY_SPEC` avec ce fichier JSON, `TALE_DEPLOY_BUNDLE` avec un nouveau répertoire absolu et `TALE_CLI_COMMIT` avec le commit complet du binaire. `DEPLOYMENT_COMMIT` est une provenance d’orchestration optionnelle ; omets ses arguments si tu ne l’utilises pas. Prépare et vérifie, transfère le répertoire entier, puis lance l’aperçu et le déploiement sur la destination avec la même CLI fixée.

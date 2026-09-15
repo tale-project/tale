@@ -125,6 +125,89 @@ test('accepts an optional bounded container prefix without changing persistent i
     ).toThrow();
 });
 
+test('resolves additional origins from literals and environment references', () => {
+  const input = spec();
+  const resolved = resolveDeploymentSpec(
+    {
+      ...input,
+      additionalOrigins: [
+        'https://desk.partner.example',
+        { env: 'EXTRA_ORIGIN' },
+      ],
+    },
+    { EXTRA_ORIGIN: 'https://desk.north-labs.example.org' },
+  );
+  expect(resolved.additionalOrigins).toEqual([
+    'https://desk.partner.example',
+    'https://desk.north-labs.example.org',
+  ]);
+  expect(resolved.origin).toBe(input.origin);
+  expect(resolveDeploymentSpec(input)).not.toHaveProperty('additionalOrigins');
+  expect(() =>
+    resolveDeploymentSpec(
+      { ...input, additionalOrigins: [{ env: 'MISSING_ORIGIN' }] },
+      {},
+    ),
+  ).toThrow('MISSING_ORIGIN');
+  for (const [reference, value] of [
+    [{ env: 'EMPTY_ORIGIN', optional: true }, undefined],
+    [{ env: 'PATH_ORIGIN' }, 'https://desk.partner.example/app'],
+    [{ env: 'PLAIN_ORIGIN' }, 'http://desk.partner.example'],
+  ] as const)
+    expect(() =>
+      resolveDeploymentSpec(
+        { ...input, additionalOrigins: [reference] },
+        value === undefined ? {} : { [reference.env]: value },
+      ),
+    ).toThrow();
+});
+
+test('refuses additional origins the managed proxy cannot serve as distinct entry points', () => {
+  const input = spec();
+  for (const additionalOrigins of [
+    [],
+    ['https://desk.partner.example/'],
+    ['https://desk.partner.example:8443'],
+    ['https://Desk.partner.example'],
+    ['https://[2001:db8::1]'],
+    ['https://desk_partner.example'],
+    [input.origin],
+    ['https://desk.partner.example', 'https://desk.partner.example'],
+    Array.from(
+      { length: 17 },
+      (_, index) => `https://desk-${index}.partner.example`,
+    ),
+  ])
+    expect(() =>
+      resolveDeploymentSpec({ ...input, additionalOrigins }),
+    ).toThrow();
+  const letsencrypt = {
+    ...input,
+    tlsMode: 'letsencrypt',
+    tlsEmail: 'ops@north-labs.example',
+  };
+  for (const local of [
+    'https://desk.local',
+    'https://localhost',
+    'https://10.0.0.5',
+  ])
+    expect(() =>
+      resolveDeploymentSpec({ ...letsencrypt, additionalOrigins: [local] }),
+    ).toThrow("Let's Encrypt");
+  expect(
+    resolveDeploymentSpec({
+      ...letsencrypt,
+      additionalOrigins: ['https://desk.partner.example'],
+    }).additionalOrigins,
+  ).toEqual(['https://desk.partner.example']);
+  expect(
+    resolveDeploymentSpec({
+      ...input,
+      additionalOrigins: ['https://desk.local'],
+    }).additionalOrigins,
+  ).toEqual(['https://desk.local']);
+});
+
 test('refuses moving pins, path escapes, duplicate targets and invalid public policy', () => {
   for (const bad of ['main', 'sha-abcd123', `${revision}\n`, 'v1.2.3'])
     expect(() =>

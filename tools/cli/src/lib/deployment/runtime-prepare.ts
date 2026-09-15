@@ -176,6 +176,18 @@ function proxyPolicy(source: string): string {
   return result.join('\n');
 }
 
+/**
+ * Whether the source's proxy can serve additional origins behind every TLS
+ * mode: it trusts an external TLS terminator's forwarded scheme, so its
+ * Caddyfile carries the trust placeholder. The placeholder shipped together
+ * with per-origin file links and this declaration.
+ */
+function servesAdditionalOrigins(caddy: string): boolean {
+  return caddy
+    .split('\n')
+    .some((line) => line.trim() === '# TRUSTED_PROXIES_PLACEHOLDER');
+}
+
 function sourceFiles(
   repoRoot: string,
   revision: string,
@@ -239,6 +251,11 @@ export async function prepareRuntime(
       compose.services[service].container_name =
         `${containerPrefix}-${service}`;
   const caddy = proxyPolicy(source.caddy.toString('utf8'));
+  requireRuntime(
+    !options.additionalOrigins?.length ||
+      servesAdditionalOrigins(source.caddy.toString('utf8')),
+    'Runtime does not serve additional origins; select a Tale revision whose proxy trusts an external TLS terminator.',
+  );
   const images = new Map<string, RuntimeImage>();
   const getImage = async (
     repository: string,

@@ -325,6 +325,9 @@ export async function exportManagedClient(
               composeProject: bundle.spec.composeProject,
               name: bundle.spec.name,
               origin: bundle.spec.origin,
+              ...(bundle.spec.additionalOrigins
+                ? { additionalOrigins: bundle.spec.additionalOrigins }
+                : {}),
               tlsMode: bundle.spec.tlsMode,
               tlsEmail: bundle.spec.tlsEmail,
             },

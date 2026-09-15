@@ -140,6 +140,22 @@ move a database or replace the retained identity. See
 [managed origin migration](../../docs/en/self-hosted/install/cli-install.md#managed-origin-migration)
 for the complete specification and credential-export procedure.
 
+### Serve additional origins
+
+Declare top-level `additionalOrigins` for the other HTTPS origins the same instance
+answers on: 1 to 16 distinct bare origins on the default port, or environment
+references that preparation resolves. None may repeat `origin`; one may equal
+`identity.migrateOriginFrom` to keep a previous hostname answering during a move.
+With `tlsMode: "letsencrypt"`, local hostnames and IP addresses are refused.
+
+The CLI writes the list to the managed `ADDITIONAL_SITE_URLS` runtime variable and
+refuses it as an `environment` entry; removing the declaration and applying again
+removes the variable. Native identity, client journals, the OIDC issuer, passkeys
+and email links stay on `origin`. Preparation refuses a Tale revision whose proxy
+cannot trust an external TLS terminator (`Runtime does not serve additional
+origins`). The [additional-origins guide](../../docs/en/self-hosted/install/cli-install.md#managed-additional-origins)
+covers forwarding, `TRUSTED_PROXIES` and callback registration.
+
 ## Apply native configuration
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration

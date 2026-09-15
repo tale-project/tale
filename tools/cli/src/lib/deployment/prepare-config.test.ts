@@ -52,6 +52,9 @@ describePosix('managed preparation native-owner binding', () => {
           revision: 'a'.repeat(40),
           containerPrefix: 'north-desk-prod',
         },
+        ...(owner === 'operator'
+          ? { additionalOrigins: ['https://desk.partner.example'] }
+          : {}),
         identity: {
           bootstrap: 'fresh',
           email: { env: 'TALE_EMAIL' },
@@ -91,8 +94,17 @@ describePosix('managed preparation native-owner binding', () => {
               request.repository === TALE_REPOSITORY ? root : client.root,
             );
           },
-          runtime: async ({ output: directory, containerPrefix }) => {
+          runtime: async ({
+            output: directory,
+            containerPrefix,
+            additionalOrigins,
+          }) => {
             expect(containerPrefix).toBe('north-desk-prod');
+            expect(additionalOrigins).toEqual(
+              owner === 'operator'
+                ? ['https://desk.partner.example']
+                : undefined,
+            );
             await mkdir(directory);
             await writeFile(join(directory, 'runtime.json'), '{}');
             await writeFile(join(directory, 'compose.yml'), 'services: {}\n');
@@ -121,6 +133,18 @@ describePosix('managed preparation native-owner binding', () => {
         },
       );
       expect((await verifyDeploymentBundle(output)).spec).toEqual(result.spec);
+      // Declared origins survive the bundle round trip; an undeclared list
+      // leaves no key behind, so existing bundles keep their exact bytes.
+      if (owner === 'operator')
+        expect(result.spec.additionalOrigins).toEqual([
+          'https://desk.partner.example',
+        ]);
+      else {
+        expect(result.spec).not.toHaveProperty('additionalOrigins');
+        expect(
+          await readFile(join(output, 'deployment.json'), 'utf8'),
+        ).not.toContain('additionalOrigins');
+      }
       const prepared = await verifyPreparedDeploymentConfig(
         join(output, 'configs', client.descriptor.clientId, client.name),
       );

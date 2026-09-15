@@ -1,7 +1,8 @@
-import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
-
 import * as logger from '../../utils/logger';
-import { isLocalHostname } from '../config/ensure-env';
+import {
+  isLocalHostname,
+  validateAdditionalSiteUrls,
+} from '../config/ensure-env';
 import { checkDaemon, checkSandboxToken } from '../docker/health-checks';
 
 /**
@@ -24,45 +25,6 @@ interface TlsConfig {
 
 interface PreflightIssue {
   message: string;
-}
-
-/**
- * Pure validation of `ADDITIONAL_SITE_URLS` — the extra domains one
- * deployment is served on. A malformed entry is BLOCKING: the backend
- * refuses to boot on it, so catching it here turns a crash-looping deploy
- * into a message before anything is touched. Empty/unset is always fine
- * (the single-domain default).
- *
- * A `letsencrypt` deployment additionally needs each additional hostname to
- * be public — Caddy asks the ACME CA for a certificate per site address, and
- * a localhost/IP entry fails that challenge.
- */
-export function validateAdditionalSiteUrls(config: {
-  additionalSiteUrls: string | undefined;
-  tlsMode: string | undefined;
-}): PreflightIssue[] {
-  let origins: string[];
-  try {
-    origins = parseAdditionalSiteUrls(config.additionalSiteUrls);
-  } catch (error) {
-    return [
-      { message: error instanceof Error ? error.message : String(error) },
-    ];
-  }
-  if (config.tlsMode !== 'letsencrypt') return [];
-  const issues: PreflightIssue[] = [];
-  for (const origin of origins) {
-    const host = new URL(origin).hostname;
-    if (isLocalHostname(host)) {
-      issues.push({
-        message:
-          `TLS_MODE=letsencrypt cannot issue a certificate for "${host}" in ADDITIONAL_SITE_URLS. ` +
-          "Let's Encrypt needs a public domain for every address the proxy serves. " +
-          'Remove the entry, or use TLS_MODE=selfsigned / TLS_MODE=external.',
-      });
-    }
-  }
-  return issues;
 }
 
 /**
