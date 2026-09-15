@@ -29,7 +29,7 @@ Distingue les fichiers et conversations du projet des chats qui restent personne
 
 <Card title="Gérer ton compte" icon="user" href="/fr/platform/member/preferences">
 
-Modifie ton profil et comprends les préférences enregistrées et la gestion des chats.
+Modifie ton profil, consulte tes limites d’utilisation et comprends les préférences enregistrées et la gestion des chats.
 
 </Card>
 

@@ -29,6 +29,8 @@ Persönliche Limits werden für jede Größe aus der spezifischsten Regel ermitt
 
 Wird eine Anfrage unerwartet abgelehnt, prüfe alle passenden Grenzen und Zeiträume. Ein höheres persönliches Limit hebt keine Organisations-, Team- oder API-Schlüsselgrenze auf.
 
+Mitglieder sehen ihren eigenen Stand unter [Einstellungen > Nutzung](/de/platform/member/preferences#usage-limits). Dort steht jede persönliche, Team- und Organisationsgrenze, die für sie gilt, mit aktueller Nutzung und nächstem Zurücksetzen. Die Regeln selbst sehen sie dort nicht.
+
 ## Uploads steuern
 
 Die Uploadrichtlinie legt erlaubte und gesperrte Dateiendungen, erlaubte MIME-Typen, die maximale Dateigröße in MB und das Gesamtvolumen pro Person in GB fest. Wähle die benötigten Typen und teste nach dem Speichern eine erlaubte und eine abgelehnte Datei.
