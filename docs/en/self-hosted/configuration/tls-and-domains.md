@@ -52,9 +52,12 @@ Set `TLS_MODE=external` when another proxy terminates TLS, while keeping the bro
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
 TLS_MODE=external
+TRUSTED_PROXIES=10.20.0.0/16
 ```
 
-Tale's Caddy instance serves HTTP inside this arrangement. Keep that hop private, preserve the intended host, and configure forwarded client information only through trusted proxies. Verify sign-in callbacks, secure cookies, uploads, and streaming through the complete path. A custom certificate installed on the upstream proxy is independent of Tale's TLS mode.
+Tale's Caddy instance serves HTTP inside this arrangement, so your proxy has to report how the browser connected. Forward the original `Host` header and send `X-Forwarded-Proto: https`; Tale uses both to keep each browser on the origin it opened. Caddy accepts forwarded headers only from the addresses in `TRUSTED_PROXIES`: CIDR ranges separated by spaces, or `private_ranges` for every private and loopback address, which is the default when the variable is unset. Set it to the range your proxy connects from. The proxy refuses to start on any other value, and the other TLS modes ignore the variable.
+
+Keep the HTTP hop private. The proxy container publishes port 80, so allow only your TLS proxy to reach it: a client inside a trusted range could otherwise claim an HTTPS connection it never made. Verify sign-in callbacks, secure cookies, uploads, and streaming through the complete path. A custom certificate installed on the upstream proxy is independent of Tale's TLS mode.
 
 If you maintain a custom Tale proxy image and Caddyfile instead, mount your certificate and private key read-only and configure Caddy's `tls <cert-file> <key-file>` directive yourself. Merely mounting the files or setting `TLS_MODE=external` does not make Caddy load them. The custom configuration must retain Tale's routes, health behavior, and metrics protection.
 

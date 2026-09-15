@@ -37,6 +37,7 @@ La documentation utilise sa propre origine. Sur l’origine de la plateforme, `/
 | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `TLS_MODE`  | `selfsigned` | Un de `selfsigned`, `letsencrypt`, `external`. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains). |
 | `TLS_EMAIL` | non défini   | E-mail de contact pour les notifications Let's Encrypt. Optionnel mais recommandé en production.                      |
+| `TRUSTED_PROXIES` | `private_ranges` | Avec `TLS_MODE=external`, les adresses dont le proxy accepte les en-têtes transférés : plages CIDR séparées par des espaces, ou `private_ranges`. Les autres modes l’ignorent. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains). |
 
 `selfsigned` crée un certificat Caddy local. Fais confiance à sa CA uniquement pour ta propre installation contrôlée. `letsencrypt` exige un domaine public et les ports 80/443 accessibles. Avec `external`, Caddy sert HTTP derrière un proxy TLS.
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -568,5 +568,158 @@ describe('database fast-shutdown parity (SIGINT)', () => {
 
   test('CLI generator stops the db with SIGINT', () => {
     expect(createDbService(config).stop_signal).toBe('SIGINT');
+  });
+});
+
+describe('external TLS terminator trust (proxy)', () => {
+  // In `external` mode the browser's scheme reaches the proxy only as the
+  // terminator's X-Forwarded-Proto. A lane pinning `{scheme}`, or a proxy that
+  // trusts no peer, forwarded `http` for every request — so no additional
+  // https origin ever matched, and the SPA's SITE_URL, the SSO doors, the
+  // OpenAPI servers and the backend's public origin fell back to SITE_URL.
+  const caddyfile = readFileSync(
+    resolve(repoRoot, 'services/proxy/Caddyfile'),
+    'utf8',
+  ).replaceAll('\r\n', '\n');
+  const entrypoint = readFileSync(
+    resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+    'utf8',
+  ).replaceAll('\r\n', '\n');
+  const placeholder = '# TRUSTED_PROXIES_PLACEHOLDER';
+
+  /** The entrypoint's trust block, exactly as the container runs it. */
+  function trustBlock(): string {
+    const begin = entrypoint.indexOf('\n# BEGIN trusted-proxies\n');
+    const end = entrypoint.indexOf('\n# END trusted-proxies\n');
+    expect(begin).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(begin);
+    return entrypoint.slice(begin, end);
+  }
+
+  test('no lane pins X-Forwarded-Proto to the connection scheme', () => {
+    expect(caddyfile).not.toMatch(/header_up\s+X-Forwarded-Proto/i);
+    expect(entrypoint).not.toMatch(/header_up\s+X-Forwarded-Proto/i);
+  });
+
+  test('the trust placeholder sits once, inside the global servers block', () => {
+    const lines = caddyfile.split('\n');
+    const at = lines.flatMap((line, index) =>
+      line.trim() === placeholder ? [index] : [],
+    );
+    const open = lines.findIndex((line) => line.trim() === 'servers {');
+    const close = lines.findIndex(
+      (line, index) => index > open && line === '\t}',
+    );
+    const firstSite = lines.findIndex((line) => line.startsWith('{$'));
+    expect(at).toHaveLength(1);
+    expect(open).toBeGreaterThan(0);
+    expect(at[0]).toBeGreaterThan(open);
+    expect(at[0]).toBeLessThan(close);
+    expect(close).toBeLessThan(firstSite);
+  });
+
+  test('the entrypoint injects trust only inside its external branch', () => {
+    const block = trustBlock();
+    const external = block.indexOf(
+      'if [ "${TLS_MODE:-selfsigned}" = "external" ]; then',
+    );
+    const otherwise = block.indexOf('\nelse\n');
+    const injected = block.indexOf('trusted_proxies static');
+    expect(external).toBeGreaterThan(-1);
+    expect(injected).toBeGreaterThan(external);
+    expect(injected).toBeLessThan(otherwise);
+    expect(entrypoint.split('trusted_proxies static')).toHaveLength(2);
+  });
+
+  // The entrypoint runs only in the Linux image; render it with POSIX tools.
+  describe.skipIf(process.platform === 'win32')('rendered', () => {
+    function render(env: Record<string, string>) {
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-proxy-trust-'));
+      const file = resolve(directory, 'Caddyfile');
+      try {
+        writeFileSync(file, caddyfile);
+        const result = spawnSync('sh', ['-c', `set -e\n${trustBlock()}`], {
+          encoding: 'utf8',
+          env: { PATH: process.env.PATH ?? '', CADDYFILE: file, ...env },
+        });
+        return {
+          status: result.status,
+          stderr: result.stderr,
+          lines: readFileSync(file, 'utf8').split('\n'),
+        };
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+
+    test.each(['', 'selfsigned', 'letsencrypt'])(
+      'TLS_MODE=%p terminates TLS in the proxy and trusts no peer',
+      (mode) => {
+        const { status, lines } = render({
+          TLS_MODE: mode,
+          TRUSTED_PROXIES: '10.0.0.0/8',
+        });
+        expect(status).toBe(0);
+        expect(lines.join('\n')).not.toContain('TRUSTED_PROXIES_PLACEHOLDER');
+        expect(lines.some((line) => /^\s*trusted_proxies/.test(line))).toBe(
+          false,
+        );
+        expect(lines).toHaveLength(caddyfile.split('\n').length - 1);
+      },
+    );
+
+    test('external trusts every private range by default, strictly', () => {
+      const { status, lines } = render({ TLS_MODE: 'external' });
+      expect(status).toBe(0);
+      const at = lines.indexOf('\t\ttrusted_proxies static private_ranges');
+      expect(at).toBeGreaterThan(
+        lines.findIndex((line) => line.trim() === 'servers {'),
+      );
+      expect(lines[at + 1]).toBe('\t\ttrusted_proxies_strict');
+      expect(lines.join('\n')).not.toContain('TRUSTED_PROXIES_PLACEHOLDER');
+      expect(lines).toHaveLength(caddyfile.split('\n').length + 1);
+    });
+
+    test('external narrows trust to the declared ranges, in order', () => {
+      const { status, lines } = render({
+        TLS_MODE: 'external',
+        TRUSTED_PROXIES: ' 10.147.17.0/24\tfd00::/8  private_ranges\n',
+      });
+      expect(status).toBe(0);
+      expect(lines).toContain(
+        '\t\ttrusted_proxies static 10.147.17.0/24 fd00::/8 private_ranges',
+      );
+    });
+
+    test('external treats a blank value as unset', () => {
+      const { status, lines } = render({
+        TLS_MODE: 'external',
+        TRUSTED_PROXIES: ' \t ',
+      });
+      expect(status).toBe(0);
+      expect(lines).toContain('\t\ttrusted_proxies static private_ranges');
+    });
+
+    test.each([
+      '*',
+      'tale.example.com',
+      '10.0.0.1',
+      '10.0.0.0/33',
+      '256.1.1.0/24',
+      '10.0.0.0/8,fd00::/8',
+      'private_ranges}',
+      '10.0.0.0/8 import evil',
+    ])(
+      'external refuses TRUSTED_PROXIES=%p before touching the Caddyfile',
+      (value) => {
+        const { status, stderr, lines } = render({
+          TLS_MODE: 'external',
+          TRUSTED_PROXIES: value,
+        });
+        expect(status).not.toBe(0);
+        expect(stderr).toContain('TRUSTED_PROXIES entry');
+        expect(lines).toContain(`\t\t${placeholder}`);
+      },
+    );
   });
 });

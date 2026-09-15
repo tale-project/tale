@@ -37,6 +37,7 @@ The prose documentation uses its own origin. On the platform origin, `/docs` ope
 | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `TLS_MODE`  | `selfsigned` | One of `selfsigned`, `letsencrypt`, `external`. See [TLS and domains](/self-hosted/configuration/tls-and-domains) for trade-offs. |
 | `TLS_EMAIL` | unset        | Contact email for Let's Encrypt notifications. Optional but recommended in production.                                            |
+| `TRUSTED_PROXIES` | `private_ranges` | With `TLS_MODE=external`, the addresses whose forwarded headers the proxy accepts: CIDR ranges separated by spaces, or `private_ranges`. The other modes ignore it. See [TLS and domains](/self-hosted/configuration/tls-and-domains). |
 
 `selfsigned` runs Caddy with a generated cert — the browser warns, fine for development. `letsencrypt` requires a real domain and ports 80/443 reachable from the public Internet. `external` makes Caddy serve plain HTTP; an upstream reverse proxy terminates TLS.
 

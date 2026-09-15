@@ -30,8 +30,19 @@ upstreams determine which metrics endpoints are available. See the
 - `ADDITIONAL_SITE_URLS`: other origins served by the same platform deployment.
 - `TLS_MODE`: `selfsigned` for Caddy’s internal CA, `letsencrypt` for public ACME, or `external` behind an upstream TLS terminator.
 - `TLS_EMAIL`: contact address for ACME notifications.
+- `TRUSTED_PROXIES`: with `TLS_MODE=external`, the address ranges of the TLS-terminating proxy whose forwarded headers Caddy accepts: CIDR ranges separated by whitespace, or `private_ranges` (the default). The other modes ignore it.
 - `BASE_PATH`: an optional deployment subpath.
 - `BACKEND_UPSTREAM`: backend host and port reachable from this container.
+
+Behind an external TLS terminator, Caddy serves plain HTTP on the published
+port 80 and learns the browser's scheme and address only from the terminator's
+`X-Forwarded-Proto` and `X-Forwarded-For`, which it accepts from trusted peers
+alone. Send both and keep the original `Host`: the platform recognizes each
+configured origin from that pair. The entrypoint refuses to start on a
+`TRUSTED_PROXIES` entry that is neither a CIDR range nor `private_ranges`. Keep
+port 80 reachable from the terminator only, and narrow `TRUSTED_PROXIES` to the
+terminator's own range where you can: any client inside a trusted range could
+otherwise claim an HTTPS connection it never made.
 
 For an internal CA, install the CA certificate in each client device's trust
 store after verifying its origin. Running `caddy trust` **inside the container**

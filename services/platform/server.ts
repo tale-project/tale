@@ -549,6 +549,12 @@ export interface CreateAppOptions {
    * reads the built `dist/openapi.json` once.
    */
   openapiDocument?: () => Promise<Record<string, unknown> | null>;
+  /**
+   * Test seam for the SPA shell template the fallback route renders.
+   * Production reads the built `dist/index.html` (once, outside dev hot
+   * reload).
+   */
+  indexHtml?: string;
 }
 
 let openapiDocumentPromise: Promise<Record<string, unknown> | null> | null =
@@ -1000,8 +1006,8 @@ export function createApp(
       }
     }
 
-    let template = indexHtmlTemplate;
-    if (template === null || DEV_HOT_RELOAD) {
+    let template = opts.indexHtml ?? indexHtmlTemplate;
+    if (template === null || (DEV_HOT_RELOAD && opts.indexHtml === undefined)) {
       const indexFile = Bun.file(join(distDir, 'index.html'));
       if (!(await indexFile.exists())) {
         console.error(`Missing dist/index.html in ${distDir}`);
