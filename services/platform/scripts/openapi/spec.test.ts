@@ -1994,3 +1994,62 @@ describe('the shapes the 2026-09-14 round-h evaluation found generated clients t
     expect(enumOf('/api/v1/websites', 'status')).not.toContain('idle');
   });
 });
+
+// ── OpenAPI 3.0 discipline the generators and validators hold us to ─────────
+
+describe('MessagePart is a discriminator a strict client can resolve', () => {
+  // A discriminator with no `mapping` over inline branches resolves
+  // `type: "text"` to `#/components/schemas/text`, which never existed, so
+  // a discriminator-honouring validator rejected every chat message
+  // (2026-09-15 evaluation, i9). Every branch is a named schema now and the
+  // mapping is explicit — a generated client gets a class per kind.
+  const schemas = (spec.components as { schemas: Record<string, Json> })
+    .schemas;
+  const part = schemas.MessagePart as {
+    discriminator: { propertyName: string; mapping: Record<string, string> };
+    oneOf: { $ref: string }[];
+  };
+
+  it('lists exactly the schemas its mapping names, every one a $ref', () => {
+    expect(part.discriminator.propertyName).toBe('type');
+    const mapped = Object.values(part.discriminator.mapping).sort();
+    const listed = part.oneOf.map((branch) => branch.$ref).sort();
+    expect(listed).toEqual(mapped);
+    expect(mapped).toHaveLength(7);
+  });
+
+  it('maps each kind to a schema whose required `type` is that kind alone', () => {
+    for (const [kind, target] of Object.entries(part.discriminator.mapping)) {
+      const name = target.replace('#/components/schemas/', '');
+      const schema = schemas[name] as {
+        required?: string[];
+        properties?: { type?: { enum?: string[] } };
+      };
+      expect(schema, name).toBeDefined();
+      expect(schema.required, name).toContain('type');
+      expect(schema.properties?.type?.enum, name).toEqual([kind]);
+    }
+  });
+});
+
+describe('the document is OpenAPI 3.0', () => {
+  it('declares nullability with `nullable`, never a 3.1 type list', () => {
+    // One `type: ['string', 'null']` made the whole document invalid to
+    // every 3.0 validator, and crashed one (2026-09-15 evaluation, i9).
+    const offenders: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((item, index) => walk(item, `${at}[${index}]`));
+        return;
+      }
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (Array.isArray(record.type)) offenders.push(at);
+      for (const [key, value] of Object.entries(record))
+        walk(value, `${at}.${key}`);
+    };
+    walk(spec, '$');
+    expect(offenders).toEqual([]);
+    expect(spec.openapi).toBe('3.0.3');
+  });
+});

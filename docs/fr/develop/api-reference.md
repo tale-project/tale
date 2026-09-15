@@ -374,7 +374,7 @@ Les fichiers préparés par `POST /api/v1/conversations/uploads` n’ont pas d�
 
 Tous les corps de conversation sont stricts. Une clé inconnue, y compris dans un message ou une pièce jointe, donne **400**, `INVALID_BODY`, avec le nom de cette clé.
 
-`GET /api/v1/conversations/sync` renvoie aussi l’`externalContactId` lié, le `contactId` de la ligne liée et `contactStatus` : `active`, `trashed` ou `missing`. La liaison conserve la ligne du contact initial. Supprimer ce contact l’envoie à la corbeille et libère son e-mail et son identifiant externe ; un nouveau contact portant ces identifiants ne récupère jamais l’ancien historique. Un contact dont le CRM a changé la clé (un `PATCH` de son `externalId`) garde en revanche ses conversations : un instantané qui nomme l’id courant s’applique et le reçu le suit, tandis que l’id qu’il ne porte plus répond **409** `CONVERSATION_CONTACT_CONFLICT` en nommant l’id auquel la conversation est liée. `GET /api/v1/conversations?source=` liste chaque conversation que tu as reflétée sous une source — `conversationId`, `externalId`, `externalContactId`, `contactId`, `contactStatus`, `version`, `sourceDeleted`, `status`, `subject` —, la plus récente d’abord, en page keyset sous `conversations` (la même boucle `?cursor=` que pour chaque liste), et `?contactStatus=trashed` retrouve les miroirs qu’un contact supprimé a gelés.
+`GET /api/v1/conversations/sync` renvoie aussi l’`externalContactId` lié, le `contactId` de la ligne liée et `contactStatus` : `active`, `trashed` ou `missing` — ainsi que `sourceDeleted` avec le `status` de l’Inbox, pour qu’un moteur qui reprend depuis le reçu sache qu’un démontage a eu lieu : un instantané de contenu sur un miroir démonté répond **409** `CONVERSATION_CLOSED` quelle que soit la version (reflète la conversation source sous un nouvel `externalId` pour recommencer). La liaison conserve la ligne du contact initial. Supprimer ce contact l’envoie à la corbeille et libère son e-mail et son identifiant externe ; un nouveau contact portant ces identifiants ne récupère jamais l’ancien historique. Un contact dont le CRM a changé la clé (un `PATCH` de son `externalId`) garde en revanche ses conversations : un instantané qui nomme l’id courant s’applique et le reçu le suit, tandis que l’id qu’il ne porte plus répond **409** `CONVERSATION_CONTACT_CONFLICT` en nommant l’id auquel la conversation est liée. `GET /api/v1/conversations?source=` liste chaque conversation que tu as reflétée sous une source — `conversationId`, `externalId`, `externalContactId`, `contactId`, `contactStatus`, `version`, `sourceDeleted`, `status`, `subject` —, la plus récente d’abord, en page keyset sous `conversations` (la même boucle `?cursor=` que pour chaque liste), et `?contactStatus=trashed` retrouve les miroirs qu’un contact supprimé a gelés.
 
 Un instantané de contenu plus récent destiné au contact supprimé donne `409 CONVERSATION_CONTACT_TRASHED`. Restaure le contact — avec `POST /api/v1/contacts/{id}/restore`, qui applique la règle de la création (un contact vivant qui a pris entre-temps son e-mail ou son `externalId` refuse la restauration avec le **409** de la création), ou depuis la corbeille de l’application — avant d’envoyer du contenu, ou ferme le miroir avec `deleted: true` et une version égale ou supérieure ; un miroir fermé n’est pas rouvert par la restauration, un instantané de contenu ultérieur répond donc le même 409 tant que le contact reste dans la corbeille. Les versions anciennes restent ignorées, et les répétitions de même version suivent toujours les règles ci-dessus : la suppression ne transforme pas chaque répétition en erreur.
 
@@ -645,7 +645,7 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 `GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément. Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
 
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
-- `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé.
+- `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
 Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, et `start_refused` si le schéma `inputs` déployé refuse l’entrée. Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
 
@@ -808,7 +808,7 @@ Les messages de chat acceptés partagent une file commune aux organisations et a
 
 Conserve le `messageId` reçu dans la réponse **202** : il identifie le message d’assistant qui recevra le résultat. Le suivi de génération expose trois états :
 
-- `queued` : le message est accepté et attend un worker.
+- `queued` : le message est accepté et attend un worker. Tant qu’un worker n’a pas ouvert le tour, cette interrogation en est la seule vue : `GET .../messages` ne liste pas encore le tour (la page se lit comme complète sans lui) et `.../messages/{messageId}` peut répondre **404** pour l’id nommé par l’envoi.
 - `streaming` : le modèle produit la réponse. `text` et `reasoning` contiennent les données reçues jusque-là.
 - `idle` : aucun tour n’est en cours. `lastMessageId` et `lastStatus` décrivent le message d’assistant le plus récent.
 
@@ -877,7 +877,7 @@ Le champ `usage` décrit les tokens et le coût estimé :
 
 `usage` est absent si le tour a échoué avant que le fournisseur ne transmette de compteurs.
 
-`parts` est une liste ordonnée dont les éléments sont distingués par `type` : `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, `approval` ou `human-input`. Le document OpenAPI décrit chaque forme. Traite un type inconnu comme un élément opaque : de nouveaux types peuvent être ajoutés.
+`parts` est une liste ordonnée dont les éléments sont distingués par `type` : `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, `approval` ou `human-input`. Le document OpenAPI décrit chaque forme comme un schéma nommé (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`, `HumanInputPart`) derrière un discriminant `type` à mapping explicite, un client généré obtient donc une classe par type. Traite un type inconnu comme un élément opaque : de nouveaux types peuvent être ajoutés.
 
 Affiche une partie `reasoning` séparément de la réponse. Elle peut reprendre des instructions reçues par le modèle : guide de l’assistant, règles sur les sources, instructions obligatoires de l’organisation ou instructions du projet. Ne la diffuse pas à un public qui ne doit pas connaître ces instructions.
 

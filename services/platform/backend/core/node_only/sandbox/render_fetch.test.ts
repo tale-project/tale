@@ -117,7 +117,11 @@ module.exports = {
   chromium: {
     async launch() {
       return {
-        async newContext() { return { async newPage() { return makePage(); } }; },
+        async newContext(options) {
+          const file = process.env.FAKE_CONTEXT_OPTIONS_FILE;
+          if (file) require('node:fs').writeFileSync(file, JSON.stringify(options || {}));
+          return { async newPage() { return makePage(); } };
+        },
         async close() {},
       };
     },
@@ -160,6 +164,7 @@ describe('render worker — output budget in bytes', () => {
     urls: readonly string[],
     caps: { maxHtmlBytes: number; maxTotalBytes: number },
     htmlChars: number,
+    extraInput: Record<string, unknown> = {},
   ): Promise<{ bytes: number; results: Map<string, unknown> }> {
     writeFileSync(
       path.join(agent, 'code', 'urls.json'),
@@ -169,10 +174,15 @@ describe('render worker — output budget in bytes', () => {
         idleTimeoutMs: 10,
         softBudgetMs: 60_000,
         ...caps,
+        ...extraInput,
       }),
     );
     await execFileAsync(NODE_BIN, [path.join(agent, 'code', 'render.mjs')], {
-      env: { ...process.env, FAKE_HTML_CHARS: String(htmlChars) },
+      env: {
+        ...process.env,
+        FAKE_HTML_CHARS: String(htmlChars),
+        FAKE_CONTEXT_OPTIONS_FILE: path.join(root, 'context-options.json'),
+      },
       timeout: 25_000,
     });
     const raw = readFileSync(path.join(agent, 'output', 'pages.json'));
@@ -209,6 +219,22 @@ describe('render worker — output budget in bytes', () => {
     expect(results.get(urls[2] ?? '')).toEqual({ kind: 'not_attempted' });
     expect(results.get(urls[3] ?? '')).toEqual({ kind: 'not_attempted' });
   }, 30_000);
+
+  it('opens the browser context under the User-Agent the host hands in, and under none otherwise', async () => {
+    // The render leg browsed as a stock HeadlessChrome: the host now hands
+    // the crawler's own identity in with the batch (2026-09-15 evaluation,
+    // i6) and the worker applies it to the context it opens.
+    const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
+    const optionsFile = path.join(root, 'context-options.json');
+    await runWorker(['https://site.example/a'], caps, 10);
+    expect(JSON.parse(readFileSync(optionsFile, 'utf8'))).toEqual({});
+    const userAgent =
+      'TaleBot/1.2.3 (+https://docs.tale.dev/platform/knowledge/crawling)';
+    await runWorker(['https://site.example/a'], caps, 10, { userAgent });
+    expect(JSON.parse(readFileSync(optionsFile, 'utf8'))).toEqual({
+      userAgent,
+    });
+  });
 
   it('applies the per-page bound in bytes, not UTF-16 code units', async () => {
     const urls = ['https://site.example/big'];

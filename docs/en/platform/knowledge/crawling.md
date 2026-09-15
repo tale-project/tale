@@ -36,7 +36,7 @@ For a whole website, the crawler uses the homepage and published sitemaps, inclu
 
 Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
-The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL.
+The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL. It identifies itself on every request as `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, so a `robots.txt` group can address it by name — `User-agent: TaleBot` — to allow, throttle or refuse it alone.
 
 The crawler applies `robots.txt` `Disallow` rules for the `*` agent on every path a URL can enter by — the sitemaps, the link walk and the links a rendered JavaScript page reveals — and again before every fetch: a page a rule covers is never fetched, and a page a rule added later covers leaves the index on the next scan. The rules do not filter an explicit URL list: a listed address is your instruction. On each content fetch, an HTTP `X-Robots-Tag: noindex` or `none`, or an HTML `<meta name="robots" content="noindex">` tag, prevents indexing, including for listed URLs, and drops whatever an earlier scan stored of that page. These rules are courtesy, not access control: do not rely on Tale's crawler as an access-control mechanism.
 

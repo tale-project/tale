@@ -262,6 +262,17 @@ export async function synchronizeConversation(
     // content snapshot at the stored version is held to the stored hash.
     if (binding && input.deleted && binding.sourceDeleted)
       return { conversationId: binding.conversationId, applied: false };
+    // A torn-down mirror stays down. A later content snapshot used to write
+    // `source_deleted` back to false and bring the thread and its messages
+    // back into the Inbox, and the receipt an engine resumes from never said
+    // a teardown had landed (2026-09-15 evaluation, i7). A source that wants
+    // the conversation again mirrors it under a new externalId.
+    if (binding && binding.sourceDeleted && !input.deleted)
+      throw new ConversationError(
+        'CONVERSATION_CLOSED',
+        `The source tore this mirror down with a "deleted": true snapshot, so it takes no more content: a closed mirror stays closed, and its externalId "${input.externalId}" is not reused. To mirror this source conversation again, mirror it under a new externalId.`,
+        409,
+      );
     if (
       binding &&
       Number(binding.version) === input.version &&
@@ -970,10 +981,12 @@ export async function apiSnapshotState(
       version: number;
       organizationId: string;
       externalContactId: string;
+      sourceDeleted: boolean;
     }[]
   >`
     SELECT conversation_id AS "conversationId", snapshot_version::float8 AS version,
-           org_id AS "organizationId", external_contact_id AS "externalContactId"
+           org_id AS "organizationId", external_contact_id AS "externalContactId",
+           source_deleted AS "sourceDeleted"
     FROM app.conversation_api_bindings
     WHERE org_id = ${viewer.organizationId} AND source = ${source} AND external_id = ${externalId} AND owner_user_id = ${viewer.userId}
   `;
@@ -983,8 +996,14 @@ export async function apiSnapshotState(
   // this conversation was bound to still lives. `missing` means the row is
   // gone entirely, `trashed` that a `DELETE /contacts/{id}` retired it and
   // further content snapshots are refused (`CONVERSATION_CONTACT_TRASHED`).
-  const contactRows = await sql<{ id: string | null; status: string | null }[]>`
-    SELECT c.id AS id, c.lifecycle_status AS status
+  const contactRows = await sql<
+    {
+      id: string | null;
+      status: string | null;
+      conversationStatus: string | null;
+    }[]
+  >`
+    SELECT c.id AS id, c.lifecycle_status AS status, conv.status AS "conversationStatus"
     FROM app.conversations conv
     LEFT JOIN app.contacts c
       ON c.id = conv.contact_id AND c.org_id = ${viewer.organizationId}
@@ -1011,6 +1030,10 @@ export async function apiSnapshotState(
     // thread (2026-09-14 evaluation, h6).
     contactId: contactRows[0]?.id ?? null,
     contactStatus,
+    // The Inbox status beside the `sourceDeleted` the binding carries, so an
+    // engine resuming from this receipt knows a teardown landed (2026-09-15
+    // evaluation, i7).
+    status: contactRows[0]?.conversationStatus ?? null,
     attachments: rows.flatMap((row) => {
       const parsed = z
         .array(z.object({ id: z.string(), storageId: z.string() }))

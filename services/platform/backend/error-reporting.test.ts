@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { gunzipSync } from 'node:zlib';
 
+import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -28,6 +29,8 @@ interface CapturedEnvelope {
 }
 
 const captured: CapturedEnvelope[] = [];
+/** Request headers of every plain `/probe` GET the fake server received. */
+const probeRequests: Record<string, string | string[] | undefined>[] = [];
 let ingest: Server;
 let ingestPort: number;
 
@@ -70,6 +73,14 @@ describe('error reporting without a DSN', () => {
 describe('error reporting with a DSN', () => {
   beforeAll(async () => {
     ingest = createServer((req, res) => {
+      if (req.url === '/probe') {
+        // A plain outgoing request from this process — what a third-party
+        // site the crawler visits receives.
+        probeRequests.push({ ...req.headers });
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
+        return;
+      }
       const chunks: Buffer[] = [];
       req.on('data', (chunk: Buffer) => chunks.push(chunk));
       req.on('end', () => {
@@ -122,6 +133,23 @@ describe('error reporting with a DSN', () => {
     expect(tags['tale.task']).toBe('unit-test');
     const extra = (event?.extra ?? {}) as Record<string, unknown>;
     expect(extra.jobId).toBe('job-1');
+  });
+
+  it('stamps no trace headers onto outgoing requests', async () => {
+    // The crawler carried `sentry-trace` and `baggage` — release, public
+    // key, environment — to every third-party site it visited (2026-09-15
+    // evaluation, i6): the SDK propagates them onto every outgoing fetch by
+    // default, tracing sampled or not. The option is what turns it off, and
+    // the wire is what proves it.
+    expect(Sentry.getClient()?.getOptions().tracePropagationTargets).toEqual(
+      [],
+    );
+    const res = await fetch(`http://127.0.0.1:${ingestPort}/probe`);
+    expect(res.status).toBe(200);
+    const headers = probeRequests.at(-1);
+    expect(headers).toBeDefined();
+    expect(headers).not.toHaveProperty('sentry-trace');
+    expect(headers).not.toHaveProperty('baggage');
   });
 
   it('captures thrown route errors and keeps the stock 500 response', async () => {

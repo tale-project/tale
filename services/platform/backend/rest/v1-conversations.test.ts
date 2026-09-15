@@ -518,3 +518,54 @@ describe('POST /conversations/deliveries/{id}/retry', () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 });
+
+/**
+ * The receipt names the teardown. It carried `version`, the contact and
+ * the attachments but not `sourceDeleted`, so an engine resuming from it
+ * pushed its next content snapshot onto a torn-down mirror — and the
+ * snapshot reopened it (2026-09-15 evaluation, i7).
+ */
+describe('GET /conversations/sync — the receipt after a teardown', () => {
+  it('reports sourceDeleted and the Inbox status beside the contact', async () => {
+    const { app, queries } = mount(['org-1'], 'admin', (text) =>
+      text.includes('FROM app.conversation_api_bindings WHERE') &&
+      text.includes('AND owner_user_id = $?')
+        ? [
+            {
+              conversationId: 'c-1',
+              version: 4,
+              organizationId: 'org-1',
+              externalContactId: 'k1',
+              sourceDeleted: true,
+            },
+          ]
+        : text.includes('LEFT JOIN app.contacts c ON c.id = conv.contact_id')
+          ? [{ id: 'ct-1', status: null, conversationStatus: 'closed' }]
+          : text.includes('FROM app.conversation_api_messages r')
+            ? []
+            : undefined,
+    );
+    const res = await app.request(STATE);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      snapshot: {
+        conversationId: 'c-1',
+        version: 4,
+        organizationId: 'org-1',
+        externalContactId: 'k1',
+        sourceDeleted: true,
+        contactId: 'ct-1',
+        contactStatus: 'active',
+        status: 'closed',
+        attachments: [],
+      },
+    });
+    expect(
+      queries.find(
+        (text) =>
+          text.includes('FROM app.conversation_api_bindings WHERE') &&
+          text.includes('AND owner_user_id = $?'),
+      ),
+    ).toContain('source_deleted AS "sourceDeleted"');
+  });
+});

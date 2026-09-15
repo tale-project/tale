@@ -96,6 +96,7 @@ import {
 import type { PageFailureKind } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
+import { crawlerRequestHeaders } from './crawler_identity';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import { assertCorpusWritable } from './index_health';
@@ -641,6 +642,7 @@ async function loadRobotsRules(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      headers: crawlerRequestHeaders(),
     });
     if (robots.status >= 200 && robots.status < 300) {
       rules = parseRobots(robots.body);
@@ -757,6 +759,7 @@ async function discoverAndRecordUrls(
         allowedHosts: [...hosts],
         allowPrivateAddresses: privateCrawlHostsAllowed(),
         httpsOnly: true,
+        headers: crawlerRequestHeaders(),
       });
       if (response.status < 200 || response.status >= 300) {
         console.warn(
@@ -814,6 +817,7 @@ async function discoverAndRecordUrls(
           allowedHosts: [...hosts],
           allowPrivateAddresses: privateCrawlHostsAllowed(),
           httpsOnly: true,
+          headers: crawlerRequestHeaders(),
         });
         if (response.status < 200 || response.status >= 300) continue;
         for (const normalized of discoverableLinks(
@@ -933,6 +937,7 @@ async function fetchAndStorePage(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      headers: crawlerRequestHeaders(),
     });
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);

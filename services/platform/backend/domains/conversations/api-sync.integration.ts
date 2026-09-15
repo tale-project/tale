@@ -872,6 +872,64 @@ export async function checkConversationApi(
     { sourceDeleted: boolean }[]
   >`SELECT source_deleted AS "sourceDeleted" FROM app.conversation_api_bindings WHERE conversation_id = ${maxedDeletion.conversationId}`;
   assert.equal(maxedBinding[0]?.sourceDeleted, true);
+  // A torn-down mirror stays down (2026-09-15 evaluation, i7): a content
+  // snapshot at a higher version used to reopen it — `source_deleted`
+  // written back to false, the thread and its messages back in the Inbox —
+  // and the receipt an engine resumes from never said a teardown landed.
+  const resurrection = await machine('/conversations/sync', {
+    ...deletion,
+    version: 5,
+    deleted: false,
+    status: 'open',
+    subject: 'Back from the dead',
+    messages: [
+      {
+        externalId: `after-teardown-${suffix}`,
+        content: 'added after the source deleted the thread',
+        isCustomer: true,
+        authorName: 'Alice',
+        createdAt: 1,
+      },
+    ],
+  });
+  const resurrectionCode = z
+    .object({ code: z.string() })
+    .safeParse(await resurrection.json());
+  const stillDown = await sql<{ sourceDeleted: boolean; status: string }[]>`
+    SELECT b.source_deleted AS "sourceDeleted", c.status
+    FROM app.conversation_api_bindings b
+    JOIN app.conversations c ON c.id = b.conversation_id
+    WHERE b.conversation_id = ${conversationId}
+  `;
+  rows =
+    await sql`SELECT id FROM app.conversation_messages WHERE conversation_id = ${conversationId}`;
+  const downReceipt = z
+    .object({
+      snapshot: z.object({
+        sourceDeleted: z.boolean(),
+        status: z.string().nullable(),
+      }),
+    })
+    .safeParse(
+      await (
+        await machine(
+          `/conversations/sync?${new URLSearchParams({ source: 'vatplus', externalId })}`,
+        )
+      ).json(),
+    );
+  record(
+    'conversation API tombstones stay down',
+    resurrection.status === 409 &&
+      resurrectionCode.success &&
+      resurrectionCode.data.code === 'CONVERSATION_CLOSED' &&
+      (stillDown[0]?.sourceDeleted ?? false) &&
+      stillDown[0]?.status === 'closed' &&
+      rows.length === 0 &&
+      downReceipt.success &&
+      downReceipt.data.snapshot.sourceDeleted &&
+      downReceipt.data.snapshot.status === 'closed',
+    `A content snapshot onto a torn-down mirror is 409 CONVERSATION_CLOSED and writes nothing, and the receipt says the teardown landed — ${resurrection.status}/${resurrectionCode.success ? resurrectionCode.data.code : 'BAD SHAPE'}, down=${String(stillDown[0]?.sourceDeleted)}/${stillDown[0]?.status}, messages=${rows.length}, receipt=${downReceipt.success ? `${String(downReceipt.data.snapshot.sourceDeleted)}/${downReceipt.data.snapshot.status}` : 'BAD SHAPE'}`,
+  );
   assert.equal(
     (
       await app(`/${conversationId}/reply`, {
