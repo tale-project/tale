@@ -351,7 +351,7 @@ describe('claude reasoning levers scope to Claude models', () => {
   });
 });
 
-describe('claude-code waits for a silent stream as long as the gateway', () => {
+describe('a managed CLI waits for a silent stream as long as the gateway', () => {
   // On its own the CLI abandons a stream after 300 s without a chunk and
   // sends the request again while the gateway is still serving the first
   // one; a managed exec hands it the gateway's own idle budget instead.
@@ -382,7 +382,34 @@ describe('claude-code waits for a silent stream as long as the gateway', () => {
     expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
   });
 
-  const others = loadHarnesses().filter((h) => h.slug !== 'claude-code');
+  // Codex runs the same kind of watchdog per stream and resends on it; its
+  // knob is a provider config key rather than an environment variable.
+  it('codex pins the same budget on its gateway provider', () => {
+    const argv = buildHarnessExec(fact('codex'), managedSpec()).argv;
+    expect(argv).toContain(
+      `model_providers.tale.stream_idle_timeout_ms=${GOLDEN_GATEWAY.streamIdleTimeoutMs}`,
+    );
+    // A TOML integer: quotes would make it a string and fail the CLI's parse.
+    expect(argv).not.toContain(
+      `model_providers.tale.stream_idle_timeout_ms="${GOLDEN_GATEWAY.streamIdleTimeoutMs}"`,
+    );
+  });
+
+  it('a byo codex exec leaves the CLI on its own default', () => {
+    const exec = buildHarnessExec(fact('codex'), {
+      prompt: 'p',
+      model: 'gpt-5-codex',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+    });
+    expect(
+      exec.argv.some((arg) => arg.includes('stream_idle_timeout_ms')),
+    ).toBe(false);
+  });
+
+  const others = loadHarnesses().filter(
+    (h) => h.slug !== 'claude-code' && h.slug !== 'codex',
+  );
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',
     (_slug, harness) => {

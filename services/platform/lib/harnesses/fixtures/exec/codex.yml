@@ -20,6 +20,8 @@ managed-baseline:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -49,6 +51,8 @@ managed-model-opus:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -m
     - claude-opus-4-6
     - '-'
@@ -80,6 +84,8 @@ managed-model-gateway-ref:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -m
     - openrouter/anthropic/claude-sonnet-4.6
     - '-'
@@ -111,6 +117,8 @@ managed-model-default:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -m
     - default
     - '-'
@@ -142,6 +150,8 @@ managed-plan:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -171,6 +181,8 @@ managed-act:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -202,6 +214,8 @@ managed-resume:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -231,6 +245,8 @@ managed-instructions:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -c
     - 'developer_instructions="Golden instructions: follow the org runbook."'
     - '-'
@@ -262,6 +278,8 @@ managed-dirs:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -291,6 +309,8 @@ managed-mcp-headless-bridge:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -c
     - mcp_servers.playwright.command="tale-playwright-mcp"
     - -c
@@ -331,6 +351,8 @@ managed-mcp-bridge-only:
     - -c
     - model_providers.tale.wire_api="responses"
     - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
+    - -c
     - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
@@ -366,6 +388,8 @@ managed-vision:
     - -c
     - model_providers.tale.wire_api="responses"
     - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
+    - -c
     - mcp_servers.playwright.command="tale-playwright-mcp"
     - -c
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
@@ -398,6 +422,8 @@ managed-steer:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -429,6 +455,8 @@ managed-kitchen-sink:
     - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
     - -c
     - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
     - -c
     - 'developer_instructions="Golden instructions: follow the org runbook."'
     - -c
