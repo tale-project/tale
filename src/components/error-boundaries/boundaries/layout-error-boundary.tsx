@@ -1,0 +1,75 @@
+'use client';
+
+import { useLocation } from '@tanstack/react-router';
+import { type ReactNode } from 'react';
+
+import { ErrorBoundaryBase } from '../core/error-boundary-base';
+import { ErrorDisplayCompact } from '../displays/error-display-compact';
+
+interface LayoutErrorBoundaryProps {
+  /** Child components to wrap */
+  children: ReactNode;
+  /** Organization ID for support links */
+  organizationId?: string;
+}
+
+export function isConvexTransientError(error: Error): boolean {
+  const msg = error.message || '';
+  return (
+    msg.includes('timed out') ||
+    msg.includes('Function execution') ||
+    msg.includes('overloaded') ||
+    // Session rotation (e.g. TOTP verify on enrollment creates a new
+    // session + deletes the old one) briefly invalidates the cached
+    // Convex access token. Live queries sent in that window reach the
+    // server with a token whose session is gone and throw. The retry
+    // backoff gives the client time to refresh its token. Match both
+    // Convex's native sentence form and our structured `AppError`
+    // payload (`{"code":"UNAUTHENTICATED"}`, #2013), which is upper-cased.
+    msg.includes('Unauthenticated') ||
+    msg.includes('UNAUTHENTICATED') ||
+    // Convex agent SDK reactive hooks can briefly see undefined properties
+    // during WebSocket reconnection (e.g., useDeltaStreams accessing
+    // streams.messages before query results settle)
+    (error instanceof TypeError &&
+      msg.includes('Cannot read properties of undefined'))
+  );
+}
+
+const MAX_RETRIES = 3;
+
+/**
+ * Error boundary for layout-level errors.
+ *
+ * Features:
+ * - Compact error display
+ * - Auto-resets on pathname change (resetKeys pattern)
+ * - Auto-retries transient Convex errors (timeouts, overloaded) up to 3 times
+ * - Organization context support
+ * - Preserves layout navigation
+ */
+export function LayoutErrorBoundary({
+  children,
+  organizationId,
+}: LayoutErrorBoundaryProps) {
+  const location = useLocation();
+  const pathname = location.pathname;
+
+  return (
+    <ErrorBoundaryBase
+      organizationId={organizationId}
+      resetKeys={[pathname]}
+      maxRetries={MAX_RETRIES}
+      isRetryableError={isConvexTransientError}
+      fallback={(fallbackProps) => (
+        <ErrorDisplayCompact
+          error={fallbackProps.error}
+          organizationId={fallbackProps.organizationId}
+          reset={fallbackProps.reset}
+        />
+      )}
+    >
+      {children}
+    </ErrorBoundaryBase>
+  );
+}
