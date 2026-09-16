@@ -908,7 +908,7 @@ export function buildSpec(): Json {
       summary: 'Read a member’s notifications for one-way mirroring',
       security: sec,
       description:
-        'Organization owners and administrators may export the personal and organization streams of an active, verified member identified by email. Security visibility follows the recipient’s role. Missing, disabled, unverified or ambiguous recipients return an empty completed page. Walk both streams completely before retracting missing destination rows; failed scans must preserve the previous mirror. This endpoint never marks Tale notifications read. Source ids are stable and org-prefixed; version changes with content or read state. Paths use the same destinations as the Tale bell, relative to the configured browser origin (which may require ZeroTier), never the machine transport URL. Text uses the requested locale or the organization default, with English fallback; titles and bodies are bounded to 500 and 8000 characters.',
+        'Organization owners and administrators may export the personal and organization streams of an active, verified member identified by email — and so may any other member an administrator delegated the export to by granting the `tale:notifications.export` capability in the organization’s competence register (organization-scoped, optionally expiring, revocable, and revoked when the membership ends); `GET /api/v1/me` answers `capabilities.notificationExport`. Security visibility follows the recipient’s role. Missing, disabled, unverified or ambiguous recipients return an empty completed page. Walk both streams completely before retracting missing destination rows; failed scans must preserve the previous mirror. This endpoint never marks Tale notifications read. Source ids are stable and org-prefixed; version changes with content or read state. Paths use the same destinations as the Tale bell, relative to the configured browser origin (which may require ZeroTier), never the machine transport URL. Text uses the requested locale or the organization default, with English fallback; titles and bodies are bounded to 500 and 8000 characters.',
       parameters: [
         orgSlugHeaderParam,
         ...paginationParams(100, 100),
@@ -936,7 +936,7 @@ export function buildSpec(): Json {
       responses: {
         ...standardErrors,
         '403': errorResponse(
-          'Only organization owners and administrators may export (`ROLE_FORBIDDEN`)',
+          'The key holder is neither an organization owner or administrator nor holds a live `tale:notifications.export` capability grant (`ROLE_FORBIDDEN`)',
         ),
         '200': jsonResponse('One page of the recipient’s stream', {
           type: 'object',
@@ -1081,9 +1081,11 @@ export function buildSpec(): Json {
         'The key holder, the organization this request resolved to — its ' +
         '`slug` is the `X-Organization-Slug` value a multi-organization key ' +
         'sends — every organization the holder belongs to, and ' +
-        '`capabilities`: the gates a deployment knob decides rather than ' +
-        'the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` ' +
-        'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate). ' +
+        '`capabilities`: the gates a deployment knob or a grant decides rather ' +
+        'than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` ' +
+        'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; ' +
+        '`notificationExport` — whether `GET /api/v1/notifications/sync` would, ' +
+        'by role or through a `tale:notifications.export` grant). ' +
         '`key` names the API key that made the request — its `name` and ' +
         'its `expiresAt` (epoch ms, `null` for a key minted to never ' +
         'expire) — so an unattended caller can rotate before the 401. ' +
@@ -7114,8 +7116,8 @@ curl -H "Authorization: Bearer <api-key>" \\
             capabilities: {
               type: 'object',
               description:
-                'What this key may do — the gates a deployment knob or the role decides, answered here so a client learns them before its first write rather than from a 403',
-              required: ['deploymentEditor', 'developer'],
+                'What this key may do — the gates a deployment knob, the role or an administrator’s grant decides, answered here so a client learns them before its first write rather than from a 403',
+              required: ['deploymentEditor', 'developer', 'notificationExport'],
               additionalProperties: false,
               properties: {
                 deploymentEditor: {
@@ -7127,6 +7129,11 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...bool,
                   description:
                     'True when the key holder’s role (owner, admin, developer) carries the developer capability — the gate on a live `POST …/runs`, `POST …/cancel`, `DELETE /runs/{runId}`, `PUT`/`DELETE …/triggers`, `DELETE /automations/{name}`, the project install and uninstall, and the MCP `save_automation`/`deploy_automation`/`set_trigger` tools; false there answers 403 `ROLE_FORBIDDEN`',
+                },
+                notificationExport: {
+                  ...bool,
+                  description:
+                    'True when the key holder may export members’ notifications through `GET /api/v1/notifications/sync` — an organization owner or administrator by role, or any other member through a live `tale:notifications.export` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); false there answers 403 `ROLE_FORBIDDEN`',
                 },
               },
             },

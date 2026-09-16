@@ -66,6 +66,7 @@ Check both the role and the resource scope before offering an operation. Project
 | --- | --- |
 | `developer` | The Owner, Admin, and Developer roles can start arbitrary live runs, cancel or delete runs, bind or unbind triggers, delete automations, and install or uninstall project automations. These REST operations return `403 ROLE_FORBIDDEN` without it. MCP also checks this capability for saving, deploying, and other privileged tools, using its own error envelope. Validation and mock tools remain available to members. Project access is checked separately. |
 | `deploymentEditor` | The operator allowlist permits browser-session import and revocation. An administrative role alone does not grant this capability. |
+| `notificationExport` | The key may export members’ notifications through `GET /api/v1/notifications/sync`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:notifications.export` grant is live — see [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role). Without it, the export returns `403 ROLE_FORBIDDEN`. |
 
 ## What every request is held to
 
@@ -221,7 +222,7 @@ Automation authoring is separate from this REST surface. Use the [MCP endpoint](
 | Products | `/api/v1/products/...`<br>Product catalog entries: CRUD (a `PATCH` returns the updated product). |
 | Contacts | `/api/v1/contacts/...`<br>Contact records: CRUD (a `PATCH` returns the updated contact) plus `POST /api/v1/contacts/bulk`. |
 | Conversations | `/api/v1/conversations/...`<br>Mirror external conversations into Inbox as versioned snapshots, read a source's snapshot receipt, peek at a source's delivery queue, claim native replies, acknowledge or fail their delivery, and re-drive a dead-lettered one; exact schemas are in the running instance’s `/docs`. |
-| Notifications | `GET /api/v1/notifications/sync`<br>Read-only export of one verified member’s personal or organization feed; Owner/Admin only. Signed pagination, localized text, stable IDs and content/read-state hashes. |
+| Notifications | `GET /api/v1/notifications/sync`<br>Read-only export of one verified member’s personal or organization feed; Owners and Admins, or a member an Admin granted `tale:notifications.export`. Signed pagination, localized text, stable IDs and content/read-state hashes. |
 | Projects | `/api/v1/projects/...`<br>The machine endpoint for external workers: list projects or look one up by external id, create, archive and restore, delete; prepare folders, upload, download and delete files, index a file now, delete folders. |
 | Tasks | `/api/v1/projects/{id}/tasks/...`<br>Idempotent task creation from an external ref, state reads, workflow starts (answering the `runId` to poll) and comments within the named project. |
 | MCP | `POST /api/v1/mcp`<br>The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST. |
@@ -371,7 +372,27 @@ Branch on `indexing.errorCode`, not the wording of `error`. The OpenAPI schema e
 
 ## Mirror a member’s notifications
 
-`GET /api/v1/notifications/sync`, added in API contract 1.8.0, exports the notifications a particular member can see. Use it for a one-way mirror in another application. The caller’s API key must belong to an Owner or Admin of the selected organization; Developer access alone is insufficient.
+`GET /api/v1/notifications/sync`, added in API contract 1.8.0, exports the notifications a particular member can see. Use it for a one-way mirror in another application. The caller’s API key must belong to an Owner or Admin of the selected organization, or to a member an Admin granted the `tale:notifications.export` capability (API contract 1.14.0). Any other role alone, Developer included, is insufficient.
+
+### Delegate the export without an Admin role
+
+A mirror worker does not need an Admin account. The Admin role also manages members, administers single sign-on and SCIM, and can reset lower-ranked members’ passwords, so run the worker as an ordinary member and grant that member the one capability the export checks. The grant is an entry in the organization’s competence register: it applies only in that organization, is audited, can carry an expiry, and is revoked automatically when an Admin removes the member or SCIM deprovisions them.
+
+An Owner or Admin grants it from an active session. `TALE_ORIGIN` is your Tale origin and `TALE_SESSION_COOKIE` that session’s cookie header; `TALE_ORG_ID` and `TALE_WORKER_USER_ID` are the `organization.id` and `user.id` that `GET /api/v1/me` returns for the worker’s key:
+
+```bash
+GRANT_BODY=$(jq -n --arg user "$TALE_WORKER_USER_ID" \
+  '{userId:$user,competence:"tale:notifications.export",evidence:"Notification mirror worker"}')
+curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/governance/competences?orgId=$TALE_ORG_ID" \
+  -H "Cookie: $TALE_SESSION_COOKIE" \
+  -H "Origin: $TALE_ORIGIN" \
+  -H "Content-Type: application/json" \
+  -d "$GRANT_BODY"
+```
+
+The response is **201** with `{ "recordId": "…" }`. Add `expiresAt` in epoch milliseconds to end the grant on its own; without it, the grant does not expire. While a grant is live, granting it again returns **409** `COMPETENCE_ALREADY_GRANTED`. Any other name under `tale:` returns **400** `COMPETENCE_CAPABILITY_UNKNOWN`, a user outside the organization **400** `COMPETENCE_USER_NOT_MEMBER`, and a session without the Owner or Admin role **403** `COMPETENCE_FORBIDDEN`. Before the first page, confirm with the worker’s key that `GET /api/v1/me` reports `capabilities.notificationExport: true`.
+
+To withdraw the right, find the grant’s `id` in `GET /api/app/governance/competences?orgId=<orgId>&userId=<userId>` with the same session, then send `POST /api/app/governance/competences/<recordId>/revoke?orgId=<orgId>`. The worker’s next export request returns `403 ROLE_FORBIDDEN`. A revoked grant stays in the list as the audit trail; grant the capability again to restore the export.
 
 ### Select the recipient and stream
 
@@ -425,7 +446,7 @@ Reading the export never marks a Tale notification read and never deletes it. Th
 | Response | Action |
 | --- | --- |
 | `401 UNAUTHORIZED` | Replace the missing, invalid or expired API key. |
-| `403 ROLE_FORBIDDEN` | Use an Owner or Admin key in the selected organization; recipient membership does not grant the caller export permission. |
+| `403 ROLE_FORBIDDEN` | Use an Owner or Admin key in the selected organization, or have an Admin grant the key’s user `tale:notifications.export`; `capabilities.notificationExport` in `GET /api/v1/me` confirms it. An expired or revoked grant no longer permits the export. Recipient membership does not grant the caller export permission. |
 | `400 INVALID_QUERY` | Correct missing or invalid recipient/stream/locale fields, unknown or repeated parameters, or blank cursor/limit. Inspect `data.issues`. |
 | `400 INVALID_LIMIT` | Supply an integer limit. |
 | `400 INVALID_CURSOR` | Restart the affected stream without a cursor. A removed or changed recipient can invalidate a cursor because membership is checked again. |

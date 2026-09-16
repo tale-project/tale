@@ -314,6 +314,20 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TARGET_NOT_FOUND',
   // Approvals, reviews and competence grants — interactive governance.
   'APPROVAL_TOO_SOON',
+  // The competence register's writers serve the app's governance door
+  // (`/api/app/governance/competences`); the REST door reaches the register
+  // only through `holdsCapability` — the notification export's capability
+  // check — which throws none of them.
+  'COMPETENCE_ALREADY_GRANTED',
+  'COMPETENCE_ALREADY_REVOKED',
+  'COMPETENCE_CAPABILITY_UNKNOWN',
+  'COMPETENCE_EVIDENCE_TOO_LONG',
+  'COMPETENCE_EXPIRY_IN_PAST',
+  'COMPETENCE_FORBIDDEN',
+  'COMPETENCE_INVALID',
+  'COMPETENCE_NOT_FOUND',
+  'COMPETENCE_USER_NOT_MEMBER',
+  'COMPETENCE_USER_REQUIRED',
   'REASON_REQUIRED',
   'REQUESTER_NO_LONGER_ADMIN',
   'REQUEST_NOT_FOUND',

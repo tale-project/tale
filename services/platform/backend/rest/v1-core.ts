@@ -134,6 +134,7 @@ import {
   restChargeOrg,
   schemaIssues,
 } from './shared.ts';
+import { mayExportNotifications } from './v1-notifications.ts';
 
 /**
  * /api/v1 core resources: contacts, products, documents (the Knowledge-Hub
@@ -299,6 +300,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         developer: defineAbilityFor(c.get('role')).can(
           'read',
           'developerSettings',
+        ),
+        // The notification export's own gate (v1-notifications.ts): an owner
+        // or admin by role, anyone else only through a live
+        // `tale:notifications.export` grant — so a delegated mirror worker
+        // confirms its grant before its first page, not from a 403. An admin
+        // costs no query.
+        notificationExport: await mayExportNotifications(
+          deps.sql,
+          {
+            organizationId: c.get('organizationId'),
+            userId: c.get('userId'),
+            role: c.get('role'),
+          },
+          Date.now(),
         ),
       },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),

@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 29 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -175,6 +175,19 @@ their own action, so a single account cannot generate those rows.
   (`inbox.usageCreditsRequestedBody`) that opens **Settings → Governance →
   Policies & limits**, and an email; another plain member's bell shows nothing.
   A second click while the row is unread rewrites it instead of adding a row.
+- [ ] `NOTIF-F18` · **Delegated export without an admin seat** — As an
+  Admin, grant a Developer member `tale:notifications.export` through
+  `POST /api/app/governance/competences` (API reference: "Delegate the export
+  without an Admin role"), then call with that Developer's API key →
+  `GET /api/v1/me` reads `capabilities.notificationExport: true` and
+  `GET /api/v1/notifications/sync` answers pages for a verified recipient.
+  Revoke the grant (or let its `expiresAt` pass) → the next page answers 403
+  `ROLE_FORBIDDEN` and `GET /api/v1/me` reads
+  `capabilities.notificationExport: false`. Granting any other `tale:` name
+  answers 400 `COMPETENCE_CAPABILITY_UNKNOWN`, and the Developer granting
+  itself answers 403 `COMPETENCE_FORBIDDEN`. Remove the Developer from the
+  organization and add them back → the export stays 403 until an Admin
+  grants the capability again.
 
 ## Boundary & error tests
 

@@ -14,15 +14,41 @@ vi.mock('../domains/notifications/service', () => ({
 }));
 afterEach(() => vi.resetAllMocks());
 
+/** One row of the competence register, as the stand-in below stores it. */
+interface Grant {
+  orgId: string;
+  userId: string;
+  competence: string;
+  expiresAt: number | null;
+  revokedAt: number | null;
+}
+
 function fixture(
   role = 'admin',
   recipients = [
     { id: 'person', role: 'member', metadata: { defaultLocale: 'en' } },
   ],
+  grants: Grant[] = [],
 ) {
-  const sql = vi.fn((_strings: TemplateStringsArray, ..._values: unknown[]) =>
-    Promise.resolve(recipients),
-  );
+  // The register read answers the way its WHERE does — the bound
+  // organization, member and slug, unrevoked rows only — and leaves expiry
+  // to the gate; every other read is the recipient lookup.
+  const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
+    if (!strings.join('?').includes('app.competence_records'))
+      return Promise.resolve(recipients);
+    const [orgId, userId, competence] = values;
+    return Promise.resolve(
+      grants
+        .filter(
+          (row) =>
+            row.orgId === orgId &&
+            row.userId === userId &&
+            row.competence === competence &&
+            row.revokedAt === null,
+        )
+        .map(({ expiresAt, revokedAt }) => ({ expiresAt, revokedAt })),
+    );
+  });
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('role', role);
@@ -58,13 +84,81 @@ const personal = {
   createdAt: 1700000000000,
 };
 
+const EXPORT_CAPABILITY = 'tale:notifications.export';
+
+/** A live grant of the export capability to the calling service user. */
+function grant(overrides: Partial<Grant> = {}): Grant {
+  return {
+    orgId: 'org',
+    userId: 'service-user',
+    competence: EXPORT_CAPABILITY,
+    expiresAt: null,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
 describe('read-only native notification export', () => {
-  it('refuses non-admin callers before reading any user data', async () => {
-    for (const role of ['member', 'editor', 'developer', 'disabled']) {
+  it('refuses a caller without the role or the capability before reading any member data', async () => {
+    for (const role of ['member', 'editor', 'developer']) {
       const { sql, get } = fixture(role);
-      expect((await get()).status).toBe(403);
-      expect(sql).not.toHaveBeenCalled();
+      const response = await get();
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        code: 'ROLE_FORBIDDEN',
+        error: expect.stringContaining(EXPORT_CAPABILITY),
+      });
+      // The one read is the caller's own grant in this organization — never
+      // a user or member row.
+      expect(sql).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = sql.mock.calls[0];
+      expect(strings.join('?')).toContain('FROM app.competence_records');
+      expect(values).toEqual(['org', 'service-user', EXPORT_CAPABILITY]);
     }
+    expect(listMyNotifications).not.toHaveBeenCalled();
+    expect(listNotifications).not.toHaveBeenCalled();
+  });
+  it('never exports for a disabled seat, whatever it holds, and reads nothing', async () => {
+    const { sql, get } = fixture('disabled', undefined, [grant()]);
+    expect((await get()).status).toBe(403);
+    expect(sql).not.toHaveBeenCalled();
+  });
+  it('exports for a member an admin granted the capability, with or without an expiry', async () => {
+    vi.mocked(listMyNotifications).mockResolvedValue({
+      rows: [personal],
+      nextCursor: null,
+    });
+    for (const live of [
+      grant(),
+      grant({ expiresAt: Date.now() + 3_600_000 }),
+    ]) {
+      const { sql, get } = fixture('developer', undefined, [live]);
+      const response = await get();
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        recipientId: 'person',
+        page: [{ id: 'org:personal:question' }],
+      });
+      // The grant is read first; the recipient is then scoped as for an admin.
+      expect(sql.mock.calls[1][0].join(' ')).toContain(
+        'u."emailVerified" = true',
+      );
+    }
+    expect(listMyNotifications).toHaveBeenCalledTimes(2);
+  });
+  it('refuses an expired grant, a revoked one, and grants held elsewhere', async () => {
+    for (const held of [
+      grant({ expiresAt: Date.now() - 1 }),
+      grant({ revokedAt: Date.now() - 60_000 }),
+      grant({ orgId: 'other-org' }),
+      grant({ userId: 'another-member' }),
+    ]) {
+      const { sql, get } = fixture('developer', undefined, [held]);
+      expect((await get()).status).toBe(403);
+      expect(sql).toHaveBeenCalledTimes(1);
+    }
+    expect(listMyNotifications).not.toHaveBeenCalled();
+    expect(listNotifications).not.toHaveBeenCalled();
   });
   it('exports personal questions with the bell route and bounded recipient-scoped pages', async () => {
     vi.mocked(listMyNotifications).mockResolvedValue({

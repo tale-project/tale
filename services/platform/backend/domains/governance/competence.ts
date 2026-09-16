@@ -4,11 +4,22 @@ import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
- * Competence records — who is qualified to respond to a governed review.
+ * Competence records — per-member grants an organization admin makes,
+ * audits, may bound with an expiry, and revokes. Two consumers read them:
  *
- * An org's `review_policy` may require named competences of a responder;
- * these rows are the evidence, and `holdsAllCompetences` is the check the
- * review gate runs. Three rules carry over from 0.4 verbatim:
+ *  - REVIEW GATING. An org's `review_policy` may require named competences
+ *    of a responder; these rows are the evidence, and `holdsAllCompetences`
+ *    is the check the review gate runs.
+ *  - PLATFORM CAPABILITIES. A slug under the reserved `tale:` namespace
+ *    delegates ONE narrow platform right to a member without an admin seat
+ *    (`tale:notifications.export` — the notification export door), checked
+ *    by `holdsCapability`. The namespace is closed: only the slugs in
+ *    `PLATFORM_CAPABILITIES` can be granted under it, so a typo or a
+ *    look-alike never reads as a right it does not confer. Removing the
+ *    membership revokes these grants (`removeMembershipCascade`), so a
+ *    re-added member starts without the right.
+ *
+ * Three rules carry over from 0.4 verbatim:
  *
  *  - a REVOKED record is retained, never deleted: it is the audit trail
  *    behind every review it once justified;
@@ -24,6 +35,29 @@ const COMPETENCE_SLUG_MAX = 120;
 const COMPETENCE_EVIDENCE_MAX = 2000;
 /** A member holds a handful of competences; the cap bounds a bad org. */
 const COMPETENCE_SCAN_CAP = 200;
+
+/**
+ * The reserved namespace: a slug under it names a platform capability,
+ * never an organization's own qualification. A grant matches it without
+ * regard to case, so `TALE:…` cannot pose as a capability it does not
+ * confer. `removeMembershipCascade` (auth/membership.ts) revokes the live
+ * grants under it by this same prefix.
+ */
+export const PLATFORM_CAPABILITY_PREFIX = 'tale:';
+
+/**
+ * Every platform capability the register can carry — a closed set: a grant
+ * under the reserved namespace naming anything else is refused
+ * (`COMPETENCE_CAPABILITY_UNKNOWN`). A slug joins it together with the door
+ * that checks it through `holdsCapability`.
+ */
+export const PLATFORM_CAPABILITIES = ['tale:notifications.export'] as const;
+
+export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
+
+const KNOWN_PLATFORM_CAPABILITIES: ReadonlySet<string> = new Set(
+  PLATFORM_CAPABILITIES,
+);
 
 export class CompetenceError extends Error {
   readonly code: string;
@@ -110,22 +144,51 @@ export async function holdsAllCompetences(
   return { holdsAll: missing.length === 0, heldRecordIds, missing };
 }
 
+/**
+ * Whether `userId` holds the platform `capability` in `organizationId` at
+ * `now`: its one unrevoked grant (the partial unique index allows no second)
+ * has not expired. Scoped by organization — a grant in another tenant
+ * confers nothing here — and blind to role: the door decides whether a role
+ * already carries the right.
+ */
+export async function holdsCapability(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+  capability: PlatformCapability,
+  now: number,
+): Promise<boolean> {
+  const rows = await sql<
+    { expiresAt: number | null; revokedAt: number | null }[]
+  >`
+    SELECT expires_at_ms::float8 AS "expiresAt",
+           revoked_at_ms::float8 AS "revokedAt"
+    FROM app.competence_records
+    WHERE org_id = ${organizationId} AND user_id = ${userId}
+      AND competence = ${capability} AND revoked_at_ms IS NULL
+    LIMIT 1
+  `;
+  const record = rows[0];
+  return record !== undefined && isCompetenceRecordActive(record, now);
+}
+
 interface AdminActor {
   userId: string;
   email?: string;
   role: string;
 }
 
-/** Admin-only writes, with the refusal itself audited (the legal-hold
- * posture: a denied privileged attempt is evidence too). */
-async function requireAdminForWrite(
+/** A refused privileged write, audited (the legal-hold posture: a denied
+ * privileged attempt is evidence too). Best effort: a failed audit is
+ * logged and never turns the refusal into a 500. */
+async function auditDeniedWrite(
   sql: Sql,
   organizationId: string,
   actor: AdminActor,
   deniedAction: string,
   resource: { resourceId?: string; resourceName?: string },
+  reason: string,
 ): Promise<void> {
-  if (isAdminRole(actor.role)) return;
   await sql
     .begin((tx) =>
       createAuditLog(tx, {
@@ -143,12 +206,31 @@ async function requireAdminForWrite(
           ? { resourceName: resource.resourceName }
           : {}),
         status: 'failure',
-        errorMessage: 'admin role required',
+        errorMessage: reason,
       }),
     )
     .catch((error: unknown) => {
       console.warn('[competence] denied-write audit failed:', error);
     });
+}
+
+/** Admin-only writes, with the refusal itself audited. */
+async function requireAdminForWrite(
+  sql: Sql,
+  organizationId: string,
+  actor: AdminActor,
+  deniedAction: string,
+  resource: { resourceId?: string; resourceName?: string },
+): Promise<void> {
+  if (isAdminRole(actor.role)) return;
+  await auditDeniedWrite(
+    sql,
+    organizationId,
+    actor,
+    deniedAction,
+    resource,
+    'admin role required',
+  );
   throw new CompetenceError(
     'COMPETENCE_FORBIDDEN',
     'Only organization admins may grant or revoke competences.',
@@ -179,6 +261,27 @@ export async function grantCompetence(
     throw new CompetenceError(
       'COMPETENCE_INVALID',
       `competence must be 1..${COMPETENCE_SLUG_MAX} characters`,
+      400,
+    );
+  }
+  // The reserved namespace is closed: an unknown `tale:` slug would read as a
+  // platform right it cannot confer, so the grant is refused — and audited
+  // the way a denied grant is — before anything is written.
+  if (
+    competence.toLowerCase().startsWith(PLATFORM_CAPABILITY_PREFIX) &&
+    !KNOWN_PLATFORM_CAPABILITIES.has(competence)
+  ) {
+    await auditDeniedWrite(
+      sql,
+      args.organizationId,
+      args.actor,
+      'competence_grant_denied',
+      { resourceName: competence },
+      'unknown platform capability',
+    );
+    throw new CompetenceError(
+      'COMPETENCE_CAPABILITY_UNKNOWN',
+      `"${competence}" is not a platform capability — the "${PLATFORM_CAPABILITY_PREFIX}" namespace is reserved for: ${PLATFORM_CAPABILITIES.join(', ')}`,
       400,
     );
   }
