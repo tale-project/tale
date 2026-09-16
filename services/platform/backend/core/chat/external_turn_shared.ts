@@ -42,7 +42,10 @@ import {
   type SessionExecBody,
   type SessionExecResult,
 } from '../node_only/sandbox/helpers/session_client';
-import { gatewayStreamIdleTimeoutSeconds } from '../node_only/sandbox/llm_gateway_admin';
+import {
+  gatewayRequestTimeoutSeconds,
+  gatewayStreamIdleTimeoutSeconds,
+} from '../node_only/sandbox/llm_gateway_admin';
 
 /** Session-relative dir every staged skill lands in — the work lanes' org
  * skills and the per-connector skills alike, so the instructions can point
@@ -169,6 +172,9 @@ export function buildExternalTurnExec(args: {
         streamIdleTimeoutMs: Math.round(
           gatewayStreamIdleTimeoutSeconds() * 1000,
         ),
+        // And its request timeout: the same rule for the wait on a whole
+        // answer, so the CLI never abandons a request the gateway serves.
+        requestTimeoutMs: Math.round(gatewayRequestTimeoutSeconds() * 1000),
       },
     },
     ...(args.serving.kind === 'subscription'

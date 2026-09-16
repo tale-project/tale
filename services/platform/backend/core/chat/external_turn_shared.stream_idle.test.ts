@@ -50,11 +50,14 @@ afterEach(() => {
 
 describe('the managed exec follows the gateway stream idle budget', () => {
   it.each([
-    ['the default budget', undefined, 600],
-    ['an operator-raised budget', '1800', 1800],
+    ['the default budget', undefined, 600, 600],
+    ['an operator-raised budget', '1800', 1800, 1800],
+    // A lowered idle budget keeps the request timeout at its 600 s floor,
+    // and the harness still waits that long for an answer.
+    ['an operator-lowered budget', '300', 300, 600],
   ] as const)(
     '%s reaches the gateway and the harness alike',
-    async (_label, configured, seconds) => {
+    async (_label, configured, seconds, requestSeconds) => {
       vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-test');
       vi.stubEnv('SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS', configured);
       // The pre-rename name is read as a fallback; keep the host shell's out.
@@ -64,6 +67,9 @@ describe('the managed exec follows the gateway stream idle budget', () => {
         expect.objectContaining({
           network_config: expect.objectContaining({
             stream_idle_timeout_in_seconds: seconds,
+            // A broken stream makes the harness fall back to a non-streaming
+            // request, which only this timeout bounds.
+            default_request_timeout_in_seconds: requestSeconds,
           }),
         }),
       ]);
@@ -79,6 +85,7 @@ describe('the managed exec follows the gateway stream idle budget', () => {
       expect(exec.env.CLAUDE_STREAM_IDLE_TIMEOUT_MS).toBe(
         String(seconds * 1000),
       );
+      expect(exec.env.API_TIMEOUT_MS).toBe(String(requestSeconds * 1000));
     },
   );
 });

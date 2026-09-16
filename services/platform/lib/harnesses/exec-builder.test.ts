@@ -377,21 +377,28 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
   // explicitly false API_FORCE_IDLE_TIMEOUT off api.anthropic.com) and the
   // SDK's request timeout (API_TIMEOUT_MS, 600 s). Past either one the CLI
   // sends the request again while the gateway still serves the first copy.
-  it('a managed Claude Code exec waits the same budget for the first byte', () => {
+  it('a managed Claude Code exec waits as long as the gateway for an answer', () => {
     const claude = fact('claude-code');
     const env = buildHarnessExec(claude, managedSpec()).env;
     expect(env.API_FORCE_IDLE_TIMEOUT).toBe('0');
-    expect(env.API_TIMEOUT_MS).toBe(String(GOLDEN_GATEWAY.streamIdleTimeoutMs));
+    // The gateway's REQUEST timeout, not its idle budget: the goldens keep
+    // the two apart.
+    expect(env.API_TIMEOUT_MS).toBe(String(GOLDEN_GATEWAY.requestTimeoutMs));
     const raised = buildHarnessExec(
       claude,
       managedSpec({
         credential: {
           mode: 'managed',
-          gateway: { ...GOLDEN_GATEWAY, streamIdleTimeoutMs: 1_800_000 },
+          gateway: {
+            ...GOLDEN_GATEWAY,
+            streamIdleTimeoutMs: 1_800_000,
+            requestTimeoutMs: 1_800_000,
+          },
         },
       }),
     );
     expect(raised.env.API_TIMEOUT_MS).toBe('1800000');
+    expect(raised.env.CLAUDE_STREAM_IDLE_TIMEOUT_MS).toBe('1800000');
   });
 
   it('a byo exec leaves the CLI on its own default', () => {
@@ -440,11 +447,15 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
       for (const { spec } of goldenBattery()) {
         if (spec.credential.mode !== 'managed') continue;
         const { gateway } = spec.credential;
-        const withBudget = (streamIdleTimeoutMs: number): HarnessRunSpec => ({
+        const withBudget = (budgetMs: number): HarnessRunSpec => ({
           ...spec,
           credential: {
             mode: 'managed',
-            gateway: { ...gateway, streamIdleTimeoutMs },
+            gateway: {
+              ...gateway,
+              streamIdleTimeoutMs: budgetMs,
+              requestTimeoutMs: budgetMs,
+            },
           },
         });
         const exec = buildHarnessExec(harness, withBudget(1));

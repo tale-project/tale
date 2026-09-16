@@ -45,7 +45,7 @@ managed-baseline:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -107,7 +107,7 @@ managed-model-opus:
     ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-4-6
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -170,7 +170,7 @@ managed-model-gateway-ref:
     ANTHROPIC_DEFAULT_SONNET_MODEL: openrouter/anthropic/claude-sonnet-4.6
     ANTHROPIC_MODEL: openrouter/anthropic/claude-sonnet-4.6
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -233,7 +233,7 @@ managed-model-default:
     ANTHROPIC_DEFAULT_SONNET_MODEL: default
     ANTHROPIC_MODEL: default
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: default
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -289,7 +289,7 @@ managed-plan:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -344,7 +344,7 @@ managed-act:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -401,7 +401,7 @@ managed-resume:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -459,7 +459,7 @@ managed-instructions:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -518,7 +518,7 @@ managed-dirs:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -576,7 +576,7 @@ managed-mcp-headless-bridge:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -634,7 +634,7 @@ managed-mcp-bridge-only:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -692,7 +692,7 @@ managed-vision:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -750,7 +750,7 @@ managed-steer:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -825,7 +825,7 @@ managed-kitchen-sink:
     ANTHROPIC_DEFAULT_SONNET_MODEL: claude-opus-4-6
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
-    API_TIMEOUT_MS: '900000'
+    API_TIMEOUT_MS: '960000'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
