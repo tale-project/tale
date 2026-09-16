@@ -650,6 +650,66 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(receipt().phase).toBe('pending');
   });
 
+  // A pre-deploy snapshot pauses the containers of every data volume, and
+  // Docker reports each unhealthy until its next probe. A replay that changes
+  // nothing must wait that out: Compose refuses at once to start a service
+  // whose dependency reads unhealthy (the platform depends on the proxy),
+  // which failed the first attempt of every deploy that took a snapshot.
+  test.each(['unhealthy', 'starting'] as const)(
+    'awaits a running service that briefly reads %s instead of running Compose again',
+    async (status) => {
+      const { docker, apply, receipt } = await create(true);
+      await apply();
+      const ready = receipt();
+      docker.staleHealth.set('proxy', { status, reads: 2 });
+      docker.calls = [];
+
+      expect(await apply()).toMatchObject({ existing: true, changed: false });
+      expect(mutations(docker)).toEqual([]);
+      expect(docker.staleHealth.size).toBe(0);
+      expect(receipt()).toEqual(ready);
+    },
+  );
+
+  test('fails an unchanged replay whose service stays unhealthy, without running Compose', async () => {
+    const { docker, apply, receipt } = await create(true);
+    await apply();
+    const ready = receipt();
+    docker.staleHealth.set('proxy', { status: 'unhealthy', reads: Infinity });
+    docker.calls = [];
+
+    await expect(apply()).rejects.toThrow(
+      'Managed runtime did not become healthy (proxy: unhealthy); pending state is retained for recovery.',
+    );
+    expect(mutations(docker)).toEqual([]);
+    expect(receipt()).toEqual(ready);
+  });
+
+  test.each(['stopped', 'image'] as const)(
+    'still hands a %s service to Compose',
+    async (drift) => {
+      const { docker, apply } = await create(true);
+      await apply();
+      const proxy = docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'proxy',
+      )!;
+      if (drift === 'stopped')
+        (proxy.State as { Running: boolean }).Running = false;
+      else
+        (proxy.Config as { Image: string }).Image =
+          `foreign@sha256:${'f'.repeat(64)}`;
+      docker.calls = [];
+
+      expect(await apply()).toMatchObject({ changed: true });
+      expect(mutations(docker).some(({ args }) => args[0] === 'compose')).toBe(
+        true,
+      );
+    },
+  );
+
   test('verifies local spawner aliases again on unchanged replay', async () => {
     const { docker, apply } = await create(true);
     await apply();

@@ -30,6 +30,9 @@ mock.module('../../utils/logger', () => ({
 
 const SHA = 'a'.repeat(64);
 
+/** A volume user as the pause reads it: healthy, probed every 5 s. */
+const HEALTHY_DB = '/p-db healthy 5000000000 10000000000 3';
+
 function ok(stdout = '') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
 }
@@ -129,6 +132,7 @@ describe('createSnapshot', () => {
     ensureVolumesMock.mockResolvedValue(true);
     dockerMock.mockImplementation((...args: string[]) => {
       if (args[0] === 'ps') return Promise.resolve(ok('abc123\n'));
+      if (args[0] === 'container') return Promise.resolve(ok(HEALTHY_DB));
       return Promise.resolve(ok());
     });
     execMock.mockImplementation((_cmd: string, args: string[]) => {
@@ -153,11 +157,16 @@ describe('createSnapshot', () => {
       sizeBytes: 123456,
     });
 
-    // Pause before tar, unpause after.
+    // Pause before tar, unpause after — and read the container's health
+    // again after the unpause, which Docker leaves `unhealthy` until the
+    // next probe.
     const dockerCalls = dockerMock.mock.calls.map((c) => c[0]);
     expect(dockerCalls).toContain('pause');
     expect(dockerCalls).toContain('unpause');
     expect(dockerCalls.indexOf('pause')).toBeLessThan(
+      dockerCalls.indexOf('unpause'),
+    );
+    expect(dockerCalls.lastIndexOf('container')).toBeGreaterThan(
       dockerCalls.indexOf('unpause'),
     );
 
@@ -175,6 +184,7 @@ describe('createSnapshot', () => {
     ensureVolumesMock.mockResolvedValue(true);
     dockerMock.mockImplementation((...args: string[]) => {
       if (args[0] === 'ps') return Promise.resolve(ok('abc123\n'));
+      if (args[0] === 'container') return Promise.resolve(ok(HEALTHY_DB));
       return Promise.resolve(ok());
     });
     execMock.mockResolvedValue({
@@ -196,6 +206,60 @@ describe('createSnapshot', () => {
     expect(dockerCalls).toContain('unpause');
     // Only the failed tar ran — no manifest write.
     expect(execMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Every pause costs a container a fresh health probe before it reports
+  // healthy again; the proxy owns two volumes and is paused once for both.
+  test('pauses containers that share volumes once, around all of their archives', async () => {
+    volumeExistsMock.mockImplementation((name: string) =>
+      Promise.resolve(
+        ['p_db-data', 'p_caddy-data', 'p_caddy-config'].includes(name),
+      ),
+    );
+    ensureVolumesMock.mockResolvedValue(true);
+    const events: string[] = [];
+    dockerMock.mockImplementation((...args: string[]) => {
+      const target = args[args.length - 1];
+      if (args[0] === 'ps') {
+        return Promise.resolve(
+          ok(target === 'volume=p_db-data' ? 'db1\n' : 'proxy1\n'),
+        );
+      }
+      if (args[0] === 'container') return Promise.resolve(ok(HEALTHY_DB));
+      if (args[0] === 'pause' || args[0] === 'unpause') {
+        events.push(`${args[0]} ${target}`);
+      }
+      return Promise.resolve(ok());
+    });
+    execMock.mockImplementation((_cmd: string, args: string[]) => {
+      const tar = /tar czf \/backup\/[^/]+\/([a-z-]+)\.tar\.gz/.exec(
+        args[args.length - 1],
+      );
+      if (!tar) return Promise.resolve(ok());
+      events.push(`tar ${tar[1]}`);
+      return Promise.resolve(ok(`${SHA}  ${tar[1]}.tar.gz\n4096`));
+    });
+
+    const manifest = await createSnapshot({
+      prefix: 'p_',
+      trigger: 'manual',
+      platformVersion: null,
+    });
+
+    expect(events).toEqual([
+      'pause db1',
+      'tar db-data',
+      'unpause db1',
+      'pause proxy1',
+      'tar caddy-data',
+      'tar caddy-config',
+      'unpause proxy1',
+    ]);
+    expect(Object.keys(manifest?.volumes ?? {})).toEqual([
+      'db-data',
+      'caddy-data',
+      'caddy-config',
+    ]);
   });
 
   test('snapshots convex-data when that is still the live config store', async () => {

@@ -3,7 +3,10 @@ import { formatBytes } from '../../utils/format-bytes';
 import * as logger from '../../utils/logger';
 import { ensureVolumes, volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
-import { withVolumeContainersPaused } from '../docker/with-volume-paused';
+import {
+  listContainersUsingVolume,
+  withVolumeContainersPaused,
+} from '../docker/with-volume-paused';
 import {
   archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
@@ -59,64 +62,116 @@ function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
 }
 
 /**
- * Tar one volume into the backups volume and return its integrity info.
- * Every running container that has the volume mounted is paused for the
- * duration of the tar so the archive is crash-consistent — a live tar of a
- * running Postgres data dir is not restorable. The pause typically lasts
- * seconds; unpause is guaranteed via finally.
+ * Tar one volume into the backups volume and return its integrity info. The
+ * caller holds every running container that has the volume mounted paused,
+ * so the archive is crash-consistent — a live tar of a running Postgres data
+ * dir is not restorable.
  */
-async function snapshotVolume(
+async function archiveVolume(
   prefix: string,
   backupVolume: string,
   id: string,
   volume: string,
+  pausedCount: number,
 ): Promise<SnapshotVolumeInfo> {
   const volumeName = `${prefix}${volume}`;
-
-  return withVolumeContainersPaused([volumeName], async (pausedCount) => {
-    const tarResult = await exec(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '-v',
-        `${volumeName}:/data:ro`,
-        '-v',
-        `${backupVolume}:/backup`,
-        BACKUP_HELPER_IMAGE,
-        'sh',
-        '-c',
-        // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
-        // are parseable from the last two stdout lines below.
-        `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
-      ],
-      { timeout: archiveTimeoutSeconds(volume) },
+  const tarResult = await exec(
+    'docker',
+    [
+      'run',
+      '--rm',
+      '-v',
+      `${volumeName}:/data:ro`,
+      '-v',
+      `${backupVolume}:/backup`,
+      BACKUP_HELPER_IMAGE,
+      'sh',
+      '-c',
+      // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
+      // are parseable from the last two stdout lines below.
+      `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
+    ],
+    { timeout: archiveTimeoutSeconds(volume) },
+  );
+  if (!tarResult.success) {
+    throw new Error(
+      `Snapshot of volume ${volumeName} failed: ${tarResult.stderr || tarResult.stdout}`,
     );
-    if (!tarResult.success) {
-      throw new Error(
-        `Snapshot of volume ${volumeName} failed: ${tarResult.stderr || tarResult.stdout}`,
-      );
-    }
+  }
 
-    const lines = tarResult.stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const shaLine = lines[lines.length - 2] ?? '';
-    const sizeLine = lines[lines.length - 1] ?? '';
-    const sha256 = shaLine.split(/\s+/)[0] ?? '';
-    const sizeBytes = Number.parseInt(sizeLine, 10);
-    if (!/^[0-9a-f]{64}$/.test(sha256) || Number.isNaN(sizeBytes)) {
-      throw new Error(
-        `Snapshot of ${volumeName} produced unparseable integrity output: "${tarResult.stdout}"`,
-      );
-    }
-
-    logger.info(
-      `  ${volume}: ${formatBytes(sizeBytes)}${pausedCount > 0 ? ` (${pausedCount} container(s) paused during tar)` : ''}`,
+  const lines = tarResult.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const shaLine = lines[lines.length - 2] ?? '';
+  const sizeLine = lines[lines.length - 1] ?? '';
+  const sha256 = shaLine.split(/\s+/)[0] ?? '';
+  const sizeBytes = Number.parseInt(sizeLine, 10);
+  if (!/^[0-9a-f]{64}$/.test(sha256) || Number.isNaN(sizeBytes)) {
+    throw new Error(
+      `Snapshot of ${volumeName} produced unparseable integrity output: "${tarResult.stdout}"`,
     );
-    return { sha256, sizeBytes };
-  });
+  }
+
+  logger.info(
+    `  ${volume}: ${formatBytes(sizeBytes)}${pausedCount > 0 ? ` (${pausedCount} container(s) paused during tar)` : ''}`,
+  );
+  return { sha256, sizeBytes };
+}
+
+/**
+ * Tar a run of volumes inside ONE pause of the containers that use them. The
+ * pause typically lasts seconds; unpausing, and waiting until the containers
+ * report healthy again, is guaranteed by withVolumeContainersPaused.
+ */
+async function snapshotVolumes(
+  prefix: string,
+  backupVolume: string,
+  id: string,
+  volumes: readonly string[],
+): Promise<Record<string, SnapshotVolumeInfo>> {
+  return withVolumeContainersPaused(
+    volumes.map((volume) => `${prefix}${volume}`),
+    async (pausedCount) => {
+      const archived: Record<string, SnapshotVolumeInfo> = {};
+      for (const volume of volumes) {
+        archived[volume] = await archiveVolume(
+          prefix,
+          backupVolume,
+          id,
+          volume,
+          pausedCount,
+        );
+      }
+      return archived;
+    },
+  );
+}
+
+/**
+ * Split the volumes, in order, into runs used by exactly the same containers
+ * — in practice the proxy's `caddy-data` and `caddy-config`. Every pause costs
+ * its containers a fresh health probe before they report healthy again, so
+ * pausing the proxy once for both saves a whole probe interval, and the two
+ * archives capture the same instant.
+ */
+async function pauseGroups(
+  prefix: string,
+  volumes: readonly string[],
+): Promise<string[][]> {
+  const groups: { users: string; volumes: string[] }[] = [];
+  for (const volume of volumes) {
+    const users = (await listContainersUsingVolume(`${prefix}${volume}`))
+      .sort()
+      .join(',');
+    const previous = groups.at(-1);
+    if (previous && users !== '' && previous.users === users) {
+      previous.volumes.push(volume);
+    } else {
+      groups.push({ users, volumes: [volume] });
+    }
+  }
+  return groups.map((group) => group.volumes);
 }
 
 /**
@@ -211,8 +266,11 @@ export async function createSnapshot(
   announceExternalBlobs(blobStore);
 
   const volumes: Record<string, SnapshotVolumeInfo> = {};
-  for (const volume of present) {
-    volumes[volume] = await snapshotVolume(prefix, backupVolume, id, volume);
+  for (const group of await pauseGroups(prefix, present)) {
+    Object.assign(
+      volumes,
+      await snapshotVolumes(prefix, backupVolume, id, group),
+    );
   }
 
   const manifest: SnapshotManifest = {
