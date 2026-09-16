@@ -3,6 +3,7 @@ import { parse, parseDocument } from 'yaml';
 import { archive, excludedNativePath, type Entry } from './archive';
 import { skillBindings, stableJson, valueHash, sha256 } from './identity';
 import {
+  ConfigError,
   insist,
   owner,
   record,
@@ -157,16 +158,58 @@ function assertInstallableManifest(manifest: Record<string, unknown>): void {
     'native upload does not install trigger declarations',
   );
 }
+const MAX_DRIFT_PATHS = 5;
+/** A manifest key as a log-safe path segment: plain keys as written, any
+ * other key quoted and bounded so it cannot break or flood a log line. */
+function pathSegment(key: string): string {
+  return /^[A-Za-z0-9_-]{1,64}$/.test(key)
+    ? key
+    : JSON.stringify(key.slice(0, 64));
+}
+/** Where the normalized manifest differs from the authored one, as field
+ * paths (`subjects.task.review.approve`). Paths only, never values. */
+function normalizationDrift(
+  raw: unknown,
+  parsed: unknown,
+  path: string,
+): string[] {
+  if (Array.isArray(raw) && Array.isArray(parsed)) {
+    if (raw.length !== parsed.length) return [path];
+    return raw.flatMap((item, index) =>
+      normalizationDrift(item, parsed[index], `${path}[${index}]`),
+    );
+  }
+  if (record(raw) && record(parsed)) {
+    const keys = [
+      ...new Set([...Object.keys(raw), ...Object.keys(parsed)]),
+    ].sort();
+    return keys.flatMap((key) => {
+      const segment = pathSegment(key);
+      const field = path === '' ? segment : `${path}.${segment}`;
+      if (!(key in raw) || !(key in parsed)) return [field];
+      return normalizationDrift(raw[key], parsed[key], field);
+    });
+  }
+  return stableJson(raw) === stableJson(parsed) ? [] : [path || '(root)'];
+}
 /** Zod may accept then strip nested fields. The stored projection must be the
- * same contract we hash, so normalization drift fails before any artifact exists. */
+ * same contract we hash, so normalization drift fails before any artifact
+ * exists. The usual cause is a pack written for a newer Tale than this CLI:
+ * its schema drops the fields it does not know, so the refusal names them. */
 export function assertNativeManifest(
   raw: Record<string, unknown>,
   parsed: Record<string, unknown>,
 ): void {
   assertInstallableManifest(raw);
-  insist(
-    stableJson(raw) === stableJson(parsed),
-    'native manifest normalization changes release semantics',
+  if (stableJson(raw) === stableJson(parsed)) return;
+  const drift = normalizationDrift(raw, parsed, '');
+  const named = drift.slice(0, MAX_DRIFT_PATHS).join(', ');
+  const more =
+    drift.length > MAX_DRIFT_PATHS
+      ? ` and ${drift.length - MAX_DRIFT_PATHS} more`
+      : '';
+  throw new ConfigError(
+    `native manifest normalization changes release semantics at ${named}${more}; this Tale CLI does not read those fields as written, so use a Tale CLI at least as new as the Tale the pack targets`,
   );
 }
 export async function compile(

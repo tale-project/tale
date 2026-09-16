@@ -5,6 +5,7 @@ import { stringify } from 'yaml';
 import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { git } from '../config/releases/git';
 import { runtimeCommand } from './runtime-command';
 import {
@@ -263,6 +264,8 @@ export async function prepareRuntime(
   ): Promise<RuntimeImage> => {
     const prior = images.get(repository);
     if (prior) return prior;
+    // Pulling and verifying an image can take minutes; say which one.
+    logger.step(`Verifying runtime image ${repository}`);
     const revision = repository.startsWith(`${TALE_REGISTRY}/`)
       ? options.revision
       : null;

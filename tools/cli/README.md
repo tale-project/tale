@@ -77,6 +77,10 @@ Managed deployments select full source commits, a target, credentials and a pinn
 CLI revision. Preparation verifies source and image provenance; application keeps
 persistent deployment receipts and verifies native state.
 
+Preparation checks configurations before it pulls runtime images. It refuses a
+pack that declares fields this CLI does not know and names those fields, so pin a
+CLI at least as new as the Tale your packs target.
+
 ```bash
 tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json
 tale deploy verify-bundle --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --json

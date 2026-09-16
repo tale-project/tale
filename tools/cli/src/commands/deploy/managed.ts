@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import { z } from 'zod';
 
 import {
   applyDeployment,
@@ -10,12 +9,13 @@ import {
   prepareDeployment,
   type PrepareDeploymentOptions,
 } from '../../lib/deployment/prepare';
-import { CliError, preconditionError, usageError } from '../../utils/fail';
+import { usageError } from '../../utils/fail';
 import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode, resolveConsent } from '../../utils/output-mode';
 import { confirm, NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
+import { operationalFailure } from '../operational-failure';
 import { assertManagedOptions, assertManagedPlatform } from './options';
 
 export async function managedResult(
@@ -26,13 +26,11 @@ export async function managedResult(
   try {
     result = await work();
   } catch (error) {
-    if (error instanceof CliError || error instanceof NonInteractiveError)
-      throw error;
-    if (error instanceof z.ZodError)
-      throw preconditionError('Deployment input does not match its schema.');
-    throw preconditionError(
-      'Deployment failed. Review the source pins, paths, permissions and retained recovery receipts.',
-    );
+    throw operationalFailure(error, {
+      schema: 'Deployment input does not match its schema.',
+      summary:
+        'Deployment failed. Review the source pins, paths, permissions and retained recovery receipts.',
+    });
   }
   if (getOutputMode().json) emitJson(command, result);
   else {

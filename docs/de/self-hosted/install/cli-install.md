@@ -243,6 +243,8 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy prepare` akzeptiert optional `--sources-file <file>` mit einer Zuordnung von `repository@fullSHA` zu vorhandenen exakten Checkouts. Sonst lädt die CLI kanonische GitHub-Repositories. Übergib den Inhalt eines nur lesenden SSH-Schlüssels für private Client-Repositories während der Vorbereitung über `TALE_SOURCE_SSH_KEY`. Die CLI prüft GitHubs SSH-Hostschlüssel über HTTPS und hält den Schlüssel aus Paket und Runtime heraus. Docker braucht bereits Zugriff auf die Registry.
 
+Die Vorbereitung prüft zuerst jede Konfiguration mit den eigenen Schemas der CLI und lädt und prüft erst danach die Runtime-Images. Dabei nennt sie jede Phase und jedes Image. Ein Paket mit Feldern, die diese CLI nicht kennt, lehnt sie innerhalb von Sekunden mit `native manifest normalization changes release semantics at <fields>` ab. Bereite es dann mit einer CLI vor, die mindestens so neu ist wie das Tale, für das das Paket geschrieben wurde. Einen Fehler, den die CLI bewusst meldet, zeigt sie mit seiner Ursache. Jeder andere Fehler behält eine feste Zusammenfassung, damit weder Zugangsdaten noch Ausgaben der Registry ins Log gelangen.
+
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
 #### Native Identität bereitstellen

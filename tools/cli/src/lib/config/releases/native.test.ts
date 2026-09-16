@@ -49,18 +49,26 @@ test('native syntax errors are rejected before any immutable release is publishe
 }, 30_000);
 
 test('native normalization and unsupported catalogue fields are refused before publication', async () => {
-  for (const extra of [
-    { hidden: true },
-    { triggers: [{ name: 'ignored' }] },
-    {
-      subjects: {
-        task: {
-          workflow: 'code-team-intake',
-          review: { requestChanges: true, unexpected: true },
+  for (const [extra, refusal] of [
+    [{ hidden: true }, 'native upload does not install hidden visibility'],
+    [
+      { triggers: [{ name: 'ignored' }] },
+      'native upload does not install trigger declarations',
+    ],
+    // A field this CLI's schema does not know is named, so a pack written for
+    // a newer Tale reads as exactly that.
+    [
+      {
+        subjects: {
+          task: {
+            workflow: 'code-team-intake',
+            review: { requestChanges: true, unexpected: true },
+          },
         },
       },
-    },
-  ]) {
+      'native manifest normalization changes release semantics at subjects.task.review.unexpected;',
+    ],
+  ] as const) {
     const f = commandFixture('code-team', false);
     writeFileSync(
       path.join(f.pack, 'automation.yml'),
@@ -68,7 +76,7 @@ test('native normalization and unsupported catalogue fields are refused before p
     );
     await expect(
       buildRelease({ ...f.options, sourceCommit: f.commit() }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(refusal);
     expect(existsSync(path.join(f.directory, 'releases'))).toBe(false);
   }
 }, 30_000);

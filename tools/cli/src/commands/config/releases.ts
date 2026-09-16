@@ -12,9 +12,6 @@ import {
 } from '../../lib/config/releases/identity';
 import { loadRelease } from '../../lib/config/releases/manifest';
 import {
-  ConfigError,
-  NativeRequestError,
-  ExternalToolError,
   gitSha,
   sha,
   owner,
@@ -37,15 +34,15 @@ import { withLock } from '../../lib/state/with-lock';
 import {
   CliError,
   ExitCode,
-  externalDepError,
   preconditionError,
   usageError,
 } from '../../utils/fail';
 import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode } from '../../utils/output-mode';
-import { confirm, NonInteractiveError } from '../../utils/prompt';
+import { confirm } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
+import { operationalFailure } from '../operational-failure';
 
 interface SourceFlags {
   repo: string;
@@ -103,22 +100,11 @@ function releaseAction<T>(verb: string, body: (flags: T) => Promise<unknown>) {
     try {
       data = await body(flags);
     } catch (error) {
-      if (error instanceof CliError || error instanceof NonInteractiveError)
-        throw error;
-      if (
-        error instanceof NativeRequestError ||
-        error instanceof ExternalToolError
-      )
-        throw externalDepError(error.message);
-      if (error instanceof ConfigError) throw preconditionError(error.message);
-      if (error instanceof z.ZodError)
-        throw preconditionError(
-          'Configuration input does not match its schema.',
-        );
-      throw preconditionError(
-        'Configuration operation failed.',
-        'Check the source, artifact and receipt paths, permissions, and native target.',
-      );
+      throw operationalFailure(error, {
+        schema: 'Configuration input does not match its schema.',
+        summary: 'Configuration operation failed.',
+        next: 'Check the source, artifact and receipt paths, permissions, and native target.',
+      });
     }
     if (getOutputMode().json) emitJson(`config ${verb}`, data);
     else {
