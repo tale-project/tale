@@ -212,17 +212,12 @@ export function resolveTaskSubjectContract(
   locale: string,
 ): ResolvedTaskSubjectContract | null {
   const ownership = resolveTaskOwnership(task, automations, locale);
-  return ownership.kind === 'automation'
-    ? {
-        automationSlug: ownership.automationSlug,
-        displayName: ownership.displayName,
-        ...(ownership.displayDescription !== undefined && {
-          displayDescription: ownership.displayDescription,
-        }),
-        contract: ownership.contract,
-        settings: ownership.settings,
-      }
-    : null;
+  if (ownership.kind !== 'automation') return null;
+  // Drop only the class tag. A field-by-field copy here once lost the Approve
+  // confirmation, so every task surface approved in one click whatever the
+  // automation declared; whatever the entry resolves is what the task shows.
+  const { kind: _kind, ...resolved } = ownership;
+  return resolved;
 }
 
 /** {@link resolveTaskSubjectContract} over the surfaces visible from the
