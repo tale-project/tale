@@ -161,7 +161,8 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file sto
 | Gateway state | `llm-gateway-data:/app/data`. |
 | Spawner | `/var/run/docker.sock` and `/var/lib/tale-sandbox` mounted at the same host/container paths. Docker-socket access gives control over the host daemon. |
 | Backend roles | `cap_add: [NET_ADMIN]` for the shipped entrypoint's network fence. |
-| Egress service | The shipped restricted capability set: `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` after dropping other capabilities. |
+| Egress service | The shipped restricted capability set after dropping all others: `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` and `KILL`. Without `KILL` the root supervisor cannot signal tinyproxy after it has dropped to `nobody`, so a stop waits out the grace period and ends in exit 137 instead of draining. |
+| Egress IPv6 | `sysctls` with `net.ipv6.conf.all.disable_ipv6: '1'` and `net.ipv6.conf.default.disable_ipv6: '1'`, as in the shipped stack. The egress firewall fails closed: it needs working IPv6 firewall support or IPv6 disabled for the default and every interface, and a container cannot write those sysctls itself through a read-only `/proc/sys`. Without them the proxy refuses to start on a kernel without the `ip6_tables` module; see [Sandbox infrastructure](/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
 | Web and spawner shutdown | Allow the web tier's 45-second and spawner's 30-second stop grace; coordinate active work before stopping. |
 
