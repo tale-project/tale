@@ -93,7 +93,8 @@ export function requireGatewayAdminPassword(): string {
   return pw;
 }
 
-/** Total per-request timeout pushed to every provider's `network_config`. */
+/** The floor of the per-request timeout pushed to every provider's
+ * `network_config` (see gatewayRequestTimeoutSeconds). */
 const REQUEST_TIMEOUT_SECONDS = 600;
 
 /** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how
@@ -103,10 +104,10 @@ const REQUEST_TIMEOUT_SECONDS = 600;
  * but a CUSTOM OpenAI-compatible upstream sends NO keepalive during a long
  * prefill or a silent reasoning gap, so a large-context turn trips the 60s
  * window and the agent's stream dies mid-run with no retry (harness CLIs do
- * not auto-retry a mid-stream failure). Default it to the full request
- * budget so a silent gap is bounded only by the total timeout, never a
- * premature idle abort. Operator-tunable
- * (`SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS`).
+ * not auto-retry a mid-stream failure). Default it to the request timeout's
+ * floor so a silent gap is never a premature idle abort. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS`); a raised value raises
+ * the request timeout with it.
  *
  * The one reader of that budget: a managed harness turn carries the same
  * value (`buildExternalTurnExec`), because a CLI with its own client-side idle
@@ -118,6 +119,22 @@ export function gatewayStreamIdleTimeoutSeconds(): number {
     gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ??
       String(REQUEST_TIMEOUT_SECONDS),
   );
+}
+
+/** Per-request timeout (gateway `default_request_timeout_in_seconds`): how
+ * long the gateway waits for a whole non-streaming answer. The gateway's
+ * streaming client has no such bound, but a harness falls back to a
+ * NON-streaming request when a stream breaks (Claude Code does after a
+ * stream ends without its first event), and that request then carries the
+ * full prefill: an operator who raised the stream idle budget for a slow
+ * local model would still see it cut at 600 s. So the timeout follows a
+ * raised budget, and never drops below 600 s.
+ *
+ * A managed harness turn waits at least this long for an answer
+ * (`buildExternalTurnExec`), so the client never gives up on a request the
+ * gateway is still serving. */
+export function gatewayRequestTimeoutSeconds(): number {
+  return Math.max(REQUEST_TIMEOUT_SECONDS, gatewayStreamIdleTimeoutSeconds());
 }
 
 function managementHeaders(): Record<string, string> {
@@ -896,7 +913,7 @@ async function ensureProviderConfig(
       : undefined;
   const body = {
     network_config: {
-      default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
+      default_request_timeout_in_seconds: gatewayRequestTimeoutSeconds(),
       stream_idle_timeout_in_seconds: gatewayStreamIdleTimeoutSeconds(),
       ...(baseUrl ? { base_url: baseUrl } : {}),
       // A self-hosted upstream lives on a private address, and the gateway

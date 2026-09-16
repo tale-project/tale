@@ -77,6 +77,8 @@ export const GOLDEN_GATEWAY = {
   // floor, the gateway's 600 s default), so a golden matches only when the
   // spec's own budget reached the exec.
   streamIdleTimeoutMs: 900_000,
+  // Distinct from the idle budget, so a golden tells the two apart.
+  requestTimeoutMs: 960_000,
 } as const;
 
 export const GOLDEN_BYO_ENV = {

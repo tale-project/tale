@@ -206,7 +206,7 @@ interface Substitutions {
  * the pattern and pass through byte-identically (several CLIs resolve their
  * own `${VAR}`/`{env:VAR}`/`$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|model\.raw|model|workdir|execId|prompt|vision\.model|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model|workdir|execId|prompt|vision\.model|bridgeUrl)\}/g;
 
 /** SINGLE-PASS substitution: `String.replace` never rescans replacement
  * text, so a spec value containing `${gateway.token}` stays those literal
@@ -338,6 +338,8 @@ export function buildHarnessExec(
     // above, so only a managed-gated template may reference it.
     'gateway.streamIdleTimeoutMs':
       gateway === undefined ? undefined : String(gateway.streamIdleTimeoutMs),
+    'gateway.requestTimeoutMs':
+      gateway === undefined ? undefined : String(gateway.requestTimeoutMs),
     model: spec.model,
     'model.raw': spec.model,
     workdir: spec.workdir,

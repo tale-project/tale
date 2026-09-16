@@ -151,9 +151,11 @@ exec:
       # default) applies. Past either one the CLI sends the request again,
       # while the gateway keeps serving the abandoned copy: against a model
       # that serves one request at a time the copies queue behind each other
-      # and the turn never completes. So both follow the gateway's budget.
+      # and the turn never completes. So both follow the gateway: the
+      # request timeout is the gateway's own, which is at least its idle
+      # budget.
       API_FORCE_IDLE_TIMEOUT: '0'
-      API_TIMEOUT_MS: '${gateway.streamIdleTimeoutMs}'
+      API_TIMEOUT_MS: '${gateway.requestTimeoutMs}'
   # Vision polyfill (managed, text-only model): the tale-vision-read-hook
   # PreToolUse hook (registered globally in managed-settings.json) fires on
   # every Read but self-gates on TALE_VISION_MODEL — set only for a

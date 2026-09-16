@@ -91,6 +91,10 @@ export type HarnessCredential =
          * long, or it gives up on — and sends again — a request the gateway
          * is still serving. */
         readonly streamIdleTimeoutMs: number;
+        /** The gateway's per-request timeout in milliseconds: how long it
+         * waits for a whole answer (at least its stream idle budget). A CLI
+         * with its own request timeout must wait at least this long. */
+        readonly requestTimeoutMs: number;
       };
     }
   | {
