@@ -243,6 +243,8 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy prepare` accepts optional `--sources-file <file>` mapping `repository@fullSHA` to an existing exact checkout. Otherwise it fetches canonical GitHub repositories. Inject the read-only private-client SSH key contents through `TALE_SOURCE_SSH_KEY` only during preparation; the CLI verifies GitHub's SSH host keys over HTTPS and keeps the key out of the bundle and runtime. Registry access must already be available to Docker.
 
+Preparation checks each configuration first, with this CLI's own schemas, and only then pulls and verifies the runtime images. It names each phase and image as it goes. A pack that declares fields this CLI does not know is refused within seconds with `native manifest normalization changes release semantics at <fields>`; prepare it with a CLI at least as new as the Tale the pack targets. A failure the CLI raises deliberately shows its own cause. Any other error keeps a fixed summary, so no credential or registry output reaches the log.
+
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
 #### Provision the native identity

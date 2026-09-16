@@ -15,23 +15,15 @@ import {
   resourceId,
 } from '../../lib/config/platform-model';
 import { valueHash } from '../../lib/config/releases/identity';
-import {
-  NativeRequestError,
-  ConfigError,
-} from '../../lib/config/releases/model';
 import { boundedJson, writePrivateJson } from '../../lib/state/private-files';
 import { withLock } from '../../lib/state/with-lock';
-import {
-  CliError,
-  externalDepError,
-  preconditionError,
-  usageError,
-} from '../../utils/fail';
+import { usageError } from '../../utils/fail';
 import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode, resolveConsent } from '../../utils/output-mode';
 import { confirm, NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
+import { operationalFailure } from '../operational-failure';
 
 interface Flags {
   file: string;
@@ -178,15 +170,11 @@ export function addPlatformCommands(parent: Command) {
             }
           }
         } catch (error) {
-          if (error instanceof CliError || error instanceof NonInteractiveError)
-            throw error;
-          if (error instanceof NativeRequestError)
-            throw externalDepError(error.message);
-          if (error instanceof ConfigError)
-            throw preconditionError(error.message);
-          throw preconditionError(
-            'Platform configuration operation failed; check its declaration, native target and retained plan.',
-          );
+          // A schema mismatch here can be the native target's answer as
+          // much as the declaration, so it keeps the operation's summary.
+          const summary =
+            'Platform configuration operation failed; check its declaration, native target and retained plan.';
+          throw operationalFailure(error, { schema: summary, summary });
         }
         if (getOutputMode().json) emitJson(`config ${verb}`, result);
         else {

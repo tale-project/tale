@@ -152,6 +152,55 @@ test('native normalization and unsupported install behavior refuse before public
       subjects: { task: { review: { requestChanges: true } } },
     }),
   ).toThrow('normalization');
+  // A pack written for a newer Tale declares fields this CLI's schema strips.
+  // The refusal names each one, so a CLI older than the pack reads as that,
+  // and never shows the authored values.
+  const newer = {
+    name: 'Intake',
+    subjects: {
+      task: {
+        review: {
+          requestChanges: true,
+          approve: { confirm: 'Approving files the return.' },
+        },
+        outcome: { files: ['a.xml', 'b.md'] },
+      },
+    },
+  };
+  let refusal = '';
+  try {
+    assertNativeManifest(newer, {
+      name: 'Intake',
+      subjects: {
+        task: {
+          review: { requestChanges: true },
+          outcome: { files: ['a.xml'] },
+        },
+      },
+    });
+  } catch (error) {
+    refusal = (error as Error).message;
+  }
+  expect(refusal).toContain(
+    'at subjects.task.outcome.files, subjects.task.review.approve;',
+  );
+  expect(refusal).toContain('at least as new as the Tale the pack targets');
+  expect(refusal).not.toContain('Approving files the return.');
+  expect(refusal).not.toContain('b.md');
+  const many = Object.fromEntries(
+    Array.from({ length: 7 }, (_, index) => [`field${index}`, index]),
+  );
+  expect(() =>
+    assertNativeManifest({ name: 'Intake', ...many }, { name: 'Intake' }),
+  ).toThrow('at field0, field1, field2, field3, field4 and 2 more;');
+  // A key that is not a plain identifier is quoted and bounded, so a manifest
+  // cannot break the log line that reports it.
+  expect(() =>
+    assertNativeManifest(
+      { name: 'Intake', 'line\nbreak': true, [`k${'x'.repeat(80)}`]: true },
+      { name: 'Intake' },
+    ),
+  ).toThrow(`at "k${'x'.repeat(63)}", "line\\nbreak";`);
   assertNativeManifest(
     { name: 'Intake', hidden: false, triggers: [] },
     { name: 'Intake', hidden: false, triggers: [] },

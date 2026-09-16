@@ -2,6 +2,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import { preconditionError } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { gitSha } from '../config/releases/model';
 import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
@@ -65,19 +66,17 @@ export async function prepareDeployment(
       sourceKey: process.env.TALE_SOURCE_SSH_KEY,
     },
     async (source) => {
-      await (dependencies.runtime ?? prepareRuntime)({
-        repoRoot: source(runtimeRequest),
-        revision: runtimeRequest.revision,
-        platform: spec.runtime.platform,
-        containerPrefix: spec.runtime.containerPrefix,
-        additionalOrigins: spec.additionalOrigins,
-        output: join(output, 'runtime'),
-      });
+      // Configurations first: they validate in seconds with this CLI's own
+      // schemas, while the runtime pulls and verifies every image. A pack
+      // this CLI cannot read then fails before the long wait, not after it.
       for (const config of spec.configs) {
         const request = {
           repository: config.repository,
           revision: resolveValue(config.revision),
         };
+        logger.step(
+          `Preparing configuration ${config.client}/${config.automation} at ${request.revision}`,
+        );
         await (dependencies.config ?? prepareDeploymentConfig)({
           repoRoot: source(request),
           descriptorPath: config.descriptor,
@@ -92,6 +91,17 @@ export async function prepareDeployment(
           output: join(output, 'configs', config.client, config.automation),
         });
       }
+      logger.step(
+        `Preparing the Tale runtime at ${runtimeRequest.revision} for ${spec.runtime.platform}`,
+      );
+      await (dependencies.runtime ?? prepareRuntime)({
+        repoRoot: source(runtimeRequest),
+        revision: runtimeRequest.revision,
+        platform: spec.runtime.platform,
+        containerPrefix: spec.runtime.containerPrefix,
+        additionalOrigins: spec.additionalOrigins,
+        output: join(output, 'runtime'),
+      });
       return writeDeploymentBundle(output, {
         schemaVersion: 1,
         kind: 'tale-deployment',
