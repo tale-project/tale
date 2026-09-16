@@ -161,7 +161,8 @@ Setze am Proxy `BACKEND_UPSTREAM=backend-api:3005`. Für den mitgelieferten Date
 | Gateway-Zustand | `llm-gateway-data:/app/data`. |
 | Spawner | `/var/run/docker.sock` und `/var/lib/tale-sandbox` unter gleichen Host-/Containerpfaden. Docker-Socket-Zugriff erlaubt Kontrolle über den Host-Daemon. |
 | Backend-Rollen | `cap_add: [NET_ADMIN]` für den Netzwerkschutz des mitgelieferten Entrypoints. |
-| Egress-Dienst | Nach Entfernen anderer Rechte der begrenzte Satz `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE`. |
+| Egress-Dienst | Nach Entfernen aller anderen Rechte der begrenzte Satz `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` und `KILL`. Ohne `KILL` kann der Root-Supervisor tinyproxy nach dem Wechsel zu `nobody` kein Signal mehr schicken; ein Stopp wartet dann die Karenzzeit ab und endet mit Exit 137, statt sauber auszulaufen. |
+| Egress-IPv6 | `sysctls` mit `net.ipv6.conf.all.disable_ipv6: '1'` und `net.ipv6.conf.default.disable_ipv6: '1'`, wie im mitgelieferten Stack. Die Egress-Firewall arbeitet fail-closed: Sie braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 für den Standardwert und jede Schnittstelle, und ein Container kann diese Sysctls über ein schreibgeschütztes `/proc/sys` nicht selbst setzen. Ohne sie startet der Proxy auf einem Kernel ohne das Modul `ip6_tables` nicht; siehe [Sandbox-Infrastruktur](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres-Stopp | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` im Referenzaufbau. |
 | Web- und Spawner-Stopp | 45 Sekunden Stop-Wartezeit für Web, 30 für den Spawner; laufende Arbeit vor dem Stopp koordinieren. |
 
