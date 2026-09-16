@@ -73,6 +73,10 @@ export function readFixture(slug: string, name: string): string {
 export const GOLDEN_GATEWAY = {
   baseUrl: 'http://golden-gw:8080',
   token: 'golden-session-virtual-key',
+  // Distinct from every default it could be mistaken for (the CLI's 300 s
+  // floor, the gateway's 600 s default), so a golden matches only when the
+  // spec's own budget reached the exec.
+  streamIdleTimeoutMs: 900_000,
 } as const;
 
 export const GOLDEN_BYO_ENV = {

@@ -132,6 +132,17 @@ exec:
       ANTHROPIC_BASE_URL: '${gateway.baseUrl}/anthropic'
       ANTHROPIC_AUTH_TOKEN: '${gateway.token}'
       ANTHROPIC_API_KEY: ''
+      # Wait for a silent stream as long as the gateway does. On its own the
+      # CLI (2.1.173) abandons a stream after 300 s without a chunk ("Stream
+      # idle timeout - no chunks received") and sends the request again while
+      # the gateway is still serving the first one, so a local model whose
+      # prefill outlasts 300 s gets the same turn twice. The gateway's idle
+      # budget (SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS, default 600 s)
+      # is the real bound, so the CLI follows it; the CLI keeps 300 s as a
+      # floor, so a smaller budget changes nothing. Leave
+      # CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS unset: when only this variable is
+      # set, the CLI's byte-level watchdog uses the same value.
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: '${gateway.streamIdleTimeoutMs}'
   # Vision polyfill (managed, text-only model): the tale-vision-read-hook
   # PreToolUse hook (registered globally in managed-settings.json) fires on
   # every Read but self-gates on TALE_VISION_MODEL — set only for a

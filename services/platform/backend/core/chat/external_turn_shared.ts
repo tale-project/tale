@@ -42,6 +42,7 @@ import {
   type SessionExecBody,
   type SessionExecResult,
 } from '../node_only/sandbox/helpers/session_client';
+import { gatewayStreamIdleTimeoutSeconds } from '../node_only/sandbox/llm_gateway_admin';
 
 /** Session-relative dir every staged skill lands in — the work lanes' org
  * skills and the per-connector skills alike, so the instructions can point
@@ -162,6 +163,12 @@ export function buildExternalTurnExec(args: {
           args.serving.kind === 'gateway'
             ? args.serving.token
             : args.serving.bridgeToken,
+        // The gateway's own idle budget: a CLI with a client-side idle
+        // watchdog must not give up on (and send again) a request the gateway
+        // is still waiting on. Rounded to whole milliseconds for the env.
+        streamIdleTimeoutMs: Math.round(
+          gatewayStreamIdleTimeoutSeconds() * 1000,
+        ),
       },
     },
     ...(args.serving.kind === 'subscription'

@@ -105,10 +105,20 @@ const REQUEST_TIMEOUT_SECONDS = 600;
  * window and the agent's stream dies mid-run with no retry (harness CLIs do
  * not auto-retry a mid-stream failure). Default it to the full request
  * budget so a silent gap is bounded only by the total timeout, never a
- * premature idle abort. Operator-tunable. */
-const STREAM_IDLE_TIMEOUT_SECONDS = Number(
-  gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ?? String(REQUEST_TIMEOUT_SECONDS),
-);
+ * premature idle abort. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS`).
+ *
+ * The one reader of that budget: a managed harness turn carries the same
+ * value (`buildExternalTurnExec`), because a CLI with its own client-side idle
+ * watchdog (Claude Code gives up after 300s) would otherwise abandon a quiet
+ * stream the gateway is still waiting on and send the request a second
+ * time. */
+export function gatewayStreamIdleTimeoutSeconds(): number {
+  return Number(
+    gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ??
+      String(REQUEST_TIMEOUT_SECONDS),
+  );
+}
 
 function managementHeaders(): Record<string, string> {
   // The gateway authenticates /api/* with HTTP Basic
@@ -887,7 +897,7 @@ async function ensureProviderConfig(
   const body = {
     network_config: {
       default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
-      stream_idle_timeout_in_seconds: STREAM_IDLE_TIMEOUT_SECONDS,
+      stream_idle_timeout_in_seconds: gatewayStreamIdleTimeoutSeconds(),
       ...(baseUrl ? { base_url: baseUrl } : {}),
       // A self-hosted upstream lives on a private address, and the gateway
       // refuses one by default ("Invalid base URL: private IP addresses are

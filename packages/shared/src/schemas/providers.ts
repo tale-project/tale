@@ -732,6 +732,9 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //   ${gateway.baseUrl}  managed gateway root (no trailing slash)
 //   ${gateway.token}    session virtual key (env values only in practice —
 //                       the hygiene tests enforce where it may land)
+//   ${gateway.streamIdleTimeoutMs}
+//                       the gateway's per-stream idle budget in milliseconds
+//                       (what a CLI's own client-side idle watchdog must wait)
 //   ${model}            the model id AS DELIVERED to the CLI (after the model
 //                       slot's declared transform, when any)
 //   ${model.raw}        the caller-resolved model id verbatim

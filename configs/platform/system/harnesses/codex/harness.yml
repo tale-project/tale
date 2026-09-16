@@ -69,6 +69,14 @@ exec:
         - 'model_providers.tale.env_key="TALE_GATEWAY_TOKEN"'
         - '-c'
         - 'model_providers.tale.wire_api="responses"'
+        # Codex runs its own idle watchdog per stream and RESENDS the request
+        # when it fires. Its default is shorter than the gateway's own idle
+        # budget, so a slow prefill (a local model, a cold cache) had the
+        # gateway still serving turn one while Codex asked for it again.
+        # Both ends now wait the same number of milliseconds; a TOML integer,
+        # so the value carries no quotes.
+        - '-c'
+        - 'model_providers.tale.stream_idle_timeout_ms=${gateway.streamIdleTimeoutMs}'
     # byo: the same provider shape against OpenAI's own API. `env_key` reads
     # the caller-supplied OPENAI_API_KEY directly, so no `codex login` /
     # auth.json state is required in the container. byo keeps the native
