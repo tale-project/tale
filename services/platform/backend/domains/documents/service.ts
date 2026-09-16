@@ -1068,10 +1068,15 @@ export interface HubDocumentsPage {
 
 /**
  * Hub documents, newest first, cursor-paginated — the REST listing. The
- * cursor is `<createdAt>:<id>` of the last row; team visibility filters
- * POST-page (like the in-app listing), so a page may run short of `limit`.
- * `folderId` undefined lists the whole hub, `null` the documents in no
- * folder (the root), a string one folder — the door spells the root `root`.
+ * cursor is `<createdAt>:<id>` of the last row. `folderId` undefined lists
+ * the whole hub, `null` the documents in no folder (the root), a string one
+ * folder — the door spells the root `root`.
+ *
+ * Team visibility is `hubAccessClause`, in the WHERE clause, exactly as the
+ * in-app `listHubDocumentsPaginated` applies it. Dropping those rows after
+ * `LIMIT` let another team's documents spend this caller's page slots: the
+ * page ran short, and a page's worth of them in front of the caller's own
+ * made it empty while the cursor still pointed past them.
  */
 export async function listHubDocumentsPage(
   sql: Sql,
@@ -1097,7 +1102,7 @@ export async function listHubDocumentsPage(
   const rows = await sql<DocumentRow[]>`
     SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
     WHERE org_id = ${auth.organizationId}
-      AND project_id IS NULL
+      AND ${hubAccessClause(sql, auth)}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
       AND (${options.sourceProvider ?? null}::text IS NULL
         OR source_provider = ${options.sourceProvider ?? null})
@@ -1109,11 +1114,13 @@ export async function listHubDocumentsPage(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${limit + 1}
   `;
-  const raw = rows.slice(0, limit);
-  const last = raw[raw.length - 1];
+  // Every row the query answered is one this caller may open, so the page is
+  // the page and its last row is a cursor the next call can trust.
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
   const isDone = rows.length <= limit;
   return {
-    page: raw.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds)),
+    page,
     isDone,
     continueCursor: isDone || !last ? '' : `${last.createdAt}:${last.id}`,
   };
