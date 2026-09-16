@@ -489,8 +489,17 @@ function isUnread(metadata: Record<string, unknown> | null): boolean {
 
 /**
  * Keyset-paginated Inbox listing, newest activity first, assignment-scoped
- * POST-page with the reused predicate (a page may run short, exactly like
- * the 0.4 RLS filter). Cursor = `<lastMessageAt>:<id>` of the last row.
+ * IN SQL through {@link resolveAssignmentScope}. Cursor =
+ * `<lastMessageAt>:<id>` of the last row.
+ *
+ * The scope belongs in the WHERE clause, not in a loop after `LIMIT`. Read
+ * post-page, a row the viewer may not open still consumes a slot, so the
+ * first page comes back short — and, once an organization holds a page of
+ * admin-triage rows newer than the viewer's own, EMPTY. An empty first page
+ * is terminal in the Inbox: there is no row to scroll, so nothing ever asks
+ * for the next page, and the tab sits blank underneath a count tile that
+ * says 2. Same failure the retention sweep had when its custodian filter ran
+ * in JS after the batch `LIMIT`.
  *
  * `items` is the page in the shape the Inbox reads (the SAME shared
  * projection the detail door applies), built from the page's batched reads
@@ -527,9 +536,11 @@ export async function listConversationsPage(
       cursorId = options.cursor.slice(split + 1);
     }
   }
+  const scope = await resolveAssignmentScope(sql, viewer);
   const rows = await sql<ConversationRow[]>`
     SELECT ${sql.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
     WHERE org_id = ${viewer.organizationId}
+      ${scope.predicate}
       AND (${options.status ?? null}::text IS NULL
         OR status = ${options.status ?? null})
       AND (${options.priority ?? null}::text IS NULL
@@ -547,30 +558,12 @@ export async function listConversationsPage(
     ORDER BY coalesce(last_message_at_ms, 0) DESC, id DESC
     LIMIT ${limit + 1}
   `;
-  const raw = rows.slice(0, limit);
+  // Every row the query answered is one the viewer may open, so the page is
+  // the page: `limit` rows whenever `limit` exist, and `isDone` means there
+  // is genuinely nothing further.
+  const visible = rows.slice(0, limit);
   const isDone = rows.length <= limit;
-  const last = raw[raw.length - 1];
-
-  // Assignment scope: admins see all; others need the reused predicate.
-  const isAdmin = viewerIsAdmin(viewer.role);
-  const teamIds = isAdmin
-    ? new Set<string>()
-    : new Set(await getUserTeamIds(sql, viewer.organizationId, viewer.userId));
-  const visible: ConversationRow[] = [];
-  for (const row of raw) {
-    const allowed = await conversationAssignmentAllows(
-      {
-        assigneeUserId: row.assigneeUserId ?? undefined,
-        assigneeTeamId: row.assigneeTeamId ?? undefined,
-      },
-      {
-        isAdmin,
-        userId: viewer.userId,
-        hasTeam: (teamId) => teamIds.has(teamId),
-      },
-    );
-    if (allowed) visible.push(row);
-  }
+  const last = visible[visible.length - 1];
 
   // Batch the page's contacts, newest messages and pending approvals (no
   // N+1). The newest message is the FULL row: the projection renders it
@@ -637,12 +630,12 @@ export async function listConversationsPage(
 }
 
 /**
- * The scope the two count doors below filter by.
+ * The scope every Inbox door filters by — the list and both count doors.
  *
- * The tiles must agree with the list, and the list applies
- * `conversationAssignmentAllows` — the ONE definition of inbox visibility —
- * row by row in application code. A count cannot stream every row to do that,
- * so the two queries below carry a SQL mirror of that predicate:
+ * A tile must count exactly what its tab lists, and the single-row doors
+ * apply `conversationAssignmentAllows` — the ONE definition of inbox
+ * visibility. Neither a count nor a keyset page can stream every row through
+ * that rule, so this carries a SQL mirror of it:
  *
  * ```sql
  * AND (${isAdmin}
@@ -657,20 +650,27 @@ export async function listConversationsPage(
  * triage queue, which is the failure
  * `backend/core/lib/rls/helpers/conversation_assignment.ts` exists to prevent.
  *
- * Resolving the scope once keeps the expensive half (the team round-trip)
- * in one place; `service.counts.test.ts` pins the two predicates to each
- * other so the copies cannot drift apart.
+ * The mirror is ONE fragment the three doors interpolate, not a copy each, so
+ * a widening edit cannot reach one door and miss another. `service.scope.
+ * test.ts` pins all three statements to the same predicate text, and resolving
+ * the scope here keeps the expensive half — the team round-trip — in one place.
  */
-async function resolveAssignmentScope(
-  sql: Sql,
-  viewer: ConversationViewer,
-): Promise<{ isAdmin: boolean; teamIds: string[] }> {
+async function resolveAssignmentScope(sql: Sql, viewer: ConversationViewer) {
   const isAdmin = viewerIsAdmin(viewer.role);
+  const teamIds = isAdmin
+    ? []
+    : await getUserTeamIds(sql, viewer.organizationId, viewer.userId);
+  // Wrapped, and it has to be: a postgres.js fragment is a thenable that RUNS
+  // on await, so returning it bare from an async function would have the
+  // caller's `await` execute `AND (…)` as a statement of its own.
   return {
-    isAdmin,
-    teamIds: isAdmin
-      ? []
-      : await getUserTeamIds(sql, viewer.organizationId, viewer.userId),
+    predicate: sql`
+      AND (
+        ${isAdmin}
+        OR assignee_user_id = ${viewer.userId}
+        OR assignee_team_id = ANY(${teamIds})
+      )
+    `,
   };
 }
 
@@ -680,17 +680,13 @@ export async function countConversationsByStatus(
   viewer: ConversationViewer,
   connectorName?: string,
 ): Promise<Record<string, number>> {
-  const { isAdmin, teamIds } = await resolveAssignmentScope(sql, viewer);
+  const scope = await resolveAssignmentScope(sql, viewer);
   const rows = await sql<{ status: string | null; count: string }[]>`
     SELECT status, count(*)::text AS count FROM app.conversations
     WHERE org_id = ${viewer.organizationId}
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
-      AND (
-        ${isAdmin}
-        OR assignee_user_id = ${viewer.userId}
-        OR assignee_team_id = ANY(${teamIds})
-      )
+      ${scope.predicate}
     GROUP BY status
   `;
   const out: Record<string, number> = {};
@@ -708,17 +704,13 @@ export async function countUnreadConversations(
   viewer: ConversationViewer,
   connectorName?: string,
 ): Promise<number> {
-  const { isAdmin, teamIds } = await resolveAssignmentScope(sql, viewer);
+  const scope = await resolveAssignmentScope(sql, viewer);
   const rows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.conversations
     WHERE org_id = ${viewer.organizationId} AND status = 'open'
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
-      AND (
-        ${isAdmin}
-        OR assignee_user_id = ${viewer.userId}
-        OR assignee_team_id = ANY(${teamIds})
-      )
+      ${scope.predicate}
       AND CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number'
             THEN (metadata->>'unread_count')::numeric > 0
             ELSE false END

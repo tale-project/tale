@@ -25,13 +25,51 @@ import {
 } from './service.ts';
 import type { ConversationMessageRow, ConversationRow } from './service.ts';
 
-/** A `sql` stand-in that records every statement and answers by table. */
+const FRAGMENT = Symbol('fragment');
+interface Fragment {
+  [FRAGMENT]: true;
+  text: string;
+  values: unknown[];
+}
+
+function isFragment(value: unknown): value is Fragment {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { [FRAGMENT]?: true })[FRAGMENT] === true
+  );
+}
+
+/**
+ * A `sql` stand-in that records every statement and answers by table. Nested
+ * `sql\`…\`` fragments (the assignment scope) are inlined the way postgres.js
+ * inlines them, so a recorded read is the statement Postgres would see. They
+ * are recorded too, hence `tableReads` below — a fragment is not a read.
+ */
 function recordingSql(answer: (text: string) => unknown[]) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    return Promise.resolve(answer(text));
+    let text = '';
+    const flat: unknown[] = [];
+    strings.forEach((part, index) => {
+      text += part;
+      if (index >= values.length) return;
+      const value = values[index];
+      if (isFragment(value)) {
+        text += value.text;
+        flat.push(...value.values);
+      } else {
+        text += '?';
+        flat.push(value);
+      }
+    });
+    text = text.replace(/\s+/g, ' ').trim();
+    statements.push({ text, values: flat });
+    const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+    return Object.assign(
+      Promise.resolve(text.includes(' FROM ') ? answer(text) : []),
+      fragment,
+    );
   };
   const sql = Object.assign(tag, {
     unsafe: (text: string) => text,
@@ -39,6 +77,11 @@ function recordingSql(answer: (text: string) => unknown[]) {
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
   return { sql: sql as unknown as Sql, statements };
+}
+
+/** The statements that actually read a table, in order. */
+function tableReads(statements: { text: string; values: unknown[] }[]) {
+  return statements.filter((s) => s.text.includes(' FROM '));
 }
 
 const ORG = 'o1';
@@ -141,9 +184,8 @@ describe('listConversationsPage', () => {
 
     // rows, contacts, newest messages, pending approvals — and nothing else,
     // whatever the page size.
-    expect(
-      statements.map((s) => s.text.split(' FROM ')[1]?.split(' ')[0]),
-    ).toEqual([
+    const reads = tableReads(statements);
+    expect(reads.map((s) => s.text.split(' FROM ')[1]?.split(' ')[0])).toEqual([
       'app.conversations',
       'app.contacts',
       'app.conversation_messages',
@@ -151,9 +193,9 @@ describe('listConversationsPage', () => {
     ]);
     // Every batch is keyed on the whole page, org-scoped where a row is
     // org-owned.
-    const contacts = statements[1];
+    const contacts = reads[1];
     expect(contacts?.values).toEqual([['ct-1', 'ct-2'], ORG]);
-    const approvals = statements[3];
+    const approvals = reads[3];
     expect(approvals?.values).toEqual([ORG, ['c1', 'c2', 'c3']]);
 
     expect(result.page.map((row) => row.contact?.email ?? null)).toEqual([
@@ -188,7 +230,7 @@ describe('listConversationsPage', () => {
       cursor: null,
       limit: 25,
     });
-    expect(statements).toHaveLength(1);
+    expect(tableReads(statements)).toHaveLength(1);
     expect(result).toEqual({
       page: [],
       items: [],
