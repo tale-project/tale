@@ -44,6 +44,7 @@ import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { ac, orgRoles } from './access.ts';
+import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
 
 /**
@@ -659,6 +660,19 @@ export function createAuth(config: AuthConfig) {
         // would bypass all of that, so it answers 404.
         disableOrganizationDeletion: true,
         organizationHooks: {
+          // The plugin's own remove-member door deletes the member row and,
+          // with teams enabled, its team rows — but nothing else the
+          // membership carried: the per-org preference row, the SSO
+          // team-sync provenance, and the member's live platform-capability
+          // grants, which a re-added member would get back carrying a right
+          // no admin re-granted. The app door runs the cascade inside its
+          // own transaction (domains/members/service.ts); this runs the same
+          // one for the plugin's.
+          afterRemoveMember: async ({ member, organization: org }) => {
+            await sql.begin((tx) =>
+              removeMembershipCascade(tx, org.id, member.userId),
+            );
+          },
           beforeCreateOrganization: async (data) => {
             const slug = data.organization.slug;
             if (!slug) {
