@@ -398,7 +398,13 @@ export function createAuth(config: AuthConfig) {
     trustedOrigins: siteOrigins,
     // Pinned off regardless of upstream default changes.
     telemetry: { enabled: false },
-    disabledPaths: OIDC_DISABLED_PATHS,
+    // The plugin's `/organization/leave` deletes a membership with none of
+    // the guards the app's own removal carries — no legal-hold check, no
+    // audit row, and no cascade, so the member's team rows and live
+    // `tale:` capability grants would outlive it (its remove-member sibling
+    // at least fires afterRemoveMember, which this config hooks). Nothing in
+    // the product calls it; leaving an organization is an administered act.
+    disabledPaths: [...OIDC_DISABLED_PATHS, '/organization/leave'],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
