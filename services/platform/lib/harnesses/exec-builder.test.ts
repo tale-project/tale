@@ -372,6 +372,28 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
     expect(raised.env.CLAUDE_STREAM_IDLE_TIMEOUT_MS).toBe('1800000');
   });
 
+  // A slow prefill sends no byte until its first token, and two more bounds
+  // apply to that wait: the CLI's Bun fetch (300 s, lifted only by an
+  // explicitly false API_FORCE_IDLE_TIMEOUT off api.anthropic.com) and the
+  // SDK's request timeout (API_TIMEOUT_MS, 600 s). Past either one the CLI
+  // sends the request again while the gateway still serves the first copy.
+  it('a managed Claude Code exec waits the same budget for the first byte', () => {
+    const claude = fact('claude-code');
+    const env = buildHarnessExec(claude, managedSpec()).env;
+    expect(env.API_FORCE_IDLE_TIMEOUT).toBe('0');
+    expect(env.API_TIMEOUT_MS).toBe(String(GOLDEN_GATEWAY.streamIdleTimeoutMs));
+    const raised = buildHarnessExec(
+      claude,
+      managedSpec({
+        credential: {
+          mode: 'managed',
+          gateway: { ...GOLDEN_GATEWAY, streamIdleTimeoutMs: 1_800_000 },
+        },
+      }),
+    );
+    expect(raised.env.API_TIMEOUT_MS).toBe('1800000');
+  });
+
   it('a byo exec leaves the CLI on its own default', () => {
     const exec = buildHarnessExec(fact('claude-code'), {
       prompt: 'p',
@@ -380,6 +402,8 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
       workdir: '/agent/workspace',
     });
     expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
+    expect(exec.env).not.toHaveProperty('API_FORCE_IDLE_TIMEOUT');
+    expect(exec.env).not.toHaveProperty('API_TIMEOUT_MS');
   });
 
   // Codex runs the same kind of watchdog per stream and resends on it; its
@@ -426,6 +450,7 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
         const exec = buildHarnessExec(harness, withBudget(1));
         expect(exec).toEqual(buildHarnessExec(harness, withBudget(1_800_000)));
         expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
+        expect(exec.env).not.toHaveProperty('API_TIMEOUT_MS');
       }
     },
   );

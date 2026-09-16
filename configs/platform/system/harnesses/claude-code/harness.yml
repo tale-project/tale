@@ -143,6 +143,17 @@ exec:
       # CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS unset: when only this variable is
       # set, the CLI's byte-level watchdog uses the same value.
       CLAUDE_STREAM_IDLE_TIMEOUT_MS: '${gateway.streamIdleTimeoutMs}'
+      # The wait BEFORE the first byte has two more bounds, and a slow prefill
+      # sends nothing until its first token. The CLI runs on Bun, whose fetch
+      # abandons a request after 300 s without a byte; the CLI lifts that only
+      # for api.anthropic.com or when API_FORCE_IDLE_TIMEOUT is explicitly
+      # false. Then the SDK's request timeout (API_TIMEOUT_MS, 600 s by
+      # default) applies. Past either one the CLI sends the request again,
+      # while the gateway keeps serving the abandoned copy: against a model
+      # that serves one request at a time the copies queue behind each other
+      # and the turn never completes. So both follow the gateway's budget.
+      API_FORCE_IDLE_TIMEOUT: '0'
+      API_TIMEOUT_MS: '${gateway.streamIdleTimeoutMs}'
   # Vision polyfill (managed, text-only model): the tale-vision-read-hook
   # PreToolUse hook (registered globally in managed-settings.json) fires on
   # every Read but self-gates on TALE_VISION_MODEL — set only for a
