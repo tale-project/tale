@@ -233,6 +233,7 @@ Diese Werte prägen die Anwendungsrollen eines Workspace-Deployments: die Replik
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas der API — jede Anwendungstür, Auth und der Hint-Stream. Bereich `1`–`16`.                         |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas des Job-Runners: Ingest, Crawls, Automations, Agent-Turns. Bereich `1`–`16`.                      |
 | `WORKER_CONCURRENCY`           | `5`     | Jobs, die ein `backend-worker`-Replikat gleichzeitig ausführt — Ingest, Crawls, Automations und Agent-Turns teilen sich diese Zahl. Der Worker-Prozess liest sie selbst; Bereich `1`–`64`. Stell zuerst diesen Wert höher, bevor du Worker-Replikate hinzufügst, wenn ein Rückstand wächst. Jeder laufende Indexierungsjob schreibt über den Wissens-Pool, also erhöhe `KNOWLEDGE_DB_POOL_MAX` mit. |
+| `TALE_BACKEND_URL` | `http://backend-api:3005` | Wo der Web-Tier das Anwendungs-Backend erreicht: Die öffentliche `/status`-Seite prüft es darüber, und der Webserver holt sich dort die Antworten, die nur eine Datenbank geben kann. Das mitgelieferte Compose und der Container-Entrypoint setzen den In-Compose-Alias als Default; setze die Variable nur, wenn dein Backend-Service anders heißt. Liest nur der `platform`-Service. |
 
 Bei einem Workspace-Deployment laufen vorübergehend beide Farben. Plane Kapazität für diese Überschneidung. Erhöhe die Rolle, deren gemessene Last den Engpass bildet. Mehr Replikate brauchen auch mehr Datenbankverbindungen und Arbeitsspeicher. Siehe [Upgrades](/de/self-hosted/operate/upgrades).
 

@@ -131,9 +131,10 @@ const defaultOrgStorageOrigins = createOrgObjectStorageOriginsProvider(
 
 /**
  * The backend tier this process asks for verdicts it cannot reach a database
- * to answer (the two oracles in `backend/realtime/oracle-routes.ts`). Compose
- * sets TALE_BACKEND_URL to the in-network name; the loopback default is what
- * `bun dev` uses, matching vite.config.ts and status-probe.ts.
+ * to answer (the two oracles in `backend/realtime/oracle-routes.ts`). Compose,
+ * or failing that the container's env.sh, sets TALE_BACKEND_URL to the
+ * in-network name; the loopback default is what `bun dev` uses, matching
+ * vite.config.ts and status-probe.ts.
  *
  * Read per call, never frozen at import: the module is loaded before the
  * process env is fully assembled in some entry paths.

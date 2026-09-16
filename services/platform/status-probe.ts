@@ -21,9 +21,10 @@ const PROBE_TIMEOUT_MS = 2000;
 const STORES_BODY_MAX_BYTES = 1024;
 
 // The backend tier serves every door the app depends on; `/ping` is its own
-// liveness route (the same one its container healthcheck uses). Compose sets
-// TALE_BACKEND_URL to the in-network DNS name; the loopback default is what
-// `bun run dev` and `vite preview` use, matching vite.config.ts.
+// liveness route (the same one its container healthcheck uses). Compose, or
+// failing that the container's env.sh, sets TALE_BACKEND_URL to the
+// in-network DNS name; the loopback default is what `bun run dev` and
+// `vite preview` use, matching vite.config.ts.
 // Read lazily, never frozen at import: the module is imported before the
 // process env is fully assembled in some entry paths, and a test must be
 // able to stub it.
