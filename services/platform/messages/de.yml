@@ -6380,6 +6380,7 @@ tasks:
     review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
     reviewWaitingOn: 'Das Ergebnis von {name} ist bereit zur Prüfung — es wartet auf {reviewer}.'
     approve: Freigeben
+    approveConfirmTitle: 'Ergebnis von {name} freigeben?'
     approved: Freigegeben — die Aufgabe ist erledigt.
     requestChanges: Änderungen anfordern
     requestChangesDialog: 'Dein Feedback wird als Kommentar an dieser Aufgabe gespeichert, und {name} startet damit neu.'

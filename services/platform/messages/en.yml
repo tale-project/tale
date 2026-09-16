@@ -6468,6 +6468,7 @@ tasks:
     review: 'The {name} output is ready for review.'
     reviewWaitingOn: 'The {name} output is ready for review — waiting on {reviewer}.'
     approve: Approve
+    approveConfirmTitle: 'Approve the output of {name}?'
     approved: Approved — the task is done.
     requestChanges: Request changes
     requestChangesDialog: 'Your feedback is added as a comment on this task and {name} starts again from it.'

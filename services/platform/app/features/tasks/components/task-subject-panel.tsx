@@ -142,8 +142,10 @@ function TaskRunDetailsDialog({
  * knowing the drag semantics: what the task is waiting for, a Start button
  * when the contract's gate holds, Cancel while the run is in flight (with
  * its progress and inline approvals, as before), and Approve / Request
- * changes when the output sits in review. Every state and verb derives from
- * the generic subject contract — nothing here knows any specific automation.
+ * changes when the output sits in review. Approve asks first only when the
+ * automation declared what approving decides beyond the task. Every state
+ * and verb derives from the generic subject contract — nothing here knows
+ * any specific automation.
  *
  * It reads top-to-bottom as the whole answer to opening the task: WHO owns it
  * (the automation's declared name), WHAT it is (the automation's own
@@ -180,11 +182,18 @@ export function TaskSubjectPanel({
   const headingId = useId();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const { automationSlug, displayName, displayDescription, contract } = ownedBy;
+  const {
+    automationSlug,
+    displayName,
+    displayDescription,
+    approveConfirmation,
+    contract,
+  } = ownedBy;
   // Names the review gate's waiting-on human: "Operated by X · Waiting on Y".
   const { resolveActor } = useActorDirectory(organizationId);
   const reviewerName =
@@ -313,6 +322,7 @@ export function TaskSubjectPanel({
       }
     } finally {
       setBusy(false);
+      setApproveOpen(false);
     }
   };
 
@@ -491,7 +501,11 @@ export function TaskSubjectPanel({
                 size="sm"
                 disabled={busy}
                 icon={CheckCircle2}
-                onClick={() => void approve()}
+                onClick={() =>
+                  approveConfirmation === undefined
+                    ? void approve()
+                    : setApproveOpen(true)
+                }
               >
                 {t('subject.approve')}
               </Button>
@@ -537,6 +551,17 @@ export function TaskSubjectPanel({
         isLoading={busy}
         variant="destructive"
         onConfirm={() => void cancel()}
+      />
+      <ConfirmDialog
+        open={approveOpen}
+        onOpenChange={(next) => {
+          if (!next && !busy) setApproveOpen(false);
+        }}
+        title={t('subject.approveConfirmTitle', { name: displayName })}
+        description={approveConfirmation}
+        confirmText={t('subject.approve')}
+        isLoading={busy}
+        onConfirm={() => void approve()}
       />
       <ConfirmDialog
         open={changesOpen}

@@ -5,6 +5,7 @@ import {
   parseAutomationSettings,
 } from '@tale/shared/schemas/automation-settings';
 import {
+  approveConfirmation,
   parseTaskSubjectContract,
   type TaskSubjectContract,
 } from '@tale/shared/schemas/task-contract';
@@ -44,6 +45,12 @@ export interface ResolvedTaskSubjectContract {
    * own editable description.
    */
   displayDescription?: string;
+  /**
+   * What approving decides beyond closing the task, in the reader's language,
+   * when the automation declared it (`review.approve`). Present ⇒ Approve
+   * asks first and shows exactly this; absent ⇒ Approve is a one-click close.
+   */
+  approveConfirmation?: string;
   contract: TaskSubjectContract;
   /** The deployed version's settings declaration (tolerant: unparsable reads
    * as none) — the create-template setup gate and the Settings entry. */
@@ -110,6 +117,7 @@ export function taskSubjectEntries(
       automation.presentation,
       locale,
     );
+    const confirmation = approveConfirmation(contract, locale);
     return [
       {
         automationSlug: automation.name,
@@ -119,6 +127,9 @@ export function taskSubjectEntries(
           locale,
         ),
         ...(described !== undefined && { displayDescription: described }),
+        ...(confirmation !== undefined && {
+          approveConfirmation: confirmation,
+        }),
         contract,
         settings: parseAutomationSettings(automation.settings),
       },
