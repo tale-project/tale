@@ -5958,6 +5958,25 @@ async function checkDocumentWriteGuards(
   );
   const restList = await v1(memberKey, 'GET', '/documents');
   const restPostCode = await codeIn(restPost);
+
+  // A team-scoped document NEWER than one the member can read must not spend
+  // the member's page slot. Filtered after `LIMIT`, it did: `?limit=1` came
+  // back with no rows at all, and a whole page of them read as "no
+  // documents" while the cursor pointed past them.
+  await sql`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, source_provider, team_tags,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'other-team-newest.txt', 's3:itest/other-team', 'txt',
+      'upload', ${['team-the-member-is-not-in']},
+      'itest:hub-page', ${Date.now() + 60_000}, ${Date.now()}
+    )
+  `;
+  const slotPage = z
+    .looseObject({ page: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(await (await v1(memberKey, 'GET', '/documents?limit=1')).json());
+  const pageKeepsSlot = slotPage.success && slotPage.data.page.length === 1;
   record(
     'documents write matrix: REST v1 door refuses read-only member',
     restPost.status === 403 &&
@@ -5965,8 +5984,9 @@ async function checkDocumentWriteGuards(
       restDelete.status === 403 &&
       restRetry.status === 403 &&
       restPostCode === 'RBAC_FORBIDDEN' &&
-      restList.status === 200,
-    `POST/PATCH/DELETE/retry → ${restPost.status}/${restPatch.status}/${restDelete.status}/${restRetry.status} (want 403), code=${restPostCode}, GET → ${restList.status} (want 200)`,
+      restList.status === 200 &&
+      pageKeepsSlot,
+    `POST/PATCH/DELETE/retry → ${restPost.status}/${restPatch.status}/${restDelete.status}/${restRetry.status} (want 403), code=${restPostCode}, GET → ${restList.status} (want 200), pageKeepsSlot=${pageKeepsSlot} (rows=${slotPage.success ? slotPage.data.page.length : 'ERR'} want 1)`,
   );
 
   // ---- (3) content freeze at the service seam (REST PATCH) ----------------
