@@ -9,6 +9,7 @@ import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
+import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
   releaseProjectAgentSessionSlot,
   reserveSessionSlot,
@@ -718,6 +719,20 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         spendSettled: row.spendSettledAt !== null,
         keyRevoked: row.keyRevokedAt !== null,
       };
+    },
+
+    // Whom a turn acts for — the run's starter, the subject its spend cap
+    // binds — so the host reads that person's context limit for the turn's
+    // model window (`resolveHarnessTurnContextWindow`).
+    'sandbox/session_queries:getSessionOpAttribution': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        execId: string;
+        kind: string;
+      };
+      return resolveSessionOpAttribution(sql, args);
     },
 
     // ---------------------------------------------------- project equipment

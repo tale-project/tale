@@ -2,7 +2,6 @@
 
 import type {
   ApiFormat,
-  ModelCatalogEntry,
   ProviderDefinition,
   WireDialect,
 } from '@tale/shared/schemas/providers';
@@ -58,13 +57,11 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
-import { directActiveCredential } from '../lib/providers/direct_credential';
-import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
 } from '../lib/providers/resolve_chat_model';
-import { getServableCatalog } from '../lib/providers/servable_catalog';
+import { resolveModel } from '../lib/providers/resolve_model';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
@@ -85,73 +82,6 @@ import { createStallGuard, type StallGuard } from './stream_stall';
  * a whole pretty-printed provider error — secrets are handled by redaction
  * (`sanitizeError`), not by cutting the text short. */
 const ERROR_EXCERPT = 2000;
-
-// ------------------------------------------------------------- model lookup
-
-interface ResolvedModel {
-  readonly entry: ModelCatalogEntry;
-  readonly connector: ProviderDefinition;
-}
-
-/** Find the catalog entry for an explicit model id in the org's connectors.
- * The connector that lists it is the one whose wire the turn will speak.
- * A provider hint (the composer's picked section) is tried first, so two
- * providers serving the same id resolve to the copy the user chose; an
- * unmatched hint falls back to the id-only walk rather than refusing. With
- * `strict` (the REST door, where the provider is a CHOICE the caller was
- * promised) only the named connector is consulted, and a pair that no
- * longer resolves — the connector removed or renamed, the model gone from
- * its catalog between the 202 and the run — refuses the turn instead of
- * sending the conversation to a provider the caller never named. A
- * catalog-less connector (Azure deployment names) serves its DEFAULT
- * credential's allowlist — the same credential the direct wire resolves. */
-export async function resolveModel(
-  ctx: ActionCtx,
-  organizationId: string,
-  modelId: string,
-  providerSlug?: string,
-  strict = false,
-): Promise<ResolvedModel> {
-  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-  const ordered =
-    providerSlug === undefined
-      ? connectors
-      : strict
-        ? connectors.filter((connector) => connector.name === providerSlug)
-        : [
-            ...connectors.filter(
-              (connector) => connector.name === providerSlug,
-            ),
-            ...connectors.filter(
-              (connector) => connector.name !== providerSlug,
-            ),
-          ];
-  for (const connector of ordered) {
-    let allowlist: readonly string[] | undefined;
-    if (connector.catalog.source === 'none') {
-      const row: unknown = await ctx.runQuery(
-        internal.provider_credentials.queries.getDefaultCredentialInternal,
-        { organizationId, providerSlug: connector.name },
-      );
-      const credential = directActiveCredential(row);
-      if (credential === null) continue;
-      allowlist = credential.modelAllowlist;
-    }
-    const catalog = await getServableCatalog(connector, allowlist);
-    const entry = catalog.find((candidate) => candidate.id === modelId);
-    if (entry) return { entry, connector };
-  }
-  if (strict && providerSlug !== undefined) {
-    throw new AppError({
-      code: 'CHAT_PROVIDER_UNAVAILABLE',
-      message: `Provider "${providerSlug}" no longer serves model "${modelId}" in this organization. Pick a pair GET /api/v1/models lists.`,
-    });
-  }
-  throw new AppError({
-    code: 'CHAT_MODEL_UNKNOWN',
-    message: `No model "${modelId}" is available in this organization. Pick a model the organization has configured.`,
-  });
-}
 
 // ------------------------------------------------------------- the model call
 

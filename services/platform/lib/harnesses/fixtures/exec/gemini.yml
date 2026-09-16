@@ -56,6 +56,21 @@ managed-model-default:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
+managed-model-context-window:
+  argv:
+    - tale-gemini-run
+    - --workdir
+    - /agent/workspace
+    - --model
+    - golden-local/golden-small-model
+  env:
+    GEMINI_API_KEY: golden-session-virtual-key
+    GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+  stdinMode: close
 managed-plan:
   argv:
     - tale-gemini-run

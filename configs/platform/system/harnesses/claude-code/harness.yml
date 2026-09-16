@@ -156,6 +156,28 @@ exec:
       # budget.
       API_FORCE_IDLE_TIMEOUT: '0'
       API_TIMEOUT_MS: '${gateway.requestTimeoutMs}'
+      # Compact inside the window the model actually serves. The CLI sizes
+      # auto-compaction to the window it assumes for the model: 200,000
+      # tokens for one it does not know, so it compacts only near 167,000
+      # prompt tokens (the window, minus the smaller of max output and
+      # 20,000, minus 13,000). A local model serving 32,768 let a turn grow
+      # to ~140,000 tokens, whose cold prefill outlasted the CLI's own
+      # 30-minute stream watchdog, so the turn could never be answered. With
+      # this variable the CLI compacts inside min(its model window,
+      # max(100,000, value)): 131,072 compacts near 98,000, and any value up
+      # to 100,000 near 67,000 (the CLI's floor). The value is the model's
+      # catalog window, narrowed by the organization's context limit, and
+      # only when it is below the CLI's own 200,000 (the contextWindow gate
+      # below): a larger one changes nothing for a model the CLI does not
+      # know, and would cut a Claude model's own window (1M with the [1m]
+      # marker) down to the catalog's 200,000. Otherwise, and when the
+      # window is unknown, the value is empty, which the CLI ignores.
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: '${model.contextWindow}'
+  # The window the CLI assumes on its own for a model it does not know:
+  # ${model.contextWindow} carries only a smaller one (see
+  # CLAUDE_CODE_AUTO_COMPACT_WINDOW above).
+  contextWindow:
+    below: 200000
   # Vision polyfill (managed, text-only model): the tale-vision-read-hook
   # PreToolUse hook (registered globally in managed-settings.json) fires on
   # every Read but self-gates on TALE_VISION_MODEL — set only for a

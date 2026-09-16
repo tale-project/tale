@@ -2,9 +2,9 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
-import { getServableCatalog } from '../lib/providers/servable_catalog';
-import { resolveModel } from './turn_action';
+import { resolveProvidersForOrgId } from './org_providers';
+import { resolveModel } from './resolve_model';
+import { getServableCatalog } from './servable_catalog';
 
 /**
  * Two connectors serve the same model id. The composer names one as a HINT:
@@ -15,10 +15,10 @@ import { resolveModel } from './turn_action';
  * sending the conversation to a provider the caller never named.
  */
 
-vi.mock('../lib/providers/org_providers', () => ({
+vi.mock('./org_providers', () => ({
   resolveProvidersForOrgId: vi.fn(),
 }));
-vi.mock('../lib/providers/servable_catalog', () => ({
+vi.mock('./servable_catalog', () => ({
   getServableCatalog: vi.fn(),
 }));
 

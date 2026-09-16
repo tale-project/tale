@@ -49,7 +49,7 @@ Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/d
 
 ## Funktionskontrollen prüfen
 
-Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisationsweiten Schalter für Sprachausgabe. Ein Kontextlimit bestimmt, wie viel Kontext eine KI-Antwort erreicht. Es ist etwas anderes als ein Ausgabenbudget. Ist die Sprachausgabe ausgeschaltet, können Mitglieder sie weder über eigene Standardwerte noch einzelne Konversationen aktivieren.
+Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisationsweiten Schalter für Sprachausgabe. Ein Kontextlimit bestimmt, wie viel Kontext eine KI-Antwort erreicht. Es ist etwas anderes als ein Ausgabenbudget. Ein Limit unter 200.000 Token gilt auch für Agentenläufe mit Claude Code, und zwar das Limit der Person, die den Lauf gestartet hat: Der Agent fasst seine Konversation zusammen, bevor sie über das Limit hinauswächst. Ein Limit unter 100.000 Token behandelt Claude Code wie 100.000. Ist die Sprachausgabe ausgeschaltet, können Mitglieder sie weder über eigene Standardwerte noch einzelne Konversationen aktivieren.
 
 Die Standardschalter für benutzerdefinierte Anweisungen und Erinnerungen speichern Organisationsvorgaben. Ihre Anzeige bedeutet nicht, dass persönliche Anweisungen oder das Erzeugen von Erinnerungen bereits im Chat aktiv sind. Verbindliche Organisationsanweisungen stehen separat unter [Guardrails](/de/platform/admin/governance/guardrails).
 

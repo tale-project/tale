@@ -189,6 +189,52 @@ describe('placeholder substitution safety', () => {
     );
   });
 
+  /** Hermes with one managed env var probing `${model.contextWindow}`. */
+  function windowProbe(gate?: { below: number }): HarnessDefinition {
+    const doctored = structuredClone(fact('hermes'));
+    doctored.exec.env = {
+      ...doctored.exec.env,
+      managed: {
+        ...doctored.exec.env?.managed,
+        WINDOW_PROBE: '${model.contextWindow}',
+      },
+    };
+    if (gate !== undefined) doctored.exec.contextWindow = gate;
+    return doctored;
+  }
+
+  it('substitutes the model context window, or empty when it is unknown', () => {
+    const probe = windowProbe();
+    expect(
+      buildHarnessExec(probe, managedSpec({ contextWindow: 262_144 })).env
+        .WINDOW_PROBE,
+    ).toBe('262144');
+    // Unknown is not an error: the template gets an empty value, which a
+    // CLI reads as unset.
+    expect(buildHarnessExec(probe, managedSpec()).env.WINDOW_PROBE).toBe('');
+    // Only a whole, positive token count is a window.
+    for (const invalid of [0, -1, 32_768.5, Number.NaN, Infinity]) {
+      expect(
+        buildHarnessExec(probe, managedSpec({ contextWindow: invalid })).env
+          .WINDOW_PROBE,
+      ).toBe('');
+    }
+  });
+
+  it('a declared gate passes only a window below it', () => {
+    const probe = windowProbe({ below: 100_000 });
+    expect(
+      buildHarnessExec(probe, managedSpec({ contextWindow: 99_999 })).env
+        .WINDOW_PROBE,
+    ).toBe('99999');
+    for (const window of [100_000, 1_000_000]) {
+      expect(
+        buildHarnessExec(probe, managedSpec({ contextWindow: window })).env
+          .WINDOW_PROBE,
+      ).toBe('');
+    }
+  });
+
   it('throws on a template referencing a value absent from the build', () => {
     const doctored = structuredClone(fact('hermes'));
     doctored.exec.env = {
@@ -462,6 +508,83 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
         expect(exec).toEqual(buildHarnessExec(harness, withBudget(1_800_000)));
         expect(exec.env).not.toHaveProperty('CLAUDE_STREAM_IDLE_TIMEOUT_MS');
         expect(exec.env).not.toHaveProperty('API_TIMEOUT_MS');
+      }
+    },
+  );
+});
+
+describe('a managed Claude Code exec compacts inside the model window', () => {
+  // On its own the CLI (2.1.173) assumes a 200,000-token window for a model
+  // it does not know and compacts only near 167K prompt tokens. A local
+  // model serving 32,768 let a turn grow to ~140K, whose prefill outlasted
+  // the CLI's 30-minute stream watchdog, so the turn never finished. The
+  // exec hands the CLI the model's own window — only below that 200K
+  // assumption, so a Claude model keeps the window the CLI gives it.
+  const localModel = 'local-inference/qwen3-32b';
+
+  it.each([
+    [32_768, '32768'],
+    [131_072, '131072'],
+    [199_999, '199999'],
+  ] as const)('a %i-token window reaches the CLI', (window, expected) => {
+    const exec = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({ model: localModel, contextWindow: window }),
+    );
+    expect(exec.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe(expected);
+  });
+
+  it.each([
+    ['an unknown window', undefined],
+    ['the CLI’s own 200K assumption', 200_000],
+    ['a larger window', 1_048_576],
+  ] as const)('%s leaves the CLI to decide', (_label, window) => {
+    const exec = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({
+        model: localModel,
+        ...(window !== undefined ? { contextWindow: window } : {}),
+      }),
+    );
+    // Empty, which the CLI ignores: it keeps its own window.
+    expect(exec.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('');
+  });
+
+  it('a Claude model keeps its own 1M window at the catalog’s 200K', () => {
+    const exec = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({ model: 'claude-opus-4-8', contextWindow: 200_000 }),
+    );
+    expect(exec.argv).toContain('claude-opus-4-8[1m]');
+    expect(exec.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('');
+  });
+
+  it('a byo exec leaves the CLI on its own sizing', () => {
+    const exec = buildHarnessExec(fact('claude-code'), {
+      prompt: 'p',
+      model: 'claude-opus-4-6',
+      contextWindow: 32_768,
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+    });
+    expect(exec.env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW');
+  });
+
+  const others = loadHarnesses().filter((h) => h.slug !== 'claude-code');
+  it.each(others.map((h) => [h.slug, h] as const))(
+    '%s builds the same execs whatever the window',
+    (_slug, harness) => {
+      for (const { mode, spec } of goldenBattery()) {
+        if (!harness.credentialPolicy[mode]) continue;
+        const withWindow = (window: number | undefined): HarnessRunSpec => {
+          const { contextWindow: _ignored, ...rest } = spec;
+          return window === undefined
+            ? rest
+            : { ...rest, contextWindow: window };
+        };
+        const exec = buildHarnessExec(harness, withWindow(undefined));
+        expect(exec).toEqual(buildHarnessExec(harness, withWindow(32_768)));
+        expect(exec.env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW');
       }
     },
   );

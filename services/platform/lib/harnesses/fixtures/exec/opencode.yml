@@ -68,6 +68,24 @@ managed-model-default:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdinMode: close
+managed-model-context-window:
+  argv:
+    - opencode
+    - run
+    - --format
+    - json
+    - --dir
+    - /agent/workspace
+    - -m
+    - tale/golden-local/golden-small-model
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    OPENCODE_CONFIG_CONTENT:
+      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"golden-local/golden-small-model":{"name":"golden-local/golden-small-model"}}}},"model":"tale/golden-local/golden-small-model","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdinMode: close
 managed-plan:
   argv:
     - opencode

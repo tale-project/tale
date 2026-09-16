@@ -201,12 +201,26 @@ interface Substitutions {
   readonly [key: string]: string | undefined;
 }
 
-/** The closed placeholder set. `model.raw` is listed before `model` so the
- * longer name wins the alternation; unknown `${…}` sequences fall outside
- * the pattern and pass through byte-identically (several CLIs resolve their
- * own `${VAR}`/`{env:VAR}`/`$VAR` templates from staged config). */
+/** The closed placeholder set. `model.raw` and `model.contextWindow` are
+ * listed before `model` so the longer name wins the alternation; unknown
+ * `${…}` sequences fall outside the pattern and pass through
+ * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
+ * `$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model|workdir|execId|prompt|vision\.model|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|bridgeUrl)\}/g;
+
+/** `${model.contextWindow}`: the spec's window as a whole, positive token
+ * count — below the exec's declared gate, when it declares one — else ''. */
+function contextWindowText(
+  window: number | undefined,
+  below: number | undefined,
+): string {
+  if (window === undefined || !Number.isSafeInteger(window) || window <= 0) {
+    return '';
+  }
+  if (below !== undefined && window >= below) return '';
+  return String(window);
+}
 
 /** SINGLE-PASS substitution: `String.replace` never rescans replacement
  * text, so a spec value containing `${gateway.token}` stays those literal
@@ -342,6 +356,13 @@ export function buildHarnessExec(
       gateway === undefined ? undefined : String(gateway.requestTimeoutMs),
     model: spec.model,
     'model.raw': spec.model,
+    // Tokens as text, or '' — never absent, unlike the values above: an
+    // unknown window is an ordinary state, not a config defect, and the
+    // empty value leaves the CLI to size the conversation on its own.
+    'model.contextWindow': contextWindowText(
+      spec.contextWindow,
+      exec.contextWindow?.below,
+    ),
     workdir: spec.workdir,
     execId: spec.execId,
     prompt: spec.prompt,

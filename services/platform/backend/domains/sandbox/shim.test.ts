@@ -35,6 +35,12 @@ const TURN_EQUIPMENT = {
   entryPoints: ['core/node_only/sandbox/turn_equipment.ts'],
 };
 
+/** The lane-neutral harness core both work-lane hosts build their execs
+ * with — including the model-window read. */
+const HARNESS_TURN = {
+  entryPoints: ['core/chat/external_turn_shared.ts'],
+};
+
 describe('sandboxToolShimHandlers', () => {
   // The factories only close over `sql`; no handler runs until it is called,
   // so a stand-in is enough to enumerate the map.
@@ -83,6 +89,26 @@ describe('agentTurnShimHandlers', () => {
         'connector_credentials/queries:resolveCredentialRefInternal',
         'sandbox/session_mutations:recordCredentialAccess',
         'sandbox/session_queries:getSessionOwnerIdentity',
+      ]),
+    );
+  });
+
+  // The model-window read swallows a failed lookup into a console.warn by
+  // design too (a turn never fails over its window), so an un-shimmed name
+  // here would ship as a harness sizing its conversation for a model it
+  // does not know, or one the organization's context limit never narrows.
+  it('answers every internal function the harness core reaches', () => {
+    expect(unansweredHandlerNames(handlers, HARNESS_TURN)).toEqual([]);
+  });
+
+  it('reaches the model-window reads', () => {
+    // A guard on the guard, as above.
+    const reachable = reachableHandlerNames(HARNESS_TURN);
+    expect([...reachable.keys()]).toEqual(
+      expect.arrayContaining([
+        'provider_credentials/queries:getDefaultCredentialInternal',
+        'sandbox/session_queries:getSessionOpAttribution',
+        'governance/queries:getContextCapInternal',
       ]),
     );
   });
