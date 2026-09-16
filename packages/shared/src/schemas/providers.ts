@@ -735,9 +735,17 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //   ${gateway.streamIdleTimeoutMs}
 //                       the gateway's per-stream idle budget in milliseconds
 //                       (what a CLI's own client-side idle watchdog must wait)
+//   ${gateway.requestTimeoutMs}
+//                       the gateway's per-request timeout in milliseconds
+//                       (what a CLI's own request timeout must wait)
 //   ${model}            the model id AS DELIVERED to the CLI (after the model
 //                       slot's declared transform, when any)
 //   ${model.raw}        the caller-resolved model id verbatim
+//   ${model.contextWindow}
+//                       the model's effective context window in tokens, or
+//                       '' when it is unknown or not below the exec's
+//                       `contextWindow.below` gate (never an error: a CLI
+//                       reads the empty value as unset)
 //   ${workdir}          the session working directory
 //   ${execId}           the platform exec id of the turn
 //   ${prompt}           the turn prompt
@@ -1060,7 +1068,10 @@ const execStdinSchema = z.discriminatedUnion('mode', [
  * `stagedInstructions` stages the composed addendum as a per-exec file
  * (`${execId}` falls back to `default` in its path); `vision.env` applies
  * on managed runs with the vision polyfill armed; `steering.env` applies
- * when the turn has an exec id (the per-exec steer queue dir).
+ * when the turn has an exec id (the per-exec steer queue dir);
+ * `contextWindow.below` gates `${model.contextWindow}` to windows below the
+ * one the CLI assumes on its own, so a larger known window leaves the CLI's
+ * own sizing alone.
  */
 const harnessExecSchema = z
   .object({
@@ -1086,6 +1097,10 @@ const harnessExecSchema = z
       .optional(),
     vision: z.object({ env: envTemplateMapSchema }).strict().optional(),
     steering: z.object({ env: envTemplateMapSchema }).strict().optional(),
+    contextWindow: z
+      .object({ below: z.number().int().positive() })
+      .strict()
+      .optional(),
   })
   .strict();
 export type HarnessExecFacts = z.infer<typeof harnessExecSchema>;

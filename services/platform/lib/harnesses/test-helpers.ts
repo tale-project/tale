@@ -93,6 +93,12 @@ const GOLDEN_DIRS = ['/agent/uploads', '/agent/shared-data'] as const;
 const GOLDEN_BRIDGE_URL = 'http://platform.internal/bridge';
 const GOLDEN_EXEC_ID = 'exec-golden-42';
 const GOLDEN_VISION_MODEL = 'golden-vision-model';
+/** A model no CLI knows, with a context window below Claude Code's own 200K
+ * assumption — and distinct from the CLI's 100K compaction floor and the
+ * 128K the platform assumes for an uncatalogued model, so a golden matches
+ * only when the spec's own window reached the exec. */
+const GOLDEN_LOCAL_MODEL = 'golden-local/golden-small-model';
+const GOLDEN_CONTEXT_WINDOW = 32_768;
 
 /** One golden fixture — the harness-glue test contract. @public */
 export interface GoldenCase {
@@ -142,6 +148,14 @@ export function goldenBattery(): readonly GoldenCase[] {
       name: 'managed-model-default',
       mode: 'managed',
       spec: managedSpec({ model: 'default' }),
+    },
+    {
+      name: 'managed-model-context-window',
+      mode: 'managed',
+      spec: managedSpec({
+        model: GOLDEN_LOCAL_MODEL,
+        contextWindow: GOLDEN_CONTEXT_WINDOW,
+      }),
     },
     {
       name: 'managed-plan',

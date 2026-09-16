@@ -282,6 +282,7 @@ interface HandlerNames {
       getActiveSessionByOwner: FunctionRef;
       getExternalTurnOpForFinalize: FunctionRef;
       getOpSteerState: FunctionRef;
+      getSessionOpAttribution: FunctionRef;
       getSessionOwnerIdentity: FunctionRef;
     };
     workspace_access: FunctionRef & {

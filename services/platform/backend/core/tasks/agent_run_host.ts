@@ -31,6 +31,7 @@ import {
   classifyHarnessEnd,
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
+  resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -966,12 +967,25 @@ export async function startTaskAgentTurnImpl(
         secrets: args.secrets,
       });
 
+      // The serving model's window, so the harness compacts before the
+      // prompt outgrows what the model serves; unknown leaves it to the
+      // harness.
+      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: resolved.providerSlug,
+        modelId: resolved.modelId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+      });
+
       // Everything of the exec except the prompt/resume pair, shared by the
       // resume attempt and its same-execId fresh fallback so the two can
       // never drift.
       const execBase = {
         harness: args.harness,
         gatewayModel: prepared.execModel,
+        ...(contextWindow !== undefined ? { contextWindow } : {}),
         serving: prepared.serving,
         instructions,
         execId: args.execId,
@@ -2031,9 +2045,19 @@ export async function steerTaskAgentTurnImpl(
       secrets: args.secrets,
     });
 
+    // Same window resolution as the fresh start, under the rotated exec.
+    const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+      organizationId: args.organizationId,
+      providerSlug: resolved.providerSlug,
+      modelId: resolved.modelId,
+      sessionId: args.sessionId,
+      execId,
+      kind: 'task-agent',
+    });
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: prepared.execModel,
+      ...(contextWindow !== undefined ? { contextWindow } : {}),
       serving: prepared.serving,
       instructions,
       prompt,

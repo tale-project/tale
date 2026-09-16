@@ -34,6 +34,7 @@ import {
   type HarnessTimelinePart,
   connectorsBridgeUrlForSessions,
   isManagedHarness,
+  resolveHarnessTurnContextWindow,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -1229,9 +1230,21 @@ export async function startWorkflowAgentTurnImpl(
           nodeId: args.nodeId,
         },
       );
+      // The serving model's window, so the harness compacts before the
+      // prompt outgrows what the model serves; unknown leaves it to the
+      // harness.
+      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: args.providerSlug,
+        modelId: args.modelId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+      });
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
+        ...(contextWindow !== undefined ? { contextWindow } : {}),
         serving: auth.serving,
         instructions,
         prompt: promptWithAnsweredAsks(args.request.prompt, answeredAsks),
@@ -1755,9 +1768,20 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         connectors: request.connectors ?? [],
         secrets: request.secrets ?? [],
       });
+      // Re-resolved with the serving, like the key: the org's catalog or
+      // context limit may have moved while the question waited.
+      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+        organizationId: args.organizationId,
+        providerSlug: serving.providerSlug,
+        modelId: serving.modelId,
+        sessionId,
+        execId,
+        kind: 'workflow-agent',
+      });
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
+        ...(contextWindow !== undefined ? { contextWindow } : {}),
         serving: auth.serving,
         instructions,
         prompt,

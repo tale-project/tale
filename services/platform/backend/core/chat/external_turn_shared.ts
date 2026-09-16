@@ -17,12 +17,14 @@
  * re-parsing from the start (rather than carrying a per-delta cursor across
  * windows) keeps a JSONL line that straddles a window boundary from being
  * stranded by the fresh per-window parser. This module owns the lane-neutral
- * core: exec construction (`buildExternalTurnExec`), the window drain
+ * core: exec construction (`buildExternalTurnExec`, with the model window
+ * `resolveHarnessTurnContextWindow` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
  * event→transcript projection (`timelineFromEvents`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
 
+import { resolveEffectiveWindow } from '../../../lib/chat/budget';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
 import {
   boundTimelineParts,
@@ -33,7 +35,10 @@ import {
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
+import { resolveModel } from '../lib/providers/resolve_model';
 import {
   drainSessionExecResilient,
   SessionNotFoundError,
@@ -121,10 +126,97 @@ export type ExternalTurnServing =
       bridgeToken: string;
     };
 
+/** The person a session op acts for, as the attribution read answers it —
+ * '' when none resolves, the subject its spend cap is evaluated for then. */
+function attributedUserId(attribution: unknown): string {
+  return typeof attribution === 'object' &&
+    attribution !== null &&
+    'userId' in attribution &&
+    typeof attribution.userId === 'string'
+    ? attribution.userId
+    : '';
+}
+
+/**
+ * The effective context window of a managed harness turn's model, in tokens:
+ * what `buildExternalTurnExec` hands the harness, so a CLI that does not know
+ * a foreign model (Claude Code assumes 200,000 tokens) sizes its conversation
+ * to the window the model serves. It means what the chat lane means: the
+ * serving connector's catalog entry (`resolveModel`, held to that connector),
+ * narrowed by the organization's context limit (`resolveEffectiveWindow`) for
+ * the person the turn acts for — the run's starter, whom its spend cap binds.
+ *
+ * Best-effort by design, never a reason to fail the turn: an entry that
+ * cannot be resolved answers `undefined` (the harness keeps its own sizing),
+ * and an unreadable context limit leaves the catalog window standing.
+ */
+export async function resolveHarnessTurnContextWindow(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    /** The serving connector, and the model in its catalog spelling. */
+    providerSlug: string;
+    modelId: string;
+    /** The turn's session op — its attribution names whose context limit
+     * applies. */
+    sessionId: string;
+    execId: string;
+    kind: 'task-agent' | 'workflow-agent';
+  },
+): Promise<number | undefined> {
+  let contextWindow: number;
+  try {
+    const { entry } = await resolveModel(
+      ctx,
+      args.organizationId,
+      args.modelId,
+      args.providerSlug,
+      true,
+    );
+    contextWindow = entry.contextWindow;
+  } catch (err) {
+    console.warn(
+      `[harness-turn] ${args.execId}: no catalog window for ${args.providerSlug}/${args.modelId} — the harness sizes its conversation on its own:`,
+      err,
+    );
+    return undefined;
+  }
+  let governanceMaxContext: number | null = null;
+  try {
+    const attribution: unknown = await ctx.runQuery(
+      internal.sandbox.session_queries.getSessionOpAttribution,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: args.kind,
+      },
+    );
+    const cap: unknown = await ctx.runQuery(
+      internal.governance.queries.getContextCapInternal,
+      {
+        organizationId: args.organizationId,
+        userId: attributedUserId(attribution),
+      },
+    );
+    governanceMaxContext = typeof cap === 'number' ? cap : null;
+  } catch (err) {
+    console.warn(
+      `[harness-turn] ${args.execId}: the organization's context limit could not be read — the catalog window of ${args.providerSlug}/${args.modelId} stands:`,
+      err,
+    );
+  }
+  return resolveEffectiveWindow({ contextWindow, governanceMaxContext });
+}
+
 /** Build the harness exec for a managed external turn. */
 export function buildExternalTurnExec(args: {
   harness: string;
   gatewayModel: string;
+  /** The model's effective context window in tokens, when resolved
+   * (`resolveHarnessTurnContextWindow`); absent leaves the harness to size
+   * its conversation on its own. */
+  contextWindow?: number;
   serving: ExternalTurnServing;
   instructions: string;
   prompt: string;
@@ -151,6 +243,9 @@ export function buildExternalTurnExec(args: {
   const exec = glue.buildExec({
     prompt: args.prompt,
     model: args.gatewayModel,
+    ...(args.contextWindow !== undefined
+      ? { contextWindow: args.contextWindow }
+      : {}),
     // BOTH lanes run the managed env shell — the capability bridge, the
     // vision/steering hooks, and the managed model-pin slots all read the
     // gateway pair. A subscription turn substitutes its session bridge

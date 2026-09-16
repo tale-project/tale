@@ -707,6 +707,20 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('gates the model context window to a whole, positive token count', () => {
+    const withGate = (contextWindow: unknown) =>
+      harnessDefinitionSchema.safeParse({
+        ...VALID_HARNESS,
+        exec: { ...VALID_HARNESS.exec, contextWindow },
+      }).success;
+    expect(withGate({ below: 200_000 })).toBe(true);
+    for (const below of [0, -1, 199_999.5, '200000']) {
+      expect(withGate({ below })).toBe(false);
+    }
+    expect(withGate({})).toBe(false);
+    expect(withGate({ below: 200_000, above: 1 })).toBe(false);
+  });
+
   it('accepts and gates the subscription delivery shapes', () => {
     expect(
       harnessDefinitionSchema.safeParse({

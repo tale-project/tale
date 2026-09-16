@@ -54,6 +54,21 @@ managed-model-default:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"default"}]}}}}'
   stdinMode: close
+managed-model-context-window:
+  argv:
+    - tale-pi-run
+    - --workdir
+    - /agent/workspace
+    - --provider
+    - tale-gateway
+    - --model
+    - golden-local/golden-small-model
+  env:
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model"}]}}}}'
+  stdinMode: close
 managed-plan:
   argv:
     - tale-pi-run

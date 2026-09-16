@@ -131,6 +131,14 @@ export interface HarnessRunSpec {
    * `modelIdDialect` translation). Absent lets the CLI's own default apply.
    */
   readonly model?: string;
+  /**
+   * The effective context window of `model` in tokens (the catalog window,
+   * narrowed by the organization's context limit), when the caller could
+   * resolve it. Absent lets the CLI size its conversation on its own —
+   * which, for a model the CLI does not know, can far exceed what the model
+   * serves.
+   */
+  readonly contextWindow?: number;
   /** The resolved credential case (see {@link HarnessCredential}). */
   readonly credential: HarnessCredential;
   /** Working directory inside the session (e.g. /agent/workspace). */

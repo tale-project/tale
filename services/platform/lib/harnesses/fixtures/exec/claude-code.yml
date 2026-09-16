@@ -46,6 +46,7 @@ managed-baseline:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -108,6 +109,7 @@ managed-model-opus:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -171,6 +173,7 @@ managed-model-gateway-ref:
     ANTHROPIC_MODEL: openrouter/anthropic/claude-sonnet-4.6
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -234,6 +237,7 @@ managed-model-default:
     ANTHROPIC_MODEL: default
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: default
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -241,6 +245,72 @@ managed-model-default:
   cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-model-context-window:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --model
+    - golden-local/golden-small-model
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    ANTHROPIC_DEFAULT_FABLE_MODEL: golden-local/golden-small-model
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: golden-local/golden-small-model
+    ANTHROPIC_DEFAULT_OPUS_MODEL: golden-local/golden-small-model
+    ANTHROPIC_DEFAULT_SONNET_MODEL: golden-local/golden-small-model
+    ANTHROPIC_MODEL: golden-local/golden-small-model
+    API_FORCE_IDLE_TIMEOUT: '0'
+    API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: '32768'
+    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING: '1'
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CODE_DISABLE_THINKING: '1'
+    CLAUDE_CODE_SUBAGENT_MODEL: golden-local/golden-small-model
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+    CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
+  cwd: /agent/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
 managed-plan:
   argv:
@@ -290,6 +360,7 @@ managed-plan:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -345,6 +416,7 @@ managed-act:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -402,6 +474,7 @@ managed-resume:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -460,6 +533,7 @@ managed-instructions:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -519,6 +593,7 @@ managed-dirs:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -577,6 +652,7 @@ managed-mcp-headless-bridge:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -635,6 +711,7 @@ managed-mcp-bridge-only:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -693,6 +770,7 @@ managed-vision:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -751,6 +829,7 @@ managed-steer:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
@@ -826,6 +905,7 @@ managed-kitchen-sink:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
