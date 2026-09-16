@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
+import {
+  type ResolvedTaskSubjectContract,
+  resolveTaskSubjectContract,
+} from '../hooks/use-task-subject-contract';
 
 // The panel's whole job is to answer, on the first screen of an
 // automation-owned task: WHO owns it, WHAT it is, WHAT NOW, WHAT TO PRESS.
@@ -224,11 +227,28 @@ describe('TaskSubjectPanel', () => {
   it('asks before approving when the automation declares what approving decides', async () => {
     const consequence =
       'Approving tells the client this return has been filed with the tax authority.';
-    const { user } = renderPanel(
-      ownedBy({ approveConfirmation: consequence }),
-      true,
-      'in_review',
+    // Resolved from the deployed listing entry exactly as the task modal
+    // resolves it: a hand-built contract here once hid that the modal's
+    // narrowing dropped the confirmation, so Approve never asked.
+    const resolved = resolveTaskSubjectContract(
+      { createdBy: 'user_1', createdByType: 'user', externalSystem: 'acme' },
+      [
+        {
+          name: 'document-verify-desk',
+          deployedVersion: 1,
+          taskContract: {
+            ...contract,
+            review: { requestChanges: true, approve: { confirm: consequence } },
+          },
+          presentation: { name: 'Document verification desk' },
+        },
+      ],
+      'en',
     );
+    if (resolved === null) {
+      throw new Error('the declared desk does not own the task');
+    }
+    const { user } = renderPanel(resolved, true, 'in_review');
 
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     expect(

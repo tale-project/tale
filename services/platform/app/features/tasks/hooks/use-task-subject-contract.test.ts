@@ -264,4 +264,51 @@ describe('resolveTaskSubjectContract', () => {
       ),
     ).toMatchObject({ automationSlug: 'doc-verify-desk' });
   });
+
+  // The task modal reads its contract through this narrowing, so a field it
+  // drops never reaches the task: it once lost the Approve confirmation, and
+  // every desk approved in one click whatever its automation declared.
+  it('keeps every resolved field, the Approve confirmation included', () => {
+    const declared = {
+      ...desk,
+      taskContract: {
+        ...desk.taskContract,
+        review: {
+          approve: {
+            confirm: 'Approving tells the client this return has been filed.',
+            i18n: {
+              de: {
+                confirm: 'Die Freigabe meldet dem Kunden die Einreichung.',
+              },
+            },
+          },
+        },
+      },
+      settings: {
+        forms: [
+          {
+            file: 'validation-policy.yaml',
+            title: 'Validation policy',
+            fields: [{ key: 'method', label: 'Method', type: 'text' }],
+          },
+        ],
+      },
+      presentation: { name: 'Desk', description: 'Verifies documents.' },
+    };
+    const unassigned = task({ externalSystem: 'acme' });
+
+    const resolved = resolveTaskSubjectContract(unassigned, [declared], 'de');
+
+    expect(resolved?.approveConfirmation).toBe(
+      'Die Freigabe meldet dem Kunden die Einreichung.',
+    );
+    const ownership = resolveTaskOwnership(unassigned, [declared], 'de');
+    if (ownership.kind !== 'automation') {
+      throw new Error('the declared desk does not own the task');
+    }
+    const { kind: _kind, ...owned } = ownership;
+    expect(owned.settings).not.toBeNull();
+    expect(owned.displayDescription).toBe('Verifies documents.');
+    expect(resolved).toEqual(owned);
+  });
 });
