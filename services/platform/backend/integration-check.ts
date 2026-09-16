@@ -22641,6 +22641,7 @@ async function checkConversations(
     createConversation,
     addMessageToConversation,
     listConversationsPage,
+    countConversationsByStatus,
   } = await import('./domains/conversations/service.ts');
 
   // Seed: a contact + an inbound email conversation (the ingest shape).
@@ -22735,6 +22736,34 @@ async function checkConversations(
     limit: 50,
   });
   const visibleAfter = afterAssign.page.some((r) => r.id === conversationId);
+
+  // A triage row NEWER than the member's own must not eat the member's page
+  // slot. Filtered after `LIMIT`, it did: the page came back empty with more
+  // to fetch, and the Inbox has no row to scroll, so it never asked — a blank
+  // tab under a tile counting 1. The tile and the page are asserted together,
+  // because agreeing is the point.
+  await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      subject: 'Newer triage row',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    }),
+  );
+  await sql`
+    UPDATE app.conversations SET last_message_at_ms = ${Date.now() + 60_000}
+    WHERE org_id = ${orgId} AND subject = 'Newer triage row'
+  `;
+  const slotPage = await listConversationsPage(sql, memberView, {
+    cursor: null,
+    limit: 1,
+  });
+  const memberCounts = await countConversationsByStatus(sql, memberView);
+  const fullPage =
+    slotPage.page.length === 1 &&
+    slotPage.page[0]?.id === conversationId &&
+    (memberCounts.open ?? 0) === 1;
   const assignBell = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.user_notifications
     WHERE org_id = ${orgId} AND user_id = ${memberId}
@@ -23119,6 +23148,7 @@ async function checkConversations(
       hiddenBefore &&
       assignRes.status === 200 &&
       visibleAfter &&
+      fullPage &&
       assignBell[0]?.count === '1' &&
       strangerRefused &&
       teammateSees &&
@@ -23134,7 +23164,7 @@ async function checkConversations(
       countsWithJunk.status === 200 &&
       deleted.status === 204 &&
       remnants[0]?.count === '0',
-    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, patchClose=${patchClose.status}/${patchMeta.status} record=${patchKeepsRecord} (resolved_by=${patched?.metadata?.resolved_by === userId} unread=${String(patched?.metadata?.unread_count)} note=${String(patched?.metadata?.priority_note)}) countsWithJunk=${countsWithJunk.status}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, pageSlot=${fullPage} (rows=${slotPage.page.length} tile=${memberCounts.open ?? 0}), strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, patchClose=${patchClose.status}/${patchMeta.status} record=${patchKeepsRecord} (resolved_by=${patched?.metadata?.resolved_by === userId} unread=${String(patched?.metadata?.unread_count)} note=${String(patched?.metadata?.priority_note)}) countsWithJunk=${countsWithJunk.status}, del=${deleted.status} remnants=${remnants[0]?.count}`,
   );
 
   // --- Write gate: editor-or-above, assignment privacy held constant ----
