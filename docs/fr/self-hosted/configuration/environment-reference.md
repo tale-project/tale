@@ -233,6 +233,7 @@ Ces valeurs façonnent les rôles applicatifs d’un déploiement de workspace 
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas de l'API — chaque porte applicative, l'auth et le flux de hints. Plage `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automations, tours d'agent. Plage `1`–`16`.                |
 | `WORKER_CONCURRENCY`           | `5`     | Jobs qu’un réplica `backend-worker` exécute en même temps — ingestion, crawls, automations et tours d’agent se partagent ce nombre. Le processus worker le lit lui-même ; plage `1`–`64`. C’est le levier à actionner avant d’ajouter des réplicas de worker quand un retard s’accumule. Chaque job d’indexation en cours écrit via le pool du corpus, donc augmente `KNOWLEDGE_DB_POOL_MAX` en même temps. |
+| `TALE_BACKEND_URL` | `http://backend-api:3005` | Où l'étage web atteint le backend applicatif : la page publique `/status` le sonde et le serveur web lui demande les réponses que seule une base de données peut donner. Le Compose livré et l'entrypoint du conteneur prennent l'alias in-compose par défaut ; définis la variable seulement si ton service backend porte un autre nom. Lue uniquement par le service `platform`. |
 
 Un déploiement de workspace fait temporairement tourner les deux couleurs. Prévois cette capacité supplémentaire. Augmente le rôle qui limite le débit selon tes mesures ; davantage de réplicas consomment aussi plus de connexions et de mémoire. Consulte [Mises à jour](/fr/self-hosted/operate/upgrades).
 

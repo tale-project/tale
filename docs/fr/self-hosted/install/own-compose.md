@@ -137,7 +137,7 @@ Les entrées `environment` remplacent `env_file`. Le fragment conserve donc les 
 
 | Adresse | Destination et exigence réseau |
 | --- | --- |
-| `platform` | Réplicas web sur le réseau applicatif interne. |
+| `platform` | Réplicas web sur le réseau applicatif interne. Ils atteignent le backend via `TALE_BACKEND_URL`, `http://backend-api:3005` si tu ne la définis pas. |
 | `backend-api` | Réplicas API sur les réseaux applicatif et sandbox, port 3005. |
 | `knowledge-db` | Postgres de connaissances, ou une cible définie par `KNOWLEDGE_DATABASE_URL`. |
 | `object-store` | MinIO fourni sur le réseau applicatif. |

@@ -214,6 +214,29 @@ describe('sandbox spawner URL parity', () => {
   });
 });
 
+describe('web-tier backend URL parity', () => {
+  // status-probe.ts and server.ts default TALE_BACKEND_URL to the host-dev
+  // loopback, which nothing serves inside the platform container. compose.yml
+  // sets the alias explicitly; the CLI's colour compose relies on env.sh, so a
+  // compose file that left the variable unset showed "Service outage" on a
+  // healthy stack.
+  test('compose.yml points the web tier at the backend alias', () => {
+    expect(compose.services.platform?.environment?.TALE_BACKEND_URL).toContain(
+      'backend-api:3005',
+    );
+  });
+
+  test('web-tier env.sh defaults TALE_BACKEND_URL so a platform container without compose env still reaches the backend', () => {
+    const envScript = readFileSync(
+      resolve(repoRoot, 'services/platform/env.sh'),
+      'utf8',
+    );
+    expect(envScript).toContain(
+      'TALE_BACKEND_URL="${TALE_BACKEND_URL:-http://backend-api:3005}"',
+    );
+  });
+});
+
 describe('graceful-shutdown parity — compose.yml meets the floor', () => {
   // The CLI side is floor-tested in generate-color-compose.test.ts (>=41s). This
   // guards the OTHER pipeline: compose.yml must not regress to Docker's 10s

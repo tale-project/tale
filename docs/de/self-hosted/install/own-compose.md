@@ -137,7 +137,7 @@ Einträge unter `environment` haben Vorrang vor `env_file`. Das Beispiel erhält
 
 | Adresse | Ziel und Netzwerkanforderung |
 | --- | --- |
-| `platform` | Webreplikate im internen Anwendungsnetz. |
+| `platform` | Webreplikate im internen Anwendungsnetz. Sie erreichen das Backend unter `TALE_BACKEND_URL`, ohne eigene Angabe `http://backend-api:3005`. |
 | `backend-api` | API-Replikate in Anwendungs- und Sandbox-Netz, erreichbar auf Port 3005. |
 | `knowledge-db` | Wissens-Postgres oder ein Ziel über `KNOWLEDGE_DATABASE_URL`. |
 | `object-store` | Mitgeliefertes MinIO im Anwendungsnetz. |

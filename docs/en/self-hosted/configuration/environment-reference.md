@@ -233,6 +233,7 @@ These values shape the application roles of a workspace deployment: the replica 
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
 | `WORKER_CONCURRENCY`           | `5`     | Jobs one `backend-worker` replica runs at once — ingestion, crawls, automations and agent turns share it. Read by the worker process itself; range `1`–`64`. The lever to pull before adding worker replicas when a backlog lags. Every running indexing job commits through the knowledge pool, so raise `KNOWLEDGE_DB_POOL_MAX` with it. |
+| `TALE_BACKEND_URL` | `http://backend-api:3005` | Where the web tier reaches the application backend: the public `/status` page probes it and the web server asks it for the answers only a database can give. The shipped compose and the container entrypoint default it to the in-compose alias; set it only when your backend service has another name. Read by the `platform` service only. |
 
 A workspace rollout temporarily runs both colors. Plan capacity for that overlap. Increase the role whose measured workload is the bottleneck; more replicas also increase database connections and memory use. See [Upgrades](/self-hosted/operate/upgrades).
 

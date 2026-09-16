@@ -137,7 +137,7 @@ Explicit `environment` entries override `env_file`. The fragment therefore prese
 
 | Address | Target and network requirement |
 | --- | --- |
-| `platform` | Web replicas on the internal application network. |
+| `platform` | Web replicas on the internal application network. They reach the backend at `TALE_BACKEND_URL`, `http://backend-api:3005` unless you set it. |
 | `backend-api` | API replicas on the application and sandbox networks, reachable on port 3005. |
 | `knowledge-db` | The knowledge Postgres target, or use `KNOWLEDGE_DATABASE_URL`. |
 | `object-store` | Bundled MinIO on the application network. |

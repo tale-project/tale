@@ -37,6 +37,14 @@ env_normalize_common() {
 
   # Cross-service URLs (Docker service names by default; override in .env).
   export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
+  # Where the web tier reaches the application backend: the public /status
+  # page probes it and server.ts asks it for the answers only a database can
+  # give. Their in-code default is the host-dev loopback (`bun dev`), which
+  # nothing serves inside this container, so a compose file that left the
+  # variable unset showed "Service outage" on a healthy stack. Default it to
+  # the in-compose alias here, exactly like SANDBOX_URL; an explicit value
+  # (a differently named backend service) still wins.
+  export TALE_BACKEND_URL="${TALE_BACKEND_URL:-http://backend-api:3005}"
 
   # Instance identity: the secret every derived key (WebDAV app passwords,
   # sandbox stage tokens) is seeded from.
