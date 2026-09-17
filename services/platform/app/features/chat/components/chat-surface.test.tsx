@@ -4,12 +4,15 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 // Whether the rendered viewer could open Settings → AI providers; the
 // provider-setup guidance branches on it.
 const canManageProvidersMock = vi.hoisted(() => ({ value: false }));
+const uploadRecovery = vi.hoisted(() => ({
+  notify: undefined as ((reason?: string) => void) | undefined,
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -78,17 +81,22 @@ vi.mock(
 // read, file-metadata registration) — none of which exists here. An inert
 // stand-in keeps the composer's attach surface mounted with nothing staged.
 vi.mock('@/app/features/shared/files/use-file-upload', () => ({
-  useFileUpload: () => ({
-    attachments: [],
-    setAttachments: vi.fn(),
-    uploadingFiles: [],
-    isUploading: false,
-    uploadFiles: vi.fn(),
-    cancelUpload: vi.fn(),
-    removeAttachment: vi.fn(),
-    retryAttachmentTranscription: vi.fn(),
-    clearAttachments: vi.fn(() => []),
-  }),
+  useFileUpload: (config: {
+    onTranscriptionUnavailable?: (reason?: string) => void;
+  }) => {
+    uploadRecovery.notify = config.onTranscriptionUnavailable;
+    return {
+      attachments: [],
+      setAttachments: vi.fn(),
+      uploadingFiles: [],
+      isUploading: false,
+      uploadFiles: vi.fn(),
+      cancelUpload: vi.fn(),
+      removeAttachment: vi.fn(),
+      retryAttachmentTranscription: vi.fn(),
+      clearAttachments: vi.fn(() => []),
+    };
+  },
 }));
 // Mutable so a test can put a staged clip mid-transcription and assert the
 // send gate; reset in the root beforeEach.
@@ -196,6 +204,7 @@ import { ChatSurface } from './chat-surface';
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
+  uploadRecovery.notify = undefined;
   transcriptionState.statusMap = new Map();
   transcriptionState.isTranscribing = false;
   transcriptionState.isQueryLoading = false;
@@ -244,6 +253,31 @@ afterEach(() => {
     resolve: () => Promise.resolve(),
   }));
 });
+
+it.each([
+  ['another thread', 'org-1', 't2'],
+  ['another organization', 'org-2', 't2'],
+])(
+  'ignores a late transcription refusal after navigating to %s',
+  (_label, nextOrg, nextThread) => {
+    const { rerender } = render(
+      <ChatSurface organizationId="org-1" threadId="t1" />,
+    );
+    const previousRequest = uploadRecovery.notify;
+    expect(previousRequest).toBeDefined();
+    rerender(<ChatSurface organizationId={nextOrg} threadId={nextThread} />);
+    act(() => previousRequest?.('TRANSCRIPTION_MODEL_UNAVAILABLE'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    act(() => uploadRecovery.notify?.('NO_TRANSCRIPTION_MODEL'));
+    expect(
+      screen.getByRole('dialog', { name: /No compatible model/ }),
+    ).toBeInTheDocument();
+    act(() => previousRequest?.('TRANSCRIPTION_MODEL_UNAVAILABLE'));
+    expect(
+      screen.getByRole('dialog', { name: /No compatible model/ }),
+    ).toBeInTheDocument();
+  },
+);
 
 /**
  * The chat Convex functions are not deployed yet, so the seam reports
@@ -486,6 +520,57 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       screen.queryByRole('heading', { name: "Chat isn't connected yet" }),
     ).toBeNull();
   });
+
+  it('keeps text chat quiet and shows dismissible member guidance only after an upload refusal', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+    expect(screen.queryByText(/No compatible model.*audio-file/)).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'Hello',
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(uploadRecovery.notify).toBeDefined();
+    act(() => uploadRecovery.notify?.('NO_TRANSCRIPTION_MODEL'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Ask an admin/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Configure AI providers' }),
+    ).toBeNull();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByText(/No compatible model.*audio-file/)).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Message input' })).toHaveValue(
+      'Hello',
+    );
+  });
+
+  it.each([
+    [
+      'NO_TRANSCRIPTION_MODEL',
+      'Configure AI providers',
+      '/dashboard/$id/settings/providers',
+    ],
+    [
+      'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      'Review transcription model',
+      '/dashboard/$id/settings/governance/content-models',
+    ],
+  ])(
+    'routes authorized recovery using the actual failure %s',
+    async (reason, label, to) => {
+      canManageProvidersMock.value = true;
+      const { user } = render(<ChatSurface organizationId="org-1" />);
+      expect(screen.queryByRole('button', { name: label })).toBeNull();
+      act(() => uploadRecovery.notify?.(reason));
+      await user.click(screen.getByRole('button', { name: label }));
+      expect(navigateMock).toHaveBeenCalledWith({
+        to,
+        params: { id: 'org-1' },
+      });
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    },
+  );
 
   it('mounts the confidentiality notice below the composer', () => {
     render(<ChatSurface organizationId="org-1" />);

@@ -402,18 +402,22 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 
 - [ ] `CHAT-B12` · **Audio preflight and mixed files** — In a local org with
   chat available but no usable audio transcription model, select an audio
-  file and a text file together → The composer explains the missing model
-  before selection; only the text file uploads. Repeat with an unavailable
+  file and a text file together → Ordinary chat has no audio setup warning;
+  choosing the files opens a dismissible recovery dialog before media bytes
+  upload, and only the text file uploads. Repeat with an unavailable
   saved audio-model pin → `chat.transcription.pinnedUnavailable` is shown
   without silently choosing another model. Admin actions open the permitted
   AI providers or Models page; members without that access see admin guidance.
+  Dismiss the dialog → The message draft remains usable without a standing
+  warning; another refused media attempt can reopen the guidance.
   During a delayed capability read, no missing-setup notice is invented.
 - [ ] `CHAT-B13` · **Browser dictation stays independent** — In a browser
   with SpeechRecognition and microphone permission, repeat dictation while
   the org has no server transcription model, then with an unavailable saved
-  pin → Browser dictation can start in both cases; the audio-attachment
-  notice does not disable it. In a browser without SpeechRecognition, the
-  same states prevent a new MediaRecorder recording and explain the refusal.
+  pin → Browser dictation can start in both cases without a model warning.
+  In a browser without SpeechRecognition, activate the microphone with Enter
+  → A recovery dialog opens without starting a MediaRecorder recording.
+  Escape closes it and returns focus to the microphone.
 
 ## Accessibility (WCAG 2.1 AA)
 

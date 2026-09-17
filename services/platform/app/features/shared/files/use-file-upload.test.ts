@@ -166,6 +166,78 @@ afterEach(() => {
 });
 
 describe('audio upload preflight', () => {
+  it('opens recovery only after rejected media, without presigning or duplicating a toast', async () => {
+    vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+    const onTranscriptionUnavailable = vi.fn();
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: false,
+        transcriptionUnavailableReason: 'NO_TRANSCRIPTION_MODEL',
+        onTranscriptionUnavailable,
+      }),
+    );
+    expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+      ]);
+    });
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'NO_TRANSCRIPTION_MODEL',
+    );
+    expect(generateBlobUpload).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the server refusal for contextual recovery when cached availability was usable', async () => {
+    vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+    const onTranscriptionUnavailable = vi.fn();
+    generateBlobUpload.mockRejectedValueOnce(
+      new BackendApiError(
+        409,
+        'Safe server message',
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      ),
+    );
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: true,
+        onTranscriptionUnavailable,
+      }),
+    );
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+      ]);
+    });
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'TRANSCRIPTION_MODEL_UNAVAILABLE',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(result.current.uploadingFiles).toEqual([]);
+  });
+
+  it('offers recovery instead of rescheduling a known-unavailable attachment', () => {
+    const onTranscriptionUnavailable = vi.fn();
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: false,
+        transcriptionUnavailableReason: 'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        onTranscriptionUnavailable,
+      }),
+    );
+    act(() => result.current.retryAttachmentTranscription('audio-file'));
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'TRANSCRIPTION_MODEL_UNAVAILABLE',
+    );
+    expect(saveFileMetadata).not.toHaveBeenCalled();
+  });
+
   it('explains a server refusal when availability is still unknown and does not transfer bytes', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');

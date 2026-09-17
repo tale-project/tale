@@ -1,7 +1,5 @@
 import { Button } from '@tale/ui/button';
-import { Row } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
-import { TriangleAlert } from 'lucide-react';
+import { Dialog } from '@tale/ui/dialog/dialog';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -10,42 +8,62 @@ import {
   transcriptionUnavailableKey,
 } from '../utils/transcription-availability';
 
-export interface TranscriptionSetupAction {
+interface TranscriptionSetupAction {
   label: string;
   onClick: () => void;
 }
 
-/** Kept visible before selecting a file or recording, without disabling text. */
+/** Recovery for an attempted transcription, never an idle configuration warning. */
 export function TranscriptionAvailabilityNotice({
+  open,
+  onOpenChange,
   reason,
   setupAction,
   onRetry,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   reason?: string;
   setupAction?: TranscriptionSetupAction;
   onRetry?: () => void;
 }) {
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
   const temporary = transcriptionNeedsRetry(reason);
   return (
-    <Row gap={2} align="start" wrap className="pb-3">
-      <TriangleAlert
-        aria-hidden
-        className="text-muted-foreground mt-0.5 size-3.5 shrink-0"
-      />
-      <Text variant="muted" className="min-w-0 flex-1 text-xs">
-        {t(transcriptionUnavailableKey(reason))}
-        {!temporary && !setupAction && ` ${t('transcription.askAdmin')}`}
-      </Text>
-      {temporary && onRetry ? (
-        <Button variant="link" size="sm" onClick={onRetry}>
-          {t('transcription.retry')}
-        </Button>
-      ) : setupAction ? (
-        <Button variant="link" size="sm" onClick={setupAction.onClick}>
-          {setupAction.label}
-        </Button>
-      ) : null}
-    </Row>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t(transcriptionUnavailableKey(reason))}
+      description={
+        !temporary && !setupAction ? t('transcription.askAdmin') : undefined
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            {tCommon('actions.close')}
+          </Button>
+          {temporary && onRetry ? (
+            <Button
+              onClick={() => {
+                onOpenChange(false);
+                onRetry();
+              }}
+            >
+              {t('transcription.retry')}
+            </Button>
+          ) : setupAction ? (
+            <Button
+              onClick={() => {
+                onOpenChange(false);
+                setupAction.onClick();
+              }}
+            >
+              {setupAction.label}
+            </Button>
+          ) : null}
+        </>
+      }
+    />
   );
 }

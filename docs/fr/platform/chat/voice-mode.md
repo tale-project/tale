@@ -14,9 +14,11 @@ La dictée permet de parler au lieu de taper un message. La sortie vocale lit un
 
 La dictée ajoute du texte au champ de saisie ; elle n’envoie pas automatiquement le message. L’envoi arrête une dictée en cours. Le modèle de chat reçoit le texte que tu soumets.
 
-Tale utilise d’abord la reconnaissance vocale du navigateur lorsqu’elle est disponible. Sinon, il peut enregistrer et transcrire via le modèle configuré par l’organisation. Si aucun parcours n’est disponible, le microphone est absent ou explique la configuration manquante. La reconnaissance du navigateur peut utiliser un service de son fournisseur : ne suppose pas qu’elle fonctionne hors ligne.
+Tale utilise d’abord la reconnaissance vocale du navigateur lorsqu’elle est disponible. Sinon, il peut enregistrer et transcrire via le modèle configuré par l’organisation. La reconnaissance du navigateur peut utiliser un service de son fournisseur : ne suppose pas qu’elle fonctionne hors ligne.
 
 Le parcours serveur exige la prise en charge de l’enregistrement par MediaRecorder dans le navigateur, l’autorisation du microphone et un modèle de transcription disponible dans l’organisation. Un admin choisit le **Modèle de transcription audio** sous [Paramètres > Gouvernance > Modèles](/fr/platform/admin/governance/content-models). Ce réglage sert aussi aux pièces jointes audio et vidéo. Il ne modifie pas le service de reconnaissance du navigateur : la dictée du navigateur reste utilisable lorsqu’elle est prise en charge, même si le modèle serveur de l’organisation est indisponible.
+
+Si tu essaies de démarrer la dictée serveur alors que son modèle de transcription est indisponible, une boîte de dialogue explique le problème. Ouvre le réglage proposé si tu y as accès, relance une vérification de disponibilité ayant échoué temporairement, ou demande de l’aide à un admin. Tu peux fermer la boîte de dialogue et continuer à écrire.
 
 ## Écouter une réponse
 

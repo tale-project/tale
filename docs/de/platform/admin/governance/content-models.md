@@ -33,11 +33,11 @@ Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktioniere
 
 ## Das Modell zum Lesen von Bildern wählen
 
-Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell die Transkription übernimmt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
+Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
 
 Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkatalog zu folgen. Tale bevorzugt ein empfohlenes Vision-Modell und wählt sonst eine erreichbare günstige Option. Der Text unter der Auswahl nennt das aktuelle Modell und den Grund.
 
-Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet für Transkription geeignete Modelle an. Ist das festgelegte Modell später nicht mehr verfügbar, wechselt Tale zur automatischen Auswahl. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
+Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet Modelle an, die Bilder lesen können. Ist das festgelegte Modell später nicht mehr verfügbar, stelle seinen Anbieterzugang wieder her oder wähle ausdrücklich **Automatisch** und speichere. Tale wechselt ein festgelegtes Modell nicht stillschweigend. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
 
 ## Das Modell für Audiotranskription auswählen
 
@@ -59,7 +59,7 @@ Ein Modellwechsel gilt für neue Transkriptionen; bereits verarbeitete Anhänge 
 
 Ein ausdrücklich ausgewähltes Modell bleibt festgelegt. Wird es nicht mehr verfügbar, zeigt Tale das an und wechselt nicht zu einem anderen Modell. Wähle ein anderes verfügbares Modell oder **Automatisch** und speichere. Ist kein kompatibles Modell verfügbar, richte unter [KI-Anbieter](/de/platform/admin/providers) einen aktiven Zugang ein und prüfe die dafür erlaubten Modelle. Kann Tale die Konfiguration vorübergehend nicht prüfen, versuche es erneut, statt deshalb ein anderes Modell auszuwählen.
 
-Mitglieder sehen das Problem, bevor sie Audio oder Video hochladen. Je nach Zugriffsrechten erhalten sie einen Link zu den Einstellungen oder den Hinweis, einen Admin zu kontaktieren. Zur Auswahl über die Bereitstellungskonfiguration und zu eigenen Audioendpunkten siehe die [Anbieterreferenz für Self-Hosting](/de/self-hosted/configuration/providers#audiotranskription-konfigurieren).
+Verhindert eine nicht verfügbare Servertranskription den Versuch, zu diktieren oder Audio oder Video anzuhängen, erklärt ein schließbarer Dialog das Problem. Je nach Zugriffsrechten erhalten Mitglieder einen Link zu den Einstellungen oder den Hinweis, einen Admin zu kontaktieren. Vorübergehend fehlgeschlagene Verfügbarkeitsprüfungen lassen sich wiederholen. Zur Auswahl über die Bereitstellungskonfiguration und zu eigenen Audioendpunkten siehe die [Anbieterreferenz für Self-Hosting](/de/self-hosted/configuration/providers#audiotranskription-konfigurieren).
 
 ## Eine unerwartete Auswahl erklären
 

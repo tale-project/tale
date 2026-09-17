@@ -65,10 +65,6 @@ import {
   type DictationButtonHandle,
 } from './dictation-button';
 import { QuotedReferenceChip } from './quoted-reference-chip';
-import {
-  TranscriptionAvailabilityNotice,
-  type TranscriptionSetupAction,
-} from './transcription-availability-notice';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
 
@@ -168,8 +164,7 @@ interface ComposerProps {
   organizationId?: string;
   transcriptionAvailable?: boolean;
   transcriptionUnavailableReason?: string;
-  transcriptionSetupAction?: TranscriptionSetupAction;
-  onRetryTranscriptionAvailability?: () => void;
+  onTranscriptionUnavailable?: (reason?: string) => void;
   /** Arena Mode — the pair state and its toggle; absent hides the entry. */
   arenaActive?: boolean;
   onArenaChange?: (next: boolean) => void;
@@ -211,8 +206,7 @@ export const Composer = memo(
       organizationId,
       transcriptionAvailable,
       transcriptionUnavailableReason,
-      transcriptionSetupAction,
-      onRetryTranscriptionAvailability,
+      onTranscriptionUnavailable,
       arenaActive,
       onArenaChange,
     },
@@ -571,6 +565,7 @@ export const Composer = memo(
                   lang={speechLang}
                   disabled={disabled}
                   onTranscript={handleTranscript}
+                  onTranscriptionUnavailable={onTranscriptionUnavailable}
                   {...(organizationId !== undefined ? { organizationId } : {})}
                   {...(transcriptionAvailable !== undefined
                     ? { transcriptionAvailable }
@@ -638,13 +633,6 @@ export const Composer = memo(
                 </span>
               </Row>
             </Row>
-            {transcriptionAvailable === false && (
-              <TranscriptionAvailabilityNotice
-                reason={transcriptionUnavailableReason}
-                setupAction={transcriptionSetupAction}
-                onRetry={onRetryTranscriptionAvailability}
-              />
-            )}
           </Stack>
         </FileUpload.DropZone>
       </FileUpload.Root>

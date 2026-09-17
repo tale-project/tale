@@ -152,6 +152,7 @@ import { SelectionQuoteButton } from './selection-quote-button';
 import { ShareChatDialog } from './share-chat-dialog';
 import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { ThreadList } from './thread-list';
+import { TranscriptionAvailabilityNotice } from './transcription-availability-notice';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 import { WelcomeView } from './welcome-view';
 
@@ -396,15 +397,31 @@ function ChatSurfaceInner({
     voiceMode.status === 'ready' && voiceMode.data.source === 'org_policy';
   const voiceActions = useVoiceActions(organizationId);
   const voiceCapabilities = useVoiceCapabilities(organizationId);
+  const [transcriptionFailure, setTranscriptionFailure] = useState<
+    string | null
+  >(null);
+  const transcriptionScopeRef = useRef({ organizationId, viewThreadId });
+  transcriptionScopeRef.current = { organizationId, viewThreadId };
+  const handleTranscriptionUnavailable = useCallback(
+    (reason?: string) => {
+      // Uploads and recordings may settle after navigation. Only the surface
+      // that started the operation may offer its recovery/settings action.
+      if (
+        transcriptionScopeRef.current.organizationId !== organizationId ||
+        transcriptionScopeRef.current.viewThreadId !== viewThreadId
+      )
+        return;
+      setTranscriptionFailure(reason ?? 'NO_TRANSCRIPTION_MODEL');
+    },
+    [organizationId, viewThreadId],
+  );
+  useEffect(() => {
+    setTranscriptionFailure(null);
+  }, [organizationId, viewThreadId]);
   const transcriptionSetupAction = useMemo(() => {
-    const reason = voiceCapabilities.transcriptionUnavailableReason;
-    if (
-      voiceCapabilities.hasTranscription !== false ||
-      transcriptionNeedsRetry(reason)
-    )
-      return undefined;
-    const needsProvider =
-      reason === undefined || reason === 'NO_TRANSCRIPTION_MODEL';
+    const reason = transcriptionFailure;
+    if (reason === null || transcriptionNeedsRetry(reason)) return undefined;
+    const needsProvider = reason === 'NO_TRANSCRIPTION_MODEL';
     if (
       needsProvider ? !canManageProviders : !ability.can('write', 'orgSettings')
     )
@@ -425,8 +442,7 @@ function ChatSurfaceInner({
       },
     };
   }, [
-    voiceCapabilities.hasTranscription,
-    voiceCapabilities.transcriptionUnavailableReason,
+    transcriptionFailure,
     canManageProviders,
     ability,
     t,
@@ -874,6 +890,7 @@ function ChatSurfaceInner({
       transcriptionAvailable: voiceCapabilities.hasTranscription,
       transcriptionUnavailableReason:
         voiceCapabilities.transcriptionUnavailableReason,
+      onTranscriptionUnavailable: handleTranscriptionUnavailable,
       ...(threadId !== undefined ? { threadId } : {}),
     }),
     [
@@ -881,6 +898,7 @@ function ChatSurfaceInner({
       threadId,
       voiceCapabilities.hasTranscription,
       voiceCapabilities.transcriptionUnavailableReason,
+      handleTranscriptionUnavailable,
     ],
   );
   const attachmentUpload = useFileUpload(uploadConfig);
@@ -2100,8 +2118,7 @@ function ChatSurfaceInner({
                   transcriptionUnavailableReason={
                     voiceCapabilities.transcriptionUnavailableReason
                   }
-                  transcriptionSetupAction={transcriptionSetupAction}
-                  onRetryTranscriptionAvailability={voiceCapabilities.refresh}
+                  onTranscriptionUnavailable={handleTranscriptionUnavailable}
                   {...(arenaAvailable || pair !== null
                     ? {
                         arenaActive: pair !== null,
@@ -2119,6 +2136,16 @@ function ChatSurfaceInner({
               </div>
             ))}
         </Stack>
+
+        <TranscriptionAvailabilityNotice
+          open={transcriptionFailure !== null}
+          onOpenChange={(open) => {
+            if (!open) setTranscriptionFailure(null);
+          }}
+          reason={transcriptionFailure ?? undefined}
+          setupAction={transcriptionSetupAction}
+          onRetry={voiceCapabilities.refresh}
+        />
 
         {/* Mounted only while open; exports read the view thread — the sibling
           actually on screen. */}

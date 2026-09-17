@@ -248,6 +248,9 @@ describe('audio model settings', () => {
     expect(picker).toHaveTextContent('Invalid saved configuration');
     await user.click(picker);
     await user.click(screen.getByRole('option', { name: /^Automatic/ }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
+    );
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(saved).toHaveBeenCalledWith({

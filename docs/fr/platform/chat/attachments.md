@@ -19,7 +19,7 @@ Les images apparaissent en miniature. Les autres fichiers apparaissent sous form
 
 Précise ce que l’assistant doit chercher, par exemple : « Lis le compte rendu et liste les décisions, leurs responsables et les échéances manquantes. » Joindre un fichier seul ne suffit pas à expliquer le résultat attendu.
 
-Pour les fichiers audio et vidéo, le champ de message vérifie si l’organisation dispose d’un modèle de transcription disponible. Si la configuration manque ou si le modèle choisi est indisponible, ces fichiers sont refusés avant l’import. Les autres fichiers compatibles de la même sélection peuvent toujours être importés. Ouvre le réglage proposé si tu y as accès, ou demande à un admin de vérifier les [Modèles](/fr/platform/admin/governance/content-models).
+Quand tu essaies de joindre de l’audio ou de la vidéo, Tale vérifie si l’organisation dispose d’un modèle de transcription disponible. Si cette vérification empêche l’import, une boîte de dialogue explique le problème et propose les actions auxquelles tu as accès. Ces fichiers sont refusés avant leur transfert ; les autres fichiers compatibles de la même sélection peuvent toujours être importés. Ferme la boîte de dialogue pour continuer à écrire, ouvre le réglage proposé si tu y as accès, ou demande à un admin de vérifier les [Modèles](/fr/platform/admin/governance/content-models).
 
 ## Comprendre ce que reçoit le modèle
 

@@ -19,7 +19,7 @@ Bilder erscheinen als Vorschaubilder, andere Dateien als benannte Chips mit Vera
 
 Formuliere, wonach der Assistent suchen soll, etwa: „Lies die Gesprächsnotiz und liste Entscheidungen, Verantwortliche und fehlende Fristen auf.“ Eine Datei allein erklärt noch nicht, was du damit vorhast.
 
-Bei Audio- und Videodateien prüft das Nachrichtenfeld, ob die Organisation ein verfügbares Transkriptionsmodell hat. Fehlt die Einrichtung oder ist das ausgewählte Modell nicht verfügbar, werden diese Dateien vor dem Upload abgewiesen. Andere unterstützte Dateien aus derselben Auswahl lassen sich weiterhin hochladen. Öffne den angezeigten Einstellungslink, wenn du Zugriff hast, oder bitte einen Admin, die [Modelle](/de/platform/admin/governance/content-models) zu prüfen.
+Wenn du Audio oder Video anhängen möchtest, prüft Tale, ob die Organisation ein verfügbares Transkriptionsmodell hat. Verhindert die Prüfung den Upload, erklärt ein Dialog das Problem und zeigt die für dich verfügbaren Schritte zur Behebung. Diese Dateien werden vor der Übertragung abgewiesen; andere unterstützte Dateien aus derselben Auswahl lassen sich weiterhin hochladen. Schließe den Dialog, um weiterzuschreiben, öffne den Einstellungslink, wenn du Zugriff hast, oder bitte einen Admin, die [Modelle](/de/platform/admin/governance/content-models) zu prüfen.
 
 ## Verstehen, was beim Modell ankommt
 

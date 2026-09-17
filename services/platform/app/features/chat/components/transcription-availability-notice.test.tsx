@@ -8,20 +8,30 @@ import { TranscriptionAvailabilityNotice } from './transcription-availability-no
 
 describe('transcription availability recovery', () => {
   it('gives members a reason and administrator guidance', async () => {
-    const { container } = render(
-      <TranscriptionAvailabilityNotice reason="TRANSCRIPTION_MODEL_UNAVAILABLE" />,
+    const { baseElement } = render(
+      <TranscriptionAvailabilityNotice
+        open
+        onOpenChange={vi.fn()}
+        reason="TRANSCRIPTION_MODEL_UNAVAILABLE"
+      />,
     );
     expect(
       screen.getByText(/selected audio transcription model is unavailable/),
-    ).toHaveTextContent('Ask an admin');
-    expect(screen.queryByRole('button')).toBeNull();
-    await checkAccessibility(container);
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Ask an admin/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Configure|Review/ }),
+    ).toBeNull();
+    await checkAccessibility(baseElement);
   });
 
-  it('offers the authorized setup action before choosing an audio file', async () => {
+  it('closes the recovery prompt before opening authorized settings', async () => {
     const configure = vi.fn();
+    const close = vi.fn();
     const { user } = render(
       <TranscriptionAvailabilityNotice
+        open
+        onOpenChange={close}
         reason="NO_TRANSCRIPTION_MODEL"
         setupAction={{ label: 'Configure AI providers', onClick: configure }}
       />,
@@ -33,6 +43,7 @@ describe('transcription availability recovery', () => {
       screen.getByRole('button', { name: 'Configure AI providers' }),
     );
     expect(configure).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledWith(false);
   });
 
   it.each([
@@ -43,7 +54,12 @@ describe('transcription availability recovery', () => {
     async (reason) => {
       const retry = vi.fn();
       const { user } = render(
-        <TranscriptionAvailabilityNotice reason={reason} onRetry={retry} />,
+        <TranscriptionAvailabilityNotice
+          open
+          onOpenChange={vi.fn()}
+          reason={reason}
+          onRetry={retry}
+        />,
       );
       expect(
         screen.getByText(/availability could not be checked/),
@@ -53,4 +69,20 @@ describe('transcription availability recovery', () => {
       expect(retry).toHaveBeenCalledOnce();
     },
   );
+
+  it('renders no warning or setup action while closed', () => {
+    render(
+      <TranscriptionAvailabilityNotice
+        open={false}
+        onOpenChange={vi.fn()}
+        reason="NO_TRANSCRIPTION_MODEL"
+        setupAction={{ label: 'Configure AI providers', onClick: vi.fn() }}
+      />,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText(/No compatible model/)).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Configure AI providers' }),
+    ).toBeNull();
+  });
 });

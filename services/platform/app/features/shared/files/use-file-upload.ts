@@ -81,6 +81,8 @@ interface FileUploadConfig {
   /** Only a confirmed server capability refusal blocks media. */
   transcriptionAvailable?: boolean;
   transcriptionUnavailableReason?: string;
+  /** Open contextual recovery after a media operation is refused. */
+  onTranscriptionUnavailable?: (reason?: string) => void;
 }
 
 const DEFAULT_UPLOAD_CONFIG = {
@@ -236,17 +238,22 @@ export function useFileUpload(config: FileUploadConfig) {
       }
 
       if (rejectedTranscription.length > 0) {
-        toast({
-          title: t('transcription.uploadBlocked', {
-            names: rejectedTranscription.map((file) => file.name).join(', '),
-          }),
-          description: t(
-            transcriptionUnavailableKey(
-              mergedConfig.transcriptionUnavailableReason,
+        if (mergedConfig.onTranscriptionUnavailable) {
+          mergedConfig.onTranscriptionUnavailable(
+            mergedConfig.transcriptionUnavailableReason,
+          );
+        } else
+          toast({
+            title: t('transcription.uploadBlocked', {
+              names: rejectedTranscription.map((file) => file.name).join(', '),
+            }),
+            description: t(
+              transcriptionUnavailableKey(
+                mergedConfig.transcriptionUnavailableReason,
+              ),
             ),
-          ),
-          variant: 'destructive',
-        });
+            variant: 'destructive',
+          });
       }
 
       if (rejectedTooLarge.length > 0) {
@@ -567,6 +574,14 @@ export function useFileUpload(config: FileUploadConfig) {
             if (abortController.signal.aborted) {
               return;
             }
+            if (
+              error instanceof BackendApiError &&
+              isTranscriptionUnavailableReason(error.code) &&
+              mergedConfig.onTranscriptionUnavailable
+            ) {
+              mergedConfig.onTranscriptionUnavailable(error.code);
+              return;
+            }
             console.error('Upload error:', error);
             toast({
               title: t('uploadFailed'),
@@ -648,9 +663,17 @@ export function useFileUpload(config: FileUploadConfig) {
   );
 
   const retryInFlightRef = useRef(new Set<string>());
+  const onTranscriptionUnavailable = config.onTranscriptionUnavailable;
 
   const retryAttachmentTranscription = useCallback(
     (fileId: string) => {
+      if (
+        config.transcriptionAvailable === false &&
+        onTranscriptionUnavailable
+      ) {
+        onTranscriptionUnavailable(config.transcriptionUnavailableReason);
+        return;
+      }
       // Reuse the existing backend retry: resets status to `queued`, clears
       // the error, and reschedules the transcribe action. The reactive
       // transcription-status query flips the chip back to queued/running on
@@ -667,13 +690,27 @@ export function useFileUpload(config: FileUploadConfig) {
         organizationId: config.organizationId,
       })
         .catch((err) => {
+          if (
+            err instanceof BackendApiError &&
+            isTranscriptionUnavailableReason(err.code) &&
+            onTranscriptionUnavailable
+          ) {
+            onTranscriptionUnavailable(err.code);
+            return;
+          }
           console.warn('[retryAttachmentTranscription] failed:', err);
         })
         .finally(() => {
           retryInFlightRef.current.delete(fileId);
         });
     },
-    [retryTranscription, config.organizationId],
+    [
+      retryTranscription,
+      config.organizationId,
+      config.transcriptionAvailable,
+      config.transcriptionUnavailableReason,
+      onTranscriptionUnavailable,
+    ],
   );
 
   const clearAttachments = useCallback(() => {

@@ -19,7 +19,7 @@ Images appear as thumbnails; other files appear as named chips with their proces
 
 Write a question that tells the assistant what to look for, such as “Read the meeting note and list the decisions, their owners, and any missing deadlines.” Attaching a file without a question leaves the intended task unclear.
 
-For audio and video files, the composer checks whether the organization has an available transcription model. If it reports missing setup or an unavailable selected model, those files are refused before upload. Other supported files in the same selection can still upload. Follow the settings action if you have access, or ask an admin to check [Models](/platform/admin/governance/content-models).
+When you try to attach audio or video, Tale checks whether the organization has an available transcription model. If the check prevents the upload, a dialog explains the problem and offers the recovery actions you can use. Those files are refused before transfer; other supported files in the same selection can still upload. Close the dialog to keep composing, follow the settings action if you have access, or ask an admin to check [Models](/platform/admin/governance/content-models).
 
 ## Understand what the assistant receives
 

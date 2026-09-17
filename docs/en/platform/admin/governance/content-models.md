@@ -33,11 +33,11 @@ Test both cases after changing access: an allowed model should work and a denied
 
 ## Choose the image-reading model
 
-A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that transcribes it. An agent whose own model reads images does not use this fallback.
+A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images does not use this fallback.
 
 Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 
-Pin a model if you need a stable choice. The picker offers models suitable for transcription. If a pin later becomes unavailable, Tale falls back to automatic selection. Review the current choice after rotating credentials or changing model availability.
+Pin a model if you need a stable choice. The picker offers models that can read images. If a pin later becomes unavailable, restore its provider access or explicitly choose **Automatic** and save. Tale does not silently switch a pinned model. Review the current choice after rotating credentials or changing model availability.
 
 ## Choose the audio transcription model
 
@@ -59,7 +59,7 @@ A model change applies to new transcription work; completed attachments keep the
 
 An explicit selection stays fixed. If that model becomes unavailable, Tale reports it and does not switch to another model. Choose another available model or **Automatic**, then save. If no compatible model is available, configure an active credential in [AI providers](/platform/admin/providers) and check the credential’s allowed models. A temporary failure to check the configuration calls for a retry, not a new model selection.
 
-Members see the problem before uploading audio or video. Settings actions appear according to their access; otherwise, they are asked to contact an admin. For deployment-managed selection and custom audio endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-audio-transcription).
+If unavailable server transcription prevents a member’s attempt to dictate or attach audio or video, a dismissible dialog explains the problem. Settings actions appear according to their access; otherwise, they are asked to contact an admin. A temporarily failed availability check can be retried. For deployment-managed selection and custom audio endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-audio-transcription).
 
 ## Diagnose an unexpected choice
 

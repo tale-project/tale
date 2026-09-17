@@ -14,9 +14,11 @@ Mit Diktat sprichst du eine Nachricht ein, statt sie zu tippen. Die Sprachausgab
 
 Das Diktat ergänzt Text im Nachrichtenfeld; es sendet die Nachricht nicht automatisch. Das Senden beendet ein laufendes Diktat. Das Chat-Modell erhält den Text, den du abschickst.
 
-Tale nutzt zuerst die Spracherkennung des Browsers, sofern verfügbar. Andernfalls kann es die Aufnahme über das Transkriptionsmodell der Organisation verarbeiten. Ist keiner der Wege verfügbar, fehlt das Mikrofon oder zeigt einen Hinweis zur Einrichtung. Die Browser-Spracherkennung kann einen Dienst des Browseranbieters nutzen. Gehe deshalb nicht von Offline-Verfügbarkeit aus.
+Tale nutzt zuerst die Spracherkennung des Browsers, sofern verfügbar. Andernfalls kann es die Aufnahme über das Transkriptionsmodell der Organisation verarbeiten. Die Browser-Spracherkennung kann einen Dienst des Browseranbieters nutzen. Gehe deshalb nicht von Offline-Verfügbarkeit aus.
 
 Für den Serverweg braucht der Browser Aufnahmeunterstützung über MediaRecorder, Mikrofonzugriff und ein verfügbares Transkriptionsmodell der Organisation. Ein Admin wählt das **Modell für Audiotranskription** unter [Einstellungen > Governance > Modelle](/de/platform/admin/governance/content-models). Diese Einstellung gilt auch für Audio- und Videoanhänge. Sie ändert den Erkennungsdienst des Browsers nicht: Unterstütztes Browserdiktat bleibt nutzbar, wenn das Servermodell der Organisation nicht verfügbar ist.
+
+Versuchst du ein Serverdiktat zu starten und ist das Transkriptionsmodell nicht verfügbar, erklärt ein Dialog das Problem. Öffne den Einstellungslink, wenn du Zugriff hast, wiederhole eine vorübergehend fehlgeschlagene Verfügbarkeitsprüfung oder bitte einen Admin um Hilfe. Du kannst den Dialog schließen und weiter tippen.
 
 ## Eine Antwort anhören
 

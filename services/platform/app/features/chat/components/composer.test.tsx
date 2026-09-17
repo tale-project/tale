@@ -750,12 +750,14 @@ describe('Composer audio attachments', () => {
     fileSize: 128_000,
   };
 
-  it('explains missing transcription configuration on a failed audio chip', () => {
-    renderComposer({
+  it('keeps failed attachment details and retry without a standing configuration banner', async () => {
+    const retry = vi.fn();
+    const { user } = renderComposer({
       models: [MODEL],
       attachments: [AUDIO],
       onAttachFiles: vi.fn(),
       transcriptionAvailable: false,
+      onRetryTranscription: retry,
       transcriptionStatuses: new Map([
         [
           'audio1',
@@ -767,15 +769,17 @@ describe('Composer audio attachments', () => {
       ]),
     });
     expect(
-      screen.getByText(
+      screen.queryByText(
         'No compatible model is available for audio-file transcription.',
         { exact: false },
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Couldn't transcribe")).toHaveAttribute(
       'title',
       'No compatible model is available for audio-file transcription.',
     );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledExactlyOnceWith('audio1');
   });
 
   it('renders a media chip with the live transcription status', () => {

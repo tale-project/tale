@@ -33,11 +33,11 @@ Après un changement, teste les deux cas pour le membre concerné : un modèle a
 
 ## Choisir le modèle qui lit les images
 
-Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la transcrit. Un agent dont le propre modèle lit les images n’utilise pas ce recours.
+Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images n’utilise pas ce recours.
 
 Laisse la sélection du modèle de lecture sur automatique pour suivre le catalogue disponible. Tale préfère un modèle de vision recommandé, puis une option accessible peu coûteuse. Le texte sous la sélection indique le choix actuel et sa raison.
 
-Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles adaptés à la transcription. Si le modèle fixé devient indisponible, Tale revient à la sélection automatique. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
+Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles capables de lire les images. Si le modèle fixé devient indisponible, rétablis son accès fournisseur ou choisis explicitement **Automatique**, puis enregistre. Tale ne remplace pas silencieusement un modèle fixé. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
 
 ## Choisir le modèle de transcription audio
 
@@ -59,7 +59,7 @@ Un changement de modèle s’applique aux nouvelles transcriptions ; les pièces
 
 Une sélection explicite reste fixe. Si ce modèle devient indisponible, Tale le signale et ne passe pas à un autre modèle. Choisis un autre modèle disponible ou **Automatique**, puis enregistre. Si aucun modèle compatible n’est disponible, configure un accès actif dans [Fournisseurs IA](/fr/platform/admin/providers) et vérifie les modèles autorisés pour cet accès. Si Tale ne peut momentanément pas vérifier la configuration, réessaie plutôt que de changer de modèle pour cette raison.
 
-Les membres voient le problème avant d’importer de l’audio ou de la vidéo. Selon leurs droits, un lien mène aux réglages ou un message leur demande de contacter un admin. Pour gérer ce choix par la configuration du déploiement ou utiliser un endpoint audio personnalisé, consulte la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configurer-la-transcription-audio).
+Si la transcription serveur indisponible empêche un membre de dicter ou de joindre de l’audio ou de la vidéo, une boîte de dialogue explique le problème et peut être fermée. Selon ses droits, un lien mène aux réglages ou un message lui demande de contacter un admin. Une vérification de disponibilité ayant échoué temporairement peut être relancée. Pour gérer ce choix par la configuration du déploiement ou utiliser un endpoint audio personnalisé, consulte la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configurer-la-transcription-audio).
 
 ## Expliquer un choix inattendu
 
