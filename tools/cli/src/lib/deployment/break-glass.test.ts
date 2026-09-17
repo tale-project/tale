@@ -393,7 +393,7 @@ testPosix(
         credentialUpdated: false,
       });
       expect(f.database.user.filter((row) => row.email === address)).toEqual([
-        account,
+        account!,
       ]);
       expect(f.credentialsOf(account!.id)).toEqual([
         expect.objectContaining({ password: f.hash }),
