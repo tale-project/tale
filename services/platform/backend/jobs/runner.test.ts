@@ -26,7 +26,11 @@ function fakeBoss(): {
   return { boss: boss as unknown as PgBoss, send, handlers };
 }
 
-const job = { id: 'job-1', data: { seq: 1 } } as Job;
+const job = {
+  id: 'job-1',
+  data: { seq: 1 },
+  signal: new AbortController().signal,
+} as Job;
 
 describe('startWorker shouldDefer', () => {
   it('requeues and completes without running the handler', async () => {
@@ -55,7 +59,29 @@ describe('startWorker shouldDefer', () => {
 
     const results = await handlers.get('noop')?.([job]);
     expect(send).not.toHaveBeenCalled();
-    expect(handler).toHaveBeenCalledWith({ seq: 1 });
+    expect(handler).toHaveBeenCalledWith({ seq: 1 }, { signal: job.signal });
     expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
+  });
+});
+
+describe('startWorker job budget', () => {
+  it('hands every handler the signal pg-boss aborts when the job outlives its budget', async () => {
+    const { boss, handlers } = fakeBoss();
+    const seen: (AbortSignal | undefined)[] = [];
+    await startWorker({
+      boss,
+      taskList: {
+        noop: async (_payload, context) => {
+          seen.push(context?.signal);
+        },
+      },
+    });
+    const controller = new AbortController();
+
+    await handlers.get('noop')?.([{ ...job, signal: controller.signal }]);
+    controller.abort();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.aborted).toBe(true);
   });
 });

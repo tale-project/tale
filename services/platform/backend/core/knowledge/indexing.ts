@@ -119,6 +119,13 @@ export interface IndexDocumentArgs {
    * slice, a whole-document pass repeated for every slice of many.
    */
   readonly prepared?: PreparedDocument;
+  /**
+   * Aborted when the job driving this run gives up on it (pg-boss stops a
+   * job at its budget and retries it). The embedding in flight is cancelled
+   * and no further slice starts; the stored slices are the retry's
+   * checkpoint.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface IndexDocumentResult {
@@ -261,6 +268,7 @@ export function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
 export async function indexDocument(
   args: IndexDocumentArgs,
 ): Promise<IndexDocumentResult> {
+  args.signal?.throwIfAborted();
   // A corpus whose BM25 index is being rebuilt (or whose rebuild failed)
   // refuses the write with a coded error — before any embedding is paid for
   // — instead of PANICking the database on the first chunk insert.
@@ -398,6 +406,7 @@ export async function indexDocument(
     const distinct = window.filter((_chunk, position) => !repeated[position]);
     const embedded = await args.embedder.embedAll(
       distinct.map((chunk) => chunk.embedText),
+      { signal: args.signal },
     );
     for (const vector of embedded) {
       assertVectorWidth(
@@ -448,12 +457,14 @@ export interface IndexWholeDocumentHooks {
  * rescheduled until `partial` cleared; the 0.5 worker owns the whole job, so
  * the slices drain here, in-process. Every slice is still committed and
  * resumable — a crash resumes after the stored prefix — and the preparation
- * is paid once for the document, not once per slice.
+ * is paid once for the document, not once per slice. A run whose job gave up
+ * (`signal`) stops before its next slice; its retry resumes from there.
  */
 export async function indexWholeDocument(
   args: Omit<IndexDocumentArgs, 'prepared'>,
   hooks: IndexWholeDocumentHooks = {},
 ): Promise<IndexDocumentResult> {
+  args.signal?.throwIfAborted();
   // Refused before the preparation is paid for, as a single slice would be.
   await assertCorpusWritable(args.dbUrl, SCHEMA);
   const prepared = prepareDocument(args);
@@ -465,6 +476,7 @@ export async function indexWholeDocument(
       );
     }
     await hooks.onSlice?.(result);
+    args.signal?.throwIfAborted();
     result = await indexDocument({ ...args, prepared });
   }
   return result;

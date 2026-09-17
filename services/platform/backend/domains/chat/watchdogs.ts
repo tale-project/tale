@@ -11,6 +11,15 @@ const INTERRUPTED_TURN_ERROR = encodeChatError({
 });
 
 /**
+ * How long a generation's heartbeat may stand still before the sweep below
+ * takes the turn for dead. The heartbeat moves with streamed text and stored
+ * parts, not while a tool call runs — so every tool a turn waits on must end
+ * well inside this window (the knowledge search's embedding ceiling is held
+ * to at most half of it, `watchdogs.test.ts`).
+ */
+export const CHAT_GENERATION_STALE_MS = 10 * 60_000;
+
+/**
  * Direct-chat crash recovery (2 min) — the 0.5 twin of 0.4's stale-
  * generation sweep: a hard-killed turn strands its generation row with a
  * stale heartbeat, which wedges the thread's composer (the row's existence
@@ -22,7 +31,8 @@ export async function runChatGenerationWatchdog(
   sql: Sql,
   options: { staleMs?: number } = {},
 ): Promise<number> {
-  const staleBefore = Date.now() - (options.staleMs ?? 10 * 60_000);
+  const staleBefore =
+    Date.now() - (options.staleMs ?? CHAT_GENERATION_STALE_MS);
   const cleared = await sql<{ threadId: string }[]>`
     DELETE FROM app.generations
     WHERE heartbeat_at_ms < ${staleBefore}

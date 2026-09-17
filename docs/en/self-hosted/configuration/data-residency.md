@@ -50,6 +50,30 @@ Vector width is pinned per database on first use. Organizations sharing a databa
 
 `embedding.json` can set `minSimilarity`, the assistant search's vector-leg floor; its default is `0.45`. The settings form preserves this file value but does not expose a field for it. Tune it against representative queries. REST knowledge search applies a floor only when its request supplies one; this is not a universal score threshold for all searches.
 
+### Pace requests to a self-hosted embedding server {#embedding-server-capacity}
+
+Two more optional `embedding.json` settings describe how much work the embedding server can take. Set them when you run the server yourself, for example a model server on your own hardware that computes one request at a time and queues the rest. Like `minSimilarity`, they exist only in the file: the settings form keeps them when you save, and the CLI declares them in the `knowledge-embedding` resource.
+
+- `maxConcurrentRequests` (1 to 64, default 3) is how many embedding requests to this model Tale keeps in flight at once for the organization. Document indexing, website scans and searches share this limit. Further requests wait in arrival order, except that a search query goes ahead of waiting indexing batches. Each Tale process counts separately, so the API and every worker replica can each reach the limit. A lower value takes effect at once; a higher one once the requests started under the old value have finished. On a server that computes one request at a time, a higher value adds no load; each request only waits longer.
+- `minTokensPerSecond` (any positive number) is the slowest rate at which the server computes embeddings for this model under its usual load. Measure it while other work runs on the same hardware, such as a chat model, but leave out the time a request waits behind other requests. Tale adds that waiting time itself.
+
+```json
+{
+  "providerSlug": "local-embedding",
+  "model": "example-embedding",
+  "dimensions": 1024,
+  "baseUrl": "https://embeddings.example.internal/v1",
+  "maxConcurrentRequests": 2,
+  "minTokensPerSecond": 800
+}
+```
+
+Each embedding request has a ceiling: 15 minutes for indexing, and 5 minutes for a search query, which a chat answer waits on. Without `minTokensPerSecond`, Tale cannot tell how long the server's queue may take, so a request may use its whole ceiling. With it, Tale gives each request time for the work that can be ahead of it or beside it on the server, plus its own. That work is the request's own tokens, estimated generously from its characters, plus the other requests this Tale process may have in flight and `maxConcurrentRequests` more from other clients. Tale counts each of those requests as at least a full batch of 64 texts with 1,024 tokens each, divides the total by `minTokensPerSecond`, and adds 50%, but never allows less than 60 seconds or more than the ceiling. With the example above, a full batch of ordinary text gets about eight minutes, and a search query gets its five-minute ceiling. A search query also ends after five minutes in total, including any wait for a free slot. If more clients share the server than one more Tale process with the same limit, state a lower rate.
+
+A request that runs out of time is not sent again at once: the server had it the whole time, and a repeat would only lengthen its queue. A refused connection, a rate limit or a server error is retried after a pause that grows with each attempt, or after the pause a busy server asks for with `Retry-After`, up to one minute. A server that asks for a longer pause is left alone. When one batch of a request made of several batches fails, for example on a long web page, Tale cancels the other batches, whether they are running or still waiting, so the server stops working on them.
+
+Indexing a document gets at most 15 minutes per attempt. When a large document or a long queue needs more, the attempt stops at that limit and cancels its open request; a request that runs out of time ends the attempt too. The next attempt starts after a pause that grows with each attempt and continues after the chunks already stored. If a document is still unfinished after six attempts, it shows as failed; **Retry indexing** continues from the stored chunks.
+
 ## Connect an organization's bucket
 
 1. Provision an S3-compatible bucket and the required object permissions. Configure CORS for the actual browser origins and the needed `GET`, `PUT`, and `HEAD` methods.

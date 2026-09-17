@@ -50,6 +50,30 @@ Die Vektorbreite wird bei erster Verwendung pro Datenbank festgelegt. Organisati
 
 `embedding.json` kann `minSimilarity` als Untergrenze für den Vektoranteil der Assistentensuche setzen; der Standard ist `0.45`. Das Einstellungsformular erhält diesen Dateiwert, bietet aber kein Feld dafür. Stimme ihn anhand repräsentativer Suchanfragen ab. Die REST-Wissenssuche verwendet eine Grenze nur, wenn die Anfrage sie angibt. Es ist kein allgemeiner Schwellenwert für alle Suchen.
 
+### Anfragen an einen selbst betriebenen Embedding-Server dosieren {#kapazitaet-des-embedding-servers}
+
+Zwei weitere optionale Einstellungen in `embedding.json` beschreiben, wie viel Arbeit der Embedding-Server verkraftet. Setze sie, wenn du den Server selbst betreibst, etwa einen Modellserver auf eigener Hardware, der eine Anfrage nach der anderen berechnet und die übrigen in eine Warteschlange stellt. Wie `minSimilarity` gibt es sie nur in der Datei: Das Einstellungsformular behält sie beim Speichern bei, und die CLI deklariert sie in der Ressource `knowledge-embedding`.
+
+- `maxConcurrentRequests` (1 bis 64, Standard 3) legt fest, wie viele Embedding-Anfragen an dieses Modell Tale für die Organisation gleichzeitig offen hält. Dokumentindexierung, Website-Scans und Suchen teilen sich dieses Limit. Weitere Anfragen warten in der Reihenfolge ihres Eintreffens; nur eine Suchanfrage zieht an wartenden Indexierungs-Batches vorbei. Jeder Tale-Prozess zählt für sich, sodass die API und jedes Worker-Replikat das Limit jeweils ausschöpfen können. Ein niedrigerer Wert gilt sofort, ein höherer erst, wenn die unter dem alten Wert gestarteten Anfragen abgeschlossen sind. Berechnet der Server eine Anfrage nach der anderen, erzeugt ein höherer Wert keine zusätzliche Last; jede Anfrage wartet nur länger.
+- `minTokensPerSecond` (eine beliebige positive Zahl) ist die niedrigste Rate, mit der der Server unter seiner üblichen Last Embeddings für dieses Modell berechnet. Miss sie, während auf derselben Hardware andere Arbeit läuft, etwa ein Chat-Modell, aber zähle die Zeit nicht mit, die eine Anfrage hinter anderen Anfragen wartet. Diese Wartezeit rechnet Tale selbst hinzu.
+
+```json
+{
+  "providerSlug": "local-embedding",
+  "model": "example-embedding",
+  "dimensions": 1024,
+  "baseUrl": "https://embeddings.example.internal/v1",
+  "maxConcurrentRequests": 2,
+  "minTokensPerSecond": 800
+}
+```
+
+Jede Embedding-Anfrage hat eine Obergrenze: 15 Minuten für die Indexierung und 5 Minuten für eine Suchanfrage, auf die eine Chat-Antwort wartet. Ohne `minTokensPerSecond` weiß Tale nicht, wie lange die Warteschlange des Servers dauern kann, und lässt eine Anfrage ihre ganze Obergrenze ausschöpfen. Mit dieser Einstellung gibt Tale jeder Anfrage Zeit für die Arbeit, die auf dem Server vor oder neben ihr liegen kann, und für ihre eigene. Dazu zählen die Tokens der Anfrage selbst, großzügig aus ihren Zeichen geschätzt, die übrigen Anfragen, die dieser Tale-Prozess gleichzeitig offen haben kann, und `maxConcurrentRequests` weitere von anderen Clients. Jede dieser Anfragen rechnet Tale mindestens als vollen Batch aus 64 Texten mit je 1.024 Tokens. Die Summe teilt Tale durch `minTokensPerSecond` und schlägt 50 % auf, gibt aber nie weniger als 60 Sekunden und nie mehr als die Obergrenze. Mit dem Beispiel oben bekommt ein voller Batch mit gewöhnlichem Text rund acht Minuten und eine Suchanfrage ihre Obergrenze von fünf Minuten. Eine Suchanfrage endet außerdem nach insgesamt fünf Minuten, einschließlich der Wartezeit auf einen freien Platz. Teilen sich mehr Clients den Server als ein weiterer Tale-Prozess mit demselben Limit, gib eine niedrigere Rate an.
+
+Eine Anfrage, deren Zeit abgelaufen ist, sendet Tale nicht sofort erneut: Der Server hatte sie die ganze Zeit, und eine Wiederholung würde seine Warteschlange nur verlängern. Eine abgelehnte Verbindung, eine Ratenbegrenzung oder ein Serverfehler wird nach einer Pause wiederholt, die mit jedem Versuch wächst, oder nach der Pause, die ein ausgelasteter Server mit `Retry-After` verlangt, höchstens einer Minute. Verlangt ein Server eine längere Pause, lässt Tale ihn in Ruhe. Schlägt bei einer Anfrage aus mehreren Batches einer fehl, etwa bei einer langen Webseite, bricht Tale die übrigen Batches ab, ob sie laufen oder noch warten, sodass der Server nicht weiter an ihnen rechnet.
+
+Für die Indexierung eines Dokuments bleiben pro Versuch höchstens 15 Minuten. Braucht ein großes Dokument oder eine lange Warteschlange mehr, endet der Versuch an dieser Grenze und bricht seine offene Anfrage ab; eine Anfrage, deren Zeit abläuft, beendet den Versuch ebenfalls. Der nächste Versuch beginnt nach einer Pause, die mit jedem Versuch wächst, und macht nach den bereits gespeicherten Chunks weiter. Ist ein Dokument nach sechs Versuchen noch nicht fertig, erscheint es als fehlgeschlagen. **Indexierung erneut versuchen** macht dann bei den gespeicherten Chunks weiter.
+
 ## Bucket einer Organisation verbinden
 
 1. Stelle einen S3-kompatiblen Bucket mit den benötigten Objektrechten bereit. Konfiguriere CORS für die tatsächlichen Browser-Ursprünge und benötigten Methoden `GET`, `PUT` und `HEAD`.

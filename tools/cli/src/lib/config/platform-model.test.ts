@@ -261,6 +261,85 @@ describe('the embedding floor in a declaration', () => {
     );
   });
 
+  test('accepts the serving limits the same three ways, within the platform’s bounds', () => {
+    for (const fields of [
+      { maxConcurrentRequests: 2, minTokensPerSecond: 750 },
+      { maxConcurrentRequests: null, minTokensPerSecond: null },
+      { minTokensPerSecond: 1349.5 },
+      {},
+    ])
+      expect(
+        declare({ ...embedding().config, ...fields }).success,
+        JSON.stringify(fields),
+      ).toBe(true);
+    for (const fields of [
+      { maxConcurrentRequests: 0 },
+      { maxConcurrentRequests: 65 },
+      { maxConcurrentRequests: 1.5 },
+      { minTokensPerSecond: 0 },
+      { minTokensPerSecond: '750' },
+      { maxConcurrentRequest: 2 },
+    ])
+      expect(
+        declare({ ...embedding().config, ...fields }).success,
+        JSON.stringify(fields),
+      ).toBe(false);
+  });
+
+  test('converges per kept setting when a declaration states several', () => {
+    const resource = (fields: object) =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          {
+            kind: 'knowledge-embedding',
+            config: { ...embedding().config, ...fields },
+          },
+        ],
+      }).resources[0]!;
+    const stored = (fields: object) => ({ ...embedding().config, ...fields });
+    const limits = { maxConcurrentRequests: 2, minTokensPerSecond: 750 };
+
+    // Omitted settings accept whatever is stored; stated ones must match.
+    expect(
+      resourceConverged(
+        resource({ maxConcurrentRequests: 2 }),
+        stored({ ...limits, minSimilarity: 0.5 }),
+      ),
+    ).toBe(true);
+    expect(
+      resourceConverged(
+        resource(limits),
+        stored({ ...limits, minSimilarity: 0.5 }),
+      ),
+    ).toBe(true);
+    expect(
+      resourceConverged(
+        resource(limits),
+        stored({ maxConcurrentRequests: 2, minTokensPerSecond: 500 }),
+      ),
+    ).toBe(false);
+    expect(
+      resourceConverged(resource(limits), stored({ maxConcurrentRequests: 2 })),
+    ).toBe(false);
+    // Null converges only once that setting is gone, whatever else is kept.
+    expect(
+      resourceConverged(
+        resource({ minTokensPerSecond: null, minSimilarity: null }),
+        stored({ maxConcurrentRequests: 2 }),
+      ),
+    ).toBe(true);
+    expect(
+      resourceConverged(resource({ minTokensPerSecond: null }), stored(limits)),
+    ).toBe(false);
+    expect(
+      resourceConverged(
+        resource({ ...limits, minSimilarity: null }),
+        stored(limits),
+      ),
+    ).toBe(true);
+  });
+
   test('converges on the platform’s own terms — omitted keeps, null clears, a number matches exactly', () => {
     const resource = (minSimilarity?: number | null) =>
       parsePlatformConfiguration({

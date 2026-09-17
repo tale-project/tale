@@ -10,6 +10,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { KNOWLEDGE_EMBEDDING_KEPT_KEYS } from '@tale/shared/schemas/knowledge';
+
 import { preconditionError } from '../../utils/fail';
 import { writeDeploymentBundle } from '../deployment/bundle';
 import {
@@ -167,25 +169,18 @@ async function fixture(
           ...fields,
         };
       if (id === 'knowledge-embedding') {
-        // The platform's own floor rule (`writeKnowledgeEmbedding`): a
-        // save that omits `minSimilarity` keeps the stored value, an
-        // explicit null clears it, a number sets it.
-        const { minSimilarity: declared, ...rest } = fields as {
-          minSimilarity?: number | null;
-        } & Record<string, unknown>;
-        const stored = (
-          current?.config as { minSimilarity?: number } | undefined
-        )?.minSimilarity;
-        const floor =
-          declared === undefined
-            ? stored
-            : declared === null
-              ? undefined
-              : declared;
-        config = {
-          ...rest,
-          ...(floor === undefined ? {} : { minSimilarity: floor }),
-        };
+        // The platform's own rule for the settings the form does not carry
+        // (`writeKnowledgeEmbedding`): a save that omits one keeps the
+        // stored value, an explicit null clears it, a value sets it.
+        const next: Record<string, unknown> = { ...fields };
+        const stored = (current?.config ?? {}) as Record<string, unknown>;
+        for (const key of KNOWLEDGE_EMBEDDING_KEPT_KEYS) {
+          const kept =
+            fields[key] === null ? undefined : (fields[key] ?? stored[key]);
+          if (kept === undefined) delete next[key];
+          else next[key] = kept;
+        }
+        config = next;
       }
       mutate(id, config);
       writes.push(id);
@@ -915,6 +910,70 @@ describe('one general native configuration lifecycle', () => {
       planPlatformConfiguration(f.configuration, f.client),
     ).rejects.toThrow('document corpus');
     expect(f.writes).toEqual([]);
+  });
+
+  test('changes only the serving limits of an organization that already has a corpus', async () => {
+    const model = {
+      providerSlug: 'local-embedding',
+      model: 'Example-embedding',
+      dimensions: 1024,
+      baseUrl: 'https://models.example.invalid/v1',
+    };
+    const declare = (config: object) =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [{ kind: 'knowledge-embedding', config }],
+      });
+    const limits = declare({
+      ...model,
+      maxConcurrentRequests: 2,
+      minTokensPerSecond: 750,
+    });
+    const f = await fixture(limits);
+    f.mutate('knowledge-embedding', { ...model, minSimilarity: 0.5 });
+    f.controls.documents = true;
+    f.controls.websites = true;
+
+    const plan = await planPlatformConfiguration(limits, f.client);
+    expect(plan.resources[0]).toMatchObject({
+      action: 'update',
+      effects: ['embedding-configuration'],
+    });
+    await applyPlatformConfiguration(limits, plan, f.client, f.receipt);
+    expect(f.entries.get('knowledge-embedding')?.config).toEqual({
+      ...model,
+      minSimilarity: 0.5,
+      maxConcurrentRequests: 2,
+      minTokensPerSecond: 750,
+    });
+    expect(
+      (await readPlatformConfiguration(limits, f.client)).resources[0]?.matches,
+    ).toBe(true);
+
+    // Clearing a limit is still only a limit change…
+    const cleared = declare({ ...model, minTokensPerSecond: null });
+    await applyPlatformConfiguration(
+      cleared,
+      await planPlatformConfiguration(cleared, f.client),
+      f.client,
+      join(dirname(f.receipt), 'cleared.json'),
+    );
+    expect(f.entries.get('knowledge-embedding')?.config).toEqual({
+      ...model,
+      minSimilarity: 0.5,
+      maxConcurrentRequests: 2,
+    });
+    // …while a different model on the same corpus is not.
+    await expect(
+      planPlatformConfiguration(
+        declare({
+          ...model,
+          model: 'Other-embedding',
+          minTokensPerSecond: 750,
+        }),
+        f.client,
+      ),
+    ).rejects.toThrow('document corpus');
   });
 
   test('refuses embedding changes with an existing website corpus', async () => {

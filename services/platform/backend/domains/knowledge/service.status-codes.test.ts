@@ -173,6 +173,43 @@ describe('indexUploadedFile — one stable code per failure', () => {
     },
   );
 
+  it('stops without a failure status when its job is cancelled, so the retry resumes the document', async () => {
+    // pg-boss cancels the job's signal for two reasons — the job ran past
+    // its time budget, or the worker is shutting down — and fails the job
+    // either way, so its retry picks the document up. The message names
+    // both and stays the same for every file, so the reports group.
+    const messages: string[] = [];
+    for (const fileId of ['file-1', 'file-2']) {
+      const controller = new AbortController();
+      vi.mocked(indexWholeDocument).mockImplementation(async (args) => {
+        expect(args.signal).toBe(controller.signal);
+        controller.abort();
+        throw new DOMException('This operation was aborted', 'AbortError');
+      });
+      const log: Query[] = [];
+
+      const error = await indexUploadedFile(fakeSql(log), fileId, {
+        signal: controller.signal,
+      }).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(Error);
+      messages.push(error instanceof Error ? error.message : '');
+
+      const statuses = log
+        .filter((query) => query.text.includes('UPDATE app.file_metadata'))
+        .flatMap((query) => query.values);
+      expect(statuses).toContain('running');
+      expect(statuses).not.toContain('failed');
+    }
+    expect(messages[0]).toMatch(/time budget/);
+    expect(messages[0]).toMatch(/shutting down/);
+    expect(messages[0]).not.toContain('file-');
+    expect(messages[1]).toBe(messages[0]);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
   it('stores a curated sentence and `indexer_error` for an unclassified fault, never the raw text, and rethrows for the retry ladder', async () => {
     vi.mocked(indexWholeDocument).mockRejectedValue(
       new Error('invalid byte sequence for encoding "UTF8": 0x00'),

@@ -62,8 +62,23 @@ import {
 } from '../domains/websites/service.ts';
 import { createCtxShim } from '../lib/ctx-shim.ts';
 
-/** One task handler; `payload` is a job row — external input, re-validate. */
-export type TaskHandler = (payload: unknown) => Promise<void>;
+/** What the worker hands a handler beside its payload. */
+export interface TaskContext {
+  /**
+   * Aborted when pg-boss gives up on the job: it ran past its queue's
+   * `expireInSeconds` (pg-boss then fails it and schedules any retry), or
+   * the worker is shutting down. A handler that can outlast its budget stops
+   * on it, so a retry never runs beside the attempt it replaces.
+   */
+  readonly signal: AbortSignal;
+}
+
+/** One task handler; `payload` is a job row — external input, re-validate.
+ * `context` is absent when a handler is called outside the worker. */
+export type TaskHandler = (
+  payload: unknown,
+  context?: TaskContext,
+) => Promise<void>;
 
 export type BackendTaskList = Record<string, TaskHandler>;
 
@@ -290,9 +305,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters, ${twoFactor.count} 2fa attempts`,
       );
     },
-    'rag.index_file': async (payload) => {
+    'rag.index_file': async (payload, context) => {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
-      await indexUploadedFile(deps.sql, input.fileId);
+      // A document can take longer than the job's budget (a slow embedding
+      // server, a queue of other jobs' batches). The run stops when pg-boss
+      // gives up on it, and the retry resumes after the stored slices.
+      await indexUploadedFile(deps.sql, input.fileId, {
+        signal: context?.signal,
+      });
     },
     'knowledge.release_refs': async (payload) => {
       const input = z

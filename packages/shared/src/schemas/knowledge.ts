@@ -60,6 +60,14 @@ export const KNOWLEDGE_EMBEDDING_KEY = 'embedding';
 export const KNOWLEDGE_DEFAULT_MIN_SIMILARITY = 0.45;
 
 /**
+ * How many embedding requests Tale keeps in flight to an organization's
+ * model at once, in each Tale process, when `embedding.json` states no
+ * `maxConcurrentRequests` — the bound embedding had before it was
+ * configurable.
+ */
+export const KNOWLEDGE_DEFAULT_MAX_CONCURRENT_REQUESTS = 3;
+
+/**
  * `connection.json` — the organization's own knowledge Postgres.
  *
  * The corpus owns whole schemas on the target database (`private_knowledge` and
@@ -119,5 +127,73 @@ export const knowledgeEmbeddingSchema = z.object({
    * it lives next to the model.
    */
   minSimilarity: z.number().min(0).max(1).optional(),
+  /**
+   * How many embedding requests to this model Tale keeps in flight at once
+   * (1–64) — for this organization, in each Tale process (the API and every
+   * worker count separately), shared by every indexing job, website scan and
+   * search; further requests wait in arrival order, a search query ahead of
+   * waiting batches. A lower value applies at once, a higher one once the
+   * requests made under the old value are done. Absent means
+   * {@link KNOWLEDGE_DEFAULT_MAX_CONCURRENT_REQUESTS}. On a server that
+   * computes one request at a time and queues the rest, a higher bound adds
+   * no load; it only lengthens the queue each request waits in.
+   */
+  maxConcurrentRequests: z.number().int().min(1).max(64).optional(),
+  /**
+   * The slowest rate, in tokens per second, at which the server computes
+   * embeddings for this model under its usual load — including slowdowns
+   * from other work on the same hardware, but NOT time a request spends
+   * waiting behind other requests: Tale allows for that wait itself.
+   *
+   * Every request has a ceiling: 15 minutes (the indexing-job budget) for a
+   * batch, 5 minutes for a search query — a chat turn waits on the query,
+   * and the chat watchdog takes a turn for dead after 10 minutes without a
+   * heartbeat; a search also ends after 5 minutes in all, slot wait
+   * included.
+   *
+   * Set, this rate sizes each request's timeout as queue wait plus compute:
+   * the request's own tokens (estimated from its characters), plus the other
+   * `maxConcurrentRequests − 1` requests this process may have in flight and
+   * `maxConcurrentRequests` more from other clients, each counted as at least
+   * a full batch of 64 texts of 1,024 tokens; divided by this rate and
+   * multiplied by 1.5, never under 60 seconds and never over the ceiling.
+   * Absent, nothing says how long the server's queue may take, so a request
+   * may wait its whole ceiling.
+   */
+  minTokensPerSecond: z.number().positive().optional(),
 });
 export type KnowledgeEmbeddingConfig = z.infer<typeof knowledgeEmbeddingSchema>;
+
+/**
+ * The `embedding.json` settings the Settings form does not carry: an
+ * operator states them in the file or through the CLI. A write that omits
+ * one keeps the stored value; only an explicit `null` removes it — so a form
+ * save never resets them.
+ */
+export const KNOWLEDGE_EMBEDDING_KEPT_KEYS = [
+  'minSimilarity',
+  'maxConcurrentRequests',
+  'minTokensPerSecond',
+] as const;
+
+const embeddingFields = knowledgeEmbeddingSchema.shape;
+
+/**
+ * What a write to `embedding.json` accepts: the file's own shape, where each
+ * of {@link KNOWLEDGE_EMBEDDING_KEPT_KEYS} may also be `null` (clear it).
+ * The bounds are the file's; only the `null` is added.
+ */
+export const knowledgeEmbeddingWriteSchema = knowledgeEmbeddingSchema.extend({
+  minSimilarity: embeddingFields.minSimilarity.unwrap().nullable().optional(),
+  maxConcurrentRequests: embeddingFields.maxConcurrentRequests
+    .unwrap()
+    .nullable()
+    .optional(),
+  minTokensPerSecond: embeddingFields.minTokensPerSecond
+    .unwrap()
+    .nullable()
+    .optional(),
+});
+export type KnowledgeEmbeddingWrite = z.infer<
+  typeof knowledgeEmbeddingWriteSchema
+>;

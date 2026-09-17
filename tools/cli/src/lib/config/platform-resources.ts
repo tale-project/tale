@@ -17,6 +17,7 @@ import {
   resourceConverged,
   resourceId,
   sameConfiguration,
+  sameEmbeddingModel,
   type PlatformResource,
 } from './platform-model';
 
@@ -160,7 +161,12 @@ export async function checkResourceChange(
         );
     }
   }
-  if (resource.kind === 'knowledge-embedding') {
+  if (
+    resource.kind === 'knowledge-embedding' &&
+    // A change confined to the similarity floor or the serving limits
+    // leaves every stored vector valid, so it needs no empty corpus.
+    !sameEmbeddingModel(resource.config, current.config)
+  ) {
     // The hub listing omits project and other-team documents. Native aggregates
     // include the whole organization; crawled websites use the same embedding
     // configuration. Operators must pause ingestion during a model change.
