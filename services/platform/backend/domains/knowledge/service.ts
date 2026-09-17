@@ -722,10 +722,18 @@ async function stampExtractionMetadata(
  * Index one uploaded file into the org's corpus: extract → PII gate →
  * embed → upsert chunks. Idempotent (re-running replaces the document's
  * chunks); the `rag.index_file` job drives it with retries.
+ *
+ * `signal` is the job's: pg-boss aborts it when the run outlives the job's
+ * budget, or when the worker shuts down with the job still running, and
+ * fails the job either way so its retry follows. The run then stops — the
+ * embedding in flight is cancelled, no further slice starts — and the retry
+ * resumes after the slices already stored, so no two runs embed one
+ * document at once.
  */
 export async function indexUploadedFile(
   sql: Sql,
   fileId: string,
+  options: { readonly signal?: AbortSignal } = {},
 ): Promise<void> {
   const rows = await sql<
     {
@@ -878,6 +886,7 @@ export async function indexUploadedFile(
         folderPath,
         teamIds,
         projectId,
+        signal: options.signal,
       },
       {
         onSlice: (slice) =>
@@ -924,6 +933,23 @@ export async function indexUploadedFile(
       ragIndexedAt: Date.now(),
     });
   } catch (error) {
+    if (options.signal?.aborted) {
+      // pg-boss cancelled the job — it ran past its time budget, or the
+      // worker is shutting down — and owns what happens next: it failed the
+      // job, and the retry resumes after the stored slices. Not a failure of
+      // the document, so no `failed` status: the row keeps its progress, and
+      // a retry that never comes is settled by the RAG watchdog. The message
+      // stays constant (the file is named in the warning) so the error
+      // reports of every such stop group together.
+      console.warn('[knowledge] indexing stopped: its job was cancelled', {
+        fileId,
+        orgSlug,
+      });
+      throw new Error(
+        'Indexing stopped because its job was cancelled: the job ran past its time budget, or its worker is shutting down. The retry resumes after the stored slices.',
+        { cause: error },
+      );
+    }
     if (error instanceof KnowledgeIndexUnavailable) {
       // The corpus's BM25 index is being rebuilt (or its rebuild failed): a
       // refusal, not a failure — retrying now would hit the same wall, so the

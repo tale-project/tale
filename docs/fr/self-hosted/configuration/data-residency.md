@@ -50,6 +50,30 @@ La largeur est fixée par base à la première utilisation. Les organisations qu
 
 `embedding.json` accepte `minSimilarity`, le seuil du volet vectoriel de la recherche de l’assistant ; sa valeur par défaut est `0.45`. Le formulaire conserve ce réglage du fichier sans proposer de champ. Ajuste-le avec des requêtes représentatives. La recherche REST n’applique un seuil que si la requête en fournit un ; ce n’est pas une limite universelle pour toutes les recherches.
 
+### Doser les requêtes vers un serveur d’embedding auto-hébergé {#capacite-du-serveur-dembedding}
+
+Deux autres réglages facultatifs de `embedding.json` décrivent la charge que le serveur d’embedding peut absorber. Définis-les lorsque tu exploites ce serveur toi-même, par exemple un serveur de modèles sur ton propre matériel qui calcule une requête à la fois et met les autres en file d’attente. Comme `minSimilarity`, ils n’existent que dans le fichier : le formulaire des paramètres les conserve à l’enregistrement, et la CLI les déclare dans la ressource `knowledge-embedding`.
+
+- `maxConcurrentRequests` (de 1 à 64, 3 par défaut) fixe le nombre de requêtes d’embedding que Tale garde en cours en même temps vers ce modèle pour l’organisation. L’indexation des documents, les explorations de sites web et les recherches partagent cette limite. Les requêtes suivantes attendent dans leur ordre d’arrivée, mais une recherche passe devant les lots d’indexation en attente. Chaque processus Tale compte séparément : l’API et chaque réplique de worker peuvent donc chacune atteindre la limite. Une valeur plus basse s’applique aussitôt, une valeur plus haute une fois terminées les requêtes lancées sous l’ancienne. Sur un serveur qui calcule une requête à la fois, une valeur plus élevée n’ajoute aucune charge ; elle allonge seulement l’attente de chaque requête.
+- `minTokensPerSecond` (tout nombre positif) est le débit le plus bas auquel le serveur calcule les embeddings de ce modèle sous sa charge habituelle. Mesure-le pendant que d’autres traitements tournent sur le même matériel, comme un modèle de chat, mais sans compter le temps qu’une requête passe à attendre derrière d’autres requêtes. Tale ajoute lui-même ce temps d’attente.
+
+```json
+{
+  "providerSlug": "local-embedding",
+  "model": "example-embedding",
+  "dimensions": 1024,
+  "baseUrl": "https://embeddings.example.internal/v1",
+  "maxConcurrentRequests": 2,
+  "minTokensPerSecond": 800
+}
+```
+
+Chaque requête d’embedding a un plafond : 15 minutes pour l’indexation et 5 minutes pour une recherche, qu’une réponse du chat attend. Sans `minTokensPerSecond`, Tale ne peut pas savoir combien de temps la file d’attente du serveur peut durer ; une requête peut donc utiliser tout son plafond. Avec ce réglage, Tale accorde à chaque requête le temps nécessaire au travail qui peut la précéder ou l’accompagner sur le serveur, en plus du sien. Ce travail comprend les tokens de la requête elle-même, estimés largement à partir de ses caractères, les autres requêtes que ce processus Tale peut avoir en cours, et `maxConcurrentRequests` autres venant d’autres clients. Tale compte chacune de ces requêtes comme au moins un lot complet de 64 textes de 1 024 tokens chacun, divise le total par `minTokensPerSecond` et ajoute 50 %, sans jamais accorder moins de 60 secondes ni plus que le plafond. Avec l’exemple ci-dessus, un lot complet de texte ordinaire dispose d’environ huit minutes et une recherche de son plafond de cinq minutes. Une recherche s’arrête aussi au bout de cinq minutes au total, attente d’une place libre comprise. Si le serveur est partagé par plus de clients qu’un seul autre processus Tale avec la même limite, indique un débit plus bas.
+
+Une requête dont le délai a expiré n’est pas renvoyée aussitôt : le serveur l’avait depuis le début, et la répéter ne ferait qu’allonger sa file d’attente. Une connexion refusée, une limite de débit ou une erreur du serveur est relancée après une pause qui s’allonge à chaque tentative, ou après la pause qu’un serveur chargé demande avec `Retry-After`, d’au plus une minute. Si un serveur demande une pause plus longue, Tale le laisse tranquille. Si l’un des lots d’une requête en plusieurs lots échoue, par exemple pour une longue page web, Tale annule les autres lots, en cours ou en attente, pour que le serveur cesse de les calculer.
+
+L’indexation d’un document dispose d’au plus 15 minutes par tentative. Quand un gros document ou une longue file d’attente demande davantage, la tentative s’arrête à cette limite et annule sa requête en cours ; une requête dont le délai expire met aussi fin à la tentative. La tentative suivante commence après une pause qui s’allonge à chaque fois et reprend après les fragments déjà enregistrés. Si un document n’est toujours pas terminé après six tentatives, il apparaît en échec ; **Relancer l'indexation** reprend alors à partir des fragments enregistrés.
+
 ## Connecter le bucket d’une organisation
 
 1. Prépare un bucket compatible S3 et les permissions objet nécessaires. Configure CORS pour les véritables origines du navigateur et les méthodes requises `GET`, `PUT` et `HEAD`.

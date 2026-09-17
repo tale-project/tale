@@ -270,6 +270,49 @@ describe('native file configuration preconditions', () => {
     });
   });
 
+  it('keeps the serving limits a form save omits, and clears one only on an explicit null', async () => {
+    const sql = lockedSql();
+    const limits = {
+      minSimilarity: 0.5,
+      maxConcurrentRequests: 2,
+      minTokensPerSecond: 750,
+    };
+    await writeKnowledgeEmbedding(sql, 'north', { ...embedding, ...limits });
+    // The Settings form sends only what it shows.
+    await writeKnowledgeEmbedding(sql, 'north', {
+      ...embedding,
+      model: 'model-b',
+    });
+    const kept = await readKnowledgeEmbeddingView('north');
+    expect(kept.config).toEqual({ ...embedding, model: 'model-b', ...limits });
+    expect(kept).toMatchObject({
+      maxConcurrentRequests: 2,
+      minTokensPerSecond: 750,
+    });
+
+    await writeKnowledgeEmbedding(sql, 'north', {
+      ...embedding,
+      model: 'model-b',
+      minTokensPerSecond: null,
+    });
+    const cleared = await readKnowledgeEmbeddingView('north');
+    expect(cleared.config).toEqual({
+      ...embedding,
+      model: 'model-b',
+      minSimilarity: 0.5,
+      maxConcurrentRequests: 2,
+    });
+    expect(cleared.minTokensPerSecond).toBeUndefined();
+    expect(
+      JSON.parse(
+        await readFile(
+          join(directory, 'north', 'knowledge', 'embedding.json'),
+          'utf8',
+        ),
+      ),
+    ).not.toHaveProperty('minTokensPerSecond');
+  });
+
   it('supports explicit absence CAS for instance deployment configuration', async () => {
     const sql = lockedSql();
     const auth = {

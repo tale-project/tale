@@ -51,22 +51,34 @@ const MODEL: EmbeddingModel = {
 };
 
 /** An embedder that returns a fixed-width vector per text and counts calls. */
-function stubEmbedder(): Embedder & { embedded: string[] } {
+function stubEmbedder(): Embedder & {
+  embedded: string[];
+  signals: (AbortSignal | undefined)[];
+} {
   const embedded: string[] = [];
+  const signals: (AbortSignal | undefined)[] = [];
   const embedder = {
     model: MODEL,
     dimensions: MODEL.dimensions,
     embedded,
+    signals,
     embed: (text: string) => {
       embedded.push(text);
       return Promise.resolve([0, 0, 0, 1]);
     },
-    embedAll: (texts: readonly string[]) => {
+    embedAll: (
+      texts: readonly string[],
+      options?: { signal?: AbortSignal },
+    ) => {
       embedded.push(...texts);
+      signals.push(options?.signal);
       return Promise.resolve(texts.map(() => [0, 0, 0, 1]));
     },
   };
-  return embedder as unknown as Embedder & { embedded: string[] };
+  return embedder as unknown as Embedder & {
+    embedded: string[];
+    signals: (AbortSignal | undefined)[];
+  };
 }
 
 interface StoredRow {
@@ -617,6 +629,57 @@ describe('a document is prepared once, not once per slice', () => {
     expect(scanForSecrets).toHaveBeenCalledTimes(1);
     expect(applyPiiPolicyForIndexing).toHaveBeenCalledTimes(1);
     expect(chunkDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops before the next slice once the job gives up, keeping what it stored', async () => {
+    // pg-boss gives up on a job that outlives its budget and starts a retry;
+    // the first run must stop, or two indexers embed the same document.
+    const db = fakeDb({ resumable: true });
+    const embedder = stubEmbedder();
+    const controller = new AbortController();
+    const progress: number[] = [];
+
+    await expect(
+      indexWholeDocument(
+        {
+          ...ARGS,
+          text: LONG,
+          sql: db.sql,
+          embedder,
+          maxChunks: 3,
+          signal: controller.signal,
+        },
+        {
+          onSlice: (slice) => {
+            progress.push(slice.chunksStored);
+            if (progress.length === 2) controller.abort();
+          },
+        },
+      ),
+    ).rejects.toThrow();
+
+    expect(progress).toEqual([3, 6]);
+    expect(embedder.embedded).toHaveLength(6);
+    expect(embedder.signals).toEqual([controller.signal, controller.signal]);
+    expect(db.statements.join('\n')).not.toContain("SET status = 'completed'");
+  });
+
+  it('does not start a document whose job has already given up', async () => {
+    const db = fakeDb({ resumable: true });
+    const embedder = stubEmbedder();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      indexWholeDocument({
+        ...ARGS,
+        text: LONG,
+        sql: db.sql,
+        embedder,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(embedder.embedded).toEqual([]);
   });
 
   it('records a refusal the preparation produced, embedding nothing', async () => {

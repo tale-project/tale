@@ -50,6 +50,13 @@ export interface EmbeddingModel {
   readonly dimensions: number;
   /** OpenAI-compatible base URL, when the provider is not the default one. */
   readonly baseUrl?: string;
+  /** How many requests to this model may be in flight at once; absent means
+   * the default bound. Stated by the operator, like the width. */
+  readonly maxConcurrentRequests?: number;
+  /** The slowest rate, in tokens per second, at which the server computes for
+   * this model. Absent, a request may wait its whole ceiling: fifteen minutes
+   * for a batch, five for a search query. */
+  readonly minTokensPerSecond?: number;
 }
 
 /** One chunk of one document, as retrieval returns it. */

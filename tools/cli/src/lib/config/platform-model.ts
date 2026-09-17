@@ -4,7 +4,10 @@ import {
   FILE_POLICY_TYPES,
   POLICY_SCHEMAS,
 } from '@tale/shared/schemas/governance';
-import { knowledgeEmbeddingSchema } from '@tale/shared/schemas/knowledge';
+import {
+  KNOWLEDGE_EMBEDDING_KEPT_KEYS,
+  knowledgeEmbeddingWriteSchema,
+} from '@tale/shared/schemas/knowledge';
 import {
   modelCatalogFileSchema,
   providerDefinitionSchema,
@@ -53,13 +56,12 @@ export const platformResourceSchema = z.union([
   }),
   z.strictObject({
     kind: z.literal('knowledge-embedding'),
-    // The platform keeps a stored `minSimilarity` when a save omits it and
-    // clears it only on an explicit null (the Settings form never carries
-    // the knob) — so the declaration speaks the same three ways: a number
-    // sets the floor, `null` clears it, omitted leaves whatever is stored.
-    config: knowledgeEmbeddingSchema.strict().extend({
-      minSimilarity: z.number().min(0).max(1).nullable().optional(),
-    }),
+    // The platform keeps a stored similarity floor or serving limit
+    // (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`) when
+    // a save omits it and clears it only on an explicit null (the Settings
+    // form never carries them) — so the declaration speaks the same three
+    // ways: a value sets it, `null` clears it, omitted leaves what is stored.
+    config: knowledgeEmbeddingWriteSchema.strict(),
   }),
   z.strictObject({
     kind: z.literal('provider'),
@@ -267,10 +269,29 @@ export type ConfigurationPlan = z.infer<typeof configurationPlanSchema>;
 export const sameConfiguration = (left: unknown, right: unknown) =>
   valueHash(left) === valueHash(right);
 
-function withoutKey(value: unknown, key: string): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+function isObject(value: unknown): value is object {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+const keptSettings: readonly string[] = KNOWLEDGE_EMBEDDING_KEPT_KEYS;
+
+/** An embedding config without the settings a write keeps when it omits
+ * them: what remains names the model — provider, credential, tag, width and
+ * endpoint. */
+function embeddingModelOf(value: object): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(value).filter(([entry]) => entry !== key),
+    Object.entries(value).filter(([key]) => !keptSettings.includes(key)),
+  );
+}
+
+/** Whether a declared embedding names the model already stored, so that it
+ * changes at most the kept settings — the similarity floor and the serving
+ * limits, none of which touches the vector space. */
+export function sameEmbeddingModel(declared: object, current: unknown) {
+  return (
+    isObject(current) &&
+    valueHash(embeddingModelOf(declared)) ===
+      valueHash(embeddingModelOf(current))
   );
 }
 
@@ -280,11 +301,12 @@ function withoutKey(value: unknown, key: string): unknown {
  * write semantics are not "replace the whole object" converges on the
  * platform's own terms rather than never at all.
  *
- * Every resource compares whole, except the embedding floor: the platform
- * keeps a stored `minSimilarity` when the write omits it and clears it on
- * an explicit null, so a declaration that omits the floor converges with
- * ANY stored floor, one that declares `null` converges only once none is
- * stored, and a declared number must match exactly.
+ * Every resource compares whole, except the embedding's kept settings
+ * (`minSimilarity`, `maxConcurrentRequests`, `minTokensPerSecond`): the
+ * platform keeps a stored one when the write omits it and clears it on an
+ * explicit null, so a declaration that omits one converges with ANY stored
+ * value, one that declares `null` converges only once none is stored, and a
+ * declared value must match exactly — each setting on its own.
  */
 export function resourceConverged(
   resource: PlatformResource,
@@ -299,32 +321,24 @@ export function resourceConverged(
 
 /** A retained plan holds the declaration hash, not its original secret-free
  * object. Compare that hash with precisely the declarations native readback
- * satisfies, including the embedding floor's preserve/clear semantics. */
+ * satisfies, including the kept settings' preserve/clear semantics. */
 export function resourceConvergedWithHash(
   resource: PlatformResource,
   current: unknown,
   desiredSha256: string,
 ): boolean {
-  if (resource.kind !== 'knowledge-embedding')
+  if (resource.kind !== 'knowledge-embedding' || !isObject(current))
     return valueHash(current) === desiredSha256;
-  const stored =
-    current && typeof current === 'object' && !Array.isArray(current)
-      ? Reflect.get(current, 'minSimilarity')
-      : undefined;
-  const withoutFloor = withoutKey(current, 'minSimilarity');
-  if (valueHash(withoutFloor) === desiredSha256) return true;
-  if (
-    stored === undefined &&
-    withoutFloor &&
-    typeof withoutFloor === 'object' &&
-    !Array.isArray(withoutFloor)
-  )
-    return (
-      valueHash({ ...withoutFloor, minSimilarity: null }) === desiredSha256
-    );
-  return (
-    stored !== undefined &&
-    stored !== null &&
-    valueHash(current) === desiredSha256
-  );
+  // Every declaration this state satisfies: each kept setting either
+  // omitted (whatever is stored stays) or stated as what is stored — `null`
+  // when nothing is.
+  let readings = [embeddingModelOf(current)];
+  for (const key of keptSettings) {
+    const stored: unknown = Reflect.get(current, key);
+    readings = readings.flatMap((reading) => [
+      reading,
+      { ...reading, [key]: stored ?? null },
+    ]);
+  }
+  return readings.some((reading) => valueHash(reading) === desiredSha256);
 }

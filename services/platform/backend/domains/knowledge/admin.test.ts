@@ -7,7 +7,7 @@ import {
   KnowledgeAdminError,
   probeKnowledgeConnection,
   writeKnowledgeConnection,
-  resolveEmbeddingFloor,
+  resolveKeptEmbeddingSettings,
   writeKnowledgeEmbedding,
 } from './admin.ts';
 
@@ -97,19 +97,75 @@ describe('host policy on the knowledge admin doors', () => {
   });
 });
 
-describe('the assistant’s similarity floor on an embedding write', () => {
-  it('keeps the stored floor when the body omits the key — the form does not carry it', () => {
-    expect(resolveEmbeddingFloor(undefined, undefined, 0.6)).toBe(0.6);
+/**
+ * The settings `embedding.json` holds that the Settings form does not carry
+ * — the assistant's similarity floor and the model's serving limits. An
+ * operator states them in the file or through the CLI; a form save must not
+ * reset them.
+ */
+describe('the settings an embedding write keeps', () => {
+  const model = {
+    providerSlug: 'local-embedding',
+    model: 'Example-embedding',
+    dimensions: 1024,
+  };
+  const stored = {
+    ...model,
+    minSimilarity: 0.6,
+    maxConcurrentRequests: 2,
+    minTokensPerSecond: 750,
+  };
+
+  it('keeps every stored setting when the body omits it — the form does not carry them', () => {
+    expect(resolveKeptEmbeddingSettings(model, stored)).toEqual(stored);
   });
 
-  it('takes an explicit floor over the stored one', () => {
-    expect(resolveEmbeddingFloor(0.3, 0.3, 0.6)).toBe(0.3);
-  });
-
-  it('clears the floor on an explicit null, and stays absent when nothing is stored', () => {
-    expect(resolveEmbeddingFloor(null, undefined, 0.6)).toBeUndefined();
+  it('takes an explicit value over the stored one', () => {
     expect(
-      resolveEmbeddingFloor(undefined, undefined, undefined),
-    ).toBeUndefined();
+      resolveKeptEmbeddingSettings(
+        { ...model, minSimilarity: 0.3, maxConcurrentRequests: 4 },
+        stored,
+      ),
+    ).toEqual({
+      ...stored,
+      minSimilarity: 0.3,
+      maxConcurrentRequests: 4,
+    });
+  });
+
+  it('clears a setting on an explicit null and keeps the others', () => {
+    expect(
+      resolveKeptEmbeddingSettings(
+        { ...model, minTokensPerSecond: null, minSimilarity: null },
+        stored,
+      ),
+    ).toEqual({ ...model, maxConcurrentRequests: 2 });
+  });
+
+  it('stays absent when nothing is stored', () => {
+    expect(resolveKeptEmbeddingSettings(model, null)).toEqual(model);
+    expect(
+      resolveKeptEmbeddingSettings(
+        { ...model, minTokensPerSecond: null },
+        null,
+      ),
+    ).toEqual(model);
+  });
+
+  it.each([
+    { maxConcurrentRequests: 0 },
+    { maxConcurrentRequests: 2.5 },
+    { minTokensPerSecond: 0 },
+    { minTokensPerSecond: '750' },
+    { dimensions: null },
+  ])('refuses %j before any file is touched', async (fields) => {
+    const error = await refusal(() =>
+      writeKnowledgeEmbedding(unreachableSql(), 'acme', {
+        ...model,
+        ...fields,
+      }),
+    );
+    expect(error.status).toBe(400);
+    expect(error.code).toBe('INVALID_EMBEDDING');
   });
 });
