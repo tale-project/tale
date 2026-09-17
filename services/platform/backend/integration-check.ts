@@ -46014,6 +46014,23 @@ async function checkAccountAuthzHardening(
     `created=${createdRes.status}/${created.success ? (createdRole[0]?.role ?? 'no-role') : 'unparsed'} existing=${existingRes.status}/${existing.success ? String(existing.data.isExistingUser) : 'unparsed'} duplicate=${duplicateRes.status}/${duplicate.success ? duplicate.data.error : '?'} audits=${addMemberAudits[0]?.count ?? '?'} hints=${memberHints[0]?.count ?? '?'}`,
   );
 
+  // --- A provisioned account is a verified account (auth.ts) -------------
+  // Tale sends no verification mail, so an account that arrives unverified
+  // can never become verified by any user action — and an unverified
+  // account is refused an OIDC identity, conversation synchronization and
+  // the notification mirror. The admin who typed the address is the
+  // assertion, so the door's account is verified the moment it exists.
+  const createdVerified = created.success
+    ? await sql<{ emailVerified: boolean }[]>`
+        SELECT "emailVerified" FROM "user" WHERE "id" = ${created.data.userId}
+      `
+    : [];
+  record(
+    'users/members (the settings door) creates a verified account',
+    createdVerified[0]?.emailVerified ?? false,
+    `emailVerified=${createdVerified[0]?.emailVerified ?? 'ERR'} (want true)`,
+  );
+
   // --- API-key rate-limit window unit (finding 5) -------------------------
   const mintRes = await fetch(`${base}/api/auth/api-key/create`, {
     method: 'POST',
@@ -49956,6 +49973,40 @@ async function main(): Promise<void> {
     'boot migrations (concurrent)',
     Number(migrationRows[0]?.count ?? '0') >= 1 && (authTable[0]?.ok ?? false),
     `app_migrations rows=${migrationRows[0]?.count}, better-auth user table=${authTable[0]?.ok ? 'present' : 'MISSING'}`,
+  );
+
+  // 1b. The boot backfill: accounts this deployment provisioned before a
+  //     provisioned account counted as a verified one are caught up, and a
+  //     directory-provisioned account (no credential row) keeps its
+  //     provider's verdict. Both rows are planted as they would have been
+  //     written before the rule shipped.
+  const provisionedId = randomUUID();
+  const directoryId = randomUUID();
+  await sql`
+    INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+    VALUES
+      (${provisionedId}, ${`itest-provisioned-${provisionedId}@example.com`}, 'Provisioned', false, now(), now()),
+      (${directoryId}, ${`itest-directory-${directoryId}@example.com`}, 'Directory', false, now(), now())
+  `;
+  await sql`
+    INSERT INTO "account" ("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt")
+    VALUES
+      (${randomUUID()}, ${provisionedId}, 'credential', ${provisionedId}, 'itest-hash', now(), now()),
+      (${randomUUID()}, ${directoryId}, 'entra-id', ${directoryId}, NULL, now(), now())
+  `;
+  await runBootMigrations(migrationOptions);
+  const caughtUp = await sql<{ id: string; emailVerified: boolean }[]>`
+    SELECT "id", "emailVerified" FROM "user"
+    WHERE "id" IN (${provisionedId}, ${directoryId})
+  `;
+  const verifiedById = new Map(
+    caughtUp.map((row) => [row.id, row.emailVerified]),
+  );
+  record(
+    'boot verifies accounts this deployment provisioned, and only those',
+    verifiedById.get(provisionedId) === true &&
+      verifiedById.get(directoryId) === false,
+    `provisioned=${verifiedById.get(provisionedId) ?? 'ERR'} (want true), directory=${verifiedById.get(directoryId) ?? 'ERR'} (want false)`,
   );
 
   // The knowledge corpus schema is what the websites/crawler lanes write

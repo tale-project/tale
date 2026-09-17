@@ -119,6 +119,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [auth](../suites/auth.md) | `AUTH-F2`, `AUTH-F3` | ✅ automated | `auth.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-F4`, `AUTH-F7`, `AUTH-F8`, `AUTH-F9` | ✅ automated | `auth-account.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-F6` | ✅ automated | `onboarding.spec.ts` |
+| [auth](../suites/auth.md) | `AUTH-F19` (a provisioned account is a verified account: the setup wizard's owner, a member added under Settings > Members and the deploy's operator all arrive verified, so identity claims, conversation sync and the notification mirror work at once; a directory account keeps its provider's verdict, and a deployment provisioned before the rule is caught up at boot) | ✅ automated | `backend/auth/auth.provisioning.test.ts`, `backend/integration-check.ts` (the members door's account, and the boot catch-up against real Postgres) |
 | [auth](../suites/auth.md) | `AUTH-F18` (identity protocol, consent/accessibility, signed continuation) | 🔶 backend + component | `backend/auth/oidc-integration.ts` (real HTTP/Postgres in `backend:integration`), `oauth-authorization.test.tsx`, `resume-oauth.test.ts`, `sentry-normalize.test.ts` (callback-secret redaction); live IdP/passkey/MFA round remains manual |
 | [auth](../suites/auth.md) | `AUTH-F14` | ✅ automated | `rbac.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-B5` (char-error path) | ✅ automated | `validation.spec.ts`, `onboarding.spec.ts` |

@@ -26,6 +26,8 @@ Local sign-in stores password hashes in the application database. The [first-adm
 
 Verify the complete flow with a test account: invitation, sign-in, sign-out and recovery. A working owner session does not prove that a new member can join.
 
+Tale sends no verification mail, so an address is confirmed by whoever provisioned it: the setup wizard’s first Owner, an admin adding a person under **Settings > Members**, and the operator’s deployment all count as that assertion, and the account is usable straight away. Connected applications read this as the `email_verified` claim on the identity Tale issues, so a colleague an admin just added can sign in to them immediately. An account that comes from enterprise SSO, SCIM or trusted headers keeps whatever its directory reports instead.
+
 ## Connect enterprise sign-in
 
 Configure the organization under **Settings > Enterprise SSO**. Microsoft Entra ID and generic OIDC use issuer discovery; OAuth2 takes explicit authorization, token and userinfo endpoints; SAML uses metadata, an assertion-consumer URL and signing certificates.

@@ -25,7 +25,7 @@ Tu dois avoir le rôle Propriétaire ou Admin pour gérer les membres.
 4. Pour un nouveau compte Tale, définis un **Mot de passe** qui respecte les exigences affichées. Si l’adresse appartient déjà à un compte, Tale réutilise ses identifiants et masque le champ du mot de passe.
 5. Sélectionne **Ajouter un membre**. Pour un nouveau compte, conserve les identifiants affichés dans la confirmation avant de la fermer, puis transmets-les par le canal prévu dans ton organisation.
 
-La personne apparaît dans la liste. Ce parcours n’envoie ni invitation ni courriel de réinitialisation du mot de passe. Si l’adresse est déjà membre de cette organisation, le formulaire le signale sans créer de doublon.
+La personne apparaît dans la liste. Ce parcours n’envoie ni invitation ni courriel de réinitialisation du mot de passe : en ajoutant quelqu’un, tu confirmes son adresse. Le compte fonctionne donc partout tout de suite, y compris dans les applications où l’on se connecte avec son compte Tale. Si l’adresse est déjà membre de cette organisation, le formulaire le signale sans créer de doublon.
 
 <Tip>
 

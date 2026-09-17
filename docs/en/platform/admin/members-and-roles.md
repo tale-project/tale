@@ -25,7 +25,7 @@ You need an Owner or Admin account to manage members.
 4. For a new Tale account, enter a **Password** that meets the displayed policy. If the email already belongs to an account, Tale reuses its credentials and hides the password field.
 5. Select **Add member**. For a new account, save the credentials shown in the confirmation before closing it, then share them through your organization's approved channel.
 
-The person appears in the member list. Tale does not send an invitation or password-reset email for this flow. If the address is already a member of this organization, the form reports that instead of adding a duplicate.
+The person appears in the member list. Tale does not send an invitation or password-reset email for this flow: adding someone is your confirmation of their address, so the account works everywhere at once — including applications people sign in to with their Tale account. If the address is already a member of this organization, the form reports that instead of adding a duplicate.
 
 <Tip>
 

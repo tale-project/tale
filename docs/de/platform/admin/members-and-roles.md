@@ -25,7 +25,7 @@ Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder A
 4. Lege für ein neues Tale-Konto ein **Passwort** fest, das die angezeigten Anforderungen erfüllt. Gehört die Adresse bereits zu einem Konto, verwendet Tale dessen Zugangsdaten und blendet das Passwortfeld aus.
 5. Wähle **Mitglied hinzufügen**. Sichere bei einem neuen Konto die Zugangsdaten aus der Bestätigung, bevor du sie schließt. Gib sie über den dafür vorgesehenen Kanal deiner Organisation weiter.
 
-Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
+Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts: Dass du jemanden hinzufügst, ist die Bestätigung der Adresse. Das Konto funktioniert deshalb sofort überall — auch in Anwendungen, bei denen man sich mit dem Tale-Konto anmeldet. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
 <Tip>
 

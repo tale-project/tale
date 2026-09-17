@@ -26,6 +26,8 @@ Die lokale Anmeldung speichert Passwort-Hashes in der Anwendungsdatenbank. Die [
 
 Prüfe mit einem Testkonto Einladung, Anmeldung, Abmeldung und Wiederherstellung. Eine funktionierende Inhabersitzung bestätigt noch nicht, dass neue Mitglieder beitreten können.
 
+Tale verschickt keine Bestätigungsmail. Bestätigt wird eine Adresse deshalb von der Stelle, die das Konto anlegt: der erste Inhaber aus der Ersteinrichtung, eine Person, die eine Administratorin oder ein Administrator unter **Einstellungen > Mitglieder** hinzufügt, und das Konto aus der Bereitstellung gelten als bestätigt und sind sofort nutzbar. Verbundene Anwendungen lesen das als Angabe `email_verified` in der Identität, die Tale ausstellt — neu hinzugefügte Mitglieder können sich dort also sofort anmelden. Konten aus Unternehmens-SSO, SCIM oder vertrauenswürdigen Headern behalten dagegen die Angabe ihres Verzeichnisses.
+
 ## Unternehmens-SSO verbinden
 
 Konfiguriere die Organisation unter **Einstellungen > Enterprise-SSO**. Microsoft Entra ID und generisches OIDC lesen die Endpunkte über den Aussteller; OAuth2 verwendet ausdrücklich angegebene Autorisierungs-, Token- und Userinfo-Endpunkte. SAML verwendet Metadaten, eine Assertion-Consumer-URL und Signaturzertifikate.
