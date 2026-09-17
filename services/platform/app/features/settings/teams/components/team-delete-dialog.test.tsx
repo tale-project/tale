@@ -6,6 +6,11 @@ import { render } from '@/tests/utils/render';
 import type { Team } from '../hooks/queries';
 import { TeamDeleteDialog } from './team-delete-dialog';
 
+vi.mock('@tanstack/react-query', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
