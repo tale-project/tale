@@ -2,6 +2,8 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@tale/ui/adaptive-header';
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { DirtyBlockerProvider } from '@tale/ui/editor';
 import { ErrorScopeProvider } from '@tale/ui/error-boundaries/error-scope';
 import { FullPageCenter } from '@tale/ui/full-page-center';
@@ -99,6 +101,7 @@ function DashboardLayout() {
     data: memberContext,
     isLoading: isQueryLoading,
     isError,
+    refetch,
   } = useCurrentMemberContext(organizationId, isAuthLoading);
   useEffect(() => {
     if (memberContext) markColdLoad('member-context');
@@ -234,6 +237,22 @@ function DashboardLayout() {
       void navigate({ to: '/dashboard', replace: true });
     }
   }, [status, navigate]);
+
+  if (isError && !memberContext) {
+    return (
+      <FullPageCenter>
+        <VStack gap={3}>
+          <Alert
+            variant="destructive"
+            description={tNotFound('errors.errorLoadingPage')}
+          />
+          <Button variant="secondary" onClick={() => void refetch()}>
+            {tNotFound('actions.tryAgain')}
+          </Button>
+        </VStack>
+      </FullPageCenter>
+    );
+  }
 
   // Access resolved but denied → full-page message. Don't mount layout chrome
   // that would leak Convex subscriptions.

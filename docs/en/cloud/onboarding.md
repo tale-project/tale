@@ -25,6 +25,8 @@ After signing in, follow [send your first message](/get-started/quickstart). If 
 
 Use the instance address and setup instructions supplied by Tale. If the first-run wizard is shown, create the initial account and organization. If an organization is already present, open it; creating another organization produces a separate workspace.
 
+If organization creation is managed by the operator, the organization picker does not offer a creation action. A direct setup link explains the restriction. Contact the operator to request another workspace.
+
 <Frame caption="The workspace name identifies the organization your team will use.">
 
 ![The organization creation wizard shows the Organization name field.](/images/get-started/org-create-wizard.webp)

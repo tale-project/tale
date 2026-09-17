@@ -74,6 +74,18 @@ beforeEach(() => {
   caller.name = 'Sam Rivera';
 });
 
+it('reports self-service creation on an unmanaged backend before dynamic organization matching', async () => {
+  const { sql, queries } = database([]);
+  const response = await createOrganizationRoutes({
+    sql,
+    auth: {} as never,
+  }).request('/capabilities');
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ canCreate: true });
+  expect(queries).toHaveLength(0);
+  expect(requireOrganizationMember).not.toHaveBeenCalled();
+});
+
 describe('POST /:id/request-credits', () => {
   it('writes one personal row per owner and admin, none org-wide', async () => {
     const { sql, queries } = database(['user-owner', 'user-admin']);

@@ -2483,6 +2483,7 @@ onboarding:
     createError:
       Impossible de créer ton espace de travail. Vérifie ta connexion et
       clique de nouveau sur « Suivant ».
+    creationForbidden: Tu ne peux pas créer d'organisation sur ce déploiement. Contacte l'opérateur pour demander un espace de travail.
     nameTakenError: Ce nom est déjà pris. Choisis-en un autre.
   provider:
     heading: Connecter OpenRouter

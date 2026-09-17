@@ -25,6 +25,8 @@ Après la connexion, suis le guide pour [envoyer ton premier message](/fr/get-st
 
 Utilise l’adresse et les instructions fournies par Tale. Si l’assistant de première configuration apparaît, crée le compte initial et l’organisation. Si une organisation est déjà présente, ouvre-la. En créer une autre produit un espace séparé.
 
+Si l’opérateur gère la création des organisations, le sélecteur d’organisation ne propose pas cette action. Un lien direct vers la configuration explique cette restriction. Contacte l’opérateur pour demander un autre espace de travail.
+
 <Frame caption="Le nom de l’organisation identifie l’espace que ton équipe utilisera.">
 
 ![L’assistant de création d’organisation affiche le champ du nom de l’organisation.](/images/get-started/org-create-wizard.webp)

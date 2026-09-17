@@ -6,7 +6,10 @@ import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Check, Loader2, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import {
+  useOrganizationCapabilities,
+  useUserOrganizationsWithDetails,
+} from '@/app/features/organization/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 interface OrganizationListPanelProps {
@@ -53,6 +56,7 @@ export function OrganizationListPanel({
     [currentOrganizationId, navigate, location.href, onAfterAction],
   );
 
+  const { data: capabilities } = useOrganizationCapabilities();
   const orgs = userOrgs ?? [];
 
   return (
@@ -109,19 +113,21 @@ export function OrganizationListPanel({
         })}
       </ul>
 
-      <div className="border-border border-t p-1">
-        <button
-          type="button"
-          onClick={() => {
-            void navigate({ to: '/dashboard/create-organization' });
-            onAfterAction?.();
-          }}
-          className="hover:bg-muted focus-visible:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
-        >
-          <Plus className="text-muted-foreground size-4 shrink-0" />
-          <span>{tSettings('organization.createOrganization')}</span>
-        </button>
-      </div>
+      {capabilities?.canCreate === true && (
+        <div className="border-border border-t p-1">
+          <button
+            type="button"
+            onClick={() => {
+              void navigate({ to: '/dashboard/create-organization' });
+              onAfterAction?.();
+            }}
+            className="hover:bg-muted focus-visible:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
+          >
+            <Plus className="text-muted-foreground size-4 shrink-0" />
+            <span>{tSettings('organization.createOrganization')}</span>
+          </button>
+        </div>
+      )}
     </Stack>
   );
 }

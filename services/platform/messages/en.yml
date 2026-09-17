@@ -2374,6 +2374,7 @@ onboarding:
     createError:
       We couldn't create your workspace. Check your connection and click
       Next to try again.
+    creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
     nameTakenError: That name is already taken. Pick a different one.
   provider:
     heading: Connect OpenRouter

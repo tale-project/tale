@@ -144,7 +144,9 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
           setSubmitError(
             isSlugTakenError(result?.error)
               ? t('workspace.nameTakenError')
-              : t('workspace.createError'),
+              : result?.error?.status === 403
+                ? t('workspace.creationForbidden')
+                : t('workspace.createError'),
           );
           return false;
         }

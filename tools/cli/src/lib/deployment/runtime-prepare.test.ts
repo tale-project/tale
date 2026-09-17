@@ -71,6 +71,25 @@ describe('committed source runtime preparation', () => {
     );
   });
 
+  test('publishes the managed organization creation capability beside the proxy refusal', async () => {
+    const { fixture, prepare } = create();
+    await prepare();
+    const policy = readRuntimeBundle(fixture.options.bundleDirectory).contents[
+      'Caddyfile.production'
+    ].toString();
+    expect(policy).toContain('method GET');
+    expect(policy).toContain('handle /api/app/organizations/capabilities');
+    expect(policy).toContain('header Content-Type application/json');
+    expect(policy).toContain('header Cache-Control no-store');
+    expect(policy).toContain(
+      'respond @organizationCapabilities `{"canCreate":false}` 200',
+    );
+    expect(policy).toContain('handle /api/auth/organization/create');
+    expect(policy).toContain(
+      'respond "Organization provisioning is managed by the operator" 403',
+    );
+  });
+
   test.each(['', 'UPPER', '../other', 'a'.repeat(41), 'valid\n'])(
     'refuses invalid container prefix %j before source or Docker work',
     async (prefix) => {

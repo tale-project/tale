@@ -116,6 +116,27 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
     consoleError.mockRestore();
   });
 
+  it('explains a deployment refusal without suggesting a connection retry', async () => {
+    create.mockResolvedValue({
+      data: null,
+      error: {
+        status: 403,
+        message: 'Organization provisioning is managed by the operator',
+      },
+    });
+    list.mockResolvedValue({ data: [] });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { user, onCreated } = renderStep();
+    await fillNameAndSubmit(user);
+    expect(
+      await screen.findByText(
+        'You cannot create an organization on this deployment. Contact the operator to request a workspace.',
+      ),
+    ).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
   it('shows the name-taken error when the slug is owned by an org the user is NOT in', async () => {
     create.mockResolvedValue({
       data: null,

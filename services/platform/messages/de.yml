@@ -2455,6 +2455,7 @@ onboarding:
   workspace:
     createError: Dein Arbeitsbereich konnte nicht erstellt werden. Prüfe deine
       Verbindung und klicke erneut auf „Weiter“.
+    creationForbidden: Du kannst in dieser Bereitstellung keine Organisation erstellen. Wende dich an den Betreiber, um einen Arbeitsbereich anzufordern.
     nameTakenError: Dieser Name ist schon vergeben. Wähle einen anderen.
   provider:
     heading: OpenRouter verbinden

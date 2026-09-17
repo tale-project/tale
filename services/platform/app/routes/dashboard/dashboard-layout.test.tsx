@@ -361,7 +361,7 @@ describe('DashboardLayout', () => {
     expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(false);
   });
 
-  it('shows skeleton (not outlet) when query errors without prior data', () => {
+  it('shows recoverable failure when query errors without prior data', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -374,15 +374,14 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    // Without resolved memberContext we can't confirm access — fall through
-    // to the loading skeleton rather than rendering Outlet (which would mount
-    // org-scoped subscriptions) or AccessDenied (which would be misleading
-    // for a transient error).
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
     expect(
-      screen.queryByText('accessDenied.noMembership'),
-    ).not.toBeInTheDocument();
-    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
+      screen.getByText('common.errors.errorLoadingPage'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'common.actions.tryAgain' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('keeps outlet visible when query errors but has previous data', () => {

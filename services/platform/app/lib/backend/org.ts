@@ -46,6 +46,18 @@ export function userOrganizationsQuery() {
   });
 }
 
+/** The provisioning capability at the deployment's public application door. */
+export function organizationCapabilitiesQuery() {
+  return queryOptions({
+    queryKey: backendKey('me', 'organization', 'capabilities'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ canCreate: boolean }>('/organizations/capabilities', {
+        signal,
+      }),
+    retry: retryTransportOnly,
+  });
+}
+
 /** The 0.4 `organizations/queries:getOrganization` shape. */
 export interface OrganizationView {
   _id: string;
@@ -109,6 +121,12 @@ export function memberContextQuery(organizationId: string) {
       backendFetch<Exclude<MemberContextView, null>>('/members/me', {
         signal,
         orgId: organizationId,
+      }).catch((error: unknown): Exclude<MemberContextView, null> => {
+        if (error instanceof BackendApiError) {
+          if (error.status === 404) return { status: 'not_found' };
+          if (error.code === 'ORG_FORBIDDEN') return { status: 'not_member' };
+        }
+        throw error;
       }),
     retry: retryTransportOnly,
   });
