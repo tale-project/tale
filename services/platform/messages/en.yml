@@ -511,9 +511,8 @@ automations:
     loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description: Describe what you want to automate, or upload a workflow file.
+      description: Create an agent with a trigger, or upload a workflow package.
   createMenu:
-    fromGoal: From a goal
     blank: Blank (trigger + agent)
   blank:
     title: New automation
@@ -542,28 +541,6 @@ automations:
     submit: Create automation
     submitting: Creating…
     initialMessage: Initial version
-  builder:
-    title: New automation
-    description: Describe what goal you want this automation to achieve.
-    goalLabel: Goal
-    goalPlaceholder:
-      e.g. Every morning, read the newest support emails and write one digest
-      of what needs a reply.
-    providerLabel: AI provider
-    providerPlaceholder: Select a provider
-    modelLabel: Model
-    modelPlaceholder: Select a model
-    submit: Generate automation
-    submitting: Building…
-    running:
-      The builder is working — this can take a few minutes. Saved versions
-      appear in the list as they land.
-    gaveUpNoReason: The builder stopped without a finished automation.
-    outcomeFailedTitle: Couldn't generate automation
-    outcomeGaveUpTitle: Builder stopped early
-    noProviders:
-      No AI provider is ready for the builder. Add an API-key credential in
-      the provider settings first.
   notFound:
     title: Automation not found
     description: It may have been renamed, or it may belong to another
@@ -1456,9 +1433,6 @@ chat:
   budgetViewUsage: View usage
 common:
   or: or
-  select:
-    noProvidersHint: Add an AI provider first.
-    pickProviderFirstHint: Pick a provider first — its models appear here.
   units:
     stock: '{count, plural, one {# unit} other {# units}}'
   actions:

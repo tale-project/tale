@@ -539,9 +539,8 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description: Décris ce que tu veux automatiser, ou importe un fichier de workflow.
+      description: Crée un agent avec un déclencheur ou importe un paquet de workflow.
   createMenu:
-    fromGoal: À partir d’un objectif
     blank: Vierge (trigger + agent)
   blank:
     title: Nouvelle automatisation
@@ -570,28 +569,6 @@ automations:
     submit: Créer l'automatisation
     submitting: Création…
     initialMessage: Première version
-  builder:
-    title: Nouvelle automatisation
-    description: Décris l'objectif que tu veux que cette automatisation atteigne.
-    goalLabel: Objectif
-    goalPlaceholder:
-      p. ex. Chaque matin, lis les derniers e-mails du support et écris un
-      résumé de ce qui attend une réponse aujourd’hui.
-    providerLabel: Fournisseur d’IA
-    providerPlaceholder: Choisir un fournisseur
-    modelLabel: Modèle
-    modelPlaceholder: Choisir un modèle
-    submit: Générer l'automatisation
-    submitting: Construction…
-    running:
-      Le builder travaille — ça peut prendre quelques minutes. Les versions
-      enregistrées apparaissent dans la liste au fur et à mesure.
-    gaveUpNoReason: Le builder s’est arrêté sans automatisation terminée.
-    outcomeFailedTitle: Impossible de générer l'automatisation
-    outcomeGaveUpTitle: Builder arrêté prématurément
-    noProviders:
-      Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
-      clé API dans Paramètres → Fournisseurs d’IA.
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -1503,9 +1480,6 @@ chat:
   budgetViewUsage: Voir l'utilisation
 common:
   or: ou
-  select:
-    noProvidersHint: Ajoute d'abord un fournisseur IA.
-    pickProviderFirstHint: Choisis d'abord un fournisseur — ses modèles apparaissent ici.
   units:
     stock: '{count, plural, one {# unité} other {# unités}}'
   actions:

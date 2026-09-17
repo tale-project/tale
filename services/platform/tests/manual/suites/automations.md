@@ -6,7 +6,7 @@ Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
 one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
-with its create menu (from a goal, blank, or upload a pack), the detail page's
+with its create menu (blank or upload a pack), the detail page's
 tabs — **Editor** (canvas + node inspector + trigger + bindings),
 **Versions** and **Runs** — the run-detail page (status, effects, agent log,
 approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
@@ -67,7 +67,7 @@ deploys a version. The eight org-scope packs are `gmail-sync-emails`,
   fixture dir, whose automation fixtures are in the retired pre-rewrite format
   (no pack manifest the loader reads) — a mode-A org therefore seeds **zero**
   packs and the list opens on the empty state. Author or upload your material
-  (AUTO-F7–AUTO-F11), or run mode B for the shipped packs.
+  (AUTO-F8–AUTO-F11), or run mode B for the shipped packs.
 - An org created before a pack existed is missing it, not hiding it. Seed an
   existing org (idempotent, drafts only, own edits untouched):
 
@@ -81,9 +81,7 @@ deploys a version. The eight org-scope packs are `gmail-sync-emails`,
 on screen against mock connectors — offline, mode A friendly, works on an
 undeployed draft. **Run live** (`automations.detail.runLive`) executes the
 **deployed** version with real connector calls — mode B with connected
-connectors only; rows needing it are marked env-gated. The builder (**From a
-goal**) needs an AI provider with an API-key credential
-(`automations.builder.noProviders` warns otherwise).
+connectors only; rows needing it are marked env-gated.
 
 For upload rows, a minimal deterministic pack (any text editor):
 
@@ -146,27 +144,15 @@ output:
       project row opens Tasks; bound rows carry a blue project-name chip
       (fallback `automations.list.projectBound`)
 - [ ] `AUTO-F5` · **Create menu** — **Create automation**
-      (`automations.list.createButton`) → A dropdown with three lanes: **From a
-      goal**
-      (`automations.createMenu.fromGoal`), **Blank (trigger + agent)**
+      (`automations.list.createButton`) on the org and project lists → A dropdown
+      with two lanes: **Blank (trigger + agent)**
       (`automations.createMenu.blank`), and **Upload package**
       (`automations.upload.trigger`); absent entirely without the developer
       capability.
-- [ ] `AUTO-F6` · **Builder dialog** — Create menu → **From a goal** → dialog
-      **New automation** (`automations.builder.title`) → Fields **Goal**
-      (`automations.builder.goalLabel`), **AI provider**
-      (`automations.builder.providerLabel`), **Model**
-      (`automations.builder.modelLabel`); **Start building**
-      (`automations.builder.submit`) disabled until all three are set; with no
-      API-key provider a warning (`automations.builder.noProviders`); a sole
-      provider/model pre-selects itself.
-- [ ] `AUTO-F7` · **Builder run** — (env-gated: real provider) Submit a small
-  goal → Progress notice (`automations.builder.running`); saved versions land
-  in the list as drafts while it works; on failure
-  `automations.builder.outcomeFailedTitle` with the error details; an early stop
-  shows `automations.builder.outcomeGaveUpTitle` with its reason, or
-  `automations.builder.gaveUpNoReason` when no reason is available — never a
-  silent close.
+- [ ] `AUTO-F6` · **~~Builder dialog~~ (retired)** → The independent goal-based
+      creation entry was removed; use the two create lanes in AUTO-F5.
+- [ ] `AUTO-F7` · **~~Builder run~~ (retired)** → The standalone builder session
+      endpoint was removed; editor and MCP authoring remain available.
 - [ ] `AUTO-F8` · **Upload — yml lane** — Create menu → **Upload package** →
       dialog (`automations.upload.title`) → pick the Prerequisites `workflow.yml`
       in **Package files** (`automations.upload.filesLabel`) → **Upload**
@@ -465,7 +451,7 @@ the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
       rings and accessible names; the **Create automation** menu and every panel
       action (Deploy, Save trigger, Save projects) are keyboard operable, with
       disabled reasons exposed, not silent.
-- [ ] `AUTO-A4` · **Dialogs** → Builder / upload / save-version / run-live
+- [ ] `AUTO-A4` · **Dialogs** → Blank / upload / save-version / run-live
       dialogs: labelled fields (label ↔ control), focus trapped, Escape closes —
       except while a save is in flight, when close waits exactly like Cancel.
 - [ ] `AUTO-A5` · **Tab strip semantics** → The strip is a `navigation`

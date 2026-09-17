@@ -17,12 +17,11 @@ La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour compa
 
 Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Versions** présente les versions enregistrées, et **Exécutions**, les derniers lancements. Le panneau **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation.
 
-Le menu **Créer une automatisation** propose trois parcours :
+Le menu **Créer une automatisation** propose deux parcours :
 
 | Choix | À utiliser si… | Suite du parcours |
 | --- | --- | --- |
-| **À partir d’un objectif** | tu connais le résultat attendu, mais souhaites de l’aide pour organiser les étapes. | Le builder prépare un workflow à examiner. |
-| **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Nomme-le, choisis le modèle, puis complète les instructions et les équipements dans l’éditeur. |
+| **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Définis le nom, le modèle, les instructions et les équipements, puis choisis quand l’agent s’exécute. La création ouvre l’éditeur pour la suite des modifications. |
 | **Téléverser un paquet** | tu disposes d’un fichier de workflow ou d’un pack réutilisable. | Tale valide les fichiers et enregistre une version brouillon. |
 
 Les automatisations fournies sont installées à la création de l’organisation. Elles demandent encore leur configuration et une version en service avant un usage automatique. [L’éditeur de workflows](/fr/platform/automations/editor) explique comment tester les données, examiner les résultats et mettre la version choisie en service.

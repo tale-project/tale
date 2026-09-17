@@ -12494,195 +12494,31 @@ async function checkMcp(
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
 }
 
-/**
- * The automation builder session (POST /api/app/automations/builder/sessions
- * — the 0.4 `startBuilderSession`): the pure session loop and the engine run
- * against the pg store with a scripted OpenAI-format model behind an org
- * custom provider. The script tests then saves the SAME document, so the
- * session's own save gate passes and the outcome is `succeeded` at version
- * 1 — and the `projectId` handed to the route pins that first save to the
- * project (the store-scope install contract). Also probes the goal bound.
- */
-async function checkBuilderSession(
-  sql: Sql,
+/** The retired standalone goal-authoring endpoint no longer accepts work. */
+async function checkRetiredBuilderRoute(
   base: string,
   ctx: { cookie: string; orgId: string },
-  orgSlug: string,
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
-  const { createServer } = await import('node:http');
-  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
-
-  const doc = { ...DOC_EXAMPLE.automation, name: 'builder-fake-greeter' };
-  const fence = (method: string, params: unknown): string =>
-    'On it.\n```yaml\n' + JSON.stringify({ method, params }) + '\n```';
-  const script = [
-    fence('test_automation', { automation: doc }),
-    fence('save_automation', { automation: doc, message: 'itest builder' }),
-  ];
-  let calls = 0;
-
-  const llmServer = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      res.setHeader('content-type', 'application/json');
-      const url = req.url ?? '';
-      if (req.method === 'GET' && url.endsWith('/models')) {
-        res.end(
-          JSON.stringify({
-            object: 'list',
-            // The catalog keeps only entries naming a context window.
-            data: [
-              { id: 'builder-fake', object: 'model', context_length: 128_000 },
-            ],
-          }),
-        );
-        return;
-      }
-      if (url.endsWith('/chat/completions')) {
-        const content = script[calls] ?? script.at(-1) ?? '';
-        calls += 1;
-        res.end(
-          JSON.stringify({
-            id: `b${calls}`,
-            object: 'chat.completion',
-            choices: [
-              {
-                index: 0,
-                message: { role: 'assistant', content },
-                finish_reason: 'stop',
-              },
-            ],
-            usage: { prompt_tokens: 10, completion_tokens: 5 },
-          }),
-        );
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    llmServer.listen(0, '127.0.0.1', resolve);
-  });
-  const llmAddress = llmServer.address();
-  const llmPort =
-    llmAddress !== null && typeof llmAddress === 'object' ? llmAddress.port : 0;
-
-  try {
-    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
-    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
-    const providersDir = path.join(configRoot, orgSlug, 'providers');
-    await mkdir(providersDir, { recursive: true });
-    await writeFile(
-      path.join(providersDir, 'builderllm.yml'),
-      [
-        'name: builderllm',
-        'displayName: Builder LLM',
-        'apiFormat: openai',
-        `baseUrl: http://127.0.0.1:${llmPort}/v1`,
-        'catalog:',
-        '  source: models-endpoint',
-        'auth:',
-        '  - method: api-key',
-      ].join('\n'),
-    );
-    const post = (route: string, body: unknown): Promise<Response> =>
-      fetch(`${base}${route}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-        body: JSON.stringify(body),
-      });
-    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'builderllm',
-      authMethod: 'api-key',
-      name: 'Builder LLM key',
-      secret: 'sk-itest-builder',
-    });
-    const proj = z.object({ projectId: z.string() }).safeParse(
-      await (
-        await post(`/api/app/projects?orgId=${orgId}`, {
-          name: 'Builder Target',
-        })
-      ).json(),
-    );
-    const projectId = proj.success ? proj.data.projectId : '';
-
-    // The goal bound refuses before any wire is touched.
-    const emptyGoal = await post(
-      `/api/app/automations/builder/sessions?orgId=${orgId}`,
-      {
-        goal: '   ',
-        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
+  const response = await fetch(
+    `${base}/api/app/automations/builder/sessions?orgId=${ctx.orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
       },
-    );
-
-    const sessionRes = await post(
-      `/api/app/automations/builder/sessions?orgId=${orgId}`,
-      {
-        goal: 'greet qualifying orders for the itest team',
-        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
-        projectId,
-        maxTurns: 8,
-      },
-    );
-    const outcome = z
-      .object({
-        outcome: z.object({
-          status: z.literal('succeeded'),
-          saved: z.object({
-            name: z.literal('builder-fake-greeter'),
-            version: z.number(),
-          }),
-          turns: z.number(),
-        }),
-      })
-      .safeParse(await sessionRes.json());
-
-    const bound = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app.automation_project_bindings
-      WHERE org_id = ${orgId}
-        AND automation_name = 'builder-fake-greeter'
-        AND project_id = ${projectId}
-    `;
-
-    record(
-      'automation builder session (scripted model, pg store)',
-      emptyGoal.status === 400 &&
-        sessionRes.status === 200 &&
-        outcome.success &&
-        outcome.data.outcome.saved.version === 1 &&
-        outcome.data.outcome.turns === 2 &&
-        calls === 2 &&
-        bound[0]?.count === '1',
-      `emptyGoal→${emptyGoal.status} (want 400), session→${sessionRes.status}, outcome=${outcome.success ? `${outcome.data.outcome.status}@v${outcome.data.outcome.saved.version} in ${outcome.data.outcome.turns} turns` : 'ERR'}, modelCalls=${calls}, projectBinding=${bound[0]?.count}`,
-    );
-  } finally {
-    // Leave no dead provider behind: an unreachable models-endpoint costs
-    // every later model walk 3 fetch attempts with 2s/4s backoff sleeps
-    // (nothing is cached on failure), which is enough to starve the REST
-    // chat leg and the task-agent lanes downstream.
-    await rm(
-      path.join(
-        process.env.TALE_CONFIG_DIR ?? '',
-        orgSlug,
-        'providers',
-        'builderllm.yml',
-      ),
-      { force: true },
-    );
-    await sql`
-      DELETE FROM app.provider_credentials
-      WHERE org_id = ${orgId} AND provider_slug = 'builderllm'
-    `;
-    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
-    await new Promise<void>((resolve) => {
-      llmServer.close(() => resolve());
-    });
-  }
+      body: JSON.stringify({
+        goal: 'Create an automation',
+        model: { providerSlug: 'unconfigured', modelId: 'unconfigured' },
+      }),
+    },
+  );
+  record(
+    'standalone automation builder endpoint is retired',
+    response.status === 404,
+    `POST builder/sessions→${response.status} (want 404)`,
+  );
 }
 
 /**
@@ -50191,8 +50027,8 @@ async function main(): Promise<void> {
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
-        'checkBuilderSession',
-        () => checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+        'checkRetiredBuilderRoute',
+        () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
       ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],

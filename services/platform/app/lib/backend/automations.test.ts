@@ -78,36 +78,3 @@ describe('saveAutomation adapter', () => {
     expect(jsonBody(init)).not.toHaveProperty('projectId');
   });
 });
-
-describe('builder session adapter', () => {
-  it.each(['succeeded', 'gave-up', 'cancelled'] as const)(
-    'unwraps the server outcome for a %s session',
-    async (status) => {
-      const outcome = {
-        status,
-        turns: 3,
-        restarts: 0,
-        usage: { prompt: 20, completion: 10 },
-        steps: [],
-        ...(status === 'succeeded'
-          ? { saved: { name: 'double', version: 1 } }
-          : { reason: 'stopped' }),
-      };
-      vi.spyOn(window, 'fetch').mockResolvedValue(
-        jsonResponse(200, { outcome }),
-      );
-      await expect(
-        automationWriteAdapters[
-          'automations_builder/actions:startBuilderSession'
-        ]?.run(
-          {
-            organizationId: 'org-1',
-            goal: 'Double a number',
-            model: { providerSlug: 'test', modelId: 'test' },
-          },
-          {},
-        ),
-      ).resolves.toEqual(outcome);
-    },
-  );
-});

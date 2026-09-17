@@ -29,7 +29,7 @@ Ajoute des identifiants, choisis ceux par défaut et renouvelle une autorisation
 
 <Card title="Créer une automatisation" icon="workflow" href="/fr/platform/automations/catalog">
 
-Pars d’un objectif, d’un workflow vide ou d’un paquet, puis teste et déploie une version.
+Pars d’un workflow vide ou importe un paquet, puis teste et déploie une version.
 
 </Card>
 

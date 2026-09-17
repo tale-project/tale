@@ -29,7 +29,7 @@ Hinterlege Zugangsdaten, wähle den Standard und erneuere abgelaufene Autorisier
 
 <Card title="Eine Automatisierung erstellen" icon="workflow" href="/de/platform/automations/catalog">
 
-Beginne mit Ziel, leerem Workflow oder Paket; teste und veröffentliche anschließend eine Version.
+Beginne mit einem leeren Workflow oder importiere ein Paket. Teste und veröffentliche anschließend eine Version.
 
 </Card>
 

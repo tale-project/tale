@@ -3,7 +3,7 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { searchCatalog } from '../engine/api/catalog-search';
-import { agentDocs } from '../engine/api/docs';
+import { authoringReference } from '../engine/api/docs';
 import { execute } from '../engine/core/execute';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
@@ -144,8 +144,8 @@ describe('registered actions are discoverable', () => {
     expect(issue).toContain('github.create_issue');
   });
 
-  it('the generated agent docs list registered connector actions', () => {
-    const docs = agentDocs();
+  it('the generated authoring reference lists registered connector actions', () => {
+    const docs = authoringReference();
     expect(docs).toContain('tavily.search');
   });
 });

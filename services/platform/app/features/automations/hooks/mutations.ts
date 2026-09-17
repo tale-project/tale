@@ -1,4 +1,3 @@
-import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
@@ -89,14 +88,4 @@ export function useDeleteAutomation() {
   return useBackendMutation('automations/mutations:deleteAutomation', {
     errorToast: false,
   });
-}
-
-/**
- * Run one authoring session from a goal. An ACTION, not a mutation — a
- * session spans minutes of model turns. TanStack's mutation state carries the
- * pending/error UX; the automation listing updates reactively as the session
- * saves versions, so the resolved value is only the closing summary.
- */
-export function useStartBuilderSession() {
-  return useBackendAction('automations_builder/actions:startBuilderSession');
 }

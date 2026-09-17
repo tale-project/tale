@@ -17,12 +17,11 @@ Search by name or slug. For example, enter `Triage` to compare the shipped triag
 
 Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **Versions** holds its saved history; **Runs** shows recent executions. The **Projects** panel controls which boards can use it; without project bindings, it serves the organization.
 
-The **Create automation** menu offers three routes:
+The **Create automation** menu offers two routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
-| **From a goal** | You can describe the outcome but need help arranging the steps. | The builder drafts a workflow for review. |
-| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Name it, select the agent’s model, then complete its instructions and equipment in the editor. |
+| **Blank (trigger + agent)** | You want to configure the workflow yourself. | Set the name, model, instructions and equipment, then choose when it runs. Creation opens the editor for further changes. |
 | **Upload package** | You already have a workflow file or a reusable pack. | Tale validates the files and saves a draft version. |
 
 Shipped automations are already installed when the organization is created. They still need configuration and a deployed version before automatic use. Follow [the workflow editor](/platform/automations/editor) to test inputs, inspect results and deploy deliberately.

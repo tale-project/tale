@@ -534,9 +534,8 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description: Beschreibe, was du automatisieren möchtest, oder lade eine Workflow-Datei hoch.
+      description: Erstelle einen Agenten mit Trigger oder lade ein Workflow-Paket hoch.
   createMenu:
-    fromGoal: Aus einem Ziel
     blank: Leer (Trigger + Agent)
   blank:
     title: Neue Automatisierung
@@ -565,26 +564,6 @@ automations:
     submit: Automatisierung erstellen
     submitting: Erstellt …
     initialMessage: Erste Version
-  builder:
-    title: Neue Automatisierung
-    description: Beschreibe, welches Ziel diese Automatisierung erreichen soll.
-    goalLabel: Ziel
-    goalPlaceholder:
-      z. B. Lies jeden Morgen die neuesten Support-E-Mails und schreibe eine
-      Zusammenfassung, was heute eine Antwort braucht.
-    providerLabel: KI-Anbieter
-    providerPlaceholder: Anbieter wählen
-    modelLabel: Modell
-    modelPlaceholder: Modell wählen
-    submit: Automatisierung generieren
-    submitting: Baut …
-    running:
-      Der Builder arbeitet — das kann ein paar Minuten dauern. Gespeicherte
-      Versionen erscheinen in der Liste, sobald sie da sind.
-    gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
-    outcomeFailedTitle: Automatisierung konnte nicht generiert werden
-    outcomeGaveUpTitle: Builder früh gestoppt
-    noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -1496,9 +1475,6 @@ chat:
   budgetViewUsage: Nutzung anzeigen
 common:
   or: oder
-  select:
-    noProvidersHint: Lege zuerst einen KI-Anbieter an.
-    pickProviderFirstHint: Wähle zuerst einen Anbieter — seine Modelle erscheinen hier.
   units:
     stock: '{count, plural, one {# Einheit} other {# Einheiten}}'
   actions:

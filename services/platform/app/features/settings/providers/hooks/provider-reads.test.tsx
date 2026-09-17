@@ -4,7 +4,6 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useBuilderModelCatalog } from '@/app/features/automations/hooks/queries';
 import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import { useEmbeddingRecommendations } from '@/app/features/settings/data-residency/hooks/queries';
@@ -261,12 +260,11 @@ describe('provider-derived reads', () => {
       () => {
         useProviderReads();
         useProviderCatalogs(ORG);
-        useBuilderModelCatalog(ORG, true);
         return useRefreshProviderCatalogs(ORG);
       },
       { wrapper },
     );
-    // The providers page and the automation builder share one listing.
+    // Catalog consumers share one listing and refresh together.
     await waitFor(() => {
       expectEachProviderReadFetched(1);
       expect(fetchesOf(CATALOGS)).toBe(1);

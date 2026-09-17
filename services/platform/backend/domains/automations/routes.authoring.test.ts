@@ -76,6 +76,15 @@ beforeEach(() => {
 });
 
 describe('app automation acceptance gate', () => {
+  it('no longer accepts standalone goal-authoring sessions', async () => {
+    const result = await post('/builder/sessions', {
+      goal: 'Double a number',
+      model: { providerSlug: 'test', modelId: 'test' },
+    });
+    expect(result.status).toBe(404);
+    expect(io.save).not.toHaveBeenCalled();
+    expect(io.deploy).not.toHaveBeenCalled();
+  });
   it.each([
     [2, true],
     [3, false],

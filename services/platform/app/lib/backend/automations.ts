@@ -38,8 +38,6 @@ type DeleteAutomationResult =
   ReturnsOf<'automations/mutations:deleteAutomation'>;
 type UploadAutomationResult =
   ReturnsOf<'automations/upload_action:uploadAutomation'>;
-type BuilderSessionResult =
-  ReturnsOf<'automations_builder/actions:startBuilderSession'>;
 
 function orgOf(
   args: Record<string, unknown>,
@@ -482,28 +480,6 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
   'automations/upload_mutations:recordAutomationUploadIntent': {
     // The byte lane records the intent server-side — nothing to add here.
     run: () => Promise.resolve(null),
-  },
-  'automations_builder/actions:startBuilderSession': {
-    // A session spans minutes of model turns; the route holds the request
-    // open exactly as the 0.4 action did.
-    run: (args, ctx) =>
-      backendFetch<{ outcome: BuilderSessionResult }>(
-        '/automations/builder/sessions',
-        {
-          orgId: requireOrg(args, ctx),
-          body: {
-            goal: stringArg(args, 'goal'),
-            model: args.model,
-            ...(typeof args.projectId === 'string'
-              ? { projectId: args.projectId }
-              : {}),
-            ...(typeof args.maxTurns === 'number'
-              ? { maxTurns: args.maxTurns }
-              : {}),
-          },
-        },
-      ).then((body) => body.outcome),
-    invalidate: invalidateAutomations,
   },
   'automations/upload_action:uploadAutomation': {
     run: (args, ctx) =>

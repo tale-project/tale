@@ -29,7 +29,7 @@ Add a credential, choose its default, and recover expired authorization.
 
 <Card title="Build an automation" icon="workflow" href="/platform/automations/catalog">
 
-Start from a goal, blank workflow, or package, then test and deploy a version.
+Start from a blank workflow or import a package, then test and deploy a version.
 
 </Card>
 

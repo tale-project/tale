@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { BuilderMessage } from '../../../lib/automations_builder/session';
 import { buildChatRequest, EmptyReplyError, parseChatReply } from './chat_wire';
+import type { BuilderMessage } from './model_call';
 
 const messages: BuilderMessage[] = [
   { role: 'system', content: 'GUIDE' },

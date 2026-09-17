@@ -52,7 +52,7 @@ import {
 
 /**
  * The engine's `DispatchStore` over the 0.5 automations store — what the
- * platform MCP endpoint's engine tools and the builder session drive
+ * platform MCP endpoint's engine tools and App authoring doors drive
  * (`dispatch()` from `lib/engine/api/dispatch`). The 0.4
  * `automationActionStore` twin: reads/writes hop through the same store
  * functions every other caller uses, and the run-control methods AUTHORIZE
@@ -79,7 +79,7 @@ function actorUserId(actor: string): string {
 
 /** What a run this store starts records as its starter. An actor that
  * already names its door (`api-key:<userId>`) is recorded as is; a bare
- * user id — the builder session's and the chat capability's actor — is
+ * user id — the App authoring and chat capability actor — is
  * recorded as `user:<userId>`, the form the app door writes, so every run
  * carries one of the documented prefixes and the erasure of a user finds
  * the runs they started. */
@@ -229,8 +229,8 @@ export function pgAutomationStore(
       (await deployedVersion(sql, organizationId, name)) ?? null,
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
-      // Ownership travels with the scope: a builder session started from a
-      // project surface pins its first save to that project (0.4 parity).
+      // Ownership travels with the scope: a project-scoped authoring caller
+      // pins its first save to that project.
       return saveVersion(sql, {
         organizationId,
         name,

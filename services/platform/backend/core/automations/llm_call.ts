@@ -14,20 +14,17 @@
  * in the system prompt, the reply is parsed (bare or fenced) and validated
  * with the same Ajv configuration the engine's validators use, and the node
  * gets `{data}`. Tool calling is deliberately not used — the smallest models
- * an org may route here have none, the same constraint the builder session
- * works under.
+ * an org may route here have none.
  *
  * Transport, credentials and error redaction are `createBuilderModel`'s —
- * one wire for the builder, thread titles, and llm nodes.
+ * one wire for thread titles and llm nodes.
  */
 
-import type {
-  BuilderMessage,
-  BuilderModel,
-} from '../../../lib/automations_builder/session';
 import { compileSchema } from '../../../lib/engine/core/validate/schema';
 import {
   createBuilderModel,
+  type BuilderMessage,
+  type BuilderModel,
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
