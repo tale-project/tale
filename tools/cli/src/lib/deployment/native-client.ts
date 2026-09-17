@@ -591,7 +591,10 @@ function providerOptions(auth: NativeAuth): ProviderOptions {
               JSON.stringify([...values].sort()) === JSON.stringify(scopes),
           ),
         validAudiences: z.tuple([]),
-        codeExpiresIn: z.literal(60),
+        // The platform signs its login and consent continuation with this
+        // same lifetime, so it is also how long a person has to sign in
+        // before the request expires (services/platform/backend/auth/oidc.ts).
+        codeExpiresIn: z.literal(300),
         accessTokenExpiresIn: z.literal(300),
         idTokenExpiresIn: z.literal(300),
         prefix: z.undefined(),
