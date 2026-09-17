@@ -367,8 +367,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-B6` · **Budget exceeded** — Set a low budget rule (see
   [governance.md](governance.md)), chat past it; **delete it after** →
   Approaching the cap a banner shows the remainder (`chat.budgetRemaining`)
-  with **Dismiss** (`chat.budgetWarningDismiss`); exceeded, the banner shows
-  `chat.budgetExceededDetail` with **Request usage credits**
+  with **Dismiss** (`chat.budgetWarningDismiss`); exceeded, the banner turns
+  destructive and reads `chat.budgetLimitReached` (the used-of-limit figures,
+  `chat.budgetExceededDetail`, sit in its hover title) with **View usage**
+  (`chat.budgetViewUsage`) and **Request usage credits**
   (`chat.budgetRequestCredits` → `chat.budgetRequestCreditsSent`); Send is
   blocked with reason `chat.budgetExceededDefault` (tooltip on the disabled
   button; destructive toast on Enter); a server-side refusal titles
@@ -394,7 +396,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   after** → Each is refused with a toast titled `chat.toast.budgetExceeded`
   and `chat.errorHintBudgetExceeded` below it; a composer send keeps its text,
   no user message or reply lands, and the banner switches to
-  `chat.budgetExceededDetail` without a reload
+  `chat.budgetLimitReached` without a reload
 - [ ] `CHAT-B11` · **Long project and chat lists** — In an org with 30+
   projects (one holding 20+ chats, expanded) and 40+ unfiled chats, open the
   chats panel in a desktop window, shorten the window, then open the phone
@@ -445,6 +447,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-A5` · **Disclosures keyboardable** → The thought-timeline header
   (CHAT-F16) expands/collapses via keyboard with visible focus; **Scroll to
   bottom** (`chat.scrollToBottom`) is a labelled button.
+- [ ] `CHAT-A6` · **Budget banner announced** → The budget banner (CHAT-B6)
+  is a `role="alert"` live region in the composer's column, not a strip
+  across the pane; its copy is foreground text on the tint (AA contrast in
+  light and dark) with the severity carried by the coloured glyph, and
+  **View usage** (`chat.budgetViewUsage`), **Request usage credits**
+  (`chat.budgetRequestCredits`) and **Dismiss** (`chat.budgetWarningDismiss`)
+  are keyboard reachable with visible focus.
 
 ## Performance
 

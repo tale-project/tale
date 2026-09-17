@@ -1425,11 +1425,11 @@ chat:
     showAll: Show all {count} sources
     hide: Hide sources
 
-  budgetExceededDetail: '{type} limit reached for this {period} ({used} / {limit}). Contact your administrator.'
+  budgetExceededDetail: '{type} limit reached for {period, select, daily {today} weekly {this week} other {this month}} ({used} / {limit}). Contact your administrator.'
   budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
-  budgetRemaining: '{remaining} of {limit} {type} left this {period}'
-  budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left this {period}'
-  budgetLimitReached: 'Usage limit reached · resets {period}'
+  budgetRemaining: '{remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+  budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+  budgetLimitReached: 'Usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
   budgetRequestCredits: Request usage credits
   budgetRequestCreditsSent: Request sent to your admins
   budgetWarningDismiss: Dismiss
