@@ -42,6 +42,8 @@ The engine checkpoints completed nodes and resumes after those checkpoints when 
 
 An eligible agent-step failure can receive up to three automatic retries after the original attempt. Upstream checkpoints remain intact, and the header reports **Auto-retry 1 of 3** and subsequent attempts. An attempt that performs at least fifteen minutes of execution refreshes that retry budget. Subscription pools can choose another account for a new attempt.
 
+An agent step also fails when its model returns nothing at all: no text, no tool call and no generated tokens. A model server can answer this way when it breaks down mid-answer. The run then reports “The model returned an empty answer, so the agent did nothing this turn.” This failure receives those retries too. A step whose model only used tools, or reported generated tokens but no visible text (reasoning, for example), has answered and does not fail this way.
+
 An exhausted budget, full execution-window timeout, or expired question does not receive those retries. Each attempt consumes its own resources; retrying does not erase earlier charges. If repeated attempts cannot fix the cause, stop the run and correct the dependency before starting another.
 
 ## Stop or repair the workflow

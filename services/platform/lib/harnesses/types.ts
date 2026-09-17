@@ -283,6 +283,9 @@ export type HarnessEvent =
       sessionId?: string;
       finalText?: string;
       durationMs?: number;
+      /** The turn's token totals as the harness reports them, where it does.
+       * The usage ledger books them, and `classifyHarnessEnd` reads their
+       * output tokens as model output. */
       usageTotals?: Pick<
         HarnessUsage,
         'inputTokens' | 'outputTokens' | 'costEstimateUsd'

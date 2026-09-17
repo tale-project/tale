@@ -1221,15 +1221,18 @@ export async function driveTaskAgentTurnImpl(
  * (e.g. an immediate 401) of a live conversation — its handle must be
  * stamped, not discarded, or a transient auth blip costs the continuity.
  * Distinct from a resumed turn that worked and THEN failed, whose window
- * carries content and settles normally. Exported for its unit test. */
+ * carries content and settles normally — and from an empty answer: the
+ * conversation launched cleanly (the pinned CLI announces the resumed id
+ * itself) and only its model said nothing. Exported for its unit test. */
 export function isResumeLaunchFailure(
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
   attemptedResume?: string,
 ): boolean {
   if (window.kind !== 'terminal') return false;
-  const { errored } = classifyHarnessEnd(window);
+  const { errored, emptyAnswer } = classifyHarnessEnd(window);
   return (
     errored &&
+    !emptyAnswer &&
     window.text === '' &&
     window.timeline.length === 0 &&
     (window.agentSessionId === undefined ||
@@ -1304,7 +1307,11 @@ async function continueOrSettle(
     });
     return;
   }
-  const { errored, crashReason } = classifyHarnessEnd(window);
+  const {
+    errored,
+    reason: endReason,
+    emptyAnswer,
+  } = classifyHarnessEnd(window);
   // A `--resume` of a dead conversation echoes the handle back on its error
   // result: stamping THAT would re-arm the dead handle on every Retry
   // forever. A window that errored without producing anything and without
@@ -1341,21 +1348,27 @@ async function continueOrSettle(
   // conversation (the handle is stamped below) and asks it to continue.
   // Every parser sets `finalText` only from real final text, so its absence
   // IS the no-report signal; windows that never became a conversation stay
-  // with the resume-launch-failure lane.
+  // with the resume-launch-failure lane. An empty answer (nothing at all
+  // from the model, which classify errs on) is the same case, named as such.
   if (
-    !errored &&
     !launchFailed &&
-    (ended?.finalText === undefined || ended.finalText.trim() === '')
+    (emptyAnswer ||
+      (!errored &&
+        (ended?.finalText === undefined || ended.finalText.trim() === '')))
   ) {
     await settleTaskAgentTurn(ctx, args, {
       errored: true,
       reason:
+        endReason ??
         'the agent ended its turn without a final report — retrying the conversation',
       text: '',
       ...(window.agentSessionId !== undefined
         ? { agentSessionId: window.agentSessionId }
         : {}),
       failureCode: 'empty_turn',
+      ...(ended?.usageTotals !== undefined
+        ? { usageTotals: ended.usageTotals }
+        : {}),
     });
     return;
   }
@@ -1367,7 +1380,7 @@ async function continueOrSettle(
   // itself (classify yields none there) — never bury a "401 token revoked"
   // behind a generic line.
   const reason =
-    crashReason ?? (errored ? failureReasonFromFinalText(text) : undefined);
+    endReason ?? (errored ? failureReasonFromFinalText(text) : undefined);
   await settleTaskAgentTurn(ctx, args, {
     errored,
     ...(reason !== undefined ? { reason } : {}),
