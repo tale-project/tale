@@ -399,6 +399,36 @@ describe('useFileUpload — concurrent-batch cap & dedup', () => {
     await waitFor(() => expect(result.current.attachments).toHaveLength(1));
   });
 
+  // A browser names no MIME for a code file (`.cjs`, `.mjs`, `.go`), and the
+  // chat send door refuses an attachment whose `fileType` is empty
+  // (`z.string().min(1)`) — the send answered 400, the composer kept the text
+  // and the turn never started. The staged chip carries the same content type
+  // the metadata row is written with, and it is never empty.
+  it('stages a typeless code file with the generic content type', async () => {
+    const { result } = renderHook(() => useFileUpload(config));
+
+    let upload!: Promise<void>;
+    act(() => {
+      upload = result.current.uploadFiles([makeFile('render.cjs', 1700, '')]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+
+    await waitFor(() => expect(result.current.attachments).toHaveLength(1));
+    expect(result.current.attachments[0]?.fileType).toBe(
+      'application/octet-stream',
+    );
+    expect(saveFileMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'render.cjs',
+        contentType: 'application/octet-stream',
+      }),
+    );
+  });
+
   it('dedupes a re-attached image against its original (pre-compression) identity', async () => {
     const { result } = renderHook(() => useFileUpload(config));
 

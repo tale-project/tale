@@ -1,7 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { resolveFileType } from '../../../lib/shared/file-types.ts';
+import {
+  FALLBACK_MIME_TYPE,
+  resolveFileType,
+} from '../../../lib/shared/file-types.ts';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types.ts';
 import {
   assertGenericDocumentContentWritable,
@@ -990,8 +993,7 @@ export function webdavHandlers(
       // widening — see the 0.4 comment).
       let resolvedContentType = resolveFileType(fileName, args.contentType);
       if (
-        (resolvedContentType === 'application/octet-stream' ||
-          resolvedContentType === '') &&
+        resolvedContentType === FALLBACK_MIME_TYPE &&
         isTextBasedFile(fileName)
       ) {
         resolvedContentType = 'text/plain';

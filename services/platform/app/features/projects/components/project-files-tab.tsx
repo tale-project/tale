@@ -474,8 +474,7 @@ export function ProjectFilesTab({
 
   const uploadOne = useCallback(
     async (file: File, folderIdOverride?: string): Promise<void> => {
-      const resolvedType =
-        resolveFileType(file.name, file.type) || 'application/octet-stream';
+      const resolvedType = resolveFileType(file.name, file.type);
       const uploadUrl = await generateUploadUrl({});
       const response = await fetch(uploadUrl, {
         method: 'POST',

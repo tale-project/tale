@@ -131,8 +131,7 @@ export function TaskInputFilesCard({
     setUploading(true);
     try {
       for (const file of picked) {
-        const resolvedType =
-          resolveFileType(file.name, file.type) || 'application/octet-stream';
+        const resolvedType = resolveFileType(file.name, file.type);
         const uploadUrl = await generateUploadUrl({});
         const response = await fetch(uploadUrl, {
           method: 'POST',

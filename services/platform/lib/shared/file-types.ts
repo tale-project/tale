@@ -63,6 +63,14 @@ const MIME_TYPES = {
 
 type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
 
+/**
+ * What a file is called when neither its extension nor the declaring client
+ * names a type — the value `resolveFileType` answers instead of an empty
+ * string, and the one every store and wire then carries. It belongs to no
+ * allowlist, so it admits nothing the extension gates would refuse.
+ */
+export const FALLBACK_MIME_TYPE = 'application/octet-stream';
+
 // ---------------------------------------------------------------------------
 // Grouped MIME sets (for validation)
 // ---------------------------------------------------------------------------
@@ -330,6 +338,14 @@ const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
  * download's `Content-Type` described the caller's claim, not the bytes
  * (2026-09-14 evaluation, g3-3). The upload allowlist keys on the extension
  * too, so the two halves of the pipeline now agree.
+ *
+ * The answer is NEVER empty: a browser reports no MIME at all for most code
+ * and config files (`.cjs`, `.mjs`, `.go`, `.rs`, `.sh`), and an empty
+ * content type travelling on as an attachment's `fileType` is refused by the
+ * chat send door (`z.string().min(1)`) — the send 400s, the composer keeps
+ * the text and the turn never starts. Callers used to paper over it with
+ * their own `|| 'application/octet-stream'`; the fallback lives here now, so
+ * every caller stores and sends the same value.
  */
 export function resolveFileType(fileName: string, browserMime: string): string {
   // Audio/video classification is byte-driven (see `detectMediaMime`). This
@@ -342,7 +358,7 @@ export function resolveFileType(fileName: string, browserMime: string): string {
     if (resolved) return resolved;
   }
   if (mime && KNOWN_MIME_TYPES.has(mime)) return mime;
-  return mime;
+  return mime.trim() === '' ? FALLBACK_MIME_TYPE : mime;
 }
 
 // ---------------------------------------------------------------------------

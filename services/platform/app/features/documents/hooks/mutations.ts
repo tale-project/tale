@@ -385,8 +385,7 @@ export function useDocumentUpload(options: UploadOptions) {
       let replacementFinalizeStarted = false;
       let replacementIntentCancelled = false;
       try {
-        const resolvedType =
-          resolveFileType(file.name, file.type) || 'application/octet-stream';
+        const resolvedType = resolveFileType(file.name, file.type);
 
         const signal = operation.controller.signal;
         const contentHash = options.replacementTarget
