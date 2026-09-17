@@ -13,7 +13,7 @@ La CLI gère les opérations sur les conteneurs. Tu restes responsable de la con
 
 ## Utiliser tes propres définitions de services
 
-[Exploiter ton propre déploiement](/fr/self-hosted/install/own-compose) décrit les services, les volumes, le réseau, les contrôles de disponibilité et l’ordre de démarrage à respecter. Suis ce guide si tu maintiens Compose ou transposes cette architecture dans Kubernetes. Tale ne fournit pas de chart Helm officiel.
+[Exploiter ton propre déploiement](/fr/self-hosted/install/own-compose) décrit les services, les volumes, le réseau, les contrôles de disponibilité et l’ordre de démarrage à respecter. Suis ce guide si tu maintiens Compose toi-même. [Déployer sur Kubernetes](/fr/self-hosted/install/kubernetes) transpose ce contrat en Deployments, Services et NetworkPolicies, et liste les vérifications qu’un cluster doit réussir. Tale ne fournit pas de chart Helm officiel.
 
 Pour modifier le code source de Tale, configure plutôt un [environnement de développement](/fr/develop/contributor-setup).
 

@@ -211,40 +211,5 @@ Database migrations run at backend boot. Your deployment procedure must keep com
 
 ## Map the contract to Kubernetes
 
-Use Deployments and stable Services for the application roles, with a shared configuration volume whose storage supports the required writes and locks. Use persistent volumes or external services for stores. Configure the sandbox spawner with `SANDBOX_BACKEND=kubernetes`: it creates session Pods and workspace PVCs through the Kubernetes API instead of the host Docker socket.
+[Deploy on Kubernetes](/self-hosted/install/kubernetes) translates this contract into Deployments, Services, StatefulSets, and NetworkPolicies, switches the sandbox spawner to `SANDBOX_BACKEND=kubernetes`, and lists the checks a cluster must pass before you admit users. Keep this page as the reference for the service names, volumes, probes, and environment the Kubernetes objects must reproduce.
 
-### Prepare the sandbox namespace
-
-Keep the session Pods, egress proxy, and model gateway in the intended sandbox namespace. Provide a StorageClass that can preserve and reattach workspace volumes where resumed Pods schedule.
-
-| Setting | Requirement |
-| --- | --- |
-| `SANDBOX_BACKEND` | `kubernetes`. Docker-only host paths and bridge names do not configure this backend. |
-| `SANDBOX_K8S_NAMESPACE` | Session namespace; defaults to `tale-sandbox`. |
-| `SANDBOX_RUNTIME_IMAGE` | The matching Tale sandbox runtime image, available to cluster nodes. |
-| `NODE_EXTRA_CA_CERTS` | Cluster CA file, normally `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` inside the spawner. Preserve TLS verification. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Workspace PVC size, default `4Gi`; also bounds the inner Docker temporary store when enabled. |
-| `SANDBOX_K8S_CACHE_STORAGECLASS` | Workspace StorageClass; unset uses the cluster default. |
-| `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
-| `SANDBOX_EGRESS_PROXY` | Reachable egress service, default `http://sandbox-egress:3128`. |
-
-The spawner ServiceAccount needs these permissions in that namespace:
-
-| Resource | Verbs |
-| --- | --- |
-| `pods` | `create`, `get`, `list`, `delete`, `patch` |
-| `secrets` | `create`, `delete`, `list` |
-| `persistentvolumeclaims` | `get`, `create`, `delete` |
-| `networkpolicies` in `networking.k8s.io` | `create`, `update` |
-
-Session operations use HTTP to runnerd on the Pod IP, port 8200. They do not need `pods/exec`, and session Pods do not receive a ServiceAccount token. Allow the spawner's required control-plane and runner connections in your policies. The [sandbox Kubernetes contract](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) contains the namespaced Role and runtime details.
-
-### Prove isolation and lifecycle
-
-The spawner applies an egress NetworkPolicy for session Pods, allowing DNS and the sandbox namespace. Your CNI must enforce NetworkPolicy. Failure to create the policy is logged but does not stop spawner startup: verify that the effective policy exists and actually blocks an unapproved destination before admitting workloads. Proxy environment variables alone do not enforce isolation.
-
-Check the egress proxy's IPv6 protection and the [inner Docker network prerequisites](/self-hosted/configuration/environment-reference#sandbox-infrastructure). For nested Docker, choose an explicit `SANDBOX_DIND_INNER_POOL` outside the cluster's Pod, Service, and VPC ranges; a Pod cannot discover every cluster network.
-
-A stopped session keeps its workspace PVC for resume; explicit destruction removes it. `SANDBOX_MAX_SESSIONS` counts namespace sessions but is best effort across simultaneous replica admissions. Use ResourceQuota and measured CPU/memory limits for hard cluster bounds.
-
-Test create, execution, runner restart, idle stop, resume with files intact, and explicit destruction. With multiple spawner replicas, test cross-replica access too. Map application readiness and drain behavior deliberately and observe in-flight requests during an update. The CLI's Docker rollout coordination does not operate a Kubernetes deployment for you.
