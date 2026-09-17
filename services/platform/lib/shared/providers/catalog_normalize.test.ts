@@ -195,6 +195,84 @@ describe('normalizeCatalogModel', () => {
     ).not.toContain('transcription');
   });
 
+  it.each([undefined, 0, 128_000])(
+    'normalizes OpenRouter pure STT without inventing context or token prices (%s)',
+    (context_length) => {
+      const entry = normalizeCatalogModel(
+        {
+          id: 'microsoft/mai-transcribe-2',
+          context_length,
+          architecture: {
+            input_modalities: ['audio'],
+            output_modalities: ['transcription'],
+          },
+          pricing: { prompt: '0.1', completion: '0' },
+        },
+        'openrouter',
+      );
+      expect(entry).toEqual({
+        id: 'microsoft/mai-transcribe-2',
+        provider: 'openrouter',
+        tags: ['transcription'],
+        supportsTools: false,
+        supportsVision: false,
+        contextWindow: context_length ?? 0,
+      });
+    },
+  );
+
+  it('keeps pure STT out of chat, vision, tools and reasoning selection', () => {
+    const entry = normalizeCatalogModel(
+      {
+        id: 'explicit-asr',
+        type: 'transcription',
+        context_window: 0,
+        modalities: { input: ['audio', 'image'], output: ['text'] },
+        supported_parameters: ['tools', 'reasoning'],
+        max_output_tokens: 4096,
+        pricing: { input: '0.18', output: '0' },
+      },
+      'p',
+    );
+    expect(entry).toEqual({
+      id: 'explicit-asr',
+      provider: 'p',
+      tags: ['transcription'],
+      supportsTools: false,
+      supportsVision: false,
+      contextWindow: 0,
+    });
+  });
+
+  it.each([
+    { modalities: { input: ['audio'], output: ['text'] } },
+    {
+      architecture: {
+        input_modalities: ['audio'],
+        output_modalities: ['transcription', 'text'],
+      },
+    },
+    { type: 'embedding' },
+    { type: 'embedding', modalities: { output: ['transcription'] } },
+    {
+      type: 'transcription',
+      modalities: { output: ['transcription', 'embeddings'] },
+    },
+    { type: 'speech', modalities: { input: ['text'], output: ['audio'] } },
+    { type: 'transcription', context_window: -1 },
+    { type: 'transcription', context_window: 'invalid' },
+  ])(
+    'does not admit an invalid/non-STT zero context entry (%j)',
+    (metadata) => {
+      expect(
+        normalizeCatalogModel(
+          { id: 'unsafe', context_window: 0, ...metadata },
+          'p',
+        ),
+      ).toBeNull();
+    },
+  );
+
   it('assumes chat when the source gives no modality or type signal', () => {
     const entry = normalizeCatalogModel({ id: 'm', context_length: 4096 }, 'p');
     expect(entry?.tags).toEqual(['chat']);

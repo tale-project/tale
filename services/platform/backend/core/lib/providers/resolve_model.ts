@@ -70,7 +70,12 @@ export async function resolveModel(
       allowlist = credential.modelAllowlist;
     }
     const catalog = await getServableCatalog(connector, allowlist);
-    const entry = catalog.find((candidate) => candidate.id === modelId);
+    // Explicit references cross the same conversational capability boundary
+    // as the picker: an STT/embedding entry is not a chat token budget.
+    const entry = catalog.find(
+      (candidate) =>
+        candidate.id === modelId && candidate.tags.includes('chat'),
+    );
     if (entry) return { entry, connector };
   }
   if (strict && providerSlug !== undefined) {

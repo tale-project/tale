@@ -132,7 +132,9 @@ describe('automationLlmCall', () => {
     getProviderCatalog.mockImplementation(
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
-          connector.name === 'second' ? [{ id: 'vendor/small-1' }] : [],
+          connector.name === 'second'
+            ? [{ id: 'vendor/small-1', tags: ['chat'] }]
+            : [],
         ),
     );
 
@@ -168,7 +170,9 @@ describe('automationLlmCall', () => {
       first: { status: 'active', authMethod: 'subscription' },
       second: { ...DIRECT, modelAllowlist: ['other/model'] },
     };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
 
     await expect(
       automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
@@ -182,7 +186,7 @@ describe('automationLlmCall', () => {
     ]);
     credentials = { openrouter: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5' },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
     ]);
 
     await automationLlmCall(
@@ -209,7 +213,9 @@ describe('automationLlmCall', () => {
       { name: 'anthropic', catalog: { source: 'static' } },
     ]);
     credentials = { anthropic: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'claude-haiku-4-5' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-haiku-4-5', tags: ['chat'] },
+    ]);
 
     await automationLlmCall(
       ctx,
@@ -241,7 +247,7 @@ describe('automationLlmCall', () => {
       },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5' },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
     ]);
 
     await automationLlmCall(
@@ -274,7 +280,9 @@ describe('automationLlmCall', () => {
 
   it('resolves each model once per door, not once per call', async () => {
     credentials = { first: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
 
     const door = automationLlmCall(ctx, ORG);
     await door({ model: 'vendor/small-1', prompt: 'one' });
@@ -287,7 +295,9 @@ describe('automationLlmCall', () => {
 
   it('asks for the schema in the system prompt and returns the parsed data', async () => {
     credentials = { first: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
     builderModel.mockResolvedValue({ content: '```json\n{"score": 7}\n```' });
     const outputSchema = {
       type: 'object',
@@ -314,7 +324,9 @@ describe('automationLlmCall', () => {
 
   it('fails the call, naming the problem, when the reply defies the schema', async () => {
     credentials = { first: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/small-1' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
     const outputSchema = {
       type: 'object',
       properties: { score: { type: 'number' } },
@@ -339,7 +351,9 @@ describe('resolveServingTarget', () => {
   // `lib/providers/agent_serving.test.ts`; this door is unpinned-only.
   it('walks connectors in order and serves from the first match', async () => {
     credentials = { first: DIRECT, second: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/shared', tags: ['chat'] },
+    ]);
 
     await expect(
       resolveServingTarget(ctx, ORG, 'vendor/shared'),

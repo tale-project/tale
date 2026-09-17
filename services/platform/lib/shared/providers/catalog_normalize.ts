@@ -27,9 +27,10 @@
  * ended up declaring a knob its connector could not spell, which silently
  * dropped the user's pick from the body.
  *
- * Entries without a usable id or a positive context window are dropped and
- * counted, never guessed: the catalog contract requires both, and a model the
- * platform cannot budget context for is not selectable.
+ * Chat and embedding entries require a positive context window. Pure STT
+ * listings may publish zero or no token window; 0 preserves that absence
+ * without inventing a conversational budget. STT pricing may be per audio
+ * duration, so its generic prompt/completion fields are not token prices.
  */
 
 import {
@@ -80,7 +81,9 @@ function deriveTags(args: {
   outputModalities: string[];
   entryType: string | undefined;
   supportsVision: boolean;
+  isTranscription: boolean;
 }): string[] {
+  if (args.isTranscription) return ['transcription'];
   const tags: string[] = [];
   // OpenRouter spells the output modality PLURAL ('embeddings'); other
   // sources and the entry-type vocabulary use the singular. Accept both —
@@ -94,11 +97,7 @@ function deriveTags(args: {
     args.outputModalities.includes('text') || args.entryType === 'language';
   const noSignal =
     args.outputModalities.length === 0 && args.entryType === undefined;
-  if (args.entryType === 'transcription') {
-    // Audio input alone also describes multimodal chat. Only an explicit
-    // ASR capability admits a custom model to /audio/transcriptions.
-    tags.push('transcription');
-  } else if (isEmbedding) {
+  if (isEmbedding) {
     tags.push('embedding');
   } else if (emitsText || noSignal) {
     tags.push('chat');
@@ -117,7 +116,7 @@ export interface NormalizedCatalog {
 
 /**
  * Normalize one raw listing entry for `provider`. Returns `null` when the
- * entry lacks a usable id or a positive context window.
+ * entry lacks a usable id or the context its declared model kind requires.
  */
 export function normalizeCatalogModel(
   raw: unknown,
@@ -125,10 +124,6 @@ export function normalizeCatalogModel(
 ): ModelCatalogEntry | null {
   const m = asRecord(raw);
   if (!m || typeof m.id !== 'string' || m.id.length === 0) return null;
-
-  const contextWindow =
-    positiveInt(m.context_length) ?? positiveInt(m.context_window);
-  if (contextWindow === undefined) return null;
 
   const architecture = asRecord(m.architecture);
   const modalities = asRecord(m.modalities);
@@ -140,22 +135,44 @@ export function normalizeCatalogModel(
     ...asStringArray(architecture?.output_modalities),
     ...asStringArray(modalities?.output),
   ];
-  const supportsVision = inputModalities.includes('image');
   // A media GENERATOR (Lyria music, image/video models) — often listed with
   // image input, text among its outputs, and a 0 token price (billing is per
   // artifact), so without this fact it reads as a free vision chat model.
   const outputsMedia = ['audio', 'image', 'video'].some((modality) =>
     outputModalities.includes(modality),
   );
+  const entryType = typeof m.type === 'string' ? m.type : undefined;
+  // Audio input with text output also describes multimodal chat. Only an
+  // explicit STT type or exclusively transcription output declares ASR.
+  const isTranscription =
+    !outputsMedia &&
+    entryType !== 'embedding' &&
+    !outputModalities.some(
+      (modality) => modality === 'embedding' || modality === 'embeddings',
+    ) &&
+    (entryType === 'transcription' ||
+      (outputModalities.length > 0 &&
+        outputModalities.every((modality) => modality === 'transcription')));
+  const absentTokenWindow = [m.context_length, m.context_window].every(
+    (value) => value === undefined || value === 0 || value === '0',
+  );
+  const contextWindow =
+    positiveInt(m.context_length) ??
+    positiveInt(m.context_window) ??
+    (isTranscription && absentTokenWindow ? 0 : undefined);
+  if (contextWindow === undefined) return null;
+  const supportsVision = !isTranscription && inputModalities.includes('image');
 
   const supportedParameters = asStringArray(m.supported_parameters);
   const supportsTools =
-    supportedParameters.includes('tools') ||
-    supportedParameters.includes('tool_choice');
+    !isTranscription &&
+    (supportedParameters.includes('tools') ||
+      supportedParameters.includes('tool_choice'));
   const reportsReasoning =
-    supportedParameters.includes('reasoning') ||
-    supportedParameters.includes('reasoning_effort') ||
-    supportedParameters.includes('include_reasoning');
+    !isTranscription &&
+    (supportedParameters.includes('reasoning') ||
+      supportedParameters.includes('reasoning_effort') ||
+      supportedParameters.includes('include_reasoning'));
 
   const topProvider = asRecord(m.top_provider);
   const rawMaxOutput =
@@ -166,11 +183,13 @@ export function normalizeCatalogModel(
   // context window; sending that as max output makes every non-trivial
   // request fail (input + output > context), so treat it as unreported.
   const maxOutputTokens =
-    rawMaxOutput !== undefined && rawMaxOutput < contextWindow
+    !isTranscription &&
+    rawMaxOutput !== undefined &&
+    rawMaxOutput < contextWindow
       ? rawMaxOutput
       : undefined;
 
-  const pricing = asRecord(m.pricing);
+  const pricing = isTranscription ? null : asRecord(m.pricing);
   const inputCentsPerMillion = priceToCentsPerMillion(
     pricing?.prompt ?? pricing?.input,
   );
@@ -184,8 +203,9 @@ export function normalizeCatalogModel(
     tags: deriveTags({
       inputModalities,
       outputModalities,
-      entryType: typeof m.type === 'string' ? m.type : undefined,
+      entryType,
       supportsVision,
+      isTranscription,
     }),
     supportsTools,
     supportsVision,

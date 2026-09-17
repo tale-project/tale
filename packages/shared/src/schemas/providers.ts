@@ -506,9 +506,10 @@ export const modelCatalogEntrySchema = z
           'reasoning.toolsRequireOff needs a declared reasoning.off value to send',
       })
       .optional(),
-    /** Total context window in tokens. Nominal for non-chat entries (a TTS
-     * model takes character-capped requests, not a context). */
-    contextWindow: z.number().int().positive(),
+    /** Total context window in tokens. Pure transcription may publish none:
+     * 0 records that absence, never an invented token budget. Other model
+     * kinds still require a positive window (validated below). */
+    contextWindow: z.number().int().nonnegative().default(0),
     maxOutputTokens: z.number().int().positive().optional(),
     /** Omitted when the source publishes no reliable price. */
     pricing: z
@@ -533,6 +534,19 @@ export const modelCatalogEntrySchema = z
       .optional(),
   })
   .strict()
+  .refine(
+    (entry) =>
+      entry.contextWindow > 0 ||
+      (entry.tags.length === 1 &&
+        entry.tags[0] === 'transcription' &&
+        !entry.supportsTools &&
+        !entry.supportsVision &&
+        entry.outputsMedia !== true),
+    {
+      message:
+        'only pure transcription models may omit a positive contextWindow',
+    },
+  )
   .refine(
     (entry) =>
       !entry.tags.includes('text-to-speech') ||

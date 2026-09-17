@@ -25,7 +25,7 @@ Under **Model access**, choose the mode and add rules for the users, teams, role
 
 Access resolves user rules before team rules, then role rules, then the default. Multiple matching team rules combine their lists; an explicit block still wins for that model. If no rule matches, the policy does not restrict that user. Add a baseline rule when you intend to cover everyone.
 
-Access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
+For chat, access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
 
 <Tip>
 Test both cases after changing access: an allowed model should work and a denied model should be refused for the affected member. Testing only as the admin does not prove a role-specific rule.
@@ -48,6 +48,8 @@ Pin a model if you need a stable choice. The picker offers models suitable for t
 ![The Audio transcription model section shows Automatic and identifies the current server transcription model.](/images/platform/governance-content-models.webp)
 
 </Frame>
+
+An active default credential for OpenRouter also makes its dedicated speech-to-text models available here. Tale discovers them from the OpenRouter catalog. Check that the credential’s allowed models include your intended transcription model, then use **Automatic** or select that model explicitly.
 
 1. Under **Model that transcribes audio**, leave **Automatic** selected to let Tale choose an available compatible model, or select a specific provider and model.
 2. Save the page's pending changes in the header. Until you save, the selection is a draft; discard it to keep the saved setting.

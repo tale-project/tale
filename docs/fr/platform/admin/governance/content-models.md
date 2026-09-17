@@ -25,7 +25,7 @@ Sous **Accès aux modèles**, choisis le mode et ajoute des règles pour les per
 
 Les règles individuelles passent avant celles des équipes, puis des rôles et enfin la règle par défaut. Plusieurs règles d’équipe correspondantes combinent leurs listes ; un blocage explicite reste prioritaire pour le modèle. Si aucune règle ne correspond, la politique ne restreint pas cette personne. Ajoute une règle de base pour couvrir tout le monde.
 
-L’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre modèle par défaut et accès. Corrige-les pour que le modèle par défaut prévu soit réellement utilisé.
+Pour le chat, l’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre modèle par défaut et accès. Corrige-les pour que le modèle par défaut prévu soit réellement utilisé.
 
 <Tip>
 Après un changement, teste les deux cas pour le membre concerné : un modèle autorisé doit fonctionner et un modèle interdit doit être refusé. Tester uniquement avec un compte admin ne prouve pas une règle propre à un rôle.
@@ -48,6 +48,8 @@ Fixe un modèle si tu souhaites un choix stable. La sélection propose des modè
 ![La section de transcription audio affiche la sélection automatique et indique le modèle actuellement utilisé par le serveur.](/images/platform/governance-content-models.webp)
 
 </Frame>
+
+Si ton accès OpenRouter par défaut est actif, ses modèles de reconnaissance vocale sont aussi disponibles ici. Tale les découvre dans le catalogue OpenRouter. Vérifie que les modèles autorisés pour cet accès incluent le modèle de transcription souhaité, puis utilise **Automatique** ou sélectionne ce modèle explicitement.
 
 1. Dans **Modèle qui transcrit l'audio**, laisse **Automatique** pour que Tale choisisse un modèle compatible disponible, ou sélectionne un fournisseur et un modèle précis.
 2. Enregistre les changements en attente dans l’en-tête. Avant l’enregistrement, la sélection reste un brouillon ; abandonne-le pour conserver le réglage enregistré.

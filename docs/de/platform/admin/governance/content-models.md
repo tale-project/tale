@@ -25,7 +25,7 @@ Wähle unter **Modellzugriff** den Modus und ergänze Regeln für Personen, Team
 
 Zuerst gelten Personenregeln, danach Teamregeln, Rollenregeln und der Standard. Mehrere passende Teamregeln kombinieren ihre Listen. Eine ausdrückliche Sperre hat für das Modell weiterhin Vorrang. Passt keine Regel, schränkt die Richtlinie diese Person nicht ein. Lege eine Standardregel an, wenn du alle abdecken willst.
 
-Der Zugriff wird bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
+Bei Chats wird der Zugriff bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
 
 <Tip>
 Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktionieren, ein gesperrtes für das betroffene Mitglied abgelehnt werden. Ein Test nur als Admin belegt keine rollenspezifische Regel.
@@ -48,6 +48,8 @@ Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet 
 ![Der Abschnitt für Audiotranskription zeigt die automatische Auswahl und nennt das aktuelle Modell für die serverseitige Transkription.](/images/platform/governance-content-models.webp)
 
 </Frame>
+
+Mit einem aktiven Standardzugang für OpenRouter stehen hier auch dessen Modelle zur Spracherkennung zur Auswahl. Tale findet sie im OpenRouter-Katalog. Prüfe, ob das gewünschte Transkriptionsmodell für den Zugang erlaubt ist. Nutze dann **Automatisch** oder wähle das Modell ausdrücklich aus.
 
 1. Lass **Modell zur Audiotranskription** auf **Automatisch**, damit Tale ein verfügbares kompatibles Modell auswählt, oder wähle einen bestimmten Anbieter und ein Modell.
 2. Speichere die ausstehenden Änderungen im Seitenkopf. Bis dahin ist die Auswahl ein Entwurf. Verwirf ihn, um die gespeicherte Einstellung beizubehalten.

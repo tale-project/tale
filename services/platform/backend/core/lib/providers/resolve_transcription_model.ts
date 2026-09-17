@@ -15,6 +15,7 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { isOpenRouterProvider } from '../../../../lib/shared/providers/attribution';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import { ConfigurationError } from '../config_store/precondition';
 import type { ActionCtx } from '../ctx';
@@ -28,6 +29,8 @@ export interface ResolvedTranscriptionModel {
   readonly providerName: string;
   readonly baseUrl: string;
   readonly apiKey: string;
+  /** OpenRouter STT models share JSON support; verbose output varies by model. */
+  readonly responseFormat?: 'json' | 'verbose_json';
 }
 
 export interface TranscriptionModelOption {
@@ -132,7 +135,13 @@ async function candidatesFor(
         ),
       );
       if (direct === null) continue;
-      const catalog = await getServableCatalog(provider, direct.modelAllowlist);
+      const catalog = await getServableCatalog(
+        provider,
+        direct.modelAllowlist,
+        {
+          requiredCapability: 'transcription',
+        },
+      );
       const entries = catalog.filter(
         (candidate) =>
           candidate.tags.includes('transcription') &&
@@ -161,6 +170,10 @@ async function candidatesFor(
             providerName: provider.name,
             baseUrl,
             apiKey: credential.secret,
+            ...(provider.catalog.source === 'openrouter-api' ||
+            isOpenRouterProvider({ providerName: provider.name, baseUrl })
+              ? { responseFormat: 'json' as const }
+              : {}),
           },
         });
       }

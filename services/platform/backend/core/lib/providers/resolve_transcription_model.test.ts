@@ -65,6 +65,7 @@ function provider(name: string, apiFormat: 'openai' | 'anthropic' = 'openai') {
     displayName: name,
     apiFormat,
     baseUrl: `https://${name}.example/v1`,
+    catalog: { source: 'static' },
   };
 }
 
@@ -138,6 +139,25 @@ describe('resolveTranscriptionModel', () => {
     expect(resolved.baseUrl).toBe('https://tenant.openai.azure.com/openai');
   });
 
+  it.each([
+    { ...provider('openrouter'), catalog: { source: 'openrouter-api' } },
+    { ...provider('router-alias'), catalog: { source: 'openrouter-api' } },
+    { ...provider('router-alias'), baseUrl: 'https://openrouter.ai/api/v1' },
+  ])('selects portable JSON for OpenRouter provider $name', async (router) => {
+    resolveProvidersMock.mockResolvedValue([router]);
+    catalogMock.mockResolvedValue([
+      { ...WHISPER, id: 'openai/gpt-4o-mini-transcribe' },
+    ]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({
+      providerName: router.name,
+      modelId: 'openai/gpt-4o-mini-transcribe',
+      responseFormat: 'json',
+    });
+  });
+
   it('never fetches a catalog for a provider without an active direct default credential', async () => {
     resolveProvidersMock.mockResolvedValue([
       provider('no-credential'),
@@ -191,6 +211,7 @@ describe('resolveTranscriptionModel', () => {
     expect(catalogMock).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'openai' }),
       ['gpt-4o'],
+      { requiredCapability: 'transcription' },
     );
     expect(credentialMock).not.toHaveBeenCalled();
   });

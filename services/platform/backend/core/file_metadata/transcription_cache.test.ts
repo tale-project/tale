@@ -24,10 +24,20 @@ describe('transcription cache identity', () => {
     { providerName: 'other-provider' },
     { modelId: 'speech-b' },
     { baseUrl: 'https://other.example.invalid/v1' },
+    { responseFormat: 'json' as const },
   ])('does not reuse another transcription target: %j', (difference) => {
     expect(
       transcriptionCacheHash(bytes, { ...target, ...difference }),
     ).not.toBe(transcriptionCacheHash(bytes, target));
+  });
+
+  it('treats an explicit verbose format the same as the compatible default', () => {
+    expect(
+      transcriptionCacheHash(bytes, {
+        ...target,
+        responseFormat: 'verbose_json',
+      }),
+    ).toBe(transcriptionCacheHash(bytes, target));
   });
 
   it('does not confuse adjacent field boundaries or embedded delimiters', () => {

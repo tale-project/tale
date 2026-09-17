@@ -150,7 +150,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
   resolveConnectors.mockResolvedValue([ANTHROPIC, OPENROUTER, ZAI]);
-  getProviderCatalog.mockResolvedValue([{ id: 'claude-fable-5' }]);
+  getProviderCatalog.mockResolvedValue([
+    { id: 'claude-fable-5', tags: ['chat'] },
+  ]);
   loadHarnesses.mockReturnValue([
     harness('claude-code', { managed: true, byo: true }, true),
     harness('codex', { managed: true, byo: true }, false),
@@ -164,7 +166,7 @@ describe('resolveWorkflowAgentServing — direct pass', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'openrouter'
-            ? [{ id: 'anthropic/claude-fable-5' }]
+            ? [{ id: 'anthropic/claude-fable-5', tags: ['chat'] }]
             : [],
         ),
     );
@@ -191,8 +193,8 @@ describe('resolveWorkflowAgentServing — direct pass', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'openrouter'
-            ? [{ id: 'anthropic/claude-fable-5' }]
-            : [{ id: 'claude-fable-5' }],
+            ? [{ id: 'anthropic/claude-fable-5', tags: ['chat'] }]
+            : [{ id: 'claude-fable-5', tags: ['chat'] }],
         ),
     );
 
@@ -204,6 +206,58 @@ describe('resolveWorkflowAgentServing — direct pass', () => {
 
     expect(serving.lane).toBe('gateway');
     expect(serving.providerSlug).toBe('openrouter');
+  });
+});
+
+describe('non-chat catalog entries never serve agent turns', () => {
+  it.each([
+    { providerSlug: 'openrouter', credential: DIRECT, pinned: false },
+    { providerSlug: 'openrouter', credential: DIRECT, pinned: true },
+    { providerSlug: 'anthropic', credential: BROKER, pinned: false },
+    { providerSlug: 'anthropic', credential: BROKER, pinned: true },
+  ])(
+    'refuses exact and equivalent STT references on $providerSlug (pinned: $pinned)',
+    async ({ providerSlug, credential, pinned }) => {
+      credentials = { [providerSlug]: credential };
+      getProviderCatalog.mockResolvedValue([
+        {
+          id: 'vendor/audio-only',
+          provider: providerSlug,
+          tags: ['transcription'],
+          contextWindow: 0,
+          supportsTools: false,
+          supportsVision: false,
+        },
+      ]);
+      for (const model of ['vendor/audio-only', 'audio-only']) {
+        await expect(
+          resolveWorkflowAgentServing(ctx, {
+            organizationId: ORG,
+            model,
+            harness: 'claude-code',
+            ...(pinned ? { modelProvider: providerSlug } : {}),
+          }),
+        ).rejects.toThrow(
+          /cannot serve|no configured provider serves|does not list/,
+        );
+      }
+    },
+  );
+
+  it('does not replace an exact STT reference with an equivalent chat model', async () => {
+    credentials = { openrouter: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/shared', tags: ['transcription'], contextWindow: 0 },
+      { id: 'other/shared', tags: ['chat'], contextWindow: 128_000 },
+    ]);
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'vendor/shared',
+        modelProvider: 'openrouter',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/cannot serve/);
   });
 });
 
@@ -259,7 +313,7 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
     credentials = {
       'z-ai': { status: 'active', authMethod: 'subscription-key' },
     };
-    getProviderCatalog.mockResolvedValue([{ id: 'glm-5' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'glm-5', tags: ['chat'] }]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
       organizationId: ORG,
@@ -318,7 +372,9 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
 
   it('skips a subscription connector whose catalog does not list the model', async () => {
     credentials = { anthropic: BROKER };
-    getProviderCatalog.mockResolvedValue([{ id: 'claude-haiku-4-5' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-haiku-4-5', tags: ['chat'] },
+    ]);
 
     await expect(
       resolveWorkflowAgentServing(ctx, {
@@ -353,8 +409,8 @@ describe('resolveWorkflowAgentServing — pinned', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'openrouter'
-            ? [{ id: 'anthropic/claude-fable-5' }]
-            : [{ id: 'claude-fable-5' }],
+            ? [{ id: 'anthropic/claude-fable-5', tags: ['chat'] }]
+            : [{ id: 'claude-fable-5', tags: ['chat'] }],
         ),
     );
   }
@@ -403,8 +459,8 @@ describe('resolveWorkflowAgentServing — pinned', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'openrouter'
-            ? [{ id: 'anthropic/claude-fable-5' }]
-            : [{ id: 'claude-fable-5' }],
+            ? [{ id: 'anthropic/claude-fable-5', tags: ['chat'] }]
+            : [{ id: 'claude-fable-5', tags: ['chat'] }],
         ),
     );
 
@@ -466,7 +522,7 @@ describe('resolveWorkflowAgentServing — pinned', () => {
 
   it('throws when the pinned direct catalog does not list the model', async () => {
     credentials = { openrouter: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'gpt-5' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'gpt-5', tags: ['chat'] }]);
 
     await expect(
       resolveWorkflowAgentServing(ctx, {
@@ -492,7 +548,7 @@ describe('subscription serving reports whether images are readable', () => {
       'z-ai': { status: 'active', authMethod: 'subscription-key' },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'glm-4.6v', supportsVision: true },
+      { id: 'glm-4.6v', tags: ['chat'], supportsVision: true },
     ]);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -517,7 +573,7 @@ describe('subscription serving reports whether images are readable', () => {
   it('reads a vision model on a forwarding endpoint as readable (unpinned pass too)', async () => {
     credentials = { anthropic: BROKER };
     getProviderCatalog.mockResolvedValue([
-      { id: 'claude-fable-5', supportsVision: true },
+      { id: 'claude-fable-5', tags: ['chat'], supportsVision: true },
     ]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
@@ -536,7 +592,7 @@ describe('subscription serving reports whether images are readable', () => {
   it('reads a text-only model as blind on any subscription endpoint', async () => {
     credentials = { anthropic: BROKER };
     getProviderCatalog.mockResolvedValue([
-      { id: 'claude-fable-5', supportsVision: false },
+      { id: 'claude-fable-5', tags: ['chat'], supportsVision: false },
     ]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
@@ -648,7 +704,9 @@ describe('catalog-less providers serve their credential allowlist', () => {
       },
       openrouter: DIRECT,
     };
-    getProviderCatalog.mockResolvedValue([{ id: 'anthropic/claude-fable-5' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-fable-5', tags: ['chat'] },
+    ]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
       organizationId: ORG,
@@ -686,7 +744,9 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
     // the gateway forwards Anthropic through instead of down-converting.
     resolveConnectors.mockResolvedValue([DEEPSEEK]);
     credentials = { deepseek: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'deepseek-v4-flash' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash', tags: ['chat'] },
+    ]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
       organizationId: ORG,
@@ -706,7 +766,9 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
   it('keeps an OpenAI-wire harness (codex) on the OpenAI base for the same connector', async () => {
     resolveConnectors.mockResolvedValue([DEEPSEEK]);
     credentials = { deepseek: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'deepseek-v4-flash' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash', tags: ['chat'] },
+    ]);
 
     const serving = await resolveWorkflowAgentServing(ctx, {
       organizationId: ORG,

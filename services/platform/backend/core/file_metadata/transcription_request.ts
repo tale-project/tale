@@ -8,6 +8,8 @@
  * can't drift.
  */
 
+import { z } from 'zod';
+
 export interface TranscriptionSegment {
   id?: number;
   start: number;
@@ -29,14 +31,40 @@ export interface TranscriptionRequestModel {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  responseFormat?: 'json' | 'verbose_json';
 }
+
+const durationSchema = z
+  .number()
+  .finite()
+  .nonnegative()
+  .optional()
+  .catch(undefined);
+const transcriptionResponseSchema = z.object({
+  text: z.string().optional(),
+  duration: durationSchema,
+  usage: z.object({ seconds: durationSchema }).optional().catch(undefined),
+  segments: z
+    .array(
+      z
+        .object({
+          id: z.number().int().nonnegative().optional(),
+          start: z.number().finite().nonnegative(),
+          end: z.number().finite().nonnegative(),
+          text: z.string(),
+        })
+        .refine((segment) => segment.end >= segment.start),
+    )
+    .optional()
+    .catch(undefined),
+});
 
 /**
  * POST one audio blob to `{baseUrl}/audio/transcriptions` as
  * `multipart/form-data` with a binary `file` field and
- * `response_format: verbose_json` — the OpenAI Whisper wire that vLLM,
- * LocalAI and faster-whisper-server also speak — and return the parsed
- * transcript `{ text, duration, segments }`.
+ * the selected response format. Whisper-compatible endpoints default to
+ * verbose JSON for timestamps; OpenRouter uses portable JSON because some
+ * upstream models reject verbose output. Return `{ text, duration, segments }`.
  *
  * Throws `Error & { status?: number }` on a non-2xx response so callers can
  * classify retryable (429/5xx) vs permanent (4xx) failures via `classifyError`.
@@ -61,7 +89,7 @@ export async function requestTranscription(opts: {
     formData.append('model', model.modelId);
     // `verbose_json` is required to get `duration` across OpenAI, vLLM,
     // LocalAI, and faster-whisper-server. Plain `json` omits it on OpenAI.
-    formData.append('response_format', 'verbose_json');
+    formData.append('response_format', model.responseFormat ?? 'verbose_json');
     const init: RequestInit = {
       method: 'POST',
       headers: { Authorization: `Bearer ${model.apiKey}` },
@@ -83,15 +111,13 @@ export async function requestTranscription(opts: {
       throw err;
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OpenAI-compatible response shape
-    const result = (await response.json()) as TranscriptionApiResult;
+    const result = transcriptionResponseSchema.parse(await response.json());
     return {
       // Some servers omit `text` on empty audio — normalize to '' so callers
-      // (and Convex `v.string()` validators) never see `undefined`.
-      text: typeof result.text === 'string' ? result.text : '',
-      duration:
-        typeof result.duration === 'number' ? result.duration : undefined,
-      segments: Array.isArray(result.segments) ? result.segments : undefined,
+      // never see `undefined`.
+      text: result.text ?? '',
+      duration: result.duration ?? result.usage?.seconds,
+      segments: result.segments,
     };
   } finally {
     clearTimeout(timeoutId);
