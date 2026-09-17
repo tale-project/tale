@@ -39,6 +39,37 @@ export interface BootMigrationOptions {
   log?: (message: string) => void;
 }
 
+/**
+ * Catch up accounts this deployment provisioned before a provisioned account
+ * counted as a verified one (`backend/auth/auth.ts`). A `credential` row is
+ * the proof: it exists only for an account whose password this instance
+ * issued — the first owner, a member an admin added, the operator's deploy.
+ * A directory-provisioned account (SSO, SCIM, trusted headers) has no such
+ * row and keeps its provider's verdict.
+ *
+ * Not a numbered migration: the app's `.sql` files run before Better Auth's
+ * own tables exist, and they are not the app's to write. It runs on every
+ * boot rather than once, because during a rolling deploy the previous image
+ * keeps creating unverified accounts while the new one is already up — the
+ * statement matches nothing once they are all verified.
+ */
+async function verifyProvisionedAccounts(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  const caught = await sql`
+    UPDATE "user" AS u SET "emailVerified" = true
+    WHERE u."emailVerified" = false
+      AND EXISTS (
+        SELECT 1 FROM "account" AS a
+        WHERE a."userId" = u."id" AND a."providerId" = 'credential'
+      )
+  `;
+  if (caught.count > 0) {
+    log(`[backend] verified ${caught.count} provisioned account(s)`);
+  }
+}
+
 async function listMigrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
   return entries.filter((name) => name.endsWith('.sql')).sort();
@@ -96,6 +127,7 @@ export async function runBootMigrations(
         );
         await runMigrations();
       }
+      await verifyProvisionedAccounts(sql, log);
     }
   } finally {
     // Session lock releases with the connection either way; explicit unlock

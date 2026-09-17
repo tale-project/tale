@@ -285,6 +285,21 @@ describe('createOidcProvider — discovery', () => {
     expect(OIDC_ACR_VALUE).toBe('urn:mace:incommon:iap:bronze');
   });
 
+  it('leaves a person five minutes to sign in before the request expires', () => {
+    // The provider signs the login and consent continuation with this same
+    // lifetime and refuses an expired one, so `codeExpiresIn` is also the
+    // window a person has to find a password and answer a second factor.
+    // At sixty seconds a slow sign-in came back to the provider's error
+    // page; five minutes is the conventional ceiling for a single-use,
+    // PKCE-bound authorization code.
+    const plugin: unknown = createOidcProvider(
+      null as unknown as Sql,
+      'https://tale.example.com',
+    );
+    const options = isRecord(plugin) ? plugin.options : undefined;
+    expect(isRecord(options) ? options.codeExpiresIn : null).toBe(300);
+  });
+
   it('advertises only the prompt values this issuer honours', () => {
     // `select_account` is refused (no account picker is configured) and
     // `create` lands on the ordinary sign-in continuation, not a

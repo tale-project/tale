@@ -26,6 +26,8 @@ La connexion locale conserve des empreintes de mots de passe dans la base applic
 
 Vérifie avec un compte de test l’invitation, la connexion, la déconnexion et la récupération. Une session Propriétaire qui fonctionne ne prouve pas qu’un nouveau membre peut rejoindre l’organisation.
 
+Tale n’envoie aucun courriel de vérification : une adresse est donc confirmée par qui crée le compte. Le premier Propriétaire issu de la configuration initiale, une personne ajoutée par un administrateur dans **Paramètres > Membres** et le compte créé par le déploiement valent tous comme confirmation, et le compte est utilisable immédiatement. Les applications connectées lisent cela dans l’attribut `email_verified` de l’identité délivrée par Tale : un collègue qui vient d’être ajouté peut donc s’y connecter tout de suite. Un compte issu du SSO d’entreprise, de SCIM ou d’en-têtes de confiance conserve en revanche ce qu’indique son annuaire.
+
 ## Connecter le SSO d’entreprise
 
 Configure l’organisation sous **Paramètres > SSO d’entreprise**. Microsoft Entra ID et OIDC générique découvrent les endpoints depuis l’émetteur ; OAuth2 utilise des URL explicites d’autorisation, de token et de userinfo. SAML utilise des métadonnées, une URL de réception des assertions et des certificats de signature.

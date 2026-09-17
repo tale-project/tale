@@ -407,7 +407,13 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
     // not bind resource indicators to grants (GHSA-p2fr-6hmx-4528).
     validAudiences: [],
     grantTypes: ['authorization_code'],
-    codeExpiresIn: 60,
+    // Also how long the signed continuation of the login and consent pages
+    // stays good (the provider signs it with this lifetime and refuses an
+    // expired one), so it is the time a person has to find a password,
+    // answer a second factor and come back — a minute sent slow sign-ins to
+    // the provider's error page. Five minutes is the conventional ceiling
+    // for a single-use, PKCE-bound authorization code.
+    codeExpiresIn: 300,
     accessTokenExpiresIn: 300,
     idTokenExpiresIn: 300,
     allowDynamicClientRegistration: false,

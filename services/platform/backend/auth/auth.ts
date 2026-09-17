@@ -442,6 +442,38 @@ export function createAuth(config: AuthConfig) {
         },
       },
     },
+    /**
+     * A provisioned account is a verified account.
+     *
+     * Tale sends no mail, so nobody can ever prove an address by clicking a
+     * link — and Tale never creates an account on its own. Every account
+     * Better Auth makes here was named by someone with the authority to name
+     * it: the first owner through the setup wizard, a colleague an admin adds
+     * under Settings > Members (who hands the credentials over on the
+     * organization's own channel), or the operator's deploy. That assertion
+     * IS this deployment's verification — the same one the CLI records as
+     * `operator-attested` — so the account arrives verified and everything
+     * that requires a vouched-for address works for the people who were given
+     * one: the OIDC `email_verified` claim relying parties read, conversation
+     * synchronization, and the notification mirror.
+     *
+     * A directory keeps its own word: SSO, SCIM and trusted-header accounts
+     * are written straight to the table with the provider's verdict and never
+     * pass through this hook. A managed deployment's gateway refuses
+     * `/api/auth/sign-up/email` outright once it is provisioned ("Account
+     * provisioning is managed by the operator"), so nobody can sign an
+     * account up for themselves; an account that reaches this hook any other
+     * way still belongs to no organization, which is what every identity
+     * claim is read against.
+     */
+    databaseHooks: {
+      user: {
+        create: {
+          before: (user) =>
+            Promise.resolve({ data: { ...user, emailVerified: true } }),
+        },
+      },
+    },
     hooks: {
       // Pre-flight gate: reject sign-ins over the per-IP flood limit OR
       // against a locked account, surfacing the MAX retry-after of the two.

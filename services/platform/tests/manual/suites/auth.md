@@ -144,6 +144,8 @@ compute codes from the enrollment secret.
 
 - [ ] `AUTH-F18` · **Native application sign-in** — Start an OIDC authorization from a registered test application while signed out; finish native password plus TOTP, passkey or configured SSO → the original signed request resumes at **Continue with Tale** (`auth.oauth.title`), the reviewed application and signed-in email appear, and **Allow and continue** (`auth.oauth.allow`) returns once to the application. Repeat with **Cancel** (`auth.oauth.cancel`) → no application session; retry succeeds. Tab order reaches both actions with visible focus, including at a narrow viewport.
 
+- [ ] `AUTH-F19` · **A new member reaches a connected application** — As an admin, add a colleague under **Settings > Members** with a new address and password, hand the credentials to a second browser profile, and start an OIDC authorization from a registered test application there (`AUTH-F18`'s flow) → the application receives the identity on the first attempt and its `email_verified` claim is true; no verification mail exists to wait for. The same account also receives its organization's notification mirror.
+
 ## Boundary & error tests
 
 - [ ] `AUTH-B1` · **Empty login** — `/log-in` with both fields empty → **Log
