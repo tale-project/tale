@@ -39,7 +39,6 @@ cd services/platform && \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
   TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
-  TALE_ALLOW_OPEN_SIGN_UP=true \
   bun scripts/dev.ts
 ```
 
@@ -127,10 +126,14 @@ has no users, so the **first** account is created one of two ways:
 
 - **First-run wizard** — open `/setup` and complete it (owner account →
   workspace → optional provider). Only reachable while no user exists.
-- **Sign-up endpoint** — the UI hides sign-up after the first user, but
-  `POST /api/auth/sign-up/email` still accepts new accounts. This is how the e2e
-  suite mints throwaway owners. Password must satisfy the policy
-  (length + lower + upper + digit + special), e.g. `TaleE2E!Passw0rd`.
+- **Sign-up endpoint** — `POST /api/auth/sign-up/email` mints accounts
+  directly. This is how the e2e suite gets throwaway owners. Password must
+  satisfy the policy (length + lower + upper + digit + special), e.g.
+  `TaleE2E!Passw0rd`. A real deployment CLOSES this route once it holds an
+  account (403 `SIGN_UP_CLOSED`); every stack in this file keeps it open
+  because the dev orchestrator and the dev compose overlay set
+  `TALE_ALLOW_OPEN_SIGN_UP=true` themselves. Set it to `0` in the boot command
+  to rehearse the refusal (AUTH-B8).
 
 A freshly signed-up user lands on `/dashboard/create-organization` — complete
 the create-org wizard, now two steps (verified live 2026-08-04): **Step 1 of
@@ -158,8 +161,9 @@ dashboard URL (`/dashboard/AbCd…/chat`).
 ### Extras some guides need
 
 - **A second user account in the org** — notifications F9–F11 and
-  settings F16/B4–B5 need two members. Mint one via `POST /api/auth/sign-up/email`
-  and add it under Settings → Members, or run
+  settings F16/B4–B5 need two members. Add one under Settings → Members (the
+  administrator door, which works on every deployment), mint one via
+  `POST /api/auth/sign-up/email` on these opened dev stacks, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
 - **Sample upload artifacts** — an automation pack (the inline `workflow.yml`
   probe in automations.md Prerequisites, or zip a copy of a builtin pack under
