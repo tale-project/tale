@@ -7,6 +7,7 @@ import {
   DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
   documentIconExtension,
   extractExtension,
+  FALLBACK_MIME_TYPE,
   getDocumentPreviewKind,
   isAllowedDocumentUpload,
   isAudioOrVideo,
@@ -114,14 +115,27 @@ describe('resolveFileType', () => {
   });
 
   it('returns original MIME for unknown extension', () => {
-    expect(resolveFileType('malware.exe', '')).toBe('');
+    expect(resolveFileType('malware.exe', 'application/x-msdownload')).toBe(
+      'application/x-msdownload',
+    );
     expect(resolveFileType('malware.exe', 'application/octet-stream')).toBe(
       'application/octet-stream',
     );
   });
 
-  it('returns original MIME for no extension', () => {
-    expect(resolveFileType('README', '')).toBe('');
+  // A browser reports NO type for most code and config files, and an empty
+  // content type reaching the chat send door is refused there
+  // (`fileType: z.string().min(1)`) — the send 400s and the turn never
+  // starts. Nothing the resolver answers is ever empty.
+  it('falls back to the generic type when nothing names one', () => {
+    expect(resolveFileType('render.cjs', '')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('server.mjs', '')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('main.go', '')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('malware.exe', '')).toBe(FALLBACK_MIME_TYPE);
+  });
+
+  it('returns the generic type for no extension and no declared type', () => {
+    expect(resolveFileType('README', '')).toBe(FALLBACK_MIME_TYPE);
   });
 
   it('handles uppercase extensions', () => {
@@ -129,7 +143,8 @@ describe('resolveFileType', () => {
   });
 
   it('uses last extension for double-dot filenames', () => {
-    expect(resolveFileType('file.tar.gz', '')).toBe('');
+    expect(resolveFileType('notes.tar.md', '')).toBe('text/markdown');
+    expect(resolveFileType('file.tar.gz', '')).toBe(FALLBACK_MIME_TYPE);
   });
 
   it('resolves common image types', () => {
@@ -145,16 +160,21 @@ describe('resolveFileType', () => {
     expect(resolveFileType('data.csv', '')).toBe('text/csv');
   });
 
+  // The refusal stands — this function never ANSWERS audio/* or video/*, the
+  // byte sniff does (`detectMediaMime`, which callers consult first). It just
+  // names the unclassified case generically instead of emptily.
   it('refuses audio/video browser MIME (media is byte-driven)', () => {
-    expect(resolveFileType('song.mp3', 'audio/mpeg')).toBe('');
-    expect(resolveFileType('clip.mp4', 'video/mp4')).toBe('');
-    expect(resolveFileType('connector.ts', 'video/mp2t')).toBe('');
+    expect(resolveFileType('song.mp3', 'audio/mpeg')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('clip.mp4', 'video/mp4')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('connector.ts', 'video/mp2t')).toBe(
+      FALLBACK_MIME_TYPE,
+    );
   });
 
   it('ignores audio/video extensions (no longer in extension map)', () => {
-    expect(resolveFileType('song.mp3', '')).toBe('');
-    expect(resolveFileType('clip.mp4', '')).toBe('');
-    expect(resolveFileType('broadcast.ts', '')).toBe('');
+    expect(resolveFileType('song.mp3', '')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('clip.mp4', '')).toBe(FALLBACK_MIME_TYPE);
+    expect(resolveFileType('broadcast.ts', '')).toBe(FALLBACK_MIME_TYPE);
   });
 });
 

@@ -72,8 +72,7 @@ function DocumentComparisonDialogContent({
   const uploadFileToStorage = useCallback(
     async (file: File): Promise<string> => {
       const uploadUrl = await generateUploadUrl({});
-      const resolvedType =
-        resolveFileType(file.name, file.type) || 'application/octet-stream';
+      const resolvedType = resolveFileType(file.name, file.type);
 
       const response = await fetch(uploadUrl, {
         method: 'POST',

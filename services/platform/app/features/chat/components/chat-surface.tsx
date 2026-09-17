@@ -1280,6 +1280,13 @@ function ChatSurfaceInner({
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);
+            // A turn that never settled writes no rows for the overlay to be
+            // adopted by, so drop it here too — otherwise the optimistic
+            // bubble and its thinking shell sit there forever and the thread
+            // reads as generating until a reload.
+            setPendingSend((previous) =>
+              previous !== null && previous.sentAt === sentAt ? null : previous,
+            );
             if (intoThreadId === undefined) {
               composerRef.current?.restoreText(text);
               if (consumedAttachments.length > 0) {

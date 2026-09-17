@@ -199,6 +199,10 @@ import {
   useResolveQuestion,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
+import {
+  buildPendingShellItem,
+  buildPendingUserItem,
+} from '../utils/pending-messages';
 import { ChatSurface } from './chat-surface';
 
 afterEach(() => {
@@ -997,6 +1001,70 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent(/Low/);
+  });
+
+  // A turn whose request never settles (the send door refused the body, the
+  // network dropped) writes no rows, so nothing can ever adopt the optimistic
+  // overlay: the surface must take it back itself, or the bubble and its
+  // "Thinking" shell sit there until a reload while the thread is idle.
+  it('drops the optimistic overlay when the turn request fails', async () => {
+    // Held open so the overlay can be observed on screen before the request
+    // fails; the surface owns the rejection, the extra catch only keeps the
+    // runner from seeing it unhandled.
+    let failTurn!: (error: Error) => void;
+    const outcome = new Promise<never>((_resolve, reject) => {
+      failTurn = reject;
+    });
+    outcome.catch(() => undefined);
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(() =>
+        Promise.resolve({
+          threadId: 't-1',
+          boundVideoJobIds: [],
+          outcome,
+        }),
+      ),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-1' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    // The real hook merges the pending send into the rows it renders; mirror
+    // that with the production builders so the overlay is on screen exactly
+    // while the surface holds one.
+    vi.mocked(useThreadView).mockImplementation((_org, _threadId, pending) => ({
+      status: 'ready',
+      items:
+        pending === undefined || pending === null
+          ? []
+          : [buildPendingUserItem(pending), buildPendingShellItem(pending)],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    }));
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-1" />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'read this file for me');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    // The overlay stands while the turn is in flight…
+    expect(await screen.findByTestId('thinking-gap-shell')).toBeInTheDocument();
+
+    await act(async () => {
+      failTurn(new Error('Turn request failed with status 400'));
+      await Promise.resolve();
+    });
+
+    // …and comes down with the failure, text back in hand for a retry.
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId('thinking-gap-shell'),
+      ).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(input).toHaveValue('read this file for me'));
   });
 
   it('offers a working Stop for any in-flight generation', async () => {

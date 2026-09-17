@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 68 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 70 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -336,6 +336,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   appears in the transcript above the reply — not when the reply ends. The
   same thread open in a second tab shows the same flip; a tab that reopens
   the thread mid-reply shows the message, no tray row.
+- [ ] `CHAT-AT10` · **Code file with no MIME type** — Attach a source file the
+  OS types as nothing — a **.cjs**, **.go** or **.sh** — let **Indexing…**
+  (`chat.indexing`) finish, then send → The turn goes out: the composer clears,
+  the chip rides the sent message, and the reply arrives. The composer must NOT
+  keep the text and the chip behind a **Send failed** toast
+  (`chat.toast.sendFailed`) while a `Thinking · Ns` shell hangs over a
+  transcript that a reload then shows empty.
 
 ## Boundary & error tests
 

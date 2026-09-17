@@ -472,15 +472,14 @@ export function useFileUpload(config: FileUploadConfig) {
             // Backend-aware handoff: `POST` → Convex `_storage` (the response
             // JSON carries the storageId to bind); `PUT` → the org's own S3
             // bucket (the ref was known up front — bind `s3Ref`).
-            const contentType = resolvedType || 'application/octet-stream';
             const handoff = await generateBlobUpload({
               organizationId: config.organizationId,
-              contentType,
+              contentType: resolvedType,
             });
 
             const result = await fetch(handoff.url, {
               method: handoff.method,
-              headers: { 'Content-Type': contentType },
+              headers: { 'Content-Type': resolvedType },
               body: fileToUpload,
               signal: abortController.signal,
             });
@@ -502,7 +501,7 @@ export function useFileUpload(config: FileUploadConfig) {
               organizationId: config.organizationId,
               storageId: boundRef,
               fileName: fileToUpload.name,
-              contentType: resolvedType || 'application/octet-stream',
+              contentType: resolvedType,
               size: fileToUpload.size,
               source: 'user' as const,
               ...(config.threadId !== undefined && {
@@ -555,10 +554,7 @@ export function useFileUpload(config: FileUploadConfig) {
             // an index that never runs simply never gets one.
             const willIndex =
               !config.disableIndexing &&
-              shouldRagIndexOnUpload(
-                fileToUpload.name,
-                resolvedType || 'application/octet-stream',
-              );
+              shouldRagIndexOnUpload(fileToUpload.name, resolvedType);
 
             if (!willIndex) {
               toast({
