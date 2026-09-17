@@ -35,6 +35,7 @@ const contextSchema = z.object({
   internalAdapter: z.object({
     findUserById: callable,
     findUserByEmail: callable,
+    findAccounts: callable,
     updateUser: callable,
     deleteUserSessions: callable,
     listSessions: callable,
@@ -92,6 +93,23 @@ export function createBackendOperatorAddress(
       return {
         refusal: 'Another account already holds the declared operator address.',
       };
+    // A single sign-on link belongs to the person who signed in with it; a
+    // renamed machine account would keep it and refuse that person's own.
+    if (email === selected.previous) {
+      const accounts = z
+        .array(z.object({ userId: identifier, providerId: z.string() }))
+        .max(64)
+        .parse(
+          await context.internalAdapter.findAccounts(selected.userId as never),
+        );
+      if (accounts.some((account) => account.userId !== selected.userId))
+        throw new Error('Native account lookup differs');
+      if (accounts.some((account) => account.providerId !== 'credential'))
+        return {
+          refusal:
+            'The retained operator account holds a single sign-on link; remove it before renaming the operator.',
+        };
+    }
     return { email };
   }
 

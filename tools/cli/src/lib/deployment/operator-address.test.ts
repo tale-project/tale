@@ -182,6 +182,26 @@ test('reads the retained account’s current address and refuses another holder 
     expect(f.user.email).toBe(previous);
   }));
 
+test('refuses to rename an operator that holds a single sign-on link, before any write', async () =>
+  fixture(async (f) => {
+    f.database.account.push({
+      id: 'synthetic-sso-link',
+      userId: f.user.id,
+      providerId: 'entra-id',
+      accountId: 'synthetic-subject',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const sessions = f.sessionsOf(f.user.id).length;
+    for (const attempt of [() => f.read(), () => f.rename()])
+      await expect(attempt()).rejects.toThrow(
+        'The retained operator account holds a single sign-on link; remove it before renaming the operator.',
+      );
+    expect(f.calls).toEqual([]);
+    expect(f.user.email).toBe(previous);
+    expect(f.sessionsOf(f.user.id)).toHaveLength(sessions);
+  }));
+
 test('renames the authenticated account once through the guarded native update and ends every session it holds', async () =>
   fixture(async (f) => {
     const other = await f.signUp('someone@example.org');

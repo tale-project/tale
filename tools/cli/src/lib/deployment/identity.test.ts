@@ -209,7 +209,11 @@ function fixture(options: FixtureOptions = {}) {
         }
         return Response.json({ members: options.members });
       }
-      const role = path.match(/^\/api\/app\/members\/([^/]+)\/role$/);
+      // Like the native door: the organization-scope check guards the
+      // by-member routes too, so a call without `orgId` is not served.
+      const role = path.match(
+        /^\/api\/app\/members\/([^/?]+)\/role\?orgId=org-example$/,
+      );
       if (role && request.method === 'POST' && options.members) {
         const member = options.members.find(
           (value) => value.id === decodeURIComponent(role[1]!),

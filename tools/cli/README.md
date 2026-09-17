@@ -164,7 +164,8 @@ account through the native adapter, guarded by the previous address, ends every
 session the account holds and signs in again with the new address. A declared
 email attestation then verifies the new address. A replay after an interruption
 completes the journals without a second rename. Another account holding the new
-address, or a retained account holding neither, stops the deployment first. See
+address, a retained account holding neither, or a single sign-on link on the
+operator account stops the deployment first. See
 [operator address migration](../../docs/en/self-hosted/install/cli-install.md#managed-operator-address-migration).
 
 ### Declare a break-glass administrator
@@ -173,11 +174,14 @@ address, or a retained account holding neither, stops the deployment first. See
 administrator for when the deploy operator is unavailable. Only a Better Auth hash
 reaches the deployment; `tale auth hash-password` prints one from stdin or a hidden
 prompt and refuses a password that fails the platform's default policy. Every
-deployment creates the account or sets it back to exactly the declared
-credential, ending its sessions when that changes, and makes it an `admin` of the
-managed organization through the native member endpoints, never touching an
-`owner`. A retained journal binds the address to one account ID. The deployment
-never signs in as this account.
+deployment creates the account, binding its ID in a retained journal as soon as
+it exists, or sets the bound account back to exactly the declared credential,
+ending its sessions whenever that changes (also when finishing an interrupted
+run). An account at the address that the deployment did not create is refused.
+The account becomes an `admin` of the managed organization through the native
+member endpoints, never touching an `owner`. The deployment never signs in as
+this account and records no password-change time, so an organization rotation
+policy may ask it for a new password that the next deployment sets back.
 
 A managed deployment signs in with the operator's password alone. Under an
 enforced `two_factor_policy`, keep the operator on a passkey and never an

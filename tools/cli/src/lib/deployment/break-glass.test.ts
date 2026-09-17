@@ -47,6 +47,13 @@ async function createFixture() {
   let passwordOptions: Record<string, unknown> | undefined;
   let beforeCreate: (() => void) | undefined;
   let failReadback = false;
+  // One-shot interruptions at the native writes a run can die between.
+  const interruptions = { afterCreate: false, link: false, sweep: false };
+  const interrupted = (step: keyof typeof interruptions) => {
+    if (!interruptions[step]) return;
+    interruptions[step] = false;
+    throw new Error(`${password}-${step}-interrupted`);
+  };
   const native = () =>
     betterAuth({
       database: memoryAdapter(database),
@@ -105,8 +112,25 @@ async function createFixture() {
             const createUser = internal.createUser.bind(internal);
             internal.createUser = (async (...args: never[]) => {
               beforeCreate?.();
-              return (createUser as (...values: never[]) => unknown)(...args);
+              const made = await (
+                createUser as (...values: never[]) => Promise<unknown>
+              )(...args);
+              interrupted('afterCreate');
+              return made;
             }) as typeof internal.createUser;
+            const linkAccount = internal.linkAccount.bind(internal);
+            internal.linkAccount = (async (...args: never[]) => {
+              interrupted('link');
+              return (linkAccount as (...values: never[]) => unknown)(...args);
+            }) as typeof internal.linkAccount;
+            const deleteUserSessions =
+              internal.deleteUserSessions.bind(internal);
+            internal.deleteUserSessions = (async (...args: never[]) => {
+              interrupted('sweep');
+              return (deleteUserSessions as (...values: never[]) => unknown)(
+                ...args,
+              );
+            }) as typeof internal.deleteUserSessions;
             const findAccounts = internal.findAccounts.bind(internal);
             internal.findAccounts = (async (userId: string) => {
               const found = await findAccounts(userId);
@@ -161,6 +185,10 @@ async function createFixture() {
     loseReadback: () => {
       failReadback = true;
     },
+    interrupt: (step: keyof typeof interruptions) => {
+      interruptions[step] = true;
+    },
+    readJournal: () => JSON.parse(readFileSync(journal, 'utf8')) as Row,
     writeJournal: (value: Row) => {
       provisionStatePath(root, 'break-glass.json', true);
       writeProvisionState(journal, value);
@@ -270,35 +298,113 @@ testPosix(
 );
 
 testPosix(
-  'adopts an existing account at the address, replacing its credential and ending its sessions',
+  'never takes over an account at the address that this deployment did not create',
   async () =>
     fixture(async (f) => {
+      // Someone else's account: it can sign in, so an administrator role
+      // would be theirs to use whatever credential the deploy later sets.
       await f.signUp(address, 'synthetic-previous-password');
       const existing = f.database.user.find((row) => row.email === address)!;
+      const before = f.snapshot();
+      await expect(f.run()).rejects.toThrow(
+        'belongs to an account this deployment did not create',
+      );
+      expect(readdirSync(f.root)).toEqual([]);
+      expect(f.snapshot()).toEqual(before);
+      // A pending journal of this deployment does not make it ours either.
+      const pending = {
+        schemaVersion: 1,
+        phase: 'pending',
+        origin,
+        email: address,
+      };
+      f.writeJournal(pending);
+      await expect(f.run()).rejects.toThrow(
+        'belongs to an account this deployment did not create',
+      );
+      expect(f.readJournal()).toEqual(pending);
+      expect(f.snapshot()).toEqual(before);
       expect(f.sessionsOf(existing.id)).toHaveLength(1);
+      expect(await f.signIn(address, password)).toBe(401);
+    }),
+);
+
+testPosix(
+  'an interruption after creating the account resumes by adopting that inert account',
+  async () =>
+    fixture(async (f) => {
+      f.interrupt('afterCreate');
+      await expect(f.run()).rejects.toThrow('provisioning failed');
+      // Committed without its binding or credential: nothing can sign in as it.
+      const [orphan, ...others] = f.database.user.filter(
+        (row) => row.email === address,
+      );
+      expect(others).toEqual([]);
+      expect(
+        f.database.account.filter((row) => row.userId === orphan!.id),
+      ).toEqual([]);
+      expect(f.readJournal()).toEqual({
+        schemaVersion: 1,
+        phase: 'pending',
+        origin,
+        email: address,
+      });
       const result = await f.run();
       expect(result).toEqual({
-        userId: String(existing.id),
+        userId: String(orphan!.id),
         email: address,
-        created: false,
-        credentialUpdated: true,
+        created: true,
+        credentialUpdated: false,
       });
-      expect(f.sessionsOf(existing.id)).toHaveLength(0);
-      expect(f.credentialsOf(existing.id)).toEqual([
+      expect(f.credentialsOf(orphan!.id)).toEqual([
         expect.objectContaining({ password: f.hash }),
       ]);
-      expect(f.database.user.filter((row) => row.email === address)).toEqual([
-        existing,
-      ]);
-      expect(JSON.parse(readFileSync(f.journal, 'utf8')).userId).toBe(
-        existing.id,
-      );
+      expect(f.readJournal()).toEqual({
+        schemaVersion: 1,
+        phase: 'ready',
+        origin,
+        email: address,
+        userId: orphan!.id,
+      });
       expect(await f.signIn(address, password)).toBe(200);
     }),
 );
 
 testPosix(
-  'an interrupted creation resumes by adopting the account that holds the declared credential',
+  'the account is bound before its credential, so an interrupted link resumes on it',
+  async () =>
+    fixture(async (f) => {
+      f.interrupt('link');
+      await expect(f.run()).rejects.toThrow('provisioning failed');
+      const account = f.database.user.find((row) => row.email === address);
+      expect(f.credentialsOf(account!.id)).toEqual([]);
+      expect(f.readJournal()).toEqual({
+        schemaVersion: 1,
+        phase: 'pending',
+        origin,
+        email: address,
+        userId: account!.id,
+        credentialPending: 'linked',
+      });
+      expect(await f.run()).toEqual({
+        userId: String(account!.id),
+        email: address,
+        created: true,
+        credentialUpdated: false,
+      });
+      expect(f.database.user.filter((row) => row.email === address)).toEqual([
+        account,
+      ]);
+      expect(f.credentialsOf(account!.id)).toEqual([
+        expect.objectContaining({ password: f.hash }),
+      ]);
+      expect(f.readJournal()).toMatchObject({ phase: 'ready' });
+      expect(f.readJournal().credentialPending).toBeUndefined();
+    }),
+);
+
+testPosix(
+  'an interrupted readback resumes without writing the credential again',
   async () =>
     fixture(async (f) => {
       f.loseReadback();
@@ -308,7 +414,10 @@ testPosix(
         'Native break-glass administrator provisioning failed.',
       );
       expect(JSON.stringify(error)).not.toContain(password);
-      expect(JSON.parse(readFileSync(f.journal, 'utf8')).phase).toBe('pending');
+      expect(f.readJournal()).toMatchObject({
+        phase: 'pending',
+        credentialPending: 'linked',
+      });
       const created = f.database.user.filter((row) => row.email === address);
       expect(created).toHaveLength(1);
       const before = f.snapshot();
@@ -316,13 +425,58 @@ testPosix(
       expect(result).toEqual({
         userId: String(created[0]!.id),
         email: address,
-        created: false,
+        created: true,
         credentialUpdated: false,
       });
       expect(f.snapshot()).toEqual(before);
-      expect(JSON.parse(readFileSync(f.journal, 'utf8'))).toMatchObject({
+      expect(f.readJournal()).toEqual({
+        schemaVersion: 1,
         phase: 'ready',
+        origin,
+        email: address,
         userId: created[0]!.id,
+      });
+    }),
+);
+
+testPosix(
+  'a rotation interrupted before its session sweep still ends the old sessions on replay',
+  async () =>
+    fixture(async (f) => {
+      const first = await f.run();
+      // A session opened with the password the rotation is meant to retire.
+      expect(await f.signIn(address, password)).toBe(200);
+      expect(f.sessionsOf(first.userId)).toHaveLength(1);
+      const rotated = 'Rotated!Break-Glass2';
+      const hash = await hashPassword(rotated);
+      f.interrupt('sweep');
+      await expect(f.run({ passwordHash: hash })).rejects.toThrow(
+        'provisioning failed',
+      );
+      // The new credential is stored, the old session is not yet gone.
+      expect(f.credentialsOf(first.userId)).toEqual([
+        expect.objectContaining({ password: hash }),
+      ]);
+      expect(f.sessionsOf(first.userId)).toHaveLength(1);
+      expect(f.readJournal()).toMatchObject({
+        phase: 'ready',
+        credentialPending: 'replaced',
+      });
+      const result = await f.run({ passwordHash: hash });
+      expect(result).toEqual({
+        userId: first.userId,
+        email: address,
+        created: false,
+        credentialUpdated: true,
+      });
+      expect(f.sessionsOf(first.userId)).toHaveLength(0);
+      expect(f.readJournal().credentialPending).toBeUndefined();
+      expect(await f.signIn(address, password)).toBe(401);
+      expect(await f.signIn(address, rotated)).toBe(200);
+      // Once swept, a replay reports nothing changed.
+      expect(await f.run({ passwordHash: hash })).toEqual({
+        ...result,
+        credentialUpdated: false,
       });
     }),
 );
@@ -466,7 +620,16 @@ describe('break-glass membership over the operator session', () => {
           });
           return Response.json({ memberId: `member-${added.userId}` });
         }
-        const role = path.match(/^\/api\/app\/members\/([^/]+)\/role$/);
+        // The native organization-scope check guards the by-member routes
+        // too: a role change without `orgId` is answered 400 there.
+        if (/^\/api\/app\/members\/[^?]+\/role$/.test(path))
+          return Response.json(
+            { error: '"orgId" is required', code: 'INVALID_QUERY' },
+            { status: 400 },
+          );
+        const role = path.match(
+          /^\/api\/app\/members\/([^/?]+)\/role\?orgId=org-north$/,
+        );
         if (role && method === 'POST') {
           const row = rows.find(
             (value) => value.id === decodeURIComponent(role[1]!),
@@ -513,7 +676,7 @@ describe('break-glass membership over the operator session', () => {
       await reconcileBreakGlassMembership(f.context, 'break-glass');
       expect(f.calls.map((call) => [call.method, call.path])).toEqual([
         ['GET', '/api/app/members?orgId=org-north'],
-        ['POST', '/api/app/members/member%2Fglass/role'],
+        ['POST', '/api/app/members/member%2Fglass/role?orgId=org-north'],
         ['GET', '/api/app/members?orgId=org-north'],
       ]);
       expect(f.calls[1]?.body).toEqual({ role: 'admin' });
