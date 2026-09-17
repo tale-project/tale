@@ -637,9 +637,20 @@ export function buildHarnessExec(
   // ALWAYS_ENABLE floor is set-means-on — overriding it to '0' was verified
   // NOT to strip the effort param on 2.1.173). Per-exec env overrides the
   // image floor; recognised Claude ids keep full adaptive thinking.
+  //
+  // The CLI also opens every system prompt with an attribution line
+  // (`x-anthropic-billing-header: …; cch=<checksum>;`) whose checksum changes
+  // on every request. Anthropic's API reads that line; a foreign model's
+  // server sees plain text at the top of the system prompt, so its prefix
+  // cache ends there and every turn prefills the whole conversation again
+  // (observed live on a split local GLM: 16,276 tokens cached per turn — the
+  // tool definitions its template renders first — at any context size). An
+  // explicit '0' drops the line (2.1.173); Claude models keep it, and the
+  // subscription lane only ever serves Claude.
   if (fact.slug === 'claude-code' && !isClaudeModelRef(spec.model)) {
     env.CLAUDE_CODE_DISABLE_THINKING = '1';
     env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';
+    env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';
   }
 
   // -------------------------------------------------------------------------

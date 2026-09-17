@@ -43,6 +43,8 @@ Erstelle die betroffenen Backend-Prozesse mit der aktualisierten Umgebung neu. S
 
 Coding-Agenten richten sich außerdem nach dem Kontextfenster, das der Katalog für das Modell meldet: nach `context_length` oder `context_window` in der Modellliste deines Servers unter `/v1/models`, bei einem Anbieter mit `catalog.source: none` nach 128.000 Token. Sorge dafür, dass die Liste den Kontext nennt, den dein Server tatsächlich bereitstellt. Liegt dieses Fenster oder ein niedrigeres [Kontextlimit](/de/platform/admin/governance/policies-and-limits) der Person, die den Lauf gestartet hat, unter 200.000 Token, fasst eine verwaltete Claude-Code-Sitzung ihre Konversation zusammen, bevor der Prompt darüber hinauswächst. Claude Code behandelt jeden Wert unter 100.000 Token wie 100.000. Ein Modell mit weniger Kontext kann also längere Prompts erhalten, als es aufnehmen kann. Setze Claude Code deshalb nur mit Modellen ein, die mindestens so viel Kontext bereitstellen.
 
+Auf einem Modell, das nicht Claude ist, lässt eine verwaltete Claude-Code-Sitzung außerdem die Zuordnungszeile weg, die Claude Code sonst an den Anfang jedes Systemprompts stellt. Diese Zeile ändert sich mit jeder Anfrage, und ein Server, der Prompt-Anfänge zwischenspeichert, müsste sonst bei jedem Schritt die ganze Konversation neu berechnen.
+
 ## Wo die Connectoren liegen
 
 Mitgelieferte Definitionen liegen unter `configs/platform/system/providers/<slug>/provider.yml`, ihre statischen Kataloge unter `configs/platform/system/models/<slug>/models.yml`. Anthropic verwendet beispielsweise `providers/anthropic/provider.yml` und `models/anthropic/models.yml`. Die Dateien gehören zum Image und ändern sich mit dessen Version.
