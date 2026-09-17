@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 
+import { CONTACT_LOCALE_PATTERN } from '@/lib/shared/schemas/common';
 import {
   parseImportFile,
   parseCSVWithMapper,
@@ -243,7 +244,7 @@ export const contactMappers = {
     const second = row[1]?.trim();
     const third = row[2]?.trim();
     const isLocale = (value?: string) =>
-      !!value && /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/i.test(value);
+      !!value && CONTACT_LOCALE_PATTERN.test(value);
 
     return {
       email,

@@ -30697,6 +30697,7 @@ async function checkWebsitesCrawl(
         downHome !== undefined &&
         downHome.status === 'discovered' &&
         downHome.lastErrorKind === 'http_error' &&
+        !downHome.indexed &&
         downRow.crawledPageCount === 1 &&
         downRow.failedPageCount === 1 &&
         downFiltered.success &&

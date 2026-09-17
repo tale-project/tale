@@ -44,6 +44,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
   isHollowSiteScan,
@@ -578,7 +579,7 @@ export function WebsiteViewDialog({
           title={t('pagesDialog.title')}
           meta={
             <>
-              {website.crawledPageCount ?? 0} {t('indexed').toLowerCase()}
+              {indexedPageCount(website)} {t('indexed').toLowerCase()}
               {failedPageCount > 0 &&
                 ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
             </>

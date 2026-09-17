@@ -13,6 +13,8 @@
  * surface by anything upstream of it.
  */
 
+import { basePath } from '../lib/helpers/public_origin.ts';
+
 export type ConnectorErrorKind =
   /** State missing, unknown, replayed or expired — deliberately one message. */
   | 'invalid_state'
@@ -91,18 +93,16 @@ function escapeHtml(value: string): string {
 
 /**
  * Render the failure. `backUrl` is built from the deployment's own site URL
- * (see `deployment_config.ts`), never from the request — it is omitted when the
- * organization is unknown, which is exactly the case where a link target would
- * have to come from somewhere untrusted.
+ * (see `deployment_config.ts`), never from request parameters. With no known
+ * organization, the fixed dashboard entry resolves the returning user's own
+ * organization after sign-in; an expired state must not strand the browser.
  */
 export function renderConnectorErrorPage(
   kind: ConnectorErrorKind,
   backUrl?: string | null,
 ): Response {
   const copy = ERROR_COPY[kind];
-  const backLink = backUrl
-    ? `\n    <p><a href="${escapeHtml(backUrl)}">Back to connector settings</a></p>`
-    : '';
+  const backLink = `\n    <p><a href="${escapeHtml(backUrl ?? `${basePath()}/dashboard`)}">${backUrl ? 'Back to connector settings' : 'Tale'}</a></p>`;
   const html = `<!DOCTYPE html>
 <html lang="en">
   <head>

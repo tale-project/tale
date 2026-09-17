@@ -142,7 +142,9 @@ export function createConnectorOauthRoutes(deps: {
     if (outcome.kind === 'error') {
       return errorPage(
         outcome.error,
-        outcome.organizationId,
+        outcome.organizationId ??
+          session?.session.activeOrganizationId ??
+          undefined,
         resolvePublicBaseUrl(publicOrigin(c.req.raw)),
       );
     }

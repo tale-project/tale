@@ -65,7 +65,7 @@ const WEBSITE: WebsiteDoc = {
   status: 'active',
   scanInterval: '1d',
   lastScannedAt: Date.parse('2026-09-14T11:11:00'),
-  crawledPageCount: 1,
+  crawledPageCount: 2,
   failedPageCount: 1,
 };
 
@@ -247,7 +247,7 @@ describe('WebsiteViewDialog', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('names a failed page with a short reason, not the syscall dump', async () => {
+  it('names a DNS failure without counting its attempted page as indexed', async () => {
     pagesPayload.current = {
       offset: 0,
       hasMore: false,
@@ -271,7 +271,13 @@ describe('WebsiteViewDialog', () => {
       ],
     };
 
-    render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, crawledPageCount: 1, failedPageCount: 1 }}
+      />,
+    );
 
     await waitFor(() => {
       expect(
@@ -282,7 +288,8 @@ describe('WebsiteViewDialog', () => {
     expect(
       screen.getByRole('link', { name: 'https://docs.example.com/' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/1 indexed/)).toBeInTheDocument();
+    expect(screen.getByText(/0 indexed/)).toBeInTheDocument();
+    expect(screen.getByText(/1 page failed/)).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText('Search website content'),
     ).toBeInTheDocument();
