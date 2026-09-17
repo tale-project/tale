@@ -145,6 +145,14 @@ function envNormalizeCommon() {
   process.env.SCARF_ANALYTICS ??= 'false';
   process.env.HF_HUB_DISABLE_TELEMETRY ??= '1';
 
+  // A local stack mints accounts over HTTP all day — the e2e helpers, the
+  // manual layer's save-auth-state, the docs screenshots — while a real
+  // deployment closes that route once it holds one account
+  // (backend/auth/sign-up-gate.ts). This orchestrator runs ONLY local dev
+  // (`tale deploy` runs backend:start), so it opts the dev stack in; `??=`
+  // lets a shell override close it again to rehearse the refusal.
+  process.env.TALE_ALLOW_OPEN_SIGN_UP ??= 'true';
+
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
 

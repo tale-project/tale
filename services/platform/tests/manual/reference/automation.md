@@ -323,6 +323,14 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Seams
 
+Closed sign-up is covered by `backend/auth/auth.sign-up.test.ts`: the gate's
+truth table (first account over HTTP, an administrator's server-side call, the
+test-only override) and a wiring test that drives the real auth handler and
+asserts the 403 lands in the before-hook, with the deployment asked only
+whether it already holds an account. What no spec proves is the network shape
+itself — that `backend-api` answers on the sandbox network at all — which is
+what `AUTH-B8` judges from inside a session container.
+
 Managed container prefixes are covered by `tools/cli/src/lib/deployment/inputs.test.ts`,
 `runtime-prepare.test.ts`, `runtime-apply.test.ts`, `prepare-config.test.ts` and
 `apply.test.ts` in the same directory. They verify bounded explicit names, original

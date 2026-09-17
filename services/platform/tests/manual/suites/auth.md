@@ -1,13 +1,15 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 32 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 34 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
 enrollment wall, and role-based access. Auth is the dependency for every other
 guide — run it first. Tale is offline-first: there is **no self-service
-sign-up UI** and no forgot-password flow; F5/F6 mint accounts via the Better
-Auth `/api/auth/sign-up/email` endpoint (agent-only loophole).
+sign-up UI** and no forgot-password flow; F5/F6 mint accounts through the
+Better Auth `/api/auth/sign-up/email` endpoint, which a real deployment closes
+once it holds an account and the dev stacks of [SETUP.md](../setup.md) keep
+open (`TALE_ALLOW_OPEN_SIGN_UP`).
 
 ## Scope & routes
 
@@ -32,7 +34,7 @@ Auth `/api/auth/sign-up/email` endpoint (agent-only loophole).
 
 Bring the stack up and sign in per [SETUP.md](../setup.md). AUTH-F5/AUTH-F6
 require a **fresh** account — POST `/api/auth/sign-up/email` directly (see
-SETUP.md §2). 2FA tests (AUTH-F8, AUTH-F9, AUTH-B3, AUTH-B4) need a TOTP
+SETUP.md §2; the dev stacks leave that route open, AUTH-B8 closes it). 2FA tests (AUTH-F8, AUTH-F9, AUTH-B3, AUTH-B4) need a TOTP
 generator — the e2e suite uses a dependency-free RFC-6238 implementation
 ([`tests/e2e/helpers/totp.ts`](../../e2e/helpers/totp.ts)); reuse it to
 compute codes from the enrollment secret.
@@ -175,6 +177,14 @@ compute codes from the enrollment secret.
   degrades to the string itself); the dedicated conditional-access UI is
   **not** shown (AADSTS999999 ∉ the CA set), so there is no **Complete
   multi-factor sign-in** button.
+- [ ] `AUTH-B8` · **Sign-up on a deployment that has accounts** — On a stack
+  that does NOT opt in (a managed instance, or boot mode A/B with
+  `TALE_ALLOW_OPEN_SIGN_UP=0`), from a shell inside an agent session container
+  — the sandbox network reaches the backend directly —
+  `POST http://backend-api:3005/api/auth/sign-up/email` with a new address →
+  **403** carrying `SIGN_UP_CLOSED`, and the backend log carries one
+  `[sign-up] refused` line; no account appears in **Settings > Members**.
+  Adding that same address through **Settings > Members** still works.
 
 ## Accessibility (WCAG 2.1 AA)
 

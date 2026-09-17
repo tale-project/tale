@@ -32,4 +32,6 @@ Déconnecte-toi puis reconnecte-toi pour tester les identifiants indépendamment
 
 Ajoute les personnes sous **Paramètres > Membres** et choisis leurs rôles délibérément. Après le premier compte, les comptes locaux se créent sur invitation, sans inscription publique. Le SSO d’entreprise et le provisionnement suivent leurs propres [règles de configuration et d’appartenance](/fr/platform/admin/enterprise-sso).
 
+C’est le backend lui-même qui l’applique, pas seulement le proxy placé devant : dès qu’un compte existe, `/api/auth/sign-up/email` répond 403. C’est important, car le backend est aussi joignable depuis le réseau bac à sable des agents, que le proxy ne voit jamais : du code exécuté dans une session d’agent ne peut donc pas créer de comptes non plus. **Paramètres > Membres** crée les comptes côté serveur et n’est pas concerné. Un déploiement de test jetable qui a besoin de la route ouverte définit `TALE_ALLOW_OPEN_SIGN_UP=true` ; jamais sur un déploiement réel.
+
 Utilise [Membres et rôles](/fr/platform/admin/members-and-roles) pour choisir les accès. Puis [crée ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) et teste une vraie réponse. Un Dashboard accessible confirme l’accès à l’application, pas le fournisseur ni chaque service en arrière-plan.

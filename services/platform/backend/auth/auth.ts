@@ -40,12 +40,19 @@ import {
   recordTwoFactorSuccess,
   type TwoFactorLifecycleAction,
 } from '../domains/two_factor/service.ts';
+import { hasAnyUsers } from '../domains/users/has-any-users.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { ac, orgRoles } from './access.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
+import {
+  openSignUpEnabled,
+  SIGN_UP_CLOSED_MESSAGE,
+  SIGN_UP_EMAIL_PATH,
+  signUpAllowed,
+} from './sign-up-gate.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -478,6 +485,30 @@ export function createAuth(config: AuthConfig) {
       // Pre-flight gate: reject sign-ins over the per-IP flood limit OR
       // against a locked account, surfacing the MAX retry-after of the two.
       before: createAuthMiddleware(async (mw) => {
+        // Account creation: the setup flow and the managed bootstrap create
+        // the FIRST account over HTTP; every later one is an administrator's
+        // server-side call. An open route would also answer whoever else can
+        // reach this backend — the sandbox network is on it — so it closes
+        // once the deployment has an account. See sign-up-gate.ts.
+        if (mw.path === SIGN_UP_EMAIL_PATH) {
+          const allowed = await signUpAllowed({
+            overHttp: mw.request !== undefined,
+            openSignUp: openSignUpEnabled(process.env),
+            deploymentHasUsers: () => hasAnyUsers(sql),
+          });
+          if (!allowed) {
+            // Nothing else records the attempt: a before-hook throw skips the
+            // after-hook, and this path writes no login-attempt row. Without
+            // this line a deployment probed from a sandbox shows an operator
+            // only the absence of a new member.
+            console.warn('[sign-up] refused: this deployment has an account');
+            throw new APIError('FORBIDDEN', {
+              message: SIGN_UP_CLOSED_MESSAGE,
+              code: 'SIGN_UP_CLOSED',
+            });
+          }
+          return;
+        }
         // 2FA verify lockout: a caller who knows the password must not
         // brute-force the ~10^6 TOTP space — the counter mirrors the
         // password lockout, keyed by the pending user's id.

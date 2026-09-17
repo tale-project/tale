@@ -32,4 +32,6 @@ Melde dich ab und erneut an, um die Zugangsdaten unabhängig von der Einrichtung
 
 Füge Personen unter **Einstellungen > Mitglieder** hinzu und wähle ihre Rollen bewusst. Nach dem ersten Konto erfolgt die lokale Kontoerstellung per Einladung, nicht über eine offene Registrierung. Für Unternehmens-SSO und Bereitstellung gelten eigene [Einrichtungs- und Mitgliedschaftsregeln](/de/platform/admin/enterprise-sso).
 
+Das setzt das Backend selbst durch, nicht nur der Proxy davor: Sobald ein Konto existiert, antwortet `/api/auth/sign-up/email` mit 403. Das zählt, weil das Backend auch aus dem Sandbox-Netz der Agenten erreichbar ist, das der Proxy nie sieht — Code in einer Agenten-Sitzung kann also ebenfalls keine Konten anlegen. **Einstellungen > Mitglieder** legt Konten serverseitig an und bleibt davon unberührt. Eine Wegwerf-Testumgebung, die die offene Route braucht, setzt `TALE_ALLOW_OPEN_SIGN_UP=true`; auf einer echten Umgebung niemals.
+
 [Mitglieder und Rollen](/de/platform/admin/members-and-roles) hilft bei der Zugriffswahl. [Erstelle danach deinen ersten Agenten](/de/tutorials/editor/first-agent-end-to-end) und teste eine echte Antwort. Ein funktionierendes Dashboard bestätigt den App-Zugriff, aber noch nicht den Anbieter oder jeden Hintergrunddienst.

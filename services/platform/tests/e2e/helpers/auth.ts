@@ -11,10 +11,12 @@ import { STARTER_PROJECT_NAME } from './seed';
  * fixture (one isolated account+org per worker — see `fixtures.ts`) and by the
  * throwaway-account specs (auth / onboarding / rbac).
  *
- * Sign-up is restricted to the first user ONLY in the UI
- * (`app/routes/_auth/sign-up.tsx` redirects when users exist) —
- * `POST /api/auth/sign-up/email` itself accepts new accounts, which is what
- * makes hermetic per-run / per-worker identities possible.
+ * `POST /api/auth/sign-up/email` closes once a deployment holds an account
+ * (`backend/auth/sign-up-gate.ts`), which would leave every worker after the
+ * first without an identity. The dev orchestrator these specs run against
+ * (`scripts/dev-engine.ts`) sets `TALE_ALLOW_OPEN_SIGN_UP=true` for that
+ * reason — close it there and the hermetic per-run / per-worker accounts stop
+ * being mintable.
  */
 
 /** Satisfies the default password policy (length/lower/upper/digit/special). */

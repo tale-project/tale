@@ -67,6 +67,7 @@ interface FixtureOptions {
   ignoreMemberWrites?: boolean;
   loginStatus?: number;
   signupStatus?: number;
+  signupClosed?: boolean;
   challenge?: boolean;
   enrollRequired?: boolean;
   noCookie?: boolean;
@@ -113,6 +114,14 @@ function fixture(options: FixtureOptions = {}) {
       if (options.malformedPath === path) return new Response(INPUT.password);
       if (options.oversizedPath === path)
         return Response.json({ secret: INPUT.password.repeat(100000) });
+      if (options.signupClosed && path === '/api/auth/sign-up/email')
+        return Response.json(
+          {
+            message: 'Sign-up is closed on this deployment.',
+            code: 'SIGN_UP_CLOSED',
+          },
+          { status: 403 },
+        );
       if (
         path === '/api/auth/sign-in/email' ||
         path === '/api/auth/sign-up/email'
@@ -945,6 +954,54 @@ describe('native instance provisioning over real local HTTP', () => {
           );
         });
         expect(readFileSync(file)).toEqual(bytes);
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'a deployment that refuses account creation says so and stays retryable',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-fresh-signup-closed-'),
+      );
+      const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
+      try {
+        await withFixture(
+          { loginStatus: 401, signupClosed: true },
+          async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow('already holds accounts');
+            expect(
+              f.calls.filter((call) => call.path.includes('sign-up')),
+            ).toHaveLength(1);
+          },
+        );
+        const file = join(stateDirectory, 'private/bootstrap.json');
+        // Refused before anything was created, so nothing is uncertain and
+        // the retry guard must not have been armed.
+        expect(
+          JSON.parse(readFileSync(file).toString()).signupAttempted,
+        ).toBeUndefined();
+        await withFixture(
+          { loginStatus: 401, signupClosed: true },
+          async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow('already holds accounts');
+            expect(f.calls.some((call) => call.path.includes('sign-up'))).toBe(
+              true,
+            );
+          },
+        );
       } finally {
         rmSync(stateDirectory, { recursive: true, force: true });
       }
