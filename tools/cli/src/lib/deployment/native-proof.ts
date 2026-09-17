@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { gitSha, sha, slug } from '../config/releases/model';
+import { breakGlassResultSchema } from './break-glass';
 import { emailAttestationProofSchema } from './email-attestation';
 
 /** Public native proof shared by deployment admission and credential export.
@@ -19,6 +20,7 @@ export const nativeProvisionProofSchema = z.object({
     .regex(/^[^\x00-\x1f\x7f]+(?![\s\S])/),
   ssoEnabled: z.boolean(),
   emailVerification: emailAttestationProofSchema.optional(),
+  breakGlass: breakGlassResultSchema.optional(),
   nativeClients: z
     .array(
       z.object({

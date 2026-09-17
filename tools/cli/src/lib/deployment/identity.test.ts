@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { verifyProvisionIdentity } from '../../commands/deploy/provision';
+import { externalDepError, preconditionError } from '../../utils/fail';
+import type { BreakGlassAccount } from './break-glass';
 import { deploymentBundleSchema } from './bundle';
 import {
   configureInstance,
@@ -12,6 +14,7 @@ import {
   type InstanceOptions,
 } from './identity';
 import { intentSchema } from './native-client';
+import type { OperatorAddress } from './operator-address';
 import { provisionStatePath, writeProvisionState } from './provision-state';
 
 const INPUT = {
@@ -50,11 +53,22 @@ interface Call {
   body: unknown;
   cookie: string;
 }
+interface Member {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+}
 interface FixtureOptions {
   nativeClients?: unknown[];
+  /** The native account's current sign-in address; others answer 401. */
+  account?: { email: string };
+  members?: Member[];
+  ignoreMemberWrites?: boolean;
   loginStatus?: number;
   signupStatus?: number;
   challenge?: boolean;
+  enrollRequired?: boolean;
   noCookie?: boolean;
   session?: unknown;
   selectedSession?: unknown;
@@ -105,7 +119,11 @@ function fixture(options: FixtureOptions = {}) {
       ) {
         const status = path.includes('sign-up')
           ? (options.signupStatus ?? 200)
-          : (options.loginStatus ?? 200);
+          : options.account &&
+              String((body as { email?: string }).email).toLowerCase() !==
+                options.account.email
+            ? 401
+            : (options.loginStatus ?? 200);
         const headers = new Headers();
         if (!options.noCookie && status === 200) {
           sessions++;
@@ -121,6 +139,7 @@ function fixture(options: FixtureOptions = {}) {
         return Response.json(
           {
             twoFactorRedirect: options.challenge ?? false,
+            ...(options.enrollRequired ? { enrollRequired: true } : {}),
             error: status === 200 ? undefined : INPUT.password,
           },
           { status, headers },
@@ -133,7 +152,10 @@ function fixture(options: FixtureOptions = {}) {
             : options.session !== undefined
               ? options.session
               : {
-                  user: { id: 'native-user', email: INPUT.email.toUpperCase() },
+                  user: {
+                    id: 'native-user',
+                    email: options.account?.email ?? INPUT.email.toUpperCase(),
+                  },
                   session: {
                     userId: 'native-user',
                     activeOrganizationId: active,
@@ -175,6 +197,31 @@ function fixture(options: FixtureOptions = {}) {
         );
       if (path === '/api/app/identity/clients?orgId=org-example')
         return Response.json({ clients: options.nativeClients ?? [] });
+      if (path === '/api/app/members?orgId=org-example' && options.members) {
+        if (request.method === 'POST' && !options.ignoreMemberWrites) {
+          const added = body as { userId: string; role: string };
+          options.members.push({
+            id: `member-${added.userId}`,
+            organizationId: 'org-example',
+            ...added,
+          });
+          return Response.json({ memberId: `member-${added.userId}` });
+        }
+        return Response.json({ members: options.members });
+      }
+      // Like the native door: the organization-scope check guards the
+      // by-member routes too, so a call without `orgId` is not served.
+      const role = path.match(
+        /^\/api\/app\/members\/([^/?]+)\/role\?orgId=org-example$/,
+      );
+      if (role && request.method === 'POST' && options.members) {
+        const member = options.members.find(
+          (value) => value.id === decodeURIComponent(role[1]!),
+        );
+        if (member && !options.ignoreMemberWrites)
+          member.role = (body as { role: string }).role;
+        return Response.json({ ok: true });
+      }
       if (path === '/api/auth/sign-out')
         return Response.json(
           { success: !options.cleanupFailure },
@@ -1400,4 +1447,768 @@ describe('private stdin byte reader', () => {
     );
     expect(JSON.stringify(error)).not.toContain(INPUT.password);
   });
+});
+
+const PREVIOUS = INPUT.email;
+const DECLARED = 'deploy@example.org';
+const BREAK_GLASS = 'break-glass@example.org';
+const HASH = `${'a'.repeat(32)}:${'b'.repeat(128)}`;
+
+describe('reviewed operator address, break-glass and two-factor declarations', () => {
+  test('address migration and break-glass declarations must match the reviewed bundle before login', () => {
+    const bundle = reviewedBundle();
+    bundle.spec.identity!.bootstrap = 'fresh';
+    bundle.spec.identity!.email = DECLARED;
+    bundle.spec.identity!.migrateEmailFrom = PREVIOUS.toUpperCase();
+    bundle.spec.identity!.breakGlass = {
+      email: BREAK_GLASS,
+      passwordHash: { env: 'EXAMPLE_BREAK_GLASS_HASH' },
+    };
+    const input = parsePrivateInstanceJson(
+      JSON.stringify({
+        ...INPUT,
+        email: DECLARED,
+        ssoEnabled: false,
+        bootstrap: 'fresh',
+        migrateEmailFrom: PREVIOUS,
+        breakGlass: { email: BREAK_GLASS.toUpperCase(), passwordHash: HASH },
+        nativeClients: [PORTAL],
+      }),
+    );
+    expect(() => verifyProvisionIdentity(bundle, input)).not.toThrow();
+    expect(JSON.stringify(bundle)).not.toContain(HASH);
+    for (const change of [
+      { migrateEmailFrom: undefined },
+      { migrateEmailFrom: 'wrong@example.org' },
+      { breakGlass: undefined },
+      { breakGlass: { email: 'other@example.org', passwordHash: HASH } },
+    ])
+      expect(() =>
+        verifyProvisionIdentity(bundle, { ...input, ...change }),
+      ).toThrow('differs from the deployment bundle');
+    bundle.spec.identity!.breakGlass = {
+      email: { env: 'EXAMPLE_BREAK_GLASS_EMAIL' },
+      passwordHash: { env: 'EXAMPLE_BREAK_GLASS_HASH' },
+    };
+    expect(() =>
+      verifyProvisionIdentity(bundle, {
+        ...input,
+        breakGlass: { email: 'resolved@example.org', passwordHash: HASH },
+      }),
+    ).not.toThrow();
+    delete bundle.spec.identity!.breakGlass;
+    expect(() => verifyProvisionIdentity(bundle, input)).toThrow('differs');
+  });
+
+  test.each([
+    { migrateEmailFrom: 'previous@example.org' },
+    { bootstrap: 'fresh', migrateEmailFrom: INPUT.email.toUpperCase() },
+    { breakGlass: { email: INPUT.email.toUpperCase(), passwordHash: HASH } },
+    {
+      bootstrap: 'fresh',
+      migrateEmailFrom: 'previous@example.org',
+      breakGlass: { email: 'PREVIOUS@example.org', passwordHash: HASH },
+    },
+    { breakGlass: { email: BREAK_GLASS, passwordHash: HASH.toUpperCase() } },
+    { breakGlass: { email: BREAK_GLASS, passwordHash: `${HASH}\n` } },
+    { breakGlass: { email: BREAK_GLASS, passwordHash: 'Plain!Password1' } },
+    { breakGlass: { email: BREAK_GLASS } },
+    { breakGlass: { email: BREAK_GLASS, passwordHash: HASH, password: 'x' } },
+  ])(
+    'refuses invalid address migration or break-glass input before the network %#',
+    async (change) => {
+      let called = false;
+      const error = await configureInstance(
+        { ...INPUT, ssoEnabled: false, ...change },
+        {
+          fetchImpl: async () => {
+            called = true;
+            return Response.json({});
+          },
+        },
+      ).catch((value: unknown) => value);
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).toBe('Invalid native instance provisioning input.');
+      expect(JSON.stringify(error)).not.toContain(HASH);
+      expect(JSON.stringify(error)).not.toContain('Plain!Password1');
+      expect(called).toBe(false);
+    },
+  );
+
+  test.each([
+    [
+      { challenge: true, enrollRequired: true },
+      'The deploy operator has no second factor and its two-factor enrolment grace period has ended; register a passkey for it.',
+    ],
+    [
+      { challenge: true },
+      'The deploy operator has TOTP enabled; a managed deploy signs in with its password alone, so the operator must hold a passkey and no TOTP.',
+    ],
+  ])(
+    'names why an enforced two-factor policy stops the unattended sign-in %#',
+    async (options, message) =>
+      withFixture({ ...options, connection: ABSENT }, async (f) => {
+        const error = await configureInstance(
+          { ...INPUT, ssoEnabled: false },
+          { fetchImpl: f.fetchImpl },
+        ).catch((value: unknown) => value);
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).toBe(message);
+        expect(JSON.stringify(error)).not.toContain(INPUT.password);
+        expect(writes(f.calls)).toHaveLength(0);
+        expect(f.calls.map((call) => call.path)).toEqual([
+          '/api/auth/sign-in/email',
+          '/api/auth/sign-out',
+        ]);
+      }),
+  );
+
+  test('address migration and break-glass declarations require their private backend-local capabilities', async () =>
+    withFixture({}, async (f) => {
+      await expect(
+        configureInstance(
+          {
+            ...INPUT,
+            email: DECLARED,
+            ssoEnabled: false,
+            bootstrap: 'fresh',
+            migrateEmailFrom: PREVIOUS,
+          },
+          { fetchImpl: f.fetchImpl, stateDirectory: tmpdir() },
+        ),
+      ).rejects.toThrow(
+        'Operator address migration requires private managed native access.',
+      );
+      for (const options of [
+        { fetchImpl: f.fetchImpl, breakGlassAccount: async () => undefined },
+        { fetchImpl: f.fetchImpl, stateDirectory: tmpdir() },
+      ])
+        await expect(
+          configureInstance(
+            {
+              ...INPUT,
+              ssoEnabled: false,
+              breakGlass: { email: BREAK_GLASS, passwordHash: HASH },
+            },
+            options as InstanceOptions,
+          ),
+        ).rejects.toThrow(
+          'Break-glass administrator provisioning requires private managed native state.',
+        );
+      expect(f.calls).toEqual([]);
+    }));
+});
+
+describe('operator address migration over real local HTTP', () => {
+  const testPosix = test.skipIf(process.platform === 'win32');
+  const retainedBootstrap = {
+    schemaVersion: 1,
+    phase: 'ready',
+    origin: INPUT.origin,
+    email: PREVIOUS,
+    slug: INPUT.slug,
+    name: INPUT.name,
+    userId: 'native-user',
+    organizationId: 'org-example',
+  };
+  const target = {
+    ...INPUT,
+    email: DECLARED,
+    ssoEnabled: false,
+    bootstrap: 'fresh' as const,
+    migrateEmailFrom: PREVIOUS,
+  };
+  /** A native account whose address the backend-local capability moves. */
+  function nativeAddress(account: { email: string }, bootstrapFile: string) {
+    const events: string[] = [];
+    let crash = false;
+    const operatorAddress: OperatorAddress = {
+      read: async (args) => {
+        expect(args).toEqual({
+          userId: 'native-user',
+          email: DECLARED,
+          migrateEmailFrom: PREVIOUS,
+        });
+        events.push(`read:${account.email}`);
+        return { email: account.email };
+      },
+      rename: async (args) => {
+        expect(args).toMatchObject({
+          userId: 'native-user',
+          email: DECLARED,
+          migrateEmailFrom: PREVIOUS,
+        });
+        expect(args.headers.get('cookie')).toContain('session=synthetic-');
+        // The journal marker precedes the native write.
+        expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toMatchObject({
+          email: PREVIOUS,
+          migratingEmailFrom: PREVIOUS,
+        });
+        const renamed = account.email === PREVIOUS;
+        if (renamed) {
+          account.email = DECLARED;
+          events.push('rename');
+        }
+        events.push('end-sessions');
+        if (crash) {
+          crash = false;
+          throw externalDepError('Native operator address migration failed.');
+        }
+        return { renamed };
+      },
+    };
+    return {
+      events,
+      operatorAddress,
+      crashAfterRename: () => {
+        crash = true;
+      },
+    };
+  }
+  const signIns = (calls: Call[]) =>
+    calls
+      .filter((call) => call.path === '/api/auth/sign-in/email')
+      .map((call) => (call.body as { email: string }).email);
+
+  testPosix(
+    'renames the retained account once, signs in again at the declared address and replays harmlessly',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-address-migration-'),
+      );
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const account = { email: PREVIOUS };
+      const native = nativeAddress(account, bootstrapFile);
+      try {
+        writeProvisionState(bootstrapFile, retainedBootstrap);
+        await withFixture({ connection: ABSENT, account }, async (f) => {
+          const options = {
+            stateDirectory,
+            fetchImpl: f.fetchImpl,
+            operatorAddress: native.operatorAddress,
+          };
+          const result = await configureInstance(target, options);
+          expect(result).toMatchObject({
+            userId: 'native-user',
+            organizationId: 'org-example',
+          });
+          expect(native.events).toEqual([
+            `read:${PREVIOUS}`,
+            'rename',
+            'end-sessions',
+          ]);
+          expect(signIns(f.calls)).toEqual([PREVIOUS, DECLARED]);
+          expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toEqual({
+            ...retainedBootstrap,
+            email: DECLARED,
+          });
+          expect(
+            f.calls.some((call) =>
+              /sign-up|organization\/create/.test(call.path),
+            ),
+          ).toBe(false);
+          expect(writes(f.calls)).toHaveLength(0);
+          expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+          // Keeping the declaration after the migration stays harmless.
+          const bytes = readFileSync(bootstrapFile);
+          f.calls.length = 0;
+          expect(await configureInstance(target, options)).toEqual(result);
+          expect(native.events.slice(3)).toEqual([`read:${DECLARED}`]);
+          expect(signIns(f.calls)).toEqual([DECLARED]);
+          expect(readFileSync(bootstrapFile)).toEqual(bytes);
+          const { migrateEmailFrom: _declared, ...completed } = target;
+          expect(await configureInstance(completed, options)).toEqual(result);
+          expect(native.events).toHaveLength(4);
+          expect(readFileSync(bootstrapFile)).toEqual(bytes);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'an interrupted run after the rename resumes from its journal without a second rename',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-address-migration-resume-'),
+      );
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const account = { email: PREVIOUS };
+      const native = nativeAddress(account, bootstrapFile);
+      try {
+        writeProvisionState(bootstrapFile, retainedBootstrap);
+        await withFixture({ connection: ABSENT, account }, async (f) => {
+          const options = {
+            stateDirectory,
+            fetchImpl: f.fetchImpl,
+            operatorAddress: native.operatorAddress,
+          };
+          native.crashAfterRename();
+          await expect(configureInstance(target, options)).rejects.toThrow(
+            'Native operator address migration failed.',
+          );
+          expect(account.email).toBe(DECLARED);
+          expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toEqual({
+            ...retainedBootstrap,
+            migratingEmailFrom: PREVIOUS,
+          });
+          expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+          // Removing the declaration mid-migration holds for review.
+          f.calls.length = 0;
+          const { migrateEmailFrom: _declared, ...premature } = target;
+          await expect(configureInstance(premature, options)).rejects.toThrow(
+            'Fresh bootstrap intent differs from the configured identity.',
+          );
+          expect(f.calls).toEqual([]);
+          const result = await configureInstance(target, options);
+          expect(result.userId).toBe('native-user');
+          expect(native.events).toEqual([
+            `read:${PREVIOUS}`,
+            'rename',
+            'end-sessions',
+            `read:${DECLARED}`,
+            'end-sessions',
+          ]);
+          expect(signIns(f.calls)).toEqual([DECLARED, DECLARED]);
+          expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toEqual({
+            ...retainedBootstrap,
+            email: DECLARED,
+          });
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'refuses incomplete or foreign retained records and a foreign address holder before authentication',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-address-migration-refusal-'),
+      );
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const attestationFile = join(
+        stateDirectory,
+        'private/email-attestation.json',
+      );
+      const account = { email: PREVIOUS };
+      const native = nativeAddress(account, bootstrapFile);
+      try {
+        await withFixture({ connection: ABSENT, account }, async (f) => {
+          const options = {
+            stateDirectory,
+            fetchImpl: f.fetchImpl,
+            operatorAddress: native.operatorAddress,
+          };
+          await expect(configureInstance(target, options)).rejects.toThrow(
+            'Operator address migration requires a completed retained identity.',
+          );
+          expect(existsSync(bootstrapFile)).toBe(false);
+          const { organizationId: _missing, ...incomplete } = retainedBootstrap;
+          writeProvisionState(bootstrapFile, {
+            ...incomplete,
+            phase: 'pending',
+          });
+          await expect(configureInstance(target, options)).rejects.toThrow(
+            'Operator address migration requires a completed retained identity.',
+          );
+          for (const change of [
+            { email: 'someone@example.org' },
+            { migratingEmailFrom: 'someone@example.org' },
+            { migratingEmailFrom: DECLARED },
+          ]) {
+            writeProvisionState(bootstrapFile, {
+              ...retainedBootstrap,
+              ...change,
+            });
+            await expect(configureInstance(target, options)).rejects.toThrow(
+              'Fresh bootstrap intent differs from the configured identity.',
+            );
+          }
+          const attested = {
+            ...target,
+            emailVerification: 'operator-attested' as const,
+          };
+          writeProvisionState(bootstrapFile, {
+            ...retainedBootstrap,
+            emailVerification: 'operator-attested',
+          });
+          const attestation = {
+            schemaVersion: 1,
+            phase: 'ready',
+            origin: INPUT.origin,
+            method: 'operator-attested',
+            userId: 'native-user',
+            email: PREVIOUS,
+          };
+          const attestedOptions = {
+            ...options,
+            emailAttestation: async () => {
+              throw Error('Must not be called');
+            },
+          };
+          await expect(
+            configureInstance(attested, attestedOptions),
+          ).rejects.toThrow(
+            'Operator address migration requires the retained operator attestation.',
+          );
+          for (const change of [
+            { phase: 'pending' },
+            { userId: 'foreign-user' },
+            { email: 'someone@example.org' },
+          ]) {
+            writeProvisionState(attestationFile, { ...attestation, ...change });
+            await expect(
+              configureInstance(attested, attestedOptions),
+            ).rejects.toThrow(
+              'Operator address migration requires the retained operator attestation.',
+            );
+          }
+          expect(f.calls).toEqual([]);
+          expect(native.events).toEqual([]);
+          writeProvisionState(bootstrapFile, retainedBootstrap);
+          const bytes = readFileSync(bootstrapFile);
+          await expect(
+            configureInstance(target, {
+              ...options,
+              operatorAddress: {
+                ...native.operatorAddress,
+                read: async () => {
+                  throw preconditionError(
+                    'Another account already holds the declared operator address.',
+                  );
+                },
+              },
+            }),
+          ).rejects.toThrow(
+            'Another account already holds the declared operator address.',
+          );
+          expect(f.calls).toEqual([]);
+          expect(readFileSync(bootstrapFile)).toEqual(bytes);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'a refused sign-in at the previous address changes neither the account nor its journal',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-address-migration-two-factor-'),
+      );
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const account = { email: PREVIOUS };
+      const native = nativeAddress(account, bootstrapFile);
+      try {
+        writeProvisionState(bootstrapFile, retainedBootstrap);
+        const bytes = readFileSync(bootstrapFile);
+        await withFixture(
+          { connection: ABSENT, account, challenge: true },
+          async (f) => {
+            await expect(
+              configureInstance(target, {
+                stateDirectory,
+                fetchImpl: f.fetchImpl,
+                operatorAddress: native.operatorAddress,
+              }),
+            ).rejects.toThrow('TOTP enabled');
+            expect(native.events).toEqual([`read:${PREVIOUS}`]);
+            expect(account.email).toBe(PREVIOUS);
+            expect(readFileSync(bootstrapFile)).toEqual(bytes);
+          },
+        );
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'native client reconciliation keeps its operator binding across the rename',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-address-migration-clients-'),
+      );
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const clientFile = join(
+        stateDirectory,
+        `private/client-${PORTAL.key}.json`,
+      );
+      const client = intentSchema.parse({
+        schemaVersion: 1,
+        phase: 'ready',
+        origin: INPUT.origin,
+        organizationId: 'org-example',
+        operatorUserId: 'native-user',
+        credentials: {
+          clientId: 'retained-client',
+          clientSecret: 'a'.repeat(43),
+        },
+        body: {
+          client_name: PORTAL.name,
+          software_id: PORTAL.key,
+          redirect_uris: PORTAL.redirectUris,
+          scope: 'openid profile email tale:organization',
+          grant_types: ['authorization_code'],
+          response_types: ['code'],
+          token_endpoint_auth_method: 'client_secret_post',
+          type: 'web',
+          require_pkce: true,
+          skip_consent: false,
+          metadata: { taleOrganizationId: 'org-example' },
+        },
+      });
+      const account = { email: PREVIOUS };
+      const native = nativeAddress(account, bootstrapFile);
+      try {
+        writeProvisionState(bootstrapFile, retainedBootstrap);
+        writeProvisionState(clientFile, client);
+        const clientBytes = readFileSync(clientFile);
+        let verified = 0;
+        await withFixture(
+          {
+            connection: ABSENT,
+            account,
+            nativeClients: [
+              {
+                ...client.body,
+                client_id: client.credentials.clientId,
+                disabled: false,
+                taleOrganizationId: client.organizationId,
+              },
+            ],
+          },
+          async (f) => {
+            const result = await configureInstance(
+              {
+                ...target,
+                nativeClients: [
+                  {
+                    key: PORTAL.key,
+                    name: PORTAL.name,
+                    managed: true,
+                    redirectUris: PORTAL.redirectUris,
+                  },
+                ],
+              },
+              {
+                stateDirectory,
+                fetchImpl: f.fetchImpl,
+                operatorAddress: native.operatorAddress,
+                managedClients: {
+                  create: async () => {
+                    throw Error('A rename cannot create a client');
+                  },
+                  verify: async (credentials) => {
+                    // Verified only after the renamed account signed in again.
+                    expect(account.email).toBe(DECLARED);
+                    expect(credentials).toEqual(client.credentials);
+                    verified++;
+                  },
+                },
+              },
+            );
+            expect(native.events).toContain('rename');
+            expect(result.userId).toBe('native-user');
+            expect(result.nativeClients).toEqual([
+              {
+                key: PORTAL.key,
+                clientId: client.credentials.clientId,
+                changed: false,
+                credentials: {
+                  path: clientFile,
+                  sha256: expect.any(String),
+                },
+              },
+            ]);
+          },
+        );
+        expect(verified).toBe(2);
+        expect(readFileSync(clientFile)).toEqual(clientBytes);
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+describe('break-glass administrator over real local HTTP', () => {
+  const testPosix = test.skipIf(process.platform === 'win32');
+  const owner: Member = {
+    id: 'member-operator',
+    organizationId: 'org-example',
+    userId: 'native-user',
+    role: 'owner',
+  };
+  const declared = { email: BREAK_GLASS, passwordHash: HASH };
+  const account = {
+    userId: 'break-glass-user',
+    email: BREAK_GLASS,
+    created: true,
+    credentialUpdated: false,
+  };
+
+  testPosix(
+    'converges an administrator through the operator session and reports no secret',
+    async () => {
+      const stateDirectory = mkdtempSync(join(tmpdir(), 'tale-break-glass-'));
+      const members = [owner];
+      try {
+        await withFixture({ connection: ABSENT, members }, async (f) => {
+          const breakGlassAccount: BreakGlassAccount = async (args) => {
+            expect(args).toMatchObject({
+              operatorUserId: 'native-user',
+              email: BREAK_GLASS.toUpperCase(),
+              passwordHash: HASH,
+              stateDirectory,
+            });
+            expect(args.headers.get('cookie')).toContain('session=synthetic-');
+            // Only after the managed organization is selected.
+            expect(
+              f.calls.some(
+                (call) => call.path === '/api/auth/organization/list',
+              ),
+            ).toBe(true);
+            expect(
+              f.calls.some((call) => call.path.startsWith('/api/app/')),
+            ).toBe(false);
+            return account;
+          };
+          const input = {
+            ...INPUT,
+            ssoEnabled: false,
+            breakGlass: { ...declared, email: BREAK_GLASS.toUpperCase() },
+          };
+          const options = {
+            stateDirectory,
+            fetchImpl: f.fetchImpl,
+            breakGlassAccount,
+          };
+          const result = await configureInstance(input, options);
+          expect(result.breakGlass).toEqual(account);
+          expect(JSON.stringify(result)).not.toContain(HASH);
+          expect(
+            f.calls
+              .filter((call) => call.path.startsWith('/api/app/members'))
+              .map((call) => [call.method, call.path, call.body]),
+          ).toEqual([
+            ['GET', '/api/app/members?orgId=org-example', undefined],
+            [
+              'POST',
+              '/api/app/members?orgId=org-example',
+              { userId: account.userId, role: 'admin' },
+            ],
+            ['GET', '/api/app/members?orgId=org-example', undefined],
+          ]);
+          expect(JSON.stringify(f.calls)).not.toContain(HASH);
+          expect(members.at(-1)).toMatchObject({
+            userId: account.userId,
+            role: 'admin',
+          });
+          expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+          f.calls.length = 0;
+          await configureInstance(input, options);
+          expect(
+            f.calls.filter((call) => call.path.startsWith('/api/app/members')),
+          ).toHaveLength(1);
+          f.calls.length = 0;
+          for (const answer of [
+            { ...account, userId: 'native-user' },
+            { ...account, email: 'other@example.org' },
+            { ...account, passwordHash: HASH },
+          ]) {
+            await expect(
+              configureInstance(input, {
+                ...options,
+                breakGlassAccount: async () => answer as typeof account,
+              }),
+            ).rejects.toThrow(
+              'Break-glass administrator differs from the declaration.',
+            );
+            expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+          }
+          expect(
+            f.calls.some((call) => call.path.startsWith('/api/app/members')),
+          ).toBe(false);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'a membership that does not converge fails the deployment, and a foreign retained journal refuses before login',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-break-glass-refusal-'),
+      );
+      try {
+        await withFixture(
+          { connection: ABSENT, members: [owner], ignoreMemberWrites: true },
+          async (f) => {
+            const options = {
+              stateDirectory,
+              fetchImpl: f.fetchImpl,
+              breakGlassAccount: async () => account,
+            };
+            const input = { ...INPUT, ssoEnabled: false, breakGlass: declared };
+            await expect(configureInstance(input, options)).rejects.toThrow(
+              'Break-glass administrator membership did not converge.',
+            );
+            expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+            const file = provisionStatePath(
+              stateDirectory,
+              'break-glass.json',
+              true,
+            );
+            for (const change of [
+              { email: 'other-break-glass@example.org' },
+              { origin: 'https://foreign.example.org' },
+            ]) {
+              writeProvisionState(file, {
+                schemaVersion: 1,
+                phase: 'ready',
+                origin: INPUT.origin,
+                email: BREAK_GLASS,
+                userId: account.userId,
+                ...change,
+              });
+              f.calls.length = 0;
+              await expect(configureInstance(input, options)).rejects.toThrow(
+                'Retained break-glass administrator differs from the declared address.',
+              );
+              expect(f.calls).toEqual([]);
+            }
+          },
+        );
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 });

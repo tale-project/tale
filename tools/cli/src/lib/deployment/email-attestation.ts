@@ -46,6 +46,8 @@ export interface EmailAttestationInput {
   headers: Headers;
   stateDirectory: string;
   migrateOriginFrom?: string;
+  /** The retained operator's previous address, whose journal is rebound. */
+  migrateEmailFrom?: string;
 }
 export type EmailAttestation = (
   input: EmailAttestationInput,
@@ -82,11 +84,21 @@ export function createBackendEmailAttestation(
         email: z.email(),
         stateDirectory: z.string().min(1),
         migrateOriginFrom: nativeOriginSchema.optional(),
+        migrateEmailFrom: z.email().optional(),
       })
       .safeParse(input);
     if (!selected.success || !(input.headers instanceof Headers))
       throw preconditionError('Invalid operator email attestation input.');
     const email = selected.data.email.toLowerCase();
+    const previousEmail = selected.data.migrateEmailFrom?.toLowerCase();
+    // A completed journal of the previous address is rebound to the declared
+    // one once the renamed account's own verification is proven.
+    const admitsEmail = (state: { email: string; phase: string }) =>
+      state.email === email ||
+      (previousEmail !== undefined &&
+        previousEmail !== email &&
+        state.phase === 'ready' &&
+        state.email === previousEmail);
     let proof: EmailAttestationProof | undefined;
     try {
       await withBackendAuth(options, async (auth) => {
@@ -142,6 +154,8 @@ export function createBackendEmailAttestation(
         const retained = readProvisionStateProof(file, stateSchema);
         if (input.migrateOriginFrom && !retained)
           throw new Error('Origin migration requires retained attestation');
+        if (previousEmail && !retained)
+          throw new Error('Address migration requires retained attestation');
         let pendingDigest = retained?.sha256;
         const target = {
           method: 'operator-attested' as const,
@@ -157,10 +171,16 @@ export function createBackendEmailAttestation(
             input.migrateOriginFrom,
           ) ||
             retained.value.userId !== target.userId ||
-            retained.value.email !== email)
+            !admitsEmail(retained.value))
         )
           throw new Error('Retained attestation identity differs');
-        if (retained?.value.phase === 'ready' && !before.emailVerified)
+        // A renamed account starts unverified at its new address; only the
+        // journal of the declared address itself can have drifted.
+        if (
+          retained?.value.phase === 'ready' &&
+          retained.value.email === email &&
+          !before.emailVerified
+        )
           throw new Error('Retained verification drifted');
         if (!retained) {
           provisionStatePath(
@@ -272,17 +292,19 @@ export function createBackendEmailAttestation(
             input.migrateOriginFrom,
           ) ||
           current.value.userId !== target.userId ||
-          current.value.email !== email
+          !admitsEmail(current.value)
         )
           throw new Error('Attestation intent changed');
         const receipt =
           current.value.phase === 'ready' &&
-          current.value.origin === target.origin
+          current.value.origin === target.origin &&
+          current.value.email === email
             ? { path: file, sha256: current.sha256 }
             : writeProvisionState(file, {
                 ...current.value,
                 phase: 'ready',
                 origin: target.origin,
+                email,
               });
         proof = emailAttestationProofSchema.parse({
           method: target.method,

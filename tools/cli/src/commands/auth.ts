@@ -1,5 +1,9 @@
 import { Command } from 'commander';
 
+import {
+  hashPolicyPassword,
+  readPasswordInput,
+} from '../lib/actions/hash-password';
 import { resetOwner } from '../lib/actions/reset-owner';
 import { requireProject } from '../lib/project/find-project';
 import { resolveProjectContext } from '../lib/project/project-context';
@@ -8,6 +12,35 @@ import { action } from '../utils/run-command';
 
 export function createAuthCommand(): Command {
   const authCmd = new Command('auth').description('Authentication management');
+
+  authCmd
+    .command('hash-password')
+    .description(
+      'Print the Better Auth hash of a password read from stdin or a hidden prompt',
+    )
+    .action(
+      action(async () => {
+        let password: string;
+        if (process.stdin.isTTY) {
+          // The prompt renders on stdout, which must stay the hash alone.
+          if (!process.stdout.isTTY)
+            throw usageError(
+              'Enter the password in a terminal, or provide it on stdin.',
+            );
+          const { password: prompt } = await import('../utils/prompt');
+          password = await prompt({ message: 'Password:', mask: false });
+          const confirmation = await prompt({
+            message: 'Confirm password:',
+            mask: false,
+          });
+          if (password !== confirmation)
+            throw usageError('Passwords do not match');
+        } else {
+          password = await readPasswordInput(process.stdin);
+        }
+        process.stdout.write(`${await hashPolicyPassword(password)}\n`);
+      }),
+    );
 
   authCmd
     .command('reset-owner')

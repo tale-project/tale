@@ -339,6 +339,22 @@ also exercises the managed configuration bridge, retained organization bindings,
 resource and credential preservation, reverse migration and interrupted-plan
 recovery. These tests do not prove production DNS or TLS routing.
 
+Managed operator address migration and the declared break-glass administrator are
+covered by `identity.test.ts`, `operator-address.test.ts`, `break-glass.test.ts`,
+`email-attestation.test.ts`, `apply.test.ts` and `fresh-inputs.test.ts` in the same
+directory, `tools/cli/src/lib/crypto/password-hash.test.ts`,
+`tools/cli/src/lib/actions/hash-password.test.ts` and the subprocess suite
+`tools/cli/tests/hash-password.test.ts`. They verify admission of either retained
+address, the guarded rename and session sweep, the refusal of an operator holding
+a single sign-on link, journaled replay without a second rename, re-attestation of
+the new address, hash-only credential custody, the refusal of an account the
+deployment did not create, creation that binds the account before its credential,
+a credential write whose session sweep still runs after an interruption, member
+convergence through the organization-scoped doors that never touches an owner,
+and the named refusals of a password sign-in under an enforced two-factor policy. They drive real Better Auth over its memory adapter, not the platform's
+Postgres backend, and do not prove a passkey ceremony or the enrolment wall in a
+browser.
+
 General native configuration is also covered by `tools/cli/tests/platform-configuration.test.ts`
 (real HTTP with source/compiled CLI commands), `tools/cli/src/lib/config/platform-apply.test.ts`
 (reviewed plans, stale preimages, default credential changes, partial failures and readback),

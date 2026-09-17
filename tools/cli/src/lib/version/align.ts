@@ -36,12 +36,15 @@ export const ALIGN_GUARD_ENV = 'TALE_ALIGNED';
  * `update` performs its own CLI bump + rollback, `init` runs before any
  * instance/workspace version exists, and `uninstall` is about to delete the
  * binary — aligning (download + re-exec) right before removal is wasteful and
- * would re-exec a binary we're tearing down.
+ * would re-exec a binary we're tearing down. `auth hash-password` is a local
+ * helper that manages no instance; a re-exec would hand its stdin password to
+ * another binary.
  */
 const SELF_MANAGING_COMMANDS = new Set([
   'update',
   'init',
   'uninstall',
+  'auth hash-password',
   'config build',
   'config verify',
   'config stage',

@@ -270,6 +270,26 @@ Si une configuration native est déclarée, son reçu conservé est également n
 
 Pour revenir en arrière après une migration terminée, inverse explicitement les deux origines et reprends le même parcours vérifié. Prépare le DNS, les certificats, les URL de rappel et les tests d’accès avec [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains). Changer l’origine dans le bundle n’effectue pas ces opérations externes.
 
+#### Renommer l’adresse de l’opérateur de déploiement {#managed-operator-address-migration}
+
+Un déploiement géré se connecte à chaque exécution en tant qu’opérateur `identity`. Pour donner à ce compte une adresse machine, afin que les personnes se connectent avec leurs propres comptes, conserve le compte et ne change que son adresse de connexion. Son identifiant utilisateur, et tout ce qui en dépend — clients gérés, skills appartenant à l’opérateur, clés d’API et journaux conservés —, reste inchangé.
+
+1. Définis `identity.email` sur la nouvelle adresse et `identity.migrateEmailFrom` sur l’adresse précédente exacte. Les deux doivent être différentes. Conserve `identity.bootstrap: "fresh"` et le mot de passe du compte. Le bootstrap doit être terminé, et une attestation d’e-mail déclarée a besoin de son journal terminé.
+2. Prépare, vérifie, prévisualise et applique le bundle. La CLI lit l’adresse actuelle du compte conservé dans le backend, se connecte avec elle et prouve l’identifiant utilisateur conservé. Elle consigne le changement dans le journal, renomme le compte via l’adaptateur natif, met fin à toutes les sessions du compte et se reconnecte avec la nouvelle adresse. Le renommage est conditionné à l’adresse précédente : un changement concurrent est refusé au lieu d’être écrasé. Une attestation d’e-mail déclarée vérifie ensuite la nouvelle adresse.
+3. Une nouvelle tentative après une interruption trouve l’adresse déjà changée et termine les journaux sans second renommage. Laisser `migrateEmailFrom` déclaré ensuite est sans effet ; retire-le une fois le reçu de déploiement prêt.
+
+Si un autre compte détient la nouvelle adresse, si le compte conservé ne détient aucune des deux adresses, ou si le compte de l’opérateur porte un lien d’authentification unique (SSO), le déploiement s’arrête avant toute modification. Retire d’abord un tel lien : il appartient à la personne qui s’est connectée avec, pas à un compte machine.
+
+#### Déclarer un administrateur de secours {#managed-break-glass}
+
+`identity.breakGlass` conserve un administrateur pour le cas où l’opérateur de déploiement est indisponible, par exemple `{ "email": "break-glass@example.org", "passwordHash": { "env": "TALE_BREAK_GLASS_PASSWORD_HASH" } }`. L’adresse est une valeur littérale ou une référence d’environnement obligatoire, et doit différer de l’adresse actuelle et de l’adresse précédente de l’opérateur. Le mot de passe n’atteint jamais le déploiement : crée son hachage avec `tale auth hash-password` là où le mot de passe est conservé, et ne fournis que le hachage.
+
+Chaque déploiement aligne le backend sur la déclaration. Un compte absent est créé avec une adresse vérifiée et exactement les identifiants déclarés, et un journal conservé lie l’adresse à son identifiant de compte dès que le compte existe. Les déploiements suivants rétablissent les identifiants déclarés sur le compte lié et mettent fin à toutes ses sessions dès que ces identifiants changent, y compris lorsqu’ils terminent une exécution interrompue. Un compte à cette adresse que ce déploiement n’a pas créé, ou plus tard un autre compte qui la détient, arrête le déploiement. Le compte devient `admin` de l’organisation gérée via les points d’accès natifs des membres ; un `owner` n’est jamais modifié. Le déploiement ne se connecte jamais avec ce compte. Change son mot de passe en modifiant le hachage déclaré, pas dans l’application. Le déploiement n’enregistre aucune date de changement de mot de passe : une politique de rotation des mots de passe de l’organisation peut donc demander un nouveau mot de passe à ce compte, que le déploiement suivant rétablit.
+
+#### Connexion à deux facteurs imposée
+
+Un déploiement géré se connecte en tant qu’opérateur avec le seul mot de passe. Si l’organisation impose `two_factor_policy`, donne à l’opérateur un passkey et jamais d’application d’authentification : la connexion par mot de passe d’un compte doté d’une application d’authentification reçoit une demande de code, et un compte sans aucun des deux facteurs est renvoyé vers la configuration à la fin de sa période de grâce. La CLI s’arrête à l’une ou l’autre réponse et nomme celle qu’elle a reçue. Les personnes se connectent avec leurs propres comptes et peuvent utiliser l’un ou l’autre facteur.
+
 #### Exporter les identifiants des clients natifs
 
 Pour transmettre les identifiants d’un client géré à une application distincte, définis `NATIVE_CLIENT_KEY` avec sa clé déclarée et `PRIVATE_EXPORT_DIRECTORY` avec un nouveau répertoire privé. Son répertoire parent doit déjà appartenir à ton compte, avoir le mode `0700` et se trouver sous des répertoires de confiance. Exporte depuis le même déploiement prêt, sans interpréter les chemins du backend ni les noms de conteneurs :
@@ -528,6 +548,10 @@ Les deux commandes natives acceptent les attentes exactes `--config-ref`, `--sou
 Les commandes de configuration n’ont pas de `--dry-run` : utilise `stage`, `verify --rebuild` et `verify-native`. Le JSON de succès est `{ok:true,command:"config <verb>",data}`. Les données de build et de vérification incluent `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` et `verified` ; la sortie compatible emploie `configVersion` à la place de `releaseRef`. Les reçus de transfert SHA et les reçus natifs utilisent le schéma 2. Un résultat de déploiement contient `automationVersion` et `unchanged` ; le champ explicite `verified` appartient aux sorties de vérification.
 
 ### Avancé
+
+`tale auth hash-password` — afficher le hachage Better Auth d’un mot de passe, pour un [administrateur de secours](#managed-break-glass).
+
+La commande lit le mot de passe sur stdin, ou dans une invite masquée avec confirmation dans un terminal interactif. Elle refuse un mot de passe qui ne respecte pas la politique de mot de passe par défaut de la plateforme et n’affiche que le hachage.
 
 `tale auth reset-owner` — réinitialiser les identifiants du compte propriétaire.
 

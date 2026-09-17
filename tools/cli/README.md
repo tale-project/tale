@@ -150,6 +150,44 @@ move a database or replace the retained identity. See
 [managed origin migration](../../docs/en/self-hosted/install/cli-install.md#managed-origin-migration)
 for the complete specification and credential-export procedure.
 
+### Rename the deploy operator's address
+
+A managed deployment signs in as its `identity` operator on every run. To give
+that account a machine address, set `identity.email` to the new address and
+declare `identity.migrateEmailFrom` with the exact previous one. Keep
+`bootstrap: "fresh"` and the account's password. The user ID stays, and with it
+the managed clients, operator-owned skills, API keys and retained journals.
+
+The CLI reads the retained account's current address inside the backend, signs in
+with it and proves the retained user ID. It journals the change, renames the
+account through the native adapter, guarded by the previous address, ends every
+session the account holds and signs in again with the new address. A declared
+email attestation then verifies the new address. A replay after an interruption
+completes the journals without a second rename. Another account holding the new
+address, a retained account holding neither, or a single sign-on link on the
+operator account stops the deployment first. See
+[operator address migration](../../docs/en/self-hosted/install/cli-install.md#managed-operator-address-migration).
+
+### Declare a break-glass administrator
+
+`identity.breakGlass: { "email": …, "passwordHash": { "env": … } }` keeps one
+administrator for when the deploy operator is unavailable. Only a Better Auth hash
+reaches the deployment; `tale auth hash-password` prints one from stdin or a hidden
+prompt and refuses a password that fails the platform's default policy. Every
+deployment creates the account, binding its ID in a retained journal as soon as
+it exists, or sets the bound account back to exactly the declared credential,
+ending its sessions whenever that changes (also when finishing an interrupted
+run). An account at the address that the deployment did not create is refused.
+The account becomes an `admin` of the managed organization through the native
+member endpoints, never touching an `owner`. The deployment never signs in as
+this account and records no password-change time, so an organization rotation
+policy may ask it for a new password that the next deployment sets back.
+
+A managed deployment signs in with the operator's password alone. Under an
+enforced `two_factor_policy`, keep the operator on a passkey and never an
+authenticator app: the CLI stops at a TOTP challenge or at an enrolment wall after
+the grace period, and names which one it met.
+
 ### Serve additional origins
 
 Declare top-level `additionalOrigins` for the other HTTPS origins the same instance
