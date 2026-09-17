@@ -72,6 +72,86 @@ test('origin migration requires an explicit different HTTPS source and retained 
     ).toBe(false);
 });
 
+test('operator address migration requires a different previous address literal and retained fresh identity', () => {
+  const identity = {
+    ...spec.identity,
+    email: 'deploy@example.org',
+    migrateEmailFrom: 'Operator@example.org',
+  };
+  expect(
+    deploymentSpecSchema.parse({ ...spec, identity }).identity
+      ?.migrateEmailFrom,
+  ).toBe('Operator@example.org');
+  // An environment-referenced operator address is compared at the destination.
+  expect(
+    deploymentSpecSchema.safeParse({
+      ...spec,
+      identity: { ...identity, email: { env: 'OPERATOR_EMAIL' } },
+    }).success,
+  ).toBe(true);
+  for (const changed of [
+    { ...identity, bootstrap: undefined },
+    { ...identity, migrateEmailFrom: 'DEPLOY@example.org' },
+    { ...identity, migrateEmailFrom: { env: 'PREVIOUS_OPERATOR_EMAIL' } },
+    { ...identity, migrateEmailFrom: 'not-an-address' },
+    { ...identity, migrateEmailFrom: 'operator@example.org\n' },
+  ])
+    expect(
+      deploymentSpecSchema.safeParse({ ...spec, identity: changed }).success,
+    ).toBe(false);
+});
+
+test('a break-glass administrator declares its own address and only an environment-referenced hash', () => {
+  const identity = {
+    ...spec.identity,
+    email: 'deploy@example.org',
+    migrateEmailFrom: 'operator@example.org',
+    breakGlass: {
+      email: 'break-glass@example.org',
+      passwordHash: { env: 'BREAK_GLASS_PASSWORD_HASH' },
+    },
+  };
+  const parsed = deploymentSpecSchema.parse({ ...spec, identity });
+  expect(parsed.identity?.breakGlass).toEqual(identity.breakGlass);
+  expect(
+    deploymentSpecSchema.safeParse({
+      ...spec,
+      identity: {
+        ...identity,
+        breakGlass: {
+          ...identity.breakGlass,
+          email: { env: 'BREAK_GLASS_EMAIL' },
+        },
+      },
+    }).success,
+  ).toBe(true);
+  for (const breakGlass of [
+    { ...identity.breakGlass, email: 'DEPLOY@example.org' },
+    { ...identity.breakGlass, email: 'Operator@example.org' },
+    { ...identity.breakGlass, email: 'not-an-address' },
+    {
+      ...identity.breakGlass,
+      email: { env: 'BREAK_GLASS_EMAIL', optional: true },
+    },
+    {
+      ...identity.breakGlass,
+      passwordHash: { env: 'BREAK_GLASS_PASSWORD_HASH', optional: true },
+    },
+    {
+      ...identity.breakGlass,
+      passwordHash: `${'a'.repeat(32)}:${'b'.repeat(128)}`,
+    },
+    { email: identity.breakGlass.email },
+    { ...identity.breakGlass, password: { env: 'BREAK_GLASS_PASSWORD' } },
+  ])
+    expect(
+      deploymentSpecSchema.safeParse({
+        ...spec,
+        identity: { ...identity, breakGlass },
+      }).success,
+    ).toBe(false);
+});
+
 test('an additional origin may keep the migrated-from origin answering during a move', () => {
   const identity = {
     ...spec.identity,

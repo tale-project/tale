@@ -69,9 +69,12 @@ const nativeClient = z.strictObject({
   managed: z.literal(true).optional(),
   redirectUris: z.array(redirectUri).min(1).max(16),
 });
+const emailAddress = z.email().max(254);
 const identity = z.strictObject({
   bootstrap: z.literal('fresh').optional(),
   migrateOriginFrom: origin.optional(),
+  /** The retained operator account's previous sign-in address. */
+  migrateEmailFrom: emailAddress.optional(),
   emailVerification: z.literal('operator-attested').optional(),
   email: value,
   password: environmentReference.optional(),
@@ -81,6 +84,14 @@ const identity = z.strictObject({
   tenantId: environmentReference.optional(),
   clientId: environmentReference.optional(),
   clientSecret: environmentReference.optional(),
+  /** A separate administrator for when the deploy operator is unavailable.
+   * Its password reaches the deployment only as a Better Auth hash. */
+  breakGlass: z
+    .strictObject({
+      email: z.union([emailAddress, environmentReference]),
+      passwordHash: environmentReference,
+    })
+    .optional(),
   nativeClients: z.array(nativeClient).max(16).default([]),
 });
 
@@ -158,6 +169,42 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
           'Origin migration requires a different source origin and retained fresh identity',
         path: ['identity', 'migrateOriginFrom'],
       });
+    const operatorEmail =
+      typeof spec.identity?.email === 'string'
+        ? spec.identity.email.toLowerCase()
+        : undefined;
+    const previousEmail = spec.identity?.migrateEmailFrom?.toLowerCase();
+    if (
+      previousEmail !== undefined &&
+      (spec.identity?.bootstrap !== 'fresh' || previousEmail === operatorEmail)
+    )
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Operator address migration requires a different previous address and retained fresh identity',
+        path: ['identity', 'migrateEmailFrom'],
+      });
+    const breakGlass = spec.identity?.breakGlass;
+    if (
+      typeof breakGlass?.email === 'string' &&
+      [operatorEmail, previousEmail].includes(breakGlass.email.toLowerCase())
+    )
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Break-glass administrator needs an address distinct from the operator',
+        path: ['identity', 'breakGlass', 'email'],
+      });
+    for (const field of ['email', 'passwordHash'] as const) {
+      const reference = breakGlass?.[field];
+      if (typeof reference === 'object' && reference.optional)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Break-glass administrator needs a required environment reference',
+          path: ['identity', 'breakGlass', field],
+        });
+    }
     // An additional origin may equal `identity.migrateOriginFrom`: serving the
     // previous hostname keeps its links and sessions working during a move.
     const additionalOrigins = spec.additionalOrigins ?? [];

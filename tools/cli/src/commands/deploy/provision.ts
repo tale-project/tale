@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import { Command } from 'commander';
 
+import { createBackendBreakGlassAccount } from '../../lib/deployment/break-glass';
 import {
   withFrozenDeployment,
   type DeploymentBundle,
@@ -20,6 +21,7 @@ import {
   createBackendNativeClients,
   createBackendNativeUpdate,
 } from '../../lib/deployment/native-client';
+import { createBackendOperatorAddress } from '../../lib/deployment/operator-address';
 import { nativeDeploymentStateDirectory } from '../../lib/deployment/provision-state';
 import { withLock } from '../../lib/state/with-lock';
 import {
@@ -31,6 +33,7 @@ import {
 import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode, resolveConsent } from '../../utils/output-mode';
+import { readPrivateText } from '../../utils/private-input';
 import { confirm, NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
 import { assertManagedOptions } from './options';
@@ -39,33 +42,14 @@ import { assertManagedOptions } from './options';
 export async function readPrivateProvisionInput(
   source: AsyncIterable<unknown> = process.stdin,
 ): Promise<InstanceInput> {
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    for await (const value of source) {
-      if (typeof value !== 'string' && !Buffer.isBuffer(value))
-        throw usageError('Invalid native instance provisioning input stream.');
-      const chunk = typeof value === 'string' ? Buffer.from(value) : value;
-      size += chunk.byteLength;
-      if (size > PRIVATE_INPUT_LIMIT)
-        throw usageError('Native instance provisioning input exceeds 64 KiB.');
-      chunks.push(chunk);
-    }
-  } catch (error) {
-    if (error instanceof CliError) throw error;
-    throw usageError(
-      'Unable to read private native instance provisioning input.',
-    );
-  }
-  let raw: string;
-  try {
-    raw = new TextDecoder('utf-8', { fatal: true }).decode(
-      Buffer.concat(chunks),
-    );
-  } catch {
-    throw usageError('Native instance provisioning input is not valid UTF-8.');
-  }
-  return parsePrivateInstanceJson(raw);
+  return parsePrivateInstanceJson(
+    await readPrivateText(source, PRIVATE_INPUT_LIMIT, {
+      invalid: 'Invalid native instance provisioning input stream.',
+      oversized: 'Native instance provisioning input exceeds 64 KiB.',
+      unreadable: 'Unable to read private native instance provisioning input.',
+      encoding: 'Native instance provisioning input is not valid UTF-8.',
+    }),
+  );
 }
 
 /** Credential references are resolved by the destination before private stdin.
@@ -83,9 +67,15 @@ export function verifyProvisionIdentity(
     identity.ssoEnabled !== input.ssoEnabled ||
     identity.bootstrap !== input.bootstrap ||
     identity.migrateOriginFrom !== input.migrateOriginFrom ||
+    identity.migrateEmailFrom?.toLowerCase() !==
+      input.migrateEmailFrom?.toLowerCase() ||
     identity.emailVerification !== input.emailVerification ||
     (typeof identity.email === 'string' &&
       identity.email.toLowerCase() !== input.email.toLowerCase()) ||
+    (identity.breakGlass === undefined) !== (input.breakGlass === undefined) ||
+    (typeof identity.breakGlass?.email === 'string' &&
+      identity.breakGlass.email.toLowerCase() !==
+        input.breakGlass?.email.toLowerCase()) ||
     identity.nativeClients.length !== input.nativeClients.length
   )
     throw preconditionError(
@@ -118,6 +108,8 @@ export interface ManagedProvisionDependencies {
   nativeUpdate?: InstanceOptions['nativeUpdate'];
   managedClients?: InstanceOptions['managedClients'];
   emailAttestation?: InstanceOptions['emailAttestation'];
+  operatorAddress?: InstanceOptions['operatorAddress'];
+  breakGlassAccount?: InstanceOptions['breakGlassAccount'];
 }
 
 /** One private native lock spans identity, credentials, configuration and configs.
@@ -152,6 +144,12 @@ export async function provisionManagedBundle(
           managedClients:
             dependencies.managedClients ??
             createBackendNativeClients({ origin: input.origin }),
+          operatorAddress:
+            dependencies.operatorAddress ??
+            createBackendOperatorAddress({ origin: input.origin }),
+          breakGlassAccount:
+            dependencies.breakGlassAccount ??
+            createBackendBreakGlassAccount({ origin: input.origin }),
           provision: async (context) => {
             configuration = await (
               dependencies.configuration ?? provisionDeploymentConfiguration
@@ -212,6 +210,7 @@ export function createProvisionCommand(): Command {
           if (
             !directory &&
             (input.bootstrap ||
+              input.breakGlass ||
               input.nativeClients.some((client) => client.managed))
           )
             throw preconditionError(

@@ -38,7 +38,10 @@ afterEach(() => {
   delete process.env.TALE_TEST_NATIVE_PASSWORD;
   delete process.env.TALE_TEST_UNUSED_SECRET;
   delete process.env.TALE_TEST_PROVIDER_KEY;
+  delete process.env.TALE_TEST_BREAK_GLASS_EMAIL;
+  delete process.env.TALE_TEST_BREAK_GLASS_HASH;
 });
+const BREAK_GLASS_HASH = `${'c'.repeat(32)}:${'d'.repeat(128)}`;
 
 /** Real Git, staging, manifests, state files and lock; only the Docker boundary
  * and backup I/O are simulated. Native HTTP has its own subprocess suite. */
@@ -336,6 +339,36 @@ describePosix('fresh native receipt custody', () => {
     expect(run.events).not.toContain('snapshot');
   });
 
+  test('a missing or malformed break-glass hash refuses before destination access', async () => {
+    const run = await create();
+    const metadata = await verifyDeploymentBundle(run.bundle);
+    run.spec.identity!.breakGlass = {
+      email: 'break-glass@example.invalid',
+      passwordHash: { env: 'TALE_TEST_BREAK_GLASS_HASH' },
+    };
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, { ...metadata, spec: run.spec });
+    for (const [value, message] of [
+      [undefined, 'TALE_TEST_BREAK_GLASS_HASH is missing'],
+      ['synthetic-not-a-hash', 'Invalid native instance provisioning input.'],
+      [
+        BREAK_GLASS_HASH.toUpperCase(),
+        'Invalid native instance provisioning input.',
+      ],
+    ] as const) {
+      if (value === undefined) delete process.env.TALE_TEST_BREAK_GLASS_HASH;
+      else process.env.TALE_TEST_BREAK_GLASS_HASH = value;
+      run.docker.calls = [];
+      const error = await run.apply().catch((failure: unknown) => failure);
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).toContain(message);
+      expect(JSON.stringify(error)).not.toContain('synthetic-not-a-hash');
+      expect(run.docker.calls).toEqual([]);
+      expect(run.events).toEqual([]);
+      expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+    }
+  });
+
   test('refuses a declaration prefix that differs from its verified runtime before destination access', async () => {
     const run = await create();
     const metadata = await verifyDeploymentBundle(run.bundle);
@@ -431,6 +464,13 @@ describePosix('fresh native receipt custody', () => {
     ).manifest.artifact.sha256;
     run.spec.identity!.bootstrap = 'fresh';
     run.spec.identity!.migrateOriginFrom = 'https://old.example.invalid';
+    run.spec.identity!.migrateEmailFrom = 'previous-operator@example.invalid';
+    run.spec.identity!.breakGlass = {
+      email: { env: 'TALE_TEST_BREAK_GLASS_EMAIL' },
+      passwordHash: { env: 'TALE_TEST_BREAK_GLASS_HASH' },
+    };
+    process.env.TALE_TEST_BREAK_GLASS_EMAIL = 'break-glass@example.invalid';
+    process.env.TALE_TEST_BREAK_GLASS_HASH = BREAK_GLASS_HASH;
     run.spec.identity!.emailVerification = 'operator-attested';
     run.spec.identity!.nativeClients = [
       {
@@ -460,9 +500,18 @@ describePosix('fresh native receipt custody', () => {
       spec: run.spec,
     });
     rmSync(source.root, { recursive: true, force: true });
+    expect(
+      readFileSync(join(run.bundle, 'deployment.json'), 'utf8'),
+    ).not.toContain(BREAK_GLASS_HASH);
     const privateRoot = `/app/data/ops/tale-deployments/${run.spec.name}/private`;
     const native = {
       ...run.native,
+      breakGlass: {
+        userId: 'break-glass-user',
+        email: 'break-glass@example.invalid',
+        created: true,
+        credentialUpdated: false,
+      },
       emailVerification: {
         method: 'operator-attested',
         userId: run.native.userId,
@@ -502,16 +551,34 @@ describePosix('fresh native receipt custody', () => {
     };
     const execute = run.dependencies.exec!;
     run.dependencies.exec = async (command, args, options) => {
-      if (args.includes('provision'))
+      if (args.includes('provision')) {
         expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
           bootstrap: 'fresh',
           migrateOriginFrom: 'https://old.example.invalid',
+          migrateEmailFrom: 'previous-operator@example.invalid',
           emailVerification: 'operator-attested',
+          breakGlass: {
+            email: 'break-glass@example.invalid',
+            passwordHash: BREAK_GLASS_HASH,
+          },
           nativeClients: [{ managed: true }],
         });
+        // The hash reaches the backend only on private stdin.
+        expect(args.join(' ')).not.toContain(BREAK_GLASS_HASH);
+        expect(JSON.stringify(options?.env)).not.toContain(BREAK_GLASS_HASH);
+      }
       return execute(command, args, options);
     };
     for (const changed of [
+      { ...native, breakGlass: undefined },
+      {
+        ...native,
+        breakGlass: { ...native.breakGlass, email: 'other@example.invalid' },
+      },
+      {
+        ...native,
+        breakGlass: { ...native.breakGlass, userId: run.native.userId },
+      },
       { ...native, emailVerification: undefined },
       {
         ...native,
@@ -580,6 +647,8 @@ describePosix('fresh native receipt custody', () => {
     });
     const receipt = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
     expect(receipt.native.emailVerification).toEqual(native.emailVerification);
+    expect(receipt.native.breakGlass).toEqual(native.breakGlass);
+    expect(JSON.stringify(receipt)).not.toContain(BREAK_GLASS_HASH);
     expect(JSON.stringify(receipt)).not.toContain('synthetic-response-secret');
     const ups = run.events.filter((event) => event === 'up').length;
     const replay = await run.apply();

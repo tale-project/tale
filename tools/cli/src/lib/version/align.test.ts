@@ -96,6 +96,17 @@ describe('ensureAligned', () => {
     expect(deps.reExec).not.toHaveBeenCalled();
   });
 
+  test('the password hash helper never hands its stdin to another binary', async () => {
+    const deps = makeDeps();
+    await ensureAligned('auth hash-password', deps);
+
+    expect(deps.findProject).not.toHaveBeenCalled();
+    expect(deps.reExec).not.toHaveBeenCalled();
+    // Owner recovery manages the instance and keeps its alignment.
+    await ensureAligned('auth reset-owner', deps);
+    expect(deps.reExec).toHaveBeenCalled();
+  });
+
   test('guard env set (re-exec child): skips to avoid an align loop', async () => {
     process.env[ALIGN_GUARD_ENV] = '1';
     const deps = makeDeps();

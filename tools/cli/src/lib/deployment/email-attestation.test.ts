@@ -112,7 +112,8 @@ async function createFixture() {
             ttl: number,
           ) => {
             expect(value).toBe(secret);
-            expect(selected).toBe(email);
+            // The account's own current address, renamed or not.
+            expect(selected).toBe(String(user.email));
             expect(updateTo).toBeUndefined();
             expect(ttl).toBe(60);
             const token = await createEmailVerificationToken(
@@ -192,9 +193,13 @@ async function createFixture() {
                     'utf8',
                   ),
                 );
-                expect(pending.phase).toBe('pending');
+                // A fresh attestation journals its address first; an address
+                // migration keeps the previous address's completed journal.
+                expect([
+                  ['pending', user.email],
+                  ['ready', email],
+                ]).toContainEqual([pending.phase, pending.email]);
                 expect(pending.userId).toBe(user.id);
-                expect(pending.email).toBe(email);
                 const result = await auth.api.verifyEmail(args);
                 if (loseResponse) throw new Error(`${password}-response-lost`);
                 return result;
@@ -284,6 +289,65 @@ testPosix(
       expect(f.counts().writes).toBe(0);
       expect(f.user.emailVerified).toBe(false);
       expect(readdirSync(f.root)).toEqual([]);
+    }),
+);
+
+testPosix(
+  'address migration re-attests the renamed account and rebinds the previous address’s completed journal once',
+  async () =>
+    fixture(async (f) => {
+      const first = await f.run();
+      const file = first.receipt.path;
+      const original = JSON.parse(readFileSync(file, 'utf8'));
+      const renamed = 'deploy@example.org';
+      // The address capability moved the account; its new address is unverified.
+      f.user.email = renamed;
+      f.user.emailVerified = false;
+      const counts = f.counts();
+      for (const migrateEmailFrom of [undefined, 'wrong@example.org'])
+        await expect(
+          f.run({ email: renamed, migrateEmailFrom }),
+        ).rejects.toThrow('attestation failed');
+      writeProvisionState(file, { ...original, phase: 'pending' });
+      await expect(
+        f.run({ email: renamed, migrateEmailFrom: email }),
+      ).rejects.toThrow('attestation failed');
+      writeProvisionState(file, original);
+      expect(f.counts().writes).toBe(counts.writes);
+      expect(f.user.emailVerified).toBe(false);
+      // A lost response after the native write resumes without a second one.
+      f.setLoseResponse();
+      await expect(
+        f.run({ email: renamed, migrateEmailFrom: email }),
+      ).rejects.toThrow('attestation failed');
+      expect(f.user.emailVerified).toBe(true);
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(original);
+      const migrated = await f.run({ email: renamed, migrateEmailFrom: email });
+      expect(migrated).toMatchObject({
+        userId: first.userId,
+        email: renamed,
+        emailVerified: true,
+      });
+      expect(f.counts().writes).toBe(counts.writes + 1);
+      expect(f.calls.at(-1)).toMatchObject({
+        update: { emailVerified: true },
+        where: [
+          { field: 'email', value: renamed },
+          { field: 'id', value: f.user.id, connector: 'AND' },
+          { field: 'emailVerified', value: false, connector: 'AND' },
+        ],
+      });
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+        ...original,
+        email: renamed,
+      });
+      // Keeping the declaration after the migration stays harmless.
+      const bytes = readFileSync(file);
+      await f.run({ email: renamed, migrateEmailFrom: email });
+      await f.run({ email: renamed });
+      expect(readFileSync(file)).toEqual(bytes);
+      expect(f.counts().writes).toBe(counts.writes + 1);
+      expect(f.database.session).toHaveLength(f.sessionCount);
     }),
 );
 

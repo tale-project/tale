@@ -73,7 +73,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   // workspace deployment retains its existing version-alignment policy.
   const parentName = actionCommand.parent?.name();
   const commandName =
-    parentName === 'config' || parentName === 'deploy'
+    parentName === 'config' || parentName === 'deploy' || parentName === 'auth'
       ? `${parentName} ${actionCommand.name()}`
       : actionCommand.name() === 'deploy' &&
           actionCommand.opts().bundle !== undefined

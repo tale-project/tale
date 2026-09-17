@@ -104,8 +104,19 @@ function nativeInput(
     ...(identity.migrateOriginFrom
       ? { migrateOriginFrom: identity.migrateOriginFrom }
       : {}),
+    ...(identity.migrateEmailFrom
+      ? { migrateEmailFrom: identity.migrateEmailFrom }
+      : {}),
     ...(identity.emailVerification
       ? { emailVerification: identity.emailVerification }
+      : {}),
+    ...(identity.breakGlass
+      ? {
+          breakGlass: {
+            email: resolveValue(identity.breakGlass.email),
+            passwordHash: resolveValue(identity.breakGlass.passwordHash),
+          },
+        }
       : {}),
     ...(identity.ssoEnabled
       ? {
@@ -325,6 +336,12 @@ async function provisionBackend(
           parsed.data.data.emailVerification.receipt.path !==
             `/app/data/ops/tale-deployments/${bundle.spec.name}/private/email-attestation.json`
         : parsed.data.data.emailVerification !== undefined) ||
+      (input.breakGlass
+        ? !parsed.data.data.breakGlass ||
+          parsed.data.data.breakGlass.email !==
+            input.breakGlass.email.toLowerCase() ||
+          parsed.data.data.breakGlass.userId === parsed.data.data.userId
+        : parsed.data.data.breakGlass !== undefined) ||
       parsed.data.data.configs.length !== bundle.spec.configs.length ||
       parsed.data.data.nativeClients.length !== input.nativeClients.length ||
       parsed.data.data.nativeClients.some((client, index) => {
