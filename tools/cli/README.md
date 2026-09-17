@@ -93,6 +93,12 @@ bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
 
+The managed proxy blocks public account and organization creation. It also serves
+`GET /api/app/organizations/capabilities` with `canCreate: false`, so the app hides
+organization creation and directs users to the operator. Existing deployments need
+a newly prepared and applied runtime bundle to gain this capability response;
+updating the platform image alone does not change their retained proxy policy.
+
 ### Name managed containers
 
 Use `runtime.containerPrefix`, for example `north-desk-prod`, to give every managed

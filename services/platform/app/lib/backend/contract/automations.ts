@@ -121,6 +121,8 @@ export interface AutomationsContract {
       deployedUnpinnedAgentNodes?: string[];
       deployedVersion?: number;
       presentation?: unknown;
+      settings?: unknown;
+      taskContract?: unknown;
       testsPassed?: boolean;
       message?: string;
       name: string;

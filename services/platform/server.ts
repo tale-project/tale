@@ -520,8 +520,9 @@ function buildContentSecurityPolicy(
     // TTS playback streams audio from same-origin `/api/app/tts/audio/…`
     // via `<audio>.src`, so `'self'` is required. Org BYO storage origins
     // are included because `/storage` 302s audio/video attachments to
-    // presigned GETs on the org's endpoint.
-    mediaSrc: ["'self'", ...orgStorageOrigins],
+    // presigned GETs on the org's endpoint. Local attachment metadata probes
+    // and dictation previews read browser-created object URLs.
+    mediaSrc: ["'self'", 'blob:', ...orgStorageOrigins],
   };
 }
 

@@ -3,9 +3,11 @@ import { toast } from '@tale/ui/use-toast';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import {
   CHAT_MAX_FILE_COUNT,
   CHAT_MAX_TOTAL_SIZE,
+  detectMediaMime,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
 
@@ -161,6 +163,172 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('audio upload preflight', () => {
+  it('opens recovery only after rejected media, without presigning or duplicating a toast', async () => {
+    vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+    const onTranscriptionUnavailable = vi.fn();
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: false,
+        transcriptionUnavailableReason: 'NO_TRANSCRIPTION_MODEL',
+        onTranscriptionUnavailable,
+      }),
+    );
+    expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+      ]);
+    });
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'NO_TRANSCRIPTION_MODEL',
+    );
+    expect(generateBlobUpload).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the server refusal for contextual recovery when cached availability was usable', async () => {
+    vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+    const onTranscriptionUnavailable = vi.fn();
+    generateBlobUpload.mockRejectedValueOnce(
+      new BackendApiError(
+        409,
+        'Safe server message',
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      ),
+    );
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: true,
+        onTranscriptionUnavailable,
+      }),
+    );
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+      ]);
+    });
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'TRANSCRIPTION_MODEL_UNAVAILABLE',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(result.current.uploadingFiles).toEqual([]);
+  });
+
+  it('offers recovery instead of rescheduling a known-unavailable attachment', () => {
+    const onTranscriptionUnavailable = vi.fn();
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: false,
+        transcriptionUnavailableReason: 'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        onTranscriptionUnavailable,
+      }),
+    );
+    act(() => result.current.retryAttachmentTranscription('audio-file'));
+    expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+      'TRANSCRIPTION_MODEL_UNAVAILABLE',
+    );
+    expect(saveFileMetadata).not.toHaveBeenCalled();
+  });
+
+  it('explains a server refusal when availability is still unknown and does not transfer bytes', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+    generateBlobUpload.mockRejectedValueOnce(
+      new BackendApiError(
+        409,
+        'Safe server message',
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      ),
+    );
+    const { result } = renderHook(() => useFileUpload(config));
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+      ]);
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(saveFileMetadata).not.toHaveBeenCalled();
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'uploadFailed',
+        description: 'transcription.pinnedUnavailable',
+      }),
+    );
+    expect(result.current.attachments).toEqual([]);
+    expect(result.current.uploadingFiles).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
+  it('rejects audio and video before presigning while uploading an ordinary file in the same batch', async () => {
+    vi.mocked(detectMediaMime)
+      .mockResolvedValueOnce('audio/wav')
+      .mockResolvedValueOnce('video/mp4')
+      .mockResolvedValueOnce(null);
+    const { result } = renderHook(() =>
+      useFileUpload({
+        ...config,
+        transcriptionAvailable: false,
+        transcriptionUnavailableReason: 'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      }),
+    );
+    let upload!: Promise<void>;
+    act(() => {
+      upload = result.current.uploadFiles([
+        makeFile('meeting.wav', 10, 'audio/wav'),
+        makeFile('meeting.mp4', 10, 'video/mp4'),
+        makeFile('notes.txt', 10, 'text/plain'),
+      ]);
+    });
+    await flush();
+    expect(generateBlobUpload).toHaveBeenCalledTimes(1);
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'transcription.uploadBlocked',
+        description: 'transcription.pinnedUnavailable',
+      }),
+    );
+    await act(async () => {
+      resolveAllFetches();
+      await upload;
+    });
+    expect(result.current.attachments.map((file) => file.fileName)).toEqual([
+      'notes.txt',
+    ]);
+  });
+
+  it.each([undefined, true])(
+    'does not call unknown availability missing setup (%s)',
+    async (transcriptionAvailable) => {
+      vi.mocked(detectMediaMime).mockResolvedValueOnce('audio/wav');
+      const { result } = renderHook(() =>
+        useFileUpload({ ...config, transcriptionAvailable }),
+      );
+      let upload!: Promise<void>;
+      act(() => {
+        upload = result.current.uploadFiles([
+          makeFile('meeting.wav', 10, 'audio/wav'),
+        ]);
+      });
+      await flush();
+      expect(generateBlobUpload).toHaveBeenCalledTimes(1);
+      expect(toastMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'transcription.uploadBlocked' }),
+      );
+      await act(async () => {
+        resolveAllFetches();
+        await upload;
+      });
+      expect(result.current.attachments).toHaveLength(1);
+    },
+  );
 });
 
 describe('useFileUpload — concurrent-batch cap & dedup', () => {

@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import {
@@ -32,9 +35,6 @@ mock.module('../docker/ensure-volumes', () => ({
 }));
 mock.module('../docker/exec', () => ({ exec: execMock }));
 mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
-mock.module('../state/with-lock', () => ({
-  withLock: (_dir: string, _cmd: string, fn: () => Promise<unknown>) => fn(),
-}));
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: mock(),
@@ -71,7 +71,7 @@ const env: DeploymentEnv = {
   SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,
   DRAIN_TIMEOUT: 0,
-  DEPLOY_DIR: '/tmp/tale-restore-test',
+  DEPLOY_DIR: '',
 };
 
 /**
@@ -129,6 +129,11 @@ function restoreScripts(): string[] {
   return execMock.mock.calls.map((call) => call[1][call[1].length - 1]);
 }
 
+beforeEach(() => {
+  // Use a real local lock without replacing the shared module for other suites.
+  env.DEPLOY_DIR = mkdtempSync(join(tmpdir(), 'tale-restore-test-'));
+});
+
 afterEach(() => {
   listSnapshotsMock.mockReset();
   resolveSnapshotPrefixMock.mockReset();
@@ -144,6 +149,7 @@ afterEach(() => {
   loggerNoticeMock.mockReset();
   loggerWarnMock.mockReset();
   loggerTableMock.mockReset();
+  rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
 
 describe('restore', () => {

@@ -23,6 +23,11 @@ import {
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
+import { saveAgentFileMetadata } from './agent-file-metadata.ts';
+import {
+  completeAgentRunInTx,
+  type CompleteAgentRunArgs,
+} from './agent-run-completion.ts';
 import {
   failAgentRunFromTurn,
   kickAgentRun,
@@ -125,6 +130,12 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // terminal flip, the provenance entry in its transaction.
       await settleAgentRun(sql, args);
       return null;
+    },
+
+    'tasks/agent_runs:completeTaskAgentRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal host boundary
+      const args = raw as CompleteAgentRunArgs;
+      return transactSerializable(sql, (tx) => completeAgentRunInTx(tx, args));
     },
 
     'tasks/agent_runs:markTaskAgentRunFailed': async (raw) => {
@@ -389,29 +400,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         size: number;
         source?: string;
       };
-      const now = Date.now();
-      // storage_ref is indexed but not unique (multiple logical rows can
-      // reference one blob) — update-then-insert instead of ON CONFLICT.
-      const updated = await sql<{ id: string }[]>`
-        UPDATE app.file_metadata SET
-          file_name = ${args.fileName}, content_type = ${args.contentType},
-          size = ${args.size}, source = ${args.source ?? 'agent'}
-        WHERE storage_ref = ${args.storageId}
-          AND org_id = ${args.organizationId}
-        RETURNING id
-      `;
-      if (updated.length === 0) {
-        await sql`
-          INSERT INTO app.file_metadata (
-            org_id, storage_ref, file_name, content_type, size, source,
-            created_at_ms
-          ) VALUES (
-            ${args.organizationId}, ${args.storageId}, ${args.fileName},
-            ${args.contentType}, ${args.size}, ${args.source ?? 'agent'},
-            ${now}
-          )
-        `;
-      }
+      await saveAgentFileMetadata(sql, args);
       return null;
     },
 

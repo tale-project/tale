@@ -35,7 +35,6 @@ import { automationErrorMessage } from '../lib/errors';
 import { automationListTarget } from '../lib/list-target';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
-import { NewAutomationDialog } from './new-automation-dialog';
 import { UploadAutomationDialog } from './upload-automation-dialog';
 
 interface AutomationListRow {
@@ -77,9 +76,9 @@ export function AutomationsList({
   const ability = useAbility();
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
-  const [createDialog, setCreateDialog] = useState<
-    'builder' | 'blank' | 'upload' | null
-  >(null);
+  const [createDialog, setCreateDialog] = useState<'blank' | 'upload' | null>(
+    null,
+  );
   const automationsQuery = useAutomations(
     organizationId,
     projectId,
@@ -289,11 +288,6 @@ export function AutomationsList({
   const createMenuItems = canAuthor
     ? [
         {
-          label: t('createMenu.fromGoal'),
-          icon: Plus,
-          onClick: () => setCreateDialog('builder'),
-        },
-        {
           label: t('createMenu.blank'),
           icon: Workflow,
           onClick: () => setCreateDialog('blank'),
@@ -308,16 +302,6 @@ export function AutomationsList({
 
   return (
     <>
-      {createDialog === 'builder' && (
-        <NewAutomationDialog
-          organizationId={organizationId}
-          {...(projectId !== undefined && { projectId })}
-          open
-          onOpenChange={(next) => {
-            if (!next) setCreateDialog(null);
-          }}
-        />
-      )}
       {createDialog === 'blank' && (
         <BlankAutomationDialog
           organizationId={organizationId}

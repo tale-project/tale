@@ -1462,6 +1462,7 @@ export async function getErasureRequest(
       requestedAt: number;
       slaDeadlineAt: number;
       effectiveAt: number | null;
+      approvalId: string | null;
       extensionGrantedAt: number | null;
       extensionGrantedBy: string | null;
       extensionReason: string | null;
@@ -1490,7 +1491,13 @@ export async function getErasureRequest(
            cancelled_by AS "cancelledBy",
            cancellation_reason AS "cancellationReason",
            threads_targeted AS "threadsTargeted",
-           counts, error
+           counts, error,
+           (SELECT a.id FROM app.approvals a
+            WHERE a.org_id = app.gdpr_erasure_requests.org_id
+              AND a.resource_type = 'erasure'
+              AND a.resource_id = app.gdpr_erasure_requests.id
+              AND a.status = 'pending'
+            ORDER BY a.created_at_ms DESC LIMIT 1) AS "approvalId"
     FROM app.gdpr_erasure_requests
     WHERE id = ${requestId} AND org_id = ${organizationId}
     LIMIT 1
@@ -1549,6 +1556,7 @@ export async function getErasureRequest(
         ? { completedAt: terminalAt }
         : {}),
     ...(row.effectiveAt !== null ? { effectiveAt: row.effectiveAt } : {}),
+    ...(row.approvalId != null ? { approvalId: row.approvalId } : {}),
     ...(row.extensionGrantedAt !== null
       ? { extensionGrantedAt: row.extensionGrantedAt }
       : {}),

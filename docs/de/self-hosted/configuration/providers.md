@@ -33,6 +33,29 @@ Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `
 
 Lass anschließend einen Organisationsadmin unter [KI-Anbieter](/de/platform/admin/providers) Zugangsdaten hinzufügen, den Katalog aktualisieren und ein bestimmtes Modell für einen kurzen Chat auswählen. Prüfe die abgeschlossene Anfrage im Protokoll des vorgesehenen Inferenzservers. Für Embeddings, Sprache und Werkzeugverkehr musst du die Ziele getrennt prüfen; ein lokaler Chatendpunkt hält sie nicht automatisch lokal.
 
+## Audiotranskription konfigurieren
+
+Die Organisationsrichtlinie liegt unter `TALE_CONFIG_DIR/<org>/governance/transcription-model.yml` und hat den Richtlinientyp `transcription_model`. Die Seite [Modelle](/de/platform/admin/governance/content-models) bearbeitet dieselbe Auswahl. Eine fehlende Datei oder ein leeres Objekt bedeutet automatische Auswahl:
+
+```yaml
+{}
+```
+
+Um ein Modell festzulegen, gib beide Felder an. Dieses Beispiel verwendet das mitgelieferte OpenAI-Whisper-Modell und benötigt weiterhin einen aktiven, nutzbaren Zugang der Organisation:
+
+```yaml
+providerSlug: openai
+modelId: whisper-1
+```
+
+Eine unvollständige Festlegung ist ungültig. Ist das festgelegte Modell nicht verfügbar, wechselt Tale nie zu einem anderen Modell. Stelle den Zugang oder die dafür erlaubten Modelle wieder her oder wechsle ausdrücklich zur automatischen Auswahl. Auch Lese- oder Validierungsfehler der Konfiguration verhindern die serverseitige Transkription. Die Richtlinie gilt für Audio- und Videodateien, Videolinks mit Audiotranskription und Serverdiktate. Die Spracherkennung des Browsers bleibt davon unabhängig.
+
+Mit einem aktiven Standardzugang für OpenRouter findet Tale auch die Modelle zur Spracherkennung unter `/models?output_modalities=transcription`. Dafür gelten derselbe Zugang und dessen erlaubte Modelle. Übernimm beim Festlegen eines Modells die genaue Kennung aus diesem Katalog oder behalte die automatische Auswahl bei. Die Schnittstelle beschreibt [OpenRouters Anleitung zur Spracherkennung](https://openrouter.ai/docs/guides/overview/multimodal/stt).
+
+Für einen eigenen OpenAI-kompatiblen Endpunkt verwende `catalog.source: models-endpoint`. Seine Antwort auf `/models` muss das Audiomodell mit einer genauen `id` und entweder `type: transcription` oder `architecture.output_modalities: [transcription]` ausweisen. Bei einem reinen Transkriptionsmodell darf `context_window` fehlen oder `0` sein; andere Modelle brauchen weiterhin einen positiven Wert. Ein Chatmodell mit Audioeingabe oder ein Sprachsynthesemodell gilt nicht automatisch als Transkriptionsmodell.
+
+Tale sendet die Multipart-Felder `file` und `model` mit Bearer-Authentifizierung an `POST <baseUrl>/audio/transcriptions`. Bei OpenRouter fordert Tale `response_format: json` an, weil einige der dort verfügbaren Modelle `verbose_json` ablehnen. Andere kompatible Endpunkte müssen `response_format: verbose_json` unterstützen. Die JSON-Antwort liefert das Transkript als `text`. Tale verwendet zuerst eine gültige `duration`, ersatzweise eine gültige `usage.seconds`. Ist keiner der Werte nutzbar, verwendet Tale eine lokal gemessene Dauer, soweit verfügbar. Zeitangaben in `segments` können Videozeitstempel liefern; ohne sie bleibt das Transkript reiner Text. Ein Katalogeintrag beweist nicht, dass diese API funktioniert. Aktualisiere den Katalog, wähle das Modell, teste eine kurze Aufnahme und prüfe die Anfrage in den Logs dieses Endpunkts.
+
 ## Modellzugriff aus der Sandbox prüfen
 
 Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbox-llm-gateway`; ein erfolgreicher Chat belegt daher nicht den Agentenpfad. Der Endpunkt muss aus Backend und Gateway auflösbar und erreichbar sein. Beide HTTPS-Clients müssen seinem Zertifikat vertrauen. Auch ein Name wie `https://models.internal/v1` braucht die Freigabe privater Anbieter, wenn DNS ihn zu einer privaten Adresse auflöst. HTTP bleibt auf die vom Anbieterschema akzeptierten Hostformen begrenzt, etwa private IP-Adressen, `localhost` und `.local`.

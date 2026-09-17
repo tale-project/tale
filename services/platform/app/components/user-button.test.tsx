@@ -104,6 +104,11 @@ vi.mock('@/app/hooks/use-session-user', () => ({
 }));
 
 vi.mock('@/app/features/organization/hooks/queries', () => ({
+  useOrganizationCapabilities: () => ({
+    data: { canCreate: true },
+    isLoading: false,
+    isError: false,
+  }),
   useUserOrganizationsWithDetails: () => ({
     organizations: [],
     isLoading: false,

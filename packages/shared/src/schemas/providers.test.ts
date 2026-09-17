@@ -403,6 +403,49 @@ describe('modelCatalogEntrySchema', () => {
     ).toBe(false);
   });
 
+  it.each([undefined, 0])(
+    'accepts a pure transcription model without a token window (%s)',
+    (contextWindow) => {
+      const entry = modelCatalogEntrySchema.parse({
+        id: 'example/asr',
+        provider: 'openrouter',
+        tags: ['transcription'],
+        supportsTools: false,
+        supportsVision: false,
+        contextWindow,
+      });
+      expect(entry.contextWindow).toBe(0);
+    },
+  );
+
+  it.each([
+    { tags: ['chat'] },
+    { tags: ['embedding'] },
+    { tags: ['transcription', 'chat'] },
+    { tags: ['transcription', 'embedding'] },
+    { tags: ['transcription', 'vision'] },
+    { supportsTools: true },
+    { supportsVision: true },
+    { outputsMedia: true },
+  ])(
+    'does not extend the missing/zero-window exception to other capabilities (%j)',
+    (override) => {
+      for (const contextWindow of [undefined, 0]) {
+        expect(
+          modelCatalogEntrySchema.safeParse({
+            id: 'example/model',
+            provider: 'openrouter',
+            tags: ['transcription'],
+            supportsTools: false,
+            supportsVision: false,
+            contextWindow,
+            ...override,
+          }).success,
+        ).toBe(false);
+      }
+    },
+  );
+
   it('rejects negative or partial pricing', () => {
     expect(
       modelCatalogEntrySchema.safeParse({

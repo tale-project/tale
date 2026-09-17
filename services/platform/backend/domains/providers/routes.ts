@@ -22,6 +22,7 @@ import {
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
+import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
@@ -36,7 +37,7 @@ import { readProviderDefinition, saveProviderDefinition } from './config';
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
  * `lib/providers/*` actions): the per-provider model catalogs (live sources
  * read-through), a force refresh, the managed-harness status matrix, and the
- * resolved vision-model pick. Non-secret capability metadata throughout —
+ * resolved vision/transcription picks. Non-secret capability metadata throughout —
  * credential SHAPES and counts, never material. Admin/developer-gated like
  * the credentials pages it sits beside.
  */
@@ -290,6 +291,23 @@ export function createProviderSettingRoutes(deps: {
         subscriptions,
       }),
     });
+  });
+
+  app.get('/transcription-model', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    const shim = createCtxShim({
+      ...knowledgeShimHandlers(deps.sql),
+      ...governanceShimHandlers(deps.sql),
+    });
+    return c.json(
+      await inspectTranscriptionModels(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shared resolver's provider and policy reads are covered by these handlers
+        shim as unknown as Parameters<typeof inspectTranscriptionModels>[0],
+        c.get('orgId'),
+      ),
+    );
   });
 
   app.get('/vision-model', async (c) => {

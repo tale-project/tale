@@ -5,9 +5,11 @@ import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import * as z from 'zod';
 
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -39,6 +41,7 @@ export function TeamEditDialog({
   onOpenChange,
   onSuccess,
 }: TeamEditDialogProps) {
+  const queryClient = useQueryClient();
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
@@ -117,6 +120,9 @@ export function TeamEditDialog({
         if (result.error) {
           throw new Error(result.error.message || 'Failed to update team');
         }
+        await queryClient.invalidateQueries({
+          queryKey: backendEntityPrefix(organizationId, 'team'),
+        });
       }
 
       // Handle member changes

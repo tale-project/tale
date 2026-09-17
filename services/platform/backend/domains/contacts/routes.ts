@@ -3,13 +3,14 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { CONTACT_LOCALE_PATTERN } from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
-  CONTACT_EMAIL_MAX,
   CONTACT_EXTERNAL_ID_MAX,
+  contactEmailSchema,
   contactFieldsShape,
 } from './input-schema.ts';
 import {
@@ -40,6 +41,10 @@ const contactInputSchema = z.object({
     .nullable()
     .optional(),
   source: sourceSchema,
+  locale: contactFieldsShape.locale.refine(
+    (value) => !value || CONTACT_LOCALE_PATTERN.test(value),
+    'invalid contact locale',
+  ),
 });
 
 function handleError<E extends OrgEnv>(
@@ -150,7 +155,7 @@ export function createContactRoutes(deps: {
         contacts: z
           .array(
             contactInputSchema.extend({
-              email: z.string().max(CONTACT_EMAIL_MAX),
+              email: contactEmailSchema,
             }),
           )
           .max(1000),

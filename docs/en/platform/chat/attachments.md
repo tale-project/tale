@@ -19,6 +19,8 @@ Images appear as thumbnails; other files appear as named chips with their proces
 
 Write a question that tells the assistant what to look for, such as “Read the meeting note and list the decisions, their owners, and any missing deadlines.” Attaching a file without a question leaves the intended task unclear.
 
+When you try to attach audio or video, Tale checks whether the organization has an available transcription model. If the check prevents the upload, a dialog explains the problem and offers the recovery actions you can use. Those files are refused before transfer; other supported files in the same selection can still upload. Close the dialog to keep composing, follow the settings action if you have access, or ask an admin to check [Models](/platform/admin/governance/content-models).
+
 ## Understand what the assistant receives
 
 | Attachment | What the model uses | What to check |
@@ -34,7 +36,9 @@ File upload support and text extraction are separate. A file that appears in the
 
 If documents or recordings are still processing when you send, Tale queues the message and sends it after they are ready. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
 
-A supported video link can also become an attachment. Tale retrieves captions or transcribes the audio, then supplies the transcript to the assistant. If that link fails, retry it or remove it before sending.
+Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. Pasting a link remains available without a transcription model because usable captions do not need one. If that link fails, retry it or remove it before sending.
+
+A model change applies to new transcription work; completed attachments keep their existing transcript. Uploading the same bytes again reuses completed work for the same transcription target, but transcribes them again when the target provider or model differs.
 
 ## Keep the file in the right place
 

@@ -55,6 +55,11 @@ const OPENROUTER_CATALOG_URL = 'https://openrouter.ai/api/v1/models';
  * this second listing no embedding model can ever enter the catalog. */
 const OPENROUTER_EMBEDDINGS_CATALOG_URL =
   'https://openrouter.ai/api/v1/models?output_modalities=embeddings';
+/** STT is another separately published population. Keep its cache/failure
+ * state separate so audio discovery outages neither blank chat nor become
+ * a successful chat-only catalog that claims no transcription is configured. */
+const OPENROUTER_TRANSCRIPTION_CATALOG_URL =
+  'https://openrouter.ai/api/v1/models?output_modalities=transcription';
 
 /** Live catalogs refresh at most daily unless a user forces it. */
 export const CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
@@ -112,6 +117,10 @@ export interface CatalogFetchOptions extends LoadSystemConfigOptions {
   readonly forceRefresh?: boolean;
   /** Fetch attempts before giving up (tests dial this down to 1). */
   readonly maxAttempts?: number;
+  /** Require this capability's catalog coverage. OpenRouter can answer STT
+   * independently of chat; a cold STT failure must reach the audio resolver
+   * instead of degrading to unrelated shipped chat defaults. */
+  readonly requiredCapability?: 'transcription';
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -184,7 +193,16 @@ async function fetchLiveCatalog(
     maxAttempts,
     allowedHosts,
   );
-  const { entries, droppedCount } = normalizeCatalogPayload(payload, provider);
+  const normalized = normalizeCatalogPayload(payload, provider);
+  // A filtered response that accidentally returns the ordinary chat
+  // population is not evidence that no audio model exists.
+  const entries =
+    primaryUrl === OPENROUTER_TRANSCRIPTION_CATALOG_URL
+      ? normalized.entries.filter((entry) =>
+          entry.tags.includes('transcription'),
+        )
+      : normalized.entries;
+  const droppedCount = normalized.droppedCount;
   if (droppedCount > 0) {
     console.warn(
       `[catalog] ${provider}: dropped ${droppedCount} unusable listing entr${droppedCount === 1 ? 'y' : 'ies'} (missing id/context window or invalid shape)`,
@@ -271,7 +289,12 @@ async function cachedLiveCatalog(
 ): Promise<readonly ModelCatalogEntry[]> {
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
-  const defaults = loadStaticCatalogs(options).get(providerName);
+  const shipped = loadStaticCatalogs(options).get(providerName);
+  const requiredCapability = options.requiredCapability;
+  const defaults =
+    requiredCapability === undefined
+      ? shipped
+      : shipped?.filter((entry) => entry.tags.includes(requiredCapability));
   const cacheKey = liveCatalogCacheKey(providerName, urls);
   const cached = liveCatalogCache.get(cacheKey);
   const fresh =
@@ -402,12 +425,35 @@ export async function getProviderCatalog(
       }
       return catalog;
     }
-    case 'openrouter-api':
-      return await cachedLiveCatalog(
+    case 'openrouter-api': {
+      const transcription = cachedLiveCatalog(
         provider.name,
-        [OPENROUTER_CATALOG_URL, OPENROUTER_EMBEDDINGS_CATALOG_URL],
-        options,
+        [OPENROUTER_TRANSCRIPTION_CATALOG_URL],
+        { ...options, requiredCapability: 'transcription' },
       );
+      if (options.requiredCapability === 'transcription')
+        return await transcription;
+      // Both refresh even when one fails; the shared cache machinery keeps
+      // each last-good population and records its own short retry back-off.
+      const [primary, speech] = await Promise.allSettled([
+        cachedLiveCatalog(
+          provider.name,
+          [OPENROUTER_CATALOG_URL, OPENROUTER_EMBEDDINGS_CATALOG_URL],
+          options,
+        ),
+        transcription,
+      ]);
+      if (primary.status === 'rejected') throw primary.reason;
+      if (speech.status === 'rejected') {
+        if (options.forceRefresh) throw speech.reason;
+        return primary.value;
+      }
+      const primaryIds = new Set(primary.value.map((entry) => entry.id));
+      return [
+        ...primary.value,
+        ...speech.value.filter((entry) => !primaryIds.has(entry.id)),
+      ];
+    }
     case 'models-endpoint': {
       // The schema refuses a models-endpoint catalog without a fixed
       // baseUrl; this guard keeps the invariant visible at the use site.

@@ -36,6 +36,27 @@ function renderLastScannedCell(website: Partial<WebsiteDoc>) {
 }
 
 describe('useWebsitesTableConfig — column layout', () => {
+  it.each([
+    [1, 1, '0'],
+    [4, 2, '2'],
+    [undefined, undefined, '0'],
+  ])(
+    'excludes failed attempts from Indexed (%s attempted, %s failed)',
+    (crawledPageCount, failedPageCount, expected) => {
+      const { result } = renderHook(() => useWebsitesTableConfig(), {
+        wrapper: Providers,
+      });
+      const column = result.current.columns.find((c) => c.id === 'indexed');
+      const cell = column?.cell as CellRenderer;
+      render(
+        <Providers>
+          {cell({ row: { original: { crawledPageCount, failedPageCount } } })}
+        </Providers>,
+      );
+      expect(screen.getByText(expected)).toBeInTheDocument();
+    },
+  );
+
   it('lets the domain column soak leftover width so date cells stay under their headers', () => {
     const { result } = renderHook(() => useWebsitesTableConfig(), {
       wrapper: Providers,

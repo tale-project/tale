@@ -139,7 +139,11 @@ export function AutomationSettingsDialog({
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // FormDialog calls this only after its discard guard accepts closing.
+        if (!next) editor.discard();
+        onOpenChange(next);
+      }}
       title={t('settings.dialogTitle', { name: automationName })}
       submitText={t('settings.save')}
       isSubmitting={editor.saving}

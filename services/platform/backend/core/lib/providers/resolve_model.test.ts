@@ -37,13 +37,14 @@ function connectors(...defs: Array<{ name: string; models: string[] }>) {
     async (c) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fake connector carries its model ids
       (c as unknown as { catalog: { models: string[] } }).catalog.models.map(
-        (id) => ({ id, provider: c.name }),
+        (id) => ({ id, provider: c.name, tags: ['chat'] }),
       ) as never,
   );
 }
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- no ctx facility is reached with file-backed catalogs
-const ctx = { runQuery: vi.fn() } as never;
+const runQuery = vi.fn();
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is reached for catalog-less providers
+const ctx = { runQuery } as never;
 
 describe('resolveModel', () => {
   it('as a hint, falls back to the other connector serving the id', async () => {
@@ -89,6 +90,59 @@ describe('resolveModel', () => {
     connectors({ name: 'other', models: [] });
     await expect(resolveModel(ctx, 'org-1', 'm')).rejects.toMatchObject({
       data: { code: 'CHAT_MODEL_UNKNOWN' },
+    });
+  });
+
+  it.each([0, 4096])(
+    'refuses a transcription-only model with context window %s in both explicit chat paths',
+    async (contextWindow) => {
+      connectors({ name: 'openrouter', models: ['deepgram/nova-3'] });
+      vi.mocked(getServableCatalog).mockResolvedValue([
+        {
+          id: 'deepgram/nova-3',
+          provider: 'openrouter',
+          tags: ['transcription'],
+          supportsTools: false,
+          supportsVision: false,
+          contextWindow,
+        },
+      ]);
+      await expect(
+        resolveModel(ctx, 'org-1', 'deepgram/nova-3', 'openrouter', true),
+      ).rejects.toMatchObject({ data: { code: 'CHAT_PROVIDER_UNAVAILABLE' } });
+      await expect(
+        resolveModel(ctx, 'org-1', 'deepgram/nova-3'),
+      ).rejects.toMatchObject({ data: { code: 'CHAT_MODEL_UNKNOWN' } });
+    },
+  );
+
+  it('keeps serving chat deployment names from a catalog-less credential', async () => {
+    const actual =
+      await vi.importActual<typeof import('./servable_catalog')>(
+        './servable_catalog',
+      );
+    vi.mocked(resolveProvidersForOrgId).mockResolvedValue([
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only name/catalog.source are needed by the allowlist catalog
+      { name: 'azure', catalog: { source: 'none' } } as never,
+    ]);
+    vi.mocked(getServableCatalog).mockImplementation(actual.getServableCatalog);
+    runQuery.mockResolvedValue({
+      status: 'active',
+      authMethod: 'env',
+      modelAllowlist: ['local-deployment'],
+    });
+
+    const resolved = await resolveModel(
+      ctx,
+      'org-1',
+      'local-deployment',
+      'azure',
+      true,
+    );
+    expect(resolved.entry).toMatchObject({
+      id: 'local-deployment',
+      tags: ['chat'],
+      contextWindow: 128_000,
     });
   });
 });

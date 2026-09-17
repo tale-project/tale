@@ -65,6 +65,8 @@ Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurück
 
 ## Alte Chats archivieren oder abmelden
 
-Unter **Einstellungen > Konto** kannst du im Bereich deiner Chats mehrere Gespräche gemeinsam archivieren oder löschen. Lies die Bestätigung vor einer Sammelaktion sorgfältig: Sie betrifft deine Chat-Historie. Verwende das Menü eines einzelnen Chats, wenn du nur dieses Gespräch ordnen möchtest.
+Unter **Einstellungen > Konto > Deine Chats** findest du **Alle Chats archivieren** und **Alle Chats löschen** für deine eigenen Chats in der aktuellen Organisation, einschließlich Projekt-Chats. Archiviert werden nur noch nicht archivierte Chats. Das Löschen schließt archivierte Chats ein und verschiebt sie in den Papierkorb, wo du sie innerhalb der Aufbewahrungsfrist wiederherstellen kannst. Chats unter rechtlicher Aufbewahrung bleiben unverändert; Chats mit einer laufenden Antwort können nicht gelöscht werden.
+
+Lies die Bestätigung, bevor du fortfährst. Das Ergebnis zeigt, wie viele Chats geändert wurden und wie viele nicht geändert werden konnten. Verwende das Menü eines einzelnen Chats, wenn du nur dieses Gespräch ordnen möchtest.
 
 **Abmelden** im Profilmenü beendet die aktuelle Sitzung und führt zur Anmeldung zurück. Melde dich auf gemeinsam genutzten Geräten nach der Arbeit ab. Für ein eigenes App-Fenster auf deinem Gerät lies [Als App installieren](/de/platform/member/install-as-app).

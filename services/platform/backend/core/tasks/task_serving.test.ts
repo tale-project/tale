@@ -131,7 +131,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
   resolveConnectors.mockResolvedValue([ANTHROPIC, OPENROUTER, ZAI]);
-  getProviderCatalog.mockResolvedValue([{ id: 'claude-sonnet-4-6' }]);
+  getProviderCatalog.mockResolvedValue([
+    { id: 'claude-sonnet-4-6', tags: ['chat'] },
+  ]);
   loadHarnesses.mockReturnValue([
     harness('claude-code', { managed: true, byo: true }, true),
     harness('codex', { managed: true, byo: true }, false),
@@ -251,7 +253,7 @@ describe('resolveTaskServing — subscription lane', () => {
     credentials = {
       'z-ai': { status: 'active', authMethod: 'subscription-key' },
     };
-    getProviderCatalog.mockResolvedValue([{ id: 'glm-5' }]);
+    getProviderCatalog.mockResolvedValue([{ id: 'glm-5', tags: ['chat'] }]);
 
     const serving = await resolveTaskServing(ctx, {
       organizationId: ORG,
@@ -313,7 +315,9 @@ describe('resolveTaskServing — subscription lane', () => {
 
   it('throws when the pinned catalog does not list the model', async () => {
     credentials = { anthropic: BROKER };
-    getProviderCatalog.mockResolvedValue([{ id: 'claude-haiku-4-5' }]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-haiku-4-5', tags: ['chat'] },
+    ]);
 
     await expect(
       resolveTaskServing(ctx, {

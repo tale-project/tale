@@ -19,6 +19,8 @@ Bilder erscheinen als Vorschaubilder, andere Dateien als benannte Chips mit Vera
 
 Formuliere, wonach der Assistent suchen soll, etwa: „Lies die Gesprächsnotiz und liste Entscheidungen, Verantwortliche und fehlende Fristen auf.“ Eine Datei allein erklärt noch nicht, was du damit vorhast.
 
+Wenn du Audio oder Video anhängen möchtest, prüft Tale, ob die Organisation ein verfügbares Transkriptionsmodell hat. Verhindert die Prüfung den Upload, erklärt ein Dialog das Problem und zeigt die für dich verfügbaren Schritte zur Behebung. Diese Dateien werden vor der Übertragung abgewiesen; andere unterstützte Dateien aus derselben Auswahl lassen sich weiterhin hochladen. Schließe den Dialog, um weiterzuschreiben, öffne den Einstellungslink, wenn du Zugriff hast, oder bitte einen Admin, die [Modelle](/de/platform/admin/governance/content-models) zu prüfen.
+
 ## Verstehen, was beim Modell ankommt
 
 | Anhang | Verwendeter Inhalt | Darauf achten |
@@ -34,7 +36,9 @@ Unterstützter Upload und Textextraktion sind zwei verschiedene Dinge. Eine sich
 
 Sind Dokumente oder Aufnahmen beim Senden noch in Verarbeitung, stellt Tale die Nachricht zurück und sendet sie, sobald die Dateien bereit sind. Die wartende Nachricht erscheint über dem Eingabefeld. Brich sie dort ab, wenn du die Frage ändern möchtest; ihr Text kehrt ins Feld zurück.
 
-Auch ein unterstützter Videolink kann zum Anhang werden. Tale lädt Untertitel oder transkribiert die Audiospur und stellt dem Assistenten den Text bereit. Schlägt der Link fehl, versuche es erneut oder entferne ihn vor dem Senden.
+Füge einen kopierten, unterstützten Videolink in das Nachrichtenfeld ein, um einen Anhang zu erstellen. Eine von Hand eingegebene URL bleibt gewöhnlicher Nachrichtentext. Tale lädt zuerst Untertitel. Sind keine verfügbar, transkribiert es die Audiospur und stellt dem Assistenten den Text bereit. Das Einfügen eines Links bleibt auch ohne Transkriptionsmodell möglich, da nutzbare Untertitel kein solches Modell benötigen. Schlägt der Link fehl, versuche es erneut oder entferne ihn vor dem Senden.
+
+Ein Modellwechsel gilt für neue Transkriptionen; bereits verarbeitete Anhänge behalten ihr vorhandenes Transkript. Lädst du dieselben Bytes erneut hoch, wird die fertige Transkription für dasselbe Ziel wiederverwendet. Bei einem anderen Zielanbieter oder Zielmodell wird die Aufnahme erneut transkribiert.
 
 ## Den richtigen Ablageort wählen
 

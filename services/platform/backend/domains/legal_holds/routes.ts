@@ -32,7 +32,10 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof LegalHoldError) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    return c.json(
+      { error: error.code, message: error.message, data: error.data },
+      error.status,
+    );
   }
   throw error;
 }

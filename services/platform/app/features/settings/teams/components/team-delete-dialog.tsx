@@ -2,8 +2,10 @@
 
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { toast } from '@tale/ui/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -24,6 +26,7 @@ export function TeamDeleteDialog({
   organizationId,
   onSuccess,
 }: TeamDeleteDialogProps) {
+  const queryClient = useQueryClient();
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -40,6 +43,9 @@ export function TeamDeleteDialog({
       if (result.error) {
         throw new Error(result.error.message || 'Failed to delete team');
       }
+      await queryClient.invalidateQueries({
+        queryKey: backendEntityPrefix(organizationId, 'team'),
+      });
 
       toast({
         title: tSettings('teams.teamDeleted'),

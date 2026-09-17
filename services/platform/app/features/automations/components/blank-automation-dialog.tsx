@@ -7,8 +7,7 @@
  * connectors, platform tools, and secrets); step 2 sets when it runs (the
  * trigger). On finish it scaffolds a one-agent automation with that equipment,
  * sets the trigger, and lands on the detail page for any further refinement.
- * The counterpart to the AI builder: guided decisions up front instead of a
- * full editor at once.
+ * Guided decisions come before the full canvas editor.
  */
 
 import { Alert } from '@tale/ui/alert';

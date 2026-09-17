@@ -9,11 +9,10 @@
  *
  *  - the automation engine's dispatch table — author, validate, test, save,
  *    deploy, run, and then manage what was persisted (runs, versions,
- *    triggers) — through the `'use node'` internal action
- *    (`run_session.dispatchEngineMethod`), which assembles the engine host and
- *    drives `dispatch()` against the org's automation store, live execution
- *    enabled. An MCP call is exactly a builder-session call, never a second
- *    implementation;
+ *    triggers) — through the internal engine-dispatch bridge, which assembles
+ *    the shared automation authoring host and drives `dispatch()` against the
+ *    org's automation store with live execution enabled. This is the same
+ *    authoring/validation host used by the app's editor;
  *  - the organization's capability surface — search it, invoke one, retrieve
  *    knowledge — through `chat.capabilities_action.dispatchCapabilityAs`, the
  *    same registry and dispatcher a chat turn uses.
@@ -92,7 +91,7 @@ const TEST_TOOL = 'test_automation';
  * Tools that persist or rebind an automation. Their in-app equivalents sit
  * behind the developer capability, so an API key meets the same bar here at
  * the endpoint; the engine's own store deliberately leaves save/deploy
- * unchecked because a builder session proves the capability when it starts.
+ * unchecked because each authoring door proves the capability before dispatch.
  */
 const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
   'save_automation',

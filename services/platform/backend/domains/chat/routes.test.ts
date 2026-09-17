@@ -19,6 +19,7 @@ const {
   deleteMemory,
   cancelDeferredSendsForThread,
   emitHintInTx,
+  bulkUpdateThreads,
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
   listArchivedThreads: vi.fn(),
@@ -27,7 +28,10 @@ const {
   deleteMemory: vi.fn(),
   cancelDeferredSendsForThread: vi.fn(),
   emitHintInTx: vi.fn(),
+  bulkUpdateThreads: vi.fn(),
 }));
+
+vi.mock('./bulk.ts', () => ({ bulkUpdateThreads }));
 
 vi.mock('./threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./threads.ts')>()),
@@ -85,6 +89,42 @@ beforeEach(() => {
   vi.clearAllMocks();
   emitHintInTx.mockResolvedValue(undefined);
   cancelDeferredSendsForThread.mockResolvedValue(0);
+});
+
+describe('POST /threads/bulk', () => {
+  it('binds the bulk operation to the authenticated owner and organization', async () => {
+    bulkUpdateThreads.mockResolvedValue({ changedIds: [], failed: 2 });
+    const res = await makeApp().request('/threads/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'trash',
+        userId: 'foreign-user',
+        organizationId: 'foreign-org',
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ changed: 0, failed: 2 });
+    expect(bulkUpdateThreads).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'o1',
+        userId: 'u1',
+        email: 'u@example.test',
+      },
+      'trash',
+    );
+  });
+
+  it('rejects unknown operations without invoking the domain', async () => {
+    const res = await makeApp().request('/threads/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operation: 'permanent-delete' }),
+    });
+    expect(res.status).toBe(400);
+    expect(bulkUpdateThreads).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /threads/:threadId/trash', () => {

@@ -2,6 +2,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
+
 const mockTranscribeDictation = vi.fn();
 
 // Stub the live Convex client (the chat-seam pattern: `useConvex()` degrades
@@ -404,6 +406,141 @@ describe('useMediaRecorderDictation', () => {
   });
 
   describe('failed-recording retry (in-browser, no re-record)', () => {
+    it('reports a recording refusal to the scope where capture began', async () => {
+      mockTranscribeDictation.mockRejectedValueOnce(
+        new BackendApiError(
+          409,
+          'Safe server message',
+          'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        ),
+      );
+      const previousScope = vi.fn();
+      const nextScope = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ organizationId, onTranscriptionUnavailable }) =>
+          useMediaRecorderDictation({
+            organizationId,
+            onTranscript: vi.fn(),
+            onTranscriptionUnavailable,
+          }),
+        {
+          initialProps: {
+            organizationId: ORG_ID,
+            onTranscriptionUnavailable: previousScope,
+          },
+        },
+      );
+      await act(async () => result.current.startListening());
+      const recorder = latestRecorder();
+      rerender({
+        organizationId: 'org_next',
+        onTranscriptionUnavailable: nextScope,
+      });
+      await act(async () => {
+        recorder._fireEvent('dataavailable', {
+          data: new Blob([new Uint8Array([9, 8, 7])]),
+        });
+        recorder._fireEvent('stop');
+      });
+      await waitFor(() =>
+        expect(previousScope).toHaveBeenCalledExactlyOnceWith(
+          'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        ),
+      );
+      expect(mockTranscribeDictation).toHaveBeenCalledOnce();
+      expect(mockTranscribeDictation.mock.calls[0][0].organizationId).toBe(
+        ORG_ID,
+      );
+      expect(nextScope).not.toHaveBeenCalled();
+    });
+
+    it('reports a late refusal to the callback that started the request, not a new conversation', async () => {
+      let refuse!: (error: Error) => void;
+      mockTranscribeDictation.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            refuse = reject;
+          }),
+      );
+      const previousScope = vi.fn();
+      const nextScope = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ onTranscriptionUnavailable }) =>
+          useMediaRecorderDictation({
+            organizationId: ORG_ID,
+            onTranscript: vi.fn(),
+            onTranscriptionUnavailable,
+          }),
+        { initialProps: { onTranscriptionUnavailable: previousScope } },
+      );
+      await act(async () => result.current.startListening());
+      const recorder = latestRecorder();
+      await act(async () => {
+        recorder._fireEvent('dataavailable', {
+          data: new Blob([new Uint8Array([9, 8, 7])]),
+        });
+        recorder._fireEvent('stop');
+      });
+      await waitFor(() =>
+        expect(mockTranscribeDictation).toHaveBeenCalledOnce(),
+      );
+      rerender({ onTranscriptionUnavailable: nextScope });
+      await act(async () =>
+        refuse(
+          new BackendApiError(
+            409,
+            'Safe server message',
+            'TRANSCRIPTION_MODEL_UNAVAILABLE',
+          ),
+        ),
+      );
+      expect(previousScope).toHaveBeenCalledExactlyOnceWith(
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      );
+      expect(nextScope).not.toHaveBeenCalled();
+    });
+
+    it('opens recovery for a typed model refusal and retains the recording for retry', async () => {
+      mockTranscribeDictation.mockRejectedValueOnce(
+        new BackendApiError(
+          409,
+          'Safe server message',
+          'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        ),
+      );
+      const onTranscriptionUnavailable = vi.fn();
+      const onTranscript = vi.fn();
+      const { result } = renderHook(() =>
+        useMediaRecorderDictation({
+          organizationId: ORG_ID,
+          onTranscript,
+          onTranscriptionUnavailable,
+        }),
+      );
+      expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+      await act(async () => result.current.startListening());
+      const recorder = latestRecorder();
+      await act(async () => {
+        recorder._fireEvent('dataavailable', {
+          data: new Blob([new Uint8Array([9, 8, 7])]),
+        });
+        recorder._fireEvent('stop');
+      });
+      await waitFor(() =>
+        expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+          'TRANSCRIPTION_MODEL_UNAVAILABLE',
+        ),
+      );
+      expect(result.current.hasFailedRecording).toBe(true);
+      mockTranscribeDictation.mockResolvedValueOnce({ text: 'Recovered' });
+      await act(async () => result.current.retryTranscription());
+      await waitFor(() =>
+        expect(onTranscript).toHaveBeenCalledWith('Recovered'),
+      );
+      expect(mockGetUserMedia).toHaveBeenCalledOnce();
+      expect(result.current.hasFailedRecording).toBe(false);
+    });
+
     async function failOnce(onTranscript: (t: string) => void) {
       mockTranscribeDictation.mockRejectedValueOnce(
         new Error('NO_TRANSCRIPTION_MODEL'),

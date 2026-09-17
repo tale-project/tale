@@ -33,6 +33,29 @@ This uses an OpenAI-compatible chat API and discovers models from `/v1/models`. 
 
 Then have an organization admin add a credential through [AI providers](/platform/admin/providers), refresh the catalog and select a specific model for a short chat. Verify the completed request in the intended inference server’s logs. Embeddings, speech and tool traffic require their own routing review; a local chat endpoint does not make them local.
 
+## Configure audio transcription
+
+The organization policy lives at `TALE_CONFIG_DIR/<org>/governance/transcription-model.yml`, with policy type `transcription_model`. The [Models page](/platform/admin/governance/content-models) edits the same selection. An absent file or an empty object means automatic selection:
+
+```yaml
+{}
+```
+
+To pin a model, supply both fields. This example uses the shipped OpenAI Whisper model and still requires an active, usable organization credential:
+
+```yaml
+providerSlug: openai
+modelId: whisper-1
+```
+
+A partial pin is invalid. An unavailable pin never falls back to another model; restore its credential or the credential’s allowed models, or explicitly return to automatic selection. A configuration read or validation failure also refuses server transcription. The policy covers audio/video file transcription, video-link audio fallback and server dictation. Browser speech recognition remains independent.
+
+With an active default credential for OpenRouter, Tale also discovers dedicated speech-to-text models from `/models?output_modalities=transcription`. The same credential and its allowed models apply. Use the exact identifier from that catalog when pinning a model, or keep automatic selection. See [OpenRouter’s speech-to-text guide](https://openrouter.ai/docs/guides/overview/multimodal/stt) for the provider’s endpoint contract.
+
+For a custom OpenAI-compatible endpoint, use `catalog.source: models-endpoint` and have its `/models` response declare the audio model with an exact `id` and either `type: transcription` or `architecture.output_modalities: [transcription]`. A pure transcription model may omit `context_window` or report `0`; other models still require a positive value. An audio-input chat model or a text-to-speech model is not automatically a transcription candidate.
+
+Tale sends bearer-authenticated multipart `file` and `model` fields to `POST <baseUrl>/audio/transcriptions`. For OpenRouter it requests `response_format: json`, because some of its models reject `verbose_json`. Other compatible endpoints must accept `response_format: verbose_json`. The JSON response provides the transcript as `text`. Tale prefers a valid `duration` and falls back to valid `usage.seconds`. When neither is usable, it uses a local duration measurement where available. Timestamped `segments` can supply video timestamps; without them, the transcript remains plain text. Listing the model does not prove this API works. Refresh the catalog, select the model, then test a short recording and verify the request in that endpoint’s logs.
+
 ## Verify sandbox model access
 
 Chat calls a provider from the backend. Coding-agent sessions use `sandbox-llm-gateway`, so a successful chat does not prove the agent path. Make the endpoint resolvable and reachable from both the backend and the gateway; each HTTPS client must trust its certificate. A hostname such as `https://models.internal/v1` still needs the private-provider opt-in when DNS resolves it to a private address. Plain HTTP remains limited to hostname forms accepted by the provider schema, such as private IP literals, `localhost` and `.local`.

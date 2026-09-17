@@ -10,6 +10,7 @@ import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 
 import { WebsiteRowActions } from '../components/website-row-actions';
+import { indexedPageCount } from '../lib/indexed-page-count';
 import { isScanPaused } from '../lib/scan-paused';
 
 const statusVariant = {
@@ -101,7 +102,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       meta: { headerLabel: tEntity('indexed'), align: 'right' },
       cell: ({ row }) => (
         <Text as="span" variant="caption" className="block w-full text-right">
-          {row.original.crawledPageCount ?? 0}
+          {indexedPageCount(row.original)}
         </Text>
       ),
     },

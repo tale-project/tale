@@ -20,15 +20,18 @@ type Db = Sql | TransactionSql;
 export class LegalHoldError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  readonly data?: Record<string, unknown>;
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'LegalHoldError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -408,6 +411,7 @@ export async function approveLegalHoldRelease(
           'APPROVAL_TOO_SOON',
           `Approval requires at least ${RELEASE_APPROVAL_MIN_DELAY_MS / 60_000} min after the request.`,
           409,
+          { remainingMs: RELEASE_APPROVAL_MIN_DELAY_MS - elapsed },
         );
       }
       // Re-check the requester is STILL an admin — a demoted requester

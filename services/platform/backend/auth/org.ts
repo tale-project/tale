@@ -99,7 +99,10 @@ export function requireOrgMember<E extends OrgEnv>(
       }
     } catch (error) {
       if (error instanceof MembershipError) {
-        return c.json({ error: error.message }, membershipStatus(error));
+        return c.json(
+          { error: error.code, message: error.message },
+          membershipStatus(error),
+        );
       }
       throw error;
     }

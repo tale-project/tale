@@ -176,37 +176,43 @@ describe('AutomationsList presentation', () => {
 });
 
 describe('AutomationsList create menu', () => {
-  it('offers the create lanes from the toolbar button when the list is empty', async () => {
-    automationsData = [];
-    const { user } = render(<AutomationsList organizationId="org-1" />);
+  it.each([undefined, 'proj_1'])(
+    'offers only blank and upload from the toolbar for project %s',
+    async (projectId) => {
+      automationsData = [];
+      const { user } = render(
+        <AutomationsList
+          organizationId="org-1"
+          {...(projectId ? { projectId } : {})}
+        />,
+      );
 
-    expect(
-      screen.getByText('automations.list.empty.title'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('automations.list.empty.description'),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { level: 2, name: 'automations.title' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('automations.list.description'),
-    ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('automations.list.empty.title'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('automations.list.empty.description'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { level: 2, name: 'automations.title' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('automations.list.description'),
+      ).not.toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole('button', { name: 'automations.list.createButton' }),
-    );
+      await user.click(
+        screen.getByRole('button', { name: 'automations.list.createButton' }),
+      );
 
-    expect(
-      screen.getByRole('menuitem', { name: 'automations.createMenu.fromGoal' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: 'automations.createMenu.blank' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: 'automations.upload.trigger' }),
-    ).toBeInTheDocument();
-  });
+      expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+      expect(
+        screen.getByRole('menuitem', { name: 'automations.createMenu.blank' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: 'automations.upload.trigger' }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('keeps create in the table toolbar when rows exist', () => {
     automationsData = [

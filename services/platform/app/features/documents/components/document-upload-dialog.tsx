@@ -9,7 +9,13 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { toast } from '@tale/ui/use-toast';
 import { RotateCw, Upload } from 'lucide-react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import {
+  type RefObject,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -41,6 +47,7 @@ import { UploadFileRow } from './upload-file-row';
 interface DocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   organizationId: string;
   folderId?: string;
   onSuccess?: () => void;
@@ -53,6 +60,7 @@ interface DocumentUploadDialogProps {
 export function DocumentUploadDialog({
   open,
   onOpenChange,
+  restoreFocusRef,
   organizationId,
   folderId,
   onSuccess,
@@ -227,6 +235,7 @@ export function DocumentUploadDialog({
 
   return (
     <Dialog
+      restoreFocusRef={restoreFocusRef}
       open={open}
       onOpenChange={handleOpenChange}
       title={tDocuments('upload.importDocuments')}

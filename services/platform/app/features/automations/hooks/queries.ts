@@ -1,4 +1,3 @@
-import { providerCatalogsQueryKey } from '@/app/features/settings/providers/hooks/queries';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
@@ -146,35 +145,5 @@ export function useNodeTypeCatalog(organizationId: string) {
     ['automations', 'node-types', organizationId],
     listNodeTypesRef,
     { organizationId },
-  );
-}
-
-/** The provider connectors with their model catalogs — the builder dialog's
- * pick list. Developer-gated like the builder itself, and loaded only while
- * the dialog is open: a live catalog read can fan out to provider APIs. Shares
- * the providers page's cache entry, so a catalog refresh there reaches the
- * dialog too. */
-export function useBuilderModelCatalog(
-  organizationId: string,
-  enabled: boolean,
-) {
-  return useActionQuery(
-    providerCatalogsQueryKey(organizationId),
-    'lib/providers/catalog_actions:listProviderCatalogs',
-    { organizationId },
-    { enabled },
-  );
-}
-
-/** The organization's provider credentials (masked). The dialog offers only
- * providers that hold an `api-key`/`env` credential — the two kinds a direct
- * builder model call may use. */
-export function useBuilderCredentials(
-  organizationId: string,
-  enabled: boolean,
-) {
-  return useBackendQuery(
-    'provider_credentials/queries:listCredentials',
-    enabled ? { organizationId } : 'skip',
   );
 }

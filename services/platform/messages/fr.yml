@@ -539,9 +539,8 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description: Décris ce que tu veux automatiser, ou importe un fichier de workflow.
+      description: Crée un agent avec un déclencheur ou importe un paquet de workflow.
   createMenu:
-    fromGoal: À partir d’un objectif
     blank: Vierge (trigger + agent)
   blank:
     title: Nouvelle automatisation
@@ -570,28 +569,6 @@ automations:
     submit: Créer l'automatisation
     submitting: Création…
     initialMessage: Première version
-  builder:
-    title: Nouvelle automatisation
-    description: Décris l'objectif que tu veux que cette automatisation atteigne.
-    goalLabel: Objectif
-    goalPlaceholder:
-      p. ex. Chaque matin, lis les derniers e-mails du support et écris un
-      résumé de ce qui attend une réponse aujourd’hui.
-    providerLabel: Fournisseur d’IA
-    providerPlaceholder: Choisir un fournisseur
-    modelLabel: Modèle
-    modelPlaceholder: Choisir un modèle
-    submit: Générer l'automatisation
-    submitting: Construction…
-    running:
-      Le builder travaille — ça peut prendre quelques minutes. Les versions
-      enregistrées apparaissent dans la liste au fur et à mesure.
-    gaveUpNoReason: Le builder s’est arrêté sans automatisation terminée.
-    outcomeFailedTitle: Impossible de générer l'automatisation
-    outcomeGaveUpTitle: Builder arrêté prématurément
-    noProviders:
-      Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
-      clé API dans Paramètres → Fournisseurs d’IA.
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -623,6 +600,7 @@ automations:
       label: Données de l’exécution (JSON)
       description: 'Données pour la version enregistrée {version}. Elles ne modifient pas l’automatisation.'
       schema: Schéma des données
+      invalidJson: Saisis les données de l’exécution au format JSON valide.
       invalid: 'Les données ne respectent pas le schéma. Vérifie ces champs : {paths}.'
       mockDescription: Teste la version enregistrée avec des réponses simulées. Aucune action externe n’est exécutée.
     runScope:
@@ -1139,6 +1117,14 @@ chat:
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
     retry: Réessayer
+    noModel: Aucun modèle compatible n'est disponible pour transcrire les fichiers audio.
+    pinnedUnavailable: Le modèle de transcription audio sélectionné n'est pas disponible.
+    policyInvalid: Le paramètre du modèle de transcription audio est invalide.
+    temporarilyUnavailable: La disponibilité de la transcription audio n'a pas pu être vérifiée. Réessaie dans un instant.
+    askAdmin: Demande à un admin de vérifier les paramètres de transcription.
+    configureProviders: Configurer les fournisseurs d'IA
+    configureModel: Vérifier le modèle de transcription
+    uploadBlocked: 'Audio/vidéo non importé : {names}.'
   indexing: Indexation en cours…
   indexingFailed: Échec de l'indexation
   indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
@@ -1293,7 +1279,6 @@ chat:
     stop: Arrêter la dictée
     level: Niveau du microphone
     notSupported: La reconnaissance vocale n'est pas prise en charge par ce navigateur
-    notConfigured: Dictée indisponible — demande à une personne admin d'ajouter un modèle de transcription
     transcribing: Transcription…
     transcriptionFailedShort: Échec de la transcription
     retry: Réessayer
@@ -1501,9 +1486,6 @@ chat:
   budgetViewUsage: Voir l'utilisation
 common:
   or: ou
-  select:
-    noProvidersHint: Ajoute d'abord un fournisseur IA.
-    pickProviderFirstHint: Choisis d'abord un fournisseur — ses modèles apparaissent ici.
   units:
     stock: '{count, plural, one {# unité} other {# unités}}'
   actions:
@@ -2482,6 +2464,7 @@ onboarding:
     createError:
       Impossible de créer ton espace de travail. Vérifie ta connexion et
       clique de nouveau sur « Suivant ».
+    creationForbidden: Tu ne peux pas créer d'organisation sur ce déploiement. Contacte l'opérateur pour demander un espace de travail.
     nameTakenError: Ce nom est déjà pris. Choisis-en un autre.
   provider:
     heading: Connecter OpenRouter
@@ -2675,6 +2658,52 @@ governance:
     searchModels: Rechercher des modèles
     noModelsFound: Aucun modèle capable de lire les images
     saveFailed: Échec de l'enregistrement du modèle pour les images
+  transcriptionModel:
+    title: Modèle de transcription audio
+    description:
+      Ce modèle transcrit les pièces jointes audio et vidéo. Il prend aussi
+      en charge la saisie vocale quand la reconnaissance vocale du navigateur
+      est indisponible. La reconnaissance vocale du navigateur utilise son
+      propre modèle.
+    label: Modèle qui transcrit l'audio
+    labelHint:
+      Automatique choisit un modèle disponible. Un modèle fixé reste
+      sélectionné jusqu'à ce que tu le changes, même s'il devient indisponible.
+    automaticLabel: Automatique
+    automaticHint: Tale choisit parmi les modèles de transcription audio disponibles.
+    currentModel: "L'audio est actuellement transcrit par {model}."
+    draftHint: Enregistre pour appliquer cette sélection.
+    noAvailable:
+      Aucun modèle de transcription audio n'est disponible. Ajoute ou active
+      un accès compatible dans Fournisseurs IA, puis vérifie les modèles
+      autorisés pour cet accès.
+    unavailable:
+      Le modèle enregistré est indisponible. Choisis un autre modèle ou
+      Automatique, ou vérifie son accès fournisseur et les modèles qu'il autorise.
+      Tale ne passera pas à un autre modèle tant que cette sélection est
+      enregistrée.
+    invalidPolicy:
+      La configuration enregistrée du modèle audio est invalide. Choisis un
+      modèle ou Automatique et enregistre pour la corriger.
+    policyUnavailable:
+      La configuration enregistrée du modèle audio n'a pas pu être lue.
+      Réessaie avant de la modifier. Tale ne peut pas supposer le mode
+      Automatique tant que la configuration est inaccessible.
+    resolutionFailed:
+      Tale n'a pas pu vérifier le modèle de transcription audio. Vérifie la
+      connexion au fournisseur et réessaie.
+    loadFailed: Impossible de charger les réglages du modèle audio. Réessaie de les charger.
+    invalidSelection: Configuration enregistrée invalide
+    unknownSelection: Impossible de lire la sélection enregistrée
+    savedUnavailable: La sélection enregistrée est actuellement indisponible
+    providersLink: Fournisseurs IA
+    retry: Réessayer
+    searchModels: Rechercher des modèles audio
+    noModelsFound: Aucun modèle audio correspondant
+    saveFailed: Impossible d'enregistrer le modèle de transcription audio
+    remoteUpdate:
+      Ce réglage a changé dans une autre session. Abandonne tes modifications
+      pour charger la sélection enregistrée, ou enregistre pour la remplacer.
   uploadPolicy:
     title: Politique de téléversement
     description:
@@ -3779,6 +3808,13 @@ governance:
       extendDeadline: Prolonger le délai
       retry: Réessayer
       cancel: Annuler la demande
+    approval:
+      description: Un autre admin doit approuver cette demande avant le début du délai d'attente.
+      approve: Approuver la demande
+      reject: Rejeter la demande
+      approveDescription: Approuve cette demande d'effacement et lance le délai d'attente configuré. Sans délai, l'effacement peut commencer immédiatement.
+      rejectDescription: Rejette cette demande d'effacement. La demande sera annulée et aucun effacement ne sera exécuté.
+      saved: Décision enregistrée
     drawer:
       description: Détail du reçu avec piste d'audit.
       headerTitle: Reçu d'effacement
@@ -4997,9 +5033,13 @@ settings:
       description: Mot de passe et authentification à deux facteurs.
     chats:
       title: Tes chats
-      description: Archive ou supprime définitivement tous tes chats en une seule fois.
+      description: Archive tes chats ou déplace-les dans la corbeille de cette organisation.
       archiveAll: Archiver tous les chats
       deleteAll: Supprimer tous les chats
+      archiveConfirm: "Archiver tous tes chats non archivés de cette organisation, y compris les chats de projet. Tu pourras les désarchiver plus tard. Les chats sous conservation légale restent inchangés."
+      deleteConfirm: "Déplacer tous tes chats de cette organisation dans la corbeille, y compris les chats archivés et les chats de projet. Tu pourras les restaurer pendant le délai de conservation. Les chats sous conservation légale ou avec une réponse en cours restent inchangés."
+      result: "{changed} chats mis à jour ; {failed} n’ont pas pu être modifiés."
+      failed: "Impossible de mettre à jour tes chats. Réessaie."
   usage:
     limits:
       title: Limites d'utilisation

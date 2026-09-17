@@ -49,12 +49,32 @@ const EMBEDDINGS_PAYLOAD = {
   ],
 };
 
+/** Actual OpenRouter STT listing shape: the token window is not applicable
+ * to most entries, and the prompt price may be duration-based. */
+const TRANSCRIPTION_PAYLOAD = {
+  data: [
+    {
+      id: 'microsoft/mai-transcribe-2',
+      context_length: 0,
+      architecture: {
+        input_modalities: ['audio'],
+        output_modalities: ['transcription'],
+      },
+      pricing: { prompt: '0.1', completion: '0' },
+    },
+  ],
+};
+const TRANSCRIPTION_URL =
+  'https://openrouter.ai/api/v1/models?output_modalities=transcription';
+
 /** Route the mock per URL: default listing vs the embeddings supplement. */
 function mockOpenRouterListings() {
   mockedFetch.mockImplementation(async (url: string) =>
     url.includes('output_modalities=embeddings')
       ? listingResponse(EMBEDDINGS_PAYLOAD)
-      : listingResponse(USABLE_PAYLOAD),
+      : url === TRANSCRIPTION_URL
+        ? listingResponse(TRANSCRIPTION_PAYLOAD)
+        : listingResponse(USABLE_PAYLOAD),
   );
 }
 
@@ -98,7 +118,118 @@ afterEach(() => {
 });
 
 describe('getProviderCatalog — live sources', () => {
-  it('fetches both OpenRouter listings once, serves the cache within the daily window, and appends the shipped defaults', async () => {
+  it('discovers zero-context OpenRouter STT models and shares the supplement cache with capability reads', async () => {
+    mockOpenRouterListings();
+    const all = await getProviderCatalog(OPENROUTER);
+    const speech = all.find(
+      (entry) => entry.id === 'microsoft/mai-transcribe-2',
+    );
+    expect(speech).toEqual({
+      id: 'microsoft/mai-transcribe-2',
+      provider: 'openrouter',
+      tags: ['transcription'],
+      supportsTools: false,
+      supportsVision: false,
+      contextWindow: 0,
+    });
+    expect(
+      await getProviderCatalog(OPENROUTER, {
+        requiredCapability: 'transcription',
+      }),
+    ).toEqual([speech]);
+    expect(
+      mockedFetch.mock.calls.filter(([url]) => url === TRANSCRIPTION_URL),
+    ).toHaveLength(1);
+  });
+
+  it('reports a cold STT supplement failure to audio callers without blanking chat or caching missing capability for a day', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockImplementation(async (url) => {
+      if (url === TRANSCRIPTION_URL)
+        throw new SafeFetchError('timeout', 'STT catalog timed out');
+      return listingResponse(USABLE_PAYLOAD);
+    });
+    const all = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(all.some((entry) => entry.tags.includes('chat'))).toBe(true);
+    await expect(
+      getProviderCatalog(OPENROUTER, {
+        maxAttempts: 1,
+        requiredCapability: 'transcription',
+      }),
+    ).rejects.toThrow('STT catalog timed out');
+    expect(
+      mockedFetch.mock.calls.filter(([url]) => url === TRANSCRIPTION_URL),
+    ).toHaveLength(1);
+    vi.setSystemTime(Date.now() + CATALOG_FAILURE_BACKOFF_MS + 1);
+    mockOpenRouterListings();
+    const recovered = await getProviderCatalog(OPENROUTER, {
+      maxAttempts: 1,
+      requiredCapability: 'transcription',
+    });
+    expect(recovered.map((entry) => entry.id)).toEqual([
+      'microsoft/mai-transcribe-2',
+    ]);
+    expect(
+      mockedFetch.mock.calls.filter(([url]) => url === TRANSCRIPTION_URL),
+    ).toHaveLength(2);
+  });
+
+  it('resolves STT without requiring a healthy chat listing or shipped defaults', async () => {
+    mockedFetch.mockImplementation(async (url) => {
+      if (url !== TRANSCRIPTION_URL) throw new Error('chat listing offline');
+      return listingResponse(TRANSCRIPTION_PAYLOAD);
+    });
+    const entries = await getProviderCatalog(
+      { ...OPENROUTER, name: 'custom-router' },
+      { maxAttempts: 1, requiredCapability: 'transcription' },
+    );
+    expect(entries.map((entry) => entry.id)).toEqual([
+      'microsoft/mai-transcribe-2',
+    ]);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a filtered STT response that contains only chat instead of caching a false missing-model answer', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    await expect(
+      getProviderCatalog(OPENROUTER, {
+        maxAttempts: 1,
+        requiredCapability: 'transcription',
+      }),
+    ).rejects.toThrow('no usable models');
+  });
+
+  it('keeps last-good STT on ordinary refresh failure and surfaces a forced supplement failure', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    const first = await getProviderCatalog(OPENROUTER, {
+      maxAttempts: 1,
+      requiredCapability: 'transcription',
+    });
+    vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
+    mockedFetch.mockImplementation(async (url) => {
+      if (url === TRANSCRIPTION_URL) throw new Error('STT catalog offline');
+      return listingResponse(USABLE_PAYLOAD);
+    });
+    expect(
+      await getProviderCatalog(OPENROUTER, {
+        maxAttempts: 1,
+        requiredCapability: 'transcription',
+      }),
+    ).toEqual(first);
+    await expect(
+      getProviderCatalog(OPENROUTER, { maxAttempts: 1, forceRefresh: true }),
+    ).rejects.toThrow('STT catalog offline');
+    expect(
+      await getProviderCatalog(OPENROUTER, {
+        maxAttempts: 1,
+        requiredCapability: 'transcription',
+      }),
+    ).toEqual(first);
+  });
+
+  it('fetches all OpenRouter listings once, serves the cache within the daily window, and appends the shipped defaults', async () => {
     mockOpenRouterListings();
     const first = await getProviderCatalog(OPENROUTER);
     // Fetched entries lead; the shipped models/openrouter/models.yml defaults
@@ -115,8 +246,8 @@ describe('getProviderCatalog — live sources', () => {
     expect(first.map((e) => e.id)).toContain('anthropic/claude-fable-5');
     expect(first.every((e) => e.provider === 'openrouter')).toBe(true);
     // One request per listing: the default population and the embeddings
-    // supplement OpenRouter hides behind its modality filter.
-    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    // supplements OpenRouter hides behind their modality filters.
+    expect(mockedFetch).toHaveBeenCalledTimes(3);
     expect(mockedFetch).toHaveBeenCalledWith(
       'https://openrouter.ai/api/v1/models',
       expect.objectContaining({ method: 'GET' }),
@@ -125,10 +256,14 @@ describe('getProviderCatalog — live sources', () => {
       'https://openrouter.ai/api/v1/models?output_modalities=embeddings',
       expect.objectContaining({ method: 'GET' }),
     );
+    expect(mockedFetch).toHaveBeenCalledWith(
+      TRANSCRIPTION_URL,
+      expect.objectContaining({ method: 'GET' }),
+    );
 
     const second = await getProviderCatalog(OPENROUTER);
     expect(second).toEqual(first);
-    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(mockedFetch).toHaveBeenCalledTimes(3);
   });
 
   it('merges the embeddings listing in, tagged and carrying the curated width', async () => {
@@ -199,14 +334,14 @@ describe('getProviderCatalog — live sources', () => {
     await getProviderCatalog(OPENROUTER);
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
     await getProviderCatalog(OPENROUTER);
-    expect(mockedFetch).toHaveBeenCalledTimes(4);
+    expect(mockedFetch).toHaveBeenCalledTimes(6);
   });
 
   it('forceRefresh bypasses a fresh cache', async () => {
     mockOpenRouterListings();
     await getProviderCatalog(OPENROUTER);
     await getProviderCatalog(OPENROUTER, { forceRefresh: true });
-    expect(mockedFetch).toHaveBeenCalledTimes(4);
+    expect(mockedFetch).toHaveBeenCalledTimes(6);
   });
 
   it('joins the models endpoint onto the provider base URL', async () => {

@@ -1,5 +1,5 @@
 /**
- * Wire shaping for one builder turn: a conversation in, an HTTP request out,
+ * Shared chat wire shaping: a conversation in, an HTTP request out,
  * and a provider payload back into text.
  *
  * Kept separate from the call itself (`model_call.ts`) because this part is
@@ -10,19 +10,16 @@
  *
  * Two shape rules matter and are easy to get wrong:
  *  - Anthropic takes the system prompt as a top-level parameter, not as a
- *    message, and rejects two messages of the same role in a row — a session
- *    restart seeds two user messages back to back, so they are merged here.
- *  - `max_tokens` is mandatory for Anthropic and merely wise for OpenAI: a
- *    builder reply carries a whole automation document and a truncated one
- *    costs a turn.
+ *    message. Consecutive messages of the same role are merged here.
+ *  - `max_tokens` is mandatory for Anthropic and caps the reply on OpenAI.
  */
 
 import type { ApiFormat, WireDialect } from '@tale/shared/schemas/providers';
 
-import { asRecord } from '../../../lib/automations_builder/results';
 import type { TurnSampling } from '../../../lib/chat/effort';
 import type { WireTool } from '../../../lib/chat/tools';
 import type { ChatWireMessage } from '../../../lib/chat/wire-parts';
+import { isRecord } from '../../../lib/utils/type-utils';
 
 export interface ChatWireRequest {
   url: string;
@@ -455,11 +452,8 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
 }
 
 /** Read a token count that a provider may or may not have sent. */
-function tokenCount(
-  usage: Record<string, unknown> | null,
-  key: string,
-): number {
-  const value = usage?.[key];
+function tokenCount(usage: unknown, key: string): number {
+  const value = isRecord(usage) ? usage[key] : undefined;
   return typeof value === 'number' ? value : 0;
 }
 
@@ -469,16 +463,14 @@ function textOf(content: unknown): string {
   if (!Array.isArray(content)) return '';
   return content
     .map((part) => {
-      const block = asRecord(part);
-      return block && typeof block.text === 'string' ? block.text : '';
+      return isRecord(part) && typeof part.text === 'string' ? part.text : '';
     })
     .join('');
 }
 
 /**
  * Pull the reply text out of a provider payload. A payload with no text at
- * all is an error rather than an empty turn: the loop would otherwise spend a
- * turn nudging a model that never spoke. A WELL-FORMED message with no text
+ * all is an error rather than a usable text result. A WELL-FORMED message with no text
  * (a reasoning-only reply) throws {@link EmptyReplyError} with the usage it
  * cost; a payload with no message at all throws a plain error.
  */
@@ -486,13 +478,14 @@ export function parseChatReply(
   apiFormat: ApiFormat,
   payload: unknown,
 ): ChatWireReply {
-  const root = asRecord(payload);
-  if (!root) throw new Error('the model returned a non-object payload');
+  if (!isRecord(payload))
+    throw new Error('the model returned a non-object payload');
+  const root = payload;
 
   if (apiFormat === 'anthropic') {
     const usage = {
-      prompt: tokenCount(asRecord(root.usage), 'input_tokens'),
-      completion: tokenCount(asRecord(root.usage), 'output_tokens'),
+      prompt: tokenCount(root.usage, 'input_tokens'),
+      completion: tokenCount(root.usage, 'output_tokens'),
     };
     const content = textOf(root.content);
     if (!content) {
@@ -503,10 +496,12 @@ export function parseChatReply(
   }
 
   const choices = Array.isArray(root.choices) ? root.choices : [];
-  const message = asRecord(asRecord(choices[0])?.message);
+  const first = choices[0];
+  const message =
+    isRecord(first) && isRecord(first.message) ? first.message : null;
   const usage = {
-    prompt: tokenCount(asRecord(root.usage), 'prompt_tokens'),
-    completion: tokenCount(asRecord(root.usage), 'completion_tokens'),
+    prompt: tokenCount(root.usage, 'prompt_tokens'),
+    completion: tokenCount(root.usage, 'completion_tokens'),
   };
   const content = textOf(message?.content);
   if (!content) {

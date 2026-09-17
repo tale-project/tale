@@ -38,6 +38,21 @@ export function classifyTranscriptionError(
   if (code === 'NO_TRANSCRIPTION_MODEL') {
     return { shouldRetry: false, reason: 'no_transcription_model' };
   }
+  if (
+    code === 'TRANSCRIPTION_MODEL_UNAVAILABLE' ||
+    code === 'TRANSCRIPTION_MODEL_POLICY_INVALID'
+  ) {
+    return { shouldRetry: false, reason: 'transcription_model_unavailable' };
+  }
+  if (
+    code === 'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE' ||
+    code === 'TRANSCRIPTION_MODEL_RESOLUTION_FAILED'
+  ) {
+    return {
+      shouldRetry: true,
+      reason: 'transcription_model_resolution_failed',
+    };
+  }
 
   if (status === 401 || status === 403) {
     return { shouldRetry: false, reason: 'auth_error' };

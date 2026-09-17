@@ -500,10 +500,8 @@ export async function dispatch(
 
   switch (method) {
     case 'get_docs':
-      // The authoring REFERENCE — not the builder session's system prompt,
-      // which wraps this same reference in the session's own protocol and
-      // persona (`automations_builder/policy.ts`). Served to MCP clients,
-      // it must teach the endpoint's own dialect and instruct nobody.
+      // The authoring reference serves MCP clients in the endpoint's own
+      // dialect; it does not impose a host's system prompt or persona.
       return { docs: authoringReference() };
 
     case 'get_catalog': {

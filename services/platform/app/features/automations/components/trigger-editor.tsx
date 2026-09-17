@@ -460,12 +460,16 @@ export function TriggerEditor({
         description={t('trigger.removeBody')}
         confirmText={t('trigger.remove')}
         variant="destructive"
+        isLoading={deleteTrigger.isPending}
         onConfirm={() => {
           setRefusal(null);
           setMintedToken(null);
           deleteTrigger.mutate(
             { organizationId, name },
             {
+              onSuccess: () => {
+                setConfirmRemove(false);
+              },
               onError: (error) => {
                 setRefusal(automationErrorMessage(error));
               },

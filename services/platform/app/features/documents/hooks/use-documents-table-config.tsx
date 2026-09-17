@@ -56,6 +56,9 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'name',
         header: tTables('headers.document'),
+        // The icon and controlled-record badge must leave room for a readable
+        // filename even at the table's minimum width (including long locales).
+        size: 360,
         // The document name is the primary, longest column — opt it in as the
         // table's flex column so it absorbs all the container slack while the
         // fixed-width metadata columns keep their declared px. Without this the

@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { transcribeDictationRequest } from '@/app/lib/backend/chat';
+
+import { isTranscriptionUnavailableReason } from '../utils/transcription-availability';
 
 interface UseMediaRecorderDictationOptions {
   organizationId: string;
   onTranscript: (transcript: string) => void;
+  onTranscriptionUnavailable?: (reason?: string) => void;
 }
 
 interface UseMediaRecorderDictationReturn {
@@ -39,6 +43,7 @@ interface UseMediaRecorderDictationReturn {
 export function useMediaRecorderDictation({
   organizationId,
   onTranscript,
+  onTranscriptionUnavailable,
 }: UseMediaRecorderDictationOptions): UseMediaRecorderDictationReturn {
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -120,12 +125,18 @@ export function useMediaRecorderDictation({
         if (isMountedRef.current) {
           setHasFailedRecording(true);
           setError('transcription-failed');
+          if (
+            err instanceof BackendApiError &&
+            isTranscriptionUnavailableReason(err.code)
+          ) {
+            onTranscriptionUnavailable?.(err.code);
+          }
         }
       } finally {
         if (isMountedRef.current) setIsTranscribing(false);
       }
     },
-    [transcribeDictation, organizationId],
+    [transcribeDictation, organizationId, onTranscriptionUnavailable],
   );
 
   const startListening = useCallback(async () => {

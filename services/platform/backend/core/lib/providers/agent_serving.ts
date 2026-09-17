@@ -228,6 +228,22 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Keep an exact non-chat reference a refusal; dialect matching must not
+ * silently replace an STT model with a similarly named conversational one. */
+function findChatModel(
+  catalog: readonly ModelCatalogEntry[],
+  modelId: string,
+): ModelCatalogEntry | undefined {
+  const exact = catalog.find((candidate) => candidate.id === modelId);
+  if (exact !== undefined)
+    return exact.tags.includes('chat') ? exact : undefined;
+  return catalog.find(
+    (candidate) =>
+      candidate.tags.includes('chat') &&
+      modelIdsEquivalent(candidate.id, modelId),
+  );
+}
+
 /** What one direct-credential walk found: the serving target, or nothing —
  * plus the connectors whose catalog was unreachable and every default
  * credential row the walk fetched (keyed by connector name), so a follow-up
@@ -278,9 +294,7 @@ export async function walkDirectServing(
       unreachable.push(connector.name);
       continue;
     }
-    const entry =
-      catalog.find((candidate) => candidate.id === modelId) ??
-      catalog.find((candidate) => modelIdsEquivalent(candidate.id, modelId));
+    const entry = findChatModel(catalog, modelId);
     if (entry !== undefined) {
       return {
         target: { providerSlug: connector.name, modelId: entry.id },
@@ -401,9 +415,7 @@ export async function resolvePinnedAgentServing(
     );
   }
   const catalog = await getServableCatalog(connector, row.modelAllowlist);
-  const entry =
-    catalog.find((candidate) => candidate.id === args.model) ??
-    catalog.find((candidate) => modelIdsEquivalent(candidate.id, args.model));
+  const entry = findChatModel(catalog, args.model);
   if (entry === undefined) {
     throw new Error(
       `provider "${pinned}" does not list model "${args.model}" in its catalog — edit the agent's model`,
@@ -523,9 +535,7 @@ export async function resolveWorkflowAgentServing(
       unreachable.push(connector.name);
       continue;
     }
-    const entry =
-      catalog.find((candidate) => candidate.id === args.model) ??
-      catalog.find((candidate) => modelIdsEquivalent(candidate.id, args.model));
+    const entry = findChatModel(catalog, args.model);
     if (entry === undefined) continue;
     const apiBaseUrl = subscriptionApiBaseUrl(connector, row.authMethod);
     if (apiBaseUrl === undefined) {

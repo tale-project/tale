@@ -1,6 +1,7 @@
 'use client';
 
 import { Crepe } from '@milkdown/crepe';
+import { editorViewOptionsCtx } from '@milkdown/kit/core';
 import { getHTML } from '@milkdown/kit/utils';
 import {
   Milkdown,
@@ -102,6 +103,17 @@ function MilkdownEditorInner({
             text: editorPlaceholder,
           },
         },
+      });
+
+      editor.editor.config((ctx) => {
+        ctx.update(editorViewOptionsCtx, (options) => ({
+          ...options,
+          attributes: {
+            role: 'textbox',
+            'aria-multiline': 'true',
+            'aria-label': editorPlaceholder,
+          },
+        }));
       });
 
       crepeRef.current = editor;

@@ -10747,8 +10747,18 @@ async function checkAutomations(
     );
     // Failing-tests versions must be refused by the deploy gate.
     await post(`/api/app/automations/ops/greet/save?orgId=${orgId}`, {
-      document,
-      testsPassed: false,
+      document: {
+        ...document,
+        tests: [
+          {
+            name: 'deliberately failing acceptance',
+            input: { who: 'Test' },
+            expect: { output: { impossible: true } },
+          },
+        ],
+      },
+      // A client cannot forge a pass; the app computes its own verdict.
+      testsPassed: true,
     });
     const gate = await post(
       `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
@@ -10812,17 +10822,37 @@ async function checkAutomations(
       .safeParse(
         await get(`/api/app/automations/runs/${connectorRunId}?orgId=${orgId}`),
       );
-    // An unknown action must fail the run with the door's CODED refusal,
-    // not a bare stack — the stepper branches on that contract.
-    await post(`/api/app/automations/ops/files/save?orgId=${orgId}`, {
-      document: {
-        ...connectorDoc,
-        nodes: [{ id: 'listing', type: 'document.nope', input: {} }],
+    // The authoring gate refuses new invalid definitions. Seed the same
+    // invalid version through the low-level store to retain the runtime
+    // guard's coverage for legacy/imported definitions.
+    const invalidConnectorDocument = {
+      ...connectorDoc,
+      nodes: [{ id: 'listing', type: 'document.nope', input: {} }],
+    };
+    const invalidConnectorSave = await post(
+      `/api/app/automations/ops/files/save?orgId=${orgId}`,
+      {
+        document: invalidConnectorDocument,
+        message: 'unknown action',
       },
-      message: 'unknown action',
+    );
+    record(
+      'automation app save rejects an unknown connector action',
+      invalidConnectorSave.status === 400,
+      `save=${invalidConnectorSave.status} (want 400)`,
+    );
+    const legacyStore = await import('./domains/automations/store.ts');
+    await legacyStore.saveVersion(sql, {
+      organizationId: orgId,
+      name: 'ops/files',
+      document: invalidConnectorDocument,
+      actor: 'itest:legacy',
     });
-    await post(`/api/app/automations/ops/files/deploy?orgId=${orgId}`, {
+    await legacyStore.deploy(sql, {
+      organizationId: orgId,
+      name: 'ops/files',
       version: 2,
+      actor: 'itest:legacy',
     });
     const badRun = z.object({ runId: z.string() }).safeParse(
       await (
@@ -12464,195 +12494,31 @@ async function checkMcp(
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
 }
 
-/**
- * The automation builder session (POST /api/app/automations/builder/sessions
- * — the 0.4 `startBuilderSession`): the pure session loop and the engine run
- * against the pg store with a scripted OpenAI-format model behind an org
- * custom provider. The script tests then saves the SAME document, so the
- * session's own save gate passes and the outcome is `succeeded` at version
- * 1 — and the `projectId` handed to the route pins that first save to the
- * project (the store-scope install contract). Also probes the goal bound.
- */
-async function checkBuilderSession(
-  sql: Sql,
+/** The retired standalone goal-authoring endpoint no longer accepts work. */
+async function checkRetiredBuilderRoute(
   base: string,
   ctx: { cookie: string; orgId: string },
-  orgSlug: string,
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
-  const { createServer } = await import('node:http');
-  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
-
-  const doc = { ...DOC_EXAMPLE.automation, name: 'builder-fake-greeter' };
-  const fence = (method: string, params: unknown): string =>
-    'On it.\n```yaml\n' + JSON.stringify({ method, params }) + '\n```';
-  const script = [
-    fence('test_automation', { automation: doc }),
-    fence('save_automation', { automation: doc, message: 'itest builder' }),
-  ];
-  let calls = 0;
-
-  const llmServer = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      res.setHeader('content-type', 'application/json');
-      const url = req.url ?? '';
-      if (req.method === 'GET' && url.endsWith('/models')) {
-        res.end(
-          JSON.stringify({
-            object: 'list',
-            // The catalog keeps only entries naming a context window.
-            data: [
-              { id: 'builder-fake', object: 'model', context_length: 128_000 },
-            ],
-          }),
-        );
-        return;
-      }
-      if (url.endsWith('/chat/completions')) {
-        const content = script[calls] ?? script.at(-1) ?? '';
-        calls += 1;
-        res.end(
-          JSON.stringify({
-            id: `b${calls}`,
-            object: 'chat.completion',
-            choices: [
-              {
-                index: 0,
-                message: { role: 'assistant', content },
-                finish_reason: 'stop',
-              },
-            ],
-            usage: { prompt_tokens: 10, completion_tokens: 5 },
-          }),
-        );
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    llmServer.listen(0, '127.0.0.1', resolve);
-  });
-  const llmAddress = llmServer.address();
-  const llmPort =
-    llmAddress !== null && typeof llmAddress === 'object' ? llmAddress.port : 0;
-
-  try {
-    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
-    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
-    const providersDir = path.join(configRoot, orgSlug, 'providers');
-    await mkdir(providersDir, { recursive: true });
-    await writeFile(
-      path.join(providersDir, 'builderllm.yml'),
-      [
-        'name: builderllm',
-        'displayName: Builder LLM',
-        'apiFormat: openai',
-        `baseUrl: http://127.0.0.1:${llmPort}/v1`,
-        'catalog:',
-        '  source: models-endpoint',
-        'auth:',
-        '  - method: api-key',
-      ].join('\n'),
-    );
-    const post = (route: string, body: unknown): Promise<Response> =>
-      fetch(`${base}${route}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-        body: JSON.stringify(body),
-      });
-    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'builderllm',
-      authMethod: 'api-key',
-      name: 'Builder LLM key',
-      secret: 'sk-itest-builder',
-    });
-    const proj = z.object({ projectId: z.string() }).safeParse(
-      await (
-        await post(`/api/app/projects?orgId=${orgId}`, {
-          name: 'Builder Target',
-        })
-      ).json(),
-    );
-    const projectId = proj.success ? proj.data.projectId : '';
-
-    // The goal bound refuses before any wire is touched.
-    const emptyGoal = await post(
-      `/api/app/automations/builder/sessions?orgId=${orgId}`,
-      {
-        goal: '   ',
-        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
+  const response = await fetch(
+    `${base}/api/app/automations/builder/sessions?orgId=${ctx.orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
       },
-    );
-
-    const sessionRes = await post(
-      `/api/app/automations/builder/sessions?orgId=${orgId}`,
-      {
-        goal: 'greet qualifying orders for the itest team',
-        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
-        projectId,
-        maxTurns: 8,
-      },
-    );
-    const outcome = z
-      .object({
-        outcome: z.object({
-          status: z.literal('succeeded'),
-          saved: z.object({
-            name: z.literal('builder-fake-greeter'),
-            version: z.number(),
-          }),
-          turns: z.number(),
-        }),
-      })
-      .safeParse(await sessionRes.json());
-
-    const bound = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app.automation_project_bindings
-      WHERE org_id = ${orgId}
-        AND automation_name = 'builder-fake-greeter'
-        AND project_id = ${projectId}
-    `;
-
-    record(
-      'automation builder session (scripted model, pg store)',
-      emptyGoal.status === 400 &&
-        sessionRes.status === 200 &&
-        outcome.success &&
-        outcome.data.outcome.saved.version === 1 &&
-        outcome.data.outcome.turns === 2 &&
-        calls === 2 &&
-        bound[0]?.count === '1',
-      `emptyGoal→${emptyGoal.status} (want 400), session→${sessionRes.status}, outcome=${outcome.success ? `${outcome.data.outcome.status}@v${outcome.data.outcome.saved.version} in ${outcome.data.outcome.turns} turns` : 'ERR'}, modelCalls=${calls}, projectBinding=${bound[0]?.count}`,
-    );
-  } finally {
-    // Leave no dead provider behind: an unreachable models-endpoint costs
-    // every later model walk 3 fetch attempts with 2s/4s backoff sleeps
-    // (nothing is cached on failure), which is enough to starve the REST
-    // chat leg and the task-agent lanes downstream.
-    await rm(
-      path.join(
-        process.env.TALE_CONFIG_DIR ?? '',
-        orgSlug,
-        'providers',
-        'builderllm.yml',
-      ),
-      { force: true },
-    );
-    await sql`
-      DELETE FROM app.provider_credentials
-      WHERE org_id = ${orgId} AND provider_slug = 'builderllm'
-    `;
-    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
-    await new Promise<void>((resolve) => {
-      llmServer.close(() => resolve());
-    });
-  }
+      body: JSON.stringify({
+        goal: 'Create an automation',
+        model: { providerSlug: 'unconfigured', modelId: 'unconfigured' },
+      }),
+    },
+  );
+  record(
+    'standalone automation builder endpoint is retired',
+    response.status === 404,
+    `POST builder/sessions→${response.status} (want 404)`,
+  );
 }
 
 /**
@@ -23345,6 +23211,13 @@ async function checkMailboxSyncLane(
   const { knowledgeShimHandlers } =
     await import('./domains/knowledge/service.ts');
   await drainNotificationEmails(sql);
+  // Other lanes keep inbox fixtures in this organization. Count every new
+  // conversation this transport creates without charging it for those rows.
+  const existingConversations = await sql<{ id: string }[]>`
+    SELECT id FROM app.conversations
+    WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+  `;
+  const existingConversationIds = existingConversations.map((row) => row.id);
 
   // --- the fake transport (phased inbox) -----------------------------------
   let phase: 1 | 2 = 1;
@@ -23481,6 +23354,7 @@ async function checkMailboxSyncLane(
       FROM app.conversations c
       LEFT JOIN app.contacts ct ON ct.id = c.contact_id
       WHERE c.org_id = ${orgId} AND c.connector_name = 'imap-smtp'
+        AND NOT (c.id = ANY(${existingConversationIds}::text[]))
       ORDER BY c.created_at_ms ASC
     `;
     const watermark = await sql<{ inbound: number | null }[]>`
@@ -23502,11 +23376,13 @@ async function checkMailboxSyncLane(
     const countAfterRepeat = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+        AND NOT (id = ANY(${existingConversationIds}::text[]))
     `;
     const messagesAfterRepeat = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversation_messages
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
         AND direction = 'inbound'
+        AND NOT (conversation_id = ANY(${existingConversationIds}::text[]))
     `;
 
     // Threading: Alice's reply lands in HER existing conversation.
@@ -23521,6 +23397,7 @@ async function checkMailboxSyncLane(
     const conversationsFinal = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+        AND NOT (id = ANY(${existingConversationIds}::text[]))
     `;
 
     // The emailed attachment after three polls (two of them re-fetching
@@ -30667,6 +30544,7 @@ async function checkWebsitesCrawl(
         downHome !== undefined &&
         downHome.status === 'discovered' &&
         downHome.lastErrorKind === 'http_error' &&
+        !downHome.indexed &&
         downRow.crawledPageCount === 1 &&
         downRow.failedPageCount === 1 &&
         downFiltered.success &&
@@ -30884,16 +30762,37 @@ async function checkTranscription(
 
   let whisperCalls = 0;
   let failNextWith: number | null = null;
+  const requestedModels: string[] = [];
+  let audioCredentialId: string | undefined;
   const whisperServer = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
+      if ((req.url ?? '').endsWith('/models')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            data: ['audio-first', 'audio-pinned'].map((id) => ({
+              id,
+              context_window: 448,
+              type: 'transcription',
+              modalities: { input: ['audio'], output: ['text'] },
+            })),
+          }),
+        );
+        return;
+      }
       if (!(req.url ?? '').endsWith('/audio/transcriptions')) {
         res.statusCode = 404;
         res.end('{}');
         return;
       }
       whisperCalls += 1;
+      requestedModels.push(
+        /name="model"\r\n\r\n([^\r\n]+)/.exec(
+          Buffer.concat(chunks).toString(),
+        )?.[1] ?? '',
+      );
       if (failNextWith !== null) {
         res.statusCode = failNextWith;
         failNextWith = null;
@@ -31171,7 +31070,221 @@ async function checkTranscription(
         dictation.data.text.includes('Hello world from itest.'),
       `skip=${skip.status} row=${skippedRow?.status} calls=${whisperCalls}(want ${callsBeforeSkip + 1} — dictation only), dictation=${dictation.success ? dictation.data.text.slice(0, 30) : 'ERR'}`,
     );
+
+    // The settings pick, capability flag and actual multipart request use
+    // one resolver. Two custom ASR entries prove a pin changes serving, not
+    // just the label; generic audio chat models are tested in the normalizer.
+    const providerSlug = 'itest-audio';
+    const definition = await fetch(
+      `${base}/api/app/providers/definitions/${providerSlug}?orgId=${orgId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          expectedHash: null,
+          config: {
+            name: providerSlug,
+            displayName: 'Integration audio',
+            apiFormat: 'openai',
+            baseUrl: whisperBase,
+            catalog: { source: 'models-endpoint' },
+            auth: [{ method: 'api-key' }],
+          },
+        }),
+      },
+    );
+    const credentialSecret = randomUUID();
+    const credential = await send(
+      `/api/app/provider-credentials?orgId=${orgId}`,
+      {
+        providerSlug,
+        authMethod: 'api-key',
+        name: 'Integration audio',
+        secret: credentialSecret,
+      },
+    );
+    audioCredentialId = z
+      .object({ credentialId: z.string() })
+      .parse(await credential.json()).credentialId;
+    const policyRoute = `/api/app/governance/policies/transcription_model?orgId=${orgId}`;
+    const statusRoute = `/api/app/providers/transcription-model?orgId=${orgId}`;
+    const statusSchema = z.object({
+      models: z.array(
+        z.object({ providerSlug: z.string(), modelId: z.string() }),
+      ),
+      pick: z
+        .object({
+          providerSlug: z.string(),
+          modelId: z.string(),
+          source: z.string(),
+        })
+        .nullable(),
+      error: z.object({ code: z.string() }).optional(),
+    });
+    const readStatus = async () =>
+      statusSchema.parse(await (await send(statusRoute)).json());
+    const readVoice = async () =>
+      z
+        .object({
+          voice: z.object({
+            transcriptionAvailable: z.boolean(),
+            transcriptionUnavailableReason: z.string().optional(),
+          }),
+        })
+        .parse(
+          await (
+            await send(`/api/app/chat/composer/models?orgId=${orgId}`)
+          ).json(),
+        ).voice;
+    const transcribe = () =>
+      send(`/api/app/files/dictation?orgId=${orgId}`, {
+        audioBase64: wav.toString('base64'),
+        mimeType: 'audio/wav',
+      });
+    const initialStatusResponse = await send(statusRoute);
+    const initialStatusText = await initialStatusResponse.text();
+    const automatic = statusSchema.parse(JSON.parse(initialStatusText));
+    const unauthenticated = await fetch(`${base}${statusRoute}`);
+    const foreignOrgId = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrgId}, 'Foreign audio organization', ${`audio-foreign-${foreignOrgId}`}, now())
+    `;
+    const foreignOrg = await send(
+      `/api/app/providers/transcription-model?orgId=${foreignOrgId}`,
+    );
+    record(
+      'transcription settings: Automatic, scoped non-secret metadata',
+      definition.status === 200 &&
+        credential.status === 200 &&
+        automatic.pick?.source === 'automatic' &&
+        automatic.pick.providerSlug === providerSlug &&
+        automatic.pick.modelId === 'audio-first' &&
+        automatic.models.filter((model) => model.providerSlug === providerSlug)
+          .length === 2 &&
+        initialStatusResponse.headers.get('cache-control') === 'no-store' &&
+        !initialStatusText.includes(credentialSecret) &&
+        !initialStatusText.includes(whisperBase) &&
+        unauthenticated.status === 401 &&
+        foreignOrg.status === 403,
+      `definition=${definition.status} credential=${credential.status} auto=${automatic.pick?.modelId} unauth=${unauthenticated.status} foreign=${foreignOrg.status}`,
+    );
+
+    const pinSave = await send(policyRoute, {
+      config: { providerSlug, modelId: 'audio-pinned' },
+    });
+    const pinned = await readStatus();
+    const pinnedVoice = await readVoice();
+    const pinDictation = await transcribe();
+    // Identical bytes previously transcribed by OpenAI must now use the pin.
+    const pinnedRef = await uploadAudio(wav);
+    await drainTranscribe();
+    const pinnedFile = await rowFor(pinnedRef);
+    record(
+      'transcription pin controls dictation and queued audio',
+      pinSave.status === 200 &&
+        pinned.pick?.source === 'pinned' &&
+        pinned.pick.modelId === 'audio-pinned' &&
+        pinnedVoice.transcriptionAvailable &&
+        pinDictation.status === 200 &&
+        pinnedFile?.status === 'completed' &&
+        requestedModels.slice(-2).every((model) => model === 'audio-pinned'),
+      `save=${pinSave.status} pick=${pinned.pick?.modelId} voice=${pinnedVoice.transcriptionAvailable} dictation=${pinDictation.status} file=${pinnedFile?.status} requests=${requestedModels.slice(-2).join(',')}`,
+    );
+
+    const callsBeforePinnedDuplicate = whisperCalls;
+    const pinnedDuplicateRef = await uploadAudio(wav);
+    await drainTranscribe();
+    record(
+      'transcription cache reuses only the same serving target',
+      (await rowFor(pinnedDuplicateRef))?.status === 'completed' &&
+        whisperCalls === callsBeforePinnedDuplicate,
+      `sameTargetDedup=${whisperCalls === callsBeforePinnedDuplicate}`,
+    );
+
+    const invalidWrite = await send(policyRoute, { config: { providerSlug } });
+    await send(policyRoute, {
+      config: { providerSlug, modelId: 'removed-model' },
+    });
+    const unavailable = await readStatus();
+    const unavailableVoice = await readVoice();
+    const callsBeforeRefusal = whisperCalls;
+    const refused = await transcribe();
+    const refusal = z.object({ error: z.string() }).parse(await refused.json());
+    const refusedRef = await uploadAudio(wav);
+    await drainTranscribe();
+    record(
+      'transcription missing pin refuses without fallback or provider spend',
+      invalidWrite.status === 400 &&
+        unavailable.pick === null &&
+        unavailable.error?.code === 'TRANSCRIPTION_MODEL_UNAVAILABLE' &&
+        !unavailableVoice.transcriptionAvailable &&
+        unavailableVoice.transcriptionUnavailableReason ===
+          unavailable.error.code &&
+        refused.status === 409 &&
+        refusal.error === 'TRANSCRIPTION_MODEL_UNAVAILABLE' &&
+        (await rowFor(refusedRef))?.status === 'failed' &&
+        whisperCalls === callsBeforeRefusal,
+      `invalid=${invalidWrite.status} status=${unavailable.error?.code} voice=${unavailableVoice.transcriptionAvailable} refusal=${refused.status} noSpend=${whisperCalls === callsBeforeRefusal}`,
+    );
+
+    const orgs = await sql<
+      { slug: string }[]
+    >`SELECT slug FROM "organization" WHERE id = ${orgId}`;
+    const policyFile = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgs[0]?.slug ?? '',
+      'governance',
+      'transcription-model.yml',
+    );
+    await writeFile(policyFile, 'providerSlug: broken-half-pin\n');
+    const corrupt = await readStatus();
+    const corruptDictation = await transcribe();
+    const corruptPolicyRead = await send(policyRoute);
+    record(
+      'transcription corrupt policy refuses and remains explicitly repairable',
+      corrupt.pick === null &&
+        corrupt.error?.code === 'TRANSCRIPTION_MODEL_POLICY_INVALID' &&
+        corruptDictation.status === 409 &&
+        corruptPolicyRead.status === 400 &&
+        whisperCalls === callsBeforeRefusal,
+      `status=${corrupt.error?.code} policy=${corruptPolicyRead.status} dictation=${corruptDictation.status} noSpend=${whisperCalls === callsBeforeRefusal}`,
+    );
+
+    const reset = await send(policyRoute, { config: {} });
+    const restored = await readStatus();
+    const restoredVoice = await readVoice();
+    const resetDictation = await transcribe();
+    record(
+      'transcription reset to Automatic restores the shared serving pick',
+      reset.status === 200 &&
+        restored.pick?.source === 'automatic' &&
+        restored.pick.modelId === 'audio-first' &&
+        restoredVoice.transcriptionAvailable &&
+        resetDictation.status === 200 &&
+        requestedModels.at(-1) === 'audio-first',
+      `reset=${reset.status} pick=${restored.pick?.modelId} voice=${restoredVoice.transcriptionAvailable} request=${requestedModels.at(-1)}`,
+    );
   } finally {
+    // This lane owns this credential only; later transcription/video lanes
+    // retain their original default OpenAI provider and Automatic policy.
+    if (audioCredentialId !== undefined) {
+      await fetch(
+        `${base}/api/app/provider-credentials/${audioCredentialId}?orgId=${orgId}`,
+        {
+          method: 'DELETE',
+          headers: { cookie, origin: base },
+        },
+      );
+      await fetch(
+        `${base}/api/app/governance/policies/transcription_model?orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ config: {} }),
+        },
+      );
+    }
     whisperServer.close();
   }
 }
@@ -33721,7 +33834,7 @@ async function checkAutomationAgentNode(
     // A subautomation's nodes run inline on a sink that cannot park. The
     // stepper refuses an agent node BEFORE the op row, the scheduled start
     // and the sandbox turn a kick spends; a gated write is refused before any
-    // card is minted. The save door runs no validator, so these runtime
+    // card is minted. The app now validates saves; legacy rows still need runtime
     // guards are the only thing standing on this path.
     const saveAndDeploy = async (
       name: string,
@@ -33786,7 +33899,7 @@ async function checkAutomationAgentNode(
       ],
       output: '{{ nodes.work.output }}',
     });
-    const parentAgentDeploy = await saveAndDeploy('ops/parent-agentic', {
+    const parentAgentDocument = {
       version: 1,
       name: 'ops/parent-agentic',
       nodes: [
@@ -33798,6 +33911,29 @@ async function checkAutomationAgentNode(
         },
       ],
       output: '{{ nodes.sub.output }}',
+    };
+    const parentAgentDeploy = await saveAndDeploy(
+      'ops/parent-agentic',
+      parentAgentDocument,
+    );
+    record(
+      'automation authoring refuses an agent inside a subautomation',
+      parentAgentDeploy === 'save-failed/400',
+      parentAgentDeploy,
+    );
+    // Preserve the runtime fence test for versions installed before the gate.
+    const legacyStore = await import('./domains/automations/store.ts');
+    await legacyStore.saveVersion(sql, {
+      organizationId: orgId,
+      name: 'ops/parent-agentic',
+      document: parentAgentDocument,
+      actor: 'itest:legacy',
+    });
+    await legacyStore.deploy(sql, {
+      organizationId: orgId,
+      name: 'ops/parent-agentic',
+      version: 1,
+      actor: 'itest:legacy',
     });
     const spentBefore = { ...gatewayCalls };
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');
@@ -37542,11 +37678,14 @@ async function checkChatThreadSurface(
     );
   const budgetRace = [
     await mkThread({ title: 'Budget race A' }),
-    await mkThread({ title: 'Budget race B' }),
+    // The scoped REST store only accepts direct threads, matching the REST
+    // create door. A default app-kind fixture fails scope before the race.
+    await mkThread({ title: 'Budget race B', kind: 'direct' }),
   ];
   let budgetPolicySaved = false;
   let raceWins = 0;
   let raceRefusals = 0;
+  let raceErrors: string[] = [];
   let heldRow:
     | { userId: string | null; tokens: string; costCents: number }
     | undefined;
@@ -37587,6 +37726,15 @@ async function checkChatThreadSurface(
       }),
     ]);
     raceWins = opens.filter((open) => open.status === 'fulfilled').length;
+    raceErrors = opens.flatMap((open) =>
+      open.status === 'rejected'
+        ? [
+            open.reason instanceof Error
+              ? `${open.reason.name}: ${open.reason.message}`
+              : String(open.reason),
+          ]
+        : [],
+    );
     raceRefusals = opens.filter(
       (open) =>
         open.status === 'rejected' &&
@@ -37676,7 +37824,7 @@ async function checkChatThreadSurface(
       doorRefusedWhileHeld &&
       admittedAfterRelease &&
       admissionRows === '1',
-    `policy saved=${budgetPolicySaved}, admitted=${raceWins} (want 1), budget refusals=${raceRefusals} (want 1), hold=${JSON.stringify(heldRow)} (want the holder, 1500 tokens, 0.25 cents), loser rows=${loserTrace} (want 0), door refused while held=${doorRefusedWhileHeld}, admitted after release=${admittedAfterRelease}, admission rows=${admissionRows} (want 1)`,
+    `policy saved=${budgetPolicySaved}, admitted=${raceWins} (want 1), budget refusals=${raceRefusals} (want 1), errors=${JSON.stringify(raceErrors)}, hold=${JSON.stringify(heldRow)} (want the holder, 1500 tokens, 0.25 cents), loser rows=${loserTrace} (want 0), door refused while held=${doorRefusedWhileHeld}, admitted after release=${admittedAfterRelease}, admission rows=${admissionRows} (want 1)`,
   );
 }
 
@@ -39260,7 +39408,49 @@ async function checkCollabEmitters(
       AND type = 'task_status_changed' AND task_id = ${taskId}
       AND read = false
   `;
+  // Each toggle writes one field. Sequential and concurrent changes must
+  // preserve the other stored switches (R2-ROOT-001).
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    actionableEmail: false,
+  });
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    taskAssigned: false,
+  });
   await post(`/api/app/collab/preferences?orgId=${orgId}`, {});
+  await Promise.all([
+    post(`/api/app/collab/preferences?orgId=${orgId}`, { mention: false }),
+    post(`/api/app/collab/preferences?orgId=${orgId}`, {
+      taskCommented: false,
+    }),
+  ]);
+  const savedPrefs = z
+    .object({
+      actionableEmail: z.boolean(),
+      taskAssigned: z.boolean(),
+      taskStatusChanged: z.boolean(),
+      mention: z.boolean(),
+      taskCommented: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/collab/preferences?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  record(
+    'notification preferences: partial writes preserve sequential and concurrent changes',
+    savedPrefs.success &&
+      Object.values(savedPrefs.data).every((value) => !value),
+    JSON.stringify(savedPrefs.success ? savedPrefs.data : savedPrefs.error),
+  );
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    taskStatusChanged: true,
+    actionableEmail: true,
+    taskAssigned: true,
+    mention: true,
+    taskCommented: true,
+  });
   const markAll = z
     .object({ marked: z.number() })
     .safeParse(
@@ -42782,6 +42972,24 @@ async function checkDataResidency(
   ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
+  const restoreEnv = overrideEnv({
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+    TALE_DEPLOYMENT_CONFIG_ADMINS:
+      process.env.TALE_DEPLOYMENT_CONFIG_ADMINS ?? '',
+  });
+  try {
+    await checkDataResidencyConfig(sql, base, ctx, orgSlug);
+  } finally {
+    restoreEnv();
+  }
+}
+
+async function checkDataResidencyConfig(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
   const { cookie, orgId } = ctx;
   const get = (route: string): Promise<Response> =>
     fetch(`${base}${route}`, { headers: { cookie, origin: base } });
@@ -42796,8 +43004,6 @@ async function checkDataResidency(
       method: 'DELETE',
       headers: { cookie, origin: base },
     });
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
-
   // --- Deployment: read view, editor gate, hash OCC, retired section ----
   const readFresh = z
     .object({
@@ -45195,6 +45401,30 @@ async function checkGovernanceEnforcement(
       AND resource_id = ${requestId}
   `;
   const approvalId = approvalRows[0]?.id ?? '';
+  const pendingReceipt = z
+    .object({
+      request: z.object({
+        approvalId: z.string(),
+        status: z.literal('pending'),
+      }),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/erasure/${requestId}?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  record(
+    'DSAR receipt: exposes its pending approval for the admin decision UI',
+    pendingReceipt.success &&
+      pendingReceipt.data.request.approvalId === approvalId &&
+      approvalId !== '',
+    JSON.stringify(
+      pendingReceipt.success ? pendingReceipt.data : pendingReceipt.error,
+    ),
+  );
+
   const jobsBefore = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
     WHERE name = 'governance.process_erasure'
@@ -47627,6 +47857,232 @@ async function checkSyncScanFairness(
   );
 }
 
+/** A late terminal window must not publish after the cancel election. */
+async function checkTaskAgentCompletionFence(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { completeAgentRunInTx } =
+    await import('./domains/tasks/agent-run-completion.ts');
+  const { cancelAgentRunInTx } = await import('./domains/tasks/agent-runs.ts');
+  const { saveAgentFileMetadata } =
+    await import('./domains/tasks/agent-file-metadata.ts');
+  const { updateTaskStatus, moveTask } =
+    await import('./domains/tasks/service.ts');
+  const post = async (route: string, body: unknown): Promise<unknown> =>
+    (
+      await fetch(`${base}${route}?orgId=${ctx.orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify(body),
+      })
+    ).json();
+  const { projectId } = z.object({ projectId: z.string() }).parse(
+    await post('/api/app/projects', {
+      name: 'Completion cancellation fence',
+    }),
+  );
+  for (const mode of [
+    'cancelled',
+    'rotated',
+    'complete',
+    'cancel-race',
+    'status-race',
+    'drag-race',
+  ] as const) {
+    const { taskId } = z.object({ taskId: z.string() }).parse(
+      await post('/api/app/tasks', {
+        projectId,
+        title: `Completion ${mode}`,
+      }),
+    );
+    await sql`UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}`;
+    const agentId = `itest-completion-${randomUUID()}`;
+    const execId = `exec-${randomUUID()}`;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${ctx.orgId}, ${projectId}, ${taskId}, ${agentId}, ${execId}, ${`pa-${agentId}`},
+        'running', 'claude-code', 'itest-model', ${ctx.userId}, ${Date.now()},
+        ${Date.now() + 60_000}, ${Date.now()}
+      ) RETURNING id
+    `;
+    const runId = rows[0]?.id ?? '';
+    const fileId = `itest-completion-${randomUUID()}`;
+    await saveAgentFileMetadata(sql, {
+      organizationId: ctx.orgId,
+      storageId: fileId,
+      fileName: 'report.txt',
+      contentType: 'text/plain',
+      size: 12,
+    });
+    const args = {
+      organizationId: ctx.orgId,
+      taskId,
+      agentId,
+      execId,
+      runId,
+      body: 'Completed report',
+      resultText: 'Completed report',
+      files: [
+        {
+          fileId,
+          fileName: 'report.txt',
+          fileType: 'text/plain',
+          fileSize: 12,
+        },
+      ],
+    };
+    if (mode === 'cancelled') {
+      await sql.begin((tx) =>
+        cancelAgentRunInTx(tx, { organizationId: ctx.orgId, taskId, runId }),
+      );
+    }
+    if (mode === 'rotated') {
+      await sql`UPDATE app.project_agent_runs SET exec_id = ${`replacement-${execId}`} WHERE id = ${runId}`;
+    }
+    let completed: boolean;
+    if (mode === 'status-race' || mode === 'drag-race') {
+      // Pause a real status writer after its run lock, before its task
+      // write. Wait until completion is blocked on that run. If completion
+      // locks task first, the writer and completion deadlock here.
+      let releaseWriter: () => void = () => {};
+      let lockedWriter: () => void = () => {};
+      let completionPid = 0;
+      const locked = new Promise<void>((resolve) => {
+        lockedWriter = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseWriter = resolve;
+      });
+      const writing = sql.begin(async (tx) => {
+        await tx`SELECT id FROM app.project_agent_runs WHERE id = ${runId} FOR UPDATE`;
+        lockedWriter();
+        await release;
+        const auth = {
+          organizationId: ctx.orgId,
+          userId: ctx.userId,
+          role: 'owner',
+          teamIds: [],
+        };
+        if (mode === 'status-race') {
+          await updateTaskStatus(tx, auth, taskId, 'todo');
+        } else {
+          await moveTask(tx, auth, { taskId, status: 'todo' });
+        }
+      });
+      await locked;
+      const completion = sql.begin(async (tx) => {
+        const [backend] = await tx<
+          { pid: number }[]
+        >`SELECT pg_backend_pid() AS pid`;
+        completionPid = backend?.pid ?? 0;
+        return completeAgentRunInTx(tx, args);
+      });
+      const outcomes = Promise.allSettled([writing, completion]);
+      const blocked = await waitFor(async () => {
+        const [activity] = await sql<{ blocked: boolean }[]>`
+          SELECT wait_event_type = 'Lock' AND query LIKE '%project_agent_runs%' AS blocked
+          FROM pg_stat_activity WHERE pid = ${completionPid}
+        `;
+        return activity?.blocked ?? false;
+      }, 5000);
+      releaseWriter();
+      const [writerOutcome, completionOutcome] = await outcomes;
+      record(
+        `task-agent completion and ${mode} use compatible row locks`,
+        blocked &&
+          writerOutcome.status === 'fulfilled' &&
+          completionOutcome.status === 'fulfilled',
+        JSON.stringify({ blocked, writerOutcome, completionOutcome }),
+      );
+      completed =
+        completionOutcome.status === 'fulfilled' && completionOutcome.value;
+    } else if (mode === 'cancel-race') {
+      let releaseCancel: () => void = () => {};
+      let lockedCancel: () => void = () => {};
+      const locked = new Promise<void>((resolve) => {
+        lockedCancel = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseCancel = resolve;
+      });
+      const cancelling = sql.begin(async (tx) => {
+        await cancelAgentRunInTx(tx, {
+          organizationId: ctx.orgId,
+          taskId,
+          runId,
+        });
+        lockedCancel();
+        await release;
+      });
+      await locked;
+      const completion = sql.begin((tx) => completeAgentRunInTx(tx, args));
+      releaseCancel();
+      await cancelling;
+      completed = await completion;
+    } else {
+      completed = await sql.begin((tx) => completeAgentRunInTx(tx, args));
+    }
+    const replay = await sql.begin((tx) => completeAgentRunInTx(tx, args));
+    const [observed] = await sql<
+      {
+        status: string;
+        commentCount: number;
+        reviews: number;
+        runStatus: string;
+        outputs: number;
+        fileSource: string;
+      }[]
+    >`
+      SELECT t.status, t.comment_count::int AS "commentCount", r.status AS "runStatus",
+        COALESCE(jsonb_array_length(t.outputs), 0) AS outputs,
+        (SELECT source FROM app.file_metadata f
+         WHERE f.org_id = t.org_id AND f.storage_ref = ${fileId}) AS "fileSource",
+        (SELECT count(*)::int FROM app.approvals a
+         WHERE a.resource_type = 'task_review' AND a.resource_id = t.id) AS reviews
+      FROM app.tasks t JOIN app.project_agent_runs r ON r.task_id = t.id
+      WHERE r.id = ${runId}
+    `;
+    const expected = mode === 'complete';
+    record(
+      `task-agent completion fence (${mode})`,
+      completed === expected &&
+        !replay &&
+        observed?.commentCount === (expected ? 1 : 0) &&
+        observed.reviews === (expected ? 1 : 0) &&
+        observed.outputs === (expected ? 1 : 0) &&
+        observed.fileSource === (expected ? 'task-output' : 'agent') &&
+        observed.status ===
+          (expected
+            ? 'in_review'
+            : mode === 'status-race' || mode === 'drag-race'
+              ? 'todo'
+              : 'in_progress') &&
+        observed.runStatus ===
+          (expected ? 'settled' : mode === 'rotated' ? 'running' : 'cancelled'),
+      JSON.stringify({ completed, replay, observed }),
+    );
+    if (expected) {
+      const cancelled = await sql.begin((tx) =>
+        cancelAgentRunInTx(tx, { organizationId: ctx.orgId, taskId, runId }),
+      );
+      record(
+        'completed agent result wins over a later cancel',
+        !cancelled,
+        `cancelled=${cancelled}`,
+      );
+    }
+  }
+}
+
 async function checkWatchdogs(
   sql: Sql,
   base: string,
@@ -49806,8 +50262,8 @@ async function main(): Promise<void> {
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
-        'checkBuilderSession',
-        () => checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+        'checkRetiredBuilderRoute',
+        () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
       ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],
@@ -50092,6 +50548,10 @@ async function main(): Promise<void> {
         () => checkDeferredSendRecovery(sql, authCtx),
       ],
       ['checkBackfillRecovery', () => checkBackfillRecovery(sql, authCtx)],
+      [
+        'checkTaskAgentCompletionFence',
+        () => checkTaskAgentCompletionFence(sql, baseUrl, authCtx),
+      ],
       ['checkWatchdogs', () => checkWatchdogs(sql, baseUrl, authCtx)],
       [
         'checkDocumentWriteGuards',

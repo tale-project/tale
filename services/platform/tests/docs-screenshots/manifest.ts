@@ -955,25 +955,25 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
-    // Settings > Governance > Content & Models — the default-model rules,
-    // model access, and the vision model every chat and agent passes through
-    // at request time. (The org's custom instructions live on Guardrails.)
-    // Section titles paint before their data, so gate on the LAST thing to
-    // resolve: the vision-model editor's "currently reading images with …"
-    // line, which waits on the provider catalog. The message carries a
-    // placeholder, so match the text ahead of it — or the no-model variant,
-    // which has none.
+    // The independent server-audio selection on Models. Crop to this section
+    // so its current pick remains readable at normal documentation width.
+    // Wait for the resolved status, not the static title above a skeleton.
     name: 'governance-content-models',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) => {
-      const resolved = t('governance.visionModel.resolved.pinned');
+      const resolved = t('governance.transcriptionModel.currentModel');
       const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
       return page
         .getByText(prefix)
-        .or(page.getByText(t('governance.visionModel.resolvedNone')))
+        .or(page.getByText(t('governance.transcriptionModel.noAvailable')))
         .first();
     },
+    capture: (page) =>
+      page.getByRole('region', {
+        name: t('governance.transcriptionModel.title'),
+        exact: true,
+      }),
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,

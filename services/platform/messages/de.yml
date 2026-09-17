@@ -534,9 +534,8 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description: Beschreibe, was du automatisieren möchtest, oder lade eine Workflow-Datei hoch.
+      description: Erstelle einen Agenten mit Trigger oder lade ein Workflow-Paket hoch.
   createMenu:
-    fromGoal: Aus einem Ziel
     blank: Leer (Trigger + Agent)
   blank:
     title: Neue Automatisierung
@@ -565,26 +564,6 @@ automations:
     submit: Automatisierung erstellen
     submitting: Erstellt …
     initialMessage: Erste Version
-  builder:
-    title: Neue Automatisierung
-    description: Beschreibe, welches Ziel diese Automatisierung erreichen soll.
-    goalLabel: Ziel
-    goalPlaceholder:
-      z. B. Lies jeden Morgen die neuesten Support-E-Mails und schreibe eine
-      Zusammenfassung, was heute eine Antwort braucht.
-    providerLabel: KI-Anbieter
-    providerPlaceholder: Anbieter wählen
-    modelLabel: Modell
-    modelPlaceholder: Modell wählen
-    submit: Automatisierung generieren
-    submitting: Baut …
-    running:
-      Der Builder arbeitet — das kann ein paar Minuten dauern. Gespeicherte
-      Versionen erscheinen in der Liste, sobald sie da sind.
-    gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
-    outcomeFailedTitle: Automatisierung konnte nicht generiert werden
-    outcomeGaveUpTitle: Builder früh gestoppt
-    noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -617,6 +596,7 @@ automations:
       label: Eingabe für den Lauf (JSON)
       description: 'Eingabe für die gespeicherte Version {version}. Die Automatisierung bleibt unverändert.'
       schema: Eingabeschema
+      invalidJson: Gib die Eingabe für den Lauf als gültiges JSON ein.
       invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
       mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
     runScope:
@@ -1131,6 +1111,14 @@ chat:
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
     retry: Erneut versuchen
+    noModel: Für die Transkription von Audiodateien ist kein kompatibles Modell verfügbar.
+    pinnedUnavailable: Das ausgewählte Modell für Audiotranskription ist nicht verfügbar.
+    policyInvalid: Die Einstellung für das Audiotranskriptionsmodell ist ungültig.
+    temporarilyUnavailable: Die Verfügbarkeit der Audiotranskription konnte nicht geprüft werden. Versuche es in Kürze erneut.
+    askAdmin: Bitte einen Admin, die Transkriptionseinstellungen zu prüfen.
+    configureProviders: KI-Anbieter konfigurieren
+    configureModel: Transkriptionsmodell prüfen
+    uploadBlocked: 'Audio/Video nicht hochgeladen: {names}.'
   indexing: Indexiere…
   indexingFailed: Indexierung fehlgeschlagen
   indexingFailedDescription: '{filename} konnte nicht für die Suche indexiert
@@ -1285,7 +1273,6 @@ chat:
     stop: Diktat stoppen
     level: Mikrofonpegel
     notSupported: Spracherkennung wird in diesem Browser nicht unterstützt
-    notConfigured: Diktat nicht verfügbar — bitte eine administrative Person, ein Transkriptionsmodell hinzuzufügen
     transcribing: Transkribiere…
     transcriptionFailedShort: Transkription fehlgeschlagen
     retry: Erneut versuchen
@@ -1494,9 +1481,6 @@ chat:
   budgetViewUsage: Nutzung anzeigen
 common:
   or: oder
-  select:
-    noProvidersHint: Lege zuerst einen KI-Anbieter an.
-    pickProviderFirstHint: Wähle zuerst einen Anbieter — seine Modelle erscheinen hier.
   units:
     stock: '{count, plural, one {# Einheit} other {# Einheiten}}'
   actions:
@@ -2454,6 +2438,7 @@ onboarding:
   workspace:
     createError: Dein Arbeitsbereich konnte nicht erstellt werden. Prüfe deine
       Verbindung und klicke erneut auf „Weiter“.
+    creationForbidden: Du kannst in dieser Bereitstellung keine Organisation erstellen. Wende dich an den Betreiber, um einen Arbeitsbereich anzufordern.
     nameTakenError: Dieser Name ist schon vergeben. Wähle einen anderen.
   provider:
     heading: OpenRouter verbinden
@@ -2641,6 +2626,52 @@ governance:
     searchModels: Modelle suchen
     noModelsFound: Kein Modell verfügbar, das Bilder liest
     saveFailed: Modell für Bilder konnte nicht gespeichert werden
+  transcriptionModel:
+    title: Modell für Audiotranskription
+    description:
+      Dieses Modell transkribiert Audio- und Videoanhänge. Es übernimmt auch
+      die Spracheingabe, wenn die Spracherkennung des Browsers nicht verfügbar
+      ist. Die Spracherkennung des Browsers nutzt ihr eigenes Modell.
+    label: Modell zur Audiotranskription
+    labelHint:
+      Automatisch wählt ein verfügbares Modell. Ein festgelegtes Modell bleibt
+      ausgewählt, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+    automaticLabel: Automatisch
+    automaticHint: Tale wählt aus den verfügbaren Modellen zur Audiotranskription.
+    currentModel: 'Aktuelles Modell für Audiotranskription: {model}.'
+    draftHint: Speichere, um diese Auswahl anzuwenden.
+    noAvailable:
+      Kein Modell zur Audiotranskription ist verfügbar. Füge unter KI-Anbieter
+      einen kompatiblen Zugang hinzu oder aktiviere ihn. Prüfe auch, welche
+      Modelle dieser Zugang erlaubt.
+    unavailable:
+      Das gespeicherte Modell ist nicht verfügbar. Wähle ein anderes Modell
+      oder Automatisch oder prüfe den Anbieterzugang und die dafür erlaubten Modelle.
+      Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem
+      anderen Modell.
+    invalidPolicy:
+      Die gespeicherte Konfiguration des Audiomodells ist ungültig. Wähle ein
+      Modell oder Automatisch und speichere, um sie zu korrigieren.
+    policyUnavailable:
+      Die gespeicherte Konfiguration des Audiomodells konnte nicht gelesen
+      werden. Versuche es erneut, bevor du sie änderst. Tale kann bei
+      nicht verfügbarer Konfiguration nicht von Automatisch ausgehen.
+    resolutionFailed:
+      Tale konnte das Modell zur Audiotranskription nicht prüfen. Prüfe die
+      Verbindung zum Anbieter und versuche es erneut.
+    loadFailed: Die Audiomodelleinstellungen konnten nicht geladen werden. Versuche es erneut.
+    invalidSelection: Ungültige gespeicherte Konfiguration
+    unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
+    savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+    providersLink: KI-Anbieter
+    retry: Erneut versuchen
+    searchModels: Audiomodelle suchen
+    noModelsFound: Kein passendes Audiomodell
+    saveFailed: Modell für Audiotranskription konnte nicht gespeichert werden
+    remoteUpdate:
+      Diese Einstellung wurde in einer anderen Sitzung geändert. Verwirf deinen
+      Entwurf, um die gespeicherte Auswahl zu laden, oder speichere, um sie zu
+      ersetzen.
   uploadPolicy:
     title: Upload-Richtlinie
     description: Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.
@@ -3701,6 +3732,13 @@ governance:
       extendDeadline: Frist verlängern
       retry: Erneut versuchen
       cancel: Anfrage abbrechen
+    approval:
+      description: Ein anderer Admin muss diesen Antrag genehmigen, bevor die Wartezeit beginnt.
+      approve: Antrag genehmigen
+      reject: Antrag ablehnen
+      approveDescription: Genehmige diesen Löschantrag und starte die festgelegte Wartezeit. Ohne Wartezeit kann die Löschung sofort beginnen.
+      rejectDescription: Lehne diesen Löschantrag ab. Der Antrag wird abgebrochen und es werden keine Daten gelöscht.
+      saved: Entscheidung gespeichert
     drawer:
       description: Beleg mit Audit-Verlauf.
       headerTitle: Löschungsbeleg
@@ -4918,9 +4956,13 @@ settings:
       description: Passwort und Zwei-Faktor-Authentifizierung.
     chats:
       title: Deine Chats
-      description: Archiviere oder lösche alle deine Chat-Unterhaltungen auf einmal.
+      description: Archiviere deine Chats in dieser Organisation oder verschiebe sie in den Papierkorb.
       archiveAll: Alle Chats archivieren
       deleteAll: Alle Chats löschen
+      archiveConfirm: "Alle deine nicht archivierten Chats in dieser Organisation archivieren, einschließlich Projekt-Chats. Du kannst sie später wiederherstellen. Chats unter rechtlicher Aufbewahrung bleiben unverändert."
+      deleteConfirm: "Alle deine Chats in dieser Organisation in den Papierkorb verschieben, einschließlich archivierter Chats und Projekt-Chats. Innerhalb der Aufbewahrungsfrist kannst du sie wiederherstellen. Chats unter rechtlicher Aufbewahrung oder mit einer laufenden Antwort bleiben unverändert."
+      result: "{changed} Chats aktualisiert; {failed} konnten nicht geändert werden."
+      failed: "Deine Chats konnten nicht aktualisiert werden. Versuch es erneut."
   usage:
     limits:
       title: Nutzungslimits

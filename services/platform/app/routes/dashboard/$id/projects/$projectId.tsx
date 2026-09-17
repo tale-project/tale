@@ -310,14 +310,14 @@ function ProjectDetailLayout() {
                     className="contents"
                   >
                     {project ? (
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex max-w-full min-w-0 items-center gap-2">
                         <ProjectBreadcrumbSwitcher
                           organizationId={organizationId}
                           projectId={asProjectId(projectId)}
                           projectName={project.name}
                         />
                         {project.archivedAt !== undefined && (
-                          <ProjectArchivedBadge className="px-1.5 py-px text-[10px]" />
+                          <ProjectArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
                         )}
                       </span>
                     ) : (

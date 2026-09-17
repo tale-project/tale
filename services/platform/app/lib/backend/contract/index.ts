@@ -14,7 +14,6 @@ import type { AgentSecretsContract } from './agent-secrets';
 import type { ApprovalsContract } from './approvals';
 import type { AuditLogsContract } from './audit-logs';
 import type { AutomationsContract } from './automations';
-import type { AutomationsBuilderContract } from './automations-builder';
 import type { BrandingContract } from './branding';
 import type { ChangelogContract } from './changelog';
 import type { ChatContract } from './chat';
@@ -64,7 +63,6 @@ export interface BackendContract
     ApprovalsContract,
     AuditLogsContract,
     AutomationsContract,
-    AutomationsBuilderContract,
     BrandingContract,
     ChangelogContract,
     ChatContract,

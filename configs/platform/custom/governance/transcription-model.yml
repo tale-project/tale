@@ -1,0 +1,3 @@
+# Automatic: choose an available transcription model from this organization's
+# active default provider credentials. Set providerSlug and modelId to pin one.
+{}

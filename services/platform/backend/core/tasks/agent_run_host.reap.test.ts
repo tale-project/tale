@@ -22,6 +22,7 @@ const io = vi.hoisted(() => ({
   /** How many status probes still answer `running` for the predecessor. */
   predecessorRunningPolls: 0,
   drainThrows: false,
+  afterDrain: undefined as (() => void) | undefined,
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -35,6 +36,15 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     }) => {
       if (io.drainThrows) {
         throw new Error('sandbox session attach failed (502)');
+      }
+      if (io.afterDrain !== undefined) {
+        io.afterDrain();
+        return {
+          kind: 'terminal',
+          text: 'Late completion',
+          timeline: [],
+          ended: { finalText: 'Late completion', isError: false },
+        };
       }
       if (args.start !== undefined) {
         io.starts.push({
@@ -183,11 +193,33 @@ beforeEach(() => {
   io.released = [];
   io.predecessorRunningPolls = 0;
   io.drainThrows = false;
+  io.afterDrain = undefined;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('drive window failure', () => {
+  it('discards a terminal result when cancellation lands during the drain', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+    io.afterDrain = () => {
+      run.status = 'cancelled';
+    };
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+    expect(run.status).toBe('cancelled');
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.released).toEqual([{ execId: 'exec-old', status: 'cancelled' }]);
+    expect(
+      mutations.some(
+        (entry) => entry.name === 'tasks/agent_runs:completeTaskAgentRun',
+      ),
+    ).toBe(false);
+    expect(
+      mutations.some(
+        (entry) => entry.name === 'tasks/internal_mutations:agentAddComment',
+      ),
+    ).toBe(false);
+  });
   it('cancels the exec before settling the run as crashed', async () => {
     io.drainThrows = true;
     const run: RunState = { status: 'running', execId: 'exec-old' };

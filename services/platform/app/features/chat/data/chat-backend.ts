@@ -671,6 +671,7 @@ function composerCatalogQuery(organizationId: string) {
  */
 export function useComposerModels(
   organizationId: string,
+  options?: { requireFresh?: boolean },
 ): ChatQuery<ComposerCatalog> {
   const stored = useMemo(
     () =>
@@ -685,7 +686,8 @@ export function useComposerModels(
     },
     useChatQueryClient(),
   );
-  const { data, isPlaceholderData, isError, error } = query;
+  const { data, isPlaceholderData, isError, error, isFetching } = query;
+  const requireFresh = options?.requireFresh === true;
 
   useEffect(() => {
     if (data === undefined || isPlaceholderData || organizationId === '') {
@@ -703,6 +705,12 @@ export function useComposerModels(
   }, [error]);
 
   return useMemo<ChatQuery<ComposerCatalog>>(() => {
+    // Upload/recording preflight must not treat a stored capability answer
+    // as current policy, or mistake a refresh failure for missing setup.
+    if (requireFresh) {
+      if (isError) return UNAVAILABLE;
+      if (isPlaceholderData || isFetching) return LOADING;
+    }
     if (data !== undefined) return { status: 'ready', data };
     if (isError) {
       // A stale answer, when one exists, beats flipping a working surface.
@@ -711,7 +719,7 @@ export function useComposerModels(
         : { status: 'ready', data: stored };
     }
     return LOADING;
-  }, [data, isError, stored]);
+  }, [data, isError, stored, requireFresh, isPlaceholderData, isFetching]);
 }
 
 /**

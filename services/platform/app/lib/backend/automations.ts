@@ -445,7 +445,14 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
           },
         },
       ).then(() => null),
-    invalidate: invalidateRuns,
+    invalidate: (client, args, ctx) => {
+      invalidateRuns(client, args, ctx);
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'gdpr_erasure'),
+      });
+    },
   },
   'automations/human_asks:answerAsk': {
     run: (args, ctx) =>
@@ -473,25 +480,6 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
   'automations/upload_mutations:recordAutomationUploadIntent': {
     // The byte lane records the intent server-side — nothing to add here.
     run: () => Promise.resolve(null),
-  },
-  'automations_builder/actions:startBuilderSession': {
-    // A session spans minutes of model turns; the route holds the request
-    // open exactly as the 0.4 action did.
-    run: (args, ctx) =>
-      backendFetch<unknown>('/automations/builder/sessions', {
-        orgId: requireOrg(args, ctx),
-        body: {
-          goal: stringArg(args, 'goal'),
-          model: args.model,
-          ...(typeof args.projectId === 'string'
-            ? { projectId: args.projectId }
-            : {}),
-          ...(typeof args.maxTurns === 'number'
-            ? { maxTurns: args.maxTurns }
-            : {}),
-        },
-      }),
-    invalidate: invalidateAutomations,
   },
   'automations/upload_action:uploadAutomation': {
     run: (args, ctx) =>

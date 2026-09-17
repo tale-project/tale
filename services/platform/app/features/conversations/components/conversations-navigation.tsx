@@ -59,7 +59,12 @@ export function ConversationsNavigation({
   });
 
   return (
-    <TabNavigation items={navigationItems} standalone={false} prefetch>
+    <TabNavigation
+      items={navigationItems}
+      ariaLabel={t('title')}
+      standalone={false}
+      prefetch
+    >
       {action}
     </TabNavigation>
   );

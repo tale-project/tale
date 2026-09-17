@@ -22,6 +22,10 @@ import {
   playDictationStartSound,
   playDictationStopSound,
 } from '../utils/dictation-sounds';
+import {
+  transcriptionNeedsRetry,
+  transcriptionUnavailableKey,
+} from '../utils/transcription-availability';
 
 interface DictationButtonProps {
   disabled?: boolean;
@@ -36,6 +40,8 @@ interface DictationButtonProps {
    * MediaRecorder fallback BEFORE recording — a mic that records, uploads,
    * and then fails would be a false affordance. */
   transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
+  onTranscriptionUnavailable?: (reason?: string) => void;
 }
 
 export interface DictationButtonHandle {
@@ -47,8 +53,9 @@ export interface DictationButtonHandle {
  * Push-to-talk dictation. Prefers the browser's Web Speech API (in-browser,
  * free, low latency); browsers without it (notably Firefox) fall back to
  * MediaRecorder + server transcription via `transcribeDictation`, gated on
- * `transcriptionAvailable` so the mic only renders when the round-trip can
- * succeed. When neither path is available, no button renders at all.
+ * `transcriptionAvailable` before recording. A known unavailable server path
+ * opens recovery only when selected. Without browser recording support or a
+ * known capability, no fallback button renders.
  *
  * Start/stop tones and a live microphone-level bar confirm the mic state
  * without requiring eyes on the button. The fallback adds a "Transcribing…"
@@ -65,6 +72,8 @@ const DictationButtonComponent = forwardRef<
     onTranscript,
     organizationId,
     transcriptionAvailable,
+    transcriptionUnavailableReason,
+    onTranscriptionUnavailable,
   },
   ref,
 ) {
@@ -81,6 +90,7 @@ const DictationButtonComponent = forwardRef<
     // requires `organizationId` — the placeholder can never reach the action.
     organizationId: organizationId ?? '',
     onTranscript,
+    onTranscriptionUnavailable,
   });
 
   // The server fallback needs the recorder, a transcription-capable model
@@ -160,41 +170,44 @@ const DictationButtonComponent = forwardRef<
     [isListening, stopListening],
   );
 
-  // No Web Speech and the org CONFIRMED without a transcription model: the
-  // mic renders disabled with the "ask an admin" explanation (the 0.3
-  // treatment) — hiding it entirely would leave no trace that dictation
-  // exists to be configured. An UNKNOWN availability (catalog still
-  // answering, or a surface without the wiring) renders nothing rather than
-  // flashing a claim that may be wrong a beat later; a browser whose
-  // recorder cannot capture at all has nothing to explain.
-  if (useFallback && !fallbackReady) {
-    const confirmedUnavailable =
-      recorder.isSupported &&
-      organizationId !== undefined &&
-      transcriptionAvailable === false;
+  // A known refusal keeps an actionable mic: clicking it explains recovery
+  // without capturing audio. An unknown capability or unsupported recorder
+  // has no fallback yet; retain active stop/recovery controls while refreshing.
+  const confirmedUnavailable =
+    recorder.isSupported &&
+    organizationId !== undefined &&
+    transcriptionAvailable === false;
+  if (
+    useFallback &&
+    !fallbackReady &&
+    !isListening &&
+    !isTranscribing &&
+    !hasFailedRecording
+  ) {
     if (!confirmedUnavailable) return null;
-    return (
-      <Tooltip content={t('dictation.notConfigured')} side="top">
-        <Button
-          variant="ghost"
-          size="icon"
-          // `aria-disabled` (not native `disabled`) so the button stays
-          // hoverable/focusable and the explanatory tooltip can fire.
-          aria-disabled
-          aria-label={t('dictation.notConfigured')}
-          className="focus-visible:ring-ring cursor-not-allowed rounded-full opacity-50 focus-visible:ring-2 focus-visible:ring-inset"
-        >
-          <Mic className="size-4" />
-        </Button>
-      </Tooltip>
-    );
   }
+
+  const explainUnavailable = () => {
+    if (onTranscriptionUnavailable) {
+      onTranscriptionUnavailable(transcriptionUnavailableReason);
+    } else {
+      toast({
+        title: t(transcriptionUnavailableKey(transcriptionUnavailableReason)),
+        description: transcriptionNeedsRetry(transcriptionUnavailableReason)
+          ? undefined
+          : t('transcription.askAdmin'),
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleClick = () => {
     if (isListening) {
       stopListening();
-    } else {
+    } else if (!useFallback || fallbackReady) {
       startListening();
+    } else if (confirmedUnavailable) {
+      explainUnavailable();
     }
   };
 
@@ -216,7 +229,14 @@ const DictationButtonComponent = forwardRef<
           variant={isListening ? 'destructive' : 'ghost'}
           size={isListening ? 'sm' : 'icon'}
           onClick={handleClick}
-          disabled={disabled || isTranscribing}
+          disabled={
+            disabled ||
+            isTranscribing ||
+            (useFallback &&
+              !isListening &&
+              !fallbackReady &&
+              !confirmedUnavailable)
+          }
           aria-label={label}
           aria-busy={isTranscribing}
           aria-pressed={isListening}
@@ -265,7 +285,10 @@ const DictationButtonComponent = forwardRef<
               type="button"
               aria-label={t('dictation.retry')}
               title={t('dictation.retry')}
-              onClick={recorder.retryTranscription}
+              onClick={
+                fallbackReady ? recorder.retryTranscription : explainUnavailable
+              }
+              disabled={disabled || (!fallbackReady && !confirmedUnavailable)}
               className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
             >
               <RotateCcw className="size-3" />

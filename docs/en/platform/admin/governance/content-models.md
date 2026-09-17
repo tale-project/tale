@@ -1,15 +1,9 @@
 ---
 title: Models
-description: Set default models, restrict model access, and choose the model that reads images for text-only agents.
+description: Set default models, restrict access, and choose separate models for images and audio transcription.
 ---
 
 Use **Settings > Governance > Models** as an Admin or Owner to choose the models members start with and the models they may use. Defaults guide a choice; access rules enforce a restriction. Configure [provider credentials](/platform/admin/providers) first so the intended models are available.
-
-<Frame caption="Settings > Governance > Models — the per-scope default-model rules, with the model-access allowlist below them and the vision model further down.">
-
-![The Models governance page showing the default-models table with three rules — a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model — above the model-access section set to Allowlist with one allowed-models rule per role.](/images/platform/governance-content-models.webp)
-
-</Frame>
 
 ## Set a default model
 
@@ -31,7 +25,7 @@ Under **Model access**, choose the mode and add rules for the users, teams, role
 
 Access resolves user rules before team rules, then role rules, then the default. Multiple matching team rules combine their lists; an explicit block still wins for that model. If no rule matches, the policy does not restrict that user. Add a baseline rule when you intend to cover everyone.
 
-Access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
+For chat, access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
 
 <Tip>
 Test both cases after changing access: an allowed model should work and a denied model should be refused for the affected member. Testing only as the admin does not prove a role-specific rule.
@@ -39,11 +33,33 @@ Test both cases after changing access: an allowed model should work and a denied
 
 ## Choose the image-reading model
 
-A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that transcribes it. An agent whose own model reads images does not use this fallback.
+A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images does not use this fallback.
 
 Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 
-Pin a model if you need a stable choice. The picker offers models suitable for transcription. If a pin later becomes unavailable, Tale falls back to automatic selection. Review the current choice after rotating credentials or changing model availability.
+Pin a model if you need a stable choice. The picker offers models that can read images. If a pin later becomes unavailable, restore its provider access or explicitly choose **Automatic** and save. Tale does not silently switch a pinned model. Review the current choice after rotating credentials or changing model availability.
+
+## Choose the audio transcription model
+
+**Audio transcription model** controls server transcription for audio and video attachments, the audio fallback for video links, and dictation in browsers without built-in speech recognition. Browser speech recognition uses its own service and keeps priority when supported.
+
+<Frame caption="Audio transcription has its own organization-wide automatic or fixed model selection.">
+
+![The Audio transcription model section shows Automatic and identifies the current server transcription model.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
+An active default credential for OpenRouter also makes its dedicated speech-to-text models available here. Tale discovers them from the OpenRouter catalog. Check that the credential’s allowed models include your intended transcription model, then use **Automatic** or select that model explicitly.
+
+1. Under **Model that transcribes audio**, leave **Automatic** selected to let Tale choose an available compatible model, or select a specific provider and model.
+2. Save the page's pending changes in the header. Until you save, the selection is a draft; discard it to keep the saved setting.
+3. Check the current model shown below the picker. Test a short recording before relying on the setup for a longer upload.
+
+A model change applies to new transcription work; completed attachments keep their existing transcript. Uploading the same bytes again reuses completed work for the same transcription target, but transcribes them again when the target provider or model differs.
+
+An explicit selection stays fixed. If that model becomes unavailable, Tale reports it and does not switch to another model. Choose another available model or **Automatic**, then save. If no compatible model is available, configure an active credential in [AI providers](/platform/admin/providers) and check the credential’s allowed models. A temporary failure to check the configuration calls for a retry, not a new model selection.
+
+If unavailable server transcription prevents a member’s attempt to dictate or attach audio or video, a dismissible dialog explains the problem. Settings actions appear according to their access; otherwise, they are asked to contact an admin. A temporarily failed availability check can be retried. For deployment-managed selection and custom audio endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-audio-transcription).
 
 ## Diagnose an unexpected choice
 

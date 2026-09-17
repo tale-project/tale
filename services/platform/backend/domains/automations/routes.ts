@@ -3,13 +3,15 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { registerConnector } from '../../../lib/connectors/registry.ts';
+import { dispatch } from '../../../lib/engine/api/dispatch.ts';
 import { nodeTypes } from '../../../lib/engine/core/slots.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { runSessionWithStore } from '../../core/automations_builder/run_session.ts';
+import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
 import { loadConnectorDefinitions } from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
@@ -24,7 +26,6 @@ import {
   cancelRun,
   deleteAutomationCascade,
   deleteTrigger,
-  deploy,
   getPendingAskForRun,
   getRun,
   listAutomations,
@@ -52,7 +53,6 @@ import { uploadAutomationPg } from './upload.ts';
 const saveSchema = z.object({
   document: z.unknown(),
   message: z.string().max(500).optional(),
-  testsPassed: z.boolean().optional(),
   taskContract: z.unknown().optional(),
   settings: z.unknown().optional(),
   presentation: z.unknown().optional(),
@@ -120,19 +120,6 @@ const startSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
 });
 
-const builderSessionSchema = z.object({
-  goal: z.string(),
-  model: z.object({ providerSlug: z.string(), modelId: z.string() }),
-  projectId: z.string().optional(),
-  maxTurns: z.number().optional(),
-});
-
-/** A goal is one instruction, not a document (the 0.4 bound). */
-const MAX_GOAL_CHARS = 4000;
-
-/** Hard ceiling on the caller's turn budget (the policy default is 14). */
-const MAX_TURNS_CAP = 30;
-
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
@@ -160,6 +147,25 @@ function handleError<E extends OrgEnv>(
     }
   }
   throw error;
+}
+
+/** The app and MCP authoring doors share the engine's validation/test gate. */
+function authoringRefusal(
+  c: Context<OrgEnv>,
+  result: unknown,
+): Response | null {
+  if (!isRecord(result) || typeof result.error !== 'string') return null;
+  const code =
+    typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
+  const status =
+    code === 'AUTOMATION_VERSION_UNKNOWN'
+      ? 404
+      : code === 'AUTOMATION_NAME_TAKEN' ||
+          code === 'AUTOMATION_TESTS_FAILING' ||
+          code === 'AUTOMATION_DEPLOY_REJECTED'
+        ? 409
+        : 400;
+  return c.json({ ...result, error: code, message: result.error }, status);
 }
 
 /** Agent nodes whose `model` is set but `modelProvider` is not — the
@@ -397,82 +403,6 @@ export function createAutomationRoutes(deps: {
     });
   });
 
-  /**
-   * Author an automation from a goal, autonomously — the 0.4
-   * `startBuilderSession`. Returns when the session ends (minutes, not
-   * milliseconds); the versions it saves appear in the listing long before
-   * the summary resolves. The session authors against the deterministic
-   * mocks — `runSessionWithStore` never enables live execution — and a
-   * `projectId` pins the first save to that project via the store scope. An
-   * aborted request cancels the session at its next turn boundary.
-   */
-  app.post('/builder/sessions', async (c) => {
-    const denied = requireAuthor(c);
-    if (denied) return denied;
-    const body = builderSessionSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const goal = body.data.goal.trim();
-    if (goal.length === 0 || goal.length > MAX_GOAL_CHARS) {
-      return c.json(
-        {
-          error: `Describe the automation in 1 to ${MAX_GOAL_CHARS} characters.`,
-        },
-        400,
-      );
-    }
-    const maxTurns = body.data.maxTurns;
-    if (
-      maxTurns !== undefined &&
-      (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > MAX_TURNS_CAP)
-    ) {
-      return c.json(
-        {
-          error: `maxTurns must be an integer between 1 and ${MAX_TURNS_CAP}.`,
-        },
-        400,
-      );
-    }
-    if (body.data.projectId !== undefined) {
-      const projects = await deps.sql<{ id: string }[]>`
-        SELECT id FROM app.projects
-        WHERE id = ${body.data.projectId} AND org_id = ${c.get('orgId')}
-        LIMIT 1
-      `;
-      if (projects.length === 0) {
-        return c.json({ error: 'project not found' }, 404);
-      }
-    }
-    try {
-      const store = pgAutomationStore(deps.sql, {
-        organizationId: c.get('orgId'),
-        actor: c.get('sessionBundle').user.id,
-        ...(body.data.projectId !== undefined
-          ? { projectId: body.data.projectId }
-          : {}),
-      });
-      const shim = createCtxShim(knowledgeShimHandlers(deps.sql));
-      const outcome = await runSessionWithStore(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the session touches ctx only through the handlers above
-        shim as unknown as Parameters<typeof runSessionWithStore>[0],
-        {
-          organizationId: c.get('orgId'),
-          actorId: c.get('sessionBundle').user.id,
-          goal,
-          model: body.data.model,
-          ...(maxTurns !== undefined ? { maxTurns } : {}),
-          // A closed tab, a reload or a dropped connection aborts the request;
-          // the session sees it at its next turn boundary and ends as
-          // `cancelled` instead of spending model turns nobody will read.
-          isCancelled: () => c.req.raw.signal.aborted,
-        },
-        store,
-      );
-      return c.json({ outcome });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.post('/:name{.+}/save', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
@@ -481,36 +411,55 @@ export function createAutomationRoutes(deps: {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
-      return c.json(
-        await saveVersion(deps.sql, {
-          organizationId: c.get('orgId'),
-          name: nameFrom(c, 'save'),
-          document: body.data.document,
-          actor: c.get('sessionBundle').user.id,
-          ...(body.data.message !== undefined
-            ? { message: body.data.message }
-            : {}),
-          ...(body.data.testsPassed !== undefined
-            ? { testsPassed: body.data.testsPassed }
-            : {}),
-          ...(body.data.taskContract !== undefined
-            ? { taskContract: body.data.taskContract }
-            : {}),
-          ...(body.data.settings !== undefined
-            ? { settings: body.data.settings }
-            : {}),
-          ...(body.data.presentation !== undefined
-            ? { presentation: body.data.presentation }
-            : {}),
-          ...(body.data.create !== undefined
-            ? { create: body.data.create }
-            : {}),
-          ...(body.data.projectId !== undefined
-            ? { projectId: body.data.projectId }
-            : {}),
-        }),
-        201,
+      assembleAutomationAuthoringHost();
+      const scope = {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+      };
+      const store = pgAutomationStore(deps.sql, scope);
+      let storeError: unknown;
+      const result = await dispatch(
+        'save_automation',
+        {
+          automation: body.data.document,
+          message: body.data.message,
+        },
+        {
+          store: {
+            ...store,
+            save: (automation, message, options) =>
+              saveVersion(deps.sql, {
+                ...scope,
+                name: nameFrom(c, 'save'),
+                document: automation,
+                ...(message !== undefined ? { message } : {}),
+                ...(options?.testsPassed !== undefined
+                  ? { testsPassed: options.testsPassed }
+                  : {}),
+                ...(body.data.taskContract !== undefined
+                  ? { taskContract: body.data.taskContract }
+                  : {}),
+                ...(body.data.settings !== undefined
+                  ? { settings: body.data.settings }
+                  : {}),
+                ...(body.data.presentation !== undefined
+                  ? { presentation: body.data.presentation }
+                  : {}),
+                ...(body.data.create !== undefined
+                  ? { create: body.data.create }
+                  : {}),
+                ...(body.data.projectId !== undefined
+                  ? { projectId: body.data.projectId }
+                  : {}),
+              }).catch((error: unknown) => {
+                storeError = error;
+                throw error;
+              }),
+          },
+        },
       );
+      if (storeError !== undefined) throw storeError;
+      return authoringRefusal(c, result) ?? c.json(result, 201);
     } catch (error) {
       return handleError(c, error);
     }
@@ -524,13 +473,33 @@ export function createAutomationRoutes(deps: {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
-      return c.json(
-        await deploy(deps.sql, {
-          organizationId: c.get('orgId'),
+      assembleAutomationAuthoringHost();
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+      });
+      let storeError: unknown;
+      const result = await dispatch(
+        'deploy_automation',
+        {
           name: nameFrom(c, 'deploy'),
           version: body.data.version,
-          actor: c.get('sessionBundle').user.id,
-        }),
+        },
+        {
+          store: {
+            ...store,
+            deploy: (...args) =>
+              store.deploy(...args).catch((error: unknown) => {
+                storeError = error;
+                throw error;
+              }),
+          },
+        },
+      );
+      if (storeError !== undefined) throw storeError;
+      return (
+        authoringRefusal(c, result) ??
+        c.json(isRecord(result) ? result.deployed : result)
       );
     } catch (error) {
       return handleError(c, error);
@@ -715,6 +684,9 @@ export function createAutomationRoutes(deps: {
         : {}),
       ...(row.settings !== null && row.settings !== undefined
         ? { settings: row.settings }
+        : {}),
+      ...(row.taskContract !== null && row.taskContract !== undefined
+        ? { taskContract: row.taskContract }
         : {}),
       ...(deployed !== undefined ? { deployedVersion: deployed } : {}),
       ...(unpinned.length > 0 ? { deployedUnpinnedAgentNodes: unpinned } : {}),

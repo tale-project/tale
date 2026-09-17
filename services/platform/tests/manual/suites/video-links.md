@@ -1,137 +1,108 @@
 # Video-link ingestion
 
-> **Prefix** `VID-` · **Reset** none · **Cost** 12 boxes
+> **Prefix** `VID-` · **Reset** none · **Cost** 13 boxes
 
-The chat video-link chip UI was **removed** in #2857 (the chip component, its
-composer hook, the `videoLink` error/status strings, and the user docs in
-#2877) — pasting a video URL in chat no longer triggers ingestion and renders
-no chip. The backend pipeline is fully alive:
-`video_links/mutations:ingestVideoUrl` → the orchestrator action in
-`convex/video_links/ingest_video_link.ts` (yt-dlp captions, else audio →
-Whisper) → a synthetic `fileMetadata` transcript row, with a bot-wall
-classifier, never-retry logic, and the `VIDEO_INGEST_*` anti-bot env vars.
-This plan covers that pipeline as a backend-observable surface: drive it via
-the Convex CLI and the gated live test, observe via job rows and backend logs.
-(The one surviving i18n key, `chat.videoLink.statuses.attemptNumber`, has no
-consumer — it feeds a status view only the deleted UI read.)
+Pasting a supported video URL into the chat composer starts ingestion and
+shows an attachment chip. Typing the same URL leaves ordinary message text;
+use an actual clipboard paste for the ingestion checks. Captions are preferred,
+with audio transcription as the fallback. The current pipeline is hosted by
+the Postgres backend; no Convex CLI or Convex credentials are required.
 
 ## Scope & routes
 
-| Surface                   | Route                             |
-| ------------------------- | --------------------------------- |
-| Chat (removal check only) | `/dashboard/{org}/chat`           |
-| Pipeline (no UI)          | Convex CLI + `videoLinkJobs` rows |
+| Surface | Route |
+| --- | --- |
+| Chat composer and chips | `/dashboard/{org}/chat` |
+| Existing conversation | `/dashboard/{org}/chat/{threadId}` |
+| Job observations | Browser requests under `/api/app/video-links` and backend worker logs |
 
 ## Preconditions
 
-Bring the stack up per [SETUP.md](../setup.md) — **mode B** for every case
-that runs the real pipeline (the mutation checks rate-limit/budget locally,
-but the orchestrator shells out to `yt-dlp` + `ffmpeg` and needs outbound
-network). The binaries must be on the backend host's PATH or pointed at via
-`VIDEO_INGEST_BIN_DIR` (the shipped container image bundles them). Bot-wall
-behaviour depends on the egress IP: a residential laptop usually passes, a
-datacenter host reproduces the wall.
+Bring the stack up per [setup.md](../setup.md) — **mode B** for cases that
+run the real pipeline. The backend needs `yt-dlp` and `ffmpeg` on its PATH or
+in `VIDEO_INGEST_BIN_DIR`, plus outbound network access. Use a disposable
+local organization and chat. Changes to provider or anti-bot configuration
+belong only on that test deployment.
 
-There is no UI entry point. Drive the pipeline with the Convex CLI against the
-local self-hosted backend (which lets `convex run` call public functions with
-a `--identity` and internal functions with the admin key from
-`.convex/local/default/config.json`). Find your ids first — your `userId` and
-`organizationId` are on your row in the `memberMirror` table (`bunx convex
-data memberMirror`); a thread id is the last segment of
-`/dashboard/{org}/chat/{threadId}` after you open any of your chat threads.
+Have a public YouTube URL with captions, one without captions, and a playlist
+URL. Caption-less ingestion requires an available organization audio model selected
+under Settings > Governance > Models, either Automatic or an explicit pin. A
+bot wall or missing provider is a recorded environment limitation, not a
+successful transcript test. Do not substitute typed text or an API write for
+the paste action.
 
-```bash
-cd services/platform
-bunx convex run video_links/mutations:ingestVideoUrl \
-  --identity '{"subject":"<USER-ID>"}' \
-  '{"organizationId":"<ORG-ID>","threadId":"<THREAD-ID>","url":"<VIDEO-URL>","pastedToken":"<VIDEO-URL>","normalizedUrl":"<VIDEO-URL>","sourcePlatform":"youtube"}'
-# observe: bunx convex data videoLinkJobs
-```
-
-(`normalizedUrl`/`sourcePlatform` are required args but re-derived
-server-side; passing the URL again is fine. Omitting `threadId` is allowed —
-welcome-page path — but skips the dedup match VID-F4 needs.)
-
-Have ready: a public YouTube URL **with** captions, one **without** captions
-(forces the Whisper path), and a playlist URL.
-
-> **Agent note**: the `videoLinkJobs` row is the source of truth — poll `bunx
-> convex data videoLinkJobs` (or watch
-> `video_links/internal_queries:getJobById`) and drive on `status`, not
-> wall-clock. Non-terminal: `queued`, `fetching_metadata`,
-> `fetching_captions`, `extracting_audio`, `transcribing_handoff`, `indexing`.
-> Terminal: `completed`, `failed`, `skipped`. `botDetection` / `rateLimited`
-> failures are never-retried, so those rows settle fast.
+Observe the chip and the page's own job reads. Non-terminal states include
+`queued`, `retrying`, `fetching_metadata`, `fetching_captions`,
+`extracting_audio`, `transcribing_handoff`, and `indexing`. The visible terminal
+states are completed, failed, or removed. Use worker logs to distinguish
+provider/configuration refusals from browser failures.
 
 ## Functional tests
 
-- [ ] `VID-F1` · **Chip removal is complete** — In `/dashboard/{org}/chat`,
-  paste a YouTube URL into the chat input and send. Works in mode A. → The URL
-  sends as plain message text — no chip, no progress UI, no toast. `bunx
-  convex data videoLinkJobs` shows **no** new row (the frontend no longer
-  calls the mutation).
-- [ ] `VID-F2` · **CLI ingestion, captions** — Run the Prerequisites recipe
-  with the **captioned** URL. _(mode B + network + yt-dlp/ffmpeg)_ → Returns a
-  job id. The row advances `queued` → `fetching_metadata` →
-  `fetching_captions` → `indexing` → **`completed`**; `transcriptSource` is
-  `captions_human` or `captions_auto`; `fileMetadataId` points at a synthetic
-  transcript row.
-- [ ] `VID-F3` · **Whisper fallback** — Re-run VID-F2 with the
-  **caption-less** URL. _(ENVIRONMENT: also needs a transcription-capable
-  provider configured)_ → Row goes through `extracting_audio` →
-  `transcribing_handoff` (the `progress` field heartbeats, e.g. chunk counts)
-  → **`completed`** with `transcriptSource: whisper`.
-- [ ] `VID-F4` · **URL-hash dedup** — Immediately re-run the exact VID-F2
-  command (same URL, same `threadId`, same identity). → The **same** job id is
-  returned; `bunx convex data videoLinkJobs` shows no second row for that URL.
-  (Dedup is scoped to unbound same-thread rows ≤24 h; omitting `threadId`
-  intentionally skips it.)
-- [ ] `VID-F5` · **Playlist rejection** — Run VID-F2 with a playlist URL (e.g.
-  a `playlist?list=` URL). No network needed. → The mutation throws a
-  ConvexError with code `playlist` ("Playlist URLs are not supported…"); no
-  row is inserted.
-- [ ] `VID-F6` · **Anti-bot env mitigation** — _(ENVIRONMENT: needs a
-  datacenter egress where VID-F2 fails with `botDetection`, plus a
-  mitigation.)_ Set `VIDEO_INGEST_PROXY_URL=socks5h://…` (or
-  `VIDEO_INGEST_POT_PROVIDER_URL`, or `VIDEO_INGEST_COOKIES_FILE`) on the
-  backend process, restart it, re-run VID-F2. → The job now reaches
-  **`completed`** instead of failing with `errorReasonCode: botDetection`.
-  Backend logs show the mitigation applied with values redacted (see VID-B3).
-- [ ] `VID-F7` · **Gated live yt-dlp suite** — `cd services/platform &&
-  YOUTUBE_LIVE_TEST=1 bunx vitest --run --project server
-  backend/core/video_links/ytdlp_live.test.ts` _(network; self-provisions
-  yt-dlp/deno/ffmpeg into a per-user cache)_ → The suite passes: real yt-dlp
-  pulls metadata + a non-empty transcript with the shipped anti-bot flags. A
-  bot-wall/rate-limit outcome self-**skips** (logged) — any other failure is a
-  real regression.
+- [ ] `VID-F1` · **Paste creates a chip** — In the chat composer, type a
+  supported video URL, clear it, then paste the same URL from the clipboard
+  → Typing leaves plain text; pasting starts ingestion and shows a named
+  chip with processing status. The pasted URL remains in the field until
+  sending, when its transcript attachment represents it.
+- [ ] `VID-F2` · **Caption ingestion** — Paste the captioned URL and wait for
+  the chip to settle → The job completes with `transcriptSource` equal to
+  `captions_human` or `captions_auto`; sending a question includes the
+  transcript attachment. Verify the reply against the source captions.
+- [ ] `VID-F3` · **Transcription fallback** — Repeat VID-F2 with the
+  caption-less URL and a configured transcription provider → The job passes
+  through audio extraction and transcription, then completes with
+  `transcriptSource: whisper`. Missing configuration is explained by the
+  failure detail and is not counted as a successful fallback.
+- [ ] `VID-F4` · **URL deduplication** — In an existing chat, paste the same
+  URL twice before sending → One unsent attachment represents the URL; the
+  backend does not start a second job for the same unbound URL in that chat.
+- [ ] `VID-F5` · **Playlist rejection** — Paste a playlist URL → The UI
+  explains that playlists are unsupported; no usable transcript attachment
+  appears and no playlist is downloaded.
+- [ ] `VID-F6` · **Anti-bot configuration** — On a local test deployment where
+  VID-F2 fails with `botDetection`, configure an authorized
+  `VIDEO_INGEST_PROXY_URL`, `VIDEO_INGEST_POT_PROVIDER_URL`, or
+  `VIDEO_INGEST_COOKIES_FILE`, restart the backend, then retry → Record whether
+  the job completes. A remaining bot wall stays an environment limitation;
+  configuration alone is not proof of success.
+- [ ] `VID-F7` · **Gated live yt-dlp suite** — Run
+  `YOUTUBE_LIVE_TEST=1 bunx vitest --run --project server backend/core/video_links/ytdlp_live.test.ts`
+  from `services/platform` with network access → The suite retrieves real
+  metadata and a non-empty transcript, or explicitly skips a bot-wall/rate-limit
+  outcome. Other failures are investigated as regressions.
 
 ## Boundary & error tests
 
-- [ ] `VID-B1` · **Bot wall is never-retried** — Run VID-F2 from a
-  flagged/datacenter egress with **no** mitigation env vars. → The row reaches
-  **`failed`** with `errorReasonCode: botDetection` after a single attempt
-  (`attempts: 1`) — no retry storm in the backend logs.
-  `video_links/mutations:retryVideoLink` (same `--identity`) re-queues it
-  once, manually.
-- [ ] `VID-B2` · **Invalid proxy value** — Set
-  `VIDEO_INGEST_PROXY_URL=not-a-url`, restart the backend, run VID-F2. → The
-  value is ignored with a redacted console warning in the backend logs
-  (`[ytdlp] VIDEO_INGEST_PROXY_URL is not a valid URL; ignoring`); ingestion
-  proceeds exactly as if unset — no crash.
-- [ ] `VID-B3` · **Secret hygiene in logs** — Set a proxy URL with inline
-  credentials (`socks5h://user:pass@host`), trigger any failure (e.g. VID-B1).
-  → Backend logs and the row's `errorMessage` never contain `user`/`pass`, the
-  raw proxy URL, or cookie contents — the stderr sanitizer redacts URLs,
-  `--proxy`, `--cookies`, and credential fields.
+- [ ] `VID-B1` · **Bot wall recovery** — Run VID-F2 from a blocked test egress
+  without mitigation → The job fails with `botDetection` without automatic
+  retry storms. **Try again** requests one manual retry; **Remove** clears
+  the failed attachment so another message can be sent.
+- [ ] `VID-B2` · **Invalid proxy value** — On the local test deployment, set
+  `VIDEO_INGEST_PROXY_URL=not-a-url`, restart, and repeat VID-F2 → Logs contain
+  a redacted invalid-URL warning; ingestion behaves as if the invalid value
+  were absent, without crashing the worker. Restore the prior environment.
+- [ ] `VID-B3` · **Secret hygiene in logs** — On the local test deployment,
+  use a synthetic proxy credential and trigger a failure → Worker logs and
+  visible technical details reveal neither the raw credential nor cookie
+  contents. Restore the prior environment.
+
+- [ ] `VID-B4` · **Captions without an audio model** — In a local org with
+  chat available but no server transcription model, paste the captioned URL
+  → The transcription warning does not block ingestion; usable captions can
+  complete the job. Repeat a caption-less URL with an unavailable saved pin
+  → Audio fallback explains the refusal and does not switch models. Count a
+  completed caption transcript only after observing the worker result.
 
 ## Accessibility (WCAG 2.1 AA)
 
-- [ ] `VID-A1` · **No orphaned chip UI** → After VID-F1, the chat composer
-  contains no leftover unlabeled chip/retry controls — the pipeline has no
-  user-facing surface, so nothing else applies.
+- [ ] `VID-A1` · **Chip controls** — After VID-F1, use Tab to reach the chip's
+  source, retry when failed, and remove controls → Every control has an
+  accessible name and visible focus; Enter or Space activates the relevant
+  action without sending the message accidentally.
 
 ## Performance
 
-- [ ] `VID-P1` · **Captions ingestion (VID-F2)** → Reaches **`completed`**
-  within a few minutes on an unflagged egress, and the every-5-min watchdog
-  cron ("recover stuck video-link jobs") never reclaims the row.
+- [ ] `VID-P1` · **Caption ingestion progress** — Repeat VID-F2 on a healthy
+  test egress → Progress remains visible until a terminal state. Record the
+  duration; a job that stops progressing is diagnosed from its worker logs
+  and watchdog state rather than assumed complete after a fixed wait.

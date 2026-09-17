@@ -3,9 +3,14 @@
 import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import {
+  isTranscriptionUnavailableReason,
+  transcriptionUnavailableKey,
+} from '@/app/features/chat/utils/transcription-availability';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -73,6 +78,11 @@ interface FileUploadConfig {
   disableIndexing?: boolean;
   maxFileSize?: number;
   allowedTypes?: string[];
+  /** Only a confirmed server capability refusal blocks media. */
+  transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
+  /** Open contextual recovery after a media operation is refused. */
+  onTranscriptionUnavailable?: (reason?: string) => void;
 }
 
 const DEFAULT_UPLOAD_CONFIG = {
@@ -142,6 +152,7 @@ export function useFileUpload(config: FileUploadConfig) {
       const rejectedTooLarge: { file: File; limit: number }[] = [];
       const rejectedType: File[] = [];
       const rejectedAudioDuration: File[] = [];
+      const rejectedTranscription: File[] = [];
 
       const rejectedExtension: File[] = [];
 
@@ -182,6 +193,11 @@ export function useFileUpload(config: FileUploadConfig) {
           rejectedTooLarge.push({ file, limit: perTypeLimit });
         } else if (!isAllowedType) {
           rejectedType.push(file);
+        } else if (
+          mergedConfig.transcriptionAvailable === false &&
+          isAudioOrVideo(resolvedType)
+        ) {
+          rejectedTranscription.push(file);
         } else {
           validFiles.push({ file, resolvedType });
         }
@@ -219,6 +235,25 @@ export function useFileUpload(config: FileUploadConfig) {
           description: t('fileTypeNotAllowed', { names }),
           variant: 'destructive',
         });
+      }
+
+      if (rejectedTranscription.length > 0) {
+        if (mergedConfig.onTranscriptionUnavailable) {
+          mergedConfig.onTranscriptionUnavailable(
+            mergedConfig.transcriptionUnavailableReason,
+          );
+        } else
+          toast({
+            title: t('transcription.uploadBlocked', {
+              names: rejectedTranscription.map((file) => file.name).join(', '),
+            }),
+            description: t(
+              transcriptionUnavailableKey(
+                mergedConfig.transcriptionUnavailableReason,
+              ),
+            ),
+            variant: 'destructive',
+          });
       }
 
       if (rejectedTooLarge.length > 0) {
@@ -539,10 +574,22 @@ export function useFileUpload(config: FileUploadConfig) {
             if (abortController.signal.aborted) {
               return;
             }
+            if (
+              error instanceof BackendApiError &&
+              isTranscriptionUnavailableReason(error.code) &&
+              mergedConfig.onTranscriptionUnavailable
+            ) {
+              mergedConfig.onTranscriptionUnavailable(error.code);
+              return;
+            }
             console.error('Upload error:', error);
             toast({
               title: t('uploadFailed'),
-              description: t('failedToUpload', { filename: file.name }),
+              description:
+                error instanceof BackendApiError &&
+                isTranscriptionUnavailableReason(error.code)
+                  ? t(transcriptionUnavailableKey(error.code))
+                  : t('failedToUpload', { filename: file.name }),
               variant: 'destructive',
             });
           } finally {
@@ -616,9 +663,17 @@ export function useFileUpload(config: FileUploadConfig) {
   );
 
   const retryInFlightRef = useRef(new Set<string>());
+  const onTranscriptionUnavailable = config.onTranscriptionUnavailable;
 
   const retryAttachmentTranscription = useCallback(
     (fileId: string) => {
+      if (
+        config.transcriptionAvailable === false &&
+        onTranscriptionUnavailable
+      ) {
+        onTranscriptionUnavailable(config.transcriptionUnavailableReason);
+        return;
+      }
       // Reuse the existing backend retry: resets status to `queued`, clears
       // the error, and reschedules the transcribe action. The reactive
       // transcription-status query flips the chip back to queued/running on
@@ -635,13 +690,27 @@ export function useFileUpload(config: FileUploadConfig) {
         organizationId: config.organizationId,
       })
         .catch((err) => {
+          if (
+            err instanceof BackendApiError &&
+            isTranscriptionUnavailableReason(err.code) &&
+            onTranscriptionUnavailable
+          ) {
+            onTranscriptionUnavailable(err.code);
+            return;
+          }
           console.warn('[retryAttachmentTranscription] failed:', err);
         })
         .finally(() => {
           retryInFlightRef.current.delete(fileId);
         });
     },
-    [retryTranscription, config.organizationId],
+    [
+      retryTranscription,
+      config.organizationId,
+      config.transcriptionAvailable,
+      config.transcriptionUnavailableReason,
+      onTranscriptionUnavailable,
+    ],
   );
 
   const clearAttachments = useCallback(() => {

@@ -38,7 +38,7 @@ import {
   mergeBurnedHashes,
   nextAttempt,
 } from './agent_retry';
-import { boundNodeTrace } from './bound_run_payload';
+import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
 import type {
   AgentCursor,
   NodeCheckpoint,
@@ -716,7 +716,9 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       checkpoint,
       executions: checkpoints.executions,
     });
-    checkpoints.nodes[node.id] = checkpoint;
+    // The store bounds its persisted copy; this invocation also assembles the
+    // final trace from its own checkpoints without re-reading those rows.
+    checkpoints.nodes[node.id] = boundCheckpointTrace(checkpoint);
     delete checkpoints.cursor;
     args.effects.push(...checkpoint.effects);
     return status === 'cancelled'

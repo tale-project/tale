@@ -1,5 +1,4 @@
 'use node';
-import { createHash } from 'node:crypto';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
 import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage';
@@ -23,6 +22,7 @@ import {
   WHISPER_PROFILE,
   type ParagraphSegment,
 } from './paragraphize';
+import { transcriptionCacheHash } from './transcription_cache';
 import {
   requestTranscription,
   type TranscriptionSegment,
@@ -256,15 +256,19 @@ export async function transcribeAudioImpl(
         },
       );
 
-      // Dedup by content. The blob's bytes are needed for compression anyway,
-      // so they are read first and hashed: if the same audio was already
-      // transcribed in this org, the prior transcript is copied and neither
-      // the ffmpeg pass nor the provider call is paid for again. The hash is
-      // stamped on the row before the lookup, so the NEXT identical upload
-      // finds this one. (0.4 read a SHA-256 off Convex `_storage`; an `s3:`
-      // ref has no such system row, which is why it is computed here.)
+      // Resolve before dedup: a cached transcript cannot bypass an invalid
+      // current pin. The target also scopes the cache so choosing another
+      // model or endpoint does not silently reuse the previous model's text.
+      const modelData = await resolveTranscriptionModel(ctx, {
+        organizationId: args.organizationId,
+      });
+      checkProviderHostPolicy(modelData.baseUrl);
+
+      // Reuse the same bytes only within this org and transcription target.
+      // The versioned hash is stamped before lookup so the next upload can
+      // find it. Old bytes-only keys naturally miss without a data rewrite.
       const bytes = await readAudioBytes(orgSlug, args.storageId);
-      const contentHash = createHash('sha256').update(bytes).digest('hex');
+      const contentHash = transcriptionCacheHash(bytes, modelData);
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
         { storageId: args.storageId, contentHash },
@@ -302,14 +306,6 @@ export async function transcribeAudioImpl(
       }
 
       await patchProgress(ctx, args.storageId, 'compressing');
-
-      const modelData = await resolveTranscriptionModel(ctx, {
-        organizationId: args.organizationId,
-      });
-      // Defense-in-depth: re-check host policy at request time so a provider
-      // file edited to point at an internal host cannot exfiltrate the bearer
-      // token (mirrors dictation / TTS).
-      checkProviderHostPolicy(modelData.baseUrl);
 
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
       const origBlob = new Blob([bytes as BlobPart], {

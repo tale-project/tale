@@ -1,12 +1,11 @@
 'use node';
 
 /**
- * The builder session's model call.
+ * The shared direct model call for thread titles and automation LLM nodes.
  *
  * The model is ALWAYS explicit: the caller names the provider connector and
- * the model id, and nothing here substitutes a "best" one. An authoring
- * session can run for a dozen turns and spend real money, so which model that
- * is stays the operator's decision, exactly as it is for an `llm` node.
+ * the model id, and nothing here substitutes a "best" one. Model choice
+ * remains the caller's decision.
  *
  * Only `api-key` and `env` credentials can serve this call. Both subscription
  * flavors carry execution constraints binding them to a specific vendor
@@ -14,9 +13,7 @@
  * subscription as a raw API key — so they are refused with a message that
  * says which credential to configure instead.
  *
- * The credential and connector are resolved once per session and reused for
- * its turns: a session is minutes long, and re-reading and re-decrypting the
- * secret on every turn buys nothing.
+ * The credential and connector are resolved once for each reusable call.
  */
 
 import type {
@@ -25,7 +22,6 @@ import type {
   WireDialect,
 } from '@tale/shared/schemas/providers';
 
-import type { BuilderModel } from '../../../lib/automations_builder/session';
 import { privateProviderHostsAllowed } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -37,16 +33,30 @@ import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { buildChatRequest, parseChatReply } from './chat_wire';
 
+export interface BuilderMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** A direct text-model call with an explicit provider and model. */
+export type BuilderModel = (request: {
+  messages: BuilderMessage[];
+  temperature: number;
+  turn: number;
+}) => Promise<{
+  content: string;
+  usage?: { prompt: number; completion: number };
+}>;
+
 /** A model, named the way the platform names models everywhere else. */
 export interface BuilderModelTarget {
   providerSlug: string;
   modelId: string;
 }
 
-/** An authoring turn writes a whole automation document; a reply cut in half
- * costs a turn to rediscover. */
+/** Default output allowance for an LLM node; title calls provide a lower cap. */
 const MAX_REPLY_TOKENS = 8000;
-/** Authoring turns are long: reasoning plus a full document. */
+/** Direct calls may produce a full document. */
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 /** The stored excerpt of an upstream error body — sized for a whole
@@ -64,8 +74,8 @@ interface WireTarget {
    * reject it. */
   reasoningModel?: boolean;
   /** The catalog's declared reasoning-OFF value, when the model has one. The
-   * builder never wants a thinking pass — an authoring turn is a document,
-   * and a thinks-by-default model burns the whole reply budget on reasoning
+   * direct text call does not request a thinking pass, and a
+   * thinks-by-default model may burn the whole reply budget on reasoning
    * (a 48-token title turn returns no text at all) — so the off value goes
    * on the wire exactly as the chat Default step sends it. */
   reasoningOff?: NonNullable<ModelCatalogEntry['reasoning']>['off'];
@@ -96,7 +106,7 @@ async function resolveWireTarget(
   if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
     throw new AppError({
       code: 'BUILDER_MODEL_CREDENTIAL_UNSUPPORTED',
-      message: `The default "${target.providerSlug}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and cannot serve a direct model call. Configure an API-key or environment-variable credential for the automation builder.`,
+      message: `The default "${target.providerSlug}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and cannot serve a direct model call. Configure an API-key or environment-variable credential for this provider.`,
     });
   }
 
@@ -108,10 +118,10 @@ async function resolveWireTarget(
     });
   }
 
-  // Resolved once per session, like the credential: which models reason is a
+  // Resolved once per reusable call, like the credential: which models reason is a
   // catalog fact, and the catalog is cached anyway. The off literal is read
   // for EVERY connector — a classic OpenAI-compatible wire spells it as
-  // `reasoning_effort` too, and a builder or title call that must not
+  // `reasoning_effort` too, and a direct call that must not
   // think depends on it being sent; the reasoning fact itself only matters
   // to the dialects that gate temperature on it.
   let reasoningModel: boolean | undefined;
@@ -154,9 +164,8 @@ export interface BuilderModelArgs {
 }
 
 /**
- * Build the session's model call. Failures surface as thrown errors with the
- * upstream detail redacted and truncated — the loop turns a failed model call
- * into a clean "gave up" outcome, so nothing here needs to retry.
+ * Build a reusable model call. Failures surface as thrown errors with the
+ * upstream detail redacted and truncated; callers own recovery.
  */
 export function createBuilderModel(
   ctx: ActionCtx,

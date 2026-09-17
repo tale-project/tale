@@ -36,7 +36,7 @@ function pickNumber(
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
 
-function formatRemaining(ms: number): string {
+export function formatRemaining(ms: number): string {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -121,7 +121,14 @@ export function mapLegalHoldError(
       };
     }
     case 'APPROVAL_TOO_SOON': {
-      const remainingMs = pickNumber(data, 'remainingMs') ?? 0;
+      const remainingMs = pickNumber(data, 'remainingMs');
+      if (remainingMs === undefined) {
+        return {
+          title: fallbackTitle,
+          description: fallbackDescription,
+          fieldError: fallbackDescription,
+        };
+      }
       const countdown = formatRemaining(remainingMs);
       const description = t('legalHold.errors.approvalTooSoon', { countdown });
       return {

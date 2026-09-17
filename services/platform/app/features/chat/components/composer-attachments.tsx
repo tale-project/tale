@@ -33,6 +33,8 @@ import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 
+import { transcriptionUnavailableKey } from '../utils/transcription-availability';
+
 interface ComposerAttachmentsProps {
   attachments: readonly FileAttachment[];
   /** Per-upload ids still in flight — each renders a spinner chip. */
@@ -44,6 +46,8 @@ interface ComposerAttachmentsProps {
   visionWarning?: string;
   /** Live transcription status for staged audio/video attachments. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
+  transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
   onRetryTranscription?: (fileId: string) => void;
   /** Live RAG-indexing status for staged document / text attachments. */
   indexingStatuses?: ReadonlyMap<BlobRef, FileIndexingInfo>;
@@ -103,11 +107,15 @@ function StagedMedia({
   info,
   onRemove,
   onRetry,
+  transcriptionAvailable,
+  transcriptionUnavailableReason,
 }: {
   attachment: FileAttachment;
   info: FileTranscriptionInfo | undefined;
   onRemove: () => void;
   onRetry?: () => void;
+  transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
 }) {
   const { t } = useT('chat');
   const status = info?.status;
@@ -153,6 +161,13 @@ function StagedMedia({
         <Text
           variant="muted"
           className="block truncate text-[10px] leading-tight"
+          title={
+            failed
+              ? transcriptionAvailable === false
+                ? t(transcriptionUnavailableKey(transcriptionUnavailableReason))
+                : info?.error
+              : undefined
+          }
         >
           {statusLabel}
         </Text>
@@ -270,6 +285,8 @@ export function ComposerAttachments({
   onCancelUpload,
   visionWarning,
   transcriptionStatuses,
+  transcriptionAvailable,
+  transcriptionUnavailableReason,
   onRetryTranscription,
   indexingStatuses,
 }: ComposerAttachmentsProps) {
@@ -292,6 +309,8 @@ export function ComposerAttachments({
               key={attachment.fileId}
               attachment={attachment}
               info={transcriptionStatuses?.get(attachment.fileId)}
+              transcriptionAvailable={transcriptionAvailable}
+              transcriptionUnavailableReason={transcriptionUnavailableReason}
               onRemove={() => onRemove(attachment.fileId)}
               {...(onRetryTranscription !== undefined
                 ? {

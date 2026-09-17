@@ -19,6 +19,8 @@ Les images apparaissent en miniature. Les autres fichiers apparaissent sous form
 
 Précise ce que l’assistant doit chercher, par exemple : « Lis le compte rendu et liste les décisions, leurs responsables et les échéances manquantes. » Joindre un fichier seul ne suffit pas à expliquer le résultat attendu.
 
+Quand tu essaies de joindre de l’audio ou de la vidéo, Tale vérifie si l’organisation dispose d’un modèle de transcription disponible. Si cette vérification empêche l’import, une boîte de dialogue explique le problème et propose les actions auxquelles tu as accès. Ces fichiers sont refusés avant leur transfert ; les autres fichiers compatibles de la même sélection peuvent toujours être importés. Ferme la boîte de dialogue pour continuer à écrire, ouvre le réglage proposé si tu y as accès, ou demande à un admin de vérifier les [Modèles](/fr/platform/admin/governance/content-models).
+
 ## Comprendre ce que reçoit le modèle
 
 | Pièce jointe | Contenu utilisé | Vérification |
@@ -34,7 +36,9 @@ Accepter un fichier à l’import et en extraire le texte sont deux opérations 
 
 Si des documents ou enregistrements sont encore en traitement au moment de l’envoi, Tale met le message en attente, puis l’envoie lorsqu’ils sont prêts. Le message en attente apparaît au-dessus du champ. Annule-le à cet endroit pour modifier la question ; son texte revient dans le champ.
 
-Un lien vidéo compatible peut aussi devenir une pièce jointe. Tale récupère les sous-titres ou transcrit l’audio, puis fournit le texte à l’assistant. Si ce lien échoue, réessaie ou retire-le avant d’envoyer.
+Colle un lien vidéo compatible dans le champ du message pour lancer la création d’une pièce jointe. Une URL saisie au clavier reste du texte ordinaire. Tale récupère d’abord les sous-titres et transcrit l’audio si aucun n’est disponible, puis fournit le texte à l’assistant. Tu peux toujours coller un lien sans modèle de transcription, car les sous-titres utilisables n’en ont pas besoin. Si ce lien échoue, réessaie ou retire-le avant d’envoyer.
+
+Un changement de modèle s’applique aux nouvelles transcriptions ; les pièces jointes déjà traitées conservent leur texte. Importer à nouveau les mêmes octets réutilise le travail terminé pour la même cible de transcription, mais relance la transcription si le fournisseur ou le modèle cible diffère.
 
 ## Choisir le bon emplacement
 

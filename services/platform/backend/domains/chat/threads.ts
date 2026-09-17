@@ -705,6 +705,14 @@ export async function setThreadArchived(
   if (thread.archived === archived) {
     return { archived, archivedAt: thread.archivedAt };
   }
+  await assertNotHeld(
+    sql,
+    auth.organizationId,
+    'thread',
+    thread.id,
+    undefined,
+    thread.userId,
+  );
   const archivedAt = archived ? Date.now() : null;
   await sql.begin(async (tx) => {
     await tx`

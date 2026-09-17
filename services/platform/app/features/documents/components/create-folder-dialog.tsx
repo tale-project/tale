@@ -6,7 +6,7 @@ import { Input } from '@tale/ui/input';
 import { Select } from '@tale/ui/select';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
-import { useState, useMemo } from 'react';
+import { type RefObject, useState, useMemo } from 'react';
 import * as z from 'zod';
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -23,6 +23,7 @@ interface CreateFolderDialogProps {
   parentFolderTeamId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   onSuccess?: () => void;
 }
 
@@ -37,6 +38,7 @@ export function CreateFolderDialog({
   parentFolderTeamId,
   open,
   onOpenChange,
+  restoreFocusRef,
   onSuccess,
 }: CreateFolderDialogProps) {
   const { t: tDocuments } = useT('documents');
@@ -106,6 +108,7 @@ export function CreateFolderDialog({
 
   return (
     <FormDialog
+      restoreFocusRef={restoreFocusRef}
       open={open}
       onOpenChange={handleOpenChange}
       title={tDocuments('folder.createFolder')}

@@ -1482,6 +1482,27 @@ async function settleTaskAgentTurn(
     usageTotals?: { inputTokens: number; outputTokens: number };
   },
 ): Promise<void> {
+  const current = await ctx.runQuery(
+    internal.tasks.agent_runs.getTaskAgentRunForDrive,
+    { runId: args.runId },
+  );
+  if (
+    current === null ||
+    current.execId !== args.execId ||
+    (current.status !== 'queued' && current.status !== 'running')
+  ) {
+    await sessionCancelExec(args.sessionId, args.execId).catch((error) =>
+      console.warn('[task-agent] cancelled settle exec reap failed:', error),
+    );
+    await releaseTurnKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      status: 'cancelled',
+    });
+    await releaseProjectAgentSlotAfterSettle(ctx, args);
+    return;
+  }
   const release = await releaseTurnKey(ctx, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
@@ -1546,6 +1567,12 @@ async function settleTaskAgentTurn(
     return;
   }
 
+  let files: Array<{
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }> = [];
   let fileNames: string[] = [];
   let skippedNotes: string[] = [];
   try {
@@ -1561,46 +1588,13 @@ async function settleTaskAgentTurn(
     skippedNotes = harvested.harvestSkipped.map(
       (skip) => `${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reason}`,
     );
-    const files = harvested.files.map((file) => ({
+    files = harvested.files.map((file) => ({
       fileId: file.storageId,
       fileName: file.path.split('/').at(-1) ?? file.path,
       fileType: file.contentType,
       fileSize: file.size,
     }));
     fileNames = files.map((file) => file.fileName);
-    if (files.length > 0) {
-      // Deliverables outlive the run: re-source each harvested blob's
-      // metadata row OUT of the agent temp-GC lane (source 'agent' +
-      // no documentId is retention-eligible), then merge the set into the
-      // task's Output zone (same fileName ⇒ replace). Best-effort — losing
-      // the attach must not lose the settle.
-      for (const file of files) {
-        await ctx
-          .runMutation(
-            internal.file_metadata.internal_mutations.saveFileMetadata,
-            {
-              organizationId: args.organizationId,
-              storageId: file.fileId,
-              fileName: file.fileName,
-              contentType: file.fileType,
-              size: file.fileSize,
-              source: 'task-output',
-            },
-          )
-          .catch((err) =>
-            console.warn('[task-agent] output metadata claim failed:', err),
-          );
-      }
-      await ctx.runMutation(
-        internal.tasks.internal_mutations.agentRecordTaskOutputs,
-        {
-          organizationId: args.organizationId,
-          taskId: args.taskId,
-          runId: args.runId,
-          files,
-        },
-      );
-    }
   } catch (err) {
     // The turn's work may be done, but its deliverables are gone — parking
     // the task `in_review` with a clean, empty comment would launder an
@@ -1626,44 +1620,14 @@ async function settleTaskAgentTurn(
       : 'The agent finished without a report.';
   const body = buildSettleCommentBody({ resultText, fileNames, skippedNotes });
 
-  let resultMessageId: string | undefined;
-  try {
-    const comment = await ctx.runMutation(
-      internal.tasks.internal_mutations.agentAddComment,
-      {
-        organizationId: args.organizationId,
-        actorId: args.agentId,
-        taskId: args.taskId,
-        body,
-      },
-    );
-    resultMessageId = comment.messageId;
-  } catch (err) {
-    console.warn('[task-agent] result comment failed:', err);
-  }
-
-  const status = await ctx.runMutation(
-    internal.tasks.internal_mutations.agentUpdateTaskStatus,
-    {
-      organizationId: args.organizationId,
-      actorId: args.agentId,
-      taskId: args.taskId,
-      status: 'in_review',
-      // Park-and-mint in one transaction: the run's workflow-free
-      // `task_review` (+ reviewer bell) rides the status flip, so a refused
-      // transition never mints and the burned-claim replay finds the
-      // existing row instead of minting twice.
-      review: { runId: args.runId },
-    },
-  );
-  if (!status.ok) {
-    console.warn('[task-agent] in_review transition refused:', status.reason);
-  }
-
-  await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunSettled, {
+  await ctx.runMutation(internal.tasks.agent_runs.completeTaskAgentRun, {
+    organizationId: args.organizationId,
+    taskId: args.taskId,
+    agentId: args.agentId,
     runId: args.runId,
+    files,
+    body,
     resultText,
-    ...(resultMessageId !== undefined ? { resultMessageId } : {}),
     // Exec-guarded, same reason as the failed mark above.
     execId: args.execId,
     ...(result.agentSessionId !== undefined

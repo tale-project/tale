@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
@@ -217,21 +218,29 @@ export async function launchAgentRun(
  * transaction — a raced double-settle that degrades to a no-op also writes no
  * second ledger row. Returns whether THIS call won the flip.
  */
+export interface SettleAgentRunArgs {
+  runId: string;
+  resultText: string;
+  resultMessageId?: string;
+  execId?: string;
+  /** The harness conversation id — the next kick's `--resume` handle. */
+  agentSessionId?: string;
+  sessionCreatedAt?: number;
+}
+
 export async function settleAgentRun(
   sql: Sql,
-  args: {
-    runId: string;
-    resultText: string;
-    resultMessageId?: string;
-    execId?: string;
-    /** The harness conversation id — the next kick's `--resume` handle. */
-    agentSessionId?: string;
-    sessionCreatedAt?: number;
-  },
+  args: SettleAgentRunArgs,
+): Promise<boolean> {
+  return sql.begin((tx) => settleAgentRunInTx(tx, args));
+}
+
+export async function settleAgentRunInTx(
+  tx: TransactionSql,
+  args: SettleAgentRunArgs,
 ): Promise<boolean> {
   const now = Date.now();
-  return sql.begin(async (tx) => {
-    const rows = await tx<{ organizationId: string }[]>`
+  const rows = await tx<{ organizationId: string }[]>`
       UPDATE app.project_agent_runs SET
         status = 'settled', result_text = ${args.resultText},
         result_message_id = ${args.resultMessageId ?? null},
@@ -244,16 +253,15 @@ export async function settleAgentRun(
              OR exec_id = ${args.execId ?? null})
       RETURNING org_id AS "organizationId"
     `;
-    const run = rows[0];
-    if (run === undefined) return false;
-    await recordTaskAgentRunLedgerEntry(tx, {
-      runId: args.runId,
-      organizationId: run.organizationId,
-      finalStatus: 'settled',
-      settledAt: now,
-    });
-    return true;
+  const run = rows[0];
+  if (run === undefined) return false;
+  await recordTaskAgentRunLedgerEntry(tx, {
+    runId: args.runId,
+    organizationId: run.organizationId,
+    finalStatus: 'settled',
+    settledAt: now,
   });
+  return true;
 }
 
 /**
@@ -399,20 +407,42 @@ export async function cancelAgentRunInTx(
   args: CancelAgentRunArgs,
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await tx<{ id: string }[]>`
+  const rows = await tx<
+    {
+      id: string;
+      execId: string;
+      sessionId: string;
+      agentId: string;
+      harness: string;
+      deadlineAt: number;
+    }[]
+  >`
     UPDATE app.project_agent_runs SET
       status = 'cancelled', settled_at_ms = ${now}, updated_at_ms = ${now}
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
       AND task_id = ${args.taskId}
       AND status IN ('queued', 'running')
-    RETURNING id
+    RETURNING id, exec_id AS "execId", session_id AS "sessionId",
+              agent_id AS "agentId", harness, deadline_at_ms::float8 AS "deadlineAt"
   `;
-  if (rows.length === 0) return false;
+  const run = rows[0];
+  if (run === undefined) return false;
   await recordTaskAgentRunLedgerEntry(tx, {
     runId: args.runId,
     organizationId: args.organizationId,
     finalStatus: 'cancelled',
     settledAt: now,
+  });
+  // The active drive may be draining a long window. Enqueue its existing
+  // orphan cleanup immediately; it kills only this exec, preserving sibling
+  // turns in the agent's standing session. This survives process restarts.
+  await addJobInTx(tx, 'task.agent_drive', {
+    ...args,
+    execId: run.execId,
+    sessionId: run.sessionId,
+    agentId: run.agentId,
+    harness: run.harness,
+    deadlineAt: run.deadlineAt,
   });
   return true;
 }
@@ -421,7 +451,18 @@ export async function cancelAgentRun(
   sql: Sql,
   args: CancelAgentRunArgs,
 ): Promise<boolean> {
-  return sql.begin((tx) => cancelAgentRunInTx(tx, args));
+  const cancelled = await sql.begin((tx) => cancelAgentRunInTx(tx, args));
+  if (cancelled) {
+    const run = await getAgentRun(sql, args.organizationId, args.runId);
+    if (run !== null) {
+      // Do not wait for the active drain or the cleanup job's worker slot.
+      // The queued orphan cleanup also covers a request/process interruption.
+      await sessionCancelExec(run.sessionId, run.execId).catch((error) => {
+        console.warn('[task-agent] immediate cancel exec reap failed:', error);
+      });
+    }
+  }
+  return cancelled;
 }
 
 /**

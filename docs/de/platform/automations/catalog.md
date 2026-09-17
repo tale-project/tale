@@ -17,12 +17,11 @@ Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitg
 
 Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Versionen** findest du den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen. Im Bereich **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung.
 
-Das Menü **Automatisierung erstellen** bietet drei Wege:
+Das Menü **Automatisierung erstellen** bietet zwei Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
-| **Aus einem Ziel** | du das Ergebnis kennst, aber Hilfe beim Aufbau brauchst. | Der Builder erstellt einen prüfbaren Workflow-Entwurf. |
-| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Benenne ihn, wähle das Modell und ergänze Anweisungen und Ausstattung im Editor. |
+| **Leer (Trigger + Agent)** | du den Ablauf selbst konfigurieren möchtest. | Lege Name, Modell, Anweisungen und Ausstattung fest und wähle dann, wann der Agent läuft. Nach dem Erstellen öffnet sich der Editor für weitere Änderungen. |
 | **Paket hochladen** | eine Workflow-Datei oder ein wiederverwendbares Pack vorliegt. | Tale prüft die Dateien und speichert eine Entwurfsversion. |
 
 Mitgelieferte Automatisierungen werden beim Erstellen der Organisation eingerichtet. Für den automatischen Einsatz brauchen sie dennoch ihre Konfiguration und eine Live-Version. Der [Workflow-Editor](/de/platform/automations/editor) führt durch Eingaben, Test, Ergebnisprüfung und Live-Schaltung.

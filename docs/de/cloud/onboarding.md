@@ -25,6 +25,8 @@ Nach der Anmeldung kannst du [deine erste Nachricht senden](/de/get-started/quic
 
 Nutze die Instanzadresse und Einrichtungshinweise von Tale. Erscheint der Assistent für die Ersteinrichtung, erstelle das erste Konto und die Organisation. Ist eine Organisation schon vorhanden, öffne sie. Eine weitere Organisation erzeugt einen getrennten Arbeitsbereich.
 
+Wenn der Betreiber das Erstellen von Organisationen verwaltet, bietet die Organisationsauswahl keine Aktion dafür an. Ein direkter Link zur Einrichtung erklärt die Einschränkung. Wende dich an den Betreiber, um einen weiteren Arbeitsbereich anzufordern.
+
 <Frame caption="Der Organisationsname kennzeichnet den Arbeitsbereich deines Teams.">
 
 ![Der Assistent zum Erstellen einer Organisation zeigt das Feld für den Organisationsnamen.](/images/get-started/org-create-wizard.webp)

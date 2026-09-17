@@ -301,3 +301,16 @@ export function useResolvedVisionModel(organizationId: string) {
     { organizationId },
   );
 }
+
+/** Server-authoritative candidates and the effective saved audio policy. */
+export function useTranscriptionModelState(organizationId: string) {
+  return useActionQuery(
+    backendKey(
+      organizationId,
+      PROVIDER_CREDENTIAL_HINT_ENTITY,
+      'transcription-model',
+    ),
+    'lib/providers/transcription_actions:getTranscriptionModelState',
+    { organizationId },
+  );
+}

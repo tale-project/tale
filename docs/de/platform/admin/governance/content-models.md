@@ -1,15 +1,9 @@
 ---
 title: Modelle
-description: Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten.
+description: Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription.
 ---
 
 Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/de/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
-
-<Frame caption="Einstellungen > Richtlinien > Modelle — die Standardmodellregeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
-
-![Die Einstellungsseite Modelle zeigt die Tabelle der Standardmodelle mit drei Regeln — einem Standard für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt — über dem Abschnitt Modellzugriff im Modus Allowlist mit einer Regel erlaubter Modelle pro Rolle.](/images/platform/governance-content-models.webp)
-
-</Frame>
 
 ## Ein Standardmodell festlegen
 
@@ -31,7 +25,7 @@ Wähle unter **Modellzugriff** den Modus und ergänze Regeln für Personen, Team
 
 Zuerst gelten Personenregeln, danach Teamregeln, Rollenregeln und der Standard. Mehrere passende Teamregeln kombinieren ihre Listen. Eine ausdrückliche Sperre hat für das Modell weiterhin Vorrang. Passt keine Regel, schränkt die Richtlinie diese Person nicht ein. Lege eine Standardregel an, wenn du alle abdecken willst.
 
-Der Zugriff wird bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
+Bei Chats wird der Zugriff bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
 
 <Tip>
 Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktionieren, ein gesperrtes für das betroffene Mitglied abgelehnt werden. Ein Test nur als Admin belegt keine rollenspezifische Regel.
@@ -39,11 +33,33 @@ Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktioniere
 
 ## Das Modell zum Lesen von Bildern wählen
 
-Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell die Transkription übernimmt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
+Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
 
 Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkatalog zu folgen. Tale bevorzugt ein empfohlenes Vision-Modell und wählt sonst eine erreichbare günstige Option. Der Text unter der Auswahl nennt das aktuelle Modell und den Grund.
 
-Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet für Transkription geeignete Modelle an. Ist das festgelegte Modell später nicht mehr verfügbar, wechselt Tale zur automatischen Auswahl. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
+Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet Modelle an, die Bilder lesen können. Ist das festgelegte Modell später nicht mehr verfügbar, stelle seinen Anbieterzugang wieder her oder wähle ausdrücklich **Automatisch** und speichere. Tale wechselt ein festgelegtes Modell nicht stillschweigend. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
+
+## Das Modell für Audiotranskription auswählen
+
+**Modell für Audiotranskription** steuert die serverseitige Transkription von Audio- und Videoanhängen, die Audiospur von Videolinks ohne nutzbare Untertitel sowie Diktate in Browsern ohne eigene Spracherkennung. Die Spracherkennung des Browsers nutzt ihren eigenen Dienst und hat Vorrang, wenn sie unterstützt wird.
+
+<Frame caption="Die Audiotranskription hat eine eigene organisationsweite Auswahl: automatisch oder ein festgelegtes Modell.">
+
+![Der Abschnitt für Audiotranskription zeigt die automatische Auswahl und nennt das aktuelle Modell für die serverseitige Transkription.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
+Mit einem aktiven Standardzugang für OpenRouter stehen hier auch dessen Modelle zur Spracherkennung zur Auswahl. Tale findet sie im OpenRouter-Katalog. Prüfe, ob das gewünschte Transkriptionsmodell für den Zugang erlaubt ist. Nutze dann **Automatisch** oder wähle das Modell ausdrücklich aus.
+
+1. Lass **Modell zur Audiotranskription** auf **Automatisch**, damit Tale ein verfügbares kompatibles Modell auswählt, oder wähle einen bestimmten Anbieter und ein Modell.
+2. Speichere die ausstehenden Änderungen im Seitenkopf. Bis dahin ist die Auswahl ein Entwurf. Verwirf ihn, um die gespeicherte Einstellung beizubehalten.
+3. Prüfe das aktuelle Modell unter der Auswahl. Teste eine kurze Aufnahme, bevor du mit dieser Einrichtung eine längere Datei hochlädst.
+
+Ein Modellwechsel gilt für neue Transkriptionen; bereits verarbeitete Anhänge behalten ihr vorhandenes Transkript. Lädst du dieselben Bytes erneut hoch, wird die fertige Transkription für dasselbe Ziel wiederverwendet. Bei einem anderen Zielanbieter oder Zielmodell wird die Aufnahme erneut transkribiert.
+
+Ein ausdrücklich ausgewähltes Modell bleibt festgelegt. Wird es nicht mehr verfügbar, zeigt Tale das an und wechselt nicht zu einem anderen Modell. Wähle ein anderes verfügbares Modell oder **Automatisch** und speichere. Ist kein kompatibles Modell verfügbar, richte unter [KI-Anbieter](/de/platform/admin/providers) einen aktiven Zugang ein und prüfe die dafür erlaubten Modelle. Kann Tale die Konfiguration vorübergehend nicht prüfen, versuche es erneut, statt deshalb ein anderes Modell auszuwählen.
+
+Verhindert eine nicht verfügbare Servertranskription den Versuch, zu diktieren oder Audio oder Video anzuhängen, erklärt ein schließbarer Dialog das Problem. Je nach Zugriffsrechten erhalten Mitglieder einen Link zu den Einstellungen oder den Hinweis, einen Admin zu kontaktieren. Vorübergehend fehlgeschlagene Verfügbarkeitsprüfungen lassen sich wiederholen. Zur Auswahl über die Bereitstellungskonfiguration und zu eigenen Audioendpunkten siehe die [Anbieterreferenz für Self-Hosting](/de/self-hosted/configuration/providers#audiotranskription-konfigurieren).
 
 ## Eine unerwartete Auswahl erklären
 

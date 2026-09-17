@@ -24,12 +24,13 @@ export interface ComposerCatalog {
   readonly voice: {
     readonly ttsAvailable: boolean;
     readonly transcriptionAvailable: boolean;
+    readonly transcriptionUnavailableReason?: string;
   };
 }
 
-// v5: `voice` gained `transcriptionAvailable` (the Firefox dictation
-// fallback); the parser requires it, so v4 records retire with the bump.
-const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v5:';
+// v6: transcription availability follows the organization's Auto/pin policy,
+// not the presence of any tagged catalog entry. Old answers cannot gate audio.
+const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v6:';
 
 /** A stored catalog older than this is stale enough to prefer a fresh load. */
 const TTL_MS = 12 * 60 * 60 * 1000;
@@ -69,11 +70,22 @@ function parseRecord(raw: string): ComposerCatalog | null {
     ) {
       return null;
     }
+    if (
+      voice.transcriptionUnavailableReason !== undefined &&
+      typeof voice.transcriptionUnavailableReason !== 'string'
+    )
+      return null;
     return {
       models,
       voice: {
         ttsAvailable: voice.ttsAvailable,
         transcriptionAvailable: voice.transcriptionAvailable,
+        ...(voice.transcriptionUnavailableReason === undefined
+          ? {}
+          : {
+              transcriptionUnavailableReason:
+                voice.transcriptionUnavailableReason,
+            }),
       },
     };
   } catch (error) {

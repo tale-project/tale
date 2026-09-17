@@ -511,9 +511,8 @@ automations:
     loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description: Describe what you want to automate, or upload a workflow file.
+      description: Create an agent with a trigger, or upload a workflow package.
   createMenu:
-    fromGoal: From a goal
     blank: Blank (trigger + agent)
   blank:
     title: New automation
@@ -542,28 +541,6 @@ automations:
     submit: Create automation
     submitting: Creating…
     initialMessage: Initial version
-  builder:
-    title: New automation
-    description: Describe what goal you want this automation to achieve.
-    goalLabel: Goal
-    goalPlaceholder:
-      e.g. Every morning, read the newest support emails and write one digest
-      of what needs a reply.
-    providerLabel: AI provider
-    providerPlaceholder: Select a provider
-    modelLabel: Model
-    modelPlaceholder: Select a model
-    submit: Generate automation
-    submitting: Building…
-    running:
-      The builder is working — this can take a few minutes. Saved versions
-      appear in the list as they land.
-    gaveUpNoReason: The builder stopped without a finished automation.
-    outcomeFailedTitle: Couldn't generate automation
-    outcomeGaveUpTitle: Builder stopped early
-    noProviders:
-      No AI provider is ready for the builder. Add an API-key credential in
-      the provider settings first.
   notFound:
     title: Automation not found
     description: It may have been renamed, or it may belong to another
@@ -595,6 +572,7 @@ automations:
       label: Run input (JSON)
       description: 'Input for saved version {version}. It does not change the automation.'
       schema: Input schema
+      invalidJson: Enter valid JSON for the run input.
       invalid: 'The input does not match the schema. Check these fields: {paths}.'
       mockDescription: Test the saved version with mock responses. No external actions run.
     runScope:
@@ -1098,6 +1076,14 @@ chat:
     viewTranscript: View transcript
     previewSubtitle: '{seconds}s transcribed'
     retry: Try again
+    noModel: No compatible model is available for audio-file transcription.
+    pinnedUnavailable: The selected audio transcription model is unavailable.
+    policyInvalid: The audio transcription model setting is invalid.
+    temporarilyUnavailable: Audio transcription availability could not be checked. Try again shortly.
+    askAdmin: Ask an admin to check the transcription settings.
+    configureProviders: Configure AI providers
+    configureModel: Review transcription model
+    uploadBlocked: 'Audio/video not uploaded: {names}.'
   indexing: Indexing…
   indexingFailed: Index failed
   indexingFailedDescription: '{filename} could not be indexed for search.'
@@ -1251,7 +1237,6 @@ chat:
     stop: Stop dictation
     level: Microphone level
     notSupported: Speech recognition is not supported in this browser
-    notConfigured: Dictation unavailable — ask an admin to add a transcription model
     transcribing: Transcribing…
     transcriptionFailedShort: Transcription failed
     retry: Try again
@@ -1454,9 +1439,6 @@ chat:
   budgetViewUsage: View usage
 common:
   or: or
-  select:
-    noProvidersHint: Add an AI provider first.
-    pickProviderFirstHint: Pick a provider first — its models appear here.
   units:
     stock: '{count, plural, one {# unit} other {# units}}'
   actions:
@@ -2373,6 +2355,7 @@ onboarding:
     createError:
       We couldn't create your workspace. Check your connection and click
       Next to try again.
+    creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
     nameTakenError: That name is already taken. Pick a different one.
   provider:
     heading: Connect OpenRouter
@@ -2556,6 +2539,49 @@ governance:
     searchModels: Search models
     noModelsFound: No model that reads images is available
     saveFailed: Couldn't save the vision model
+  transcriptionModel:
+    title: Audio transcription model
+    description:
+      Transcribes audio and video attachments. It also handles voice input
+      when browser speech recognition is unavailable. Browser speech
+      recognition uses its own model.
+    label: Model that transcribes audio
+    labelHint:
+      Automatic selects an available model. A fixed selection stays in effect
+      until you change it, even if that model becomes unavailable.
+    automaticLabel: Automatic
+    automaticHint: Let Tale choose from the available audio transcription models.
+    currentModel: 'Currently transcribing audio with {model}.'
+    draftHint: Save to apply this selection.
+    noAvailable:
+      No audio transcription model is available. Add or enable a compatible
+      credential in AI providers, then check which models that credential allows.
+    unavailable:
+      The saved model is unavailable. Choose another model or Automatic, or
+      check its provider credential and the models it allows. Tale will not switch to
+      another model while this selection is saved.
+    invalidPolicy:
+      The saved audio model configuration is invalid. Choose a model or
+      Automatic and save to repair it.
+    policyUnavailable:
+      The saved audio model configuration could not be read. Retry before
+      changing it. Tale cannot assume Automatic while its configuration is
+      unavailable.
+    resolutionFailed:
+      Tale could not check the audio transcription model. Check the provider
+      connection and retry.
+    loadFailed: Couldn't load the audio model settings. Retry to load them.
+    invalidSelection: Invalid saved configuration
+    unknownSelection: Saved selection could not be read
+    savedUnavailable: Saved selection is not currently available
+    providersLink: AI providers
+    retry: Retry
+    searchModels: Search audio models
+    noModelsFound: No matching audio model
+    saveFailed: Couldn't save the audio transcription model
+    remoteUpdate:
+      This setting changed in another session. Discard your draft to load the
+      saved selection, or save to replace it.
   uploadPolicy:
     title: Upload policy
     description: Configure allowed file types, maximum file size, and volume limits.
@@ -3574,6 +3600,13 @@ governance:
       extendDeadline: Extend deadline
       retry: Retry
       cancel: Cancel request
+    approval:
+      description: A different admin must approve this request before its waiting period begins.
+      approve: Approve request
+      reject: Reject request
+      approveDescription: Approve this erasure request and start its configured waiting period. With no waiting period, erasure can begin immediately.
+      rejectDescription: Reject this erasure request. The request will be cancelled and no erasure will run.
+      saved: Decision saved
     drawer:
       description: Receipt detail with audit timeline.
       headerTitle: Erasure receipt
@@ -5066,9 +5099,13 @@ settings:
       description: Password and two-factor authentication.
     chats:
       title: Your chats
-      description: Archive or permanently delete all of your chat conversations at once.
+      description: Archive your chats or move them to Trash in this organization.
       archiveAll: Archive all chats
       deleteAll: Delete all chats
+      archiveConfirm: "Archive all your unarchived chats in this organization, including project chats. You can unarchive them later. Chats under legal hold stay unchanged."
+      deleteConfirm: "Move all your chats in this organization to Trash, including archived and project chats. They can be restored during the retention grace period. Chats under legal hold or with a running reply stay unchanged."
+      result: "Updated {changed} chats; {failed} could not be changed."
+      failed: "Could not update your chats. Try again."
   usage:
     limits:
       title: Usage limits

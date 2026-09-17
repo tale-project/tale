@@ -14,14 +14,21 @@ import type { OrgEnv } from '../../auth/org.ts';
 
 const viewerRole = vi.hoisted(() => ({ current: 'admin' }));
 
-const { listLegalHolds, listActiveHoldTargetIds } = vi.hoisted(() => ({
-  listLegalHolds: vi.fn(),
-  listActiveHoldTargetIds: vi.fn(),
-}));
+const { listLegalHolds, listActiveHoldTargetIds, approveLegalHoldRelease } =
+  vi.hoisted(() => ({
+    listLegalHolds: vi.fn(),
+    approveLegalHoldRelease: vi.fn(),
+    listActiveHoldTargetIds: vi.fn(),
+  }));
 
 vi.mock('./service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./service.ts')>();
-  return { ...actual, listLegalHolds, listActiveHoldTargetIds };
+  return {
+    ...actual,
+    listLegalHolds,
+    listActiveHoldTargetIds,
+    approveLegalHoldRelease,
+  };
 });
 
 vi.mock('../../auth/session.ts', () => ({
@@ -48,6 +55,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 });
 
 import { createLegalHoldRoutes } from './routes.ts';
+import { LegalHoldError } from './service.ts';
 
 function makeApp() {
   return createLegalHoldRoutes({ sql: {} as never, auth: {} as never });
@@ -59,6 +67,24 @@ describe('legal-hold routes — role doors', () => {
     viewerRole.current = 'admin';
     listLegalHolds.mockResolvedValue([]);
     listActiveHoldTargetIds.mockResolvedValue({ targetIds: [] });
+  });
+
+  it('preserves the remaining approval delay in the HTTP error envelope', async () => {
+    approveLegalHoldRelease.mockRejectedValueOnce(
+      new LegalHoldError('APPROVAL_TOO_SOON', 'Wait five minutes.', 409, {
+        remainingMs: 240_000,
+      }),
+    );
+    const response = await makeApp().request(
+      '/release-requests/request-a/approve?orgId=o1',
+      { method: 'POST' },
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'APPROVAL_TOO_SOON',
+      message: 'Wait five minutes.',
+      data: { remainingMs: 240_000 },
+    });
   });
 
   it('GET / lists holds for an admin', async () => {

@@ -18,7 +18,7 @@ export interface ProviderAttributionInput {
   baseUrl: string;
 }
 
-function isOpenRouter({
+export function isOpenRouterProvider({
   providerName,
   baseUrl,
 }: ProviderAttributionInput): boolean {
@@ -41,7 +41,7 @@ function isOpenRouter({
 export function providerAttributionHeaders(
   input: ProviderAttributionInput,
 ): Record<string, string> {
-  if (isOpenRouter(input)) {
+  if (isOpenRouterProvider(input)) {
     return { 'HTTP-Referer': TALE_APP_URL, 'X-Title': TALE_APP_NAME };
   }
   return {};

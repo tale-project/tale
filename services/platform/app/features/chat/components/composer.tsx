@@ -160,11 +160,11 @@ interface ComposerProps {
   onVoiceOutputChange?: (next: boolean) => void;
   voiceOutputHidden?: boolean;
   voiceOutputAvailable?: boolean;
-  /** The org the dictation fallback transcribes against, plus whether a
-   * transcription model is configured — threaded to the mic so browsers
-   * without Web Speech (Firefox) get the MediaRecorder + server path. */
+  /** Shared organization transcription capability for uploads and dictation. */
   organizationId?: string;
   transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
+  onTranscriptionUnavailable?: (reason?: string) => void;
   /** Arena Mode — the pair state and its toggle; absent hides the entry. */
   arenaActive?: boolean;
   onArenaChange?: (next: boolean) => void;
@@ -205,6 +205,8 @@ export const Composer = memo(
       voiceOutputAvailable,
       organizationId,
       transcriptionAvailable,
+      transcriptionUnavailableReason,
+      onTranscriptionUnavailable,
       arenaActive,
       onArenaChange,
     },
@@ -437,6 +439,12 @@ export const Composer = memo(
                   {...(transcriptionStatuses !== undefined
                     ? { transcriptionStatuses }
                     : {})}
+                  {...(transcriptionAvailable !== undefined
+                    ? { transcriptionAvailable }
+                    : {})}
+                  transcriptionUnavailableReason={
+                    transcriptionUnavailableReason
+                  }
                   {...(onRetryTranscription !== undefined
                     ? { onRetryTranscription }
                     : {})}
@@ -554,13 +562,17 @@ export const Composer = memo(
                   )}
                 <DictationButton
                   ref={dictationRef}
-                  disabled={disabled}
                   lang={speechLang}
+                  disabled={disabled}
                   onTranscript={handleTranscript}
+                  onTranscriptionUnavailable={onTranscriptionUnavailable}
                   {...(organizationId !== undefined ? { organizationId } : {})}
                   {...(transcriptionAvailable !== undefined
                     ? { transcriptionAvailable }
                     : {})}
+                  transcriptionUnavailableReason={
+                    transcriptionUnavailableReason
+                  }
                 />
                 <span className="relative inline-flex">
                   {/* Generation in progress: a spinner ring orbits the (now Stop)

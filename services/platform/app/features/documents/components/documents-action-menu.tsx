@@ -8,7 +8,7 @@ import { GoogleIcon } from '@tale/ui/icons/google-icon';
 import { MicrosoftIcon } from '@tale/ui/icons/microsoft-icon';
 import { lazyComponent } from '@tale/ui/lazy-component';
 import { FolderPlus, HardDrive, Upload } from 'lucide-react';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -58,6 +58,7 @@ export function DocumentsActionMenu({
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
   const ability = useAbility();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const { data: microsoftAuth, isLoading: microsoftAuthLoading } =
     useCloudImportAuthorizationStatus(organizationId, true, 'onedrive');
@@ -191,6 +192,7 @@ export function DocumentsActionMenu({
   return (
     <>
       <DataTableActionMenu
+        triggerRef={triggerRef}
         label={tDocuments('upload.importDocuments')}
         icon={Upload}
         menuItems={menuItems}
@@ -198,6 +200,7 @@ export function DocumentsActionMenu({
 
       {isUploadDialogOpen && (
         <DocumentUploadDialog
+          restoreFocusRef={triggerRef}
           open={isUploadDialogOpen}
           onOpenChange={setIsUploadDialogOpen}
           organizationId={organizationId}
@@ -207,6 +210,7 @@ export function DocumentsActionMenu({
 
       {isOneDriveConnectOpen && (
         <CloudImportConnectDialog
+          restoreFocusRef={triggerRef}
           open={isOneDriveConnectOpen}
           onOpenChange={setIsOneDriveConnectOpen}
           provider="onedrive"
@@ -215,6 +219,7 @@ export function DocumentsActionMenu({
 
       {isGoogleDriveConnectOpen && (
         <CloudImportConnectDialog
+          restoreFocusRef={triggerRef}
           open={isGoogleDriveConnectOpen}
           onOpenChange={setIsGoogleDriveConnectOpen}
           provider="google-drive"
@@ -223,6 +228,7 @@ export function DocumentsActionMenu({
 
       {isOneDriveImportOpen && (
         <OneDriveImportDialog
+          restoreFocusRef={triggerRef}
           open={isOneDriveImportOpen}
           onOpenChange={setIsOneDriveImportOpen}
           organizationId={organizationId}
@@ -233,6 +239,7 @@ export function DocumentsActionMenu({
 
       {isGoogleDriveImportOpen && (
         <GoogleDriveImportDialog
+          restoreFocusRef={triggerRef}
           open={isGoogleDriveImportOpen}
           onOpenChange={setIsGoogleDriveImportOpen}
           organizationId={organizationId}
@@ -243,6 +250,7 @@ export function DocumentsActionMenu({
 
       {isCreateFolderOpen && (
         <CreateFolderDialog
+          restoreFocusRef={triggerRef}
           open={isCreateFolderOpen}
           onOpenChange={setIsCreateFolderOpen}
           organizationId={organizationId}

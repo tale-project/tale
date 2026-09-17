@@ -14,7 +14,11 @@ Dictation lets you speak a message instead of typing it. Voice output reads an a
 
 Dictation adds text to the composer; it does not automatically send the message. Sending stops an active dictation. The chat model receives the text you submit.
 
-Tale first uses the browser's speech-recognition capability when available. Otherwise, it can record and transcribe through your organization's configured transcription model. If neither route is available, the microphone is absent or explains the missing configuration. Browser speech recognition may use a browser-vendor service; do not assume dictation works offline.
+Tale first uses the browser's speech-recognition capability when available. Otherwise, it can record and transcribe through your organization's configured transcription model. Browser speech recognition may use a browser-vendor service; do not assume dictation works offline.
+
+The server fallback needs browser recording support through MediaRecorder, microphone permission, and an available organization transcription model. An admin chooses **Audio transcription model** under [Settings > Governance > Models](/platform/admin/governance/content-models). This setting also serves audio and video attachments. It does not change the browser's own recognition service: supported browser dictation remains usable when the organization's server model is unavailable.
+
+If you try to start server dictation and its transcription model is unavailable, a dialog explains the problem. Follow the recovery action offered: open settings, retry a temporarily failed availability check, or ask an admin for help. You can close the dialog and continue typing.
 
 ## Listen to a reply
 

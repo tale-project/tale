@@ -321,6 +321,7 @@ interface HandlerNames {
       steerTaskAgentTurn: FunctionRef;
     };
     agent_runs: FunctionRef & {
+      completeTaskAgentRun: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;

@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { CatalogLabels } from '@tale/ui/catalog/catalog-labels';
 import { ConfigIcon as SkillIcon } from '@tale/ui/catalog/config-icon';
 import { DataTable } from '@tale/ui/data-table/data-table';
@@ -9,7 +10,7 @@ import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { HStack } from '@tale/ui/layout';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -67,6 +68,8 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
     | { view: 'upload'; mode: 'zip' | 'folder' }
     | { view: 'detail'; slug: string };
   const [pane, setPane] = useState<ActivePane | null>(null);
+  const detailTrigger = useRef<HTMLButtonElement | null>(null);
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   const [scopes, setScopes] = useState<string[]>([]);
   const [labelFilter, setLabelFilter] = useState<string[]>([]);
 
@@ -149,9 +152,21 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         cell: ({ row }) => (
           <HStack align="center" gap={2} className="min-w-0">
             <SkillIcon icon={row.original.icon} className="size-4 shrink-0" />
-            <span className="text-foreground truncate text-sm font-medium">
-              {row.original.slug}
-            </span>
+            <Button
+              ref={(button) => {
+                if (button) rowButtons.current.set(row.original.slug, button);
+                else rowButtons.current.delete(row.original.slug);
+              }}
+              variant="link"
+              className="text-foreground min-w-0 justify-start p-0 text-sm font-medium"
+              onClick={(event) => {
+                event.stopPropagation();
+                detailTrigger.current = event.currentTarget;
+                setPane({ view: 'detail', slug: row.original.slug });
+              }}
+            >
+              <span className="truncate">{row.original.slug}</span>
+            </Button>
           </HStack>
         ),
       },
@@ -289,9 +304,12 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
             // organization with no skills at all is writing its first one.
             onClick: () => setPane({ view: 'create' }),
           }}
-          onRowClick={(row) =>
-            setPane({ view: 'detail', slug: row.original.slug })
-          }
+          onRowClick={(row) => {
+            detailTrigger.current =
+              rowButtons.current.get(row.original.slug) ?? null;
+            detailTrigger.current?.focus();
+            setPane({ view: 'detail', slug: row.original.slug });
+          }}
           clickableRows
           {...list.tableProps}
         />
@@ -318,6 +336,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         <SkillDetailDialog
           organizationId={organizationId}
           slug={pane.slug}
+          restoreFocusRef={detailTrigger}
           onClose={() => setPane(null)}
         />
       )}

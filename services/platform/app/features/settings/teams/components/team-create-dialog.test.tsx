@@ -9,6 +9,11 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@tanstack/react-query', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));

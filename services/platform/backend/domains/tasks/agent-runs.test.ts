@@ -62,7 +62,18 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
 
   it('records the cancelled ledger entry when the bound run was live', async () => {
     const { tx } = fakeTx((text) =>
-      text.startsWith('UPDATE app.project_agent_runs') ? [{ id: 'run-1' }] : [],
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [
+            {
+              id: 'run-1',
+              execId: 'exec-1',
+              sessionId: 'pa-1',
+              agentId: 'agent-1',
+              harness: 'opencode',
+              deadlineAt: 1000,
+            },
+          ]
+        : [],
     );
     const cancelled = await cancelAgentRunInTx(tx, KEYS);
     expect(cancelled).toBe(true);
@@ -75,6 +86,14 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
         finalStatus: 'cancelled',
       }),
     );
+    expect(addJobInTx).toHaveBeenCalledWith(tx, 'task.agent_drive', {
+      ...KEYS,
+      execId: 'exec-1',
+      sessionId: 'pa-1',
+      agentId: 'agent-1',
+      harness: 'opencode',
+      deadlineAt: 1000,
+    });
   });
 });
 

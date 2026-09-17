@@ -71,6 +71,62 @@ describe('requestTranscription', () => {
       expect(result.duration).toBe(4.2);
       expect(result.segments).toHaveLength(1);
     });
+
+    it('uses portable JSON for a gateway model and reads its reported audio duration', async () => {
+      mockJsonResponse({ text: 'gateway transcript', usage: { seconds: 4.2 } });
+      const result = await requestTranscription({
+        model: {
+          ...MODEL,
+          modelId: 'openai/gpt-4o-mini-transcribe',
+          responseFormat: 'json',
+        },
+        blob: makeBlob(256),
+        fileName: 'clip.ogg',
+        timeoutMs: 1000,
+      });
+
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+      const body = init?.body as FormData;
+      expect(body.get('model')).toBe('openai/gpt-4o-mini-transcribe');
+      expect(body.get('response_format')).toBe('json');
+      expect(result).toEqual({
+        text: 'gateway transcript',
+        duration: 4.2,
+        segments: undefined,
+      });
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([-1, '4.2', null])(
+      'ignores an invalid gateway duration %s',
+      async (seconds) => {
+        mockJsonResponse({ text: 'gateway transcript', usage: { seconds } });
+        const result = await requestTranscription({
+          model: MODEL,
+          blob: makeBlob(256),
+          fileName: 'clip.ogg',
+          timeoutMs: 1000,
+        });
+        expect(result.duration).toBeUndefined();
+      },
+    );
+
+    it('prefers a valid explicit duration and drops malformed optional segments', async () => {
+      mockJsonResponse({
+        text: 'gateway transcript',
+        duration: 5,
+        usage: { seconds: 6 },
+        segments: [{ start: 5, end: 1, text: 'invalid interval' }],
+      });
+      const result = await requestTranscription({
+        model: MODEL,
+        blob: makeBlob(256),
+        fileName: 'clip.ogg',
+        timeoutMs: 1000,
+      });
+      expect(result.duration).toBe(5);
+      expect(result.segments).toBeUndefined();
+    });
   });
 
   describe('error handling', () => {

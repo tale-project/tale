@@ -84,6 +84,7 @@ function renderComposer({
   onCancelAttachmentUpload,
   attachAccept,
   transcriptionStatuses,
+  transcriptionAvailable,
   onRetryTranscription,
   indexingStatuses,
   videoLinkJobs,
@@ -111,6 +112,7 @@ function renderComposer({
   transcriptionStatuses?: ComponentProps<
     typeof Composer
   >['transcriptionStatuses'];
+  transcriptionAvailable?: boolean;
   onRetryTranscription?: (fileId: string) => void;
   indexingStatuses?: ComponentProps<typeof Composer>['indexingStatuses'];
   videoLinkJobs?: ComponentProps<typeof Composer>['videoLinkJobs'];
@@ -150,6 +152,9 @@ function renderComposer({
         {...(attachAccept !== undefined ? { attachAccept } : {})}
         {...(transcriptionStatuses !== undefined
           ? { transcriptionStatuses }
+          : {})}
+        {...(transcriptionAvailable !== undefined
+          ? { transcriptionAvailable }
           : {})}
         {...(onRetryTranscription !== undefined
           ? { onRetryTranscription }
@@ -744,6 +749,38 @@ describe('Composer audio attachments', () => {
     fileType: 'audio/mpeg',
     fileSize: 128_000,
   };
+
+  it('keeps failed attachment details and retry without a standing configuration banner', async () => {
+    const retry = vi.fn();
+    const { user } = renderComposer({
+      models: [MODEL],
+      attachments: [AUDIO],
+      onAttachFiles: vi.fn(),
+      transcriptionAvailable: false,
+      onRetryTranscription: retry,
+      transcriptionStatuses: new Map([
+        [
+          'audio1',
+          {
+            status: 'failed',
+            error: 'No transcription model is configured for this organization',
+          },
+        ],
+      ]),
+    });
+    expect(
+      screen.queryByText(
+        'No compatible model is available for audio-file transcription.',
+        { exact: false },
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Couldn't transcribe")).toHaveAttribute(
+      'title',
+      'No compatible model is available for audio-file transcription.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledExactlyOnceWith('audio1');
+  });
 
   it('renders a media chip with the live transcription status', () => {
     renderComposer({

@@ -388,7 +388,15 @@ export function DropdownMenu({
   );
 
   return (
-    <DropdownMenuPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DropdownMenuPrimitive.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      // A menu can hand off to a modal while its exit animation is mounted.
+      // Keeping both layers modal leaves Radix's outside-pointer lock behind
+      // when the second overlay closes. The dialog owns modality; menus keep
+      // their roving focus, Escape and outside-dismiss behavior without it.
+      modal={false}
+    >
       {tooltip ? (
         // Radix's documented composition for "tooltip on a menu trigger":
         // both `asChild` triggers collapse onto the same button so the menu

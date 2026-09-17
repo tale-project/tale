@@ -7,3 +7,20 @@ export function stripQualifier(s: string): string {
   const idx = s.indexOf(':');
   return idx === -1 ? s : s.slice(idx + 1);
 }
+
+/** One choice represents the provider/model pair in governance model pickers. */
+export function modelSelectionValue(
+  providerSlug: string,
+  modelId: string,
+): string {
+  return `${providerSlug}::${modelId}`;
+}
+
+export function parseModelSelection(
+  value: string,
+): { providerSlug: string; modelId: string } | null {
+  const at = value.indexOf('::');
+  if (at <= 0) return null;
+  const modelId = value.slice(at + 2);
+  return modelId === '' ? null : { providerSlug: value.slice(0, at), modelId };
+}

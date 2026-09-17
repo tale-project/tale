@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
+import { TranscriptionModelEditor } from '@/app/features/settings/governance/components/transcription-model-editor';
 import { VisionModelEditor } from '@/app/features/settings/governance/components/vision-model-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
 
@@ -19,6 +20,7 @@ export const Route = createFileRoute(
       'default_models',
       'model_access',
       'vision_model',
+      'transcription_model',
     ]).catch((error: unknown) => {
       console.warn('Failed to preload content-models policies', error);
     }),
@@ -37,6 +39,7 @@ function ContentModelsRoute() {
         <DefaultModelEditor organizationId={organizationId} />
         <ModelAccessEditor organizationId={organizationId} />
         <VisionModelEditor organizationId={organizationId} />
+        <TranscriptionModelEditor organizationId={organizationId} />
       </EditorGroup>
     </SettingsPage>
   );

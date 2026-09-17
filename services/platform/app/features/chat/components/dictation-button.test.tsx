@@ -18,8 +18,10 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'dictation.transcribing': 'Transcribing…',
         'dictation.permissionDenied': 'Microphone access denied',
         'dictation.notSupported': 'Speech recognition not supported',
-        'dictation.notConfigured':
-          'Dictation unavailable — ask an admin to add a transcription model',
+        'transcription.noModel':
+          'No compatible model is available for audio-file transcription.',
+        'transcription.pinnedUnavailable':
+          'The selected audio transcription model is unavailable.',
         'dictation.transcriptionFailedShort': 'Transcription failed',
         'dictation.retry': 'Try again',
         'dictation.discard': 'Discard recording',
@@ -130,20 +132,71 @@ describe('DictationButton', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
-  it('keeps the Web Speech mic even when no transcription model exists (no server round-trip needed)', () => {
-    render(
-      <DictationButton
-        onTranscript={vi.fn()}
-        organizationId={ORG_ID}
-        transcriptionAvailable={false}
-      />,
-    );
-    expect(
-      screen.getByRole('button', { name: 'Start dictation' }),
-    ).toBeInTheDocument();
-  });
+  it.each(['NO_TRANSCRIPTION_MODEL', 'TRANSCRIPTION_MODEL_UNAVAILABLE'])(
+    'keeps browser recognition usable when server capability is %s',
+    async (transcriptionUnavailableReason) => {
+      const onTranscriptionUnavailable = vi.fn();
+      const { user } = render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable={false}
+          transcriptionUnavailableReason={transcriptionUnavailableReason}
+          onTranscriptionUnavailable={onTranscriptionUnavailable}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Start dictation' }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Start dictation' }));
+      expect(speechState.startListening).toHaveBeenCalledOnce();
+      expect(recorderState.startListening).not.toHaveBeenCalled();
+      expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+    },
+  );
 
   describe('MediaRecorder fallback (Firefox — no Web Speech)', () => {
+    it('requests setup guidance only after activating unavailable server dictation', async () => {
+      armFallback();
+      const onTranscriptionUnavailable = vi.fn();
+      const { user } = render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable={false}
+          transcriptionUnavailableReason="TRANSCRIPTION_MODEL_UNAVAILABLE"
+          onTranscriptionUnavailable={onTranscriptionUnavailable}
+        />,
+      );
+      const button = screen.getByRole('button', {
+        name: 'Start dictation',
+      });
+      expect(button).toBeEnabled();
+      expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+      button.focus();
+      await user.keyboard('{Enter}');
+      expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      );
+      expect(recorderState.startListening).not.toHaveBeenCalled();
+    });
+
+    it('keeps Stop reachable when a capability refresh becomes unknown during recording', async () => {
+      armFallback();
+      recorderState.isListening = true;
+      const { user, rerender } = render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable
+        />,
+      );
+      rerender(
+        <DictationButton onTranscript={vi.fn()} organizationId={ORG_ID} />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Stop dictation' }));
+      expect(recorderState.stopListening).toHaveBeenCalledOnce();
+    });
     it('renders the mic and records through the fallback when transcription is available', async () => {
       armFallback();
       const { user } = render(
@@ -161,9 +214,7 @@ describe('DictationButton', () => {
       expect(speechState.startListening).not.toHaveBeenCalled();
     });
 
-    it('renders a disabled mic with the ask-an-admin explanation when no transcription model is configured', () => {
-      // Confirmed-unavailable keeps a trace of the feature (the 0.3
-      // treatment): hoverable, explains itself, records nothing.
+    it('keeps a configured-unavailable mic actionable without an idle error label', () => {
       armFallback();
       render(
         <DictationButton
@@ -173,9 +224,27 @@ describe('DictationButton', () => {
         />,
       );
       const mic = screen.getByRole('button', {
-        name: 'Dictation unavailable — ask an admin to add a transcription model',
+        name: 'Start dictation',
       });
-      expect(mic).toHaveAttribute('aria-disabled', 'true');
+      expect(mic).toBeEnabled();
+      expect(screen.queryByText(/No compatible model/)).toBeNull();
+    });
+
+    it('does not open guidance when the composer is disabled', async () => {
+      armFallback();
+      const onTranscriptionUnavailable = vi.fn();
+      const { user } = render(
+        <DictationButton
+          disabled
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable={false}
+          onTranscriptionUnavailable={onTranscriptionUnavailable}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Start dictation' }));
+      expect(onTranscriptionUnavailable).not.toHaveBeenCalled();
+      expect(recorderState.startListening).not.toHaveBeenCalled();
     });
 
     it('renders no mic when availability is unknown (prop absent)', () => {
@@ -210,6 +279,27 @@ describe('DictationButton', () => {
   });
 
   describe('failed-recording pill (MediaRecorder fallback)', () => {
+    it('offers setup on retry if the server model has become unavailable, keeping the recording', async () => {
+      armFallback();
+      recorderState.hasFailedRecording = true;
+      const onTranscriptionUnavailable = vi.fn();
+      const { user } = render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable={false}
+          transcriptionUnavailableReason="TRANSCRIPTION_MODEL_UNAVAILABLE"
+          onTranscriptionUnavailable={onTranscriptionUnavailable}
+        />,
+      );
+      await user.click(screen.getByLabelText('Try again'));
+      expect(onTranscriptionUnavailable).toHaveBeenCalledExactlyOnceWith(
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      );
+      expect(recorderState.retryTranscription).not.toHaveBeenCalled();
+      expect(recorderState.discardFailedRecording).not.toHaveBeenCalled();
+    });
+
     function renderFailed() {
       armFallback();
       recorderState.hasFailedRecording = true;

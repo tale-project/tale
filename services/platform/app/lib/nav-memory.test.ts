@@ -194,6 +194,36 @@ describe('readNavTarget / recordNavLocation', () => {
     );
   });
 
+  it('does not renew an expired shared project when a fresh tab opens Chat', () => {
+    vi.useFakeTimers();
+    const start = new Date('2026-01-01T09:00:00Z').getTime();
+    vi.setSystemTime(start);
+    recordNavLocation(ORG, 'projects/old/tasks/board');
+    window.sessionStorage.clear();
+    vi.setSystemTime(start + EIGHT_HOURS + 1);
+
+    recordNavLocation(ORG, 'chat/new');
+
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+    expect(readNavTarget(ORG, 'chat')?.path).toBe('chat/new');
+    window.sessionStorage.clear();
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+  });
+
+  it('leaves this tab’s memory intact when an unrelated shared target expired', () => {
+    recordNavLocation(ORG, 'chat/this-tab');
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        sections: { projects: { path: 'projects/old/tasks/board' } },
+        savedAt: Date.now() - EIGHT_HOURS - 1,
+      }),
+    );
+
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+    expect(readNavTarget(ORG, 'chat')?.path).toBe('chat/this-tab');
+  });
+
   it('does not record a public shared-chat snapshot', () => {
     recordNavLocation(ORG, 'chat/t1');
     recordNavLocation(ORG, 'chat/shared/token-abc');

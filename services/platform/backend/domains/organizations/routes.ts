@@ -46,6 +46,12 @@ export function createOrganizationRoutes(deps: {
     });
   });
 
+  // The managed deployment proxy answers this same door beside its create
+  // refusal. Keep the UI capability tied to the policy that owns the block.
+  app.get('/capabilities', (c) =>
+    c.json({ canCreate: true }, 200, { 'cache-control': 'no-store' }),
+  );
+
   app.get('/:id', async (c) => {
     const organizationId = c.req.param('id');
     const userId = c.get('sessionBundle').user.id;

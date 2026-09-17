@@ -35,6 +35,10 @@ export interface UsageMetricsPageProps {
   /** Controlled period (e.g. from the route's `?period=`); when provided with
    *  `onChangePeriod`, the page defers period state to the caller. */
   periodDays?: MetricsPeriodDays;
+  granularity?: UsageGranularity;
+  metric?: UsageMetric;
+  onChangeGranularity?: (granularity: UsageGranularity) => void;
+  onChangeMetric?: (metric: UsageMetric) => void;
   onChangePeriod?: (period: MetricsPeriodDays) => void;
 }
 
@@ -225,14 +229,21 @@ export function UsageMetricsPage({
   organizationId,
   periodDays: periodDaysProp,
   onChangePeriod,
+  granularity: granularityProp,
+  metric: metricProp,
+  onChangeGranularity,
+  onChangeMetric,
 }: UsageMetricsPageProps) {
   const { t } = useT('analytics');
 
   const [internalPeriodDays, setInternalPeriodDays] =
     useState<MetricsPeriodDays>(30);
   const periodDays = periodDaysProp ?? internalPeriodDays;
-  const [granularity, setGranularity] = useState<UsageGranularity>('daily');
-  const [metric, setMetric] = useState<UsageMetric>('tokens');
+  const [internalGranularity, setGranularity] =
+    useState<UsageGranularity>('daily');
+  const [internalMetric, setMetric] = useState<UsageMetric>('tokens');
+  const granularity = granularityProp ?? internalGranularity;
+  const metric = metricProp ?? internalMetric;
   const [agentSlug, setAgentSlug] = useState<string | undefined>(undefined);
   const [model, setModel] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<string | undefined>(undefined);
@@ -258,16 +269,24 @@ export function UsageMetricsPage({
     },
     [onChangePeriod],
   );
-  const handleGranularity = useCallback((v: string) => {
-    if (v === 'daily' || v === 'weekly' || v === 'monthly') {
-      setGranularity(v);
-    }
-  }, []);
-  const handleMetric = useCallback((v: string) => {
-    if (v === 'requests' || v === 'tokens' || v === 'cost') {
-      setMetric(v);
-    }
-  }, []);
+  const handleGranularity = useCallback(
+    (v: string) => {
+      if (v === 'daily' || v === 'weekly' || v === 'monthly') {
+        if (onChangeGranularity) onChangeGranularity(v);
+        else setGranularity(v);
+      }
+    },
+    [onChangeGranularity],
+  );
+  const handleMetric = useCallback(
+    (v: string) => {
+      if (v === 'requests' || v === 'tokens' || v === 'cost') {
+        if (onChangeMetric) onChangeMetric(v);
+        else setMetric(v);
+      }
+    },
+    [onChangeMetric],
+  );
 
   const clearAll = useCallback(() => {
     setAgentSlug(undefined);

@@ -123,52 +123,10 @@ function exampleDocumentYaml(): string {
 }
 
 /**
- * The builder session's system prompt: the persona, the one-action protocol
- * the session's parser reads, the authoring reference, and how to work.
- * This is the prompt — it instructs the model that runs the session. The
- * REFERENCE half is what the MCP `get_docs` tool serves (`authoringReference`
- * below); the instructions never leave this function, because a tool output
- * that told a client's model how to reply, in a dialect the endpoint does
- * not even speak, was a system prompt leaking through a documentation tool.
- */
-export function agentDocs(): string {
-  return `You are an autonomous automation builder operating the automation engine. There is no human in the loop.
-
-## Protocol
-Every reply MUST contain exactly ONE action in a fenced yaml block (a short sentence before it is OK, nothing after it):
-
-\`\`\`yaml
-method: run_automation
-params:
-  automation:
-${exampleDocumentYaml()}
-  input: ${JSON.stringify(DOC_EXAMPLE.input)}
-\`\`\`
-
-${authoringReference()}
-
-## How to work
-1. Draft the complete automation, then call run_automation with a realistic test input.
-2. If it fails, read error + hint + trace, fix the automation, run again.
-3. When the run output and effects EXACTLY match the requirements, attach a tests: block and verify with test_automation.
-4. Finish per your task's instructions (save_automation after tests pass, then deploy_automation when asked).
-
-## Pre-submit checklist — run through it EVERY time before finishing
-1. Did run_automation succeed with a realistic test input?
-2. Does the output match the required shape and strings EXACTLY (character by character, correct types)?
-3. Do the effects match exactly — right channel/recipient, exact text, correct count, nothing extra?
-4. Only if all three are yes → finish. Otherwise fix and re-run first.
-
-## Reflection rule
-Whenever a result shows a failure (validation error, execution error, wrong output, rejected finish), begin your reply with exactly one line "CAUSE: <one-sentence diagnosis>", then output the corrected action.`;
-}
-
-/**
  * The automation authoring reference — the grammar and the method table,
  * addressed to whoever reads it and instructing nobody. Served whole by the
  * MCP endpoint's \`get_docs\` tool (where each method is a \`tools/call\`
- * tool) and embedded in the builder session's prompt; the reference itself
- * names no dialect but the one its readers use.
+ * tool). The reference names the dialect its readers use.
  */
 export function authoringReference(): string {
   return `# Automation authoring reference

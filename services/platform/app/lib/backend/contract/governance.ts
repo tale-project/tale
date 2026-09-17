@@ -130,6 +130,7 @@ export interface GovernanceContract {
         lateFinalizeAt: undefined | number;
         perCategorySnapshot: Record<string, unknown>;
         effectiveAt: undefined | number;
+        approvalId?: string;
         cancelledAt: undefined | number;
         cancelledBy: undefined | string;
         cancelledByName: undefined | string;
