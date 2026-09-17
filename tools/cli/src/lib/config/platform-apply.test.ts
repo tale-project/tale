@@ -521,6 +521,8 @@ describe('one general native configuration lifecycle', () => {
       },
     );
 
+  // Four complete apply passes fsync every resource receipt. Keep real disk
+  // persistence without racing Bun's 5 s default on Windows CI storage.
   test('reviewed hostname migration preserves native configuration and its organization binding', async () => {
     const f = await fixture();
     await applyPlatformConfiguration(
@@ -601,7 +603,7 @@ describe('one general native configuration lifecycle', () => {
       JSON.parse(await readFile(f.receipt, 'utf8')).plan.target.origin,
     ).toBe(migrateOriginFrom);
     expect(f.writes).toEqual(writes);
-  });
+  }, 30_000);
 
   test('origin migration cannot replace a missing configuration receipt', async () => {
     const f = await fixture();
