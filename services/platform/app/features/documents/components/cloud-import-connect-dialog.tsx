@@ -5,6 +5,7 @@ import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
+import type { RefObject } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -19,6 +20,7 @@ export type CloudImportConnectProvider = 'onedrive' | 'google-drive';
 interface CloudImportConnectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   provider: CloudImportConnectProvider;
 }
 
@@ -30,6 +32,7 @@ interface CloudImportConnectDialogProps {
 export function CloudImportConnectDialog({
   open,
   onOpenChange,
+  restoreFocusRef,
   provider,
 }: CloudImportConnectDialogProps) {
   const { t } = useT('documents');
@@ -57,7 +60,13 @@ export function CloudImportConnectDialog({
   const isAdmin = ability.can('write', 'orgSettings');
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={title} size="md">
+    <Dialog
+      restoreFocusRef={restoreFocusRef}
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      size="md"
+    >
       <Stack gap={4} className="pt-1">
         <Text as="div" variant="muted">
           {appMissing

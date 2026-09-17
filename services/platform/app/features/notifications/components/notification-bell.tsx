@@ -34,6 +34,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
   const { t: tNotifications } = useT('notifications');
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const myUnread = useUnreadNotificationCount(organizationId);
   const unreadCount = (unread ?? 0) + myUnread;
@@ -75,7 +76,13 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
   // do not wrap a per-tip Provider here.
   return (
     <>
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setNavigating(false);
+          setOpen(next);
+        }}
+      >
         <TooltipPrimitive.Root>
           <PopoverPrimitive.Trigger asChild>
             <TooltipPrimitive.Trigger asChild>
@@ -117,12 +124,20 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
             // (#2650). Keep focus on the bell trigger instead; handle Escape
             // here directly so the popover closes regardless of nested layers.
             onOpenAutoFocus={(event) => event.preventDefault()}
+            onCloseAutoFocus={(event) => {
+              // A notification can open a task dialog in the same render.
+              // Restoring the bell then steals the new dialog's focus.
+              if (navigating || expanded) event.preventDefault();
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') setOpen(false);
             }}
           >
             <NotificationListPanel
-              onNavigate={() => setOpen(false)}
+              onNavigate={() => {
+                setNavigating(true);
+                setOpen(false);
+              }}
               onExpand={handleExpand}
               organizationId={organizationId}
               className="h-[28rem]"

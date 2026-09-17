@@ -2,7 +2,13 @@
 
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { toast } from '@tale/ui/use-toast';
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import {
+  type RefObject,
+  useMemo,
+  useCallback,
+  useState,
+  useEffect,
+} from 'react';
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
@@ -43,6 +49,7 @@ function isCloudImportAuthError(error: unknown): boolean {
 interface OneDriveImportDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   organizationId: string;
   onSuccess?: () => void;
   /** Hand off to the compact connect dialog — never shrink this wide picker. */
@@ -57,6 +64,7 @@ export function OneDriveImportDialog({
   onRequireConnect,
   open,
   onOpenChange,
+  restoreFocusRef,
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -591,6 +599,7 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
+        restoreFocusRef={restoreFocusRef}
         open={open ?? false}
         onOpenChange={onOpenChange ?? noop}
         title={t('microsoft365.title')}
@@ -623,6 +632,7 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
+        restoreFocusRef={restoreFocusRef}
         open={open ?? false}
         onOpenChange={onOpenChange ?? noop}
         title={settings.title}

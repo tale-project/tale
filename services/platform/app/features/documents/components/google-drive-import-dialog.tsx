@@ -8,7 +8,13 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Home } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
@@ -45,6 +51,7 @@ const noop = () => {};
 interface GoogleDriveImportDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   organizationId: string;
   onSuccess?: () => void;
   /** Hand off to the compact connect dialog — never shrink this wide picker. */
@@ -57,6 +64,7 @@ export function GoogleDriveImportDialog({
   onRequireConnect,
   open,
   onOpenChange,
+  restoreFocusRef,
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -386,6 +394,7 @@ export function GoogleDriveImportDialog({
   if (stage === 'picker') {
     return (
       <Dialog
+        restoreFocusRef={restoreFocusRef}
         open={open ?? false}
         onOpenChange={onOpenChange ?? noop}
         title={t('googledrive.title')}
@@ -487,6 +496,7 @@ export function GoogleDriveImportDialog({
 
   return (
     <Dialog
+      restoreFocusRef={restoreFocusRef}
       open={open ?? false}
       onOpenChange={onOpenChange ?? noop}
       title={settings.title}

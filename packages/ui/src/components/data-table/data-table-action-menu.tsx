@@ -5,7 +5,7 @@ import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType, ReactNode, Ref } from 'react';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;
@@ -23,6 +23,8 @@ export interface DataTableActionMenuItem {
 }
 
 export interface DataTableActionMenuProps {
+  /** Stable opener for a dialog launched by a transient menu item. */
+  triggerRef?: Ref<HTMLButtonElement>;
   /** Button label */
   label: string;
   /** Optional icon to display before the label */
@@ -61,6 +63,7 @@ export interface DataTableActionMenuProps {
  * 3. Dropdown menu - menuItems array
  */
 export function DataTableActionMenu({
+  triggerRef,
   label,
   icon: Icon,
   onClick,
@@ -92,6 +95,7 @@ export function DataTableActionMenu({
       <DropdownMenu
         trigger={
           <Button
+            ref={triggerRef}
             variant={variant}
             size={size}
             disabled={disabled}
@@ -125,6 +129,7 @@ export function DataTableActionMenu({
   // Render simple button
   return (
     <Button
+      ref={triggerRef}
       onClick={onClick}
       variant={variant}
       size={size}
