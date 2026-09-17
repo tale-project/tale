@@ -40,6 +40,7 @@ import {
   recordTwoFactorSuccess,
   type TwoFactorLifecycleAction,
 } from '../domains/two_factor/service.ts';
+import { hasAnyUsers } from '../domains/users/has-any-users.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
@@ -86,13 +87,6 @@ export interface AuthConfig {
 }
 
 const SIGN_IN_EMAIL_PATH = '/sign-in/email';
-
-/** Whether this deployment already holds an account. Asked on the sign-up
- * path only, which a closed deployment answers before touching the adapter. */
-async function deploymentHasUsers(sql: Sql): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`SELECT "id" FROM "user" LIMIT 1`;
-  return rows.length > 0;
-}
 
 /**
  * The second-factor LIFECYCLE endpoints. Every one of them audits on success
@@ -465,16 +459,22 @@ export function createAuth(config: AuthConfig) {
         // reach this backend — the sandbox network is on it — so it closes
         // once the deployment has an account. See sign-up-gate.ts.
         if (mw.path === SIGN_UP_EMAIL_PATH) {
-          const allowed = signUpAllowed({
+          const allowed = await signUpAllowed({
             overHttp: mw.request !== undefined,
-            deploymentHasUsers: await deploymentHasUsers(sql),
             openSignUp: openSignUpEnabled(process.env),
+            deploymentHasUsers: () => hasAnyUsers(sql),
           });
-          if (!allowed)
+          if (!allowed) {
+            // Nothing else records the attempt: a before-hook throw skips the
+            // after-hook, and this path writes no login-attempt row. Without
+            // this line a deployment probed from a sandbox shows an operator
+            // only the absence of a new member.
+            console.warn('[sign-up] refused: this deployment has an account');
             throw new APIError('FORBIDDEN', {
               message: SIGN_UP_CLOSED_MESSAGE,
               code: 'SIGN_UP_CLOSED',
             });
+          }
           return;
         }
         // 2FA verify lockout: a caller who knows the password must not

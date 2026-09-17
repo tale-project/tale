@@ -27,6 +27,10 @@ import { addMember } from '../members/service.ts';
  * request headers (no `authComponent.getAuth` bridging).
  */
 
+/** True when any user exists — drives the fresh-install → sign-up redirect,
+ *  and the sign-up gate's "is this deployment still empty?". */
+export { hasAnyUsers } from './has-any-users.ts';
+
 export class UserServiceError extends Error {
   readonly code: string;
   readonly status: 400 | 401 | 403 | 404;
@@ -37,12 +41,6 @@ export class UserServiceError extends Error {
     this.code = code;
     this.status = status;
   }
-}
-
-/** True when any user exists — drives the fresh-install → sign-up redirect. */
-export async function hasAnyUsers(sql: Sql): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`SELECT "id" FROM "user" LIMIT 1`;
-  return rows.length > 0;
 }
 
 /** Fresh profile fields from the user row (not the session snapshot). */

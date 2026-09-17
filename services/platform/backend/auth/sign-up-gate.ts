@@ -21,6 +21,15 @@
  * So the gate keeps the two paths that exist and closes the one that does not.
  */
 
+/**
+ * Two limits this gate does not cover, stated so nobody reads more into it.
+ * The empty-deployment window is a race: the probe and the insert are separate
+ * statements, so simultaneous first sign-ups are all admitted. And a managed
+ * deployment closes the same route at its edge (the CLI's Caddy policy in
+ * `tools/cli/src/lib/deployment/runtime-prepare.ts`); this gate is what holds
+ * when a caller is already past that edge.
+ */
+
 /** Test deployments that deliberately want the route open (integration checks
  * create their own users over HTTP). Never set on a real deployment. */
 export const OPEN_SIGN_UP_ENV = 'TALE_ALLOW_OPEN_SIGN_UP';
@@ -34,19 +43,24 @@ export const SIGN_UP_EMAIL_PATH = '/sign-up/email';
 export interface SignUpAttempt {
   /** The call arrived as an HTTP request, not from the server's own API. */
   readonly overHttp: boolean;
-  /** The deployment already holds at least one account. */
-  readonly deploymentHasUsers: boolean;
   /** `TALE_ALLOW_OPEN_SIGN_UP` is on. */
   readonly openSignUp: boolean;
+  /**
+   * Whether the deployment already holds an account — a QUERY, asked only
+   * where its answer can still change the verdict. An administrator's
+   * server-side call must neither pay for it nor fail when the database
+   * hiccups on a path that ignores the result.
+   */
+  readonly deploymentHasUsers: () => Promise<boolean>;
 }
 
-export function signUpAllowed(attempt: SignUpAttempt): boolean {
+export async function signUpAllowed(attempt: SignUpAttempt): Promise<boolean> {
   // An administrator's own door, and the deployment's provisioning: these
   // never arrive as a request, and they carry their own authorization.
   if (!attempt.overHttp) return true;
+  if (attempt.openSignUp) return true;
   // First boot: the setup flow and the managed CLI's bootstrap.
-  if (!attempt.deploymentHasUsers) return true;
-  return attempt.openSignUp;
+  return !(await attempt.deploymentHasUsers());
 }
 
 export function openSignUpEnabled(
