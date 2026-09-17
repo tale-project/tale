@@ -77,9 +77,7 @@ export function createPlatformSearchSource(
     const results = useMemo<SearchResult<PlatformSearchHitData>[]>(() => {
       const chatRows: SearchResult<PlatformSearchHitData>[] = chats.results.map(
         (hit) => ({
-          id: hit.id,
-          title: hit.title,
-          subtitle: hit.subtitle,
+          ...hit,
           group: 'chat',
           data: { kind: 'chat' as const },
         }),
@@ -88,9 +86,7 @@ export function createPlatformSearchSource(
 
       const projectRows: SearchResult<PlatformSearchHitData>[] =
         projects.results.map((hit) => ({
-          id: hit.id,
-          title: hit.title,
-          subtitle: hit.subtitle,
+          ...hit,
           group: 'projects',
           data: hit.data ?? { kind: 'project' as const },
         }));
@@ -98,9 +94,7 @@ export function createPlatformSearchSource(
       for (const hit of tasks.results) {
         if (hit.data === undefined) continue;
         taskRows.push({
-          id: hit.id,
-          title: hit.title,
-          subtitle: hit.subtitle,
+          ...hit,
           group: 'tasks',
           data: hit.data,
         });
@@ -109,18 +103,14 @@ export function createPlatformSearchSource(
       for (const hit of documents.results) {
         if (hit.data === undefined) continue;
         documentRows.push({
-          id: hit.id,
-          title: hit.title,
-          subtitle: hit.subtitle,
+          ...hit,
           group: 'documents',
           data: hit.data,
         });
       }
       const contactRows: SearchResult<PlatformSearchHitData>[] =
         contacts.results.map((hit) => ({
-          id: hit.id,
-          title: hit.title,
-          subtitle: hit.subtitle,
+          ...hit,
           group: 'contacts',
           data: hit.data ?? { kind: 'contact' as const },
         }));

@@ -1,7 +1,7 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { ConversationsNavigation } from './conversations-navigation';
 
@@ -39,6 +39,9 @@ describe('ConversationsNavigation', () => {
       const { container } = render(
         <ConversationsNavigation organizationId="org-1" />,
       );
+      expect(
+        screen.getByRole('navigation', { name: 'Inbox' }),
+      ).toBeInTheDocument();
       await checkAccessibility(container);
     });
   });

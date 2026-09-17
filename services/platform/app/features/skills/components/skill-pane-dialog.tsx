@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog } from '@tale/ui/dialog/dialog';
-import { useCallback } from 'react';
+import { useCallback, type RefObject } from 'react';
 
 import { SkillDetailPane } from './skill-detail-pane';
 
@@ -13,10 +13,12 @@ export function SkillDetailDialog({
   organizationId,
   slug,
   onClose,
+  restoreFocusRef,
 }: {
   organizationId: string;
   slug: string;
   onClose: () => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -31,6 +33,7 @@ export function SkillDetailDialog({
       onOpenChange={handleOpenChange}
       title={slug}
       size="3xl"
+      restoreFocusRef={restoreFocusRef}
       className="md:h-[85dvh] md:max-h-[85dvh]"
     >
       <div className="flex h-full min-h-0 flex-col">

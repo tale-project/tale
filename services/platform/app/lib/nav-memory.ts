@@ -139,12 +139,23 @@ function read(
   try {
     // Privacy settings can throw while accessing the Storage getter itself.
     raw = window[area].getItem(storageKey(organizationId));
+    if (!raw) return null;
+    const record = parseRecord(raw);
+    // Apply the cross-tab TTL before both reads and merges. Otherwise the
+    // first navigation in a fresh tab refreshes every expired section.
+    if (
+      area === 'localStorage' &&
+      record &&
+      record.savedAt + TTL_MS < Date.now()
+    ) {
+      window[area].removeItem(storageKey(organizationId));
+      return null;
+    }
+    return record;
   } catch (error) {
     console.warn('[nav-memory] failed to read', error);
     return null;
   }
-  if (!raw) return null;
-  return parseRecord(raw);
 }
 
 function write(
@@ -204,12 +215,7 @@ export function readNavTarget(
   const fromTab = tab?.sections[section];
   if (fromTab !== undefined) return fromTab;
   const shared = read('localStorage', organizationId);
-  if (!shared) return undefined;
-  if (shared.savedAt + TTL_MS < Date.now()) {
-    clearNavMemory(organizationId);
-    return undefined;
-  }
-  return shared.sections[section];
+  return shared?.sections[section];
 }
 
 /** Records a resolved dashboard location. No-ops for anything outside a

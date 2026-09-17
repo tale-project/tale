@@ -21,7 +21,7 @@ vi.mock('@milkdown/crepe', () => {
     static Feature = { Placeholder: 'placeholder' };
     on() {}
     get editor() {
-      return { action: () => MOCK_EDITOR_HTML };
+      return { action: () => MOCK_EDITOR_HTML, config: vi.fn() };
     }
   }
   return { Crepe: MockCrepe };

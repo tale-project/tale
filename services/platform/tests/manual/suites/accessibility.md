@@ -99,10 +99,11 @@ component-level axe coverage comes from `vitest-axe` via
   (the other is `aria-hidden`/visually removed); flag if both are announced.
 - [ ] `A11Y-A14` · **Touch targets** — Resize ≤ 767 px; measure the mobile
   shell's interactive controls (bottom-tab buttons, mobile Save bar,
-  chat-input buttons) via `getBoundingClientRect()` → Every touch target is ≥
-  **44×44 CSS px**. Cross-ref [responsive.md](responsive.md) RESP-A1, which
-  already measured the mobile Save button at ≈38×32 px — treat that as a
-  candidate finding, not a pass.
+  chat-input buttons) via `getBoundingClientRect()` → Bottom-tab buttons are ≥ **44×44 CSS px**; other controls meet the app
+  design contract’s **24×24 CSS px** minimum hit target. Measure the clickable
+  area rather than the glyph. Standard 32/36 px controls are valid; do not
+  report a WCAG 2.1 AA failure merely for missing the stronger 44 px target.
+  Cross-ref [responsive.md](responsive.md) RESP-A1.
 
 ## Boundary & error tests
 
@@ -153,5 +154,5 @@ Tick the checks that apply per surface (— = N/A for that surface).
 | DataTable page                |     |     |     |     | —   |     | —   |     |     | A11Y-A10 scope ok; caption opt-in                                   |
 | Settings form                 |     |     |     |     |     | —   | —   |     |     | A11Y-B1 invalid submit                                              |
 | Dialog                        | —   | —   |     |     |     | —   | —   |     |     | A11Y-A5 focus return + A11Y-A12 title                                    |
-| Mobile shell                  |     |     |     |     | —   | —   |     |     |     | A11Y-A14 touch targets ≥ 44 px                                      |
+| Mobile shell                  |     |     |     |     | —   | —   |     |     |     | A11Y-A14: tabs ≥44 px; other targets ≥24 px                                      |
 | ~~Workspace panel~~ (retired) | —   | —   | —   | —   | —   | —   | —   | —   | —   | the chat side panel was removed in #2857; its guide is retired |

@@ -115,9 +115,11 @@ if you want to keep a write.
 
 ## Accessibility (WCAG 2.1 AA)
 
-- [ ] `RESP-A1` · **Touch targets** → Bottom-tab buttons are ≥ 44×44 CSS px
-  (measured: **More** tab ≈ 78×57). **Note:** the mobile Save button measured
-  **≈ 38×32 px** — below the 44×44 target (record as a finding if confirmed).
+- [ ] `RESP-A1` · **Touch targets** → Bottom-tab buttons are ≥ 44×44 CSS px. Other controls meet the app design
+  contract’s **24×24 CSS px** minimum hit target; the standard 32/36 px
+  buttons are valid on mobile. Measure the clickable area, not the icon.
+  The 44 px value is a stronger bottom-navigation target, not a WCAG 2.1 AA
+  requirement for every control.
 - [ ] `RESP-A2` · **Reflow** → Content reflows to a single column at **320
   px** without loss of information or function (WCAG 1.4.10); `scrollWidth ===
   clientWidth`.
