@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * The usage-budget strip above the composer.
+ * The usage-budget banner above the composer.
  *
  * While the caller approaches a governance budget it shows what is LEFT —
  * dismissible, warning tint. Once a limit is exceeded it hardens: the line
@@ -10,12 +10,20 @@
  * team filter), and a "Request usage credits" affordance notifies the org's
  * operators through the notification bell. Either state links to the
  * member's usage page, where every cap that binds them reads in full.
+ *
+ * It is an `Alert` in the composer's own column. The strip once lived under
+ * the page header, which is why it used to span the pane with a bare bottom
+ * border; here the tint, the coloured glyph and the live region come from
+ * the design system, and the copy stays foreground — red-on-pink fails AA
+ * contrast in light mode, and the accent belongs on the fill and the icon,
+ * not on the words.
  */
 
-import { cn } from '@tale/ui/cn';
+import { Alert } from '@tale/ui/alert';
+import { Row } from '@tale/ui/layout';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
@@ -93,79 +101,67 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
         })
       : t('budgetExceededDefault');
 
+  const message = exceeded
+    ? t('budgetLimitReached', {
+        period: budgetStatus.period ?? 'monthly',
+      })
+    : budgetStatus.warnings
+        ?.map((w) => {
+          const values = {
+            remaining: formatAmount(w.code, Math.max(0, w.limit - w.used)),
+            limit: formatAmount(w.code, w.limit),
+            type: typeLabel(w.code),
+            period: w.period,
+          };
+          // An org-bucket warning is about the organization's whole
+          // spend, not the reader's — say so, or "left" reads as theirs.
+          return w.scope === 'org'
+            ? t('budgetRemainingOrg', values)
+            : t('budgetRemaining', values);
+        })
+        .join(' · ');
+
   return (
-    <div
-      className={cn(
-        'flex items-center gap-2 border-b px-4 py-2',
-        exceeded
-          ? 'bg-destructive/10 border-destructive/30'
-          : 'bg-warning/10 border-warning/30',
-      )}
+    <Alert
+      variant={exceeded ? 'destructive' : 'warning'}
+      className="mx-auto mb-2 w-full max-w-3xl"
     >
-      <AlertTriangle
-        className={cn(
-          'size-4 shrink-0',
-          exceeded ? 'text-destructive' : 'text-warning',
-        )}
-      />
-      <span
-        {...(exceeded ? { title: detail } : {})}
-        className={cn(
-          'flex-1 truncate text-sm',
-          exceeded ? 'text-destructive' : 'text-foreground',
-        )}
-      >
-        {exceeded
-          ? t('budgetLimitReached', {
-              period: budgetStatus.period ?? 'monthly',
-            })
-          : budgetStatus.warnings
-              ?.map((w) => {
-                const values = {
-                  remaining: formatAmount(
-                    w.code,
-                    Math.max(0, w.limit - w.used),
-                  ),
-                  limit: formatAmount(w.code, w.limit),
-                  type: typeLabel(w.code),
-                  period: w.period,
-                };
-                // An org-bucket warning is about the organization's whole
-                // spend, not the reader's — say so, or "left" reads as theirs.
-                return w.scope === 'org'
-                  ? t('budgetRemainingOrg', values)
-                  : t('budgetRemaining', values);
-              })
-              .join(' · ')}
-      </span>
-      <Link
-        to="/dashboard/$id/settings/usage"
-        params={{ id: organizationId }}
-        className="text-foreground shrink-0 text-sm underline underline-offset-2"
-      >
-        {t('budgetViewUsage')}
-      </Link>
-      {exceeded ? (
-        <button
-          type="button"
-          onClick={requestCredits}
-          disabled={requested}
-          className="text-foreground shrink-0 text-sm underline underline-offset-2 disabled:no-underline disabled:opacity-60"
+      <Row gap={2}>
+        <span
+          {...(exceeded ? { title: detail } : {})}
+          className="text-foreground min-w-0 flex-1 truncate text-sm"
         >
-          {requested
-            ? t('budgetRequestCreditsSent')
-            : t('budgetRequestCredits')}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          aria-label={t('budgetWarningDismiss')}
+          {message}
+        </span>
+        <Link
+          to="/dashboard/$id/settings/usage"
+          params={{ id: organizationId }}
+          className="text-foreground shrink-0 text-sm underline underline-offset-2"
         >
-          <X className="size-4" />
-        </button>
-      )}
-    </div>
+          {t('budgetViewUsage')}
+        </Link>
+        {exceeded ? (
+          <button
+            type="button"
+            onClick={requestCredits}
+            disabled={requested}
+            className="text-foreground shrink-0 text-sm underline underline-offset-2 disabled:no-underline disabled:opacity-60"
+          >
+            {requested
+              ? t('budgetRequestCreditsSent')
+              : t('budgetRequestCredits')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            aria-label={t('budgetWarningDismiss')}
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </Row>
+    </Alert>
   );
 }

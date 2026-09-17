@@ -1472,11 +1472,11 @@ chat:
     showAll: Afficher les {count} sources
     hide: Masquer les sources
 
-  budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Contacte ton administrateur.
+  budgetExceededDetail: "Limite de {type} atteinte pour {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}} ({used} / {limit}). Contacte ton administrateur."
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
-  budgetRemaining: 'Encore {remaining} sur {limit} {type} pour ce {period}'
-  budgetRemainingOrg: 'Organisation : encore {remaining} sur {limit} {type} pour ce {period}'
-  budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period}"
+  budgetRemaining: "Encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+  budgetRemainingOrg: "Organisation : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+  budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
   budgetRequestCredits: Demander plus de crédits
   budgetRequestCreditsSent: Demande envoyée à tes admins
   budgetWarningDismiss: Fermer

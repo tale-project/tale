@@ -1467,11 +1467,11 @@ chat:
     showAll: Alle {count} Quellen anzeigen
     hide: Quellen ausblenden
 
-  budgetExceededDetail: '{type}-Limit für diesen {period} erreicht ({used} / {limit}). Wende dich an deinen Administrator.'
+  budgetExceededDetail: '{type}-Limit für {period, select, daily {heute} weekly {diese Woche} other {diesen Monat}} erreicht ({used} / {limit}). Wende dich an deinen Administrator.'
   budgetExceededDefault: Nutzungslimit für diesen Zeitraum erreicht. Wende dich an deinen Administrator.
-  budgetRemaining: 'Noch {remaining} von {limit} {type} in diesem {period}'
-  budgetRemainingOrg: 'Organisation: noch {remaining} von {limit} {type} in diesem {period}'
-  budgetLimitReached: 'Nutzungslimit erreicht · setzt sich {period} zurück'
+  budgetRemaining: 'Noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
+  budgetRemainingOrg: 'Organisation: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
+  budgetLimitReached: 'Nutzungslimit erreicht · wird {period, select, daily {täglich} weekly {wöchentlich} other {monatlich}} zurückgesetzt'
   budgetRequestCredits: Mehr Kontingent anfragen
   budgetRequestCreditsSent: Anfrage an deine Admins gesendet
   budgetWarningDismiss: Schließen
