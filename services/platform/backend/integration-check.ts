@@ -47627,6 +47627,232 @@ async function checkSyncScanFairness(
   );
 }
 
+/** A late terminal window must not publish after the cancel election. */
+async function checkTaskAgentCompletionFence(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { completeAgentRunInTx } =
+    await import('./domains/tasks/agent-run-completion.ts');
+  const { cancelAgentRunInTx } = await import('./domains/tasks/agent-runs.ts');
+  const { saveAgentFileMetadata } =
+    await import('./domains/tasks/agent-file-metadata.ts');
+  const { updateTaskStatus, moveTask } =
+    await import('./domains/tasks/service.ts');
+  const post = async (route: string, body: unknown): Promise<unknown> =>
+    (
+      await fetch(`${base}${route}?orgId=${ctx.orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify(body),
+      })
+    ).json();
+  const { projectId } = z.object({ projectId: z.string() }).parse(
+    await post('/api/app/projects', {
+      name: 'Completion cancellation fence',
+    }),
+  );
+  for (const mode of [
+    'cancelled',
+    'rotated',
+    'complete',
+    'cancel-race',
+    'status-race',
+    'drag-race',
+  ] as const) {
+    const { taskId } = z.object({ taskId: z.string() }).parse(
+      await post('/api/app/tasks', {
+        projectId,
+        title: `Completion ${mode}`,
+      }),
+    );
+    await sql`UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}`;
+    const agentId = `itest-completion-${randomUUID()}`;
+    const execId = `exec-${randomUUID()}`;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${ctx.orgId}, ${projectId}, ${taskId}, ${agentId}, ${execId}, ${`pa-${agentId}`},
+        'running', 'claude-code', 'itest-model', ${ctx.userId}, ${Date.now()},
+        ${Date.now() + 60_000}, ${Date.now()}
+      ) RETURNING id
+    `;
+    const runId = rows[0]?.id ?? '';
+    const fileId = `itest-completion-${randomUUID()}`;
+    await saveAgentFileMetadata(sql, {
+      organizationId: ctx.orgId,
+      storageId: fileId,
+      fileName: 'report.txt',
+      contentType: 'text/plain',
+      size: 12,
+    });
+    const args = {
+      organizationId: ctx.orgId,
+      taskId,
+      agentId,
+      execId,
+      runId,
+      body: 'Completed report',
+      resultText: 'Completed report',
+      files: [
+        {
+          fileId,
+          fileName: 'report.txt',
+          fileType: 'text/plain',
+          fileSize: 12,
+        },
+      ],
+    };
+    if (mode === 'cancelled') {
+      await sql.begin((tx) =>
+        cancelAgentRunInTx(tx, { organizationId: ctx.orgId, taskId, runId }),
+      );
+    }
+    if (mode === 'rotated') {
+      await sql`UPDATE app.project_agent_runs SET exec_id = ${`replacement-${execId}`} WHERE id = ${runId}`;
+    }
+    let completed: boolean;
+    if (mode === 'status-race' || mode === 'drag-race') {
+      // Pause a real status writer after its run lock, before its task
+      // write. Wait until completion is blocked on that run. If completion
+      // locks task first, the writer and completion deadlock here.
+      let releaseWriter: () => void = () => {};
+      let lockedWriter: () => void = () => {};
+      let completionPid = 0;
+      const locked = new Promise<void>((resolve) => {
+        lockedWriter = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseWriter = resolve;
+      });
+      const writing = sql.begin(async (tx) => {
+        await tx`SELECT id FROM app.project_agent_runs WHERE id = ${runId} FOR UPDATE`;
+        lockedWriter();
+        await release;
+        const auth = {
+          organizationId: ctx.orgId,
+          userId: ctx.userId,
+          role: 'owner',
+          teamIds: [],
+        };
+        if (mode === 'status-race') {
+          await updateTaskStatus(tx, auth, taskId, 'todo');
+        } else {
+          await moveTask(tx, auth, { taskId, status: 'todo' });
+        }
+      });
+      await locked;
+      const completion = sql.begin(async (tx) => {
+        const [backend] = await tx<
+          { pid: number }[]
+        >`SELECT pg_backend_pid() AS pid`;
+        completionPid = backend?.pid ?? 0;
+        return completeAgentRunInTx(tx, args);
+      });
+      const outcomes = Promise.allSettled([writing, completion]);
+      const blocked = await waitFor(async () => {
+        const [activity] = await sql<{ blocked: boolean }[]>`
+          SELECT wait_event_type = 'Lock' AND query LIKE '%project_agent_runs%' AS blocked
+          FROM pg_stat_activity WHERE pid = ${completionPid}
+        `;
+        return activity?.blocked ?? false;
+      }, 5000);
+      releaseWriter();
+      const [writerOutcome, completionOutcome] = await outcomes;
+      record(
+        `task-agent completion and ${mode} use compatible row locks`,
+        blocked &&
+          writerOutcome.status === 'fulfilled' &&
+          completionOutcome.status === 'fulfilled',
+        JSON.stringify({ blocked, writerOutcome, completionOutcome }),
+      );
+      completed =
+        completionOutcome.status === 'fulfilled' && completionOutcome.value;
+    } else if (mode === 'cancel-race') {
+      let releaseCancel: () => void = () => {};
+      let lockedCancel: () => void = () => {};
+      const locked = new Promise<void>((resolve) => {
+        lockedCancel = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        releaseCancel = resolve;
+      });
+      const cancelling = sql.begin(async (tx) => {
+        await cancelAgentRunInTx(tx, {
+          organizationId: ctx.orgId,
+          taskId,
+          runId,
+        });
+        lockedCancel();
+        await release;
+      });
+      await locked;
+      const completion = sql.begin((tx) => completeAgentRunInTx(tx, args));
+      releaseCancel();
+      await cancelling;
+      completed = await completion;
+    } else {
+      completed = await sql.begin((tx) => completeAgentRunInTx(tx, args));
+    }
+    const replay = await sql.begin((tx) => completeAgentRunInTx(tx, args));
+    const [observed] = await sql<
+      {
+        status: string;
+        commentCount: number;
+        reviews: number;
+        runStatus: string;
+        outputs: number;
+        fileSource: string;
+      }[]
+    >`
+      SELECT t.status, t.comment_count::int AS "commentCount", r.status AS "runStatus",
+        COALESCE(jsonb_array_length(t.outputs), 0) AS outputs,
+        (SELECT source FROM app.file_metadata f
+         WHERE f.org_id = t.org_id AND f.storage_ref = ${fileId}) AS "fileSource",
+        (SELECT count(*)::int FROM app.approvals a
+         WHERE a.resource_type = 'task_review' AND a.resource_id = t.id) AS reviews
+      FROM app.tasks t JOIN app.project_agent_runs r ON r.task_id = t.id
+      WHERE r.id = ${runId}
+    `;
+    const expected = mode === 'complete';
+    record(
+      `task-agent completion fence (${mode})`,
+      completed === expected &&
+        !replay &&
+        observed?.commentCount === (expected ? 1 : 0) &&
+        observed.reviews === (expected ? 1 : 0) &&
+        observed.outputs === (expected ? 1 : 0) &&
+        observed.fileSource === (expected ? 'task-output' : 'agent') &&
+        observed.status ===
+          (expected
+            ? 'in_review'
+            : mode === 'status-race' || mode === 'drag-race'
+              ? 'todo'
+              : 'in_progress') &&
+        observed.runStatus ===
+          (expected ? 'settled' : mode === 'rotated' ? 'running' : 'cancelled'),
+      JSON.stringify({ completed, replay, observed }),
+    );
+    if (expected) {
+      const cancelled = await sql.begin((tx) =>
+        cancelAgentRunInTx(tx, { organizationId: ctx.orgId, taskId, runId }),
+      );
+      record(
+        'completed agent result wins over a later cancel',
+        !cancelled,
+        `cancelled=${cancelled}`,
+      );
+    }
+  }
+}
+
 async function checkWatchdogs(
   sql: Sql,
   base: string,
@@ -50092,6 +50318,10 @@ async function main(): Promise<void> {
         () => checkDeferredSendRecovery(sql, authCtx),
       ],
       ['checkBackfillRecovery', () => checkBackfillRecovery(sql, authCtx)],
+      [
+        'checkTaskAgentCompletionFence',
+        () => checkTaskAgentCompletionFence(sql, baseUrl, authCtx),
+      ],
       ['checkWatchdogs', () => checkWatchdogs(sql, baseUrl, authCtx)],
       [
         'checkDocumentWriteGuards',
