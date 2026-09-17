@@ -26,6 +26,8 @@ Ports:
 
 A prefill also grows with the prompt, which no gateway knob bounds. A managed Claude Code turn therefore compacts its conversation inside the serving model's context window (the catalog `contextWindow`, narrowed by the organization's context limit) whenever that window is below the 200,000 tokens the CLI assumes for a model it does not know (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, empty otherwise; the CLI treats any value below 100,000 as 100,000). Make the provider catalog report the context the model really serves, or a long turn's prompt can outgrow what a local model prefills within the CLI's own 30-minute stream watchdog.
 
+A local server's prompt cache only helps when consecutive requests share their beginning. Claude Code opens every system prompt with an attribution line whose checksum changes on each request (`x-anthropic-billing-header: …; cch=…;`), which Anthropic's API reads and any other server takes as text. For a model that is not Claude, a managed turn therefore sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0`, and each turn reuses the whole previous prompt instead of recomputing everything after the tool definitions.
+
 The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SANDBOX_LLM_GATEWAY_*` names for new configuration.
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container.

@@ -43,6 +43,8 @@ Recrée les processus backend concernés avec le nouvel environnement, puis dém
 
 Les agents de programmation s’appuient aussi sur la fenêtre de contexte que le catalogue indique pour le modèle : la valeur `context_length` ou `context_window` que ton serveur publie sur `/v1/models`, ou 128 000 tokens pour un fournisseur configuré avec `catalog.source: none`. Fais en sorte que cette liste indique le contexte que ton serveur sert réellement. Lorsque cette fenêtre, ou une [limite de contexte](/fr/platform/admin/governance/policies-and-limits) plus basse pour la personne qui a lancé l’exécution, reste sous 200 000 tokens, une session Claude Code gérée condense sa conversation en un résumé avant que le prompt ne la dépasse. Claude Code traite toute valeur inférieure à 100 000 tokens comme 100 000 : un modèle qui offre moins de contexte peut donc recevoir des prompts plus longs qu’il ne peut en contenir. Réserve Claude Code aux modèles qui offrent au moins ce contexte.
 
+Sur un modèle autre que Claude, une session Claude Code gérée omet aussi la ligne d’attribution que Claude Code place sinon au début de chaque prompt système. Cette ligne change à chaque requête : un serveur qui met en cache le début des prompts devrait sinon recalculer toute la conversation à chaque tour.
+
 ## Où vivent les connecteurs
 
 Les définitions fournies se trouvent dans `configs/platform/system/providers/<slug>/provider.yml` et leurs catalogues statiques dans `configs/platform/system/models/<slug>/models.yml`. Anthropic utilise par exemple `providers/anthropic/provider.yml` et `models/anthropic/models.yml`. Ces fichiers appartiennent à l’image et évoluent avec sa version.

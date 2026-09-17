@@ -377,6 +377,19 @@ describe('claude reasoning levers scope to Claude models', () => {
     expect(exec.stdin ?? '').not.toContain('Ultrathink');
   });
 
+  // The CLI opens its system prompt with an attribution line whose checksum
+  // changes on every request. Anthropic reads it; a foreign model's server
+  // sees plain text, so its prefix cache ended after the tool definitions and
+  // every turn prefilled the whole conversation again (observed live on a
+  // split local GLM: 16,276 cached tokens per turn, whatever the context).
+  it('a non-Claude gateway model gets no per-request attribution line', () => {
+    const exec = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({ model: 'openrouter/~deepseek/deepseek-v4-flash-latest' }),
+    );
+    expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe('0');
+  });
+
   it.each([
     ['vendor-native', 'claude-opus-4-6'],
     ['gateway path', 'openrouter/anthropic/claude-sonnet-4.6'],
@@ -385,6 +398,7 @@ describe('claude reasoning levers scope to Claude models', () => {
     const exec = buildHarnessExec(fact('claude-code'), managedSpec({ model }));
     expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
     expect(exec.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING).toBeUndefined();
+    expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
     expect(exec.stdin ?? '').toContain('Ultrathink');
   });
 
@@ -394,6 +408,7 @@ describe('claude reasoning levers scope to Claude models', () => {
       managedSpec({ model: 'openrouter/~deepseek/deepseek-v4-flash-latest' }),
     );
     expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
+    expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
   });
 });
 
