@@ -32,6 +32,8 @@ const {
     } as unknown,
     /** The pack manifest's display half, when the test wants one. */
     presentation: undefined as unknown,
+    settings: undefined as unknown,
+    taskContract: undefined as unknown,
     deployedDocument: undefined as unknown,
     version: 3,
     deployedVersion: 2 as number | undefined,
@@ -98,6 +100,8 @@ vi.mock('../hooks/queries', () => ({
       ...(state.presentation !== undefined
         ? { presentation: state.presentation }
         : {}),
+      settings: state.settings,
+      taskContract: state.taskContract,
       ...(state.deployedUnpinnedAgentNodes !== undefined
         ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
         : {}),
@@ -272,6 +276,8 @@ beforeEach(() => {
     nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
   };
   state.presentation = undefined;
+  state.settings = undefined;
+  state.taskContract = undefined;
   state.deployedDocument = undefined;
   state.version = 3;
   state.deployedVersion = 2;
@@ -800,6 +806,27 @@ describe('AutomationEditor', () => {
     });
     expect(whenField()).toHaveValue('');
     expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the edited version’s package metadata when saving a node change', async () => {
+    state.presentation = { name: 'Pack title' };
+    state.settings = { folder: 'Setup', forms: [] };
+    state.taskContract = { kind: 'task' };
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() =>
+      expect(saveMutation.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          presentation: state.presentation,
+          settings: state.settings,
+          taskContract: state.taskContract,
+        }),
+      ),
+    );
+    state.settings = undefined;
+    state.taskContract = undefined;
   });
 
   it("surfaces the store's own refusal in one toast", async () => {

@@ -49,7 +49,7 @@ export function AutomationRunDialog({
     try {
       input = JSON.parse(text);
     } catch {
-      return { valid: false as const, error: t('editor.invalidJson') };
+      return { valid: false as const, error: t('detail.runInput.invalidJson') };
     }
     const checked = schema?.safeParse(input);
     if (checked && !checked.success) {

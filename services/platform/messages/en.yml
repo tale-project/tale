@@ -595,6 +595,7 @@ automations:
       label: Run input (JSON)
       description: 'Input for saved version {version}. It does not change the automation.'
       schema: Input schema
+      invalidJson: Enter valid JSON for the run input.
       invalid: 'The input does not match the schema. Check these fields: {paths}.'
       mockDescription: Test the saved version with mock responses. No external actions run.
     runScope:

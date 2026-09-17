@@ -41,7 +41,7 @@ import { createBuilderModel, type BuilderModelTarget } from './model_call';
  * catalog is registered so `search_catalog` answers with the capabilities
  * this deployment actually has.
  */
-function assembleBuilderHost(): void {
+export function assembleAutomationAuthoringHost(): void {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
   const connectors = loadConnectorDefinitions();
   installConnectorCatalog(connectors);
@@ -90,7 +90,7 @@ export async function runSessionWithStore(
   args: BuilderSessionArgs,
   store: DispatchStore,
 ): Promise<BuilderSessionOutcome> {
-  assembleBuilderHost();
+  assembleAutomationAuthoringHost();
 
   const session = await runBuilderSession({
     goal: args.goal,

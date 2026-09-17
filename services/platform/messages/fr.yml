@@ -623,6 +623,7 @@ automations:
       label: Données de l’exécution (JSON)
       description: 'Données pour la version enregistrée {version}. Elles ne modifient pas l’automatisation.'
       schema: Schéma des données
+      invalidJson: Saisis les données de l’exécution au format JSON valide.
       invalid: 'Les données ne respectent pas le schéma. Vérifie ces champs : {paths}.'
       mockDescription: Teste la version enregistrée avec des réponses simulées. Aucune action externe n’est exécutée.
     runScope:

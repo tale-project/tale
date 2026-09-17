@@ -2,7 +2,7 @@ import { within } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { TriggerEditor } from './trigger-editor';
 
@@ -54,6 +54,29 @@ describe('TriggerEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     triggersData = [SCHEDULE_ROW];
+  });
+
+  it('closes the removal dialog only after a successful deletion', async () => {
+    mockDeleteTrigger.mockImplementation(
+      (_args: unknown, options: { onSuccess: () => void }) =>
+        options.onSuccess(),
+    );
+    render(
+      <TriggerEditor
+        organizationId="org-1"
+        name="gmail-triage-inbox"
+        canEdit
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove trigger' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remove trigger' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(mockDeleteTrigger).toHaveBeenCalledTimes(1);
   });
 
   it('shows the stored binding and refuses a no-op save', () => {

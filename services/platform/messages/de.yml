@@ -617,6 +617,7 @@ automations:
       label: Eingabe für den Lauf (JSON)
       description: 'Eingabe für die gespeicherte Version {version}. Die Automatisierung bleibt unverändert.'
       schema: Eingabeschema
+      invalidJson: Gib die Eingabe für den Lauf als gültiges JSON ein.
       invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
       mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
     runScope:

@@ -3,6 +3,7 @@ import {
   parseAutomationSettings,
 } from '@tale/shared/schemas/automation-settings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -148,6 +149,49 @@ function seedFiles() {
 }
 
 describe('AutomationSettingsDialog', () => {
+  it('reopens from persisted values after discarding an invalid draft', async () => {
+    seedFiles();
+    const confirmSpy = vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <QueryClientProvider client={client}>
+          <button type="button" onClick={() => setOpen(true)}>
+            Reopen settings
+          </button>
+          <AutomationSettingsDialog
+            organizationId="org_1"
+            projectId="project_1"
+            settings={SETTINGS}
+            folder="Setup"
+            automationName="document-verify-desk"
+            open={open}
+            onOpenChange={setOpen}
+          />
+        </QueryClientProvider>
+      );
+    }
+    try {
+      const { user } = render(<Harness />);
+      await user.clear(screen.getByLabelText(/Case ID/));
+      await user.type(screen.getByLabelText(/Case ID/), '123');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await user.click(screen.getByRole('button', { name: 'Reopen settings' }));
+      expect(screen.getByLabelText(/Case ID/)).toHaveValue('CASE-123456');
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      expect(screen.getByLabelText(/Case ID/)).not.toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
   it('shows one form per tab and ONE save, disarmed until something changes', async () => {
     seedFiles();
     convexMocks.write.mockReset().mockResolvedValue({ action: 'updated' });

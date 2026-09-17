@@ -505,6 +505,17 @@ function AutomationEditorScope({
       await save.mutateAsync({
         organizationId,
         automation,
+        // Package metadata belongs to the version being edited, even when
+        // the author only changes a node or its canvas position.
+        ...(automationQuery.data?.presentation !== undefined && {
+          presentation: automationQuery.data.presentation,
+        }),
+        ...(automationQuery.data?.settings !== undefined && {
+          settings: automationQuery.data.settings,
+        }),
+        ...(automationQuery.data?.taskContract !== undefined && {
+          taskContract: automationQuery.data.taskContract,
+        }),
         ...(saveMessage !== '' && { message: saveMessage }),
         // Binds a NEW automation to this project on its first save; an
         // existing one keeps its bindings (membership is managed in the

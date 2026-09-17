@@ -10747,8 +10747,18 @@ async function checkAutomations(
     );
     // Failing-tests versions must be refused by the deploy gate.
     await post(`/api/app/automations/ops/greet/save?orgId=${orgId}`, {
-      document,
-      testsPassed: false,
+      document: {
+        ...document,
+        tests: [
+          {
+            name: 'deliberately failing acceptance',
+            input: { who: 'Test' },
+            expect: { output: { impossible: true } },
+          },
+        ],
+      },
+      // A client cannot forge a pass; the app computes its own verdict.
+      testsPassed: true,
     });
     const gate = await post(
       `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
@@ -10812,17 +10822,37 @@ async function checkAutomations(
       .safeParse(
         await get(`/api/app/automations/runs/${connectorRunId}?orgId=${orgId}`),
       );
-    // An unknown action must fail the run with the door's CODED refusal,
-    // not a bare stack — the stepper branches on that contract.
-    await post(`/api/app/automations/ops/files/save?orgId=${orgId}`, {
-      document: {
-        ...connectorDoc,
-        nodes: [{ id: 'listing', type: 'document.nope', input: {} }],
+    // The authoring gate refuses new invalid definitions. Seed the same
+    // invalid version through the low-level store to retain the runtime
+    // guard's coverage for legacy/imported definitions.
+    const invalidConnectorDocument = {
+      ...connectorDoc,
+      nodes: [{ id: 'listing', type: 'document.nope', input: {} }],
+    };
+    const invalidConnectorSave = await post(
+      `/api/app/automations/ops/files/save?orgId=${orgId}`,
+      {
+        document: invalidConnectorDocument,
+        message: 'unknown action',
       },
-      message: 'unknown action',
+    );
+    record(
+      'automation app save rejects an unknown connector action',
+      invalidConnectorSave.status === 400,
+      `save=${invalidConnectorSave.status} (want 400)`,
+    );
+    const legacyStore = await import('./domains/automations/store.ts');
+    await legacyStore.saveVersion(sql, {
+      organizationId: orgId,
+      name: 'ops/files',
+      document: invalidConnectorDocument,
+      actor: 'itest:legacy',
     });
-    await post(`/api/app/automations/ops/files/deploy?orgId=${orgId}`, {
+    await legacyStore.deploy(sql, {
+      organizationId: orgId,
+      name: 'ops/files',
       version: 2,
+      actor: 'itest:legacy',
     });
     const badRun = z.object({ runId: z.string() }).safeParse(
       await (
@@ -33721,7 +33751,7 @@ async function checkAutomationAgentNode(
     // A subautomation's nodes run inline on a sink that cannot park. The
     // stepper refuses an agent node BEFORE the op row, the scheduled start
     // and the sandbox turn a kick spends; a gated write is refused before any
-    // card is minted. The save door runs no validator, so these runtime
+    // card is minted. The app now validates saves; legacy rows still need runtime
     // guards are the only thing standing on this path.
     const saveAndDeploy = async (
       name: string,
@@ -33786,7 +33816,7 @@ async function checkAutomationAgentNode(
       ],
       output: '{{ nodes.work.output }}',
     });
-    const parentAgentDeploy = await saveAndDeploy('ops/parent-agentic', {
+    const parentAgentDocument = {
       version: 1,
       name: 'ops/parent-agentic',
       nodes: [
@@ -33798,6 +33828,29 @@ async function checkAutomationAgentNode(
         },
       ],
       output: '{{ nodes.sub.output }}',
+    };
+    const parentAgentDeploy = await saveAndDeploy(
+      'ops/parent-agentic',
+      parentAgentDocument,
+    );
+    record(
+      'automation authoring refuses an agent inside a subautomation',
+      parentAgentDeploy === 'save-failed/400',
+      parentAgentDeploy,
+    );
+    // Preserve the runtime fence test for versions installed before the gate.
+    const legacyStore = await import('./domains/automations/store.ts');
+    await legacyStore.saveVersion(sql, {
+      organizationId: orgId,
+      name: 'ops/parent-agentic',
+      document: parentAgentDocument,
+      actor: 'itest:legacy',
+    });
+    await legacyStore.deploy(sql, {
+      organizationId: orgId,
+      name: 'ops/parent-agentic',
+      version: 1,
+      actor: 'itest:legacy',
     });
     const spentBefore = { ...gatewayCalls };
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');

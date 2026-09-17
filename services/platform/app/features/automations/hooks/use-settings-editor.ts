@@ -117,6 +117,8 @@ export interface SettingsEditor {
   isDirty: (file: string) => boolean;
   /** Files with unsaved edits — what a single Save would write. */
   dirtyFiles: string[];
+  /** Forget unsaved values and validation issues after an accepted discard. */
+  discard: () => void;
   /**
    * Validate `validate`, then write `write`. A refusal names the offending
    * files IN THE RESULT rather than leaving the caller to read them back off
@@ -285,6 +287,10 @@ export function useSettingsEditor({
     dirtyFiles: fieldsForms
       .map((form) => form.file)
       .filter((file) => isDirty(file)),
+    discard: () => {
+      setEdited({});
+      setIssues({});
+    },
     save,
   };
 }

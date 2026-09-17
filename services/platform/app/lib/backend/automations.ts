@@ -38,6 +38,8 @@ type DeleteAutomationResult =
   ReturnsOf<'automations/mutations:deleteAutomation'>;
 type UploadAutomationResult =
   ReturnsOf<'automations/upload_action:uploadAutomation'>;
+type BuilderSessionResult =
+  ReturnsOf<'automations_builder/actions:startBuilderSession'>;
 
 function orgOf(
   args: Record<string, unknown>,
@@ -445,7 +447,14 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
           },
         },
       ).then(() => null),
-    invalidate: invalidateRuns,
+    invalidate: (client, args, ctx) => {
+      invalidateRuns(client, args, ctx);
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'gdpr_erasure'),
+      });
+    },
   },
   'automations/human_asks:answerAsk': {
     run: (args, ctx) =>
@@ -478,19 +487,22 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
     // A session spans minutes of model turns; the route holds the request
     // open exactly as the 0.4 action did.
     run: (args, ctx) =>
-      backendFetch<unknown>('/automations/builder/sessions', {
-        orgId: requireOrg(args, ctx),
-        body: {
-          goal: stringArg(args, 'goal'),
-          model: args.model,
-          ...(typeof args.projectId === 'string'
-            ? { projectId: args.projectId }
-            : {}),
-          ...(typeof args.maxTurns === 'number'
-            ? { maxTurns: args.maxTurns }
-            : {}),
+      backendFetch<{ outcome: BuilderSessionResult }>(
+        '/automations/builder/sessions',
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            goal: stringArg(args, 'goal'),
+            model: args.model,
+            ...(typeof args.projectId === 'string'
+              ? { projectId: args.projectId }
+              : {}),
+            ...(typeof args.maxTurns === 'number'
+              ? { maxTurns: args.maxTurns }
+              : {}),
+          },
         },
-      }),
+      ).then((body) => body.outcome),
     invalidate: invalidateAutomations,
   },
   'automations/upload_action:uploadAutomation': {
