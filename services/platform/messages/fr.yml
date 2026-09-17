@@ -3780,6 +3780,13 @@ governance:
       extendDeadline: Prolonger le délai
       retry: Réessayer
       cancel: Annuler la demande
+    approval:
+      description: Un autre admin doit approuver cette demande avant le début du délai d'attente.
+      approve: Approuver la demande
+      reject: Rejeter la demande
+      approveDescription: Approuve cette demande d'effacement et lance le délai d'attente configuré. Sans délai, l'effacement peut commencer immédiatement.
+      rejectDescription: Rejette cette demande d'effacement. La demande sera annulée et aucun effacement ne sera exécuté.
+      saved: Décision enregistrée
     drawer:
       description: Détail du reçu avec piste d'audit.
       headerTitle: Reçu d'effacement

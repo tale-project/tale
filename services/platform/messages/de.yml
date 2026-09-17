@@ -3702,6 +3702,13 @@ governance:
       extendDeadline: Frist verlängern
       retry: Erneut versuchen
       cancel: Anfrage abbrechen
+    approval:
+      description: Ein anderer Admin muss diesen Antrag genehmigen, bevor die Wartezeit beginnt.
+      approve: Antrag genehmigen
+      reject: Antrag ablehnen
+      approveDescription: Genehmige diesen Löschantrag und starte die festgelegte Wartezeit. Ohne Wartezeit kann die Löschung sofort beginnen.
+      rejectDescription: Lehne diesen Löschantrag ab. Der Antrag wird abgebrochen und es werden keine Daten gelöscht.
+      saved: Entscheidung gespeichert
     drawer:
       description: Beleg mit Audit-Verlauf.
       headerTitle: Löschungsbeleg

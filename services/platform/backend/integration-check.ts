@@ -45248,6 +45248,30 @@ async function checkGovernanceEnforcement(
       AND resource_id = ${requestId}
   `;
   const approvalId = approvalRows[0]?.id ?? '';
+  const pendingReceipt = z
+    .object({
+      request: z.object({
+        approvalId: z.string(),
+        status: z.literal('pending'),
+      }),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/erasure/${requestId}?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  record(
+    'DSAR receipt: exposes its pending approval for the admin decision UI',
+    pendingReceipt.success &&
+      pendingReceipt.data.request.approvalId === approvalId &&
+      approvalId !== '',
+    JSON.stringify(
+      pendingReceipt.success ? pendingReceipt.data : pendingReceipt.error,
+    ),
+  );
+
   const jobsBefore = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
     WHERE name = 'governance.process_erasure'

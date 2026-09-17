@@ -11,7 +11,7 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproveLegalHoldRelease } from '../hooks/mutations';
-import { mapLegalHoldError } from './legal-hold-errors';
+import { formatRemaining, mapLegalHoldError } from './legal-hold-errors';
 
 interface ReleaseRequestSummary {
   _id: string;
@@ -73,6 +73,7 @@ export function ApproveReleaseDialog({
   const onConfirm = async () => {
     if (!request || !organizationId) return;
     setFieldError(null);
+    setTooSoonUntil(null);
     try {
       await mutateAsync({ organizationId, requestId: request._id });
       toast({
@@ -85,7 +86,9 @@ export function ApproveReleaseDialog({
       if (mapped.fieldError) {
         setFieldError(mapped.fieldError);
         if (mapped.remainingMs !== undefined) {
-          setTooSoonUntil(Date.now() + mapped.remainingMs);
+          const receivedAt = Date.now();
+          setNow(receivedAt);
+          setTooSoonUntil(receivedAt + mapped.remainingMs);
         }
         return;
       }
@@ -97,6 +100,14 @@ export function ApproveReleaseDialog({
     }
   };
 
+  const visibleFieldError =
+    tooSoonUntil === null
+      ? fieldError
+      : tooSoonActive
+        ? t('legalHold.errors.approvalTooSoon', {
+            countdown: formatRemaining(tooSoonRemaining),
+          })
+        : null;
   const inlineSelfApproveBlocked = isSelfApprove;
   const disableConfirm =
     !request || isPending || inlineSelfApproveBlocked || tooSoonActive;
@@ -132,10 +143,10 @@ export function ApproveReleaseDialog({
             </span>
           </div>
         )}
-        {fieldError && !inlineSelfApproveBlocked && (
+        {visibleFieldError && !inlineSelfApproveBlocked && (
           <div className="text-destructive flex items-start gap-1.5 text-xs">
             <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            <span>{fieldError}</span>
+            <span>{visibleFieldError}</span>
           </div>
         )}
       </Stack>

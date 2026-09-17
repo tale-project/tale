@@ -3575,6 +3575,13 @@ governance:
       extendDeadline: Extend deadline
       retry: Retry
       cancel: Cancel request
+    approval:
+      description: A different admin must approve this request before its waiting period begins.
+      approve: Approve request
+      reject: Reject request
+      approveDescription: Approve this erasure request and start its configured waiting period. With no waiting period, erasure can begin immediately.
+      rejectDescription: Reject this erasure request. The request will be cancelled and no erasure will run.
+      saved: Decision saved
     drawer:
       description: Receipt detail with audit timeline.
       headerTitle: Erasure receipt

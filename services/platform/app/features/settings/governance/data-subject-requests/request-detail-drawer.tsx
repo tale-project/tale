@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { foldBreakdownEntries } from './breakdown-entries.ts';
 import { CancelDialog } from './cancel-dialog';
+import { ErasureApprovalActions } from './erasure-approval-actions';
 import { ExtendDeadlineDialog } from './extend-deadline-dialog';
 import { useGetErasureRequest } from './hooks/queries';
 import { LegalHoldBlockPanel } from './legal-hold-block-panel';
@@ -191,7 +192,10 @@ function DrawerBody({
   const { t } = useT('governance');
   const { request, auditEntries } = data;
   const now = Date.now();
-  const isTerminal = request.status === 'done' || request.status === 'failed';
+  const isTerminal =
+    request.status === 'done' ||
+    request.status === 'failed' ||
+    request.status === 'cancelled';
   // H8-5: also gate on the original deadline so a lapsed request hides
   // the Extend button (server rejects with `DEADLINE_LAPSED` per Art
   // 12(3) — the UI shouldn't surface an action that can't succeed).
@@ -211,6 +215,8 @@ function DrawerBody({
   // Cooling-off window: status='pending' AND effectiveAt in the future.
   // Any admin can cancel during this window. Past cooling-off, the
   // server flips status to 'running' and refuses the cancel mutation.
+  const isAwaitingApproval =
+    request.status === 'pending' && request.effectiveAt === undefined;
   const isCoolingOff =
     request.status === 'pending' &&
     request.effectiveAt !== undefined &&
@@ -237,6 +243,14 @@ function DrawerBody({
       {isCoolingOff && request.effectiveAt !== undefined && (
         <CoolingOffBanner
           effectiveAt={request.effectiveAt}
+          onCancel={onCancel}
+        />
+      )}
+
+      {isAwaitingApproval && (
+        <ErasureApprovalActions
+          approvalId={request.approvalId}
+          requestedBy={request.requestedBy}
           onCancel={onCancel}
         />
       )}
