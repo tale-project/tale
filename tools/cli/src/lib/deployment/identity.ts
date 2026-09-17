@@ -197,6 +197,12 @@ export const bootstrapSchema = z.strictObject({
   migratingEmailFrom: z.email().optional(),
 });
 
+/** The backend closes account creation once a deployment holds an account, so
+ *  a deploy can no longer mint a replacement administrator for one it cannot
+ *  authenticate. Say what to do instead rather than report an auth failure. */
+const SIGN_UP_CLOSED_REFUSAL =
+  'This deployment already holds accounts, so it refuses to create the administrator; sign in as the break-glass administrator and set the operator password back to the one the deploy carries.';
+
 const ENROLMENT_ENDED =
   'The deploy operator has no second factor and its two-factor enrolment grace period has ended; register a passkey for it.';
 const TOTP_ENABLED =
@@ -438,6 +444,15 @@ export async function configureInstance(
     }
     return response;
   }
+  /** Whether a refusal is the backend's closed sign-up. Only a body that says
+   *  so proves nothing was created; an unreadable one keeps the doubt. */
+  async function signUpClosed(response: Response): Promise<boolean> {
+    try {
+      return (await response.text()).includes('SIGN_UP_CLOSED');
+    } catch {
+      return false;
+    }
+  }
   async function requireJson(
     response: Response,
     operation: string,
@@ -565,6 +580,17 @@ export async function configureInstance(
         password: input.password,
         name: 'Tale Administrator',
       });
+      if (login.status === 403 && (await signUpClosed(login))) {
+        // Refused before anything was created, so the marker journaled a
+        // moment ago records an uncertainty that does not exist — take it
+        // back, or every retry stops at the guard above.
+        if (bootstrap) {
+          const { signupAttempted: _refused, ...certain } = bootstrap.intent;
+          bootstrap.intent = certain;
+          writeProvisionState(bootstrap.file, bootstrap.intent);
+        }
+        throw preconditionError(SIGN_UP_CLOSED_REFUSAL);
+      }
     }
     await authenticated(login);
     let verifiedSession = await session(signInEmail);
