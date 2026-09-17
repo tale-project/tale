@@ -418,6 +418,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',
+  // Better Auth's own door: the sign-up gate closes `/sign-up/email`
+  // once the deployment has an account. The REST door mounts no sign-up
+  // route — it authenticates a key or a session that already exists — so
+  // the before-hook raising this never runs for a `/api/v1` request,
+  // though the handlers reach `auth.ts` by import.
+  'SIGN_UP_CLOSED',
 ]);
 
 describe('the REST error-code registry', () => {
