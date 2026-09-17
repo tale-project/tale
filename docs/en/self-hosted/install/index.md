@@ -13,7 +13,7 @@ The CLI manages container operations, but you still own the project's configurat
 
 ## Use your own service definitions
 
-[Run your own stack](/self-hosted/install/own-compose) describes the services, volumes, networking, readiness checks, and boot order you must preserve. Use it when maintaining Compose yourself or translating the contract into Kubernetes. Tale does not ship an official Helm chart.
+[Run your own stack](/self-hosted/install/own-compose) describes the services, volumes, networking, readiness checks, and boot order you must preserve. Use it when maintaining Compose yourself. [Deploy on Kubernetes](/self-hosted/install/kubernetes) translates that contract into Deployments, Services, and NetworkPolicies, and lists the checks a cluster must pass. Tale does not ship an official Helm chart.
 
 For changes to Tale's source code, follow [Contributor setup](/develop/contributor-setup) instead of starting with a production deployment.
 

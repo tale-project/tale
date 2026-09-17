@@ -35,6 +35,7 @@
             "self-hosted/install/index",
             "self-hosted/install/quickstart",
             "self-hosted/install/own-compose",
+            "self-hosted/install/kubernetes",
             "self-hosted/install/first-admin",
             "self-hosted/install/cli-install"
           ]

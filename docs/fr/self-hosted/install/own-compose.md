@@ -211,40 +211,5 @@ Les migrations de base s’exécutent au démarrage du backend. Ton processus do
 
 ## Transposer le contrat à Kubernetes
 
-Utilise des Deployments et des Services stables pour les rôles applicatifs, avec un volume de configuration partagé qui prend en charge les écritures et verrouillages nécessaires. Les stockages utilisent des volumes persistants ou des services externes. Avec `SANDBOX_BACKEND=kubernetes`, le spawner crée les Pods de session et les PVC de workspace via l’API Kubernetes, sans utiliser le socket Docker de l’hôte.
+[Déployer sur Kubernetes](/fr/self-hosted/install/kubernetes) transpose ce contrat en Deployments, Services, StatefulSets et NetworkPolicies, bascule le spawner de sandbox sur `SANDBOX_BACKEND=kubernetes` et liste les vérifications qu’un cluster doit réussir avant d’accueillir des utilisateurs. Cette page reste la référence pour les noms de services, les volumes, les sondes et les variables d’environnement que les objets Kubernetes doivent reproduire.
 
-### Préparer le namespace sandbox
-
-Place les Pods de session, le proxy de sortie et la passerelle de modèles dans le namespace sandbox prévu. La StorageClass doit conserver les volumes de workspace et pouvoir les rattacher là où un Pod repris est planifié.
-
-| Paramètre | Exigence |
-| --- | --- |
-| `SANDBOX_BACKEND` | `kubernetes`. Les chemins hôte et noms de bridges Docker ne configurent pas ce backend. |
-| `SANDBOX_K8S_NAMESPACE` | Namespace des sessions ; `tale-sandbox` par défaut. |
-| `SANDBOX_RUNTIME_IMAGE` | Image du runtime sandbox Tale correspondant, accessible aux nœuds du cluster. |
-| `NODE_EXTRA_CA_CERTS` | Fichier CA du cluster, généralement `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` dans le spawner. Conserve la vérification TLS. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Taille du PVC de workspace, `4Gi` par défaut ; limite aussi le stockage temporaire du Docker interne lorsqu’il est actif. |
-| `SANDBOX_K8S_CACHE_STORAGECLASS` | StorageClass des workspaces ; sans valeur, celle du cluster s’applique. |
-| `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | Niveau de runtime pris en charge et, si nécessaire, nom de la RuntimeClass installée. |
-| `SANDBOX_EGRESS_PROXY` | Service de sortie joignable ; `http://sandbox-egress:3128` par défaut. |
-
-Le ServiceAccount du spawner nécessite ces droits dans le namespace :
-
-| Ressource | Verbes |
-| --- | --- |
-| `pods` | `create`, `get`, `list`, `delete`, `patch` |
-| `secrets` | `create`, `delete`, `list` |
-| `persistentvolumeclaims` | `get`, `create`, `delete` |
-| `networkpolicies` dans `networking.k8s.io` | `create`, `update` |
-
-Les opérations de session contactent runnerd par HTTP sur l’IP du Pod, au port 8200. Elles n’exigent pas `pods/exec`, et les Pods de session ne reçoivent aucun jeton ServiceAccount. Autorise les connexions nécessaires du spawner vers Kubernetes et runnerd dans tes politiques. Le [contrat Kubernetes des sandboxes](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) fournit la Role et les détails du runtime.
-
-### Vérifier l’isolation et le cycle de vie
-
-Le spawner applique une NetworkPolicy de sortie aux Pods de session, autorisant DNS et le namespace sandbox. Ton CNI doit faire respecter NetworkPolicy. Un échec de création de cette politique est journalisé mais n’empêche pas le spawner de démarrer. Avant d’admettre des traitements, vérifie que la politique effective existe et bloque réellement une destination non autorisée. Les variables de proxy seules n’imposent pas l’isolation.
-
-Vérifie la protection IPv6 du proxy de sortie et les [prérequis réseau du Docker interne](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure). Pour Docker imbriqué, choisis explicitement un `SANDBOX_DIND_INNER_POOL` hors des plages Pod, Service et VPC du cluster. Un Pod ne peut pas découvrir tous les réseaux du cluster.
-
-Une session arrêtée conserve son PVC de workspace pour la reprise ; sa destruction explicite le supprime. `SANDBOX_MAX_SESSIONS` compte les sessions du namespace, mais ne garantit pas une limite stricte lors d’admissions simultanées sur plusieurs réplicas. Utilise ResourceQuota et des limites CPU/mémoire fondées sur des mesures de charge.
-
-Teste la création, l’exécution, le redémarrage du runner, l’arrêt sur inactivité, la reprise avec les fichiers conservés et la destruction explicite. Avec plusieurs réplicas du spawner, vérifie aussi l’accès depuis un autre réplica. Prévois les sondes et l’arrêt progressif de l’application, puis observe les requêtes en cours pendant une mise à jour. La coordination Docker de la CLI ne gère pas un déploiement Kubernetes.

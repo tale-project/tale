@@ -13,7 +13,7 @@ Die CLI übernimmt Containeraktionen. Für Konfiguration, Zugangsdaten, Volumes 
 
 ## Eigene Dienstdefinitionen verwenden
 
-[Einen eigenen Stack betreiben](/de/self-hosted/install/own-compose) beschreibt Dienste, Volumes, Netzwerk, Bereitschaftsprüfungen und Startreihenfolge. Nutze die Anleitung, wenn du Compose selbst pflegst oder die Architektur in Kubernetes abbildest. Tale liefert kein offizielles Helm-Chart.
+[Einen eigenen Stack betreiben](/de/self-hosted/install/own-compose) beschreibt Dienste, Volumes, Netzwerk, Bereitschaftsprüfungen und Startreihenfolge. Nutze die Anleitung, wenn du Compose selbst pflegst. [Auf Kubernetes bereitstellen](/de/self-hosted/install/kubernetes) überträgt diesen Vertrag in Deployments, Services und NetworkPolicies und nennt die Prüfungen, die ein Cluster bestehen muss. Tale liefert kein offizielles Helm-Chart.
 
 Für Änderungen am Tale-Quellcode richtest du eine [Entwicklungsumgebung](/de/develop/contributor-setup) ein, statt mit einem Produktionsdeployment zu beginnen.
 

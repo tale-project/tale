@@ -211,40 +211,5 @@ Datenbankmigrationen laufen beim Backend-Start. Dein Bereitstellungsablauf muss 
 
 ## Den Vertrag auf Kubernetes übertragen
 
-Verwende Deployments und stabile Services für die Anwendungsrollen. Das gemeinsame Konfigurations-Volume muss die erforderlichen Schreibzugriffe und Sperren unterstützen. Nutze dauerhafte Volumes oder externe Dienste für die Speicher. Mit `SANDBOX_BACKEND=kubernetes` erstellt der Spawner Sitzungs-Pods und Workspace-PVCs über die Kubernetes-API statt über den Docker-Socket des Hosts.
+[Auf Kubernetes bereitstellen](/de/self-hosted/install/kubernetes) überträgt diesen Vertrag in Deployments, Services, StatefulSets und NetworkPolicies, stellt den Sandbox-Spawner auf `SANDBOX_BACKEND=kubernetes` um und nennt die Prüfungen, die ein Cluster bestehen muss, bevor du Nutzer zulässt. Diese Seite bleibt die Referenz für die Dienstnamen, Volumes, Prüfungen und Umgebungsvariablen, die die Kubernetes-Objekte nachbilden müssen.
 
-### Den Sandbox-Namespace vorbereiten
-
-Halte Sitzungs-Pods, Egress-Proxy und Modell-Gateway im vorgesehenen Sandbox-Namespace. Die StorageClass muss Workspace-Volumes erhalten und am Ort eines fortgesetzten Pods wieder einbinden können.
-
-| Einstellung | Anforderung |
-| --- | --- |
-| `SANDBOX_BACKEND` | `kubernetes`. Docker-Hostpfade und Bridge-Namen konfigurieren dieses Backend nicht. |
-| `SANDBOX_K8S_NAMESPACE` | Namespace der Sitzungen; Standard `tale-sandbox`. |
-| `SANDBOX_RUNTIME_IMAGE` | Passendes Tale-Sandbox-Runtime-Image, für die Cluster-Nodes verfügbar. |
-| `NODE_EXTRA_CA_CERTS` | CA-Datei des Clusters, im Spawner normalerweise `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`. Behalte die TLS-Prüfung bei. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Workspace-PVC-Größe, Standard `4Gi`; begrenzt bei aktiviertem innerem Docker auch dessen temporären Speicher. |
-| `SANDBOX_K8S_CACHE_STORAGECLASS` | StorageClass der Workspaces; ohne Wert gilt der Cluster-Standard. |
-| `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | Unterstützte Laufzeitstufe und gegebenenfalls der Name der installierten RuntimeClass. |
-| `SANDBOX_EGRESS_PROXY` | Erreichbarer Egress-Dienst, Standard `http://sandbox-egress:3128`. |
-
-Der ServiceAccount des Spawners braucht im Namespace diese Rechte:
-
-| Ressource | Verben |
-| --- | --- |
-| `pods` | `create`, `get`, `list`, `delete`, `patch` |
-| `secrets` | `create`, `delete`, `list` |
-| `persistentvolumeclaims` | `get`, `create`, `delete` |
-| `networkpolicies` in `networking.k8s.io` | `create`, `update` |
-
-Sitzungsaktionen erreichen runnerd per HTTP auf der Pod-IP an Port 8200. Dafür ist kein `pods/exec` nötig; Sitzungs-Pods erhalten kein ServiceAccount-Token. Erlaube in deinen Richtlinien die erforderlichen Verbindungen des Spawners zu Kubernetes und runnerd. Der [Kubernetes-Vertrag der Sandbox](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) enthält die Role und Laufzeitdetails.
-
-### Isolation und Lebenszyklus prüfen
-
-Der Spawner setzt eine Egress-NetworkPolicy für Sitzungs-Pods, die DNS und den Sandbox-Namespace erlaubt. Dein CNI muss NetworkPolicy durchsetzen. Scheitert das Anlegen der Richtlinie, wird der Fehler protokolliert; der Spawner startet trotzdem. Prüfe vor der Freigabe von Arbeit, ob die wirksame Richtlinie vorhanden ist und ein unerlaubtes Ziel tatsächlich blockiert. Proxy-Umgebungsvariablen allein erzwingen keine Isolation.
-
-Prüfe den IPv6-Schutz des Egress-Proxys und die [Netzwerkvoraussetzungen für inneres Docker](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure). Wähle für verschachteltes Docker einen ausdrücklichen `SANDBOX_DIND_INNER_POOL` außerhalb der Pod-, Service- und VPC-Netze des Clusters. Ein Pod kann nicht alle Cluster-Netze selbst erkennen.
-
-Eine gestoppte Sitzung behält ihr Workspace-PVC für die Fortsetzung; ausdrückliches Zerstören entfernt es. `SANDBOX_MAX_SESSIONS` zählt Sitzungen im Namespace, ist bei gleichzeitiger Aufnahme durch mehrere Replikate aber keine harte Grenze. Nutze ResourceQuota und anhand echter Last gewählte CPU- und Speicherlimits.
-
-Teste Erstellung, Ausführung, Runner-Neustart, Leerlaufstopp, Fortsetzung mit erhaltenen Dateien und ausdrückliches Zerstören. Prüfe bei mehreren Spawner-Replikaten auch den Zugriff über ein anderes Replikat. Bilde Bereitschaft und geordnetes Beenden der Anwendung bewusst ab und beobachte laufende Anfragen beim Update. Die Docker-Bereitstellungssteuerung der CLI verwaltet kein Kubernetes-Deployment.
