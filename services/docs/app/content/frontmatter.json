@@ -844,7 +844,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Auf Kubernetes bereitstellen",
-      "description": "Übertrage den Dienstvertrag in Kubernetes-Objekte, betreibe den Sandbox-Spawner mit seinem nativen Backend und prüfe Isolation, Sitzungslebenszyklus und Rollouts, bevor du Nutzer zulässt."
+      "description": "Wende einen vollständigen Satz Kubernetes-Manifeste für Tale an, betreibe den Sandbox-Spawner mit seinem nativen Backend und prüfe Isolation, Sitzungslebenszyklus und Rollouts, bevor du Nutzer zulässt."
     }
   },
   "de:self-hosted/install/own-compose": {
@@ -1964,7 +1964,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Deploy on Kubernetes",
-      "description": "Translate the service contract into Kubernetes objects, run the sandbox spawner on its native backend, and verify isolation, session lifecycle, and rollouts before you admit users."
+      "description": "Apply a complete set of Kubernetes manifests for Tale, run the sandbox spawner on its native backend, and verify isolation, session lifecycle, and rollouts before you admit users."
     }
   },
   "en:self-hosted/install/own-compose": {
@@ -3084,7 +3084,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Déployer sur Kubernetes",
-      "description": "Transpose le contrat de services en objets Kubernetes, exécute le spawner de sandbox sur son backend natif et vérifie l’isolation, le cycle de vie des sessions et les mises à jour avant d’accueillir des utilisateurs."
+      "description": "Applique un jeu complet de manifestes Kubernetes pour Tale, exécute le spawner de sandbox sur son backend natif et vérifie l’isolation, le cycle de vie des sessions et les mises à jour avant d’accueillir des utilisateurs."
     }
   },
   "fr:self-hosted/install/own-compose": {
