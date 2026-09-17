@@ -541,6 +541,8 @@ export async function setNotificationPreferences(
   userId: string,
   prefs: Record<string, boolean | undefined>,
 ): Promise<void> {
+  // The UI sends one switch per request. NULL marks an omitted field; merge
+  // it inside the upsert so concurrent switches cannot replace one another.
   const value = (name: string): boolean | null =>
     prefs[name] === undefined ? null : (prefs[name] ?? null);
   await sql`
@@ -557,15 +559,15 @@ export async function setNotificationPreferences(
       ${Date.now()}
     )
     ON CONFLICT (user_id, org_id) DO UPDATE SET
-      task_assigned = EXCLUDED.task_assigned,
-      task_status_changed = EXCLUDED.task_status_changed,
-      task_commented = EXCLUDED.task_commented,
-      mention = EXCLUDED.mention,
-      task_deadlines = EXCLUDED.task_deadlines,
-      task_review = EXCLUDED.task_review,
-      escalation = EXCLUDED.escalation,
-      conversation_messages = EXCLUDED.conversation_messages,
-      actionable_email = EXCLUDED.actionable_email,
+      task_assigned = COALESCE(EXCLUDED.task_assigned, app.notification_preferences.task_assigned),
+      task_status_changed = COALESCE(EXCLUDED.task_status_changed, app.notification_preferences.task_status_changed),
+      task_commented = COALESCE(EXCLUDED.task_commented, app.notification_preferences.task_commented),
+      mention = COALESCE(EXCLUDED.mention, app.notification_preferences.mention),
+      task_deadlines = COALESCE(EXCLUDED.task_deadlines, app.notification_preferences.task_deadlines),
+      task_review = COALESCE(EXCLUDED.task_review, app.notification_preferences.task_review),
+      escalation = COALESCE(EXCLUDED.escalation, app.notification_preferences.escalation),
+      conversation_messages = COALESCE(EXCLUDED.conversation_messages, app.notification_preferences.conversation_messages),
+      actionable_email = COALESCE(EXCLUDED.actionable_email, app.notification_preferences.actionable_email),
       updated_at_ms = EXCLUDED.updated_at_ms
   `;
 }

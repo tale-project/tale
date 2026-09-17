@@ -39313,7 +39313,49 @@ async function checkCollabEmitters(
       AND type = 'task_status_changed' AND task_id = ${taskId}
       AND read = false
   `;
+  // Each toggle writes one field. Sequential and concurrent changes must
+  // preserve the other stored switches (R2-ROOT-001).
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    actionableEmail: false,
+  });
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    taskAssigned: false,
+  });
   await post(`/api/app/collab/preferences?orgId=${orgId}`, {});
+  await Promise.all([
+    post(`/api/app/collab/preferences?orgId=${orgId}`, { mention: false }),
+    post(`/api/app/collab/preferences?orgId=${orgId}`, {
+      taskCommented: false,
+    }),
+  ]);
+  const savedPrefs = z
+    .object({
+      actionableEmail: z.boolean(),
+      taskAssigned: z.boolean(),
+      taskStatusChanged: z.boolean(),
+      mention: z.boolean(),
+      taskCommented: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/collab/preferences?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  record(
+    'notification preferences: partial writes preserve sequential and concurrent changes',
+    savedPrefs.success &&
+      Object.values(savedPrefs.data).every((value) => !value),
+    JSON.stringify(savedPrefs.success ? savedPrefs.data : savedPrefs.error),
+  );
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    taskStatusChanged: true,
+    actionableEmail: true,
+    taskAssigned: true,
+    mention: true,
+    taskCommented: true,
+  });
   const markAll = z
     .object({ marked: z.number() })
     .safeParse(
