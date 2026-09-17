@@ -169,6 +169,13 @@ services:
       # deployment stays inert. Never used by `tale deploy` (production ignores
       # this overlay).
       TALE_DEV_SEED_USER: ${TALE_DEV_SEED_USER:-1}
+      # The seeded account above means this stack is never empty, and a real
+      # deployment closes `/sign-up/email` once it holds one
+      # (services/platform/backend/auth/sign-up-gate.ts). A dev stack still
+      # needs the route — save-auth-state.ts and the docs screenshots mint
+      # their own owners over it — so this overlay, and only this overlay,
+      # opts in. Set TALE_ALLOW_OPEN_SIGN_UP=0 to rehearse the refusal.
+      TALE_ALLOW_OPEN_SIGN_UP: ${TALE_ALLOW_OPEN_SIGN_UP:-true}
 
   docs:
     volumes:
