@@ -84,6 +84,7 @@ function renderComposer({
   onCancelAttachmentUpload,
   attachAccept,
   transcriptionStatuses,
+  transcriptionAvailable,
   onRetryTranscription,
   indexingStatuses,
   videoLinkJobs,
@@ -111,6 +112,7 @@ function renderComposer({
   transcriptionStatuses?: ComponentProps<
     typeof Composer
   >['transcriptionStatuses'];
+  transcriptionAvailable?: boolean;
   onRetryTranscription?: (fileId: string) => void;
   indexingStatuses?: ComponentProps<typeof Composer>['indexingStatuses'];
   videoLinkJobs?: ComponentProps<typeof Composer>['videoLinkJobs'];
@@ -150,6 +152,9 @@ function renderComposer({
         {...(attachAccept !== undefined ? { attachAccept } : {})}
         {...(transcriptionStatuses !== undefined
           ? { transcriptionStatuses }
+          : {})}
+        {...(transcriptionAvailable !== undefined
+          ? { transcriptionAvailable }
           : {})}
         {...(onRetryTranscription !== undefined
           ? { onRetryTranscription }
@@ -744,6 +749,33 @@ describe('Composer audio attachments', () => {
     fileType: 'audio/mpeg',
     fileSize: 128_000,
   };
+
+  it('explains missing transcription configuration on a failed audio chip', () => {
+    renderComposer({
+      models: [MODEL],
+      attachments: [AUDIO],
+      onAttachFiles: vi.fn(),
+      transcriptionAvailable: false,
+      transcriptionStatuses: new Map([
+        [
+          'audio1',
+          {
+            status: 'failed',
+            error: 'No transcription model is configured for this organization',
+          },
+        ],
+      ]),
+    });
+    expect(
+      screen.getByText(
+        'Transcription unavailable — ask an admin to add a transcription model',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Couldn't transcribe")).toHaveAttribute(
+      'title',
+      'Transcription unavailable — ask an admin to add a transcription model',
+    );
+  });
 
   it('renders a media chip with the live transcription status', () => {
     renderComposer({

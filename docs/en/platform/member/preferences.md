@@ -65,6 +65,8 @@ Each usage limit shows the amount used, the limit, and when it resets in your lo
 
 ## Archive old chats or sign out
 
-**Settings > Account > Your chats** offers bulk archive and delete actions. Read the confirmation carefully before using a bulk action; it applies across your chat history. Use an individual chat’s menu when you only want to organize that one conversation.
+**Settings > Account > Your chats** offers **Archive all chats** and **Delete all chats** for your own chats in the current organization, including project chats. Archiving affects unarchived chats; deleting also includes archived chats and moves them to Trash, where they can be restored during the retention grace period. Chats under legal hold remain unchanged, and chats with a running reply cannot be deleted.
+
+Read the confirmation before proceeding. The result reports how many chats changed and how many could not be changed. Use an individual chat’s menu when you only want to organize that conversation.
 
 **Log out** in the profile menu ends the current session and returns you to sign-in. Sign out on a shared device when you finish using Tale. For a dedicated app window on your own device, see [Install as app](/platform/member/install-as-app).

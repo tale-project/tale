@@ -107,6 +107,18 @@ export function archivedThreadsQuery(organizationId: string, cursor?: number) {
   });
 }
 
+/** Account-level operation on the caller's visible chat history in this org. */
+export function bulkUpdateChatThreads(
+  organizationId: string,
+  operation: 'archive' | 'trash',
+): Promise<{ changed: number; failed: number }> {
+  return backendFetch('/chat/threads/bulk', {
+    method: 'POST',
+    orgId: organizationId,
+    body: { operation },
+  });
+}
+
 /** One thread's summary — null when it does not exist (or is not readable). */
 export function chatThreadQuery(organizationId: string, threadId: string) {
   return queryOptions({

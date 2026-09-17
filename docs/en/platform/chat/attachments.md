@@ -34,7 +34,7 @@ File upload support and text extraction are separate. A file that appears in the
 
 If documents or recordings are still processing when you send, Tale queues the message and sends it after they are ready. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
 
-A supported video link can also become an attachment. Tale retrieves captions or transcribes the audio, then supplies the transcript to the assistant. If that link fails, retry it or remove it before sending.
+Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions or transcribes the audio, then supplies the transcript to the assistant. If that link fails, retry it or remove it before sending.
 
 ## Keep the file in the right place
 

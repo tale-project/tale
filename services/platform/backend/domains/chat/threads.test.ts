@@ -12,15 +12,23 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createAuditLog, findOrganizationMember, getUserTeamIds } = vi.hoisted(
-  () => ({
-    createAuditLog: vi.fn(),
-    findOrganizationMember: vi.fn(),
-    getUserTeamIds: vi.fn(),
-  }),
-);
+const {
+  createAuditLog,
+  findOrganizationMember,
+  getUserTeamIds,
+  assertNotHeld,
+} = vi.hoisted(() => ({
+  createAuditLog: vi.fn(),
+  findOrganizationMember: vi.fn(),
+  getUserTeamIds: vi.fn(),
+  assertNotHeld: vi.fn(),
+}));
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+vi.mock('../legal_holds/service.ts', async (original) => ({
+  ...(await original<typeof import('../legal_holds/service.ts')>()),
+  assertNotHeld,
+}));
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember,
   getUserTeamIds,
@@ -29,6 +37,7 @@ vi.mock('../../auth/membership.ts', () => ({
 import {
   getSharedThread,
   moveThreadToProject,
+  setThreadArchived,
   unshareThread,
 } from './threads.ts';
 
@@ -87,6 +96,33 @@ beforeEach(() => {
   vi.clearAllMocks();
   findOrganizationMember.mockResolvedValue({ role: 'owner' });
   getUserTeamIds.mockResolvedValue([]);
+  assertNotHeld.mockResolvedValue(undefined);
+});
+
+describe('setThreadArchived legal hold', () => {
+  it('checks the same organization, thread and custodian hold as Trash before writing', async () => {
+    const { sql, statements } = fakeSql(() => [OWNED_ROW]);
+    const refused = new Error('LEGAL_HOLD_ACTIVE');
+    assertNotHeld.mockRejectedValueOnce(refused);
+    await expect(
+      setThreadArchived(
+        sql,
+        { organizationId: 'org_1', userId: 'user_1' },
+        'thread_1',
+        true,
+      ),
+    ).rejects.toThrow(refused);
+    expect(assertNotHeld).toHaveBeenCalledWith(
+      sql,
+      'org_1',
+      'thread',
+      'thread_1',
+      undefined,
+      'user_1',
+    );
+    expect(statements.some(({ text }) => text.includes('UPDATE'))).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
 });
 
 describe('getSharedThread', () => {

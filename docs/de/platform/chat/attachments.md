@@ -34,7 +34,7 @@ Unterstützter Upload und Textextraktion sind zwei verschiedene Dinge. Eine sich
 
 Sind Dokumente oder Aufnahmen beim Senden noch in Verarbeitung, stellt Tale die Nachricht zurück und sendet sie, sobald die Dateien bereit sind. Die wartende Nachricht erscheint über dem Eingabefeld. Brich sie dort ab, wenn du die Frage ändern möchtest; ihr Text kehrt ins Feld zurück.
 
-Auch ein unterstützter Videolink kann zum Anhang werden. Tale lädt Untertitel oder transkribiert die Audiospur und stellt dem Assistenten den Text bereit. Schlägt der Link fehl, versuche es erneut oder entferne ihn vor dem Senden.
+Füge einen kopierten, unterstützten Videolink in das Nachrichtenfeld ein, um einen Anhang zu erstellen. Eine von Hand eingegebene URL bleibt gewöhnlicher Nachrichtentext. Tale lädt Untertitel oder transkribiert die Audiospur und stellt dem Assistenten den Text bereit. Schlägt der Link fehl, versuche es erneut oder entferne ihn vor dem Senden.
 
 ## Den richtigen Ablageort wählen
 

@@ -272,6 +272,9 @@ describe('security headers', () => {
     expect(directive('media-src')).toContain(
       'https://acc.r2.cloudflarestorage.com',
     );
+    expect(directive('media-src')).toContain('blob:');
+    expect(directive('media-src')).not.toContain('data:');
+    expect(directive('media-src')).not.toContain('*');
     // The storage origin must not leak into execution or framing directives.
     expect(directive('script-src')).not.toContain('r2.cloudflarestorage.com');
     expect(directive('frame-src')).not.toContain('r2.cloudflarestorage.com');

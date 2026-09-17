@@ -1099,6 +1099,7 @@ chat:
     viewTranscript: View transcript
     previewSubtitle: '{seconds}s transcribed'
     retry: Try again
+    notConfigured: Transcription unavailable — ask an admin to add a transcription model
   indexing: Indexing…
   indexingFailed: Index failed
   indexingFailedDescription: '{filename} could not be indexed for search.'
@@ -5075,9 +5076,13 @@ settings:
       description: Password and two-factor authentication.
     chats:
       title: Your chats
-      description: Archive or permanently delete all of your chat conversations at once.
+      description: Archive your chats or move them to Trash in this organization.
       archiveAll: Archive all chats
       deleteAll: Delete all chats
+      archiveConfirm: "Archive all your unarchived chats in this organization, including project chats. You can unarchive them later. Chats under legal hold stay unchanged."
+      deleteConfirm: "Move all your chats in this organization to Trash, including archived and project chats. They can be restored during the retention grace period. Chats under legal hold or with a running reply stay unchanged."
+      result: "Updated {changed} chats; {failed} could not be changed."
+      failed: "Could not update your chats. Try again."
   usage:
     limits:
       title: Usage limits

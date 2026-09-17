@@ -1132,6 +1132,7 @@ chat:
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
     retry: Erneut versuchen
+    notConfigured: Transkription nicht verfügbar — bitte einen Admin, ein Transkriptionsmodell hinzuzufügen
   indexing: Indexiere…
   indexingFailed: Indexierung fehlgeschlagen
   indexingFailedDescription: '{filename} konnte nicht für die Suche indexiert
@@ -4927,9 +4928,13 @@ settings:
       description: Passwort und Zwei-Faktor-Authentifizierung.
     chats:
       title: Deine Chats
-      description: Archiviere oder lösche alle deine Chat-Unterhaltungen auf einmal.
+      description: Archiviere deine Chats in dieser Organisation oder verschiebe sie in den Papierkorb.
       archiveAll: Alle Chats archivieren
       deleteAll: Alle Chats löschen
+      archiveConfirm: "Alle deine nicht archivierten Chats in dieser Organisation archivieren, einschließlich Projekt-Chats. Du kannst sie später wiederherstellen. Chats unter rechtlicher Aufbewahrung bleiben unverändert."
+      deleteConfirm: "Alle deine Chats in dieser Organisation in den Papierkorb verschieben, einschließlich archivierter Chats und Projekt-Chats. Innerhalb der Aufbewahrungsfrist kannst du sie wiederherstellen. Chats unter rechtlicher Aufbewahrung oder mit einer laufenden Antwort bleiben unverändert."
+      result: "{changed} Chats aktualisiert; {failed} konnten nicht geändert werden."
+      failed: "Deine Chats konnten nicht aktualisiert werden. Versuch es erneut."
   usage:
     limits:
       title: Nutzungslimits

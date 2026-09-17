@@ -437,6 +437,9 @@ export const Composer = memo(
                   {...(transcriptionStatuses !== undefined
                     ? { transcriptionStatuses }
                     : {})}
+                  {...(transcriptionAvailable !== undefined
+                    ? { transcriptionAvailable }
+                    : {})}
                   {...(onRetryTranscription !== undefined
                     ? { onRetryTranscription }
                     : {})}

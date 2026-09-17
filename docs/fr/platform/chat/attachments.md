@@ -34,7 +34,7 @@ Accepter un fichier à l’import et en extraire le texte sont deux opérations 
 
 Si des documents ou enregistrements sont encore en traitement au moment de l’envoi, Tale met le message en attente, puis l’envoie lorsqu’ils sont prêts. Le message en attente apparaît au-dessus du champ. Annule-le à cet endroit pour modifier la question ; son texte revient dans le champ.
 
-Un lien vidéo compatible peut aussi devenir une pièce jointe. Tale récupère les sous-titres ou transcrit l’audio, puis fournit le texte à l’assistant. Si ce lien échoue, réessaie ou retire-le avant d’envoyer.
+Colle un lien vidéo compatible dans le champ du message pour lancer la création d’une pièce jointe. Une URL saisie au clavier reste du texte ordinaire. Tale récupère les sous-titres ou transcrit l’audio, puis fournit le texte à l’assistant. Si ce lien échoue, réessaie ou retire-le avant d’envoyer.
 
 ## Choisir le bon emplacement
 

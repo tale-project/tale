@@ -33,6 +33,7 @@ import {
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
 } from './budget-admission.ts';
+import { bulkUpdateThreads } from './bulk.ts';
 import {
   listAutomationCapabilities,
   listComposerModels,
@@ -597,25 +598,46 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ ok: true });
   });
 
+  app.post('/threads/bulk', async (c) => {
+    const body = z
+      .object({ operation: z.enum(['archive', 'trash']) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const result = await bulkUpdateThreads(
+      deps.sql,
+      {
+        ...caller(c),
+        email: c.get('sessionBundle').user.email,
+      },
+      body.data.operation,
+    );
+    for (const threadId of result.changedIds) await hintThread(c, threadId);
+    return c.json({ changed: result.changedIds.length, failed: result.failed });
+  });
+
   app.post('/threads/:threadId/archive', async (c) => {
     const body = z
       .object({ archived: z.boolean() })
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    const toggled = await setThreadArchived(
-      deps.sql,
-      {
-        organizationId,
-        userId,
-        email: c.get('sessionBundle').user.email,
-      },
-      c.req.param('threadId'),
-      body.data.archived,
-    );
-    const ok = toggled !== null;
-    if (ok) await hintThread(c, c.req.param('threadId'));
-    return c.json({ ok });
+    try {
+      const toggled = await setThreadArchived(
+        deps.sql,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('threadId'),
+        body.data.archived,
+      );
+      const ok = toggled !== null;
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
   });
 
   app.post('/threads/:threadId/share-project', async (c) => {

@@ -1140,6 +1140,7 @@ chat:
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
     retry: Réessayer
+    notConfigured: Transcription indisponible — demande à un admin d’ajouter un modèle de transcription
   indexing: Indexation en cours…
   indexingFailed: Échec de l'indexation
   indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
@@ -5006,9 +5007,13 @@ settings:
       description: Mot de passe et authentification à deux facteurs.
     chats:
       title: Tes chats
-      description: Archive ou supprime définitivement tous tes chats en une seule fois.
+      description: Archive tes chats ou déplace-les dans la corbeille de cette organisation.
       archiveAll: Archiver tous les chats
       deleteAll: Supprimer tous les chats
+      archiveConfirm: "Archiver tous tes chats non archivés de cette organisation, y compris les chats de projet. Tu pourras les désarchiver plus tard. Les chats sous conservation légale restent inchangés."
+      deleteConfirm: "Déplacer tous tes chats de cette organisation dans la corbeille, y compris les chats archivés et les chats de projet. Tu pourras les restaurer pendant le délai de conservation. Les chats sous conservation légale ou avec une réponse en cours restent inchangés."
+      result: "{changed} chats mis à jour ; {failed} n’ont pas pu être modifiés."
+      failed: "Impossible de mettre à jour tes chats. Réessaie."
   usage:
     limits:
       title: Limites d'utilisation
