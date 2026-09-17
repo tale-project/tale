@@ -29,9 +29,9 @@ import { FileError } from './service.ts';
  * ledger minutes. The engine's ctx runs on the chat shim (the provider walk
  * `resolveTranscriptionModel` shares with TTS/dictation) plus the file-row
  * verbs below; its `[30s, 60s, 120s]` retry self-chain maps onto delayed
- * `files.transcribe` jobs. The 0.4 content-hash dedup — the same bytes
- * transcribed once per org, whatever blob they arrive in — stays alive on
- * pg: the engine hashes the blob it reads anyway, stamps `content_hash`, and
+ * `files.transcribe` jobs. Transcription dedup — the same bytes transcribed
+ * once per org and model/endpoint, whatever blob they arrive in — stays alive
+ * on pg: the engine hashes the target and blob, stamps `content_hash`, and
  * `findCachedTranscript` answers from the org's completed rows (0.4 read the
  * hash off Convex `_storage`; an `s3:` ref has no such system row).
  */
@@ -168,8 +168,8 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
         contentType: row.contentType,
       };
     },
-    // The org's completed transcript for these exact bytes, if any other blob
-    // carried them. Org-scoped by construction: a transcript never crosses
+    // The org's completed transcript for this target and these exact bytes,
+    // if any other blob carried them. A transcript never crosses
     // organizations, however identical the audio.
     'file_metadata/internal_queries:findCachedTranscript': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape

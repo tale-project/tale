@@ -33,6 +33,27 @@ Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `
 
 Lass anschließend einen Organisationsadmin unter [KI-Anbieter](/de/platform/admin/providers) Zugangsdaten hinzufügen, den Katalog aktualisieren und ein bestimmtes Modell für einen kurzen Chat auswählen. Prüfe die abgeschlossene Anfrage im Protokoll des vorgesehenen Inferenzservers. Für Embeddings, Sprache und Werkzeugverkehr musst du die Ziele getrennt prüfen; ein lokaler Chatendpunkt hält sie nicht automatisch lokal.
 
+## Audiotranskription konfigurieren
+
+Die Organisationsrichtlinie liegt unter `TALE_CONFIG_DIR/<org>/governance/transcription-model.yml` und hat den Richtlinientyp `transcription_model`. Die Seite [Modelle](/de/platform/admin/governance/content-models) bearbeitet dieselbe Auswahl. Eine fehlende Datei oder ein leeres Objekt bedeutet automatische Auswahl:
+
+```yaml
+{}
+```
+
+Um ein Modell festzulegen, gib beide Felder an. Dieses Beispiel verwendet das mitgelieferte OpenAI-Whisper-Modell und benötigt weiterhin einen aktiven, nutzbaren Zugang der Organisation:
+
+```yaml
+providerSlug: openai
+modelId: whisper-1
+```
+
+Eine unvollständige Festlegung ist ungültig. Ist das festgelegte Modell nicht verfügbar, wechselt Tale nie zu einem anderen Modell. Stelle den Zugang oder die dafür erlaubten Modelle wieder her oder wechsle ausdrücklich zur automatischen Auswahl. Auch Lese- oder Validierungsfehler der Konfiguration verhindern die serverseitige Transkription. Die Richtlinie gilt für Audio- und Videodateien, Videolinks mit Audiotranskription und Serverdiktate. Die Spracherkennung des Browsers bleibt davon unabhängig.
+
+Für einen eigenen OpenAI-kompatiblen Endpunkt verwende `catalog.source: models-endpoint`. Seine Antwort auf `/models` muss das Audiomodell mit `type: transcription`, einer genauen `id` und einem positiven `context_window` ausweisen. Gib den tatsächlichen Kontextwert des Modells an; der Katalog verlangt ihn auch für Transkriptionsmodelle. Ein Chatmodell mit Audioeingabe oder ein Sprachsynthesemodell gilt nicht automatisch als Transkriptionsmodell.
+
+Der Endpunkt muss `POST <baseUrl>/audio/transcriptions` mit den Multipart-Feldern `file`, `model` und `response_format: verbose_json` sowie Bearer-Authentifizierung unterstützen. Die JSON-Antwort muss das Transkript als `text` liefern; `duration` und `segments` mit Zeitangaben unterstützen die Daueranzeige und Videozeitstempel. Ein Katalogeintrag beweist nicht, dass diese API funktioniert. Aktualisiere den Katalog, wähle das Modell, teste eine kurze Aufnahme und prüfe die Anfrage in den Logs dieses Endpunkts.
+
 ## Modellzugriff aus der Sandbox prüfen
 
 Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbox-llm-gateway`; ein erfolgreicher Chat belegt daher nicht den Agentenpfad. Der Endpunkt muss aus Backend und Gateway auflösbar und erreichbar sein. Beide HTTPS-Clients müssen seinem Zertifikat vertrauen. Auch ein Name wie `https://models.internal/v1` braucht die Freigabe privater Anbieter, wenn DNS ihn zu einer privaten Adresse auflöst. HTTP bleibt auf die vom Anbieterschema akzeptierten Hostformen begrenzt, etwa private IP-Adressen, `localhost` und `.local`.

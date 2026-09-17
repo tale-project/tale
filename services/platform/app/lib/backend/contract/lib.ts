@@ -82,4 +82,21 @@ export interface LibContract {
       source: 'pinned' | 'preferred' | 'cheapest';
     };
   };
+  'lib/providers/transcription_actions:getTranscriptionModelState': {
+    kind: 'action';
+    args: { organizationId: string };
+    returns: {
+      models: Array<{
+        providerSlug: string;
+        providerDisplayName: string;
+        modelId: string;
+      }>;
+      pick: {
+        providerSlug: string;
+        modelId: string;
+        source: 'automatic' | 'pinned';
+      } | null;
+      error?: { code: string };
+    };
+  };
 }

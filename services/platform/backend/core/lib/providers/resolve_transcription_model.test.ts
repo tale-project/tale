@@ -30,7 +30,10 @@ vi.mock('../../provider_credentials/resolve_credential', () => ({
     credentialMock(...(args as [])),
 }));
 
-import { resolveTranscriptionModel } from './resolve_transcription_model';
+import {
+  inspectTranscriptionModels,
+  resolveTranscriptionModel,
+} from './resolve_transcription_model';
 
 const ORG = 'org_a';
 const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
@@ -38,16 +41,31 @@ const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
 /** The provider's default credential row, keyed by provider slug; a
  * provider not listed gets an active api-key row without an allowlist. */
 let defaultRows: Record<string, unknown> = {};
-const runQuery = vi.fn(async (_ref: unknown, args: { providerSlug: string }) =>
-  args.providerSlug in defaultRows
-    ? defaultRows[args.providerSlug]
-    : ACTIVE_API_KEY_ROW,
+let policy: unknown = null;
+const runQuery = vi.fn(
+  async (
+    _ref: unknown,
+    args: { providerSlug: string; policyType?: string },
+  ) => {
+    if (args.policyType !== undefined) {
+      if (policy instanceof Error) throw policy;
+      return policy;
+    }
+    return args.providerSlug in defaultRows
+      ? defaultRows[args.providerSlug]
+      : ACTIVE_API_KEY_ROW;
+  },
 );
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
 const ctx = { runQuery } as unknown as ActionCtx;
 
 function provider(name: string, apiFormat: 'openai' | 'anthropic' = 'openai') {
-  return { name, apiFormat, baseUrl: `https://${name}.example/v1` };
+  return {
+    name,
+    displayName: name,
+    apiFormat,
+    baseUrl: `https://${name}.example/v1`,
+  };
 }
 
 const WHISPER = { id: 'whisper-1', tags: ['transcription'] };
@@ -79,6 +97,7 @@ beforeEach(() => {
   credentialMock.mockReset();
   runQuery.mockClear();
   defaultRows = {};
+  policy = null;
 });
 
 describe('resolveTranscriptionModel', () => {
@@ -101,7 +120,7 @@ describe('resolveTranscriptionModel', () => {
     });
     // The Anthropic Messages format has no transcription endpoint: that
     // provider is skipped before any credential or catalog read.
-    expect(runQuery).toHaveBeenCalledTimes(1);
+    expect(runQuery).toHaveBeenCalledTimes(2);
     expect(catalogMock).toHaveBeenCalledTimes(1);
   });
 
@@ -139,7 +158,7 @@ describe('resolveTranscriptionModel', () => {
     expect(credentialMock).not.toHaveBeenCalled();
   });
 
-  it('skips an unreachable catalog and a provider with no transcription entry', async () => {
+  it('distinguishes an unreachable catalog from no configured model', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     resolveProvidersMock.mockResolvedValue([
       provider('flaky'),
@@ -152,7 +171,7 @@ describe('resolveTranscriptionModel', () => {
 
     expect(
       await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
-    ).toBe('NO_TRANSCRIPTION_MODEL');
+    ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
     expect(credentialMock).not.toHaveBeenCalled();
   });
 
@@ -188,5 +207,198 @@ describe('resolveTranscriptionModel', () => {
       organizationId: ORG,
     });
     expect(resolved.modelId).toBe('whisper-1');
+  });
+
+  it('uses a stable automatic pick and exposes only non-secret metadata', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('zulu'),
+      provider('alpha'),
+    ]);
+    catalogMock.mockResolvedValue([
+      { ...WHISPER, id: 'z-model' },
+      { ...WHISPER, id: 'a-model' },
+      { id: 'speech-generator', tags: ['text-to-speech'] },
+    ]);
+    credentialMock.mockResolvedValue(
+      apiKeyCredential('private-transcription-token'),
+    );
+    const status = await inspectTranscriptionModels(ctx, ORG);
+    expect(status.pick).toEqual({
+      providerSlug: 'alpha',
+      modelId: 'a-model',
+      source: 'automatic',
+    });
+    expect(
+      status.models.map((model) => `${model.providerSlug}/${model.modelId}`),
+    ).toEqual([
+      'alpha/a-model',
+      'alpha/z-model',
+      'zulu/a-model',
+      'zulu/z-model',
+    ]);
+    expect(JSON.stringify(status)).not.toMatch(
+      /private-transcription-token|baseUrl|apiKey|resolved/,
+    );
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({
+      providerName: status.pick?.providerSlug,
+      modelId: status.pick?.modelId,
+    });
+  });
+
+  it('honors a pin over the automatic order, then restores Auto with an empty policy', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('alpha'),
+      provider('zulu'),
+    ]);
+    catalogMock.mockResolvedValue([WHISPER]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+    policy = { providerSlug: 'zulu', modelId: 'whisper-1' };
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({ providerName: 'zulu' });
+    expect(catalogMock).toHaveBeenCalledTimes(1);
+    expect((await inspectTranscriptionModels(ctx, ORG)).pick).toEqual({
+      providerSlug: 'zulu',
+      modelId: 'whisper-1',
+      source: 'pinned',
+    });
+    policy = {};
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({ providerName: 'alpha' });
+  });
+
+  it('honors namespaced model IDs exactly, including when the selected sibling disappears', async () => {
+    policy = { providerSlug: 'pinned', modelId: 'b/whisper-1' };
+    resolveProvidersMock.mockResolvedValue([provider('pinned')]);
+    defaultRows.pinned = ACTIVE_API_KEY_ROW;
+    credentialMock.mockResolvedValue(apiKeyCredential());
+    catalogMock.mockResolvedValue([
+      { ...WHISPER, id: 'a/whisper-1' },
+      { ...WHISPER, id: 'b/whisper-1' },
+    ]);
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({ modelId: 'b/whisper-1' });
+    expect((await inspectTranscriptionModels(ctx, ORG)).pick?.modelId).toBe(
+      'b/whisper-1',
+    );
+    catalogMock.mockResolvedValue([{ ...WHISPER, id: 'a/whisper-1' }]);
+    expect(
+      await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
+    ).toBe('TRANSCRIPTION_MODEL_UNAVAILABLE');
+    expect((await inspectTranscriptionModels(ctx, ORG)).pick).toBeNull();
+  });
+
+  it.each(['missing', 'disabled', 'allowlist', 'non-transcription'])(
+    'refuses an unavailable %s pin despite a healthy alternative',
+    async (kind) => {
+      policy = { providerSlug: 'pinned', modelId: 'whisper-1' };
+      resolveProvidersMock.mockResolvedValue([
+        provider('alternative'),
+        ...(kind === 'missing' ? [] : [provider('pinned')]),
+      ]);
+      defaultRows.pinned =
+        kind === 'disabled'
+          ? { ...ACTIVE_API_KEY_ROW, status: 'disabled' }
+          : {
+              ...ACTIVE_API_KEY_ROW,
+              ...(kind === 'allowlist' ? { modelAllowlist: ['other'] } : {}),
+            };
+      catalogMock.mockImplementation(async (p: { name: string }) =>
+        kind === 'non-transcription' && p.name === 'pinned'
+          ? [CHAT_ONLY]
+          : [WHISPER],
+      );
+      credentialMock.mockResolvedValue(apiKeyCredential());
+      expect(
+        await caughtCode(
+          resolveTranscriptionModel(ctx, { organizationId: ORG }),
+        ),
+      ).toBe('TRANSCRIPTION_MODEL_UNAVAILABLE');
+      expect((await inspectTranscriptionModels(ctx, ORG)).pick).toBeNull();
+    },
+  );
+
+  it.each([
+    [
+      'half pin',
+      { providerSlug: 'pinned' },
+      'TRANSCRIPTION_MODEL_POLICY_INVALID',
+    ],
+    [
+      'misspelled pin',
+      { provider: 'pinned' },
+      'TRANSCRIPTION_MODEL_POLICY_INVALID',
+    ],
+    [
+      'unreadable file',
+      new Error('private policy bytes'),
+      'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE',
+    ],
+  ])('never converts %s into Automatic', async (_name, value, code) => {
+    policy = value;
+    resolveProvidersMock.mockResolvedValue([provider('alternative')]);
+    catalogMock.mockResolvedValue([WHISPER]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+    expect(
+      await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
+    ).toBe(code);
+    expect(credentialMock).not.toHaveBeenCalled();
+    const status = await inspectTranscriptionModels(ctx, ORG);
+    expect(status).toMatchObject({ pick: null, error: { code } });
+    expect(status.models).toHaveLength(1);
+    expect(JSON.stringify(status)).not.toContain('private policy bytes');
+  });
+
+  it('skips a broken provider in Auto but never redirects a pin', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('broken'),
+      provider('healthy'),
+    ]);
+    catalogMock.mockImplementation(async (p: { name: string }) => {
+      if (p.name === 'broken') throw new Error('private upstream response');
+      return [WHISPER];
+    });
+    credentialMock.mockResolvedValue(apiKeyCredential());
+    expect(
+      await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).toMatchObject({ providerName: 'healthy' });
+    policy = { providerSlug: 'broken', modelId: 'whisper-1' };
+    const status = await inspectTranscriptionModels(ctx, ORG);
+    expect(status).toMatchObject({
+      pick: null,
+      error: { code: 'TRANSCRIPTION_MODEL_RESOLUTION_FAILED' },
+    });
+    expect(JSON.stringify(status)).not.toContain('private upstream response');
+  });
+
+  it('excludes unusable credentials and metadata hosts from settings as well as serving', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('broken-key'),
+      provider('metadata'),
+    ]);
+    catalogMock.mockResolvedValue([WHISPER]);
+    credentialMock.mockImplementation(
+      async (_ctx: unknown, args: { providerSlug: string }) => {
+        if (args.providerSlug === 'broken-key')
+          throw new Error('private decryption input');
+        return {
+          ...apiKeyCredential(),
+          endpointUrl: 'http://169.254.169.254/v1',
+        };
+      },
+    );
+    const status = await inspectTranscriptionModels(ctx, ORG);
+    expect(status).toEqual({
+      models: [],
+      pick: null,
+      error: { code: 'TRANSCRIPTION_MODEL_RESOLUTION_FAILED' },
+    });
+    expect(
+      await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
+    ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
   });
 });

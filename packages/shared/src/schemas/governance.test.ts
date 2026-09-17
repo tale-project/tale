@@ -11,6 +11,7 @@ import {
   POLICY_SCHEMAS,
   POLICY_TYPES,
   reviewPolicyConfigSchema,
+  transcriptionModelConfigSchema,
   visionModelConfigSchema,
 } from './governance';
 
@@ -380,6 +381,31 @@ describe('visionModelConfigSchema', () => {
   it('is registered as the vision_model policy schema', () => {
     expect(POLICY_SCHEMAS.vision_model).toBe(visionModelConfigSchema);
   });
+});
+
+describe('transcriptionModelConfigSchema', () => {
+  it('registers Automatic and an explicit complete routing pin', () => {
+    expect(POLICY_SCHEMAS.transcription_model).toBe(
+      transcriptionModelConfigSchema,
+    );
+    expect(transcriptionModelConfigSchema.parse({})).toEqual({});
+    const pin = { providerSlug: 'local-asr', modelId: 'whisper-large' };
+    expect(transcriptionModelConfigSchema.parse(pin)).toEqual(pin);
+  });
+
+  it.each([
+    { providerSlug: 'local-asr' },
+    { modelId: 'whisper-large' },
+    { providerSlug: '', modelId: '' },
+    { provider: 'misspelled-pin' },
+  ])(
+    'refuses an incomplete or misspelled policy instead of Auto: %j',
+    (config) => {
+      expect(transcriptionModelConfigSchema.safeParse(config).success).toBe(
+        false,
+      );
+    },
+  );
 });
 
 describe('reviewPolicyConfigSchema', () => {

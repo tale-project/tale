@@ -33,6 +33,8 @@ import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 
+import { transcriptionUnavailableKey } from '../utils/transcription-availability';
+
 interface ComposerAttachmentsProps {
   attachments: readonly FileAttachment[];
   /** Per-upload ids still in flight — each renders a spinner chip. */
@@ -45,6 +47,7 @@ interface ComposerAttachmentsProps {
   /** Live transcription status for staged audio/video attachments. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
   transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
   onRetryTranscription?: (fileId: string) => void;
   /** Live RAG-indexing status for staged document / text attachments. */
   indexingStatuses?: ReadonlyMap<BlobRef, FileIndexingInfo>;
@@ -105,12 +108,14 @@ function StagedMedia({
   onRemove,
   onRetry,
   transcriptionAvailable,
+  transcriptionUnavailableReason,
 }: {
   attachment: FileAttachment;
   info: FileTranscriptionInfo | undefined;
   onRemove: () => void;
   onRetry?: () => void;
   transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
 }) {
   const { t } = useT('chat');
   const status = info?.status;
@@ -159,7 +164,7 @@ function StagedMedia({
           title={
             failed
               ? transcriptionAvailable === false
-                ? t('transcription.notConfigured')
+                ? t(transcriptionUnavailableKey(transcriptionUnavailableReason))
                 : info?.error
               : undefined
           }
@@ -281,6 +286,7 @@ export function ComposerAttachments({
   visionWarning,
   transcriptionStatuses,
   transcriptionAvailable,
+  transcriptionUnavailableReason,
   onRetryTranscription,
   indexingStatuses,
 }: ComposerAttachmentsProps) {
@@ -293,13 +299,6 @@ export function ComposerAttachments({
   if (attachments.length === 0 && uploadingFiles.length === 0) return null;
 
   const hasImages = attachments.some((a) => isImage(a.fileType));
-  const transcriptionNotConfigured =
-    transcriptionAvailable === false &&
-    attachments.some(
-      (attachment) =>
-        isAudioOrVideo(attachment.fileType) &&
-        transcriptionStatuses?.get(attachment.fileId)?.status === 'failed',
-    );
 
   return (
     <div>
@@ -311,6 +310,7 @@ export function ComposerAttachments({
               attachment={attachment}
               info={transcriptionStatuses?.get(attachment.fileId)}
               transcriptionAvailable={transcriptionAvailable}
+              transcriptionUnavailableReason={transcriptionUnavailableReason}
               onRemove={() => onRemove(attachment.fileId)}
               {...(onRetryTranscription !== undefined
                 ? {
@@ -361,17 +361,6 @@ export function ComposerAttachments({
           </Row>
         ))}
       </Row>
-      {transcriptionNotConfigured && (
-        <Row gap={1} align="center" className="mt-1.5">
-          <TriangleAlert
-            aria-hidden
-            className="text-muted-foreground size-3.5 shrink-0"
-          />
-          <Text variant="muted" className="text-xs">
-            {t('transcription.notConfigured')}
-          </Text>
-        </Row>
-      )}
       {visionWarning !== undefined && hasImages && (
         <Row gap={1} align="center" className="mt-1.5">
           <TriangleAlert

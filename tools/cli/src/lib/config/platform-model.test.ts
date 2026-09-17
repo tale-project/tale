@@ -110,6 +110,67 @@ describe('native configuration declaration', () => {
     }
   });
 
+  test('accepts automatic transcription and validates pinned provider capabilities', () => {
+    const declaration = (
+      apiFormat = 'openai',
+      tags = ['transcription'],
+      modelId = 'example-asr',
+    ) => ({
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'provider',
+          config: {
+            name: 'example-audio',
+            displayName: 'Example audio',
+            apiFormat,
+            baseUrl: 'https://audio.example.invalid/v1',
+            catalog: { source: 'models-endpoint' },
+            auth: [{ method: 'api-key' }],
+          },
+          expectedModels: [
+            {
+              id: 'example-asr',
+              provider: 'example-audio',
+              tags,
+              supportsTools: false,
+              supportsVision: false,
+              contextWindow: 448,
+            },
+          ],
+        },
+        {
+          kind: 'governance',
+          key: 'transcription_model',
+          config: { providerSlug: 'example-audio', modelId },
+        },
+      ],
+    });
+    expect(
+      platformConfigurationSchema.safeParse({
+        schemaVersion: 1,
+        resources: [
+          { kind: 'governance', key: 'transcription_model', config: {} },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(platformConfigurationSchema.safeParse(declaration()).success).toBe(
+      true,
+    );
+    expect(
+      platformConfigurationSchema.safeParse(declaration('anthropic')).success,
+    ).toBe(false);
+    expect(
+      platformConfigurationSchema.safeParse(declaration('openai', ['chat']))
+        .success,
+    ).toBe(false);
+    expect(
+      platformConfigurationSchema.safeParse(
+        declaration('openai', ['transcription'], 'missing'),
+      ).success,
+    ).toBe(false);
+  });
+
   test('rejects raw credential secrets and unrelated environment variables', () => {
     for (const changes of [
       { secret: 'must-never-appear' },

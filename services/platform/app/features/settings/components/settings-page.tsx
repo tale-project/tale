@@ -89,13 +89,16 @@ export function SettingsPage({
         // inconsistent rhythm.
         SECTION_DIVIDER_CLASS,
         !fullWidth && 'mx-auto max-w-3xl',
-        // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
-        // child of the scroll container, so its padding-bottom is clipped
-        // at the scroll boundary; a `pb-6` on this content-sized wrapper
-        // is part of the scrolled flow and renders reliably at scroll end.
+        // Keep breathing room and floating-action clearance in the scrolled
+        // content. A bounded intermediate flex pane (governance, for example)
+        // can overflow ContentArea's padded box, leaving its outer bottom
+        // padding before the last field. This content-sized wrapper always
+        // puts the clearance after the final section.
         // Skip it for `fitToContainer` pages, whose child owns its own
         // scroll and must fill the box edge-to-edge.
-        fitToContainer ? 'min-h-0 flex-1' : 'pb-6',
+        fitToContainer
+          ? 'min-h-0 flex-1'
+          : 'pb-[calc(1.5rem+var(--mobile-floating-actions-pad,0px))]',
         className,
       )}
       {...props}

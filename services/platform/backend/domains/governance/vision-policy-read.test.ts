@@ -6,6 +6,7 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../core/lib/ctx.ts';
+import { resolveTranscriptionModel } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { resolveTurnVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import {
   clearOrgConfigCaches,
@@ -45,6 +46,39 @@ function read(policyType = 'vision_model') {
 }
 
 describe('native vision policy file admission', () => {
+  it('keeps audio routing strict across absent, pinned and malformed persisted policy', async () => {
+    await expect(read('transcription_model')).resolves.toBeNull();
+    const file = path.join(directory, 'transcription-model.yml');
+    await writeFile(file, 'providerSlug: local\nmodelId: exact-audio\n');
+    await expect(read('transcription_model')).resolves.toEqual({
+      providerSlug: 'local',
+      modelId: 'exact-audio',
+    });
+    await writeFile(file, 'provider: misspelled-pin\n');
+    await expect(read('transcription_model')).rejects.toThrow(
+      'Governance policy',
+    );
+    const handler =
+      governanceShimHandlers(sql)[
+        'governance/internal_queries:getPolicyConfigInternal'
+      ];
+    if (!handler) throw new Error('missing governance shim');
+    const runQuery = vi.fn(async (_ref: unknown, args: unknown) =>
+      handler(args),
+    );
+    await expect(
+      resolveTranscriptionModel({ runQuery } as unknown as ActionCtx, {
+        organizationId: 'synthetic-id',
+      }),
+    ).rejects.toMatchObject({ code: 'TRANSCRIPTION_MODEL_POLICY_INVALID' });
+    expect(runQuery).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      organizationId: 'synthetic-id',
+      policyType: 'transcription_model',
+    });
+    await writeFile(file, '{}\n');
+    await expect(read('transcription_model')).resolves.toEqual({});
+  });
+
   it('carries a real corrupt policy through the shim to a safe managed-turn failure', async () => {
     await writeFile(
       path.join(directory, 'vision-model.yml'),

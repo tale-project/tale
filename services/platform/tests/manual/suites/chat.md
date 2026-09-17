@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 68 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -28,8 +28,8 @@ Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock). In **mode A** any prompt returns the canned reply and the
 keyword triggers (`e2e:reasoning` / `e2e:nextsteps` / `e2e:humaninput` /
 `e2e:error`) drive CHAT-F16–CHAT-F19. Rows marked **mode B** need a live
-provider; CHAT-F25–CHAT-F26 additionally need a TTS-capable model,
-CHAT-F26/CHAT-AT7 a transcription-capable model, and CHAT-F32–CHAT-F33 a
+provider; CHAT-F25 additionally needs a TTS-capable model,
+CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
 fails under `TALE_DEV_SKIP_DOCKER=1`).
 
@@ -199,14 +199,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.voice.voiceOutputStop`); the per-thread toggle survives a reload.
   Without a TTS model the toggle's tooltip reads
   `chat.voice.voiceOutputErrorConfig` — itself a checkable outcome in mode A.
-- [ ] `CHAT-F26` · **Dictation (MediaRecorder)** — Click **Start dictation**
+- [ ] `CHAT-F26` · **Dictation (MediaRecorder)** — In a browser without
+  SpeechRecognition, allow microphone access and click **Start dictation**
   (`chat.dictation.start`) → speak → **Stop dictation**
-  (`chat.dictation.stop`) (**mode B**, transcription-capable provider) → While
-  recording a level meter (`chat.dictation.level`) and **Discard recording**
-  (`chat.dictation.discard`) show; after stop, **Transcribing…**
-  (`chat.dictation.transcribing`) then the transcript lands in the input;
-  sending while recording stops the mic. Without a transcription model the
-  mic's tooltip reads `chat.dictation.notConfigured` — checkable in mode A.
+  (`chat.dictation.stop`) (**mode B**, available organization audio model) →
+  While recording a level meter (`chat.dictation.level`) shows; after stop,
+  **Transcribing…** (`chat.dictation.transcribing`) then the transcript lands
+  in the input. A failed recording offers retry and **Discard recording**
+  (`chat.dictation.discard`). Sending while recording stops the mic. A known
+  unavailable server model explains the reason before recording and cannot
+  start MediaRecorder; with no candidate it reads `chat.transcription.noModel`.
 - [ ] `CHAT-F27` · **Pin / rename / unread** — Thread-row **More actions**
   (`chat.moreActions`) → **Pin chat** (`chat.pinChat`); **Rename**
   (`chat.history.renameChat`); **Mark as unread** (`chat.markAsUnread`) → The
@@ -319,8 +321,8 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   reading **Queued — sends when the attachments are ready**
   (`chat.deferredSend.waiting`) and going out on its own once the
   transcript lands; then **Transcribed**
-  (`chat.transcription.transcribed`) with **View transcript**
-  (`chat.transcription.viewTranscript`) — the transcript stays off the message
+  (`chat.transcription.transcribed`). In the sent message, **View transcript**
+  (`chat.transcription.viewTranscript`) opens the text — it stays off the message
   bubble; a failure shows `chat.transcription.couldNotTranscribe` with **Try
   again** (`chat.transcription.retry`)
 - [ ] `CHAT-AT8` · **Attachment-only send** — Attach a file, send with no text
@@ -397,6 +399,21 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   near the edge of the projects list scrolls that list, and a chat dropped
   in the empty room under a short chat list lands under **Chats**, never in
   a folder scrolled out of view
+
+- [ ] `CHAT-B12` · **Audio preflight and mixed files** — In a local org with
+  chat available but no usable audio transcription model, select an audio
+  file and a text file together → The composer explains the missing model
+  before selection; only the text file uploads. Repeat with an unavailable
+  saved audio-model pin → `chat.transcription.pinnedUnavailable` is shown
+  without silently choosing another model. Admin actions open the permitted
+  AI providers or Models page; members without that access see admin guidance.
+  During a delayed capability read, no missing-setup notice is invented.
+- [ ] `CHAT-B13` · **Browser dictation stays independent** — In a browser
+  with SpeechRecognition and microphone permission, repeat dictation while
+  the org has no server transcription model, then with an unavailable saved
+  pin → Browser dictation can start in both cases; the audio-attachment
+  notice does not disable it. In a browser without SpeechRecognition, the
+  same states prevent a new MediaRecorder recording and explain the refusal.
 
 ## Accessibility (WCAG 2.1 AA)
 

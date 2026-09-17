@@ -16,6 +16,8 @@ Das Diktat ergänzt Text im Nachrichtenfeld; es sendet die Nachricht nicht autom
 
 Tale nutzt zuerst die Spracherkennung des Browsers, sofern verfügbar. Andernfalls kann es die Aufnahme über das Transkriptionsmodell der Organisation verarbeiten. Ist keiner der Wege verfügbar, fehlt das Mikrofon oder zeigt einen Hinweis zur Einrichtung. Die Browser-Spracherkennung kann einen Dienst des Browseranbieters nutzen. Gehe deshalb nicht von Offline-Verfügbarkeit aus.
 
+Für den Serverweg braucht der Browser Aufnahmeunterstützung über MediaRecorder, Mikrofonzugriff und ein verfügbares Transkriptionsmodell der Organisation. Ein Admin wählt das **Modell für Audiotranskription** unter [Einstellungen > Governance > Modelle](/de/platform/admin/governance/content-models). Diese Einstellung gilt auch für Audio- und Videoanhänge. Sie ändert den Erkennungsdienst des Browsers nicht: Unterstütztes Browserdiktat bleibt nutzbar, wenn das Servermodell der Organisation nicht verfügbar ist.
+
 ## Eine Antwort anhören
 
 Aktiviere **Sprachmodus** im Nachrichtenfeld, um Antworten im aktuellen Chat anzuhören. Ein Text-to-Speech-Modell erzeugt Audio aus der Antwort. Mit der Wiedergabeaktion an der Antwort kannst du stoppen oder erneut abspielen. Der geschriebene Text bleibt zum Nachprüfen verfügbar.

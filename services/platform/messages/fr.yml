@@ -1117,7 +1117,14 @@ chat:
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
     retry: Réessayer
-    notConfigured: Transcription indisponible — demande à un admin d’ajouter un modèle de transcription
+    noModel: Aucun modèle compatible n'est disponible pour transcrire les fichiers audio.
+    pinnedUnavailable: Le modèle de transcription audio sélectionné n'est pas disponible.
+    policyInvalid: Le paramètre du modèle de transcription audio est invalide.
+    temporarilyUnavailable: La disponibilité de la transcription audio n'a pas pu être vérifiée. Réessaie dans un instant.
+    askAdmin: Demande à un admin de vérifier les paramètres de transcription.
+    configureProviders: Configurer les fournisseurs d'IA
+    configureModel: Vérifier le modèle de transcription
+    uploadBlocked: 'Audio/vidéo non importé : {names}.'
   indexing: Indexation en cours…
   indexingFailed: Échec de l'indexation
   indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
@@ -1272,7 +1279,6 @@ chat:
     stop: Arrêter la dictée
     level: Niveau du microphone
     notSupported: La reconnaissance vocale n'est pas prise en charge par ce navigateur
-    notConfigured: Dictée indisponible — demande à une personne admin d'ajouter un modèle de transcription
     transcribing: Transcription…
     transcriptionFailedShort: Échec de la transcription
     retry: Réessayer
@@ -2652,6 +2658,52 @@ governance:
     searchModels: Rechercher des modèles
     noModelsFound: Aucun modèle capable de lire les images
     saveFailed: Échec de l'enregistrement du modèle pour les images
+  transcriptionModel:
+    title: Modèle de transcription audio
+    description:
+      Ce modèle transcrit les pièces jointes audio et vidéo. Il prend aussi
+      en charge la saisie vocale quand la reconnaissance vocale du navigateur
+      est indisponible. La reconnaissance vocale du navigateur utilise son
+      propre modèle.
+    label: Modèle qui transcrit l'audio
+    labelHint:
+      Automatique choisit un modèle disponible. Un modèle fixé reste
+      sélectionné jusqu'à ce que tu le changes, même s'il devient indisponible.
+    automaticLabel: Automatique
+    automaticHint: Tale choisit parmi les modèles de transcription audio disponibles.
+    currentModel: "L'audio est actuellement transcrit par {model}."
+    draftHint: Enregistre pour appliquer cette sélection.
+    noAvailable:
+      Aucun modèle de transcription audio n'est disponible. Ajoute ou active
+      un accès compatible dans Fournisseurs IA, puis vérifie les modèles
+      autorisés pour cet accès.
+    unavailable:
+      Le modèle enregistré est indisponible. Choisis un autre modèle ou
+      Automatique, ou vérifie son accès fournisseur et les modèles qu'il autorise.
+      Tale ne passera pas à un autre modèle tant que cette sélection est
+      enregistrée.
+    invalidPolicy:
+      La configuration enregistrée du modèle audio est invalide. Choisis un
+      modèle ou Automatique et enregistre pour la corriger.
+    policyUnavailable:
+      La configuration enregistrée du modèle audio n'a pas pu être lue.
+      Réessaie avant de la modifier. Tale ne peut pas supposer le mode
+      Automatique tant que la configuration est inaccessible.
+    resolutionFailed:
+      Tale n'a pas pu vérifier le modèle de transcription audio. Vérifie la
+      connexion au fournisseur et réessaie.
+    loadFailed: Impossible de charger les réglages du modèle audio. Réessaie de les charger.
+    invalidSelection: Configuration enregistrée invalide
+    unknownSelection: Impossible de lire la sélection enregistrée
+    savedUnavailable: La sélection enregistrée est actuellement indisponible
+    providersLink: Fournisseurs IA
+    retry: Réessayer
+    searchModels: Rechercher des modèles audio
+    noModelsFound: Aucun modèle audio correspondant
+    saveFailed: Impossible d'enregistrer le modèle de transcription audio
+    remoteUpdate:
+      Ce réglage a changé dans une autre session. Abandonne tes modifications
+      pour charger la sélection enregistrée, ou enregistre pour la remplacer.
   uploadPolicy:
     title: Politique de téléversement
     description:

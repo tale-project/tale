@@ -183,6 +183,14 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'FILE_BOUND_TO_PRODUCT',
   'PRODUCT_IMAGE_INVALID',
   'PRODUCT_IMAGE_NOT_FOUND',
+  // Transcription settings/dictation are app doors; queued audio/video
+  // records these diagnostics on its file. REST model listing inspects the
+  // resolver as metadata and never throws its routing refusals on the wire.
+  'NO_TRANSCRIPTION_MODEL',
+  'TRANSCRIPTION_MODEL_UNAVAILABLE',
+  'TRANSCRIPTION_MODEL_POLICY_INVALID',
+  'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE',
+  'TRANSCRIPTION_MODEL_RESOLUTION_FAILED',
   // Knowledge entries: the chat/MCP listing lane's own cursor check —
   // REST lists sign their cursors and refuse a foreign one as
   // `INVALID_CURSOR` at the door.
@@ -337,6 +345,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'SELF_APPROVAL_BLOCKED',
   // Legal holds and matters, retention floors, configuration versions.
   'CONFIG_VERSION_CONFLICT',
+  // Native configuration preimages and strict settings reads are app-only.
+  'CONFIG_UNREADABLE',
+  'GOVERNANCE_POLICY_INVALID',
+  'GOVERNANCE_POLICY_UNAVAILABLE',
   'HOLD_NOT_FOUND',
   'LEGAL_HOLD_ALREADY_ACTIVE',
   'LEGAL_HOLD_ALREADY_RELEASED',

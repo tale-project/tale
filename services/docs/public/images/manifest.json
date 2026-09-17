@@ -237,8 +237,8 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 2880,
-      "height": 1800
+      "width": 1536,
+      "height": 384
     },
     {
       "file": "images/platform/governance-data-subject-requests.webp",

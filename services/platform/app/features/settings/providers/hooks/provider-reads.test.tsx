@@ -8,7 +8,10 @@ import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import { useEmbeddingRecommendations } from '@/app/features/settings/data-residency/hooks/queries';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
-import { useResolvedVisionModel } from '@/app/features/settings/governance/hooks/queries';
+import {
+  useResolvedVisionModel,
+  useTranscriptionModelState,
+} from '@/app/features/settings/governance/hooks/queries';
 import { useBackendHints } from '@/app/lib/backend/use-backend-hints';
 import { i18n } from '@/lib/i18n/i18n';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -38,6 +41,7 @@ const PROVIDER_READS = [
   '/api/app/providers/harness-status',
   '/api/app/chat/composer/models',
   '/api/app/providers/vision-model',
+  '/api/app/providers/transcription-model',
   '/api/app/knowledge/embedding/recommendations',
   '/api/app/tasks/serving-preview',
 ] as const;
@@ -101,6 +105,8 @@ function backend(input: RequestInfo | URL, init?: RequestInit): Response {
       });
     case '/api/app/providers/vision-model':
       return json({ pick: null });
+    case '/api/app/providers/transcription-model':
+      return json({ models: [], pick: null });
     case '/api/app/knowledge/embedding/recommendations':
       return json({ recommendations: [] });
     case '/api/app/tasks/serving-preview':
@@ -131,6 +137,7 @@ function useProviderReads(): void {
   useHarnessStatus(ORG);
   useProjectHarnesses(ORG);
   useResolvedVisionModel(ORG);
+  useTranscriptionModelState(ORG);
   useEmbeddingRecommendations(ORG);
   useUnpinnedServingPreview('task', {
     organizationId: ORG,
@@ -278,7 +285,7 @@ describe('provider-derived reads', () => {
     });
   });
 
-  it.each(['model_access', 'vision_model'])(
+  it.each(['model_access', 'vision_model', 'transcription_model'])(
     're-resolves them when the %s policy is saved',
     async (policyType) => {
       const { result } = renderHook(

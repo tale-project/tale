@@ -10,6 +10,7 @@ import {
   loadHarnesses,
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
+import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -80,7 +81,11 @@ export async function listComposerModels(
 ): Promise<{
   models: ComposerModelOption[];
   harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
-  voice: { ttsAvailable: boolean; transcriptionAvailable: boolean };
+  voice: {
+    ttsAvailable: boolean;
+    transcriptionAvailable: boolean;
+    transcriptionUnavailableReason?: string;
+  };
 }> {
   // The SERVABLE set: each provider's active default credential — the row
   // every serving path resolves — never every active row, or the picker
@@ -98,8 +103,12 @@ export async function listComposerModels(
     args.organizationId,
     servable,
   );
-  const { byId, ttsAvailable, transcriptionAvailable } =
-    collectComposerOptions(hits);
+  const { byId, ttsAvailable } = collectComposerOptions(hits);
+  const transcription = await inspectTranscriptionModels(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver uses the shared provider and governance shim reads
+    shim as unknown as Parameters<typeof inspectTranscriptionModels>[0],
+    args.organizationId,
+  );
 
   // The governance model-access policy filters the catalog server-side —
   // the turn re-checks at send time.
@@ -141,7 +150,13 @@ export async function listComposerModels(
   return {
     models,
     harnesses,
-    voice: { ttsAvailable, transcriptionAvailable },
+    voice: {
+      ttsAvailable,
+      transcriptionAvailable: transcription.pick !== null,
+      ...(transcription.error !== undefined
+        ? { transcriptionUnavailableReason: transcription.error.code }
+        : {}),
+    },
   };
 }
 

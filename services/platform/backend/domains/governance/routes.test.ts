@@ -192,6 +192,34 @@ beforeEach(() => {
 });
 
 describe('POST /policies/:policyType — write order', () => {
+  it.each(['model_access', 'vision_model', 'transcription_model'])(
+    'refreshes provider-derived reads in every session when %s is saved',
+    async (policyType) => {
+      const response = await post(`/policies/${policyType}?orgId=o1`, {
+        config:
+          policyType === 'model_access'
+            ? { enabled: false, mode: 'allowlist', rules: [] }
+            : {},
+      });
+      expect(response.status).toBe(200);
+      expect(emitHintInTx).toHaveBeenCalledWith(TX, {
+        orgId: 'o1',
+        entity: 'governance_policy',
+        entityId: policyType,
+      });
+      expect(emitHintInTx).toHaveBeenCalledWith(TX, {
+        orgId: 'o1',
+        entity: 'provider_credential',
+        entityId: policyType,
+      });
+      const writeAt =
+        writeGovernancePolicyFile.mock.invocationCallOrder[0] ?? 0;
+      expect(Math.max(...emitHintInTx.mock.invocationCallOrder)).toBeLessThan(
+        writeAt,
+      );
+    },
+  );
+
   it('writes the file LAST, inside the audited transaction', async () => {
     const res = await post('/policies/feature_flags?orgId=o1', NEXT);
 

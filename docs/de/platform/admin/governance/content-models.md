@@ -1,15 +1,9 @@
 ---
 title: Modelle
-description: Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten.
+description: Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription.
 ---
 
 Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/de/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
-
-<Frame caption="Einstellungen > Richtlinien > Modelle — die Standardmodellregeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
-
-![Die Einstellungsseite Modelle zeigt die Tabelle der Standardmodelle mit drei Regeln — einem Standard für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt — über dem Abschnitt Modellzugriff im Modus Allowlist mit einer Regel erlaubter Modelle pro Rolle.](/images/platform/governance-content-models.webp)
-
-</Frame>
 
 ## Ein Standardmodell festlegen
 
@@ -44,6 +38,26 @@ Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder
 Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkatalog zu folgen. Tale bevorzugt ein empfohlenes Vision-Modell und wählt sonst eine erreichbare günstige Option. Der Text unter der Auswahl nennt das aktuelle Modell und den Grund.
 
 Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet für Transkription geeignete Modelle an. Ist das festgelegte Modell später nicht mehr verfügbar, wechselt Tale zur automatischen Auswahl. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
+
+## Das Modell für Audiotranskription auswählen
+
+**Modell für Audiotranskription** steuert die serverseitige Transkription von Audio- und Videoanhängen, die Audiospur von Videolinks ohne nutzbare Untertitel sowie Diktate in Browsern ohne eigene Spracherkennung. Die Spracherkennung des Browsers nutzt ihren eigenen Dienst und hat Vorrang, wenn sie unterstützt wird.
+
+<Frame caption="Die Audiotranskription hat eine eigene organisationsweite Auswahl: automatisch oder ein festgelegtes Modell.">
+
+![Der Abschnitt für Audiotranskription zeigt die automatische Auswahl und nennt das aktuelle Modell für die serverseitige Transkription.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
+1. Lass **Modell zur Audiotranskription** auf **Automatisch**, damit Tale ein verfügbares kompatibles Modell auswählt, oder wähle einen bestimmten Anbieter und ein Modell.
+2. Speichere die ausstehenden Änderungen im Seitenkopf. Bis dahin ist die Auswahl ein Entwurf. Verwirf ihn, um die gespeicherte Einstellung beizubehalten.
+3. Prüfe das aktuelle Modell unter der Auswahl. Teste eine kurze Aufnahme, bevor du mit dieser Einrichtung eine längere Datei hochlädst.
+
+Ein Modellwechsel gilt für neue Transkriptionen; bereits verarbeitete Anhänge behalten ihr vorhandenes Transkript. Lädst du dieselben Bytes erneut hoch, wird die fertige Transkription für dasselbe Ziel wiederverwendet. Bei einem anderen Zielanbieter oder Zielmodell wird die Aufnahme erneut transkribiert.
+
+Ein ausdrücklich ausgewähltes Modell bleibt festgelegt. Wird es nicht mehr verfügbar, zeigt Tale das an und wechselt nicht zu einem anderen Modell. Wähle ein anderes verfügbares Modell oder **Automatisch** und speichere. Ist kein kompatibles Modell verfügbar, richte unter [KI-Anbieter](/de/platform/admin/providers) einen aktiven Zugang ein und prüfe die dafür erlaubten Modelle. Kann Tale die Konfiguration vorübergehend nicht prüfen, versuche es erneut, statt deshalb ein anderes Modell auszuwählen.
+
+Mitglieder sehen das Problem, bevor sie Audio oder Video hochladen. Je nach Zugriffsrechten erhalten sie einen Link zu den Einstellungen oder den Hinweis, einen Admin zu kontaktieren. Zur Auswahl über die Bereitstellungskonfiguration und zu eigenen Audioendpunkten siehe die [Anbieterreferenz für Self-Hosting](/de/self-hosted/configuration/providers#audiotranskription-konfigurieren).
 
 ## Eine unerwartete Auswahl erklären
 

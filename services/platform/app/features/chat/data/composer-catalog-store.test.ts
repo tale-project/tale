@@ -26,6 +26,22 @@ afterEach(() => {
 });
 
 describe('composer catalog store', () => {
+  it('preserves a pinned-model refusal and retires pre-policy v5 capability records', () => {
+    const catalog = {
+      ...CATALOG,
+      voice: {
+        ...CATALOG.voice,
+        transcriptionUnavailableReason: 'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      },
+    };
+    storeComposerCatalog('org-pin', catalog);
+    expect(readStoredComposerCatalog('org-pin')).toEqual(catalog);
+    localStorage.setItem(
+      'tale:composer-catalog:v5:org-before-policy',
+      JSON.stringify({ catalog: CATALOG, savedAt: Date.now() }),
+    );
+    expect(readStoredComposerCatalog('org-before-policy')).toBeNull();
+  });
   it('round-trips an org catalog', () => {
     storeComposerCatalog('org-store', CATALOG);
     expect(readStoredComposerCatalog('org-store')).toEqual(CATALOG);
@@ -53,19 +69,19 @@ describe('composer catalog store', () => {
     expect(readStoredComposerCatalog('org-stale')).toBeNull();
     // The stale record was removed, not left to be re-parsed every read.
     expect(
-      window.localStorage.getItem('tale:composer-catalog:v5:org-stale'),
+      window.localStorage.getItem('tale:composer-catalog:v6:org-stale'),
     ).toBeNull();
   });
 
   it('rejects malformed and wrong-shaped records', () => {
     window.localStorage.setItem(
-      'tale:composer-catalog:v5:org-bad',
+      'tale:composer-catalog:v6:org-bad',
       'not json at all',
     );
     expect(readStoredComposerCatalog('org-bad')).toBeNull();
 
     window.localStorage.setItem(
-      'tale:composer-catalog:v5:org-shape',
+      'tale:composer-catalog:v6:org-shape',
       JSON.stringify({
         catalog: {
           models: [{ id: 42 }],

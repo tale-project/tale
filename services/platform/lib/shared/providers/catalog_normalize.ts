@@ -94,7 +94,11 @@ function deriveTags(args: {
     args.outputModalities.includes('text') || args.entryType === 'language';
   const noSignal =
     args.outputModalities.length === 0 && args.entryType === undefined;
-  if (isEmbedding) {
+  if (args.entryType === 'transcription') {
+    // Audio input alone also describes multimodal chat. Only an explicit
+    // ASR capability admits a custom model to /audio/transcriptions.
+    tags.push('transcription');
+  } else if (isEmbedding) {
     tags.push('embedding');
   } else if (emitsText || noSignal) {
     tags.push('chat');

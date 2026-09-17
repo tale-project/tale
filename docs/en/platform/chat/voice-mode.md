@@ -16,6 +16,8 @@ Dictation adds text to the composer; it does not automatically send the message.
 
 Tale first uses the browser's speech-recognition capability when available. Otherwise, it can record and transcribe through your organization's configured transcription model. If neither route is available, the microphone is absent or explains the missing configuration. Browser speech recognition may use a browser-vendor service; do not assume dictation works offline.
 
+The server fallback needs browser recording support through MediaRecorder, microphone permission, and an available organization transcription model. An admin chooses **Audio transcription model** under [Settings > Governance > Models](/platform/admin/governance/content-models). This setting also serves audio and video attachments. It does not change the browser's own recognition service: supported browser dictation remains usable when the organization's server model is unavailable.
+
 ## Listen to a reply
 
 Enable **Voice mode** in the composer to hear replies in the current chat. A text-to-speech model prepares audio from the answer. Use the reply's playback control to stop or play it again; the written response remains available for checking details.

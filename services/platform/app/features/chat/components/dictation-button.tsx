@@ -22,6 +22,7 @@ import {
   playDictationStartSound,
   playDictationStopSound,
 } from '../utils/dictation-sounds';
+import { transcriptionUnavailableKey } from '../utils/transcription-availability';
 
 interface DictationButtonProps {
   disabled?: boolean;
@@ -36,6 +37,7 @@ interface DictationButtonProps {
    * MediaRecorder fallback BEFORE recording — a mic that records, uploads,
    * and then fails would be a false affordance. */
   transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
 }
 
 export interface DictationButtonHandle {
@@ -65,6 +67,7 @@ const DictationButtonComponent = forwardRef<
     onTranscript,
     organizationId,
     transcriptionAvailable,
+    transcriptionUnavailableReason,
   },
   ref,
 ) {
@@ -167,21 +170,32 @@ const DictationButtonComponent = forwardRef<
   // answering, or a surface without the wiring) renders nothing rather than
   // flashing a claim that may be wrong a beat later; a browser whose
   // recorder cannot capture at all has nothing to explain.
-  if (useFallback && !fallbackReady) {
+  if (
+    useFallback &&
+    !fallbackReady &&
+    !isListening &&
+    !isTranscribing &&
+    !hasFailedRecording
+  ) {
     const confirmedUnavailable =
       recorder.isSupported &&
       organizationId !== undefined &&
       transcriptionAvailable === false;
     if (!confirmedUnavailable) return null;
     return (
-      <Tooltip content={t('dictation.notConfigured')} side="top">
+      <Tooltip
+        content={t(transcriptionUnavailableKey(transcriptionUnavailableReason))}
+        side="top"
+      >
         <Button
           variant="ghost"
           size="icon"
           // `aria-disabled` (not native `disabled`) so the button stays
           // hoverable/focusable and the explanatory tooltip can fire.
           aria-disabled
-          aria-label={t('dictation.notConfigured')}
+          aria-label={t(
+            transcriptionUnavailableKey(transcriptionUnavailableReason),
+          )}
           className="focus-visible:ring-ring cursor-not-allowed rounded-full opacity-50 focus-visible:ring-2 focus-visible:ring-inset"
         >
           <Mic className="size-4" />
@@ -193,7 +207,7 @@ const DictationButtonComponent = forwardRef<
   const handleClick = () => {
     if (isListening) {
       stopListening();
-    } else {
+    } else if (!useFallback || fallbackReady) {
       startListening();
     }
   };
@@ -216,7 +230,11 @@ const DictationButtonComponent = forwardRef<
           variant={isListening ? 'destructive' : 'ghost'}
           size={isListening ? 'sm' : 'icon'}
           onClick={handleClick}
-          disabled={disabled || isTranscribing}
+          disabled={
+            disabled ||
+            isTranscribing ||
+            (useFallback && !isListening && !fallbackReady)
+          }
           aria-label={label}
           aria-busy={isTranscribing}
           aria-pressed={isListening}
@@ -266,6 +284,7 @@ const DictationButtonComponent = forwardRef<
               aria-label={t('dictation.retry')}
               title={t('dictation.retry')}
               onClick={recorder.retryTranscription}
+              disabled={!fallbackReady}
               className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
             >
               <RotateCcw className="size-3" />

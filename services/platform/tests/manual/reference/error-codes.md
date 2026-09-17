@@ -160,6 +160,21 @@ Correct the configuration or restore the service, then explicitly retry the run.
 | `VISION_MODEL_UNAVAILABLE`        | Pin a missing/non-vision model, remove its provider or active gateway credential, or exclude it from the credential allowlist. Restore the exact pin's serving prerequisites. A text-only turn cannot substitute another provider or proceed without the required polyfill.  |
 | `VISION_MODEL_RESOLUTION_FAILED`  | Make the explicitly pinned provider, credential or catalog resolver fail. Restore that service and retry; its private response is not copied into the diagnostic.                                                                                                            |
 
+## Server transcription model routing
+
+These bounded codes appear in model status and composer capability metadata.
+The server dictation door returns 409 for a configuration refusal and 503 for
+an unavailable policy/provider resolver. Browser speech recognition remains
+independently available; video links can still use published captions.
+
+| Failure | Provocation and recovery |
+| --- | --- |
+| `NO_TRANSCRIPTION_MODEL` | Choose Automatic with no active compatible default credential and transcription model. Configure one under AI providers, then retry the capability read. |
+| `TRANSCRIPTION_MODEL_UNAVAILABLE` | Pin a removed model, disable its default credential, or exclude it from the credential allowlist. Restore that exact model or explicitly save another choice/Automatic; no substitute is called. |
+| `TRANSCRIPTION_MODEL_POLICY_INVALID` | Store malformed YAML/JSON or a partial pin in an isolated test. Choose Automatic or a complete provider/model pair and save to repair it. |
+| `TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE` | Deny the policy read or make the org config root unavailable. Restore readable configuration; an absent file in an available root remains Automatic. |
+| `TRANSCRIPTION_MODEL_RESOLUTION_FAILED` | Break provider catalog or credential resolution with no usable Automatic alternative, or break the pinned provider. Restore the service and retry; private responses and credentials never appear in the code. |
+
 ## Unreachable from the UI, still enforced
 
 | Guard                                                            | Guarded by                                                                                         | Proven by                                                    |

@@ -10,10 +10,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrgEnv } from '../../auth/org';
 import { createProviderSettingRoutes } from './routes';
 
-const { caller, catalog } = vi.hoisted(() => ({
+const { caller, catalog, transcriptionState } = vi.hoisted(() => ({
   caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
   catalog: vi.fn(),
+  transcriptionState: vi.fn(),
 }));
+vi.mock(
+  '../../core/lib/providers/resolve_transcription_model',
+  async (original) => ({
+    ...(await original<
+      typeof import('../../core/lib/providers/resolve_transcription_model')
+    >()),
+    inspectTranscriptionModels: transcriptionState,
+  }),
+);
 vi.mock('../../core/lib/providers/catalog_fetch', async (original) => ({
   ...(await original<
     typeof import('../../core/lib/providers/catalog_fetch')
@@ -78,6 +88,7 @@ beforeEach(async () => {
   vi.stubEnv('TALE_CONFIG_DIR', directory);
   Object.assign(caller, { role: 'admin', orgId: 'org-a', slug: 'north' });
   catalog.mockReset();
+  transcriptionState.mockReset();
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -85,6 +96,38 @@ afterEach(async () => {
 });
 
 describe('native custom provider definition HTTP door', () => {
+  it('keeps transcription metadata behind the provider-settings role and organization gate', async () => {
+    const state = {
+      models: [],
+      pick: null,
+      error: { code: 'NO_TRANSCRIPTION_MODEL' },
+    };
+    transcriptionState.mockResolvedValue(state);
+    for (const role of ['owner', 'admin', 'developer']) {
+      caller.role = role;
+      const response = await app().request('/transcription-model?orgId=org-a');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual(state);
+      expect(transcriptionState).toHaveBeenLastCalledWith(
+        expect.anything(),
+        'org-a',
+      );
+    }
+    transcriptionState.mockClear();
+    caller.role = 'member';
+    expect(
+      (await app().request('/transcription-model?orgId=org-a')).status,
+    ).toBe(403);
+    expect(transcriptionState).not.toHaveBeenCalled();
+    Object.assign(caller, { role: 'admin', orgId: 'org-b', slug: 'south' });
+    await app().request('/transcription-model?orgId=org-b');
+    expect(transcriptionState).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'org-b',
+    );
+  });
+
   it('updates a reviewed definition and returns strict canonical native readback', async () => {
     expect(
       await (await app().request('/definitions/local-chat?orgId=org-a')).json(),

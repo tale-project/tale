@@ -3,9 +3,14 @@
 import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import {
+  isTranscriptionUnavailableReason,
+  transcriptionUnavailableKey,
+} from '@/app/features/chat/utils/transcription-availability';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -73,6 +78,9 @@ interface FileUploadConfig {
   disableIndexing?: boolean;
   maxFileSize?: number;
   allowedTypes?: string[];
+  /** Only a confirmed server capability refusal blocks media. */
+  transcriptionAvailable?: boolean;
+  transcriptionUnavailableReason?: string;
 }
 
 const DEFAULT_UPLOAD_CONFIG = {
@@ -142,6 +150,7 @@ export function useFileUpload(config: FileUploadConfig) {
       const rejectedTooLarge: { file: File; limit: number }[] = [];
       const rejectedType: File[] = [];
       const rejectedAudioDuration: File[] = [];
+      const rejectedTranscription: File[] = [];
 
       const rejectedExtension: File[] = [];
 
@@ -182,6 +191,11 @@ export function useFileUpload(config: FileUploadConfig) {
           rejectedTooLarge.push({ file, limit: perTypeLimit });
         } else if (!isAllowedType) {
           rejectedType.push(file);
+        } else if (
+          mergedConfig.transcriptionAvailable === false &&
+          isAudioOrVideo(resolvedType)
+        ) {
+          rejectedTranscription.push(file);
         } else {
           validFiles.push({ file, resolvedType });
         }
@@ -217,6 +231,20 @@ export function useFileUpload(config: FileUploadConfig) {
         toast({
           title: t('invalidFiles'),
           description: t('fileTypeNotAllowed', { names }),
+          variant: 'destructive',
+        });
+      }
+
+      if (rejectedTranscription.length > 0) {
+        toast({
+          title: t('transcription.uploadBlocked', {
+            names: rejectedTranscription.map((file) => file.name).join(', '),
+          }),
+          description: t(
+            transcriptionUnavailableKey(
+              mergedConfig.transcriptionUnavailableReason,
+            ),
+          ),
           variant: 'destructive',
         });
       }
@@ -542,7 +570,11 @@ export function useFileUpload(config: FileUploadConfig) {
             console.error('Upload error:', error);
             toast({
               title: t('uploadFailed'),
-              description: t('failedToUpload', { filename: file.name }),
+              description:
+                error instanceof BackendApiError &&
+                isTranscriptionUnavailableReason(error.code)
+                  ? t(transcriptionUnavailableKey(error.code))
+                  : t('failedToUpload', { filename: file.name }),
               variant: 'destructive',
             });
           } finally {

@@ -12,6 +12,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -141,6 +142,7 @@ export function createGovernanceRoutes(deps: {
       deps.sql,
       c.get('orgId'),
       policyType,
+      policyType === 'transcription_model' ? { strict: true } : {},
     );
     return c.json({
       policy: config === null ? null : { key: policyType, config },
@@ -261,6 +263,19 @@ export function createGovernanceRoutes(deps: {
         entity: 'governance_policy',
         entityId: policyType,
       });
+      if (
+        policyType === 'model_access' ||
+        policyType === 'vision_model' ||
+        policyType === 'transcription_model'
+      ) {
+        // The serving catalog and resolved picks are provider-derived reads.
+        // Every open session must refresh them, not only the saving tab.
+        await emitHintInTx(tx, {
+          orgId: organizationId,
+          entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
+          entityId: policyType,
+        });
+      }
       // The file LAST, inside the transaction: a write failure rolls the
       // audit row back, and a transaction failure never leaves a policy in
       // force that the tamper-evident chain knows nothing about.

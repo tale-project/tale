@@ -1,15 +1,9 @@
 ---
 title: Modèles
-description: Définis les modèles par défaut, limite leur accès et choisis le modèle qui lit les images pour les agents textuels.
+description: Définis les modèles par défaut, limite leur accès et choisis des modèles distincts pour les images et la transcription audio.
 ---
 
 En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modèles** pour choisir les modèles proposés au départ et ceux que les membres peuvent utiliser. Les valeurs par défaut orientent le choix ; les règles d’accès imposent une restriction. Configure d’abord les [identifiants fournisseur](/fr/platform/admin/providers) pour rendre les modèles souhaités disponibles.
-
-<Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par portée, avec la liste d’autorisation de l’accès aux modèles en dessous et le modèle de vision plus bas.">
-
-![La page de gouvernance Modèles montrant le tableau des modèles par défaut avec trois règles — un modèle par défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter — au-dessus de la section d’accès aux modèles en mode liste d’autorisation, avec une règle de modèles autorisés par rôle.](/images/platform/governance-content-models.webp)
-
-</Frame>
 
 ## Définir un modèle par défaut
 
@@ -44,6 +38,26 @@ Un agent textuel a besoin d’aide pour lire une image, comme une capture d’é
 Laisse la sélection du modèle de lecture sur automatique pour suivre le catalogue disponible. Tale préfère un modèle de vision recommandé, puis une option accessible peu coûteuse. Le texte sous la sélection indique le choix actuel et sa raison.
 
 Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles adaptés à la transcription. Si le modèle fixé devient indisponible, Tale revient à la sélection automatique. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
+
+## Choisir le modèle de transcription audio
+
+**Modèle de transcription audio** contrôle la transcription serveur des pièces jointes audio et vidéo, le recours à l’audio pour les liens vidéo sans sous-titres utilisables et la dictée dans les navigateurs sans reconnaissance vocale intégrée. La reconnaissance vocale du navigateur utilise son propre service et garde la priorité lorsqu’elle est prise en charge.
+
+<Frame caption="La transcription audio a sa propre sélection à l’échelle de l’organisation, automatique ou fixée sur un modèle.">
+
+![La section de transcription audio affiche la sélection automatique et indique le modèle actuellement utilisé par le serveur.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
+1. Dans **Modèle qui transcrit l'audio**, laisse **Automatique** pour que Tale choisisse un modèle compatible disponible, ou sélectionne un fournisseur et un modèle précis.
+2. Enregistre les changements en attente dans l’en-tête. Avant l’enregistrement, la sélection reste un brouillon ; abandonne-le pour conserver le réglage enregistré.
+3. Vérifie le modèle actuel affiché sous la sélection. Teste un court enregistrement avant de compter sur cette configuration pour importer un fichier plus long.
+
+Un changement de modèle s’applique aux nouvelles transcriptions ; les pièces jointes déjà traitées conservent leur texte. Importer à nouveau les mêmes octets réutilise le travail terminé pour la même cible de transcription, mais relance la transcription si le fournisseur ou le modèle cible diffère.
+
+Une sélection explicite reste fixe. Si ce modèle devient indisponible, Tale le signale et ne passe pas à un autre modèle. Choisis un autre modèle disponible ou **Automatique**, puis enregistre. Si aucun modèle compatible n’est disponible, configure un accès actif dans [Fournisseurs IA](/fr/platform/admin/providers) et vérifie les modèles autorisés pour cet accès. Si Tale ne peut momentanément pas vérifier la configuration, réessaie plutôt que de changer de modèle pour cette raison.
+
+Les membres voient le problème avant d’importer de l’audio ou de la vidéo. Selon leurs droits, un lien mène aux réglages ou un message leur demande de contacter un admin. Pour gérer ce choix par la configuration du déploiement ou utiliser un endpoint audio personnalisé, consulte la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configurer-la-transcription-audio).
 
 ## Expliquer un choix inattendu
 

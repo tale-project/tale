@@ -768,12 +768,13 @@ describe('Composer audio attachments', () => {
     });
     expect(
       screen.getByText(
-        'Transcription unavailable — ask an admin to add a transcription model',
+        'No compatible model is available for audio-file transcription.',
+        { exact: false },
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Couldn't transcribe")).toHaveAttribute(
       'title',
-      'Transcription unavailable — ask an admin to add a transcription model',
+      'No compatible model is available for audio-file transcription.',
     );
   });
 

@@ -82,7 +82,11 @@ export interface ChatContract {
         label: string;
         iconUrl: undefined | string;
       }>;
-      voice: { ttsAvailable: boolean; transcriptionAvailable: boolean };
+      voice: {
+        ttsAvailable: boolean;
+        transcriptionAvailable: boolean;
+        transcriptionUnavailableReason?: string;
+      };
     };
   };
   'chat/composer:listProjectCapabilities': {

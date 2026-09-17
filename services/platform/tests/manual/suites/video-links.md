@@ -1,6 +1,6 @@
 # Video-link ingestion
 
-> **Prefix** `VID-` · **Reset** none · **Cost** 12 boxes
+> **Prefix** `VID-` · **Reset** none · **Cost** 13 boxes
 
 Pasting a supported video URL into the chat composer starts ingestion and
 shows an attachment chip. Typing the same URL leaves ordinary message text;
@@ -25,7 +25,8 @@ local organization and chat. Changes to provider or anti-bot configuration
 belong only on that test deployment.
 
 Have a public YouTube URL with captions, one without captions, and a playlist
-URL. Caption-less ingestion requires a transcription-capable provider. A
+URL. Caption-less ingestion requires an available organization audio model selected
+under Settings > Governance > Models, either Automatic or an explicit pin. A
 bot wall or missing provider is a recorded environment limitation, not a
 successful transcript test. Do not substitute typed text or an API write for
 the paste action.
@@ -84,6 +85,13 @@ provider/configuration refusals from browser failures.
   use a synthetic proxy credential and trigger a failure → Worker logs and
   visible technical details reveal neither the raw credential nor cookie
   contents. Restore the prior environment.
+
+- [ ] `VID-B4` · **Captions without an audio model** — In a local org with
+  chat available but no server transcription model, paste the captioned URL
+  → The transcription warning does not block ingestion; usable captions can
+  complete the job. Repeat a caption-less URL with an unavailable saved pin
+  → Audio fallback explains the refusal and does not switch models. Count a
+  completed caption transcript only after observing the worker result.
 
 ## Accessibility (WCAG 2.1 AA)
 

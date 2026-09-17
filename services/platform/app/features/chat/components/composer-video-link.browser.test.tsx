@@ -36,6 +36,8 @@ describe('video URL entry in the real composer', () => {
         onSelectionChange={vi.fn()}
         onSend={vi.fn()}
         onIngestVideoUrls={ingest}
+        transcriptionAvailable={false}
+        transcriptionUnavailableReason="NO_TRANSCRIPTION_MODEL"
       />,
     );
     const field = screen.getByRole('textbox', { name: 'Message input' });

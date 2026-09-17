@@ -4,6 +4,32 @@ import { AppError } from '../../../../lib/shared/errors/app-error';
 import { classifyTranscriptionError } from './classify_transcription_error';
 
 describe('classifyTranscriptionError', () => {
+  it.each([
+    'TRANSCRIPTION_MODEL_POLICY_INVALID',
+    'TRANSCRIPTION_MODEL_UNAVAILABLE',
+  ])(
+    'waits for configuration repair rather than spending retries on %s',
+    (code) => {
+      expect(classifyTranscriptionError(new AppError({ code }))).toEqual({
+        shouldRetry: false,
+        reason: 'transcription_model_unavailable',
+      });
+    },
+  );
+
+  it.each([
+    'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE',
+    'TRANSCRIPTION_MODEL_RESOLUTION_FAILED',
+  ])(
+    'permits bounded retry of a temporarily unreadable model choice: %s',
+    (code) => {
+      expect(classifyTranscriptionError(new AppError({ code }))).toEqual({
+        shouldRetry: true,
+        reason: 'transcription_model_resolution_failed',
+      });
+    },
+  );
+
   it('treats a missing transcription model as permanent', () => {
     expect(
       classifyTranscriptionError(

@@ -8,6 +8,7 @@ import {
 import type { Sql, TransactionSql } from 'postgres';
 
 import { resolveGovernanceDir } from '../core/governance/file_utils.ts';
+import { ConfigurationError } from '../core/lib/config_store/precondition.ts';
 import { readDomainConfigFile } from '../core/lib/config_store/read_domain_file.ts';
 import { getConfigRoot } from '../core/lib/file_io.ts';
 
@@ -96,9 +97,11 @@ export interface ReadGovernancePolicyOptions {
   readonly strict?: boolean;
 }
 
-function governanceReadError(): Error {
-  return new Error(
+function governanceReadError(invalid = false): ConfigurationError {
+  return new ConfigurationError(
+    invalid ? 'GOVERNANCE_POLICY_INVALID' : 'GOVERNANCE_POLICY_UNAVAILABLE',
     'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+    invalid ? 400 : 409,
   );
 }
 
@@ -139,13 +142,15 @@ export async function readGovernancePolicy<T extends FilePolicyType>(
     if (result.ok) {
       value = result.data;
     } else if (result.error !== 'not_found') {
-      if (options.strict) throw governanceReadError();
+      if (options.strict)
+        throw governanceReadError(result.error === 'corrupted');
       console.warn(
         `[backend] governance policy ${policyType} unreadable for org ${orgSlug}: ${result.message}`,
       );
     }
   } catch (error) {
-    if (options.strict) throw governanceReadError();
+    if (options.strict)
+      throw error instanceof ConfigurationError ? error : governanceReadError();
     console.warn(
       `[backend] governance policy ${policyType} read threw for org ${orgSlug}:`,
       error,

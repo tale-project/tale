@@ -30762,16 +30762,37 @@ async function checkTranscription(
 
   let whisperCalls = 0;
   let failNextWith: number | null = null;
+  const requestedModels: string[] = [];
+  let audioCredentialId: string | undefined;
   const whisperServer = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
+      if ((req.url ?? '').endsWith('/models')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            data: ['audio-first', 'audio-pinned'].map((id) => ({
+              id,
+              context_window: 448,
+              type: 'transcription',
+              modalities: { input: ['audio'], output: ['text'] },
+            })),
+          }),
+        );
+        return;
+      }
       if (!(req.url ?? '').endsWith('/audio/transcriptions')) {
         res.statusCode = 404;
         res.end('{}');
         return;
       }
       whisperCalls += 1;
+      requestedModels.push(
+        /name="model"\r\n\r\n([^\r\n]+)/.exec(
+          Buffer.concat(chunks).toString(),
+        )?.[1] ?? '',
+      );
       if (failNextWith !== null) {
         res.statusCode = failNextWith;
         failNextWith = null;
@@ -31049,7 +31070,221 @@ async function checkTranscription(
         dictation.data.text.includes('Hello world from itest.'),
       `skip=${skip.status} row=${skippedRow?.status} calls=${whisperCalls}(want ${callsBeforeSkip + 1} — dictation only), dictation=${dictation.success ? dictation.data.text.slice(0, 30) : 'ERR'}`,
     );
+
+    // The settings pick, capability flag and actual multipart request use
+    // one resolver. Two custom ASR entries prove a pin changes serving, not
+    // just the label; generic audio chat models are tested in the normalizer.
+    const providerSlug = 'itest-audio';
+    const definition = await fetch(
+      `${base}/api/app/providers/definitions/${providerSlug}?orgId=${orgId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          expectedHash: null,
+          config: {
+            name: providerSlug,
+            displayName: 'Integration audio',
+            apiFormat: 'openai',
+            baseUrl: whisperBase,
+            catalog: { source: 'models-endpoint' },
+            auth: [{ method: 'api-key' }],
+          },
+        }),
+      },
+    );
+    const credentialSecret = randomUUID();
+    const credential = await send(
+      `/api/app/provider-credentials?orgId=${orgId}`,
+      {
+        providerSlug,
+        authMethod: 'api-key',
+        name: 'Integration audio',
+        secret: credentialSecret,
+      },
+    );
+    audioCredentialId = z
+      .object({ credentialId: z.string() })
+      .parse(await credential.json()).credentialId;
+    const policyRoute = `/api/app/governance/policies/transcription_model?orgId=${orgId}`;
+    const statusRoute = `/api/app/providers/transcription-model?orgId=${orgId}`;
+    const statusSchema = z.object({
+      models: z.array(
+        z.object({ providerSlug: z.string(), modelId: z.string() }),
+      ),
+      pick: z
+        .object({
+          providerSlug: z.string(),
+          modelId: z.string(),
+          source: z.string(),
+        })
+        .nullable(),
+      error: z.object({ code: z.string() }).optional(),
+    });
+    const readStatus = async () =>
+      statusSchema.parse(await (await send(statusRoute)).json());
+    const readVoice = async () =>
+      z
+        .object({
+          voice: z.object({
+            transcriptionAvailable: z.boolean(),
+            transcriptionUnavailableReason: z.string().optional(),
+          }),
+        })
+        .parse(
+          await (
+            await send(`/api/app/chat/composer/models?orgId=${orgId}`)
+          ).json(),
+        ).voice;
+    const transcribe = () =>
+      send(`/api/app/files/dictation?orgId=${orgId}`, {
+        audioBase64: wav.toString('base64'),
+        mimeType: 'audio/wav',
+      });
+    const initialStatusResponse = await send(statusRoute);
+    const initialStatusText = await initialStatusResponse.text();
+    const automatic = statusSchema.parse(JSON.parse(initialStatusText));
+    const unauthenticated = await fetch(`${base}${statusRoute}`);
+    const foreignOrgId = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrgId}, 'Foreign audio organization', ${`audio-foreign-${foreignOrgId}`}, now())
+    `;
+    const foreignOrg = await send(
+      `/api/app/providers/transcription-model?orgId=${foreignOrgId}`,
+    );
+    record(
+      'transcription settings: Automatic, scoped non-secret metadata',
+      definition.status === 200 &&
+        credential.status === 200 &&
+        automatic.pick?.source === 'automatic' &&
+        automatic.pick.providerSlug === providerSlug &&
+        automatic.pick.modelId === 'audio-first' &&
+        automatic.models.filter((model) => model.providerSlug === providerSlug)
+          .length === 2 &&
+        initialStatusResponse.headers.get('cache-control') === 'no-store' &&
+        !initialStatusText.includes(credentialSecret) &&
+        !initialStatusText.includes(whisperBase) &&
+        unauthenticated.status === 401 &&
+        foreignOrg.status === 403,
+      `definition=${definition.status} credential=${credential.status} auto=${automatic.pick?.modelId} unauth=${unauthenticated.status} foreign=${foreignOrg.status}`,
+    );
+
+    const pinSave = await send(policyRoute, {
+      config: { providerSlug, modelId: 'audio-pinned' },
+    });
+    const pinned = await readStatus();
+    const pinnedVoice = await readVoice();
+    const pinDictation = await transcribe();
+    // Identical bytes previously transcribed by OpenAI must now use the pin.
+    const pinnedRef = await uploadAudio(wav);
+    await drainTranscribe();
+    const pinnedFile = await rowFor(pinnedRef);
+    record(
+      'transcription pin controls dictation and queued audio',
+      pinSave.status === 200 &&
+        pinned.pick?.source === 'pinned' &&
+        pinned.pick.modelId === 'audio-pinned' &&
+        pinnedVoice.transcriptionAvailable &&
+        pinDictation.status === 200 &&
+        pinnedFile?.status === 'completed' &&
+        requestedModels.slice(-2).every((model) => model === 'audio-pinned'),
+      `save=${pinSave.status} pick=${pinned.pick?.modelId} voice=${pinnedVoice.transcriptionAvailable} dictation=${pinDictation.status} file=${pinnedFile?.status} requests=${requestedModels.slice(-2).join(',')}`,
+    );
+
+    const callsBeforePinnedDuplicate = whisperCalls;
+    const pinnedDuplicateRef = await uploadAudio(wav);
+    await drainTranscribe();
+    record(
+      'transcription cache reuses only the same serving target',
+      (await rowFor(pinnedDuplicateRef))?.status === 'completed' &&
+        whisperCalls === callsBeforePinnedDuplicate,
+      `sameTargetDedup=${whisperCalls === callsBeforePinnedDuplicate}`,
+    );
+
+    const invalidWrite = await send(policyRoute, { config: { providerSlug } });
+    await send(policyRoute, {
+      config: { providerSlug, modelId: 'removed-model' },
+    });
+    const unavailable = await readStatus();
+    const unavailableVoice = await readVoice();
+    const callsBeforeRefusal = whisperCalls;
+    const refused = await transcribe();
+    const refusal = z.object({ error: z.string() }).parse(await refused.json());
+    const refusedRef = await uploadAudio(wav);
+    await drainTranscribe();
+    record(
+      'transcription missing pin refuses without fallback or provider spend',
+      invalidWrite.status === 400 &&
+        unavailable.pick === null &&
+        unavailable.error?.code === 'TRANSCRIPTION_MODEL_UNAVAILABLE' &&
+        !unavailableVoice.transcriptionAvailable &&
+        unavailableVoice.transcriptionUnavailableReason ===
+          unavailable.error.code &&
+        refused.status === 409 &&
+        refusal.error === 'TRANSCRIPTION_MODEL_UNAVAILABLE' &&
+        (await rowFor(refusedRef))?.status === 'failed' &&
+        whisperCalls === callsBeforeRefusal,
+      `invalid=${invalidWrite.status} status=${unavailable.error?.code} voice=${unavailableVoice.transcriptionAvailable} refusal=${refused.status} noSpend=${whisperCalls === callsBeforeRefusal}`,
+    );
+
+    const orgs = await sql<
+      { slug: string }[]
+    >`SELECT slug FROM "organization" WHERE id = ${orgId}`;
+    const policyFile = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgs[0]?.slug ?? '',
+      'governance',
+      'transcription-model.yml',
+    );
+    await writeFile(policyFile, 'providerSlug: broken-half-pin\n');
+    const corrupt = await readStatus();
+    const corruptDictation = await transcribe();
+    const corruptPolicyRead = await send(policyRoute);
+    record(
+      'transcription corrupt policy refuses and remains explicitly repairable',
+      corrupt.pick === null &&
+        corrupt.error?.code === 'TRANSCRIPTION_MODEL_POLICY_INVALID' &&
+        corruptDictation.status === 409 &&
+        corruptPolicyRead.status === 400 &&
+        whisperCalls === callsBeforeRefusal,
+      `status=${corrupt.error?.code} policy=${corruptPolicyRead.status} dictation=${corruptDictation.status} noSpend=${whisperCalls === callsBeforeRefusal}`,
+    );
+
+    const reset = await send(policyRoute, { config: {} });
+    const restored = await readStatus();
+    const restoredVoice = await readVoice();
+    const resetDictation = await transcribe();
+    record(
+      'transcription reset to Automatic restores the shared serving pick',
+      reset.status === 200 &&
+        restored.pick?.source === 'automatic' &&
+        restored.pick.modelId === 'audio-first' &&
+        restoredVoice.transcriptionAvailable &&
+        resetDictation.status === 200 &&
+        requestedModels.at(-1) === 'audio-first',
+      `reset=${reset.status} pick=${restored.pick?.modelId} voice=${restoredVoice.transcriptionAvailable} request=${requestedModels.at(-1)}`,
+    );
   } finally {
+    // This lane owns this credential only; later transcription/video lanes
+    // retain their original default OpenAI provider and Automatic policy.
+    if (audioCredentialId !== undefined) {
+      await fetch(
+        `${base}/api/app/provider-credentials/${audioCredentialId}?orgId=${orgId}`,
+        {
+          method: 'DELETE',
+          headers: { cookie, origin: base },
+        },
+      );
+      await fetch(
+        `${base}/api/app/governance/policies/transcription_model?orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ config: {} }),
+        },
+      );
+    }
     whisperServer.close();
   }
 }

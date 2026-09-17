@@ -163,6 +163,30 @@ const declarationSchema = z
         )
           fail('Vision selection differs from its declared catalog');
       }
+      if (
+        resource.kind === 'governance' &&
+        resource.key === 'transcription_model'
+      ) {
+        const transcription = POLICY_SCHEMAS.transcription_model.parse(
+          resource.config,
+        );
+        const provider = providers.find(
+          (entry) => entry.config.name === transcription.providerSlug,
+        );
+        if (
+          provider &&
+          (provider.config.apiFormat !== 'openai' ||
+            (provider.expectedModels &&
+              !provider.expectedModels.some(
+                (model) =>
+                  model.id === transcription.modelId &&
+                  model.tags.includes('transcription'),
+              )))
+        )
+          fail(
+            'Transcription selection differs from its declared provider and catalog',
+          );
+      }
     }
   });
 export type PlatformConfiguration = z.infer<typeof platformConfigurationSchema>;

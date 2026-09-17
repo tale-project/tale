@@ -26,6 +26,7 @@ import { useT } from '@/lib/i18n/client';
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy, useResolvedVisionModel } from '../hooks/queries';
+import { modelSelectionValue, parseModelSelection } from './model-id';
 
 interface VisionModelEditorProps {
   organizationId: string;
@@ -37,29 +38,13 @@ const FORM_ID = 'governance-vision-model-form';
  * be empty, but a select needs a concrete value for its head option. */
 const AUTOMATIC = '__automatic__';
 
-/** `<providerSlug>::<modelId>` — one select over both fields, because they are
- * only ever meaningful together (a provider cannot route without a model). */
-function pinValue(providerSlug: string, modelId: string): string {
-  return `${providerSlug}::${modelId}`;
-}
-
-function parsePinValue(
-  value: string,
-): { providerSlug: string; modelId: string } | null {
-  const at = value.indexOf('::');
-  if (at <= 0) return null;
-  const providerSlug = value.slice(0, at);
-  const modelId = value.slice(at + 2);
-  return modelId === '' ? null : { providerSlug, modelId };
-}
-
 const parseConfig = createConfigParser(
   visionModelConfigSchema,
   (): VisionModelConfig => ({}),
 );
 
 interface VisionModelForm {
-  /** `AUTOMATIC` or a `pinValue`. */
+  /** `AUTOMATIC` or a provider/model pair. */
   selection: string;
 }
 
@@ -97,7 +82,7 @@ export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
       selection:
         savedConfig.providerSlug !== undefined &&
         savedConfig.modelId !== undefined
-          ? pinValue(savedConfig.providerSlug, savedConfig.modelId)
+          ? modelSelectionValue(savedConfig.providerSlug, savedConfig.modelId)
           : AUTOMATIC,
     }),
     [savedConfig],
@@ -135,7 +120,7 @@ export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
       });
       for (const model of eligible) {
         rows.push({
-          value: pinValue(provider.name, model.id),
+          value: modelSelectionValue(provider.name, model.id),
           label: model.id,
         });
       }
@@ -146,7 +131,9 @@ export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
   const save = useCallback(
     async (values: VisionModelForm) => {
       const pinned =
-        values.selection === AUTOMATIC ? null : parsePinValue(values.selection);
+        values.selection === AUTOMATIC
+          ? null
+          : parseModelSelection(values.selection);
       try {
         await upsertMutation({
           organizationId,

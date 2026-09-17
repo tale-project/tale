@@ -273,7 +273,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Modelle",
-      "description": "Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten."
+      "description": "Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription."
     }
   },
   "de:platform/admin/governance/data-subject-requests": {
@@ -1385,7 +1385,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Models",
-      "description": "Set default models, restrict model access, and choose the model that reads images for text-only agents."
+      "description": "Set default models, restrict access, and choose separate models for images and audio transcription."
     }
   },
   "en:platform/admin/governance/data-subject-requests": {
@@ -2497,7 +2497,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Modèles",
-      "description": "Définis les modèles par défaut, limite leur accès et choisis le modèle qui lit les images pour les agents textuels."
+      "description": "Définis les modèles par défaut, limite leur accès et choisis des modèles distincts pour les images et la transcription audio."
     }
   },
   "fr:platform/admin/governance/data-subject-requests": {

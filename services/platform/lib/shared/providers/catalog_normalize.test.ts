@@ -169,6 +169,32 @@ describe('normalizeCatalogModel', () => {
     expect(byPluralModality?.tags).toEqual(['embedding']);
   });
 
+  it('admits explicitly declared transcription, without guessing from audio modalities', () => {
+    const audioInput = {
+      id: 'example-audio',
+      context_window: 448,
+      modalities: { input: ['audio'], output: ['text'] },
+    };
+    expect(
+      normalizeCatalogModel({ ...audioInput, type: 'transcription' }, 'p')
+        ?.tags,
+    ).toEqual(['transcription']);
+    expect(normalizeCatalogModel(audioInput, 'p')?.tags).toEqual(['chat']);
+    expect(
+      normalizeCatalogModel({ ...audioInput, type: 'language' }, 'p')?.tags,
+    ).toEqual(['chat']);
+    expect(
+      normalizeCatalogModel(
+        {
+          ...audioInput,
+          type: 'speech',
+          modalities: { input: ['text'], output: ['audio'] },
+        },
+        'p',
+      )?.tags,
+    ).not.toContain('transcription');
+  });
+
   it('assumes chat when the source gives no modality or type signal', () => {
     const entry = normalizeCatalogModel({ id: 'm', context_length: 4096 }, 'p');
     expect(entry?.tags).toEqual(['chat']);

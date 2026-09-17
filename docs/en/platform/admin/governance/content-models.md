@@ -1,15 +1,9 @@
 ---
 title: Models
-description: Set default models, restrict model access, and choose the model that reads images for text-only agents.
+description: Set default models, restrict access, and choose separate models for images and audio transcription.
 ---
 
 Use **Settings > Governance > Models** as an Admin or Owner to choose the models members start with and the models they may use. Defaults guide a choice; access rules enforce a restriction. Configure [provider credentials](/platform/admin/providers) first so the intended models are available.
-
-<Frame caption="Settings > Governance > Models — the per-scope default-model rules, with the model-access allowlist below them and the vision model further down.">
-
-![The Models governance page showing the default-models table with three rules — a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model — above the model-access section set to Allowlist with one allowed-models rule per role.](/images/platform/governance-content-models.webp)
-
-</Frame>
 
 ## Set a default model
 
@@ -44,6 +38,26 @@ A text-only agent needs help reading an image, such as a screenshot or scanned p
 Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 
 Pin a model if you need a stable choice. The picker offers models suitable for transcription. If a pin later becomes unavailable, Tale falls back to automatic selection. Review the current choice after rotating credentials or changing model availability.
+
+## Choose the audio transcription model
+
+**Audio transcription model** controls server transcription for audio and video attachments, the audio fallback for video links, and dictation in browsers without built-in speech recognition. Browser speech recognition uses its own service and keeps priority when supported.
+
+<Frame caption="Audio transcription has its own organization-wide automatic or fixed model selection.">
+
+![The Audio transcription model section shows Automatic and identifies the current server transcription model.](/images/platform/governance-content-models.webp)
+
+</Frame>
+
+1. Under **Model that transcribes audio**, leave **Automatic** selected to let Tale choose an available compatible model, or select a specific provider and model.
+2. Save the page's pending changes in the header. Until you save, the selection is a draft; discard it to keep the saved setting.
+3. Check the current model shown below the picker. Test a short recording before relying on the setup for a longer upload.
+
+A model change applies to new transcription work; completed attachments keep their existing transcript. Uploading the same bytes again reuses completed work for the same transcription target, but transcribes them again when the target provider or model differs.
+
+An explicit selection stays fixed. If that model becomes unavailable, Tale reports it and does not switch to another model. Choose another available model or **Automatic**, then save. If no compatible model is available, configure an active credential in [AI providers](/platform/admin/providers) and check the credential’s allowed models. A temporary failure to check the configuration calls for a retry, not a new model selection.
+
+Members see the problem before uploading audio or video. Settings actions appear according to their access; otherwise, they are asked to contact an admin. For deployment-managed selection and custom audio endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-audio-transcription).
 
 ## Diagnose an unexpected choice
 

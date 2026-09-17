@@ -12,6 +12,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
+import { TranscriptionModelError } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -68,6 +69,12 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof FileError) {
     return c.json({ error: error.code }, error.status);
+  }
+  if (error instanceof TranscriptionModelError) {
+    const transient =
+      error.code === 'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE' ||
+      error.code === 'TRANSCRIPTION_MODEL_RESOLUTION_FAILED';
+    return c.json({ error: error.code }, transient ? 503 : 409);
   }
   if (error instanceof RateLimitExceededError) {
     return rateLimitedResponse(c, error);

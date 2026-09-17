@@ -33,6 +33,27 @@ Cette définition utilise une API de chat compatible OpenAI et découvre les mod
 
 Un administrateur ajoute ensuite un accès dans [Fournisseurs IA](/fr/platform/admin/providers), actualise le catalogue et sélectionne un modèle précis pour un court chat. Vérifie la requête terminée dans les journaux du serveur prévu. Les embeddings, la parole et les outils nécessitent leur propre contrôle des destinations ; un endpoint de chat local ne les rend pas locaux.
 
+## Configurer la transcription audio
+
+La politique de l’organisation se trouve dans `TALE_CONFIG_DIR/<org>/governance/transcription-model.yml`, sous le type `transcription_model`. La page [Modèles](/fr/platform/admin/governance/content-models) modifie la même sélection. Un fichier absent ou un objet vide signifie une sélection automatique :
+
+```yaml
+{}
+```
+
+Pour fixer un modèle, fournis les deux champs. Cet exemple utilise le modèle OpenAI Whisper fourni et exige toujours un accès actif et utilisable dans l’organisation :
+
+```yaml
+providerSlug: openai
+modelId: whisper-1
+```
+
+Une sélection partielle est invalide. Un modèle fixé mais indisponible n’est jamais remplacé automatiquement : rétablis son accès fournisseur ou les modèles autorisés pour cet accès, ou reviens explicitement à la sélection automatique. Un échec de lecture ou de validation de la configuration refuse aussi la transcription serveur. La politique couvre les fichiers audio et vidéo, le recours à l’audio pour les liens vidéo et la dictée serveur. La reconnaissance vocale du navigateur reste indépendante.
+
+Pour un endpoint personnalisé compatible OpenAI, utilise `catalog.source: models-endpoint`. Sa réponse à `/models` doit déclarer le modèle audio avec `type: transcription`, une `id` exacte et un `context_window` positif. Indique la valeur de contexte réelle du modèle ; le catalogue l’exige aussi pour la transcription. Un modèle de chat avec entrée audio ou un modèle de synthèse vocale ne devient pas automatiquement un candidat à la transcription.
+
+L’endpoint doit accepter `POST <baseUrl>/audio/transcriptions` avec les champs multipart `file`, `model` et `response_format: verbose_json`, authentifiés par un accès Bearer. Sa réponse JSON doit fournir la transcription dans `text` ; `duration` et des `segments` horodatés permettent le suivi de la durée et les horodatages vidéo. La présence au catalogue ne prouve pas que cette API fonctionne. Actualise le catalogue, sélectionne le modèle, puis teste un court enregistrement et vérifie la requête dans les journaux de cet endpoint.
+
 ## Vérifier l’accès aux modèles depuis la sandbox
 
 Le chat appelle un fournisseur depuis le backend. Les agents de programmation passent par `sandbox-llm-gateway` : un chat réussi ne valide donc pas leur connexion. L’endpoint doit être résolvable et joignable depuis le backend et la passerelle. Chaque client HTTPS doit faire confiance à son certificat. Un nom comme `https://models.internal/v1` exige lui aussi l’autorisation des fournisseurs privés lorsque le DNS renvoie une adresse privée. HTTP reste limité aux formes d’hôtes acceptées par le schéma, comme une IP privée, `localhost` ou `.local`.

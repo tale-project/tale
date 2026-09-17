@@ -111,34 +111,24 @@ export interface ComposerModelOption {
  * runs it over its own catalog walk. Keyed by (provider, id), first-wins per
  * pair (the caller sorts direct-capable credentials first): an org with two
  * providers serving the same model sees BOTH copies, grouped by provider in
- * the picker. Voice availability rides the same walk: a TTS-tagged entry on
- * a DIRECT credential enables synthesis, a transcription-tagged entry on a
- * DIRECT openai-format connector enables dictation (the Anthropic Messages
- * wire has no transcription endpoint).
+ * the picker. A TTS-tagged entry on a DIRECT credential enables synthesis.
+ * Transcription availability is resolved separately by the shared audio
+ * router, including the organization's explicit model policy.
  */
 export function collectComposerOptions(
   hits: readonly Awaited<ReturnType<typeof walkChatCatalog>>[number][],
 ): {
   byId: Map<string, ComposerModelOption>;
   ttsAvailable: boolean;
-  transcriptionAvailable: boolean;
 } {
   const byId = new Map<string, ComposerModelOption>();
   let ttsAvailable = false;
-  let transcriptionAvailable = false;
   for (const { connector, credential, credentialAuth, entry } of hits) {
     if (
       entry.tags.includes('text-to-speech') &&
       (credential.authMethod === 'api-key' || credential.authMethod === 'env')
     ) {
       ttsAvailable = true;
-    }
-    if (
-      entry.tags.includes('transcription') &&
-      connector.apiFormat === 'openai' &&
-      (credential.authMethod === 'api-key' || credential.authMethod === 'env')
-    ) {
-      transcriptionAvailable = true;
     }
     // The picker lists conversational models only — a TTS or embedding
     // entry is a capability, not something a turn can be sent to.
@@ -171,5 +161,5 @@ export function collectComposerOptions(
       tags: entry.tags,
     });
   }
-  return { byId, ttsAvailable, transcriptionAvailable };
+  return { byId, ttsAvailable };
 }

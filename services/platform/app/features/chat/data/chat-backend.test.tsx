@@ -203,8 +203,14 @@ describe('useChatQuery session cache', () => {
   });
 });
 
-function ModelsProbe({ org }: { org: string }) {
-  const catalog = useComposerModels(org);
+function ModelsProbe({
+  org,
+  requireFresh,
+}: {
+  org: string;
+  requireFresh?: boolean;
+}) {
+  const catalog = useComposerModels(org, { requireFresh });
   return (
     <output>
       {catalog.status === 'ready'
@@ -240,6 +246,22 @@ describe('useComposerModels', () => {
 });
 
 describe('useComposerModels device store', () => {
+  it('leaves audio capability unknown while refreshing a stored unavailable answer', () => {
+    storeComposerCatalog('org-audio-refresh', {
+      models: [],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    });
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() => new Promise(() => {}));
+    try {
+      render(<ModelsProbe org="org-audio-refresh" requireFresh />);
+      expect(screen.getByRole('status')).toHaveTextContent('loading');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
   it('starts ready from the stored catalog on a fresh session', () => {
     // A previous SESSION persisted this org's catalog; the in-memory session
     // cache knows nothing about it (fresh org key), the way a reload starts.

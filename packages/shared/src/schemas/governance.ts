@@ -71,6 +71,9 @@ export const POLICY_TYPES = [
   // here is how an admin stops the auto-pick from drifting onto whatever the
   // live catalog currently prices lowest. See `visionModelConfigSchema`.
   'vision_model',
+  // Organization-wide audio transcription routing. Missing/empty config is
+  // Automatic; a pin applies to server dictation and uploaded audio/video alike.
+  'transcription_model',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
   // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
@@ -313,6 +316,13 @@ export const visionModelConfigSchema = z
     },
   );
 export type VisionModelConfig = z.infer<typeof visionModelConfigSchema>;
+
+/** Audio uses the same all-or-nothing provider/model pin as vision. The
+ * runtime admits only models supporting the transcription HTTP contract. */
+export const transcriptionModelConfigSchema = visionModelConfigSchema.strict();
+export type TranscriptionModelConfig = z.infer<
+  typeof transcriptionModelConfigSchema
+>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -979,6 +989,7 @@ export const POLICY_SCHEMAS = {
   conversation_routing: conversationRoutingConfigSchema,
   approval_policy: approvalPolicyConfigSchema,
   vision_model: visionModelConfigSchema,
+  transcription_model: transcriptionModelConfigSchema,
   review_policy: reviewPolicyConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 

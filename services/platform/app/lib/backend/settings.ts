@@ -38,6 +38,8 @@ type HarnessStatusItem =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 type VisionModelPickResult =
   ReturnsOf<'lib/providers/vision_actions:getResolvedVisionModel'>;
+type TranscriptionModelState =
+  ReturnsOf<'lib/providers/transcription_actions:getTranscriptionModelState'>;
 type ConnectorSummaryItem =
   ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
 type ConnectorOauthAppItem = ItemOf<'connector_oauth_apps/queries:list'>;
@@ -792,6 +794,17 @@ export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         orgId,
       }).then((body) => body.pick);
   },
+  'lib/providers/transcription_actions:getTranscriptionModelState': (
+    args,
+    ctx,
+  ) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<TranscriptionModelState>('/providers/transcription-model', {
+        orgId,
+      });
+  },
   'connector_credentials/connector_catalog:listConnectors': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -917,10 +930,11 @@ function invalidateUserPrefs(
 /**
  * The provider-credential entity: the credential list and every read derived
  * from what the org's providers serve — the composer and agent model pickers,
- * the runtime status, the resolved vision model, the embedding
+ * the runtime status, the resolved vision and audio models, the embedding
  * recommendations. Credential writes are not the only thing that moves those
  * answers: a catalog refresh changes the models behind them, and the
- * model-access and vision-model policies narrow or pick among them.
+ * model-access, vision-model and transcription-model policies narrow or pick
+ * among them.
  */
 function invalidateProviderReads(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
@@ -1405,7 +1419,8 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       }
       if (
         args.policyType === 'model_access' ||
-        args.policyType === 'vision_model'
+        args.policyType === 'vision_model' ||
+        args.policyType === 'transcription_model'
       ) {
         invalidateProviderReads(client, args, ctx);
       }

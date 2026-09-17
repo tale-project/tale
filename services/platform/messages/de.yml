@@ -1111,7 +1111,14 @@ chat:
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
     retry: Erneut versuchen
-    notConfigured: Transkription nicht verfügbar — bitte einen Admin, ein Transkriptionsmodell hinzuzufügen
+    noModel: Für die Transkription von Audiodateien ist kein kompatibles Modell verfügbar.
+    pinnedUnavailable: Das ausgewählte Modell für Audiotranskription ist nicht verfügbar.
+    policyInvalid: Die Einstellung für das Audiotranskriptionsmodell ist ungültig.
+    temporarilyUnavailable: Die Verfügbarkeit der Audiotranskription konnte nicht geprüft werden. Versuche es in Kürze erneut.
+    askAdmin: Bitte einen Admin, die Transkriptionseinstellungen zu prüfen.
+    configureProviders: KI-Anbieter konfigurieren
+    configureModel: Transkriptionsmodell prüfen
+    uploadBlocked: 'Audio/Video nicht hochgeladen: {names}.'
   indexing: Indexiere…
   indexingFailed: Indexierung fehlgeschlagen
   indexingFailedDescription: '{filename} konnte nicht für die Suche indexiert
@@ -1266,7 +1273,6 @@ chat:
     stop: Diktat stoppen
     level: Mikrofonpegel
     notSupported: Spracherkennung wird in diesem Browser nicht unterstützt
-    notConfigured: Diktat nicht verfügbar — bitte eine administrative Person, ein Transkriptionsmodell hinzuzufügen
     transcribing: Transkribiere…
     transcriptionFailedShort: Transkription fehlgeschlagen
     retry: Erneut versuchen
@@ -2620,6 +2626,52 @@ governance:
     searchModels: Modelle suchen
     noModelsFound: Kein Modell verfügbar, das Bilder liest
     saveFailed: Modell für Bilder konnte nicht gespeichert werden
+  transcriptionModel:
+    title: Modell für Audiotranskription
+    description:
+      Dieses Modell transkribiert Audio- und Videoanhänge. Es übernimmt auch
+      die Spracheingabe, wenn die Spracherkennung des Browsers nicht verfügbar
+      ist. Die Spracherkennung des Browsers nutzt ihr eigenes Modell.
+    label: Modell zur Audiotranskription
+    labelHint:
+      Automatisch wählt ein verfügbares Modell. Ein festgelegtes Modell bleibt
+      ausgewählt, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+    automaticLabel: Automatisch
+    automaticHint: Tale wählt aus den verfügbaren Modellen zur Audiotranskription.
+    currentModel: 'Aktuelles Modell für Audiotranskription: {model}.'
+    draftHint: Speichere, um diese Auswahl anzuwenden.
+    noAvailable:
+      Kein Modell zur Audiotranskription ist verfügbar. Füge unter KI-Anbieter
+      einen kompatiblen Zugang hinzu oder aktiviere ihn. Prüfe auch, welche
+      Modelle dieser Zugang erlaubt.
+    unavailable:
+      Das gespeicherte Modell ist nicht verfügbar. Wähle ein anderes Modell
+      oder Automatisch oder prüfe den Anbieterzugang und die dafür erlaubten Modelle.
+      Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem
+      anderen Modell.
+    invalidPolicy:
+      Die gespeicherte Konfiguration des Audiomodells ist ungültig. Wähle ein
+      Modell oder Automatisch und speichere, um sie zu korrigieren.
+    policyUnavailable:
+      Die gespeicherte Konfiguration des Audiomodells konnte nicht gelesen
+      werden. Versuche es erneut, bevor du sie änderst. Tale kann bei
+      nicht verfügbarer Konfiguration nicht von Automatisch ausgehen.
+    resolutionFailed:
+      Tale konnte das Modell zur Audiotranskription nicht prüfen. Prüfe die
+      Verbindung zum Anbieter und versuche es erneut.
+    loadFailed: Die Audiomodelleinstellungen konnten nicht geladen werden. Versuche es erneut.
+    invalidSelection: Ungültige gespeicherte Konfiguration
+    unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
+    savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+    providersLink: KI-Anbieter
+    retry: Erneut versuchen
+    searchModels: Audiomodelle suchen
+    noModelsFound: Kein passendes Audiomodell
+    saveFailed: Modell für Audiotranskription konnte nicht gespeichert werden
+    remoteUpdate:
+      Diese Einstellung wurde in einer anderen Sitzung geändert. Verwirf deinen
+      Entwurf, um die gespeicherte Auswahl zu laden, oder speichere, um sie zu
+      ersetzen.
   uploadPolicy:
     title: Upload-Richtlinie
     description: Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.
