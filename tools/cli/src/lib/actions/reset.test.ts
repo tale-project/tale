@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import {
@@ -26,9 +29,6 @@ mock.module('../docker/remove-container', () => ({
   removeContainer: removeContainerMock,
 }));
 mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
-mock.module('../state/with-lock', () => ({
-  withLock: (_dir: string, _cmd: string, fn: () => Promise<unknown>) => fn(),
-}));
 mock.module('../../utils/logger', () => ({
   info: mock(),
   error: mock(),
@@ -48,8 +48,7 @@ const env: DeploymentEnv = {
   SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,
   DRAIN_TIMEOUT: 0,
-  // No state files live here; unlink's ENOENT is swallowed by the action.
-  DEPLOY_DIR: '/tmp/tale-reset-test-does-not-exist',
+  DEPLOY_DIR: '',
 };
 
 const PRUNED = { success: true, stdout: '', stderr: '', exitCode: 0 };
@@ -64,6 +63,8 @@ function mutatingDockerCalls(): unknown[][] {
 }
 
 beforeEach(() => {
+  // Use a real local lock without replacing the shared module for other suites.
+  env.DEPLOY_DIR = mkdtempSync(join(tmpdir(), 'tale-reset-test-'));
   dockerMock.mockResolvedValue(PRUNED);
   // Colour containers are discovered by compose LABEL, so the sweep runs
   // `docker ps` per colour project. One platform replica each — enough to
@@ -95,6 +96,7 @@ afterEach(() => {
   confirmMock.mockReset();
   loggerWarnMock.mockReset();
   setActiveOutputMode(resolveOutputMode({}, {}));
+  rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
 
 describe('reset', () => {

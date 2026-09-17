@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import {
@@ -43,9 +45,6 @@ const execMock = mock(async () => ({
   exitCode: 0,
 }));
 
-mock.module('../state/with-lock', () => ({
-  withLock: (_dir: string, _cmd: string, fn: () => Promise<unknown>) => fn(),
-}));
 mock.module('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
 }));
@@ -114,7 +113,7 @@ const env: DeploymentEnv = {
   SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,
   DRAIN_TIMEOUT: 0,
-  DEPLOY_DIR: '/tmp/tale-rollback-test',
+  DEPLOY_DIR: '',
 };
 
 function expectRunbookPrinted(): void {
@@ -136,6 +135,9 @@ function expectRunbookPrinted(): void {
 }
 
 beforeEach(() => {
+  // Keep the real lock: a module mock here also disables sibling deployment
+  // suites' guards in Bun's shared process.
+  env.DEPLOY_DIR = mkdtempSync(join(tmpdir(), 'tale-rollback-test-'));
   // One platform replica in the live colour, so the version probe has
   // something to read.
   dockerMock.mockImplementation((...args: string[]) => {
