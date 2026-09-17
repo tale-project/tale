@@ -32,4 +32,6 @@ Sign out and sign in again to verify the credentials independently of the setup 
 
 Add people through **Settings > Members** and choose their roles deliberately. After the initial account, local account creation uses invitations rather than open self-service registration. Corporate SSO and provisioning have their own [setup and membership rules](/platform/admin/enterprise-sso).
 
+The backend enforces that, not only the proxy in front of it: once any account exists, `/api/auth/sign-up/email` answers 403. This matters because the backend is also reachable from the agent sandbox network, which the proxy never sees, so code running in an agent session cannot create accounts either. **Settings > Members** creates accounts server-side and is unaffected. A throwaway test deployment that needs the open route sets `TALE_ALLOW_OPEN_SIGN_UP=true`; never set it on a real one.
+
 Use [Members and roles](/platform/admin/members-and-roles) to choose access. Then [create a first agent](/tutorials/editor/first-agent-end-to-end) and test a real reply. A working dashboard confirms access to the application; it does not verify the model provider or every background service.

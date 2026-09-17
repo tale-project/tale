@@ -46,6 +46,12 @@ import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { ac, orgRoles } from './access.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
+import {
+  openSignUpEnabled,
+  SIGN_UP_CLOSED_MESSAGE,
+  SIGN_UP_EMAIL_PATH,
+  signUpAllowed,
+} from './sign-up-gate.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -80,6 +86,13 @@ export interface AuthConfig {
 }
 
 const SIGN_IN_EMAIL_PATH = '/sign-in/email';
+
+/** Whether this deployment already holds an account. Asked on the sign-up
+ * path only, which a closed deployment answers before touching the adapter. */
+async function deploymentHasUsers(sql: Sql): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`SELECT "id" FROM "user" LIMIT 1`;
+  return rows.length > 0;
+}
 
 /**
  * The second-factor LIFECYCLE endpoints. Every one of them audits on success
@@ -446,6 +459,24 @@ export function createAuth(config: AuthConfig) {
       // Pre-flight gate: reject sign-ins over the per-IP flood limit OR
       // against a locked account, surfacing the MAX retry-after of the two.
       before: createAuthMiddleware(async (mw) => {
+        // Account creation: the setup flow and the managed bootstrap create
+        // the FIRST account over HTTP; every later one is an administrator's
+        // server-side call. An open route would also answer whoever else can
+        // reach this backend — the sandbox network is on it — so it closes
+        // once the deployment has an account. See sign-up-gate.ts.
+        if (mw.path === SIGN_UP_EMAIL_PATH) {
+          const allowed = signUpAllowed({
+            overHttp: mw.request !== undefined,
+            deploymentHasUsers: await deploymentHasUsers(sql),
+            openSignUp: openSignUpEnabled(process.env),
+          });
+          if (!allowed)
+            throw new APIError('FORBIDDEN', {
+              message: SIGN_UP_CLOSED_MESSAGE,
+              code: 'SIGN_UP_CLOSED',
+            });
+          return;
+        }
         // 2FA verify lockout: a caller who knows the password must not
         // brute-force the ~10^6 TOTP space — the counter mirrors the
         // password lockout, keyed by the pending user's id.

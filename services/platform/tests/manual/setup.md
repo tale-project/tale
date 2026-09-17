@@ -39,6 +39,7 @@ cd services/platform && \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
   TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
+  TALE_ALLOW_OPEN_SIGN_UP=true \
   bun scripts/dev.ts
 ```
 

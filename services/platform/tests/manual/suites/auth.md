@@ -173,6 +173,13 @@ compute codes from the enrollment secret.
   degrades to the string itself); the dedicated conditional-access UI is
   **not** shown (AADSTS999999 ∉ the CA set), so there is no **Complete
   multi-factor sign-in** button.
+- [ ] `AUTH-B8` · **Sign-up on a deployment that has accounts** — From a shell
+  inside an agent session container (the sandbox network reaches the backend
+  directly), `POST http://backend-api:3005/api/auth/sign-up/email` with a new
+  address → **403** carrying `SIGN_UP_CLOSED`; no account appears in
+  **Settings > Members**. Adding that same address through **Settings >
+  Members** still works. On an EMPTY deployment the setup flow still creates
+  the first account.
 
 ## Accessibility (WCAG 2.1 AA)
 

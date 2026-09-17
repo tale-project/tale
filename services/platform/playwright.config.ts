@@ -144,6 +144,10 @@ export default createPlaywrightConfig({
         // burned the webServer boot budget). Only applies when Playwright
         // boots the stack itself — a reused stack keeps its own env.
         TALE_E2E: '1',
+        // The e2e specs mint their own accounts over HTTP (helpers/auth's
+        // signUpViaApi), which a real deployment refuses once it holds one —
+        // see backend/auth/sign-up-gate.ts. This throwaway stack opts in.
+        TALE_ALLOW_OPEN_SIGN_UP: 'true',
         // Never pop a browser when the orchestrator is the e2e webServer — a
         // local (non-CI) `bun test:e2e` that spawns the stack would otherwise
         // steal focus on every run. The READY banner still prints the URL.
