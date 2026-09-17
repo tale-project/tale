@@ -12,12 +12,14 @@
 //   { type: "user", message: { content: [ {type:"tool_result",
 //                                          tool_use_id, is_error} ] } }
 //   { type: "result", subtype: "success"|"error_max_turns"|..., session_id,
-//                      total_cost_usd, result }
+//                      total_cost_usd, usage, result }
 //   { type: "system", subtype: "api_retry", ... }  → raw
 //
 // Usage rides on assistant messages and is deduped by message.id: when the
 // model uses tools in parallel the same message id repeats, and counting each
-// would double-bill.
+// would double-bill. A streamed assistant event carries its call's OPENING
+// usage stamp (0 or 1 output tokens), not the final count; the turn's totals
+// are the result's `usage`.
 
 import {
   asArray,
@@ -326,11 +328,17 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
         out.apiErrorStatus = ev.api_error_status;
       }
       if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
-      if (typeof ev.total_cost_usd === 'number') {
+      // The turn's totals are the result's own: its `usage` counts every
+      // model call of the turn, while a streamed assistant event carries
+      // only its call's opening stamp (the pinned CLI streamed 0 output
+      // tokens for a call its result counts 483 for).
+      const usage = asRecord(ev.usage);
+      const cost = asNumber(ev.total_cost_usd);
+      if (usage !== undefined || cost !== undefined) {
         out.usageTotals = {
-          inputTokens: 0,
-          outputTokens: 0,
-          costEstimateUsd: ev.total_cost_usd,
+          inputTokens: asNumber(usage?.input_tokens) ?? 0,
+          outputTokens: asNumber(usage?.output_tokens) ?? 0,
+          ...(cost !== undefined ? { costEstimateUsd: cost } : {}),
         };
       }
       return [out];

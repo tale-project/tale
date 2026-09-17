@@ -429,6 +429,15 @@ function harnessSessionIdFromEvents(
   return undefined;
 }
 
+/** The output tokens a window's `usage` reports add up to. */
+function outputTokensFromEvents(events: readonly HarnessEvent[]): number {
+  let total = 0;
+  for (const event of events) {
+    if (event.type === 'usage') total += event.outputTokens;
+  }
+  return total;
+}
+
 /** What one harness window observed — the lane-neutral core result. */
 export type HarnessWindowResult =
   | { kind: 'gone' }
@@ -446,6 +455,9 @@ export type HarnessWindowResult =
       execResult?: SessionExecResult;
       exited: boolean;
       agentSessionId?: string;
+      /** The output tokens the window's `usage` reports add up to; absent
+       * reads as none. */
+      outputTokens?: number;
     };
 
 /**
@@ -675,31 +687,79 @@ export async function drainHarnessWindow(args: {
     ...(execResult !== undefined ? { execResult } : {}),
     exited,
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+    outputTokens: outputTokensFromEvents(events),
   };
+}
+
+/** The reason a turn settles failed with when its model answered nothing. */
+export const EMPTY_ANSWER_REASON =
+  'The model returned an empty answer, so the agent did nothing this turn.';
+
+/** What `classifyHarnessEnd` reads of a terminal window. */
+type HarnessEndWindow = Pick<
+  Extract<HarnessWindowResult, { kind: 'terminal' }>,
+  'ended' | 'execResult' | 'exited' | 'text' | 'timeline' | 'outputTokens'
+>;
+
+function hasWords(text: string | undefined): boolean {
+  return text !== undefined && text.trim() !== '';
+}
+
+/**
+ * Whether a completed turn got nothing at all from its model — the answer a
+ * serving cluster that fails mid-prefill can give as an empty 200 (observed
+ * live: Claude Code ended the turn cleanly without writing an assistant
+ * message, and the settle read that as a deliberate no-op). Anything the
+ * window saw the model produce is an answer: text (streamed, or only on the
+ * end), a tool call, or output tokens, from the window's usage reports or
+ * the end's own totals. The tokens are what counts a turn that only reasoned
+ * (no timeline part shows reasoning), and for a harness whose end reports
+ * the whole turn they cover what a long turn's replay no longer holds.
+ */
+function isEmptyAnswer(
+  window: HarnessEndWindow,
+  ended: Extract<HarnessEvent, { type: 'turn-ended' }>,
+): boolean {
+  if (ended.status !== 'completed') return false;
+  const answered =
+    hasWords(window.text) ||
+    hasWords(ended.finalText) ||
+    window.timeline.some((part) => part.type !== 'text' || hasWords(part.text));
+  const spentTokens =
+    (window.outputTokens ?? 0) > 0 ||
+    (ended.usageTotals?.outputTokens ?? 0) > 0;
+  return !answered && !spentTokens;
 }
 
 /** How a terminal window classifies: the agent's own `turn-ended.isError`
  * wins when it exists; an exit without `turn-ended` is a crash by
- * definition, with the exec's own error carried as the reason. */
-export function classifyHarnessEnd(result: {
-  ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
-  execResult?: SessionExecResult;
-  exited: boolean;
-}): { errored: boolean; crashReason?: string } {
-  const crashedNoResult = result.ended === undefined && result.exited;
-  const errored =
-    result.ended !== undefined
-      ? result.ended.isError === true
-      : crashedNoResult;
-  const crashReason = crashedNoResult
-    ? result.execResult?.errorMessage !== undefined &&
-      result.execResult.errorMessage !== ''
-      ? `The harness stopped: ${result.execResult.errorMessage}`
-      : `The harness exited unexpectedly${
-          typeof result.execResult?.exitCode === 'number'
-            ? ` (exit code ${result.execResult.exitCode})`
-            : ''
-        } without completing the turn.`
-    : undefined;
-  return { errored, ...(crashReason !== undefined ? { crashReason } : {}) };
+ * definition, with the exec's own error carried as the reason; and a turn
+ * that completed with nothing from its model is an empty answer. */
+export function classifyHarnessEnd(window: HarnessEndWindow): {
+  errored: boolean;
+  /** Why the turn failed when the platform, not the harness, says so — a
+   * crash or an empty answer. A harness-reported error gets none: its own
+   * final words are the reason. */
+  reason?: string;
+  /** A completed turn with nothing from its model (`isEmptyAnswer`). */
+  emptyAnswer: boolean;
+} {
+  const { ended, execResult } = window;
+  if (ended === undefined) {
+    if (!window.exited) return { errored: false, emptyAnswer: false };
+    const reason =
+      execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
+        ? `The harness stopped: ${execResult.errorMessage}`
+        : `The harness exited unexpectedly${
+            typeof execResult?.exitCode === 'number'
+              ? ` (exit code ${execResult.exitCode})`
+              : ''
+          } without completing the turn.`;
+    return { errored: true, reason, emptyAnswer: false };
+  }
+  if (ended.isError === true) return { errored: true, emptyAnswer: false };
+  if (isEmptyAnswer(window, ended)) {
+    return { errored: true, reason: EMPTY_ANSWER_REASON, emptyAnswer: true };
+  }
+  return { errored: false, emptyAnswer: false };
 }

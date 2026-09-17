@@ -1,8 +1,8 @@
 // claude-stream-json family tests. Parser expectations are derived from the
 // captured streams in fixtures/claude-code/ (issue-to-pr + subagent-turn use
-// the Agent-SDK shapes; plan-mode-turn is a real pinned-CLI 2.1.173
-// capture); the stdin-dialect tests pin the steer payload builders the
-// family also owns. Exec construction is covered by the golden fixtures +
+// the Agent-SDK shapes; plan-mode-turn, empty-answer-turn, token-only-turn
+// and thinking-only-turn are real pinned-CLI 2.1.173 captures); the
+// stdin-dialect tests pin the steer payload builders the family also owns. Exec construction is covered by the golden fixtures +
 // interpreter tests, not here.
 
 import { describe, expect, it } from 'vitest';
@@ -231,6 +231,8 @@ describe('claude-stream-json parser', () => {
         output: 'Exit plan mode?',
         isError: true,
       },
+      // The turn's own totals come from the result: the streamed assistant
+      // event above carries only the call's opening stamp (0/0 here).
       {
         type: 'turn-ended',
         status: 'completed',
@@ -239,23 +241,128 @@ describe('claude-stream-json parser', () => {
         isError: false,
         durationMs: 14144,
         usageTotals: {
-          inputTokens: 0,
-          outputTokens: 0,
+          inputTokens: 66200,
+          outputTokens: 483,
           costEstimateUsd: 0.343075,
         },
       },
     ]);
   });
 
-  it.each(['issue-to-pr', 'subagent-turn', 'plan-mode-turn'])(
-    'parses %s identically when fed in 7-byte chunks',
-    (name) => {
-      const text = readFixture('claude-code', name);
-      expect(collectEvents(createParser('claude-code'), text, 7)).toEqual(
-        collectEvents(createParser('claude-code'), text),
-      );
-    },
-  );
+  it('normalizes a real empty answer: a clean end with nothing from the model', () => {
+    const events = collectEvents(
+      createParser('claude-code'),
+      readFixture('claude-code', 'empty-answer-turn'),
+    );
+    expect(events).toEqual([
+      {
+        type: 'turn-started',
+        harness: 'claude-code',
+        sessionId: '1ada8c8a-113e-4b8b-b46c-b3a1c23c12c6',
+        model: 'claude-sonnet-4-5',
+      },
+      {
+        type: 'raw',
+        harness: 'claude-code',
+        payload: expect.objectContaining({ subtype: 'status' }),
+      },
+      // No text, no tool call, no usage event: the CLI wrote no assistant
+      // message at all. An empty `result` sets no finalText.
+      {
+        type: 'turn-ended',
+        status: 'completed',
+        sessionId: '1ada8c8a-113e-4b8b-b46c-b3a1c23c12c6',
+        isError: false,
+        durationMs: 51,
+        usageTotals: { inputTokens: 0, outputTokens: 0, costEstimateUsd: 0 },
+      },
+    ]);
+  });
+
+  it('counts the output tokens of an answer that shows nothing', () => {
+    const events = collectEvents(
+      createParser('claude-code'),
+      readFixture('claude-code', 'token-only-turn'),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: '30a5f2b2-9eb7-499d-8c79-f69732092059',
+      isError: false,
+      durationMs: 31,
+      usageTotals: {
+        inputTokens: 0,
+        outputTokens: 1,
+        costEstimateUsd: 0.000014999999999999999,
+      },
+    });
+    expect(events.map((event) => event.type)).toEqual([
+      'turn-started',
+      'raw',
+      'turn-ended',
+    ]);
+  });
+
+  it('counts a reasoning-only answer from the result, not the streamed stamp', () => {
+    const events = collectEvents(
+      createParser('claude-code'),
+      readFixture('claude-code', 'thinking-only-turn'),
+    );
+    expect(events).toEqual([
+      {
+        type: 'turn-started',
+        harness: 'claude-code',
+        sessionId: 'bfb0924a-8989-48f4-8ca9-8bab2d0290d9',
+        model: 'claude-sonnet-4-5',
+      },
+      {
+        type: 'raw',
+        harness: 'claude-code',
+        payload: expect.objectContaining({ subtype: 'status' }),
+      },
+      {
+        type: 'raw',
+        harness: 'claude-code',
+        payload: expect.objectContaining({ subtype: 'thinking_tokens' }),
+      },
+      // The thinking block itself surfaces nothing; its message's usage is
+      // the opening stamp, which says 0.
+      {
+        type: 'usage',
+        model: 'claude-sonnet-4-5',
+        inputTokens: 50,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      },
+      {
+        type: 'turn-ended',
+        status: 'completed',
+        sessionId: 'bfb0924a-8989-48f4-8ca9-8bab2d0290d9',
+        isError: false,
+        durationMs: 53,
+        usageTotals: {
+          inputTokens: 50,
+          outputTokens: 30,
+          costEstimateUsd: 0.0006000000000000001,
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    'issue-to-pr',
+    'subagent-turn',
+    'plan-mode-turn',
+    'empty-answer-turn',
+    'token-only-turn',
+    'thinking-only-turn',
+  ])('parses %s identically when fed in 7-byte chunks', (name) => {
+    const text = readFixture('claude-code', name);
+    expect(collectEvents(createParser('claude-code'), text, 7)).toEqual(
+      collectEvents(createParser('claude-code'), text),
+    );
+  });
 
   it('classifies an API-errored result reported under subtype success', () => {
     // The CLI leaves subtype:'success' on a result that actually failed with

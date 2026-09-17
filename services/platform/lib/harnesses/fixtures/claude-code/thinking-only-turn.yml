@@ -1,0 +1,239 @@
+# A real pinned-CLI 2.1.173 stream: the model only reasoned (one thinking block,
+# 30 output tokens) and stopped. The streamed assistant event carries the
+# message start's usage stamp, 0 here as through openrouter
+# (plan-mode-turn.yml); only the result counts the tokens. Captured against a
+# local stand-in for the gateway; paths sanitized.
+events:
+  - type: system
+    subtype: init
+    cwd: /agent/workspace
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    tools:
+      - Task
+      - AskUserQuestion
+      - Bash
+      - CronCreate
+      - CronDelete
+      - CronList
+      - Edit
+      - EnterPlanMode
+      - EnterWorktree
+      - ExitPlanMode
+      - ExitWorktree
+      - NotebookEdit
+      - Read
+      - ScheduleWakeup
+      - Skill
+      - TaskCreate
+      - TaskGet
+      - TaskList
+      - TaskOutput
+      - TaskStop
+      - TaskUpdate
+      - WebFetch
+      - WebSearch
+      - Workflow
+      - Write
+    mcp_servers: []
+    model: claude-sonnet-4-5
+    permissionMode: bypassPermissions
+    slash_commands:
+      - deep-research
+      - update-config
+      - verify
+      - debug
+      - code-review
+      - simplify
+      - batch
+      - fewer-permission-prompts
+      - loop
+      - claude-api
+      - run
+      - run-skill-generator
+      - clear
+      - compact
+      - context
+      - heapdump
+      - init
+      - reload-skills
+      - review
+      - security-review
+      - usage
+      - insights
+      - goal
+      - team-onboarding
+    apiKeySource: ANTHROPIC_API_KEY
+    claude_code_version: 2.1.173
+    output_style: default
+    agents:
+      - claude
+      - Explore
+      - general-purpose
+      - Plan
+      - statusline-setup
+    skills:
+      - deep-research
+      - update-config
+      - verify
+      - debug
+      - code-review
+      - simplify
+      - batch
+      - fewer-permission-prompts
+      - loop
+      - claude-api
+      - run
+      - run-skill-generator
+    plugins: []
+    analytics_disabled: true
+    product_feedback_disabled: true
+    uuid: ecb366f6-0984-483d-a29b-6dd9d2729f50
+    memory_paths:
+      auto: /agent/.runtime/home/.claude/projects/-agent-workspace/memory/
+    fast_mode_state: off
+  - type: system
+    subtype: status
+    status: requesting
+    uuid: 25a9e7c9-6eda-4c48-86d9-135c97dea74d
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+  - type: stream_event
+    event:
+      type: message_start
+      message:
+        id: msg_probe
+        type: message
+        role: assistant
+        model: claude-sonnet-4-5
+        content: []
+        stop_reason: null
+        stop_sequence: null
+        usage:
+          input_tokens: 50
+          output_tokens: 0
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: 2ec4874c-ef2f-43ae-a027-31e3f0291d8d
+    ttft_ms: 9
+  - type: stream_event
+    event:
+      type: content_block_start
+      index: 0
+      content_block:
+        type: thinking
+        thinking: ''
+        signature: ''
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: 5bb19266-079e-438b-ab1c-a8526daaa885
+  - type: system
+    subtype: thinking_tokens
+    estimated_tokens: 10
+    estimated_tokens_delta: 10
+    uuid: 92af5016-781f-4339-93f7-0513cadf9bbe
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+  - type: stream_event
+    event:
+      type: content_block_delta
+      index: 0
+      delta:
+        type: thinking_delta
+        thinking: The operator asked nothing I can act on.
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: 8c4e75a5-e230-423a-b357-98ae09ab3dc2
+  - type: stream_event
+    event:
+      type: content_block_delta
+      index: 0
+      delta:
+        type: signature_delta
+        signature: c2ln
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: 5f5cdd23-f756-45bb-9e42-c6a4bd4843e3
+  - type: assistant
+    message:
+      id: msg_probe
+      type: message
+      role: assistant
+      model: claude-sonnet-4-5
+      content:
+        - type: thinking
+          thinking: The operator asked nothing I can act on.
+          signature: c2ln
+      stop_reason: null
+      stop_sequence: null
+      usage:
+        input_tokens: 50
+        output_tokens: 0
+      context_management: null
+    parent_tool_use_id: null
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    uuid: c5a1206e-04c7-4e25-a94b-e72b0612cd38
+  - type: stream_event
+    event:
+      type: content_block_stop
+      index: 0
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: acf71bbf-e221-4b26-9d3f-9ee10140d378
+  - type: stream_event
+    event:
+      type: message_delta
+      delta:
+        stop_reason: end_turn
+        stop_sequence: null
+      usage:
+        output_tokens: 30
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: e59e90d6-3494-4b84-9120-57f6a541aebf
+  - type: stream_event
+    event:
+      type: message_stop
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    parent_tool_use_id: null
+    uuid: 3162f0d1-0cd3-46fe-8a3f-3293c1a33f7f
+  - type: result
+    subtype: success
+    is_error: false
+    api_error_status: null
+    duration_ms: 53
+    duration_api_ms: 28
+    ttft_ms: 37
+    ttft_stream_ms: 36
+    time_to_request_ms: 27
+    num_turns: 1
+    result: ''
+    stop_reason: end_turn
+    session_id: bfb0924a-8989-48f4-8ca9-8bab2d0290d9
+    total_cost_usd: 0.0006000000000000001
+    usage:
+      input_tokens: 50
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      output_tokens: 30
+      server_tool_use:
+        web_search_requests: 0
+        web_fetch_requests: 0
+      service_tier: standard
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      inference_geo: ''
+      iterations: []
+      speed: standard
+    modelUsage:
+      claude-sonnet-4-5:
+        inputTokens: 50
+        outputTokens: 30
+        cacheReadInputTokens: 0
+        cacheCreationInputTokens: 0
+        webSearchRequests: 0
+        costUSD: 0.0006000000000000001
+        contextWindow: 200000
+        maxOutputTokens: 32000
+    permission_denials: []
+    terminal_reason: completed
+    fast_mode_state: off
+    uuid: cb8affb0-4af5-4d5f-be36-3ebacae7bd46

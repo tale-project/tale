@@ -42,6 +42,8 @@ Le moteur enregistre les nœuds terminés comme points de reprise et continue ap
 
 Un échec d’agent admissible permet jusqu’à trois nouvelles tentatives automatiques après la première. Les points de reprise précédents restent acquis et l’en-tête affiche le compteur. Une tentative qui travaille au moins quinze minutes renouvelle ce budget de tentatives. Un pool d’abonnements peut choisir un autre compte pour la suivante.
 
+Une étape d’agent échoue aussi quand son modèle ne renvoie rien du tout : ni texte, ni appel d’outil, ni token généré. Un serveur de modèle peut répondre ainsi s’il tombe en panne en pleine réponse. L’exécution indique alors, en anglais, « The model returned an empty answer, so the agent did nothing this turn. » Cet échec bénéficie lui aussi de ces nouvelles tentatives. Si le modèle a seulement utilisé des outils, ou signalé des tokens générés sans texte visible, par exemple pour son raisonnement, il a bien répondu et l’étape n’échoue pas pour cette raison.
+
 L’épuisement de la fenêtre totale d’exécution, l’expiration d’une question ou un refus lié au budget ne bénéficie pas de ces reprises. Chaque tentative consomme ses propres ressources ; les coûts antérieurs ne disparaissent pas. Si recommencer ne peut pas résoudre la cause, arrête l’exécution et corrige la dépendance avant de relancer.
 
 ## Arrêter ou corriger le workflow

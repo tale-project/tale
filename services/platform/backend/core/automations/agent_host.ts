@@ -2013,7 +2013,7 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[agent-host] final progress write failed:', err),
     );
-  const { errored, crashReason } = classifyHarnessEnd(window);
+  const { errored, reason } = classifyHarnessEnd(window);
   const ended = window.ended;
 
   // A clean turn end with a question on the table is not a settle — it is the
@@ -2081,11 +2081,12 @@ async function continueOrSettle(
     args,
     {
       errored,
-      ...(crashReason !== undefined ? { reason: crashReason } : {}),
-      // Classification for the retry gate: a harness-reported error and a
-      // crashed-no-result window both read `harness_error` (mirroring the
-      // task lane), except a death at the deadline — retrying a burned 12h
-      // window is waste. The API status rides along for display only.
+      ...(reason !== undefined ? { reason } : {}),
+      // Classification for the retry gate: a harness-reported error, a
+      // crashed-no-result window and an empty answer all read
+      // `harness_error`, so the stepper re-kicks them in place, except a
+      // death at the deadline — retrying a burned 12h window is waste. The
+      // API status rides along for display only.
       ...(errored
         ? {
             failureCode:

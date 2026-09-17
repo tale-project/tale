@@ -42,6 +42,8 @@ Der Ablauf speichert abgeschlossene Nodes als Checkpoints und setzt danach fort.
 
 Ein geeigneter Agentenfehler erlaubt nach dem ersten Versuch bis zu drei automatische Wiederholungen. Frühere Checkpoints bleiben erhalten; der Kopfbereich zeigt den Wiederholungszähler. Arbeitet ein Versuch mindestens fünfzehn Minuten, wird dieses Wiederholungsbudget erneuert. Abonnement-Pools können für einen neuen Versuch ein anderes Konto wählen.
 
+Ein Agentenschritt schlägt auch fehl, wenn sein Modell überhaupt nichts liefert: keinen Text, keinen Tool-Aufruf und keine erzeugten Tokens. So kann ein Modellserver antworten, der mitten in der Antwort ausfällt. Der Lauf meldet dann auf Englisch „The model returned an empty answer, so the agent did nothing this turn.“ Auch dieser Fehler erhält diese Wiederholungen. Hat das Modell nur Tools verwendet oder erzeugte Tokens ohne sichtbaren Text gemeldet, etwa für Denkschritte, gilt das als Antwort. Der Schritt scheitert dann nicht aus diesem Grund.
+
 Ein ausgeschöpftes Ausführungszeitfenster, eine abgelaufene Frage oder eine Ablehnung wegen des Budgets erhält diese Wiederholungen nicht. Jeder Versuch verbraucht eigene Ressourcen; frühere Kosten entfallen nicht. Kann ein erneuter Versuch die Ursache nicht beheben, stoppe den Lauf und korrigiere die Abhängigkeit vor dem Neustart.
 
 ## Stoppen oder den Workflow korrigieren
