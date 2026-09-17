@@ -23375,6 +23375,13 @@ async function checkMailboxSyncLane(
   const { knowledgeShimHandlers } =
     await import('./domains/knowledge/service.ts');
   await drainNotificationEmails(sql);
+  // Other lanes keep inbox fixtures in this organization. Count every new
+  // conversation this transport creates without charging it for those rows.
+  const existingConversations = await sql<{ id: string }[]>`
+    SELECT id FROM app.conversations
+    WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+  `;
+  const existingConversationIds = existingConversations.map((row) => row.id);
 
   // --- the fake transport (phased inbox) -----------------------------------
   let phase: 1 | 2 = 1;
@@ -23511,6 +23518,7 @@ async function checkMailboxSyncLane(
       FROM app.conversations c
       LEFT JOIN app.contacts ct ON ct.id = c.contact_id
       WHERE c.org_id = ${orgId} AND c.connector_name = 'imap-smtp'
+        AND NOT (c.id = ANY(${existingConversationIds}::text[]))
       ORDER BY c.created_at_ms ASC
     `;
     const watermark = await sql<{ inbound: number | null }[]>`
@@ -23532,11 +23540,13 @@ async function checkMailboxSyncLane(
     const countAfterRepeat = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+        AND NOT (id = ANY(${existingConversationIds}::text[]))
     `;
     const messagesAfterRepeat = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversation_messages
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
         AND direction = 'inbound'
+        AND NOT (conversation_id = ANY(${existingConversationIds}::text[]))
     `;
 
     // Threading: Alice's reply lands in HER existing conversation.
@@ -23551,6 +23561,7 @@ async function checkMailboxSyncLane(
     const conversationsFinal = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+        AND NOT (id = ANY(${existingConversationIds}::text[]))
     `;
 
     // The emailed attachment after three polls (two of them re-fetching
@@ -37596,11 +37607,14 @@ async function checkChatThreadSurface(
     );
   const budgetRace = [
     await mkThread({ title: 'Budget race A' }),
-    await mkThread({ title: 'Budget race B' }),
+    // The scoped REST store only accepts direct threads, matching the REST
+    // create door. A default app-kind fixture fails scope before the race.
+    await mkThread({ title: 'Budget race B', kind: 'direct' }),
   ];
   let budgetPolicySaved = false;
   let raceWins = 0;
   let raceRefusals = 0;
+  let raceErrors: string[] = [];
   let heldRow:
     | { userId: string | null; tokens: string; costCents: number }
     | undefined;
@@ -37641,6 +37655,15 @@ async function checkChatThreadSurface(
       }),
     ]);
     raceWins = opens.filter((open) => open.status === 'fulfilled').length;
+    raceErrors = opens.flatMap((open) =>
+      open.status === 'rejected'
+        ? [
+            open.reason instanceof Error
+              ? `${open.reason.name}: ${open.reason.message}`
+              : String(open.reason),
+          ]
+        : [],
+    );
     raceRefusals = opens.filter(
       (open) =>
         open.status === 'rejected' &&
@@ -37730,7 +37753,7 @@ async function checkChatThreadSurface(
       doorRefusedWhileHeld &&
       admittedAfterRelease &&
       admissionRows === '1',
-    `policy saved=${budgetPolicySaved}, admitted=${raceWins} (want 1), budget refusals=${raceRefusals} (want 1), hold=${JSON.stringify(heldRow)} (want the holder, 1500 tokens, 0.25 cents), loser rows=${loserTrace} (want 0), door refused while held=${doorRefusedWhileHeld}, admitted after release=${admittedAfterRelease}, admission rows=${admissionRows} (want 1)`,
+    `policy saved=${budgetPolicySaved}, admitted=${raceWins} (want 1), budget refusals=${raceRefusals} (want 1), errors=${JSON.stringify(raceErrors)}, hold=${JSON.stringify(heldRow)} (want the holder, 1500 tokens, 0.25 cents), loser rows=${loserTrace} (want 0), door refused while held=${doorRefusedWhileHeld}, admitted after release=${admittedAfterRelease}, admission rows=${admissionRows} (want 1)`,
   );
 }
 
@@ -42878,6 +42901,24 @@ async function checkDataResidency(
   ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
+  const restoreEnv = overrideEnv({
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+    TALE_DEPLOYMENT_CONFIG_ADMINS:
+      process.env.TALE_DEPLOYMENT_CONFIG_ADMINS ?? '',
+  });
+  try {
+    await checkDataResidencyConfig(sql, base, ctx, orgSlug);
+  } finally {
+    restoreEnv();
+  }
+}
+
+async function checkDataResidencyConfig(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
   const { cookie, orgId } = ctx;
   const get = (route: string): Promise<Response> =>
     fetch(`${base}${route}`, { headers: { cookie, origin: base } });
@@ -42892,8 +42933,6 @@ async function checkDataResidency(
       method: 'DELETE',
       headers: { cookie, origin: base },
     });
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
-
   // --- Deployment: read view, editor gate, hash OCC, retired section ----
   const readFresh = z
     .object({
