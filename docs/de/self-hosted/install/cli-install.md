@@ -270,6 +270,26 @@ Ist native Konfiguration deklariert, braucht sie ebenfalls ihren gespeicherten B
 
 Für den Rückweg nach einer abgeschlossenen Migration tauschst du beide Origins ausdrücklich und durchläufst denselben geprüften Ablauf. Plane DNS, Zertifikate, Callback-Registrierungen und Zugriffstests mit [TLS und Domains](/de/self-hosted/configuration/tls-and-domains). Die Änderung der Bundle-Origin erledigt diese externen Schritte nicht.
 
+#### Die Anmeldeadresse des Deploy-Operators ändern {#managed-operator-address-migration}
+
+Ein verwaltetes Deployment meldet sich bei jedem Lauf als sein `identity`-Operator an. Soll dieses Konto eine Maschinenadresse bekommen, damit sich Personen mit eigenen Konten anmelden, behältst du das Konto und änderst nur seine Anmeldeadresse. Seine Benutzer-ID und alles, was daran hängt – verwaltete Clients, Skills im Besitz des Operators, API-Schlüssel und aufbewahrte Journale –, bleibt erhalten.
+
+1. Setze `identity.email` auf die neue Adresse und `identity.migrateEmailFrom` auf die genaue bisherige Adresse. Beide müssen verschieden sein. Behalte `identity.bootstrap: "fresh"` und das Passwort des Kontos bei. Der Bootstrap muss abgeschlossen sein, und eine deklarierte E-Mail-Bestätigung braucht ihr abgeschlossenes Journal.
+2. Bereite das Bundle vor, prüfe es, sieh dir die Vorschau an und wende es an. Die CLI liest die aktuelle Adresse des aufbewahrten Kontos im Backend, meldet sich damit an und weist die aufbewahrte Benutzer-ID nach. Sie hält die Änderung im Journal fest, benennt das Konto über den nativen Adapter um, beendet alle Sitzungen des Kontos und meldet sich mit der neuen Adresse erneut an. Die Umbenennung ist an die bisherige Adresse gebunden, sodass eine gleichzeitige Änderung abgelehnt statt überschrieben wird. Eine deklarierte E-Mail-Bestätigung bestätigt danach die neue Adresse.
+3. Ein erneuter Lauf nach einer Unterbrechung findet die Adresse bereits geändert vor und schließt die Journale ohne zweite Umbenennung ab. `migrateEmailFrom` danach deklariert zu lassen, schadet nicht; entferne es, sobald der Deployment-Beleg bereit ist.
+
+Hält ein anderes Konto die neue Adresse oder das aufbewahrte Konto keine der beiden Adressen, stoppt das Deployment vor jeder Änderung.
+
+#### Einen Break-Glass-Administrator deklarieren {#managed-break-glass}
+
+`identity.breakGlass` hält einen Administrator für den Fall bereit, dass der Deploy-Operator nicht verfügbar ist, etwa `{ "email": "break-glass@example.org", "passwordHash": { "env": "TALE_BREAK_GLASS_PASSWORD_HASH" } }`. Die Adresse ist ein fester Wert oder eine verpflichtende Umgebungsreferenz und muss sich von der aktuellen und der bisherigen Adresse des Operators unterscheiden. Das Passwort erreicht das Deployment nie: Erzeuge seinen Hash mit `tale auth hash-password` dort, wo das Passwort aufbewahrt wird, und übergib nur den Hash.
+
+Jedes Deployment gleicht das Backend an die Deklaration an. Ein fehlendes Konto wird mit bestätigter Adresse und genau den deklarierten Zugangsdaten angelegt. Ein bestehendes Konto erhält diese Zugangsdaten zurück, und alle seine Sitzungen enden, wenn sie sich ändern. Das Konto wird über die nativen Mitglieder-Endpunkte `admin` der verwalteten Organisation; ein `owner` wird nie verändert. Ein aufbewahrtes Journal bindet die Adresse an eine Konto-ID, sodass ein anderes Konto mit dieser Adresse das Deployment später stoppt. Das Deployment meldet sich nie mit diesem Konto an. Ändere sein Passwort über den deklarierten Hash, nicht in der Anwendung.
+
+#### Erzwungene Zwei-Faktor-Anmeldung
+
+Ein verwaltetes Deployment meldet sich allein mit dem Passwort als sein Operator an. Erzwingt die Organisation `two_factor_policy`, gib dem Operator einen Passkey und nie eine Authenticator-App: Die Passwort-Anmeldung eines Kontos mit Authenticator-App wird mit einer Code-Abfrage beantwortet, und ein Konto ohne beide Faktoren wird nach Ablauf seiner Übergangsfrist zur Einrichtung geschickt. Die CLI stoppt bei beiden Antworten und nennt die erhaltene. Personen melden sich mit eigenen Konten an und können beide Faktoren nutzen.
+
 #### Zugangsdaten nativer Clients exportieren
 
 Um Zugangsdaten eines verwalteten Clients an eine separate Anwendung zu übergeben, setze `NATIVE_CLIENT_KEY` auf den deklarierten Schlüssel und `PRIVATE_EXPORT_DIRECTORY` auf einen neuen privaten Ausgabeordner. Dessen übergeordneter Ordner muss bereits deinem Konto gehören, Modus `0700` haben und unter vertrauenswürdigen Verzeichnissen liegen. Exportiere aus demselben freigegebenen Deployment, ohne Backend-Pfade oder Containernamen auszuwerten:
@@ -528,6 +548,10 @@ Beide nativen Befehle nehmen exakte Erwartungen über `--config-ref`, `--source-
 Konfigurationsbefehle haben kein `--dry-run`: Nutze `stage`, `verify --rebuild` und `verify-native`. Erfolgs-JSON hat die Form `{ok:true,command:"config <verb>",data}`. Build- und Prüfdaten enthalten `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` und `verified`; kompatible Ausgaben verwenden `configVersion` statt `releaseRef`. SHA-Transferbelege und native Belege nutzen Schema 2. Ein Deployment-Ergebnis enthält `automationVersion` und `unchanged`; das explizite Feld `verified` gehört zur Prüfausgabe.
 
 ### Erweitert
+
+`tale auth hash-password` — den Better-Auth-Hash eines Passworts ausgeben, für einen [Break-Glass-Administrator](#managed-break-glass).
+
+Der Befehl liest das Passwort von stdin oder im interaktiven Terminal aus einer verdeckten Eingabe mit Bestätigung. Er lehnt ein Passwort ab, das die Standard-Passwortrichtlinie der Plattform verletzt, und gibt nur den Hash aus.
 
 `tale auth reset-owner` — die Zugangsdaten des Owner-Kontos zurücksetzen.
 

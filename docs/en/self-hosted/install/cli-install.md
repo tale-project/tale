@@ -270,6 +270,26 @@ When native configuration is declared, its retained receipt is required too. Mig
 
 To reverse a completed migration, explicitly swap the two origins and repeat the verified deployment workflow. Plan DNS, certificates, callback registrations and access checks with [TLS and domains](/self-hosted/configuration/tls-and-domains); changing the bundle origin does not perform those external changes.
 
+#### Rename the deploy operator’s address {#managed-operator-address-migration}
+
+A managed deployment signs in as its `identity` operator on every run. To give that account a machine address, so that people sign in with accounts of their own, keep the account and change only its sign-in address. Its user ID, and everything bound to it — managed clients, operator-owned skills, API keys and retained journals — stays.
+
+1. Set `identity.email` to the new address and `identity.migrateEmailFrom` to the exact previous address. The two must differ. Keep `identity.bootstrap: "fresh"` and the account’s password. Bootstrap must be complete, and a declared email attestation needs its completed journal.
+2. Prepare, verify, preview and apply the bundle. The CLI reads the retained account’s current address inside the backend, signs in with it and proves the retained user ID. It journals the change, renames the account through the native adapter, ends every session the account holds and signs in again with the new address. The rename is guarded by the previous address, so a concurrent change is refused rather than overwritten. A declared email attestation then verifies the new address.
+3. A retry after an interruption finds the address already moved and completes the journals without a second rename. Keeping `migrateEmailFrom` declared afterwards is harmless; remove it once the deployment receipt is ready.
+
+Another account holding the new address, or a retained account holding neither address, stops the deployment before any change.
+
+#### Declare a break-glass administrator {#managed-break-glass}
+
+`identity.breakGlass` keeps one administrator for when the deploy operator is unavailable, for example `{ "email": "break-glass@example.org", "passwordHash": { "env": "TALE_BREAK_GLASS_PASSWORD_HASH" } }`. The address is a literal or a required environment reference and must differ from the operator’s current and previous address. The password never reaches the deployment: create its hash where the password is kept, with `tale auth hash-password`, and supply only the hash.
+
+Every deployment makes the backend match the declaration. An absent account is created with a verified address and exactly the declared credential. An existing one gets that credential back, and every session it held ends when the credential changes. The account becomes an `admin` of the managed organization through the native member endpoints; an `owner` is never changed. A retained journal binds the address to one account ID, so a different account holding it later stops the deployment. The deployment never signs in as this account. Rotate its password by changing the declared hash, not in the application.
+
+#### Enforced two-factor sign-in
+
+A managed deployment signs in as its operator with the password alone. When the organization enforces `two_factor_policy`, give the operator a passkey and never an authenticator app: a password sign-in of an account with an authenticator app is answered with a challenge, and an account with neither factor is held at enrolment once its grace period ends. The CLI stops at either answer and names the one it received. People sign in with their own accounts and may use either factor.
+
 #### Export native-client credentials
 
 To hand a managed client’s credentials to a separate application, set `NATIVE_CLIENT_KEY` to its declared key and `PRIVATE_EXPORT_DIRECTORY` to a new private output directory. Its parent must already belong to your account, have mode `0700` and have trusted ancestors. Export from the same ready deployment without interpreting backend paths or container names:
@@ -528,6 +548,10 @@ Both native commands accept exact expectations through `--config-ref`, `--source
 Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and `verify-native`. Success JSON is `{ok:true,command:"config <verb>",data}`. Build and verify data include `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` and `verified`; compatibility output uses `configVersion` instead of `releaseRef`. SHA stage and native receipts use schema 2. A deploy result includes `automationVersion` and `unchanged`; the explicit `verified` field belongs to verification output.
 
 ### Advanced
+
+`tale auth hash-password` — print the Better Auth hash of a password, for a [break-glass administrator](#managed-break-glass).
+
+It reads the password from stdin, or from a hidden prompt with confirmation in an interactive terminal. It refuses a password that fails the platform’s default password policy and prints nothing but the hash.
 
 `tale auth reset-owner` — reset the owner account credentials.
 
