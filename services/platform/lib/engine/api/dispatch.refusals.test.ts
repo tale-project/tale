@@ -171,6 +171,11 @@ const REFUSALS: [
   ['get_run', { runId: 'nope' }, fullStore, 'RUN_NOT_FOUND'],
   ['cancel_run', { runId: 'r' }, bareStore, 'NOT_SUPPORTED'],
   ['cancel_run', {}, fullStore, 'INVALID_PARAMS'],
+  // A run that never existed is RUN_NOT_FOUND, like `get_run` and REST —
+  // the default store's cancelRun answers `{cancelled:false}` with no
+  // terminal status, the shape that means "no such run" (2026-09-18
+  // evaluation, J8-1).
+  ['cancel_run', { runId: 'nope' }, fullStore, 'RUN_NOT_FOUND'],
   ['list_versions', { name: SAVED }, bareStore, 'NOT_SUPPORTED'],
   ['list_versions', {}, fullStore, 'INVALID_PARAMS'],
   ['list_versions', { name: 'nope' }, fullStore, 'AUTOMATION_NOT_FOUND'],
@@ -308,6 +313,40 @@ describe('a host refusal is lifted whole', () => {
       },
     );
     expect(result).toEqual({ error: 'Project not found.' });
+  });
+
+  it('tells a finished run from a missing one on cancel_run (2026-09-18, J8-1)', async () => {
+    const finished = await dispatch(
+      'cancel_run',
+      { runId: 'r' },
+      {
+        store: fullStore({
+          cancelRun: async () => ({ cancelled: false, status: 'success' }),
+        }),
+      },
+    );
+    expect(finished).toEqual({
+      cancelled: false,
+      note: 'the run had already finished — nothing to cancel',
+    });
+
+    const missing = await dispatch(
+      'cancel_run',
+      { runId: 'gone' },
+      { store: fullStore({ cancelRun: async () => ({ cancelled: false }) }) },
+    );
+    expect(missing).toMatchObject({ code: 'RUN_NOT_FOUND' });
+
+    const cancelled = await dispatch(
+      'cancel_run',
+      { runId: 'r' },
+      {
+        store: fullStore({
+          cancelRun: async () => ({ cancelled: true, status: 'cancelled' }),
+        }),
+      },
+    );
+    expect(cancelled).toMatchObject({ cancelled: true });
   });
 });
 

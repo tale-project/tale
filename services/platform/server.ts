@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -473,6 +474,16 @@ function siteOriginFromUrl(siteUrl: string | undefined): string | null {
     console.warn('Invalid SITE_URL, skipping CSP allow-list entry:', err);
     return null;
   }
+}
+
+/** Whether an `If-None-Match` header names this `ETag` — `*`, or a
+ * comma-separated list, the weak `W/` form matching too (the `/openapi.json`
+ * validator, 2026-09-18 evaluation, J9-2). */
+function etagMatches(header: string, etag: string): boolean {
+  const normalize = (tag: string): string => tag.trim().replace(/^W\//, '');
+  if (header.trim() === '*') return true;
+  const target = normalize(etag);
+  return header.split(',').some((tag) => normalize(tag) === target);
 }
 
 function buildContentSecurityPolicy(
@@ -956,16 +967,29 @@ export function createApp(
       ) ??
       siteOriginFromUrl(env.SITE_URL) ??
       new URL(c.req.url).origin;
-    return c.json(
-      {
-        ...document,
-        servers: [
-          { url: `${origin}${env.BASE_PATH}`, description: 'This deployment' },
-        ],
-      },
-      200,
-      { 'Cache-Control': 'public, max-age=300' },
-    );
+    const body = JSON.stringify({
+      ...document,
+      servers: [
+        { url: `${origin}${env.BASE_PATH}`, description: 'This deployment' },
+      ],
+    });
+    // The document is ~1 MB and the docs tell a client to re-fetch it to see
+    // whether the instance moved; a validator lets that be a 304 instead of a
+    // full download (2026-09-18 evaluation, J9-2). The tag is over the served
+    // bytes, so it varies with the origin bound into `servers[]` above.
+    const etag = `"${createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
+    const ifNoneMatch = c.req.header('if-none-match');
+    if (ifNoneMatch !== undefined && etagMatches(ifNoneMatch, etag)) {
+      return c.body(null, 304, {
+        ETag: etag,
+        'Cache-Control': 'public, max-age=300',
+      });
+    }
+    return c.body(body, 200, {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Cache-Control': 'public, max-age=300',
+      ETag: etag,
+    });
   });
 
   app.all(

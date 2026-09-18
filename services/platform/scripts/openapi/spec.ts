@@ -797,7 +797,10 @@ const productInputProperties: Record<string, Json> = {
   price: safeNumber,
   currency: {
     ...str,
-    pattern: '^[A-Z]{3}$',
+    // Any case in, upper-cased before storing — the pattern must admit lower
+    // case too, or a generated client rejects `"eur"` the door accepts
+    // (2026-09-18 evaluation, J7-1).
+    pattern: '^[A-Za-z]{3}$',
     minLength: PRODUCT_CURRENCY_MAX,
     maxLength: PRODUCT_CURRENCY_MAX,
     description:
@@ -4799,7 +4802,7 @@ export function buildSpec(): Json {
               minLength: 1,
               maxLength: 100000,
               description:
-                'The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer.',
+                'The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. The 100,000 cap counts UTF-16 code units, so an astral character — an emoji — costs two, and a body of 50,001 of them is refused. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer.',
             },
             model: {
               type: 'string',
@@ -5347,18 +5350,57 @@ export function buildSpec(): Json {
           'path',
           'The file’s bundle-relative path exactly as `files[].path` lists it — nested segments separated by `/`, raw or percent-encoded (`%2F`)',
         ),
+        {
+          name: 'If-None-Match',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `ETag` a previous answer carried (the tag is over the file’s ' +
+            'bytes; the weak `W/` form matches too): unchanged bytes answer ' +
+            '304 with no body. Takes precedence over `If-Modified-Since`.',
+        },
+        {
+          name: 'If-Modified-Since',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `Last-Modified` a previous answer carried: a file not ' +
+            'modified since answers 304, judged at whole-second precision. ' +
+            'Ignored when `If-None-Match` is present.',
+        },
       ],
       responses: {
+        // The bytes are validated like every download door — `ETag` over the
+        // file, `Last-Modified` from its mtime, 304 on `If-None-Match` /
+        // `If-Modified-Since` — but the operation declared none of it, so a
+        // generated client had no branch for the 304 the door answers
+        // (2026-09-18 evaluation, J1-1).
         '200': {
           description: 'The bytes, named by `Content-Disposition`',
           headers: {
             'Content-Disposition': headerRef('ContentDisposition'),
             'Content-Length': headerRef('ContentLength'),
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Cache-Control': headerRef('CacheControl'),
           },
           content: {
             'application/octet-stream': {
               schema: { type: 'string', format: 'binary' },
             },
+          },
+        },
+        '304': {
+          description:
+            'Not Modified — `If-None-Match` named the current `ETag` (or ' +
+            '`If-Modified-Since` the current `Last-Modified`), so no bytes ' +
+            'are sent; `ETag`, `Last-Modified` and `Cache-Control` ride along',
+          headers: {
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Cache-Control': headerRef('CacheControl'),
           },
         },
         '404': errorResponse(
@@ -6725,7 +6767,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: [...PAGE_FAILURE_KINDS],
               description:
-                'The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name="robots" content="noindex">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log',
+                'The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip` — a redirect that resolves to a private, loopback or metadata address; `host_not_allowed` — a redirect off the registered site, which the crawler does not follow (it used to wear the `private_ip` label); `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name="robots" content="noindex">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log',
             }),
             lastErrorAt: nullable({
               ...epochMs,
@@ -6781,7 +6823,14 @@ curl -H "Authorization: Bearer <api-key>" \\
           required: ['results', 'total'],
           properties: {
             results: { type: 'array', items: ref('WebsiteSearchHit') },
-            total: int,
+            total: {
+              ...int,
+              description:
+                'How many chunks match, across the whole site — not the size ' +
+                'of this answer: it can exceed `results.length`, which `limit` ' +
+                'caps. This door returns only the first `limit` hits and has ' +
+                'no pagination, so `total` is the count, not a cursor.',
+            },
           },
         },
 
@@ -7635,7 +7684,13 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'The projects this automation is installed in, limited to ' +
                 'those the key holder can see',
             },
-            createdBy: { type: 'string' },
+            createdBy: {
+              type: 'string',
+              description:
+                'Who created the automation — the same vocabulary as ' +
+                '`AutomationVersion.createdBy`, `system:provisioning` ' +
+                'included for the built-in connector automations.',
+            },
             createdAt: epochMs,
           },
         },
@@ -7674,7 +7729,10 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'Who saved the version: `api-key:<userId>` for a save through ' +
                 'the MCP endpoint, the bare user id for a save from the ' +
-                'product or its builder',
+                'product or its builder, or `system:provisioning` for a ' +
+                'version the platform seeded when it provisioned the ' +
+                'organization (the built-in connector automations). Split on ' +
+                'the first `:`; a value without one is a user id.',
             },
             createdAt: epochMs,
             deployed: {

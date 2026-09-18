@@ -259,6 +259,8 @@ describe('project-scoped task intake', () => {
       expect.any(Function),
     );
     expect(res.status).toBe(201);
+    // A create names the new task in `Location` (2026-09-18 evaluation, J3-2).
+    expect(res.headers.get('location')).toBe('/api/v1/projects/p-1/tasks/t-1');
     expect(await res.json()).toEqual({ task: { id: 't-1', created: true } });
     expect(service.upsertTaskByExternalRef).toHaveBeenCalledWith(
       tx,

@@ -60,14 +60,25 @@ const PROVIDER_FAILURE_CODES = CHAT_ERROR_CODES.filter(
   > => code !== 'thread_busy' && code !== 'tool_failure' && code !== 'generic',
 );
 
-/** Every value `Run.failureCode` can carry — the OpenAPI enum. */
-export const RUN_FAILURE_CODES = [
+/** Every failure code, in family order and WITH the overlaps — `budget_exceeded`
+ * is both a chat/provider code and an agent code, so this list carries it
+ * twice. The type below dedupes on its own (a union); the exported enum is
+ * deduped explicitly so it never ships a repeated value. */
+const FAILURE_CODES_WITH_OVERLAPS = [
   ...ENGINE_FAILURE_CODES,
   ...PROVIDER_FAILURE_CODES,
   ...AGENT_FAILURE_CODES,
 ] as const;
 
-export type RunFailureCode = (typeof RUN_FAILURE_CODES)[number];
+export type RunFailureCode = (typeof FAILURE_CODES_WITH_OVERLAPS)[number];
+
+/** Every value `Run.failureCode` can carry — the OpenAPI enum, each value
+ * once. `budget_exceeded` appeared twice (the chat and agent families both
+ * name it), which made `openapi.json` fail OAS 3.0.3 `uniqueItems` and
+ * aborted `openapi-python-client` (2026-09-18 evaluation, J9-1). */
+export const RUN_FAILURE_CODES: readonly RunFailureCode[] = [
+  ...new Set(FAILURE_CODES_WITH_OVERLAPS),
+];
 
 /**
  * A node failure that knows its cause. Thrown at the sites that can tell —

@@ -1011,6 +1011,35 @@ describe('GET /openapi.json', () => {
     ]);
   });
 
+  test('carries an ETag and answers 304 to a matching If-None-Match (2026-09-18, J9-2)', async () => {
+    const app = createApp(baseEnv, {
+      openapiDocument: () => Promise.resolve(document),
+    });
+    const first = await app.fetch(
+      new Request('https://tale.example.com/openapi.json'),
+    );
+    expect(first.status).toBe(200);
+    const etag = first.headers.get('etag');
+    expect(etag).toBeTruthy();
+    expect(first.headers.get('cache-control')).toContain('max-age=300');
+
+    const revalidate = await app.fetch(
+      new Request('https://tale.example.com/openapi.json', {
+        headers: { 'If-None-Match': etag ?? '' },
+      }),
+    );
+    expect(revalidate.status).toBe(304);
+    expect(revalidate.headers.get('etag')).toBe(etag);
+    expect(await revalidate.text()).toBe('');
+
+    const stale = await app.fetch(
+      new Request('https://tale.example.com/openapi.json', {
+        headers: { 'If-None-Match': '"stale"' },
+      }),
+    );
+    expect(stale.status).toBe(200);
+  });
+
   // Behind the edge the request URL is the internal upstream; the browser's
   // origin is the proxied Host plus the scheme the edge forwards. An external
   // TLS terminator's `https` must survive that hop (the proxy's

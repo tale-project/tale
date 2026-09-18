@@ -1940,17 +1940,21 @@ describe('validated reads in the published document', () => {
     }
   });
 
-  it('declare no body validator on a GET that answers no JSON', () => {
-    // A download's 200 declares the STORE's validators (its ETag and
-    // Last-Modified ride the bytes) — that is the object's tag, not the
-    // JSON read's, so a binary answer is exempt here.
+  it('declare no body validator on a GET that answers no JSON and no 304', () => {
+    // A download that VALIDATES declares the store's own validators — its
+    // `ETag`/`Last-Modified` ride the bytes — and a 304 to go with them (the
+    // skills file read, 2026-09-18 evaluation, J1-1). A download that does
+    // not (an attachment stream) carries neither, so no JSON-read validator
+    // is ever stamped onto a binary answer by mistake.
     const other = gets.filter(([, op]) => {
-      const ok = (op.responses as Record<string, Json>)['200'] as
+      const responses = op.responses as Record<string, Json>;
+      const ok = responses['200'] as
         | { content?: Record<string, Json> }
         | undefined;
       return (
         ok?.content?.['application/json'] === undefined &&
-        ok?.content?.['*/*'] === undefined
+        ok?.content?.['*/*'] === undefined &&
+        responses['304'] === undefined
       );
     });
     expect(other.length).toBeGreaterThan(0);
@@ -1959,6 +1963,26 @@ describe('validated reads in the published document', () => {
         headers?: Record<string, Json>;
       };
       expect(ok.headers?.ETag, path).toBeUndefined();
+    }
+    // A binary GET that declares a 304 must carry the validators that make it
+    // meaningful — `ETag` and `Last-Modified` on the 200.
+    const validated = gets.filter(([, op]) => {
+      const responses = op.responses as Record<string, Json>;
+      const ok = responses['200'] as
+        | { content?: Record<string, Json> }
+        | undefined;
+      return (
+        ok?.content?.['application/json'] === undefined &&
+        ok?.content?.['*/*'] === undefined &&
+        responses['304'] !== undefined
+      );
+    });
+    for (const [path, op] of validated) {
+      const ok = (op.responses as Record<string, Json>)['200'] as {
+        headers?: Record<string, Json>;
+      };
+      expect(ok.headers?.ETag, path).toBeDefined();
+      expect(ok.headers?.['Last-Modified'], path).toBeDefined();
     }
   });
 });
@@ -2115,5 +2139,29 @@ describe('the document is OpenAPI 3.0', () => {
     walk(spec, '$');
     expect(offenders).toEqual([]);
     expect(spec.openapi).toBe('3.0.3');
+  });
+
+  it('gives every enum unique items', () => {
+    // OAS 3.0.3 requires `enum` items to be unique; `budget_exceeded`
+    // appeared twice in the three `failureCode` enums, the only three errors
+    // in the document, and `openapi-python-client` aborted on it by default
+    // (2026-09-18 evaluation, J9-1).
+    const offenders: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((item, index) => walk(item, `${at}[${index}]`));
+        return;
+      }
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (Array.isArray(record.enum)) {
+        const values = record.enum.map((value) => JSON.stringify(value));
+        if (new Set(values).size !== values.length) offenders.push(at);
+      }
+      for (const [key, value] of Object.entries(record))
+        walk(value, `${at}.${key}`);
+    };
+    walk(spec, '$');
+    expect(offenders).toEqual([]);
   });
 });
