@@ -30,6 +30,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 
 import { deriveAgePublicKey } from './age_keygen';
@@ -313,4 +314,44 @@ describe.skipIf(!HAS_REAL_SOPS)('real sops round trip', () => {
       nested: { n: 1 },
     });
   }, 20_000);
+});
+
+/**
+ * The warning fires on the file's SHAPE, not on the key: a plaintext file
+ * with a key configured is the normal state right after an operator sets
+ * SOPS_AGE_KEY, and telling them the key is unset sends them to re-set a
+ * variable that is already there. Each branch needs a fresh module instance
+ * because the warning is once-per-process.
+ */
+describe('the plaintext-secrets warning', () => {
+  async function warningFor(keyConfigured: boolean): Promise<string> {
+    vi.resetModules();
+    const saved = process.env.SOPS_AGE_KEY;
+    if (keyConfigured) process.env.SOPS_AGE_KEY = TEST_AGE_KEY;
+    else delete process.env.SOPS_AGE_KEY;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const fresh = await import('./sops');
+      const file = writeSecretsFile(JSON.stringify({ apiKey: 'plain' }));
+      await fresh.decryptSecretsFile(file);
+      return warn.mock.calls.map((call) => String(call[0])).join('\n');
+    } finally {
+      warn.mockRestore();
+      if (saved === undefined) delete process.env.SOPS_AGE_KEY;
+      else process.env.SOPS_AGE_KEY = saved;
+    }
+  }
+
+  it('tells an operator with no key how to create one', async () => {
+    const warning = await warningFor(false);
+    expect(warning).toContain('SOPS_AGE_KEY not set');
+    expect(warning).toContain('age-keygen');
+  });
+
+  it('never claims the key is unset when it IS set', async () => {
+    const warning = await warningFor(true);
+    expect(warning).not.toContain('SOPS_AGE_KEY not set');
+    expect(warning).toContain('predates SOPS_AGE_KEY');
+    expect(warning).toContain('re-save');
+  });
 });
