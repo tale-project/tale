@@ -7,6 +7,17 @@
  * actually serve them.
  */
 
+/** The password-expiry gate's shape. Two entries answer it: the status read,
+ * and the password write (which recomputes it, so the caller never has to
+ * re-read to leave the forced-change wall). */
+interface PasswordExpiry {
+  expired: boolean;
+  reason: null | 'admin_set' | 'rotation';
+  hasCredential: boolean;
+  daysUntilExpiry: null | number;
+  rotationEnabled: boolean;
+}
+
 export interface UsersContract {
   'users/mutations:createMember': {
     kind: 'mutation';
@@ -36,7 +47,9 @@ export interface UsersContract {
       currentPassword?: string;
       newPassword: string;
     };
-    returns: null;
+    // The credential's status AFTER the change. `null` only from a backend
+    // that predates it (mid-roll), which the caller falls back to re-reading.
+    returns: PasswordExpiry | null;
   };
   'users/notification_state:getUserNotificationState': {
     kind: 'query';
@@ -61,12 +74,6 @@ export interface UsersContract {
   'users/queries:getPasswordExpiryStatus': {
     kind: 'query';
     args: Record<string, never>;
-    returns: {
-      expired: boolean;
-      reason: null | 'admin_set' | 'rotation';
-      hasCredential: boolean;
-      daysUntilExpiry: null | number;
-      rotationEnabled: boolean;
-    };
+    returns: PasswordExpiry;
   };
 }

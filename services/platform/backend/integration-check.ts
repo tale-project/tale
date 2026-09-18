@@ -39871,6 +39871,59 @@ async function checkChangelogAndAccounts(
       legitVoluntary.status === 200,
     `forced-no-current=${attackForced.status}/${attackForcedBody.success ? attackForcedBody.data.error : 'ERR'} (want 400/current_password_required), no-current=${attackNoCurrent.status} (want 400), legit-with-current=${legitVoluntary.status} (want 200)`,
   );
+
+  // The forced-change wall is a client-side gate over the expiry status, and
+  // the app leaves it on what this write ANSWERS — a re-read that fails or
+  // lands late would bounce the user back onto the wall they just cleared.
+  // So the write must recompute and hand back the released status itself.
+  // Its own throwaway user: the voluntary change above revoked and rotated
+  // `fpCookie`'s session, so that identity can no longer call the door.
+  const { cookie: wallCookie, userId: wallUserId } = await signUpUser(
+    base,
+    'forced-wall',
+  );
+  const wallExpiry = async (): Promise<{ expired?: boolean } | null> => {
+    const res = await fetch(`${base}/api/app/users/password-expiry`, {
+      headers: { cookie: wallCookie },
+    });
+    const parsed = z
+      .object({ expired: z.boolean() })
+      .loose()
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  };
+  await sql`
+    INSERT INTO app.user_password_metadata (
+      user_id, password_changed_at, force_change_on_next_login
+    ) VALUES (${wallUserId}, ${Date.now()}, true)
+    ON CONFLICT (user_id) DO UPDATE SET force_change_on_next_login = true
+  `;
+  const walled = await wallExpiry();
+  const released = await fetch(`${base}/api/app/users/update-password`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: wallCookie,
+      origin: base,
+    },
+    body: JSON.stringify({ newPassword: 'Itest-Passw0rd!3' }),
+  });
+  const releasedBody = z
+    .object({
+      ok: z.boolean(),
+      passwordExpiry: z.object({ expired: z.boolean() }).loose(),
+    })
+    .safeParse(await released.json());
+  const afterwards = await wallExpiry();
+  record(
+    'update-password: a forced change answers the RELEASED expiry status',
+    walled?.expired === true &&
+      released.status === 200 &&
+      releasedBody.success &&
+      !releasedBody.data.passwordExpiry.expired &&
+      afterwards?.expired === false,
+    `walled=${walled?.expired} (want true), forced-change=${released.status} (want 200), answered-expired=${releasedBody.success ? releasedBody.data.passwordExpiry.expired : 'MISSING'} (want false), re-read-expired=${afterwards?.expired} (want false)`,
+  );
 }
 
 /**

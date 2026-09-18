@@ -170,12 +170,15 @@ export function createUserRoutes(deps: {
     }
     const session = c.get('sessionBundle');
     try {
-      await updateUserPassword(
+      const passwordExpiry = await updateUserPassword(
         deps,
         { userId: session.user.id, email: session.user.email },
         c.req.raw.headers,
         body.data,
       );
+      // The recomputed status rides the answer so the forced-change wall can
+      // release on this round-trip — see `updateUserPassword`.
+      return c.json({ ok: true, passwordExpiry });
     } catch (error) {
       const mapped = toResponse(error);
       if (mapped) {
@@ -183,7 +186,6 @@ export function createUserRoutes(deps: {
       }
       throw error;
     }
-    return c.json({ ok: true });
   });
 
   app.post('/members', async (c) => {

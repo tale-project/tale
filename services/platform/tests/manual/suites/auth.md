@@ -105,6 +105,14 @@ compute codes from the enrollment secret.
   policy active, trigger expiry → Redirects to `/forced-change-password/{id}`;
   the app is blocked until the password is changed. Manual-only — needs a
   mid-session policy.
+- [ ] `AUTH-F20` · **Admin-set password releases on first login** — As an
+  admin, **Settings > Members** → **Add member** with an address and a
+  password; in a second browser profile log in as that member → the wall
+  (`auth.forcedChange.title`) with **An administrator set your password.**
+  (`auth.forcedChange.descriptionAdminSet`). Fill both fields → **Update
+  password** (`auth.forcedChange.submit`) → lands on `/dashboard/{org}/chat`
+  **and stays there**: no bounce back to the wall, no manual reload. Log out
+  and back in with the new password → straight to the dashboard, no wall.
 - [ ] `AUTH-F12` · **SSO** — With an IdP configured, click **Continue with
   SSO** (`auth.login.continueWithSso`) on `/log-in` → OAuth round-trip →
   `/dashboard/{org}`. Manual-only — button is hidden unless
