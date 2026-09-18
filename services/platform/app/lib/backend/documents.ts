@@ -186,7 +186,7 @@ export function hubFoldersQuery(
  * (already team-filtered). The move picker needs all of it to offer a
  * destination.
  */
-export function hubFolderTreeQuery(orgId: string): {
+function hubFolderTreeQuery(orgId: string): {
   queryKey: readonly unknown[];
   queryFn: () => Promise<FolderDoc[]>;
 } {
