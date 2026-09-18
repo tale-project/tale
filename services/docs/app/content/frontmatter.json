@@ -257,7 +257,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Enterprise-SSO und Bereitstellung",
-      "description": "Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO oder SCIM."
+      "description": "Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO, SCIM oder einen vertrauenswürdigen Proxy."
     }
   },
   "de:platform/admin/governance/audit-logs": {
@@ -1377,7 +1377,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Enterprise SSO and provisioning",
-      "description": "Connect your identity provider, test sign-in, and manage member roles and teams with SSO or SCIM."
+      "description": "Connect your identity provider, test sign-in, and manage member roles and teams with SSO, SCIM or a trusted proxy."
     }
   },
   "en:platform/admin/governance/audit-logs": {
@@ -2497,7 +2497,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "SSO d’entreprise et provisionnement",
-      "description": "Connecte ton fournisseur d’identité, teste la connexion et gère les rôles et équipes avec SSO ou SCIM."
+      "description": "Connecte ton fournisseur d’identité, teste la connexion et gère les rôles et équipes avec SSO, SCIM ou un proxy de confiance."
     }
   },
   "fr:platform/admin/governance/audit-logs": {

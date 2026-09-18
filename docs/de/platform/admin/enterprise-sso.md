@@ -1,6 +1,6 @@
 ---
 title: Enterprise-SSO und Bereitstellung
-description: Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO oder SCIM.
+description: Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO, SCIM oder einen vertrauenswürdigen Proxy.
 ---
 
 Mit Enterprise-SSO melden sich Mitglieder über deinen Identitätsanbieter (IdP) an. Über SCIM kann er Mitglieder anlegen, aktualisieren und deaktivieren, ohne auf deren Anmeldung zu warten. Jede Organisation hat eine Verbindung. Als Admin oder Inhaber kannst du unter **Einstellungen > Enterprise-SSO** die Anmeldung, die Bereitstellung oder beides aktivieren.
@@ -74,6 +74,16 @@ SCIM-Users werden zu Mitgliedern, Groups zu Teams. Eine Deaktivierung (`active: 
 
 Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen dürfen nur Mitglieder dieser Organisation enthalten. Eine Änderung des Benutzernamens wird abgelehnt, wenn die neue E-Mail-Adresse schon vergeben ist oder das Konto mehreren Organisationen angehört. So bleibt seine gemeinsame Anmeldeidentität geschützt.
 
+## Mitglieder über einen Authentifizierungsproxy anmelden
+
+Eine Anwendung, die ihre Nutzer bereits authentifiziert, kann sie über ihren Reverse-Proxy in diese Organisation weiterreichen, sodass Mitglieder das Anmeldeformular von Tale nie sehen. Die Karte **Vertrauenswürdige Header** auf derselben Seite enthält den Schalter, die Rollen-Obergrenze und die Schlüssel, die der Proxy vorlegt.
+
+1. Schalte **Anmeldungen über einen vertrauenswürdigen Proxy annehmen** ein und wähle die **Höchste Rolle, die ein Proxy zuweisen darf**. Der Rollen-Header wird auf diese Rolle begrenzt; Inhaber lässt sich nie zuweisen.
+2. Wähle **Schlüssel erstellen**, benenne ihn nach dem Proxy, der ihn erhält, und kopiere den Schlüssel sofort, denn er wird nur einmal angezeigt. Eine Organisation hält höchstens 10 gültige Schlüssel.
+3. Richte den Proxy so ein, dass er Anmeldungen an die **Übergabe-URL** sendet, mit dem Schlüssel als `Authorization`-Bearer-Token (oder im Schlüssel-Header) und den Identitäts-Headern unter **Header-Namen**. Leite `/log-in` des Proxys auf dieselbe Adresse.
+
+Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adresse, die Tale noch nie gesehen hat, wird zum neuen Mitglied mit der zugewiesenen Rolle, und ein bestehendes Konto aus einer anderen Organisation wird abgewiesen. Schaltest du den Schalter aus, wird jeder Schlüssel abgewiesen, ohne dass einer widerrufen wird. **Widerrufen** stempelt einen Schlüssel, sodass der Proxy niemanden mehr anmelden kann; bereits gestartete Sitzungen bleiben angemeldet. Die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) des Betreibers beschreibt Header-Namen und Anforderungen an den Proxy.
+
 ## Prüfen und Fehler beheben
 
 Öffne eine separate Browsersitzung, wähle **Weiter mit SSO** und dann die Organisation anhand ihres Anzeigenamens. Melde dich an und prüfe Rolle und Teammitgliedschaften. **Verbindung testen** prüft die Verbindungsdaten, aber nicht, ob eine echte Person die vorgesehenen Zugriffsrechte erhält.
@@ -85,6 +95,7 @@ Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen d�
 | Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
 | Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. |
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
+| Die Proxy-Anmeldung wird abgelehnt | Prüfe, ob die Karte eingeschaltet ist, der Schlüssel nicht widerrufen wurde und der Proxy E-Mail-Header und Schlüssel bei der Übergabe-Anfrage sendet. |
 | Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |
 
 **Anmeldung deaktivieren** stoppt neue SSO-Anmeldungen; aktive Sitzungen bleiben bestehen. **Entfernen** löscht die Verbindungskonfiguration samt Zugangsdaten. Sorge vor beiden Aktionen für eine andere funktionierende Anmeldemethode.

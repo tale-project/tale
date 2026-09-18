@@ -10,9 +10,9 @@ Tale unterstützt lokale Konten mit E-Mail und Passwort, Unternehmens-SSO je Org
 | --- | --- | --- |
 | Tale verwaltet lokale Konten | Lokale Anmeldung und Einladungen | Stabile Bereitstellungsgeheimnisse und eine erreichbare Instanz-URL. |
 | Ein Unternehmens-Identitätsanbieter ist vorhanden | Unternehmens-SSO mit Microsoft Entra ID, generischem OIDC, OAuth2 oder SAML 2.0 | Eine IdP-Anwendung mit exakt passenden Callback- oder Metadaten-URLs. |
-| Ein vorgeschalteter Proxy authentifiziert jede Anfrage | Vertrauenswürdige Kopfzeilen | Eine private Backend-Verbindung und ein gemeinsames internes Geheimnis. |
+| Eine Anwendung oder ein Proxy authentifiziert die Nutzer bereits | Vertrauenswürdige Header je Organisation | Ein Schlüssel aus **Einstellungen > Enterprise-SSO** und ein Proxy, der ihn zusammen mit den Identitäts-Headern mitschickt. |
 
-Diese Verfahren bilden keinen einzigen Schalter für die gesamte Instanz. Unternehmens-SSO gilt je Organisation, vertrauenswürdige Kopfzeilen werden für die Bereitstellung aktiviert. Plane und teste die Identitätszuordnung, bevor du bestehende Konten auf ein anderes Verfahren umstellst.
+Unternehmens-SSO und vertrauenswürdige Header werden beide je Organisation eingerichtet. Plane und teste die Identitätszuordnung, bevor du bestehende Konten auf ein anderes Verfahren umstellst.
 
 ## Zuerst die öffentliche URL festlegen
 
@@ -44,17 +44,19 @@ Verwende die dort angezeigten Callback- und Metadaten-URLs. Aktuelle native OIDC
 
 ## Einem Authentifizierungsproxy vertrauen
 
-Aktiviere vertrauenswürdige Kopfzeilen nur, wenn dein Proxy die Anmeldung übernimmt und die Verbindung zu Tale schützen kann. Die Standardkopfzeilen heißen `Remote-Email`, `Remote-Name`, `Remote-Role` und `Remote-Teams`.
+Eine Anwendung, die ihre Nutzer bereits anmeldet, kann sie über ihren Reverse-Proxy in eine Organisation weiterreichen. Ein Admin schaltet die Funktion unter **Einstellungen > Enterprise-SSO** in der Karte **Vertrauenswürdige Header** ein: Wähle die höchste Rolle, die der Proxy zuweisen darf, erstelle einen Schlüssel und kopiere ihn, denn er wird nur einmal angezeigt. Leite die Anmeldung des Proxys auf `/api/trusted-headers/authenticate`, mit dem Schlüssel als `Authorization`-Bearer-Token (oder im Header `Remote-Internal-Secret`) und den Identitäts-Headern `Remote-Email`, `Remote-Name`, `Remote-Role` und `Remote-Teams`. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) nennt die Variablen `TRUSTED_*_HEADER` zum Umbenennen dieser Header.
 
-Setze `TRUSTED_HEADERS_ENABLED=true` und übergib `TRUSTED_HEADERS_INTERNAL_SECRET`. Der Proxy muss dieses Geheimnis bei weitergeleiteten Anfragen in `Remote-Internal-Secret` senden. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) nennt die Variablen `TRUSTED_*_HEADER` zum Ändern dieser Namen.
+Der Schlüssel bestimmt die Organisation. Ein Mitglied dieser Organisation wird angemeldet; eine Adresse, die die Installation noch nie gesehen hat, wird zum neuen Mitglied mit der zugewiesenen Rolle; ein bestehendes Konto aus einer anderen Organisation wird abgewiesen. Inhaber lässt sich nie zuweisen, und eine Rolle über der Obergrenze der Organisation wird auf diese gesenkt. Schaltest du die Karte aus, wird jeder Schlüssel abgewiesen, ohne dass einer widerrufen wird; ein Widerruf beendet die Sitzungen nicht, die der Schlüssel gestartet hat.
 
 <Warning>
 
-Der Proxy muss Identitätskopfzeilen des Clients entfernen und eigene authentifizierte Werte setzen. Beschränke den Backend-Zugriff auf diesen Proxy. Wer passende Identitätskopfzeilen und das interne Geheimnis senden kann, kann als die genannte Person auftreten.
+Der Proxy muss Identitäts-Header des Clients entfernen, eigene authentifizierte Werte setzen und den Schlüssel nur an die Übergabe-Anfrage anhängen. Wer den Schlüssel besitzt, kann sich als jedes Mitglied anmelden, das der Proxy in dieser Organisation nennt. Behandle ihn wie ein Passwort und rotiere ihn über die Karte.
 
 </Warning>
 
-`Remote-Teams` enthält kommagetrennte Einträge im Format `id:name`, etwa `t-fin:Finance,t-ops:Operations`. Ohne Kopfzeile bleibt die Teamverwaltung unberührt. Eine vorhandene, aber leere Kopfzeile entfernt zuvor von dieser Synchronisierung vergebene Mitgliedschaften. Ungültige Einträge können deshalb synchronisierte Mitgliedschaften entfernen. Manuell vergebene Mitgliedschaften bleiben erhalten.
+`Remote-Teams` enthält kommagetrennte Einträge im Format `id:name`, etwa `t-fin:Finance,t-ops:Operations`. Ohne Header bleibt die Teamverwaltung unberührt. Ein vorhandener, aber leerer Header entfernt zuvor von dieser Synchronisierung vergebene Mitgliedschaften. Ungültige Einträge können deshalb synchronisierte Mitgliedschaften entfernen. Manuell vergebene Mitgliedschaften bleiben erhalten.
+
+Leite `/log-in` im Proxy auf die Übergabeadresse um, damit Mitglieder das Anmeldeformular nie sehen; die Anmeldeseite selbst leitet nicht weiter.
 
 ## Anmeldefehler eingrenzen
 
@@ -64,6 +66,6 @@ Der Proxy muss Identitätskopfzeilen des Clients entfernen und eigene authentifi
 | Die Weiterleitung endet ohne Anmeldung | Prüfe Erreichbarkeit des Callbacks, Cookies und Claim-Namen. |
 | Ein Mitglied erhält die falsche Rolle | Prüfe Standardrolle und Zuordnung anhand seiner tatsächlichen Claims. |
 | Synchronisierte Teams verschwinden | Prüfe Gruppen-Claim oder `Remote-Teams`; unterscheide fehlende und leere Werte. |
-| Die Kopfzeilen-Anmeldung wird abgelehnt | Prüfe Aktivierung, gemeinsames Geheimnis und Kopfzeilennamen im Proxy. |
+| Die Header-Anmeldung wird abgelehnt | Prüfe, ob die Karte für die Organisation eingeschaltet ist, ob der Schlüssel noch gültig ist, und die Header-Namen im Proxy. |
 
 Teste Zuordnungsänderungen in einer Staging-Organisation und halte einen geprüften administrativen Wiederherstellungsweg bereit. Änderungen können alle Mitglieder betreffen, deren Identität von dieser Verbindung abhängt.

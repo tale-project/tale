@@ -10,9 +10,9 @@ Tale supports local email-and-password accounts, organization-specific enterpris
 | --- | --- | --- |
 | Local accounts managed in Tale | Local sign-in and invitations | Stable deployment secrets and a reachable instance URL. |
 | An existing corporate identity provider | Enterprise SSO: Microsoft Entra ID, generic OIDC, OAuth2 or SAML 2.0 | An IdP application configured with Tale’s exact callback or metadata URLs. |
-| An upstream proxy already authenticates every request | Trusted headers | A private backend connection and a shared internal secret. |
+| An application or proxy already authenticates its users | Trusted headers, per organization | A key from **Settings > Enterprise SSO** and a proxy that injects it with the identity headers. |
 
-These mechanisms are not a single deployment-wide selector. Enterprise SSO is configured per organization; trusted headers are enabled at deployment level. Plan and test changes to identity mapping before moving existing accounts to another mechanism.
+Enterprise SSO and trusted headers are both configured per organization. Plan and test changes to identity mapping before moving existing accounts to another mechanism.
 
 ## Establish the public URL first
 
@@ -44,17 +44,19 @@ Follow [Enterprise SSO and provisioning](/platform/admin/enterprise-sso) for pro
 
 ## Trust an authentication proxy
 
-Enable trusted headers only when your proxy owns authentication and can protect the connection to Tale. The default identity headers are `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams`.
+An application that already signs its users in can hand them into one organization through its reverse proxy. An Admin turns the feature on under **Settings > Enterprise SSO**, in the **Trusted headers** card: choose the highest role the proxy may assert, then create a key and copy it, because it is shown once. Point the proxy's sign-in at `/api/trusted-headers/authenticate` with that key as the `Authorization` bearer token (or in the `Remote-Internal-Secret` header) and the identity headers `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams`. The [environment reference](/self-hosted/configuration/environment-reference) lists the `TRUSTED_*_HEADER` variables for renaming those headers.
 
-Set `TRUSTED_HEADERS_ENABLED=true` and inject `TRUSTED_HEADERS_INTERNAL_SECRET`. Configure the proxy to supply that secret in `Remote-Internal-Secret` on forwarded requests. The [environment reference](/self-hosted/configuration/environment-reference) lists the `TRUSTED_*_HEADER` variables for changing those names.
+The key decides the organization. A member of that organization signs in; an address the deployment has never seen becomes a new member with the asserted role; an existing account from another organization is refused. Owner is never assertable, and a role above the organization's ceiling is lowered to it. Turning the card off refuses every key without revoking one; revoking a key does not end the sessions it started.
 
 <Warning>
 
-The proxy must remove client-supplied identity headers and set its own authenticated values. Restrict backend access to that proxy. Anyone who can submit matching identity headers and the internal secret can impersonate the named user.
+The proxy must remove client-supplied identity headers, set its own authenticated values and add the key only on the hand-off request. Anyone holding the key can sign in as any member the proxy names within that organization. Treat it like a password and rotate it from the card.
 
 </Warning>
 
 `Remote-Teams` contains comma-separated `id:name` entries, for example `t-fin:Finance,t-ops:Operations`. An omitted header leaves team management alone; a present empty header removes memberships previously granted by this synchronization. Invalid entries can therefore remove synchronized memberships. Manually granted memberships are preserved.
+
+Route the proxy's `/log-in` to the hand-off address so members never see the credential form; the sign-in page itself does not redirect.
 
 ## Diagnose sign-in failures
 
@@ -64,6 +66,6 @@ The proxy must remove client-supplied identity headers and set its own authentic
 | Redirect returns but sign-in fails | Check callback reachability, cookies and the configured claim names. |
 | Member receives the wrong role | Check default role and mapping rules with that person’s actual claims. |
 | Synchronized teams disappear | Inspect the groups claim or `Remote-Teams` value; distinguish absent from empty. |
-| Trusted-header sign-in is refused | Check enablement, the shared secret and proxy header names. |
+| Trusted-header sign-in is refused | Check that the card is on for that organization, that the key is not revoked, and the proxy's header names. |
 
 Use a staging organization for mapping changes and keep a tested administrative recovery path. Authentication changes can affect every member whose identity depends on the connection.

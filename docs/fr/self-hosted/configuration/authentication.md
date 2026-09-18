@@ -10,9 +10,9 @@ Tale prend en charge les comptes locaux par e-mail et mot de passe, le SSO propr
 | --- | --- | --- |
 | Comptes locaux gérés dans Tale | Connexion locale et invitations | Secrets stables et URL de l’instance accessible. |
 | Fournisseur d’identité d’entreprise existant | SSO : Microsoft Entra ID, OIDC générique, OAuth2 ou SAML 2.0 | Une application IdP avec les URL exactes de callback ou de métadonnées. |
-| Proxy qui authentifie déjà chaque requête | En-têtes de confiance | Une liaison privée vers le backend et un secret interne partagé. |
+| Une application ou un proxy authentifie déjà ses utilisateurs | En-têtes de confiance, par organisation | Une clé créée dans **Paramètres > SSO d’entreprise** et un proxy qui l’envoie avec les en-têtes d’identité. |
 
-Ces mécanismes ne constituent pas un sélecteur unique pour toute l’instance. Le SSO se configure par organisation ; les en-têtes de confiance s’activent au niveau du déploiement. Prépare et teste la correspondance des identités avant de changer le mécanisme de comptes existants.
+Le SSO d’entreprise et les en-têtes de confiance se configurent tous deux par organisation. Prépare et teste la correspondance des identités avant de changer le mécanisme de comptes existants.
 
 ## Fixer d’abord l’URL publique
 
@@ -44,17 +44,19 @@ Suis [SSO d’entreprise et provisionnement](/fr/platform/admin/enterprise-sso) 
 
 ## Faire confiance à un proxy d’authentification
 
-Active les en-têtes de confiance uniquement si ton proxy gère l’authentification et protège sa liaison vers Tale. Les en-têtes par défaut sont `Remote-Email`, `Remote-Name`, `Remote-Role` et `Remote-Teams`.
+Une application qui connecte déjà ses utilisateurs peut les faire entrer dans une organisation via son reverse proxy. Un administrateur active la fonction dans **Paramètres > SSO d’entreprise**, carte **En-têtes de confiance** : choisis le rôle le plus élevé que le proxy peut attribuer, puis crée une clé et copie-la, car elle ne s’affiche qu’une fois. Fais pointer la connexion du proxy vers `/api/trusted-headers/authenticate`, avec cette clé comme jeton bearer `Authorization` (ou dans l’en-tête `Remote-Internal-Secret`) et les en-têtes d’identité `Remote-Email`, `Remote-Name`, `Remote-Role` et `Remote-Teams`. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference) indique les variables `TRUSTED_*_HEADER` qui permettent de renommer ces en-têtes.
 
-Définis `TRUSTED_HEADERS_ENABLED=true` et injecte `TRUSTED_HEADERS_INTERNAL_SECRET`. Le proxy doit transmettre ce secret dans `Remote-Internal-Secret`. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference) indique les variables `TRUSTED_*_HEADER` qui permettent de renommer ces en-têtes.
+La clé détermine l’organisation. Un membre de cette organisation est connecté ; une adresse que l’instance n’a jamais vue devient un nouveau membre avec le rôle attribué ; un compte existant d’une autre organisation est refusé. Le rôle Propriétaire ne peut jamais être attribué, et un rôle au-dessus du plafond de l’organisation est ramené à ce plafond. Désactiver la carte refuse toutes les clés sans en révoquer aucune ; révoquer une clé ne met pas fin aux sessions qu’elle a ouvertes.
 
 <Warning>
 
-Le proxy doit supprimer les en-têtes d’identité fournis par le client et définir ses propres valeurs authentifiées. Réserve l’accès au backend à ce proxy. Une personne capable d’envoyer les bons en-têtes et le secret interne peut usurper l’identité indiquée.
+Le proxy doit supprimer les en-têtes d’identité fournis par le client, définir ses propres valeurs authentifiées et n’ajouter la clé qu’à la requête de passage. Quiconque détient la clé peut se connecter comme n’importe quel membre que le proxy désigne dans cette organisation : traite-la comme un mot de passe et fais-la tourner depuis la carte.
 
 </Warning>
 
-`Remote-Teams` contient des entrées `id:name` séparées par des virgules, par exemple `t-fin:Finance,t-ops:Operations`. Un en-tête absent laisse les équipes inchangées ; un en-tête présent mais vide retire les appartenances accordées par cette synchronisation. Des entrées invalides peuvent donc supprimer ces appartenances. Celles accordées manuellement restent intactes.
+`Remote-Teams` contient des entrées `id:name` séparées par des virgules, par exemple `t-fin:Finance,t-ops:Operations`. Un en-tête absent laisse les équipes inchangées ; un en-tête présent mais vide retire les appartenances accordées par cette synchronisation. Des entrées invalides peuvent donc supprimer ces appartenances. Celles accordées manuellement restent intactes.
+
+Redirige `/log-in` du proxy vers l’adresse de passage pour que les membres ne voient jamais le formulaire d’identifiants ; la page de connexion elle-même ne redirige pas.
 
 ## Diagnostiquer les échecs de connexion
 
@@ -64,6 +66,6 @@ Le proxy doit supprimer les en-têtes d’identité fournis par le client et dé
 | La redirection revient sans connecter | Vérifie l’accès au callback, les cookies et les noms de claims. |
 | Un membre reçoit le mauvais rôle | Vérifie le rôle par défaut et les règles avec ses claims réels. |
 | Les équipes synchronisées disparaissent | Inspecte le claim de groupes ou `Remote-Teams` ; distingue absence et valeur vide. |
-| La connexion par en-têtes est refusée | Vérifie l’activation, le secret partagé et les noms configurés dans le proxy. |
+| La connexion par en-têtes est refusée | Vérifie que la carte est activée pour cette organisation, que la clé n’est pas révoquée, et les noms d’en-têtes configurés dans le proxy. |
 
 Teste les changements de correspondance dans une organisation de staging et garde un accès administratif de secours déjà vérifié. Ces changements peuvent affecter tous les membres dont l’identité dépend de la connexion.

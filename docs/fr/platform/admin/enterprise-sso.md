@@ -1,6 +1,6 @@
 ---
 title: SSO d’entreprise et provisionnement
-description: Connecte ton fournisseur d’identité, teste la connexion et gère les rôles et équipes avec SSO ou SCIM.
+description: Connecte ton fournisseur d’identité, teste la connexion et gère les rôles et équipes avec SSO, SCIM ou un proxy de confiance.
 ---
 
 Le SSO d’entreprise permet aux membres de se connecter via ton fournisseur d’identité (IdP). SCIM lui permet de créer, modifier et désactiver des membres sans attendre leur connexion. Une organisation possède une connexion. En tant qu’admin ou propriétaire, tu peux activer la connexion, le provisionnement ou les deux dans **Paramètres > SSO d'entreprise**.
@@ -74,6 +74,16 @@ Les Users SCIM correspondent aux membres et les Groups aux équipes. La désacti
 
 Le propriétaire de l’organisation ne peut pas être désactivé ni retiré par SCIM. Les groupes ne peuvent contenir que des membres de cette organisation. Un changement de nom d’utilisateur est refusé si la nouvelle adresse e-mail est déjà utilisée ou si le compte appartient à plusieurs organisations, afin de protéger son identité de connexion partagée.
 
+## Connecter les membres via un proxy d’authentification
+
+Une application qui authentifie déjà ses utilisateurs peut les faire entrer dans cette organisation via son reverse proxy, sans que les membres voient le formulaire de connexion de Tale. La carte **En-têtes de confiance**, sur la même page, regroupe l’interrupteur, le plafond de rôle et les clés que le proxy présente.
+
+1. Active **Accepter les connexions d’un proxy de confiance** et choisis le **Rôle le plus élevé qu’un proxy peut attribuer**. L’en-tête de rôle est plafonné à ce rôle ; le rôle Propriétaire ne peut jamais être attribué.
+2. Sélectionne **Créer une clé**, nomme-la d’après le proxy qui la détiendra et copie-la immédiatement : elle ne s’affiche qu’une fois. Une organisation détient au plus 10 clés actives.
+3. Configure le proxy pour qu’il envoie ses connexions à l’**URL de passage**, avec la clé comme jeton bearer `Authorization` (ou dans l’en-tête de clé) et les en-têtes d’identité listés sous **Noms des en-têtes**. Fais pointer `/log-in` du proxy vers la même adresse.
+
+La clé détermine l’organisation : un membre est connecté, une adresse que Tale n’a jamais vue devient un nouveau membre avec le rôle attribué, et un compte existant d’une autre organisation est refusé. Désactiver l’interrupteur refuse toutes les clés sans en révoquer aucune. **Révoquer** marque une clé afin que le proxy ne puisse plus connecter personne ; les sessions déjà ouvertes restent connectées. La [configuration de l’authentification](/fr/self-hosted/configuration/authentication) côté opérateur décrit les noms d’en-têtes et les exigences du proxy.
+
 ## Vérifier et résoudre les problèmes
 
 Ouvre une session de navigateur séparée, choisis **Continuer avec SSO**, puis l’organisation grâce à son nom d’affichage. Termine la connexion et vérifie le rôle et les équipes obtenus. **Tester la connexion** vérifie les paramètres de connexion, sans prouver qu’une personne reçoit les bons accès.
@@ -85,6 +95,7 @@ Ouvre une session de navigateur séparée, choisis **Continuer avec SSO**, puis 
 | Erreur de liaison au navigateur | Recommence dans le même navigateur et autorise les cookies nécessaires aux redirections. |
 | Mauvais rôle ou équipe absente | Vérifie les claims réellement fournis, les règles de rôles, les exclusions et les autorisations de groupes. |
 | SCIM ne se connecte pas | Vérifie l’URL de base, le jeton Bearer et l’activation du provisionnement. |
+| La connexion par proxy est refusée | Vérifie que la carte est activée, que la clé n’est pas révoquée et que le proxy envoie l’en-tête d’e-mail et la clé dans la requête de passage. |
 | URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/fr/self-hosted/configuration/authentication). |
 
 **Désactiver la connexion** empêche les nouvelles connexions SSO mais conserve les sessions actives. **Supprimer** efface la configuration de la connexion et ses identifiants. Prévois une autre méthode de connexion fonctionnelle avant d’utiliser l’une de ces actions.
