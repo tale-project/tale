@@ -373,6 +373,25 @@ auth:
         ci-dessous ou réessaie.
       retry: Réessayer
       continue: Continuer avec la connexion automatique
+      held:
+        La connexion automatique est en pause après une déconnexion. Continue
+        quand tu es prêt.
+      recovery:
+        Connecte-toi autrement ci-dessous ou demande à l’administration de
+        vérifier le passage du proxy.
+      errors:
+        missingKey: Le proxy n’a envoyé aucune clé trusted headers.
+        unknownKey: La clé trusted headers du proxy est inconnue ou révoquée.
+        rateLimited:
+          Trop de passages échoués depuis cette adresse. Réessaie plus
+          tard.
+        disabled: Les en-têtes de confiance sont désactivés pour cette organisation.
+        missingEmail: Le proxy n’a envoyé aucune adresse e-mail.
+        notMember:
+          Ton compte n’est pas membre de l’organisation dans laquelle ce
+          proxy connecte.
+        configError: Le serveur n’est pas configuré pour la connexion par proxy.
+        failed: La connexion par proxy n’a pas pu être finalisée.
     continueWithPasskey: Se connecter avec un passkey
     passkeyFailed:
       La connexion par passkey a échoué ou a été annulée. Réessaie ou

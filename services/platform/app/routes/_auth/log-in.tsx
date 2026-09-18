@@ -29,8 +29,10 @@ import {
 } from '@/app/features/auth/hooks/queries';
 import {
   markProxyHandoffAttempt,
+  proxyHandoffHeld,
   proxyHandoffUrl,
   recentProxyHandoffAttempt,
+  releaseProxyHandoff,
 } from '@/app/features/auth/lib/proxy-handoff';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
@@ -146,16 +148,37 @@ export function LogInPage() {
   const [proxyHandoffStalled, setProxyHandoffStalled] = useState(() =>
     recentProxyHandoffAttempt(),
   );
+  // The hold after an inactivity sign-out (set by the watchdog, seen by the
+  // backend too) — this tab, or another tab of this browser, was signed out
+  // on purpose; the session comes back on a click, not by itself.
+  const proxyHandoffHold = signedOutForIdle || proxyHandoffHeld();
   const proxyHandoffAvailable = proxyHandoff === true && hasUsers === true;
+  // A refusal the door sent back (`error` in the address) is shown, not
+  // retried by itself.
   const proxyHandoffPending =
-    proxyHandoffAvailable && !signedOutForIdle && !proxyHandoffStalled;
+    proxyHandoffAvailable &&
+    !proxyHandoffHold &&
+    !proxyHandoffStalled &&
+    ssoError === undefined;
   const redirectToProxyHandoff = useCallback(() => {
+    releaseProxyHandoff();
     markProxyHandoffAttempt();
     window.location.assign(proxyHandoffUrl(redirectTo));
   }, [redirectTo]);
   useEffect(() => {
     if (proxyHandoffPending) redirectToProxyHandoff();
   }, [proxyHandoffPending, redirectToProxyHandoff]);
+  // Back from the door through the browser's history, this page may come
+  // out of the back/forward cache exactly as it was left — effects silent,
+  // the "signing you in" notice frozen. A fresh load judges afresh.
+  useEffect(() => {
+    if (!proxyHandoffAvailable) return undefined;
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [proxyHandoffAvailable]);
 
   const logInSchema = useMemo(
     () =>
@@ -441,9 +464,19 @@ export function LogInPage() {
             description={tCommon('sessionIdle.signedOutNotice')}
           />
         )}
+        {/* The hold stands but this load carries no inactivity reason (another
+            tab signed out, or the tab was reopened): say why the sign-in waits. */}
+        {proxyHandoffHold && !signedOutForIdle && proxyHandoffAvailable && (
+          <Alert
+            variant="info"
+            icon={Info}
+            live="polite"
+            description={t('login.proxyHandoff.held')}
+          />
+        )}
         {/* After an inactivity sign-out the proxy hand-off waits for a click,
             so the notice above is seen before the session comes back. */}
-        {signedOutForIdle && proxyHandoffAvailable && (
+        {proxyHandoffHold && proxyHandoffAvailable && (
           <Button
             type="button"
             variant="secondary"
@@ -456,24 +489,27 @@ export function LogInPage() {
         {/* Back from the door without a session: refused, or the cookie never
             reached this frame. Say so and let the person retry or sign in
             another way — never bounce again on our own. */}
-        {proxyHandoffAvailable && !signedOutForIdle && proxyHandoffStalled && (
-          <Stack gap={3}>
-            <Alert
-              variant="info"
-              icon={Info}
-              live="polite"
-              description={t('login.proxyHandoff.stalled')}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth
-              onClick={() => setProxyHandoffStalled(false)}
-            >
-              {t('login.proxyHandoff.retry')}
-            </Button>
-          </Stack>
-        )}
+        {proxyHandoffAvailable &&
+          !proxyHandoffHold &&
+          proxyHandoffStalled &&
+          ssoError === undefined && (
+            <Stack gap={3}>
+              <Alert
+                variant="info"
+                icon={Info}
+                live="polite"
+                description={t('login.proxyHandoff.stalled')}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth
+                onClick={() => setProxyHandoffStalled(false)}
+              >
+                {t('login.proxyHandoff.retry')}
+              </Button>
+            </Stack>
+          )}
         {/* A failed SSO sign-in surfaces the REAL reason the IdP reported
             (routed here by the authorize/callback handlers) instead of a blank
             form. `ssoError` is a translation key for a mapped Entra code, or a

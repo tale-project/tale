@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { clearNavMemory } from '@/app/lib/nav-memory';
@@ -11,6 +12,14 @@ function useConvexAuthUser() {
   // cookie alone (401 → data undefined → unauthenticated), so it needs no
   // websocket and no auth gating.
   const { data: user, isLoading } = useQuery(currentUserQuery());
+  // A session an authenticating proxy asserted carries the organization it
+  // was minted for; the proxy owns signing in and out for it, so the app
+  // offers no sign-out of its own. Read loosely: the field is one of the
+  // deployment's own session columns, not part of the client's inferred type.
+  const { data: session } = useQuery(sessionQueryOptions);
+  const sessionRecord: Record<string, unknown> | undefined =
+    session?.data?.session;
+  const proxied = typeof sessionRecord?.trustedOrganizationId === 'string';
 
   const isAuthenticated = !!user;
 
@@ -33,6 +42,7 @@ function useConvexAuthUser() {
     user,
     isLoading,
     isAuthenticated,
+    proxied,
     signIn: async () => {},
     signOut,
   };

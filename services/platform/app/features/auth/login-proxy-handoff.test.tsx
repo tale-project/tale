@@ -70,24 +70,31 @@ import { markProxyHandoffAttempt } from '@/app/features/auth/lib/proxy-handoff';
 import { LogInPage } from '@/app/routes/_auth/log-in';
 
 const locationAssign = vi.fn();
+const locationReload = vi.fn();
 // Same-origin, never SITE_URL: the browser must stay on the host it is on —
-// that is where the proxy that injects the key sits.
+// that is where the proxy that injects the key sits. `via=app` tells the
+// door a refusal should come back here with its reason.
 const DOOR = '/api/trusted-headers/authenticate';
 const doorFor = (path: string) =>
-  `${DOOR}?redirect=${encodeURIComponent(path)}`;
+  `${DOOR}?redirect=${encodeURIComponent(path)}&via=app`;
+const HOLD_COOKIE = 'tale_handoff_hold';
 
 beforeEach(() => {
   mockSearch.value = {};
   mockHandoff.value = { data: true, isLoading: false };
   mockHasUsers.value = { data: true, isLoading: false };
   locationAssign.mockReset();
+  locationReload.mockReset();
   mockNavigate.mockReset();
   window.sessionStorage.clear();
+  document.cookie = `${HOLD_COOKIE}=; Max-Age=0; Path=/`;
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: {
       href: 'http://localhost/log-in',
+      protocol: 'http:',
       assign: locationAssign,
+      reload: locationReload,
     },
   });
   window.__ENV__ = {
@@ -185,5 +192,50 @@ describe('LogInPage – hand-off to an authenticating proxy', () => {
 
     expect(locationAssign).not.toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/setup' });
+  });
+
+  it('waits behind the hold left by a sign-out, and Continue lifts it', () => {
+    document.cookie = `${HOLD_COOKIE}=1; Path=/`;
+
+    render(<LogInPage />);
+
+    expect(locationAssign).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'login.proxyHandoff.held',
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'login.proxyHandoff.continue' }),
+    );
+    expect(document.cookie).not.toContain(`${HOLD_COOKIE}=1`);
+    expect(locationAssign).toHaveBeenCalledWith(doorFor('/dashboard'));
+  });
+
+  it('shows a refusal the door sent back instead of handing off again', () => {
+    mockSearch.value = {
+      error: 'login.proxyHandoff.errors.unknownKey',
+      error_code: 'trusted_headers.unknown_key',
+      recovery: 'login.proxyHandoff.recovery',
+    };
+
+    render(<LogInPage />);
+
+    expect(locationAssign).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'login.proxyHandoff.errors.unknownKey',
+    );
+    expect(
+      screen.getByRole('button', { name: 'login.loginButton' }),
+    ).toBeInTheDocument();
+  });
+
+  it('reloads when it comes back out of the back/forward cache mid hand-off', () => {
+    render(<LogInPage />);
+    expect(locationAssign).toHaveBeenCalledTimes(1);
+
+    const restored = new Event('pageshow');
+    Object.defineProperty(restored, 'persisted', { value: true });
+    window.dispatchEvent(restored);
+
+    expect(locationReload).toHaveBeenCalledTimes(1);
   });
 });

@@ -354,6 +354,17 @@ auth:
       stalled: Automatic sign-in did not complete. Sign in another way below, or try again.
       retry: Try again
       continue: Continue with automatic sign-in
+      held: Automatic sign-in is paused after a sign-out. Continue when you're ready.
+      recovery: Sign in another way below, or ask an administrator to check the proxy hand-off.
+      errors:
+        missingKey: The proxy sent no trusted-header key.
+        unknownKey: The proxy's trusted-header key is unknown or revoked.
+        rateLimited: Too many failed hand-off attempts from this address. Try again later.
+        disabled: Trusted headers are switched off for this organization.
+        missingEmail: The proxy sent no email address.
+        notMember: Your account is not a member of the organization this proxy signs into.
+        configError: The server is not configured for proxy sign-in.
+        failed: Proxy sign-in could not be completed.
     continueWithPasskey: Sign in with a passkey
     passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
     wrongCredentials: Wrong email or password

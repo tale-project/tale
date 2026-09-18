@@ -7,6 +7,7 @@ import { Button } from '@tale/ui/button';
 import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { holdProxyHandoff } from '@/app/features/auth/lib/proxy-handoff';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useSessionUser } from '@/app/hooks/use-session-user';
@@ -182,6 +183,10 @@ export function useSessionIdleWatchdog(): void {
       // Intentional hard navigation (not the router): a full reload tears
       // down the Convex client, React Query cache, and any in-memory auth
       // state on sign-out. Same precedent as user-button and dashboard.tsx.
+      // Behind an authenticating proxy the next request would sign the
+      // session straight back in; hold that until the person continues, so
+      // the inactivity notice is actually seen.
+      holdProxyHandoff();
       const basePath = getEnv('BASE_PATH');
       window.location.href = `${basePath}/log-in?reason=idle`;
     };

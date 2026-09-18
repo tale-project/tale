@@ -371,6 +371,25 @@ auth:
         unten auf einem anderen Weg an oder versuche es erneut.
       retry: Erneut versuchen
       continue: Mit der automatischen Anmeldung fortfahren
+      held:
+        Die automatische Anmeldung ist nach einer Abmeldung pausiert. Fahre
+        fort, wenn du bereit bist.
+      recovery:
+        Melde dich unten auf einem anderen Weg an oder bitte die
+        Administration, die Übergabe des Proxys zu prüfen.
+      errors:
+        missingKey: Der Proxy hat keinen Trusted-Header-Schlüssel gesendet.
+        unknownKey: Der Trusted-Header-Schlüssel des Proxys ist unbekannt oder widerrufen.
+        rateLimited:
+          Zu viele fehlgeschlagene Übergaben von dieser Adresse. Versuche es
+          später erneut.
+        disabled: Vertrauenswürdige Header sind für diese Organisation ausgeschaltet.
+        missingEmail: Der Proxy hat keine E-Mail-Adresse gesendet.
+        notMember:
+          Dein Konto ist kein Mitglied der Organisation, in die dieser Proxy
+          anmeldet.
+        configError: Der Server ist nicht für die Proxy-Anmeldung konfiguriert.
+        failed: Die Proxy-Anmeldung konnte nicht abgeschlossen werden.
     continueWithPasskey: Mit einem Passkey anmelden
     passkeyFailed:
       Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es

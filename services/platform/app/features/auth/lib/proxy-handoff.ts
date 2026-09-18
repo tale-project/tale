@@ -1,4 +1,8 @@
 import { getEnv } from '@/lib/env';
+import {
+  PROXY_HANDOFF_HOLD_COOKIE,
+  PROXY_HANDOFF_HOLD_MAX_AGE_S,
+} from '@/lib/shared/constants/trusted-headers';
 import { sanitizeInternalRedirect } from '@/lib/shared/utils/safe-redirect';
 
 /**
@@ -31,7 +35,9 @@ export function proxyHandoffUrl(redirectTo: string | undefined): string {
   // Forward only a validated same-origin path — defence in depth against the
   // open redirect the door also guards (#2037).
   const target = sanitizeInternalRedirect(redirectTo, `${basePath}/dashboard`);
-  return `${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
+  // `via=app`: a refusal comes back to this page with its reason, for the
+  // page to render — rather than as the door's own page.
+  return `${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}&via=app`;
 }
 
 /** Remember that this tab was just sent to the door. */
@@ -58,4 +64,28 @@ export function recentProxyHandoffAttempt(now = Date.now()): boolean {
     console.warn('[login] cannot read the proxy hand-off attempt', error);
     return true;
   }
+}
+
+/**
+ * The hold after an inactivity sign-out: while it stands, the backend does
+ * not sign the app's own requests in from the proxy's headers and this page
+ * waits for a click — so the notice is seen before the session comes back
+ * (#1502). A cookie rather than storage because the backend must see it too;
+ * `Secure` follows the page, never the other way round.
+ */
+export function holdProxyHandoff(): void {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${PROXY_HANDOFF_HOLD_COOKIE}=1; Max-Age=${PROXY_HANDOFF_HOLD_MAX_AGE_S}; Path=/; SameSite=Lax${secure}`;
+}
+
+/** Lift the hold — the person chose to continue. */
+export function releaseProxyHandoff(): void {
+  document.cookie = `${PROXY_HANDOFF_HOLD_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+}
+
+/** True while the hold stands. */
+export function proxyHandoffHeld(): boolean {
+  return document.cookie
+    .split(';')
+    .some((part) => part.trim().startsWith(`${PROXY_HANDOFF_HOLD_COOKIE}=1`));
 }
