@@ -80,7 +80,7 @@ An application that already authenticates its users can hand them into this orga
 
 1. Turn on **Accept sign-ins from a trusted proxy** and choose the **Highest role a proxy may assert**. The role header is capped at this role; Owner is never assertable.
 2. Select **Create key**, name it after the proxy that will hold it, and copy the key immediately; it is shown once. An organization holds at most 10 live keys.
-3. Configure the proxy to send its sign-ins to the **Hand-off URL** with the key as the `Authorization` bearer token (or in the key header) and the identity headers listed under **Header names**. Point the proxy's `/log-in` at the same address.
+3. Configure the proxy to send its sign-ins to the **Hand-off URL** with the key as the `Authorization` bearer token (or in the key header) and the identity headers listed under **Header names**. Tale's sign-in page hands off to that address by itself when it sees the identity headers; pointing the proxy's `/log-in` there as well saves the extra round trip.
 
 To show the pages inside the application's own page, turn on **Allow embedding in a frame** under **Embedding** and list the page's origin under **Allowed origins**; Tale then admits that origin as a frame ancestor. A frame carries the signed-in session only when the surrounding page is on the same site as Tale.
 

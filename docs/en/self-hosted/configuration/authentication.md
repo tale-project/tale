@@ -56,7 +56,7 @@ The proxy must remove client-supplied identity headers, set its own authenticate
 
 `Remote-Teams` contains comma-separated `id:name` entries, for example `t-fin:Finance,t-ops:Operations`. An omitted header leaves team management alone; a present empty header removes memberships previously granted by this synchronization. Invalid entries can therefore remove synchronized memberships. Manually granted memberships are preserved.
 
-Route the proxy's `/log-in` to the hand-off address so members never see the credential form; the sign-in page itself does not redirect.
+Tale's sign-in page hands the browser to the hand-off address by itself when the request carries the proxy's identity header, so members never see the credential form; routing the proxy's `/log-in` straight to the hand-off address saves that round trip and is still recommended. When a hand-off does not end in a session (refused, or cookies blocked inside a frame), the page shows the form with a retry button instead of looping.
 
 To show Tale inside the application's own page rather than in a tab, an Admin lists that page's origin under **Embedding** on the same settings page. Tale's pages then answer with a `frame-ancestors` policy naming `'self'` and the listed origins instead of refusing every frame, and the `X-Frame-Options` header is left off. The list belongs to one organization, but the sign-in shell is one document for the whole deployment, so an origin any organization admits may load it. The browser sends the session cookie into a frame only when the surrounding page is on the same site as Tale, for example a subdomain of the host or Tale served under the host's own domain; a cross-site frame shows the sign-in page instead.
 
