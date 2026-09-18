@@ -123,6 +123,8 @@ common:
   aria:
     back: Back
     close: Close
+    collapseRow: Collapse row
+    expandRow: Expand row
     goToPage: Go to page
     hidePassword: Hide password
     invalid: invalid

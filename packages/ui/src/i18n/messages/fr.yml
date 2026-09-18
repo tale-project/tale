@@ -123,6 +123,8 @@ common:
   aria:
     back: Retour
     close: Fermer
+    collapseRow: Réduire la ligne
+    expandRow: Développer la ligne
     goToPage: Aller à la page
     hidePassword: Masquer le mot de passe
     invalid: invalide
