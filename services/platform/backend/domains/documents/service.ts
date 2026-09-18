@@ -586,6 +586,11 @@ export async function updateDocument(
     title = trimmed;
   }
   let folderId = doc.folderId;
+  // The destination when this call moves the document, kept for the two
+  // rules a move shares with a create (`createDocumentFromBlobUpload`): a
+  // folder you cannot see is not a destination, and a team folder stamps
+  // its team on what lands inside it.
+  let destination: Awaited<ReturnType<typeof loadFolderOrThrow>> | null = null;
   if (args.folderId !== undefined) {
     if (args.folderId !== null) {
       const folder = await loadFolderOrThrow(tx, args.folderId);
@@ -595,6 +600,19 @@ export async function updateDocument(
       if (folder.organizationId !== auth.organizationId || !sameScope) {
         throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
       }
+      if (
+        !hasTeamAccess(
+          { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
+          auth.teamIds,
+        )
+      ) {
+        throw new DocumentError(
+          'FOLDER_NOT_ACCESSIBLE',
+          'Folder not accessible',
+          403,
+        );
+      }
+      destination = folder;
     }
     folderId = args.folderId;
   }
@@ -621,14 +639,20 @@ export async function updateDocument(
           'A project document cannot be assigned to teams. Detach it from the project first.',
         );
       }
-      if (doc.folderId !== null) {
-        const folder = await loadFolderOrThrow(tx, doc.folderId);
-        if (folder.teamId) {
-          throw new DocumentError(
-            'TEAM_INHERITED_FROM_FOLDER',
-            'Cannot change team: inherited from parent folder',
-          );
-        }
+      // The folder the document ends up in, which is the destination when
+      // this same call moves it — reading `doc.folderId` would judge a
+      // combined move-and-retag against the folder being left behind.
+      const landing =
+        args.folderId !== undefined
+          ? destination
+          : doc.folderId !== null
+            ? await loadFolderOrThrow(tx, doc.folderId)
+            : null;
+      if (landing?.teamId) {
+        throw new DocumentError(
+          'TEAM_INHERITED_FROM_FOLDER',
+          'Cannot change team: inherited from parent folder',
+        );
       }
       const memberTeams = new Set(auth.teamIds);
       for (const id of args.teamIds) {
@@ -643,6 +667,14 @@ export async function updateDocument(
     }
     teamId = args.teamIds[0] ?? null;
     teamTags = args.teamIds;
+  }
+  // Same rule the create lane applies (`effectiveTeamId = folder.teamId`):
+  // a team folder owns the scope of everything inside it, so a move into
+  // one re-stamps the document rather than leaving it org-wide in a place
+  // only that team can open.
+  if (destination?.teamId) {
+    teamId = destination.teamId;
+    teamTags = [destination.teamId];
   }
   const teamScopeChanged =
     teamId !== doc.teamId ||
