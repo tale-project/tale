@@ -67,6 +67,32 @@ export interface RenderBatchArgs {
   /** Wall-clock budget for the sandbox exec, already clamped by the caller
    * against its own action deadline. */
   execTimeoutMs: number;
+  /** The site's robots.txt `Crawl-delay`, in ms — the pause the worker
+   * keeps between two page loads (2026-09-18 evaluation, J6-8). */
+  crawlDelayMs?: number;
+}
+
+/**
+ * The organization's render-session budget is spent (`QUOTA_EXCEEDED` from
+ * the slot reservation): every session is held by another scan. Not an
+ * infrastructure failure — the caller waits for a slot or defers the batch
+ * to its next link; failing the scan over it discarded everything the scan
+ * had fetched (2026-09-18 evaluation, J6-3).
+ */
+export class RenderCapacityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RenderCapacityError';
+  }
+}
+
+/** Whether a slot-reservation failure is the quota refusal (the sessions
+ * domain's `SandboxQuotaError`, which the crawl ctx shim passes through
+ * as-is) rather than a store or transport fault. */
+function isSandboxQuotaRefusal(error: unknown): error is Error {
+  return (
+    error instanceof Error && 'code' in error && error.code === 'QUOTA_EXCEEDED'
+  );
 }
 
 /** The worker's output file is a boundary: validate, never trust. Records
@@ -128,17 +154,25 @@ export async function renderUrlsInSandbox(
   args: RenderBatchArgs,
 ): Promise<Map<string, RenderPageOutcome>> {
   const sessionId = sessionIdForRender(args.batchKey);
-  const rowId = await ctx.runMutation(
-    internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
-    {
-      organizationId: args.organizationId,
-      sessionId,
-      profile: 'default',
-      ownerType: 'render',
-      ownerId: sessionId,
-      createdBy: 'system:crawler',
-    },
-  );
+  let rowId: string;
+  try {
+    rowId = await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
+      {
+        organizationId: args.organizationId,
+        sessionId,
+        profile: 'default',
+        ownerType: 'render',
+        ownerId: sessionId,
+        createdBy: 'system:crawler',
+      },
+    );
+  } catch (error) {
+    if (isSandboxQuotaRefusal(error)) {
+      throw new RenderCapacityError(error.message);
+    }
+    throw error;
+  }
 
   let created = false;
   try {
@@ -176,6 +210,9 @@ export async function renderUrlsInSandbox(
       ),
       maxHtmlBytes: RENDER_MAX_HTML_BYTES,
       maxTotalBytes: RENDER_MAX_TOTAL_BYTES,
+      // The site's robots.txt `Crawl-delay` paces the render leg too, not
+      // just the probe leg (2026-09-18 evaluation, J6-8).
+      crawlDelayMs: args.crawlDelayMs ?? 0,
       // The same identity the probe leg sends (2026-09-15 evaluation, i6).
       userAgent: crawlerUserAgent(process.env.TALE_VERSION),
     };
@@ -303,6 +340,7 @@ const idleTimeoutMs = input.idleTimeoutMs || 5000;
 const softBudgetMs = input.softBudgetMs || 180000;
 const maxHtmlBytes = input.maxHtmlBytes || 6291456;
 const maxTotalBytes = input.maxTotalBytes || 15728640;
+const crawlDelayMs = Number(input.crawlDelayMs) || 0;
 const userAgent =
   typeof input.userAgent === 'string' && input.userAgent !== ''
     ? input.userAgent
@@ -347,8 +385,14 @@ try {
   // The crawler's own User-Agent, handed in by the host: a site owner can
   // name TaleBot in robots.txt and tell its traffic apart in their logs.
   const context = await browser.newContext(userAgent ? { userAgent } : {});
+  let renderedOne = false;
   for (const url of urls) {
     if (Date.now() - startedAt > softBudgetMs) break;
+    // The site's Crawl-delay between two page loads (never before the first).
+    if (renderedOne && crawlDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, crawlDelayMs));
+    }
+    renderedOne = true;
     const record = records.get(url);
     record.attempted = true;
     let hostname = '';

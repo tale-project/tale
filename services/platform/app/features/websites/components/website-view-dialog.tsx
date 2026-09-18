@@ -61,6 +61,7 @@ const FAILURE_KIND_KEYS = {
   timeout: 'pagesDialog.errorKind.timeout',
   insecure_public_http: 'pagesDialog.errorKind.insecurePublicHttp',
   private_ip: 'pagesDialog.errorKind.privateIp',
+  host_not_allowed: 'pagesDialog.errorKind.hostNotAllowed',
   http_error: 'pagesDialog.errorKind.httpError',
   network_error: 'pagesDialog.errorKind.networkError',
   render_failed: 'pagesDialog.errorKind.renderFailed',

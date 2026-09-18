@@ -186,6 +186,7 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
       case 'invalid_url':
       case 'unsupported_protocol':
       case 'private_ip':
+      case 'host_not_allowed':
       case 'insecure_public_http':
       case 'redirect_missing_location':
       case 'redirect_limit_exceeded':

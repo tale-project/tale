@@ -177,15 +177,16 @@ export function parseCrawlTarget(
       'Only https hosts are reached — drop the "http://" prefix or paste the https:// URL; a host that serves plaintext only is out of reach',
     );
   }
-  let hostname: string;
+  let parsed: URL;
   try {
-    hostname = new URL(scheme === undefined ? `https://${raw}` : raw).hostname;
+    parsed = new URL(scheme === undefined ? `https://${raw}` : raw);
   } catch {
     throw new CrawlTargetError(
       'WEBSITE_DOMAIN_INVALID',
       'The domain is not a hostname or an http(s) URL',
     );
   }
+  let hostname = parsed.hostname;
   // DNS's root label: `example.com.` is `example.com` — WHATWG keeps the
   // dot, so the two spellings registered as two sites and crawled the same
   // pages twice (2026-09-14 evaluation, h5). An empty label (`a..b`) names
@@ -206,6 +207,19 @@ export function parseCrawlTarget(
   const refusal = crawlHostRefusal(hostname, options);
   if (refusal !== null) {
     throw new CrawlTargetError('WEBSITE_DOMAIN_NOT_CRAWLABLE', refusal);
+  }
+  // A non-default port is refused, not silently dropped: the crawler dials
+  // https on 443, so `host:8443` used to register and then crawl the wrong
+  // origin on 443, against the documentation's promise that a non-default
+  // port is rejected (2026-09-18 evaluation, J6-7). Judged after the host
+  // itself, so a loopback with a port keeps its clearer `NOT_CRAWLABLE`.
+  // `new URL` already clears an explicit `:443`, so only a real non-default
+  // port remains here.
+  if (parsed.port !== '') {
+    throw new CrawlTargetError(
+      'WEBSITE_DOMAIN_INVALID',
+      `The crawler dials the standard https port; a non-default port (:${parsed.port}) is not crawled — remove it`,
+    );
   }
   return hostname;
 }

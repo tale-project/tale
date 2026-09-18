@@ -470,7 +470,15 @@ export async function searchDomainContent(
         LIMIT $3`,
       [domain, query, limit],
     );
-    return { results: rows, total: rows.length };
+    // `total` is the number of matches, not the size of this page — it read
+    // `results.length` and so never exceeded `limit`, carrying no information
+    // beyond the array (2026-09-18 evaluation, J6-9). Only a saturated page
+    // can hide more, so the extra count is spared when it cannot.
+    const total =
+      rows.length < limit
+        ? rows.length
+        : await countDomainMatches(sql, domain, query);
+    return { results: rows, total };
   } catch (error) {
     console.warn(
       `[crawl] BM25 domain search unavailable for ${domain}; falling back to ILIKE:`,
@@ -492,9 +500,51 @@ export async function searchDomainContent(
         LIMIT $3`,
       [domain, query, limit],
     );
+    const total =
+      rows.length < limit
+        ? rows.length
+        : await countDomainMatches(sql, domain, query, { substring: true });
     return {
-      results: rows.map((row) => ({ ...row, score: 0 })),
-      total: rows.length,
+      // Explicit build (no spread): the ILIKE leg has no score, so every hit
+      // is stamped 0 — the wire says so (`WebsiteSearchHit.score`).
+      results: rows.map((row) => ({
+        url: row.url,
+        title: row.title,
+        chunk_content: row.chunk_content,
+        core_content: row.core_content,
+        chunk_index: row.chunk_index,
+        score: 0,
+      })),
+      total,
     };
+  }
+}
+
+/** How many chunks of a domain match — the honest `total` behind a saturated
+ * search page (2026-09-18 evaluation, J6-9). BM25 by default, ILIKE for the
+ * fallback leg; a count that itself fails degrades to the page size rather
+ * than failing the search. */
+async function countDomainMatches(
+  sql: Sql,
+  domain: string,
+  query: string,
+  options: { substring?: boolean } = {},
+): Promise<number> {
+  try {
+    const predicate = options.substring
+      ? `c.chunk_content ILIKE '%' || $2 || '%'`
+      : `c.id @@@ paradedb.match('chunk_content', $2)`;
+    const rows = await sql.unsafe<{ n: string }[]>(
+      `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+        WHERE c.domain = $1 AND ${predicate}`,
+      [domain, query],
+    );
+    return Number(rows[0]?.n ?? '0');
+  } catch (error) {
+    console.warn(
+      `[crawl] match count unavailable for ${domain}:`,
+      error instanceof Error ? error.message : error,
+    );
+    return 0;
   }
 }

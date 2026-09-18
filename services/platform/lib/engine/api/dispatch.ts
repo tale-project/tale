@@ -245,7 +245,10 @@ export interface DispatchStore extends StoreAdapter {
   } | null>;
   listRuns?(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun?(runId: string): Promise<RunDetail | null>;
-  cancelRun?(runId: string): Promise<{ cancelled: boolean }>;
+  /** Stop a run. `cancelled: false` with a terminal `status` is a run that
+   * had already finished; `cancelled: false` with NO `status` is a run that
+   * does not exist (answered RUN_NOT_FOUND, like `get_run` and REST). */
+  cancelRun?(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   listVersions?(name: string): Promise<VersionSummary[]>;
   listTriggers?(name?: string): Promise<TriggerView[]>;
   /** Unbind the automation's trigger. `deleted` says whether one was bound —
@@ -999,10 +1002,22 @@ export async function dispatch(
         };
       }
       try {
-        const { cancelled } = await store.cancelRun(runId);
+        const outcome = await store.cancelRun(runId);
+        // A run that does not exist is RUN_NOT_FOUND, the same code `get_run`
+        // and REST cancel answer — not the "already finished" note, which a
+        // cancel-until-refusal loop reads as success and never learns the id
+        // is wrong (2026-09-18 evaluation, J8-1). The store reports it by
+        // `cancelled: false` with no terminal `status`.
+        if (!outcome.cancelled && outcome.status === undefined) {
+          return {
+            error: `no run "${runId}"`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
         return {
-          cancelled,
-          note: cancelled
+          cancelled: outcome.cancelled,
+          note: outcome.cancelled
             ? 'the run stops at its next node boundary; work already performed is not undone'
             : 'the run had already finished — nothing to cancel',
         };

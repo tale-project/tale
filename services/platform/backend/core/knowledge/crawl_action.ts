@@ -36,7 +36,7 @@
  */
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
-import type { Sql, TransactionSql } from 'postgres';
+import type { JSONValue, Sql, TransactionSql } from 'postgres';
 
 import { chunkDocument } from '../../../lib/knowledge/chunking';
 import {
@@ -44,6 +44,7 @@ import {
   classifyRenderReason,
   discoverableLinks,
   documentNameForUrl,
+  EMPTY_ROBOTS_POLICY,
   isSitemapIndex,
   isUrlDisallowed,
   normalizeCandidateUrl,
@@ -51,9 +52,13 @@ import {
   parseRobots,
   parseSitemapLocs,
   publicPageError,
+  ROBOTS_TXT_MAX_BYTES,
+  type RobotsPolicy,
   type RobotsRules,
   robotsHeaderForbidsIndexing,
   robotsMetaNoindexDirective,
+  robotsPolicyFromStored,
+  robotsPolicyToStored,
   siteHosts,
   stripBoilerplate,
 } from '../../../lib/knowledge/crawl-parse';
@@ -88,7 +93,10 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
-import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
+import {
+  RenderCapacityError,
+  renderUrlsInSandbox,
+} from '../node_only/sandbox/render_fetch';
 import {
   isDueForScan,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
@@ -96,7 +104,10 @@ import {
 import type { PageFailureKind } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
-import { crawlerRequestHeaders } from './crawler_identity';
+import {
+  CRAWLER_PRODUCT_TOKEN,
+  crawlerRequestHeaders,
+} from './crawler_identity';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import { assertCorpusWritable } from './index_health';
@@ -111,8 +122,15 @@ import {
  * without running its catch. */
 const SCAN_BUDGET_MS = 300_000;
 /** Pause between page fetches; a crawler that hammers a site gets blocked,
- * and these actions share the backend process with everything else. */
+ * and these actions share the backend process with everything else. A
+ * site's own `Crawl-delay` lengthens it (never shortens it). */
 const FETCH_DELAY_MS = 500;
+/** The pause between two fetches from one site: the floor above, or the
+ * `Crawl-delay` its robots.txt asks of this crawler (2026-09-18
+ * evaluation, J6-8). */
+function fetchDelayMs(policy: RobotsPolicy): number {
+  return Math.max(FETCH_DELAY_MS, policy.crawlDelayMs);
+}
 /** Pause before the next continuation link. */
 const CONTINUATION_DELAY_MS = 5_000;
 /** Chain-length backstop against a chain that stops making progress. Sized
@@ -124,7 +142,6 @@ const MAX_CONTINUATIONS = 200;
 const PAGE_TIMEOUT_MS = 15_000;
 const PAGE_MAX_BYTES = 2 * 1024 * 1024;
 const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
-const ROBOTS_MAX_BYTES = 256 * 1024;
 
 /** Content fetch budgets. Documents run far fatter and slower than HTML
  * pages (a consolidated legal handbook PDF is megabytes), so the page fetch
@@ -141,6 +158,14 @@ const RENDER_BATCH_SIZE = 10;
 const RENDER_MIN_WINDOW_MS = 120_000;
 const RENDER_EXEC_MAX_MS = 240_000;
 const RENDER_HARVEST_MARGIN_MS = 30_000;
+/** The organization's render sessions are a shared budget (two by default),
+ * and a third concurrent scan finds it spent. That is a wait, not a failed
+ * scan: the link polls for a slot this often while its window allows, and
+ * when none comes it leaves the batch for the next link, which follows
+ * after the longer pause (2026-09-18 evaluation, J6-3). The scan used to
+ * end in `error` with everything it had fetched discarded. */
+const RENDER_CAPACITY_POLL_MS = 15_000;
+const RENDER_CAPACITY_RETRY_MS = 60_000;
 
 /** Sitemap fetches per discovery (indexes recurse one level). Sites chunk
  * their sitemaps — per month, per section — so filling the URL cap can take
@@ -228,7 +253,7 @@ export async function scanWebsiteImpl(
       const kind = facts.kind;
       // The robots rules every non-listed admission and fetch of this link
       // judges by: read fresh on link 0, from the row on every later link.
-      let disallow = facts.disallow;
+      let policy: RobotsPolicy = facts.policy;
       if (continuation === 0) {
         const claim = await claimScan(sql, args.domain);
         if (claim === 'held') {
@@ -264,23 +289,15 @@ export async function scanWebsiteImpl(
         // frontier, and robots.txt does not govern explicitly requested
         // pages (the same stance web_fetch takes).
         if (kind === 'site') {
-          const robots = await loadRobotsRules(
-            sql,
-            args.domain,
-            facts.disallow,
-          );
-          disallow = robots.disallow;
+          const robots = await loadRobotsRules(sql, args.domain, facts.policy);
+          policy = robots;
           await discoverAndRecordUrls(
             sql,
             args.domain,
             actionStartedAt + DISCOVERY_BUDGET_MS,
             robots,
           );
-          const retired = await retireDisallowedRows(
-            sql,
-            args.domain,
-            disallow,
-          );
+          const retired = await retireDisallowedRows(sql, args.domain, policy);
           if (retired > 0) {
             console.log(
               `[crawl] ${args.domain}: ${retired} page(s) retired — robots.txt disallows them`,
@@ -307,31 +324,70 @@ export async function scanWebsiteImpl(
       const indexer = new PageIndexer(ctx, sql, identity);
       const renderQueue: DuePage[] = [];
       let renderBatchCounter = 0;
+      // Set once the organization's render sessions stayed spent for the
+      // rest of this link's window: the link stops fetching (every HTML
+      // page it probed would only queue behind the same wait) and hands the
+      // frontier to the next link after the longer pause.
+      let renderDeferred = false;
+
+      /** The batch's render results, or null when the render capacity
+       * stayed spent for the rest of the window (the batch is left unmarked
+       * for the next link). Infra failures other than capacity — session
+       * create, transport, a missing output file — THROW into the scan's
+       * error path: rows stay untouched, the status is visible, and the next
+       * interval retries. */
+      const renderBatch = async (
+        batch: readonly DuePage[],
+      ): Promise<Awaited<ReturnType<typeof renderUrlsInSandbox>> | null> => {
+        for (;;) {
+          const window = hardWall - Date.now();
+          if (window < RENDER_MIN_WINDOW_MS) return null;
+          try {
+            return await renderUrlsInSandbox(ctx, {
+              organizationId: args.organizationId,
+              urls: batch.map((page) => page.url),
+              batchKey: `${args.domain}:${scanStartedAt}:${continuation}:${renderBatchCounter}`,
+              execTimeoutMs: Math.min(
+                RENDER_EXEC_MAX_MS,
+                window - RENDER_HARVEST_MARGIN_MS,
+              ),
+              crawlDelayMs: policy.crawlDelayMs,
+            });
+          } catch (error) {
+            if (!(error instanceof RenderCapacityError)) throw error;
+            if (window < RENDER_MIN_WINDOW_MS + RENDER_CAPACITY_POLL_MS) {
+              return null;
+            }
+            console.log(
+              `[crawl] ${args.domain}: render capacity is spent (${error.message}); retrying in ${RENDER_CAPACITY_POLL_MS / 1000} s`,
+            );
+            await sleep(RENDER_CAPACITY_POLL_MS);
+          }
+        }
+      };
 
       const flushRenderBatch = async (): Promise<void> => {
         if (renderQueue.length === 0) return;
-        const window = hardWall - Date.now();
-        if (window < RENDER_MIN_WINDOW_MS) {
-          // Too close to the action's kill point to open a session — drop
-          // the queue UNMARKED so the next continuation link retries it.
+        if (hardWall - Date.now() < RENDER_MIN_WINDOW_MS || renderDeferred) {
+          // Too close to the action's kill point to open a session, or the
+          // capacity wait already gave up — drop the queue UNMARKED so the
+          // next continuation link retries it.
           renderQueue.length = 0;
           return;
         }
         const batch = renderQueue.splice(0);
         renderBatchCounter += 1;
-        // Infra failures (quota, session create, transport) THROW into the
-        // scan's error path: rows stay untouched, the status is visible,
-        // and the next interval retries. Only per-URL render outcomes are
-        // charged to the page's fail_count.
-        const results = await renderUrlsInSandbox(ctx, {
-          organizationId: args.organizationId,
-          urls: batch.map((page) => page.url),
-          batchKey: `${args.domain}:${scanStartedAt}:${continuation}:${renderBatchCounter}`,
-          execTimeoutMs: Math.min(
-            RENDER_EXEC_MAX_MS,
-            window - RENDER_HARVEST_MARGIN_MS,
-          ),
-        });
+        const results = await renderBatch(batch);
+        if (results === null) {
+          // The batch's rows are unmarked and stay due; the next link
+          // renders them once a session is free.
+          renderDeferred = true;
+          console.log(
+            `[crawl] ${args.domain}: no render session came free within this link; ${batch.length} page(s) wait for the next link`,
+          );
+          return;
+        }
+        // Only per-URL render outcomes are charged to the page's fail_count.
         for (const page of batch) {
           const outcome = results.get(page.url) ?? {
             kind: 'not_attempted' as const,
@@ -376,13 +432,16 @@ export async function scanWebsiteImpl(
               args.domain,
               outcome.html,
               outcome.finalUrl,
-              disallow,
+              policy,
             );
           }
         }
       };
 
-      while (Date.now() < deadline) {
+      // `renderDeferred` is set inside `flushRenderBatch`, which this loop
+      // calls — the static check cannot see the closure write.
+      // oxlint-disable-next-line eslint/no-unmodified-loop-condition
+      while (Date.now() < deadline && !renderDeferred) {
         const pages = await nextDuePages(
           sql,
           args.domain,
@@ -391,16 +450,16 @@ export async function scanWebsiteImpl(
         );
         if (pages.length === 0) break;
         for (const page of pages) {
-          if (Date.now() >= deadline) break;
+          if (Date.now() >= deadline || renderDeferred) break;
           const outcome = await fetchAndStorePage(
             sql,
             args.domain,
             page,
-            disallow,
+            policy,
           );
           if (outcome === 'render') renderQueue.push(page);
           else if (outcome === 'changed') await indexer.indexPage(page.url);
-          await sleep(FETCH_DELAY_MS);
+          await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
         // Settle the partial batch BEFORE re-querying the frontier — the
@@ -422,7 +481,9 @@ export async function scanWebsiteImpl(
         );
         await fanOutRowSync(ctx, sql, args.domain);
         await ctx.scheduler.runAfter(
-          CONTINUATION_DELAY_MS,
+          // A link that waited on render capacity gives the other scans
+          // time to release a session before it asks again.
+          renderDeferred ? RENDER_CAPACITY_RETRY_MS : CONTINUATION_DELAY_MS,
           internal.knowledge.crawl_action.scanWebsite,
           {
             ...identity,
@@ -438,13 +499,15 @@ export async function scanWebsiteImpl(
         );
       }
 
-      // A scan that attempted pages and stored NONE is not "a successful
-      // scan": it lands on the documented `error` state with the reason —
-      // the site used to read `active` with `crawledPageCount 1,
-      // failedPageCount 1` (a domain that does not resolve, an expired
-      // certificate), so the obvious health check was wrong (2026-09-14
-      // evaluation, g4-5). `last_scanned_at` is stamped either way — the
-      // scan did end — and an errored scan takes the failure cadence.
+      // A scan that stored NO page is not "a successful scan": it lands on
+      // the documented `error` state with the reason — the site used to
+      // read `active` with `crawledPageCount 1, failedPageCount 1` (a
+      // domain that does not resolve, an expired certificate), so the
+      // obvious health check was wrong (2026-09-14 evaluation, g4-5); and
+      // `active` with zero pages when robots.txt disallowed every page, so
+      // nothing was ever attempted (2026-09-18 evaluation, J6-5).
+      // `last_scanned_at` is stamped either way — the scan did end — and an
+      // errored scan takes the failure cadence.
       const [tally] = await sql.unsafe<
         {
           stored: string;
@@ -467,8 +530,16 @@ export async function scanWebsiteImpl(
       const stored = Number(tally?.stored ?? '0');
       const attempted = Number(tally?.attempted ?? '0');
       const failedPages = Number(tally?.failed ?? '0');
-      if (stored === 0 && attempted > 0) {
-        const reason = `No page could be stored: ${failedPages} of ${attempted} attempted pages failed${tally?.kind ? ` (${tally.kind})` : ''}`;
+      if (stored === 0) {
+        const reason = `No page could be stored: ${
+          attempted > 0
+            ? `${failedPages} of ${attempted} attempted pages failed${tally?.kind ? ` (${tally.kind})` : ''}`
+            : remaining > 0
+              ? `${remaining} page(s) were still waiting when the scan's continuation budget ran out`
+              : isUrlDisallowed(`https://${args.domain}/`, policy)
+                ? `robots.txt disallows this crawler (User-agent: ${CRAWLER_PRODUCT_TOKEN}, or *) from the homepage, and no other page was admitted`
+                : 'discovery found no page to fetch'
+        }`;
         await sql.unsafe(
           `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
               SET status = 'error', last_scanned_at = NOW(), error = $2,
@@ -590,10 +661,10 @@ interface DomainFacts {
    * listed rows are fetched). Rows that predate the distinction read as
    * 'site'. */
   readonly kind: 'site' | 'list';
-  /** The robots `Disallow` rules the last scan persisted — what every
-   * continuation link judges by; `[]` for a list row (its rows are the
-   * operator's instruction) or before the first scan of this release. */
-  readonly disallow: readonly string[];
+  /** The robots policy the last scan persisted — what every continuation
+   * link judges by; no rules for a list row (its rows are the operator's
+   * instruction) or before the first scan of this release. */
+  readonly policy: RobotsPolicy;
 }
 
 /** What this domain row is, and the rules it is crawled under. */
@@ -607,19 +678,17 @@ async function domainFacts(sql: Sql, domain: string): Promise<DomainFacts> {
   const kind = row?.kind === 'list' ? 'list' : 'site';
   return {
     kind,
-    disallow: kind === 'list' ? [] : readDisallowRules(row?.robots_disallow),
+    policy:
+      kind === 'list'
+        ? EMPTY_ROBOTS_POLICY
+        : robotsPolicyFromStored(row?.robots_disallow),
   };
 }
 
-function readDisallowRules(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((rule): rule is string => typeof rule === 'string')
-    : [];
-}
-
 /**
- * The robots.txt rules a scan honours (`User-agent: *`), read at the start
- * of every scan and persisted on the corpus row so the discovery walk, every
+ * The robots.txt rules a scan honours — the group that names this crawler
+ * (`User-agent: TaleBot`), else the `*` group — read at the start of every
+ * scan and persisted on the corpus row so the discovery walk, every
  * continuation link, the rendered-page admission and the retirement pass
  * judge by the same rules. A robots.txt that answers 2xx is the rules; one
  * that answers anything else is "no rules" — a site without one allows
@@ -629,7 +698,7 @@ function readDisallowRules(value: unknown): readonly string[] {
 async function loadRobotsRules(
   sql: Sql,
   domain: string,
-  persisted: readonly string[],
+  persisted: RobotsPolicy,
 ): Promise<RobotsRules> {
   const hosts = siteHosts(domain);
   const url = `https://${domain}/robots.txt`;
@@ -638,14 +707,14 @@ async function loadRobotsRules(
     assertCrawlableUrl(url);
     const robots = await safeFetch(url, {
       timeoutMs: PAGE_TIMEOUT_MS,
-      maxResponseBytes: ROBOTS_MAX_BYTES,
+      maxResponseBytes: ROBOTS_TXT_MAX_BYTES,
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
       headers: crawlerRequestHeaders(),
     });
     if (robots.status >= 200 && robots.status < 300) {
-      rules = parseRobots(robots.body);
+      rules = parseRobots(robots.body, CRAWLER_PRODUCT_TOKEN);
     } else if (robots.status >= 500 || robots.status === 429) {
       // A server error or a throttle is no answer about the rules (RFC 9309
       // §2.3.1.4 has a crawler keep a cached copy): the last known rules
@@ -653,25 +722,26 @@ async function loadRobotsRules(
       console.warn(
         `[crawl] ${domain}: robots.txt answered ${robots.status}, keeping the last known rules`,
       );
-      return { disallow: persisted, sitemaps: [] };
+      return { ...persisted, sitemaps: [] };
     } else {
       // A 4xx is an answer: the site publishes no rules (§2.3.1.3).
-      rules = { disallow: [], sitemaps: [] };
+      rules = { ...EMPTY_ROBOTS_POLICY, sitemaps: [] };
     }
   } catch (error) {
     console.warn(
       `[crawl] ${domain}: robots.txt unavailable, keeping the last known rules:`,
       error instanceof Error ? error.message : error,
     );
-    return { disallow: persisted, sitemaps: [] };
+    return { ...persisted, sitemaps: [] };
   }
   // The `::jsonb` cast types the parameter, so the driver serializes the
-  // value itself — a pre-stringified array would be stored as a JSON string.
+  // value itself — a pre-stringified object would be stored as a JSON string.
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
         SET robots_disallow = $2::jsonb, robots_fetched_at = NOW()
       WHERE domain = $1`,
-    [domain, [...rules.disallow]],
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON-shaped policy object for the `::jsonb` param
+    [domain, robotsPolicyToStored(rules) as JSONValue],
   );
   return rules;
 }
@@ -715,9 +785,16 @@ async function discoverAndRecordUrls(
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
-  const disallow = robots.disallow;
 
-  let sitemapCandidates: string[] = [`https://${domain}/sitemap.xml`];
+  // The conventional sitemap location is a guess and robots.txt governs it
+  // like any URL; a sitemap the file advertises is the site's own
+  // instruction to read it. A `Disallow: /` site used to have its
+  // `/sitemap.xml` and homepage fetched all the same (2026-09-18
+  // evaluation, J6-5).
+  const guessed = `https://${domain}/sitemap.xml`;
+  let sitemapCandidates: string[] = isUrlDisallowed(guessed, robots)
+    ? []
+    : [guessed];
   const advertised = robots.sitemaps.filter((sitemapUrl) => {
     try {
       return hosts.has(new URL(sitemapUrl).hostname.toLowerCase());
@@ -731,7 +808,7 @@ async function discoverAndRecordUrls(
   const admit = (candidate: string): boolean => {
     const normalized = normalizeCandidateUrl(candidate, baseUrl, hosts);
     if (!normalized) return false;
-    if (isUrlDisallowed(normalized, disallow)) return false;
+    if (isUrlDisallowed(normalized, robots)) return false;
     if (urls.size >= MAX_URLS_PER_DOMAIN) return true;
     urls.add(normalized);
     return urls.size >= MAX_URLS_PER_DOMAIN;
@@ -791,9 +868,12 @@ async function discoverAndRecordUrls(
       if (capped) break;
     }
     if (capped) break;
+    // The site's `Crawl-delay` paces sitemap reads too.
+    if (robots.crawlDelayMs > 0) await sleep(robots.crawlDelayMs);
   }
 
-  // Link-walk fallback for sites without a useful sitemap.
+  // Link-walk fallback for sites without a useful sitemap. A URL the rules
+  // cover — the homepage included — is never dialed for its links either.
   if (urls.size < BFS_FALLBACK_THRESHOLD) {
     const queue: Array<{ url: string; depth: number }> = [
       { url: baseUrl, depth: 0 },
@@ -808,6 +888,7 @@ async function discoverAndRecordUrls(
       const next = queue.shift();
       if (!next || visited.has(next.url)) continue;
       visited.add(next.url);
+      if (isUrlDisallowed(next.url, robots)) continue;
       fetches += 1;
       try {
         assertCrawlableUrl(next.url);
@@ -824,7 +905,7 @@ async function discoverAndRecordUrls(
           response.body,
           next.url,
           hosts,
-          disallow,
+          robots,
         )) {
           if (urls.size < MAX_URLS_PER_DOMAIN) urls.add(normalized);
           if (next.depth + 1 <= BFS_MAX_DEPTH && !visited.has(normalized)) {
@@ -837,7 +918,7 @@ async function discoverAndRecordUrls(
         );
         continue;
       }
-      await sleep(FETCH_DELAY_MS);
+      await sleep(fetchDelayMs(robots));
     }
   }
 
@@ -915,7 +996,7 @@ async function fetchAndStorePage(
   sql: Sql,
   domain: string,
   page: DuePage,
-  disallow: readonly string[],
+  policy: RobotsPolicy,
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
 
@@ -923,7 +1004,7 @@ async function fetchAndStorePage(
   // earlier release's discovery, a rule the site added since: a non-listed
   // URL robots.txt disallows is never dialed, and leaves the index the way
   // the retirement pass would have retired it.
-  if (!page.listed && isUrlDisallowed(page.url, disallow)) {
+  if (!page.listed && isUrlDisallowed(page.url, policy)) {
     await retirePage(sql, domain, page.url);
     return 'unchanged';
   }
@@ -952,7 +1033,12 @@ async function fetchAndStorePage(
     const message =
       kind === 'timeout'
         ? `The page did not finish downloading within ${PAGE_FETCH_TIMEOUT_MS / 1000} seconds`
-        : cause;
+        : kind === 'host_not_allowed'
+          ? // A redirect off the registered site: the right refusal, which
+            // used to wear the `private_ip` label (2026-09-18 evaluation,
+            // J6-6).
+            `The page redirected off the site, which the crawler does not follow (${cause})`
+          : cause;
     console.warn(`[crawl] ${page.url}: fetch failed (${kind}): ${cause}`);
     await recordPageFailure(sql, domain, page.url, { kind, message });
     return 'failed';
@@ -1191,9 +1277,9 @@ async function retirePage(
 async function retireDisallowedRows(
   sql: Sql,
   domain: string,
-  disallow: readonly string[],
+  policy: RobotsPolicy,
 ): Promise<number> {
-  if (disallow.length === 0) return 0;
+  if (policy.disallow.length === 0) return 0;
   const rows = await sql.unsafe<{ url: string }[]>(
     `SELECT url FROM ${PUBLIC_WEB_SCHEMA}.website_urls
       WHERE domain = $1 AND NOT listed AND status <> 'deleted'`,
@@ -1201,7 +1287,7 @@ async function retireDisallowedRows(
   );
   let retired = 0;
   for (const row of rows) {
-    if (!isUrlDisallowed(row.url, disallow)) continue;
+    if (!isUrlDisallowed(row.url, policy)) continue;
     await retirePage(sql, domain, row.url);
     retired += 1;
   }
@@ -1222,7 +1308,7 @@ async function admitRenderedLinks(
   domain: string,
   html: string,
   baseUrl: string,
-  disallow: readonly string[],
+  policy: RobotsPolicy,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const countRows = await sql.unsafe<{ n: string }[]>(
@@ -1231,7 +1317,7 @@ async function admitRenderedLinks(
     [domain],
   );
   let tracked = Number(countRows[0]?.n ?? 0);
-  for (const normalized of discoverableLinks(html, baseUrl, hosts, disallow)) {
+  for (const normalized of discoverableLinks(html, baseUrl, hosts, policy)) {
     if (tracked >= MAX_URLS_PER_DOMAIN) {
       console.warn(
         `[crawl] ${domain}: URL cap of ${MAX_URLS_PER_DOMAIN} reached during rendered-link admission`,

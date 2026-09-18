@@ -144,8 +144,14 @@ export const BODY_LANE_WINDOW_MS = 2 * 60_000;
 export interface DeliveryIdentity {
   /** Which lane produced the key: `header:<header-name>` or `body`. */
   source: string;
-  /** Opaque, bounded: hex SHA-256 over lane + delivery material + project. */
+  /** Opaque, bounded: hex SHA-256 over lane + delivery material + project.
+   * Per-scope, so each project (and the organization) dedupes on its own. */
   key: string;
+  /** The same digest WITHOUT the project — one value across every scope this
+   * delivery reaches. The cross-scope guard reads it to catch a delivery
+   * re-posted at the organization door after it was first taken at a project
+   * door, or the reverse (2026-09-18 evaluation, J3-1). */
+  identityHash: string;
   /** How long a repeat of this identity reads as the same delivery. */
   windowMs: number;
 }
@@ -170,16 +176,20 @@ export async function deliveryIdentity(args: {
   const project = args.projectId ?? '';
   const explicit = pickDeliveryId(args.headers);
   if (explicit !== null) {
+    const material = `header\n${explicit.value}`;
     return {
       source: `header:${explicit.header}`,
-      key: await sha256Hex(`header\n${explicit.value}\n${project}`),
+      key: await sha256Hex(`${material}\n${project}`),
+      identityHash: await sha256Hex(material),
       windowMs: HEADER_LANE_WINDOW_MS,
     };
   }
   const bodyHash = await sha256Hex(args.body);
+  const material = `body\n${bodyHash}`;
   return {
     source: 'body',
-    key: await sha256Hex(`body\n${bodyHash}\n${project}`),
+    key: await sha256Hex(`${material}\n${project}`),
+    identityHash: await sha256Hex(material),
     windowMs: BODY_LANE_WINDOW_MS,
   };
 }

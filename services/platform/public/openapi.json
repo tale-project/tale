@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.14.0",
+    "version": "1.15.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -24513,7 +24513,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100000,
-                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
+                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. The 100,000 cap counts UTF-16 code units, so an astral character — an emoji — costs two, and a body of 50,001 of them is refused. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
                   },
                   "model": {
                     "type": "string",
@@ -27076,7 +27076,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100000,
-                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
+                    "description": "The prompt, trimmed before the length check — a blank prompt (nothing but whitespace and invisible format characters: zero-width spaces, joiners, bidi marks) is 400 `INVALID_BODY`, not a turn; markdown that renders as nothing, an empty code fence say, is still a prompt. The 100,000 cap counts UTF-16 code units, so an astral character — an emoji — costs two, and a body of 50,001 of them is refused. Text only: this surface takes no image or file input, on a `vision` model too — a data URI or base64 pasted here reaches the model as text and is answered as text; image attachments are the app’s composer."
                   },
                   "model": {
                     "type": "string",
@@ -29199,6 +29199,24 @@
             "description": "The file’s bundle-relative path exactly as `files[].path` lists it — nested segments separated by `/`, raw or percent-encoded (`%2F`)"
           },
           {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `ETag` a previous answer carried (the tag is over the file’s bytes; the weak `W/` form matches too): unchanged bytes answer 304 with no body. Takes precedence over `If-Modified-Since`."
+          },
+          {
+            "name": "If-Modified-Since",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `Last-Modified` a previous answer carried: a file not modified since answers 304, judged at whole-second precision. Ignored when `If-None-Match` is present."
+          },
+          {
             "name": "X-Request-Id",
             "in": "header",
             "required": false,
@@ -29219,6 +29237,15 @@
               "Content-Length": {
                 "$ref": "#/components/headers/ContentLength"
               },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
               },
@@ -29232,6 +29259,26 @@
                   "type": "string",
                   "format": "binary"
                 }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag` (or `If-Modified-Since` the current `Last-Modified`), so no bytes are sent; `ETag`, `Last-Modified` and `Cache-Control` ride along",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -32268,7 +32315,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.14.0"
+          "example": "1.15.0"
         }
       },
       "Location": {
@@ -33058,6 +33105,7 @@
               "unsupported_protocol",
               "insecure_public_http",
               "private_ip",
+              "host_not_allowed",
               "dns_failed",
               "redirect_missing_location",
               "redirect_limit_exceeded",
@@ -33074,7 +33122,7 @@
               "robots_noindex",
               null
             ],
-            "description": "The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name=\"robots\" content=\"noindex\">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log",
+            "description": "The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip` — a redirect that resolves to a private, loopback or metadata address; `host_not_allowed` — a redirect off the registered site, which the crawler does not follow (it used to wear the `private_ip` label); `dns_failed`; `tls_error` — the certificate is expired, self-signed, untrusted or for another host, permanent until the operator fixes it; `timeout` — the page did not finish downloading within the 30-second budget, or the browser could not load it within 20 seconds; `response_too_large`; `redirect_limit_exceeded` — more than five redirects; `network_error` — any other connection failure, naming its cause; …), `http_error` (a 4xx/5xx other than 404/410; for a listed URL 404/410 too), `render_failed` (the sandboxed browser gave up), `extraction_failed` (a linked document no extractor could read), `unsupported_content` (the crawler looked and stored nothing: a content type it cannot turn into text — JSON, XML, an image, a binary download — the row stays `discovered` and its `failCount` counts the attempt), or `robots_noindex` (the origin answered `X-Robots-Tag: noindex` or carries `<meta name=\"robots\" content=\"noindex\">`, honoured — what an earlier scan stored is dropped); `null` when the last attempt succeeded. `lastError` is one line naming the cause, never a framework call log",
             "nullable": true
           },
           "lastErrorAt": {
@@ -33157,7 +33205,8 @@
             }
           },
           "total": {
-            "type": "integer"
+            "type": "integer",
+            "description": "How many chunks match, across the whole site — not the size of this answer: it can exceed `results.length`, which `limit` caps. This door returns only the first `limit` hits and has no pagination, so `total` is the count, not a cursor."
           }
         }
       },
@@ -33536,7 +33585,7 @@
           },
           "currency": {
             "type": "string",
-            "pattern": "^[A-Z]{3}$",
+            "pattern": "^[A-Za-z]{3}$",
             "minLength": 3,
             "maxLength": 3,
             "description": "An ISO 4217 code (`USD`, `EUR`) — any case in, stored uppercase; a code the platform does not know answers 400",
@@ -33616,7 +33665,7 @@
           },
           "currency": {
             "type": "string",
-            "pattern": "^[A-Z]{3}$",
+            "pattern": "^[A-Za-z]{3}$",
             "minLength": 3,
             "maxLength": 3,
             "description": "An ISO 4217 code (`USD`, `EUR`) — any case in, stored uppercase; a code the platform does not know answers 400",
@@ -34614,7 +34663,8 @@
             "description": "The projects this automation is installed in, limited to those the key holder can see"
           },
           "createdBy": {
-            "type": "string"
+            "type": "string",
+            "description": "Who created the automation — the same vocabulary as `AutomationVersion.createdBy`, `system:provisioning` included for the built-in connector automations."
           },
           "createdAt": {
             "type": "integer",
@@ -34654,7 +34704,7 @@
           },
           "createdBy": {
             "type": "string",
-            "description": "Who saved the version: `api-key:<userId>` for a save through the MCP endpoint, the bare user id for a save from the product or its builder"
+            "description": "Who saved the version: `api-key:<userId>` for a save through the MCP endpoint, the bare user id for a save from the product or its builder, or `system:provisioning` for a version the platform seeded when it provisioned the organization (the built-in connector automations). Split on the first `:`; a value without one is a user id."
           },
           "createdAt": {
             "type": "integer",
@@ -34825,8 +34875,7 @@
               "harvest_failed",
               "resume_failed",
               "deadline",
-              "ask_expired",
-              "budget_exceeded"
+              "ask_expired"
             ],
             "description": "Why a `failed` run failed — present only with `status: \"failed\"` on a run that failed on a build that records it. See `Run.failureCode` for the vocabulary and which codes are worth a retry."
           },
@@ -34954,7 +35003,6 @@
               "resume_failed",
               "deadline",
               "ask_expired",
-              "budget_exceeded",
               null
             ],
             "nullable": true,
@@ -35068,7 +35116,6 @@
               "resume_failed",
               "deadline",
               "ask_expired",
-              "budget_exceeded",
               null
             ],
             "nullable": true,

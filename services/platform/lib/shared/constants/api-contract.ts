@@ -100,5 +100,19 @@
  * membership) passes `GET /api/v1/notifications/sync`, whose 403
  * `ROLE_FORBIDDEN` names the capability; `GET /api/v1/me` answers
  * `capabilities.notificationExport`.
+ *
+ * 1.15.0 — 2026-09-18: the round-J evaluation's contract fixes.
+ * `Run.failureCode` (and `RunProjection`/`RunSummary`) no longer lists
+ * `budget_exceeded` twice, so `openapi.json` validates as OAS 3.0.3 and
+ * `openapi-python-client` no longer aborts (J9-1). `WebsitePage.lastErrorKind`
+ * gains `host_not_allowed` — a redirect off the registered site, which used
+ * to wear the `private_ip` label (J6-6). `GET /api/v1/skills/{slug}/files/{path}`
+ * declares its conditional GET (`If-None-Match`/`If-Modified-Since`, 304,
+ * `ETag`/`Last-Modified`) the door already answered (J1-1). `Product.currency`
+ * accepts any case (`^[A-Za-z]{3}$`), matching the door (J7-1).
+ * `WebsiteSearchResults.total` is the count of all matches, not the page size
+ * (J6-9). `createdBy` names `system:provisioning` (J3-3). `/openapi.json`
+ * carries an `ETag` and answers 304 (J9-2). Documentation only elsewhere:
+ * the chat send's UTF-16 content cap (J2-1).
  */
-export const API_CONTRACT_VERSION = '1.14.0';
+export const API_CONTRACT_VERSION = '1.15.0';

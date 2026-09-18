@@ -427,7 +427,7 @@ function validateUrl(
     !effectivelyAllowed
   ) {
     throw new SafeFetchError(
-      'private_ip',
+      'host_not_allowed',
       `Host not in allowedHosts: ${hostname}`,
     );
   }

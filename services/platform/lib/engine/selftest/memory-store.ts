@@ -60,7 +60,7 @@ export interface MemoryStore extends StoreAdapter {
   ): Promise<{ runId: string; version: number } | null>;
   listRuns(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun(runId: string): Promise<RunDetail | null>;
-  cancelRun(runId: string): Promise<{ cancelled: boolean }>;
+  cancelRun(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   recordRun(
     name: string,
     version: number,
@@ -255,7 +255,10 @@ export function memoryStore(): MemoryStore {
         run.status === 'failed' ||
         run.status === 'cancelled'
       ) {
-        return { cancelled: false };
+        // A finished run carries its terminal status, which the MCP door
+        // reads to answer "already finished" rather than RUN_NOT_FOUND
+        // (2026-09-18 evaluation, J8-1).
+        return { cancelled: false, status: run.status };
       }
       run.status = 'cancelled';
       run.detail = 'cancelled by an operator';

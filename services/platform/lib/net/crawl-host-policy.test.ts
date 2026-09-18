@@ -86,8 +86,6 @@ describe('parseCrawlTarget', () => {
     ['example.com', 'example.com'],
     ['  Example.COM/path?q=1 ', 'example.com'],
     ['https://www.example.com/docs', 'www.example.com'],
-    ['https://example.com:8080', 'example.com'],
-    ['example.com:8443', 'example.com'],
     // DNS's root label is the same host — WHATWG keeps the dot, and the
     // two spellings registered twice (2026-09-14 evaluation, h5).
     ['example.com.', 'example.com'],
@@ -109,6 +107,10 @@ describe('parseCrawlTarget', () => {
     // instead of failing a plaintext-only site scan after scan.
     'http://example.com',
     'http://example.com:8080',
+    // A non-default port is refused, not silently dropped to :443
+    // (2026-09-18 evaluation, J6-7).
+    'https://example.com:8080',
+    'example.com:8443',
     // An empty label names nothing.
     'example..com',
     '.',

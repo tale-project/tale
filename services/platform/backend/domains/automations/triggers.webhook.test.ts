@@ -50,6 +50,10 @@ async function webhook(
     ['foreign', { id: 'foreign', organizationId: 'org-2', archivedAt: null }],
   ]);
   const ledger = new Map<string, string | null>();
+  /** identity_hash → the delivery_keys recorded under it (every scope's row
+   * for one delivery), so the cross-scope guard's `identity_hash` lookup can
+   * resolve them to their runs through the ledger. */
+  const identityToKeys = new Map<string, Set<string>>();
   const runs = new Map<
     string,
     { id: string; organizationId: string; projectId: string | null }
@@ -98,13 +102,28 @@ async function webhook(
     }
     if (text.startsWith('INSERT INTO app.automation_webhook_deliveries')) {
       const key = String(values[1]);
+      const identityHash = String(values[2]);
+      const remember = () => {
+        const keys = identityToKeys.get(identityHash) ?? new Set<string>();
+        keys.add(key);
+        identityToKeys.set(identityHash, keys);
+      };
       if (options.cachedProjectId !== undefined) {
+        // A legacy flat-URL row: no scope-free identity recorded, so it
+        // reaches the same-key duplicate path, not the cross-scope guard.
         ledger.set(key, 'cached-run');
         return [];
       }
       if (ledger.has(key)) return [];
       ledger.set(key, null);
+      remember();
       return [{ triggerId: 'trigger-1' }];
+    }
+    // The cross-scope guard's lookup: the live rows sharing this delivery's
+    // scope-free identity, as their run ids.
+    if (text.includes('identity_hash') && text.startsWith('SELECT run_id AS')) {
+      const keys = identityToKeys.get(String(values[1])) ?? new Set<string>();
+      return [...keys].map((key) => ({ runId: ledger.get(key) ?? null }));
     }
     if (text.startsWith('SELECT run_id AS'))
       return [{ runId: ledger.get(String(values[1])) ?? null }];
@@ -334,6 +353,50 @@ describe('organization webhook scope and delivery contract', () => {
     const response = await deliver();
     expect(response.status).toBe(409);
     expect(await response.text()).not.toContain('cached-run');
+  });
+
+  /**
+   * The documented cross-scope guard, end to end (2026-09-18 evaluation,
+   * J3-1): a delivery id first taken at a PROJECT door, then re-posted at
+   * the ORG door after the automation is uninstalled, answers 409
+   * `AUTOMATION_DELIVERY_SCOPE_MISMATCH` — not a second silent run. The
+   * project scope's own record stays live, so a re-install and replay there
+   * still reads the original run as a duplicate.
+   */
+  it('refuses the same delivery id across the organization↔project boundary', async () => {
+    const { deliver, bindings } = await webhook({ bindings: ['p-1'] });
+    const first = await deliver('p-1', { deliveryId: 'evt-cross' });
+    expect(first.status).toBe(202);
+    expect(await first.json()).toEqual({ runId: 'run-1' });
+
+    // The automation is uninstalled from the project: it is now org-scoped.
+    bindings.length = 0;
+    const atOrg = await deliver(undefined, { deliveryId: 'evt-cross' });
+    expect(atOrg.status).toBe(409);
+    expect(await atOrg.json()).toMatchObject({
+      code: 'AUTOMATION_DELIVERY_SCOPE_MISMATCH',
+    });
+    // No second run was started for the org door.
+    expect(beginRunInTx).toHaveBeenCalledOnce();
+
+    // Re-installed, the project door still knows the original delivery.
+    bindings.push('p-1');
+    const replay = await deliver('p-1', { deliveryId: 'evt-cross' });
+    expect(await replay.json()).toEqual({ runId: 'run-1', duplicate: true });
+    expect(beginRunInTx).toHaveBeenCalledOnce();
+  });
+
+  it('lets the same delivery id start one run in each installed project', async () => {
+    // Per-project fan-out is not a scope mismatch (webhooks.md): two
+    // different projects each get their own run for one id.
+    const { deliver, runs } = await webhook();
+    const p1 = await deliver('p-1', { deliveryId: 'evt-fan' });
+    const p2 = await deliver('p-2', { deliveryId: 'evt-fan' });
+    expect(await p1.json()).toEqual({ runId: 'run-1' });
+    expect(await p2.json()).toEqual({ runId: 'run-2' });
+    expect(runs.get('run-1')?.projectId).toBe('p-1');
+    expect(runs.get('run-2')?.projectId).toBe('p-2');
+    expect(beginRunInTx).toHaveBeenCalledTimes(2);
   });
 
   it('preserves token secrecy and body limits', async () => {

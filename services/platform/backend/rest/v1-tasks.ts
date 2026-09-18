@@ -391,13 +391,19 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           },
         );
       }
-      return c.json(
-        {
-          task: { id: taskId, created: result.created },
-          ...(runId !== undefined ? runRef(runId) : {}),
-        },
-        result.created ? 201 : 200,
-      );
+      const payload = {
+        task: { id: taskId, created: result.created },
+        ...(runId !== undefined ? runRef(runId) : {}),
+      };
+      // A create names the new task in `Location`, the resource's own path,
+      // the way the other 201 doors do and the spec declares — a generated
+      // client that follows it got nothing (2026-09-18 evaluation, J3-2).
+      // An upsert that matched an existing task is a 200 and carries none.
+      return result.created
+        ? c.json(payload, 201, {
+            location: `/api/v1/projects/${c.req.param('id')}/tasks/${taskId}`,
+          })
+        : c.json(payload, 200);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
