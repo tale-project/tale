@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 39 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -178,6 +178,16 @@ compute codes from the enrollment secret.
   Members** lists the new address as **Editor** (the asserted Admin was
   capped), and the card's key row now reads **Last used** with a relative
   time.
+- [ ] `AUTH-F23` · **Embedding card** — On the same page the **Embedding**
+  card (`settings.enterpriseSso.embedding.section`) starts **Disabled** with
+  an empty origin list. Type a line that is not an origin → the field shows
+  the https hint and **Save origins** stays disabled; replace it with the
+  origin of a test host page (https, no path) → **Save origins** enables and
+  saves; switch the card on → the badge reads **Enabled**. Reload any app
+  page and read its response headers → the CSP names frame-ancestors with
+  'self' and the listed origin and there is no X-Frame-Options header;
+  switch the card off → within a few seconds the CSP is back to
+  frame-ancestors 'none' and X-Frame-Options DENY.
 
 ## Boundary & error tests
 
