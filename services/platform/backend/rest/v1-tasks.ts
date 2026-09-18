@@ -10,13 +10,17 @@ import {
   TASK_LABELS_MAX,
   TASK_TITLE_MAX,
 } from '../core/tasks/helpers.ts';
+import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
   AutomationError,
   automationExists,
   bindingProjectIds,
   deployedVersion,
 } from '../domains/automations/store.ts';
-import type { ProjectAuthContext } from '../domains/projects/service.ts';
+import {
+  getProjectAuthContext,
+  type ProjectAuthContext,
+} from '../domains/projects/service.ts';
 import {
   addTaskComment,
   listTaskComments,
@@ -30,12 +34,19 @@ import {
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from '../domains/tasks/external-ref.ts';
+import { getPendingReviewForTask } from '../domains/tasks/reviews.ts';
 import {
   loadTaskOrThrow,
   TASK_DESCRIPTION_MAX,
   TaskError,
   type TaskRow,
+  updateTaskStatus,
 } from '../domains/tasks/service.ts';
+import {
+  actorBodySchema,
+  refusedForActor,
+  resolveRequestActor,
+} from './actor.ts';
 import {
   chargeLane,
   domainErrorResponse,
@@ -110,6 +121,37 @@ const taskCommentBody = z
 const taskStartBody = z
   .object({ workflowSlug: z.string().min(1).max(200) })
   .strict();
+/**
+ * A review decision relayed for a person: `approve` closes the gate the way
+ * the board's move to Done does; `request_changes` puts the person's words
+ * on the timeline and starts the workflow again with them as its feedback,
+ * so it needs both the comment and the workflow to start.
+ */
+const taskReviewBody = z
+  .object({
+    decision: z.enum(['approve', 'request_changes']),
+    comment: z.string().trim().min(1).max(TASK_COMMENT_MAX).optional(),
+    workflowSlug: z.string().min(1).max(200).optional(),
+    actor: actorBodySchema,
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.decision !== 'request_changes') return;
+    if (body.comment === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['comment'],
+        message: 'is required when requesting changes',
+      });
+    }
+    if (body.workflowSlug === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['workflowSlug'],
+        message: 'is required when requesting changes',
+      });
+    }
+  });
 
 /** The run a task door started (or found running), under BOTH names: the
  * automations family and the run URLs say `runId`; `executionId` is the
@@ -540,6 +582,160 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ...runRef(started.runId),
         });
       return c.json({ started: true, ...runRef(started.runId) });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** The task's open review — what a reviewer decides on — beside the
+   * task's status, so a poller learns in one read whether a decision is
+   * due. Null when no review is pending. Read-level, like the task. */
+  app.get('/projects/:id/tasks/:taskId/review', noQuery, async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const projectId = c.req.param('id');
+      const taskId = c.req.param('taskId');
+      const task = await loadVisibleTask(deps.sql, auth, projectId, taskId);
+      const review = await getPendingReviewForTask(
+        deps.sql,
+        auth.organizationId,
+        task.id,
+      );
+      return c.json({
+        task: { id: task.id, status: task.status },
+        review,
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /**
+   * Decide a task's review FOR a person. The decision is the person's own
+   * gesture relayed from another application, so the body names them
+   * (`actor`, see `./actor.ts`) and the key holder needs the right to act
+   * for others; the person's own project access and the organization's
+   * `review_policy` then apply exactly as on the board — `approve` is the
+   * move to Done (policy-checked, recorded, audited by
+   * `closePendingTaskReviewOnStatusLeave`), `request_changes` withdraws the
+   * review, puts the person's comment on the timeline and starts the
+   * workflow again, which reads it as operator feedback. Only a task in
+   * review has a decision to make (409 `TASK_NOT_IN_REVIEW` otherwise).
+   */
+  app.post('/projects/:id/tasks/:taskId/review', async (c) => {
+    const body = await parseBody(c, taskReviewBody);
+    if (body instanceof Response) return body;
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const projectId = c.req.param('id');
+      const taskId = c.req.param('taskId');
+      await loadVisibleTask(deps.sql, auth, projectId, taskId, { write: true });
+      const actor = await resolveRequestActor(deps.sql, c, body.actor);
+      if (actor === null) {
+        // The schema requires the actor; this is the type's residual.
+        throw new RestRefusal('An actor is required', 400, 'INVALID_BODY');
+      }
+      const workflowSlug = body.workflowSlug;
+      if (body.decision === 'request_changes' && workflowSlug !== undefined) {
+        await assertDeployedAutomation(
+          deps.sql,
+          auth.organizationId,
+          workflowSlug,
+          'deploy it before requesting changes through it',
+        );
+      }
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited) return limited;
+      const actorAuth = await getProjectAuthContext(
+        deps.sql,
+        {
+          organizationId: auth.organizationId,
+          userId: actor.userId,
+          role: actor.role,
+        },
+        actor.email,
+      );
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        // The PERSON's access decides, not the key's: a relayed decision
+        // by someone who could not write this task on the board is refused
+        // the same way the board would refuse them.
+        const task = await loadVisibleTask(tx, actorAuth, projectId, taskId, {
+          write: true,
+        }).catch(refusedForActor);
+        if (task.status !== 'in_review') {
+          throw new RestRefusal(
+            `The task is ${task.status}, not in review`,
+            409,
+            'TASK_NOT_IN_REVIEW',
+          );
+        }
+        const review = await getPendingReviewForTask(
+          tx,
+          auth.organizationId,
+          task.id,
+        );
+        if (body.decision === 'approve') {
+          await updateTaskStatus(tx, actorAuth, task.id, 'done');
+          return {
+            status: 'done' as const,
+            approvalId: review?.approvalId ?? null,
+            runId: null,
+            alreadyRunning: false,
+          };
+        }
+        await addTaskComment(tx, actorAuth, {
+          taskId: task.id,
+          body: body.comment ?? '',
+        });
+        await updateTaskStatus(tx, actorAuth, task.id, 'in_progress');
+        const started = await startWorkflowForTaskInTx(tx, {
+          organizationId: auth.organizationId,
+          task: { ...task, status: 'in_progress' },
+          workflowSlug: workflowSlug ?? '',
+          startedByUserId: actor.userId,
+          startedVia: 'api-key',
+        });
+        return {
+          status: 'in_progress' as const,
+          approvalId: review?.approvalId ?? null,
+          runId: started?.runId ?? null,
+          alreadyRunning: started?.alreadyRunning ?? false,
+        };
+      });
+      await deps.sql.begin(async (tx) => {
+        await createAuditLog(tx, {
+          organizationId: auth.organizationId,
+          actorId: actor.userId,
+          actorEmail: actor.email,
+          actorType: 'user',
+          action: 'task.review_relayed',
+          category: 'data',
+          resourceType: 'task',
+          resourceId: taskId,
+          newState: { decision: body.decision, status: result.status },
+          metadata: {
+            via: 'api-key',
+            keyHolderUserId: c.get('userId'),
+            ...(result.approvalId !== null
+              ? { approvalId: result.approvalId }
+              : {}),
+            ...(result.runId !== null ? { runId: result.runId } : {}),
+          },
+          status: 'success',
+        });
+      });
+      return c.json({
+        task: { id: taskId, status: result.status },
+        decision: body.decision,
+        approvalId: result.approvalId,
+        actorUserId: actor.userId,
+        ...(body.decision === 'request_changes'
+          ? {
+              started: result.runId !== null && !result.alreadyRunning,
+              ...runRef(result.runId),
+            }
+          : {}),
+      });
     } catch (error) {
       return domainErrorResponse(c, error);
     }

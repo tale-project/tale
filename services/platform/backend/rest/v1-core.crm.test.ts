@@ -145,6 +145,7 @@ describe('GET /me', () => {
         deploymentEditor: false,
         developer: true,
         notificationExport: true,
+        actAs: true,
       },
       // The key that made the request, by the id the door stashed — its
       // expiry as epoch milliseconds (the key's own cases live in

@@ -2371,24 +2371,48 @@ export async function getPendingAskForRun(
  * can never land without its resume). The task-comment mirror of the answer
  * stays the CALLER's job, exactly as in 0.4.
  */
+export interface AnsweredAsk {
+  runId: string;
+  /** The task the asking run works on, when it has one. */
+  taskId: string | null;
+}
+
 export async function answerAsk(
   sql: Sql,
   args: {
     organizationId: string;
     askId: string;
     answer: string;
+    /** Who answered: a member's user id, or `api-key:<userId>` when a
+     * machine caller answered as itself. */
     answeredBy: string;
+    /** The run the caller addressed — an ask of another run is then "not
+     * found", so ownership rides the same lock as the answer (the REST
+     * door names the run in its URL). */
+    runId?: string;
   },
-): Promise<void> {
+): Promise<AnsweredAsk> {
   const answer = args.answer.trim().slice(0, 20_000);
   if (answer === '') {
     throw new AutomationError('EMPTY_ANSWER', 'the answer is empty', 400);
   }
+  // postgres.js's begin result conditionally unwraps arrays; hold the
+  // answered row outside that conditional return type.
+  let answered: AnsweredAsk | null = null;
   await sql.begin(async (tx) => {
-    const rows = await tx<{ status: string; expiresAt: number }[]>`
-      SELECT status, expires_at_ms::float8 AS "expiresAt"
+    const rows = await tx<
+      {
+        status: string;
+        expiresAt: number;
+        runId: string;
+        taskId: string | null;
+      }[]
+    >`
+      SELECT status, expires_at_ms::float8 AS "expiresAt",
+             run_id AS "runId", task_id AS "taskId"
       FROM app.automation_human_asks
       WHERE id = ${args.askId} AND org_id = ${args.organizationId}
+        ${args.runId === undefined ? tx`` : tx`AND run_id = ${args.runId}`}
       FOR UPDATE
     `;
     const ask = rows[0];
@@ -2428,5 +2452,14 @@ export async function answerAsk(
       organizationId: args.organizationId,
       askId: args.askId,
     });
+    answered = { runId: ask.runId, taskId: ask.taskId };
   });
+  if (answered === null) {
+    throw new AutomationError(
+      'HUMAN_ASK_NOT_FOUND',
+      'this question does not exist',
+      404,
+    );
+  }
+  return answered;
 }

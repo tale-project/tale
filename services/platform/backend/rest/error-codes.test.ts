@@ -136,8 +136,9 @@ function domainCodes(source: string): string[] {
  * moved into the registry, not left here.
  */
 const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
-  // Saving, deploying and answering an automation's human asks happen
-  // through MCP and the app, whose envelopes are their own.
+  // Saving and deploying an automation happen through MCP and the app,
+  // whose envelopes are their own (answering its human asks moved onto
+  // `POST …/runs/{runId}/asks/{askId}`, and its codes into the registry).
   'AUTOMATION_DEPLOY_REJECTED',
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
@@ -149,10 +150,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // a `projectId` in the body answers it. (`AUTOMATION_PROJECT_ARCHIVED` is
   // thrown by nothing and left the registry with it.)
   'AUTOMATION_PROJECT_UNKNOWN',
-  'EMPTY_ANSWER',
-  'HUMAN_ASK_EXPIRED',
-  'HUMAN_ASK_NOT_FOUND',
-  'HUMAN_ASK_NOT_PENDING',
   // The MCP dispatch store's own gates — answered as JSON-RPC results.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
@@ -221,7 +218,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_DEPENDENCY_SELF',
   'TASK_DEPTH_EXCEEDED',
   'TASK_HAS_LIVE_RUN',
-  'TASK_HAS_OPEN_SUBTASKS',
   'TASK_LABEL_IN_USE',
   'TASK_LABEL_TAKEN',
   'TASK_LABEL_UNKNOWN',
@@ -340,8 +336,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'REQUESTER_NO_LONGER_ADMIN',
   'REQUEST_NOT_FOUND',
   'REQUEST_NOT_PENDING',
-  'REVIEW_COMPETENCE_REQUIRED',
-  'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
   'SELF_APPROVAL_BLOCKED',
   // Legal holds and matters, retention floors, configuration versions.
   'CONFIG_VERSION_CONFLICT',
