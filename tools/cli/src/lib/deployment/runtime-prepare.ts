@@ -147,7 +147,17 @@ async function resolveImage(
   return selected;
 }
 
-function proxyPolicy(source: string): string {
+/**
+ * The managed provisioning policy in front of the backend. Account creation
+ * is refused at the edge always. Organization creation is refused at the
+ * edge only while the deployment declares no creators: declared, the CLI
+ * writes them to `TALE_ORGANIZATION_CREATORS` and the backend judges every
+ * caller against the list — the edge cannot know who is asking.
+ */
+function proxyPolicy(
+  source: string,
+  options: { organizationCreatorsDeclared: boolean },
+): string {
   const lines = source.split('\n');
   requireRuntime(
     lines.filter((line) => line.includes('# BACKEND_PLACEHOLDER')).length ===
@@ -167,17 +177,20 @@ function proxyPolicy(source: string): string {
         '\thandle /api/auth/sign-up/email {',
         '\t\trespond "Account provisioning is managed by the operator" 403',
         '\t}',
-        '\t@organizationCapabilities method GET',
-        '\thandle /api/app/organizations/capabilities {',
-        '\t\theader Content-Type application/json',
-        '\t\theader Cache-Control no-store',
-        '\t\trespond @organizationCapabilities `{"canCreate":false}` 200',
-        '\t\trespond 405',
-        '\t}',
-        '\thandle /api/auth/organization/create {',
-        '\t\trespond "Organization provisioning is managed by the operator" 403',
-        '\t}',
       );
+      if (!options.organizationCreatorsDeclared)
+        result.push(
+          '\t@organizationCapabilities method GET',
+          '\thandle /api/app/organizations/capabilities {',
+          '\t\theader Content-Type application/json',
+          '\t\theader Cache-Control no-store',
+          '\t\trespond @organizationCapabilities `{"canCreate":false}` 200',
+          '\t\trespond 405',
+          '\t}',
+          '\thandle /api/auth/organization/create {',
+          '\t\trespond "Organization provisioning is managed by the operator" 403',
+          '\t}',
+        );
     }
     result.push(line);
   }
@@ -258,7 +271,10 @@ export async function prepareRuntime(
     for (const service of RUNTIME_SERVICES)
       compose.services[service].container_name =
         `${containerPrefix}-${service}`;
-  const caddy = proxyPolicy(source.caddy.toString('utf8'));
+  const caddy = proxyPolicy(source.caddy.toString('utf8'), {
+    organizationCreatorsDeclared:
+      (options.organizationCreators?.length ?? 0) > 0,
+  });
   requireRuntime(
     !options.additionalOrigins?.length ||
       servesAdditionalOrigins(source.caddy.toString('utf8')),
@@ -393,6 +409,9 @@ export async function prepareRuntime(
     revision: options.revision,
     platform: options.platform,
     ...(containerPrefix === undefined ? {} : { containerPrefix }),
+    ...(options.organizationCreators?.length
+      ? { organizationCreatorsDeclared: true as const }
+      : {}),
     source: {
       composeSha256: hash(source.compose),
       caddySha256: hash(source.caddy),

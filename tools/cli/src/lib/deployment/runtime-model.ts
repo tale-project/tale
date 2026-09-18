@@ -66,6 +66,10 @@ export const runtimeBundleSchema = z
     revision: revisionSchema,
     platform: platformSchema,
     containerPrefix: containerPrefixSchema.optional(),
+    /** Recorded only when the deployment declares organization creators: the
+     * policy then hands organization creation to the backend instead of
+     * refusing it, and the reader checks the file against this word. */
+    organizationCreatorsDeclared: z.literal(true).optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
       .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })
@@ -91,6 +95,9 @@ export interface PrepareRuntimeOptions {
   containerPrefix?: string;
   /** Declared additional origins: the source's proxy must be able to serve them. */
   additionalOrigins?: readonly string[];
+  /** Declared organization creators: the proxy policy hands organization
+   * creation to the backend instead of refusing it at the edge. */
+  organizationCreators?: readonly string[];
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -100,6 +107,9 @@ export interface ApplyRuntimeOptions {
   origin: string;
   /** Other origins the instance serves (`ADDITIONAL_SITE_URLS`); absent means none. */
   additionalOrigins?: readonly string[];
+  /** Who may create an organization (`TALE_ORGANIZATION_CREATORS`); absent
+   * means the variable is removed and the edge refuses everyone. */
+  organizationCreators?: readonly string[];
   tlsMode: 'external' | 'letsencrypt';
   tlsEmail?: string;
   environment?: Record<string, string>;
@@ -409,10 +419,13 @@ export function readRuntimeBundle(directory: string): {
     'Runtime proxy policy mount is missing.',
   );
   const caddy = contents['Caddyfile.production'].toString('utf8');
+  // Account creation is refused at the edge always; organization creation is
+  // refused there exactly when the bundle declares no creators.
   requireRuntime(
     !caddy.includes('{$DOCS_ORIGIN:') &&
       caddy.includes('handle /api/auth/sign-up/email {') &&
-      caddy.includes('handle /api/auth/organization/create {'),
+      caddy.includes('handle /api/auth/organization/create {') ===
+        (bundle.organizationCreatorsDeclared !== true),
     'Runtime public provisioning policy is missing.',
   );
   const environment = z

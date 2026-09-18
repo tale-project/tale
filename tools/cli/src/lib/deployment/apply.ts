@@ -474,6 +474,9 @@ async function applyVerifiedDeployment(
     ...(bundle.spec.additionalOrigins
       ? { additionalOrigins: bundle.spec.additionalOrigins }
       : {}),
+    ...(bundle.spec.organizations
+      ? { organizationCreators: bundle.spec.organizations.creators }
+      : {}),
     tlsMode: bundle.spec.tlsMode,
     tlsEmail: bundle.spec.tlsEmail,
     environment,

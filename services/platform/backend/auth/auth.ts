@@ -4,7 +4,11 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { DEFAULT_TRUSTED_PROXIES } from '@tale/shared/schemas/governance';
 import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from 'better-auth/api';
 import { jwt, organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql } from 'postgres';
@@ -27,6 +31,7 @@ import {
   recordBlocked,
   recordFailure,
 } from '../domains/login_attempts/service.ts';
+import { hasAnyOrganizations } from '../domains/organizations/has-any-organizations.ts';
 import {
   assertOrgSlugNotRetiring,
   OrganizationError,
@@ -47,6 +52,12 @@ import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { ac, orgRoles } from './access.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
+import {
+  ORGANIZATION_CREATE_PATH,
+  ORGANIZATION_CREATION_FORBIDDEN_MESSAGE,
+  organizationCreationAllowed,
+  parseOrganizationCreators,
+} from './organization-creation-gate.ts';
 import {
   openSignUpEnabled,
   SIGN_UP_CLOSED_MESSAGE,
@@ -506,6 +517,39 @@ export function createAuth(config: AuthConfig) {
               message: SIGN_UP_CLOSED_MESSAGE,
               code: 'SIGN_UP_CLOSED',
             });
+          }
+          return;
+        }
+        // Organization creation: the operator may name who can open a new
+        // workspace (TALE_ORGANIZATION_CREATORS). The edge cannot know who is
+        // asking and the sandbox network bypasses it, so the backend decides.
+        // See organization-creation-gate.ts.
+        if (mw.path === ORGANIZATION_CREATE_PATH) {
+          const creators = parseOrganizationCreators(process.env);
+          // No list, or the server's own call: nothing to decide, and no
+          // session read the endpoint would not make anyway.
+          if (creators !== null && mw.request !== undefined) {
+            const session = await getSessionFromCtx(mw);
+            // Without a session the endpoint answers 401 itself.
+            if (session) {
+              const allowed = await organizationCreationAllowed({
+                overHttp: true,
+                email: session.user.email,
+                creators,
+                deploymentHasOrganizations: () => hasAnyOrganizations(sql),
+              });
+              if (!allowed) {
+                // A before-hook throw skips the after-hook, so this line is
+                // the only record an operator gets of the attempt.
+                console.warn(
+                  '[organizations] refused: creation is limited to the creators this deployment names',
+                );
+                throw new APIError('FORBIDDEN', {
+                  message: ORGANIZATION_CREATION_FORBIDDEN_MESSAGE,
+                  code: 'ORGANIZATION_CREATION_FORBIDDEN',
+                });
+              }
+            }
           }
           return;
         }

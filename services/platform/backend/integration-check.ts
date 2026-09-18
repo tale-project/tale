@@ -46031,6 +46031,69 @@ async function checkAccountAuthzHardening(
     `emailVerified=${createdVerified[0]?.emailVerified ?? 'ERR'} (want true)`,
   );
 
+  // --- Who may create an organization (organization-creation-gate.ts) ----
+  // The operator names the creators in TALE_ORGANIZATION_CREATORS and the
+  // BACKEND judges each caller — not the edge, which cannot know who asks —
+  // so a session from anywhere meets the same answer. The member created
+  // above is not on the list; the owner is (in another case, to prove the
+  // match ignores case).
+  const savedCreators = process.env.TALE_ORGANIZATION_CREATORS;
+  try {
+    process.env.TALE_ORGANIZATION_CREATORS = orgCOwner.email.toUpperCase();
+    const memberSignIn = await fetch(`${base}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `itest-authz-created-${suffix}@example.com`,
+        password: 'Itest-Passw0rd!3',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignIn);
+    const canCreate = async (cookie: string): Promise<boolean | null> => {
+      const res = await fetch(`${base}/api/app/organizations/capabilities`, {
+        headers: { cookie, origin: base },
+      });
+      const parsed = z
+        .object({ canCreate: z.boolean() })
+        .safeParse(await res.json().catch(() => ({})));
+      return parsed.success ? parsed.data.canCreate : null;
+    };
+    const attempt = (cookie: string, slug: string): Promise<Response> =>
+      fetch(`${base}/api/auth/organization/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: `Creators ${slug}`, slug }),
+      });
+    const memberCan = await canCreate(memberCookie);
+    const memberCreate = await attempt(
+      memberCookie,
+      `itest-creators-refused-${suffix}`,
+    );
+    const memberBody = z
+      .object({ code: z.string().optional() })
+      .safeParse(await memberCreate.json().catch(() => ({})));
+    const ownerCan = await canCreate(orgCOwner.cookie);
+    const ownerCreate = await attempt(
+      orgCOwner.cookie,
+      `itest-creators-${suffix}`,
+    );
+    record(
+      'organization creation: an unlisted member is refused with ORGANIZATION_CREATION_FORBIDDEN while a listed owner creates',
+      memberSignIn.ok &&
+        memberCan === false &&
+        memberCreate.status === 403 &&
+        memberBody.success &&
+        memberBody.data.code === 'ORGANIZATION_CREATION_FORBIDDEN' &&
+        ownerCan === true &&
+        ownerCreate.ok,
+      `member: signIn=${memberSignIn.status} canCreate=${memberCan} create=${memberCreate.status}/${memberBody.success ? (memberBody.data.code ?? 'no-code') : 'unparsed'} (want false/403/ORGANIZATION_CREATION_FORBIDDEN); owner: canCreate=${ownerCan} create=${ownerCreate.status} (want true/200)`,
+    );
+  } finally {
+    if (savedCreators === undefined)
+      delete process.env.TALE_ORGANIZATION_CREATORS;
+    else process.env.TALE_ORGANIZATION_CREATORS = savedCreators;
+  }
+
   // --- API-key rate-limit window unit (finding 5) -------------------------
   const mintRes = await fetch(`${base}/api/auth/api-key/create`, {
     method: 'POST',

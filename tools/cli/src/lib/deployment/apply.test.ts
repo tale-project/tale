@@ -49,6 +49,7 @@ async function create(
   legacy = false,
   identity = true,
   additionalOrigins?: string[],
+  organizationCreators?: string[],
 ) {
   const fixture = runtimeFixture({
     trustsTerminator: additionalOrigins !== undefined,
@@ -75,6 +76,9 @@ async function create(
     tlsMode: 'external',
     runtime: { revision: fixture.revision },
     ...(additionalOrigins ? { additionalOrigins } : {}),
+    ...(organizationCreators
+      ? { organizations: { creators: organizationCreators } }
+      : {}),
     ...(identity
       ? {
           identity: {
@@ -417,6 +421,41 @@ describePosix('fresh native receipt custody', () => {
         'compose',
       ).ADDITIONAL_SITE_URLS,
     ).toBe('https://portal.partner.example');
+  });
+
+  test('declared organization creators reach the runtime environment and stay out of the native identity', async () => {
+    const run = await create(false, true, undefined, [
+      'ops@example.invalid',
+      'sam@example.invalid',
+    ]);
+    const runtime = run.dependencies.runtime!;
+    const seen: unknown[] = [];
+    run.dependencies.runtime = async (options) => {
+      seen.push(options.organizationCreators);
+      return runtime(options);
+    };
+    const exec = run.dependencies.exec!;
+    let provision: Record<string, unknown> = {};
+    run.dependencies.exec = async (command, args, options) => {
+      if (args.includes('provision'))
+        provision = JSON.parse(options?.stdin ?? '{}');
+      return exec(command, args, options);
+    };
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    expect(seen).toEqual([
+      ['ops@example.invalid', 'sam@example.invalid'],
+      ['ops@example.invalid', 'sam@example.invalid'],
+    ]);
+    expect(JSON.stringify(provision)).not.toContain('sam@example.invalid');
+    expect(
+      parseRuntimeEnvironment(
+        readFileSync(
+          join(run.fixture.options.stateDirectory, 'src/.env'),
+          'utf8',
+        ),
+        'compose',
+      ).TALE_ORGANIZATION_CREATORS,
+    ).toBe('ops@example.invalid,sam@example.invalid');
   });
 
   test('a deployment without additional origins hands the runtime none', async () => {

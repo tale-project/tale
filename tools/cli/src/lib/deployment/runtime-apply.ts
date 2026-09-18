@@ -146,6 +146,9 @@ function receiptInput(options: ApplyRuntimeOptions): string {
       ...(options.additionalOrigins?.length
         ? { additionalOrigins: options.additionalOrigins }
         : {}),
+      ...(options.organizationCreators?.length
+        ? { organizationCreators: options.organizationCreators }
+        : {}),
       tlsMode: options.tlsMode,
       tlsEmail: options.tlsEmail ?? '',
       environment: Object.entries(options.environment ?? {}).sort(([a], [b]) =>
@@ -226,6 +229,18 @@ function validateOptions(options: ApplyRuntimeOptions): void {
           tlsMode: options.tlsMode,
         }).length === 0),
     'Managed runtime additional origins must be distinct canonical HTTPS origins its TLS mode can serve.',
+  );
+  const organizationCreators = options.organizationCreators;
+  requireRuntime(
+    organizationCreators === undefined ||
+      (organizationCreators.length > 0 &&
+        organizationCreators.length <= 64 &&
+        new Set(organizationCreators.map((entry) => entry.toLowerCase()))
+          .size === organizationCreators.length &&
+        organizationCreators.every(
+          (entry) => entry.length <= 254 && /^[^\s,;@]+@[^\s,;@]+$/.test(entry),
+        )),
+    'Managed runtime organization creators must be distinct e-mail addresses.',
   );
   requireRuntime(
     options.tlsMode === 'external' || options.tlsMode === 'letsencrypt',

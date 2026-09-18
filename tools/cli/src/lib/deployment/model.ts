@@ -119,6 +119,14 @@ const deploymentFields = z.strictObject({
    * organization bindings, client journals, the OIDC issuer, passkeys and
    * email links — stays on `origin`. */
   additionalOrigins: z.array(origin).min(1).max(16).optional(),
+  /** Who may create an organization on the deployment: the sign-in addresses
+   * written to the runtime's managed `TALE_ORGANIZATION_CREATORS`. Declared,
+   * the proxy stops refusing organization creation at the edge and the
+   * backend judges every caller against the list; absent, the edge refuses
+   * everyone as before. */
+  organizations: z
+    .strictObject({ creators: z.array(emailAddress).min(1).max(64) })
+    .optional(),
   tlsMode: z.enum(['external', 'letsencrypt']),
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
@@ -238,6 +246,20 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         message: issue.message,
         path: ['additionalOrigins'],
       });
+    // The backend matches creators case-insensitively, so two spellings of
+    // one address are one entry declared twice.
+    const creators = spec.organizations?.creators ?? [];
+    for (const [index, entry] of creators.entries())
+      if (
+        creators.findIndex(
+          (other) => other.toLowerCase() === entry.toLowerCase(),
+        ) !== index
+      )
+        context.addIssue({
+          code: 'custom',
+          message: 'Duplicate organization creator',
+          path: ['organizations', 'creators', index],
+        });
     if (spec.identity?.emailVerification && spec.identity.bootstrap !== 'fresh')
       context.addIssue({
         code: 'custom',
@@ -343,6 +365,14 @@ const deploymentInputSchema = deploymentFields.extend({
     .min(1)
     .max(16)
     .optional(),
+  organizations: z
+    .strictObject({
+      creators: z
+        .array(z.union([emailAddress, environmentReference]))
+        .min(1)
+        .max(64),
+    })
+    .optional(),
   identity: identity
     .extend({
       nativeClients: z
@@ -400,6 +430,15 @@ export function resolveDeploymentSpec(
           additionalOrigins: spec.additionalOrigins.map((entry) =>
             resolveValue(entry, environment),
           ),
+        }),
+    ...(spec.organizations === undefined
+      ? {}
+      : {
+          organizations: {
+            creators: spec.organizations.creators.map((entry) =>
+              resolveValue(entry, environment),
+            ),
+          },
         }),
     identity: spec.identity && {
       ...spec.identity,
