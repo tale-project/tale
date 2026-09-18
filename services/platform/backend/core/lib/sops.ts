@@ -95,13 +95,24 @@ function isSopsEncryptedShape(parsed: unknown): boolean {
   );
 }
 
+/**
+ * The file on disk is plaintext. That happens for two different reasons and
+ * the operator's next step differs, so the warning names the one it is: with
+ * no key there is nothing to encrypt with, while with a key configured the
+ * writers already encrypt (`hasSopsKey()` gates every one of them) and only
+ * this file predates the key — a re-save through the UI rewrites it.
+ */
 function emitPlaintextWarnOnce(filePath: string): void {
   if (plaintextWarnEmitted) return;
   plaintextWarnEmitted = true;
   console.warn(
-    `[secrets] SOPS_AGE_KEY not set — provider secrets at ${filePath} read as ` +
-      `plaintext JSON. To enable encryption: run age-keygen, add SOPS_AGE_KEY=… ` +
-      `to .env, then re-save secrets via Settings → AI providers.`,
+    hasSopsKey()
+      ? `[secrets] provider secrets at ${filePath} are stored as plaintext JSON ` +
+          `— the file predates SOPS_AGE_KEY, which IS set. New saves encrypt; ` +
+          `re-save the secrets via Settings → AI providers to encrypt this file.`
+      : `[secrets] SOPS_AGE_KEY not set — provider secrets at ${filePath} read as ` +
+          `plaintext JSON. To enable encryption: run age-keygen, add SOPS_AGE_KEY=… ` +
+          `to .env, then re-save secrets via Settings → AI providers.`,
   );
 }
 

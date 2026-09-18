@@ -21,7 +21,7 @@ import type { ConnectorSummary } from '../hooks/backend';
 import {
   useConnectorOauthApps,
   useEntraSsoSource,
-  useOnedriveImportAppStatus,
+  useCloudImportAppStatus,
   useRemoveConnectorOauthApp,
   useReuseSsoOauthApp,
   useUpsertConnectorOauthApp,
@@ -44,6 +44,30 @@ type EntraSsoSource = ReturnsOf<'connector_oauth_apps/queries:entraSsoSource'>;
 
 /** Knowledge cloud-import (OneDrive/SharePoint) — no catalog entry. */
 const ONEDRIVE_SLUG = 'onedrive';
+/** One catalog row, two lanes: the Google Drive connector and Knowledge's
+ * Google Drive import consent against the same vendor app. */
+const GOOGLE_DRIVE_SLUG = 'google-drive';
+
+type AppSource = 'org' | 'env' | null | undefined;
+
+/**
+ * Whether a deployment-wide app stands behind this row.
+ *
+ * One org row (keyed by slug) serves both of Google Drive's lanes, but their
+ * env halves do not: the connector reads `CONNECTOR_OAUTH_GOOGLE_DRIVE_*`
+ * and Knowledge's import reads `CLOUD_IMPORT_GOOGLE_DRIVE_*`. Asking only
+ * the catalog summary therefore reported "Not configured" on a deployment
+ * that had set the import variables and could import from Drive; the row
+ * covers both lanes, so either answer configures it.
+ */
+export function hasDeploymentApp(
+  slug: string,
+  connectorSource: AppSource,
+  driveImportSource: AppSource,
+): boolean {
+  if (connectorSource === 'env') return true;
+  return slug === GOOGLE_DRIVE_SLUG && driveImportSource === 'env';
+}
 /** Slugs whose vendor is Microsoft Entra — they take a directory (tenant)
  * id, because a single-tenant app registration rejects `/common`. */
 const MICROSOFT_SLUGS = new Set(['outlook', 'teams', ONEDRIVE_SLUG]);
@@ -94,7 +118,11 @@ export function OauthAppsCard({
 }) {
   const { t } = useT('settings');
   const appsQuery = useConnectorOauthApps(organizationId);
-  const onedriveStatus = useOnedriveImportAppStatus(organizationId);
+  const onedriveStatus = useCloudImportAppStatus(organizationId, ONEDRIVE_SLUG);
+  const driveImportStatus = useCloudImportAppStatus(
+    organizationId,
+    GOOGLE_DRIVE_SLUG,
+  );
   const entraSso = useEntraSsoSource(organizationId);
 
   const [editing, setEditing] = useState<OauthAppTarget | null>(null);
@@ -114,7 +142,11 @@ export function OauthAppsCard({
       .map((summary) => ({
         slug: summary.slug,
         displayName: summary.displayName,
-        envConfigured: summary.oauthApp?.source === 'env',
+        envConfigured: hasDeploymentApp(
+          summary.slug,
+          summary.oauthApp?.source,
+          driveImportStatus.data?.source,
+        ),
       })),
     {
       slug: ONEDRIVE_SLUG,

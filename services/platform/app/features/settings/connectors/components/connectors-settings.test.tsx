@@ -60,7 +60,7 @@ vi.mock('../hooks/oauth-apps', () => ({
     isError: false,
     error: null,
   }),
-  useOnedriveImportAppStatus: () => ({
+  useCloudImportAppStatus: () => ({
     data: { configured: false, source: null },
     isPending: false,
     isError: false,
