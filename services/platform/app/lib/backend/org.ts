@@ -190,6 +190,25 @@ export function ssoConfiguredQuery() {
   });
 }
 
+/**
+ * Whether THIS request came through an application's authenticating proxy
+ * (its identity header or the organization's trusted-header key rides on
+ * it). The login page hands the browser to the proxy door on a yes. Public
+ * and presence-only — the door validates the key.
+ */
+export function trustedHeadersHandoffQuery() {
+  return queryOptions({
+    queryKey: backendKey('me', 'sso', 'trusted-headers-handoff'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ handoff: boolean }>('/sso/discovery/trusted-headers', {
+        signal,
+      }).then((body) => body.handoff),
+    retry: retryTransportOnly,
+    // A proxy is either in front of this tab or it is not.
+    staleTime: Infinity,
+  });
+}
+
 /** The 0.4 `enterprise_sso/queries:listSelectable` row (public). */
 export interface SsoSelectableRow {
   organizationId: string;

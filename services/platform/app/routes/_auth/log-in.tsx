@@ -25,7 +25,13 @@ import {
   useHasAnyUsers,
   useIsSsoConfigured,
   useSsoSelectableOrgs,
+  useTrustedHeadersHandoff,
 } from '@/app/features/auth/hooks/queries';
+import {
+  markProxyHandoffAttempt,
+  proxyHandoffUrl,
+  recentProxyHandoffAttempt,
+} from '@/app/features/auth/lib/proxy-handoff';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
@@ -118,17 +124,38 @@ export function LogInPage() {
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
   const { data: selectableOrgs } = useSsoSelectableOrgs();
+  const { data: proxyHandoff, isLoading: isLoadingProxyHandoff } =
+    useTrustedHeadersHandoff();
 
-  // A deployment whose users arrive through an application's authenticating
-  // proxy never shows this form: the proxy routes `/log-in` to
-  // `/api/trusted-headers/authenticate` itself, with the organization's key
-  // (Settings > Enterprise SSO > Trusted headers). This page owns only the
-  // credential, passkey and SSO sign-ins.
   useEffect(() => {
     if (hasUsers === false) {
       void navigate({ to: '/setup' });
     }
   }, [hasUsers, navigate]);
+
+  // A request that came through an application's authenticating proxy (the
+  // backend saw the proxy's identity header or the organization's key on
+  // it) is handed to `/api/trusted-headers/authenticate`, which signs the
+  // person into the organization that issued the key (Settings > Enterprise
+  // SSO > Trusted headers) — no proxy rule for `/log-in` is needed, though
+  // routing it there directly saves the round trip. The hand-off waits on a
+  // fresh deployment (setup wins), after an inactivity sign-out (the notice
+  // must stay visible, #1502) and when this tab was sent to the door
+  // moments ago and came back — the sign-in did not stick, and going again
+  // would loop; the person retries from the notice instead.
+  const [proxyHandoffStalled, setProxyHandoffStalled] = useState(() =>
+    recentProxyHandoffAttempt(),
+  );
+  const proxyHandoffAvailable = proxyHandoff === true && hasUsers === true;
+  const proxyHandoffPending =
+    proxyHandoffAvailable && !signedOutForIdle && !proxyHandoffStalled;
+  const redirectToProxyHandoff = useCallback(() => {
+    markProxyHandoffAttempt();
+    window.location.assign(proxyHandoffUrl(redirectTo));
+  }, [redirectTo]);
+  useEffect(() => {
+    if (proxyHandoffPending) redirectToProxyHandoff();
+  }, [proxyHandoffPending, redirectToProxyHandoff]);
 
   const logInSchema = useMemo(
     () =>
@@ -363,8 +390,22 @@ export function LogInPage() {
     }
   }, [navigate, queryClient, redirectTo, t]);
 
-  if (isLoadingUsers) {
+  if (isLoadingUsers || isLoadingProxyHandoff) {
     return null;
+  }
+
+  // The browser is on its way to the proxy door — no form to fill in.
+  if (proxyHandoffPending) {
+    return (
+      <AuthFormLayout title={t('login.loginTitle')}>
+        <Alert
+          variant="info"
+          icon={Info}
+          live="polite"
+          description={t('login.proxyHandoff.pending')}
+        />
+      </AuthFormLayout>
+    );
   }
 
   // Dedicated SSO step: pick the organization, then redirect to its IdP.
@@ -399,6 +440,39 @@ export function LogInPage() {
             live="polite"
             description={tCommon('sessionIdle.signedOutNotice')}
           />
+        )}
+        {/* After an inactivity sign-out the proxy hand-off waits for a click,
+            so the notice above is seen before the session comes back. */}
+        {signedOutForIdle && proxyHandoffAvailable && (
+          <Button
+            type="button"
+            variant="secondary"
+            fullWidth
+            onClick={redirectToProxyHandoff}
+          >
+            {t('login.proxyHandoff.continue')}
+          </Button>
+        )}
+        {/* Back from the door without a session: refused, or the cookie never
+            reached this frame. Say so and let the person retry or sign in
+            another way — never bounce again on our own. */}
+        {proxyHandoffAvailable && !signedOutForIdle && proxyHandoffStalled && (
+          <Stack gap={3}>
+            <Alert
+              variant="info"
+              icon={Info}
+              live="polite"
+              description={t('login.proxyHandoff.stalled')}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              onClick={() => setProxyHandoffStalled(false)}
+            >
+              {t('login.proxyHandoff.retry')}
+            </Button>
+          </Stack>
         )}
         {/* A failed SSO sign-in surfaces the REAL reason the IdP reported
             (routed here by the authorize/callback handlers) instead of a blank

@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { accountFlagsQuery, hasAnyUsersQuery } from '@/app/lib/backend/account';
-import { ssoConfiguredQuery, ssoSelectableQuery } from '@/app/lib/backend/org';
+import {
+  ssoConfiguredQuery,
+  ssoSelectableQuery,
+  trustedHeadersHandoffQuery,
+} from '@/app/lib/backend/org';
 
 // hasAnyUsers + the SSO discovery pair run on the public login / sign-up
 // pages before auth is established — the backend serves them without a
@@ -23,6 +27,13 @@ export function useIsSsoConfigured() {
 // The SSO step's org picker: every enabled connection on a multi-org deployment.
 export function useSsoSelectableOrgs() {
   return useQuery(ssoSelectableQuery());
+}
+
+// The login page's proxy probe: did this request come through an
+// application's authenticating proxy? Yes → the page hands the browser to
+// the trusted-headers door instead of showing the form.
+export function useTrustedHeadersHandoff() {
+  return useQuery(trustedHeadersHandoffQuery());
 }
 
 export function useHasCredentialAccount() {

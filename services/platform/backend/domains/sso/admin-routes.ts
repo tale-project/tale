@@ -11,6 +11,7 @@ import {
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { trustedHeaderNames } from '../../core/trusted_headers_auth/header_names.ts';
 import {
   getSsoConnectionView,
   parseSsoIdpMetadata,
@@ -28,6 +29,7 @@ import {
   getSsoDiscoveryStatus,
   listSelectableSsoConnections,
 } from './config.ts';
+import { presentedTrustedHeaderKey } from './trusted-headers.ts';
 
 /**
  * /api/app/sso — the admin settings surface for the file-backed SSO
@@ -71,6 +73,23 @@ export function createSsoAdminRoutes(deps: {
   app.get('/discovery/selectable', async (c) =>
     c.json({ connections: await listSelectableSsoConnections(deps.sql) }),
   );
+  // Did THIS request come through an application's authenticating proxy?
+  // The proxy's identity header or the organization's trusted-header key
+  // rides on it. The login page asks before it renders and hands the
+  // browser to the door (`/api/trusted-headers/authenticate`) on a yes, so
+  // a deployment needs no proxy rule for `/log-in`. Presence only, on
+  // purpose: the door validates the key and charges failures to the source
+  // IP; validating here would open a second, unbudgeted key oracle.
+  app.get('/discovery/trusted-headers', (c) => {
+    const names = trustedHeaderNames();
+    const handoff =
+      presentedTrustedHeaderKey(
+        c.req.header('authorization'),
+        c.req.header(names.key),
+      ) !== undefined || (c.req.header(names.email)?.trim() ?? '') !== '';
+    c.header('Cache-Control', 'no-store');
+    return c.json({ handoff });
+  });
 
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 

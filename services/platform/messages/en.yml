@@ -349,6 +349,11 @@ auth:
     ssoOrgListLabel: Organizations
     ssoBackToLogin: Back to log in
     ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
+    proxyHandoff:
+      pending: Signing you in through your organization's sign-in service…
+      stalled: Automatic sign-in did not complete. Sign in another way below, or try again.
+      retry: Try again
+      continue: Continue with automatic sign-in
     continueWithPasskey: Sign in with a passkey
     passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
     wrongCredentials: Wrong email or password

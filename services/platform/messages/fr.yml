@@ -366,6 +366,13 @@ auth:
     ssoNoOrganizations:
       Aucune organisation disponible pour la connexion. Contacte
       ton administration.
+    proxyHandoff:
+      pending: Connexion en cours via le service de connexion de ton organisation…
+      stalled:
+        La connexion automatique n’a pas abouti. Connecte-toi autrement
+        ci-dessous ou réessaie.
+      retry: Réessayer
+      continue: Continuer avec la connexion automatique
     continueWithPasskey: Se connecter avec un passkey
     passkeyFailed:
       La connexion par passkey a échoué ou a été annulée. Réessaie ou

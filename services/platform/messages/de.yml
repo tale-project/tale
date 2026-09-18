@@ -364,6 +364,13 @@ auth:
     ssoNoOrganizations:
       Keine Organisation für die Anmeldung verfügbar. Wende dich
       an deine Administration.
+    proxyHandoff:
+      pending: Du wirst über den Anmeldedienst deiner Organisation angemeldet …
+      stalled:
+        Die automatische Anmeldung wurde nicht abgeschlossen. Melde dich
+        unten auf einem anderen Weg an oder versuche es erneut.
+      retry: Erneut versuchen
+      continue: Mit der automatischen Anmeldung fortfahren
     continueWithPasskey: Mit einem Passkey anmelden
     passkeyFailed:
       Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
