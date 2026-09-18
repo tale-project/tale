@@ -209,7 +209,6 @@ interface EnvConfig {
   /** Every origin this deployment answers on, canonical first. */
   SITE_ORIGINS: readonly string[];
   BASE_PATH: string;
-  TRUSTED_HEADERS_ENABLED: boolean;
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
@@ -373,7 +372,6 @@ function getEnvConfig(): EnvConfig {
     // a bad list degrades to the canonical origin alone.
     SITE_ORIGINS: safeSiteOrigins(),
     BASE_PATH: getBasePath(),
-    TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     FILE_EVENTS_ENABLED: fileEventsEnabled,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(

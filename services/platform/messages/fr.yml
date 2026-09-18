@@ -1578,7 +1578,6 @@ common:
     signedOutNotice:
       Tu as été déconnecté parce que ta session est restée inactive
       trop longtemps.
-    continueToSignIn: Continuer vers la connexion
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
@@ -5463,6 +5462,50 @@ settings:
       disable: Désactiver
       baseUrlLabel: URL de base SCIM
       tokenFailed: Échec de la génération du jeton SCIM
+    trustedHeaders:
+      section: En-têtes de confiance
+      help: Laisse une application qui connecte déjà ses utilisateurs les faire entrer
+        dans cette organisation via son reverse proxy. À chaque passage, le proxy
+        présente l’une des clés ci-dessous avec les en-têtes d’identité.
+      enabled: Activé
+      disabled: Désactivé
+      toggleLabel: Accepter les connexions d’un proxy de confiance
+      toggleHelp: Désactivé, chaque clé de cette organisation est refusée sans qu’aucune
+        soit révoquée.
+      maxRoleLabel: Rôle le plus élevé qu’un proxy peut attribuer
+      maxRoleHelp: L’en-tête de rôle est plafonné à ce rôle. Le rôle Propriétaire ne peut jamais
+        être attribué via un proxy.
+      endpointLabel: URL de passage
+      endpointHelp: Fais pointer la connexion du proxy vers cette adresse. Il envoie la clé
+        comme jeton bearer Authorization ou dans l’en-tête de clé, avec les en-têtes
+        d’identité.
+      headersLabel: Noms des en-têtes
+      headersHelp: Les en-têtes lus par cette installation. L’opérateur les renomme avec les
+        variables TRUSTED_*_HEADER.
+      headerKey: Clé
+      headerEmail: E-mail
+      headerName: Nom
+      headerRole: Rôle
+      headerTeams: Équipes
+      keysTitle: Clés
+      keysHelp: Une clé s’affiche une seule fois, à sa création. La révoquer ne met pas fin
+        aux sessions qu’elle a ouvertes.
+      noKeys: Aucune clé pour l’instant. Crée-en une et confie-la au proxy.
+      createKey: Créer une clé
+      keyName: Nom
+      keyNamePlaceholder: p. ex. Proxy du portail
+      keyCreated: Clé créée
+      keyCreatedHelp: Copie cette clé maintenant — elle ne sera plus affichée.
+      revoke: Révoquer
+      revokeTitle: Révoquer cette clé ?
+      revokeDescription: Le proxy qui détient « {name} » ne peut plus connecter personne.
+        Les sessions déjà ouvertes restent connectées.
+      revoked: Clé révoquée
+      createdAt: Créée
+      lastUsed: Dernière utilisation
+      neverUsed: Jamais utilisée
+      limitReached: Cette organisation détient déjà le maximum de {max} clés. Révoque-en
+        une pour en créer une autre.
     disable: Désactiver la connexion
     remove: Supprimer
     test: Tester la connexion

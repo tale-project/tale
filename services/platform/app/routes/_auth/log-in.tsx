@@ -119,47 +119,16 @@ export function LogInPage() {
   const { data: ssoConfig } = useIsSsoConfigured();
   const { data: selectableOrgs } = useSsoSelectableOrgs();
 
-  // When trusted headers auth is enabled, the reverse proxy has already
-  // authenticated the user. Navigate to the Convex HTTP endpoint that reads
-  // the proxy headers and creates a session — the user never sees the login form.
-  // If the auth endpoint fails, it redirects back here with ?trusted_headers_error=1
-  // to break the redirect loop and show the regular login form.
-  const trustedHeadersEnabled = getEnv('TRUSTED_HEADERS_ENABLED');
-  const hasTrustedHeadersError = new URLSearchParams(
-    window.location.search,
-  ).has('trusted_headers_error');
-  const redirectToTrustedHeadersAuth = useCallback(() => {
-    const siteUrl = getEnv('SITE_URL');
-    const basePath = getEnv('BASE_PATH');
-    // Forward only a validated same-origin path — defence in depth against the
-    // open redirect the authenticate endpoint also guards (#2037).
-    const target = sanitizeInternalRedirect(
-      redirectTo,
-      `${basePath}/dashboard`,
-    );
-    window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
-  }, [redirectTo]);
+  // A deployment whose users arrive through an application's authenticating
+  // proxy never shows this form: the proxy routes `/log-in` to
+  // `/api/trusted-headers/authenticate` itself, with the organization's key
+  // (Settings > Enterprise SSO > Trusted headers). This page owns only the
+  // credential, passkey and SSO sign-ins.
   useEffect(() => {
-    // After an idle sign-out (#1502) the auto-redirect would silently
-    // re-establish the session, hiding the sign-out entirely. Hold the
-    // redirect behind an explicit "Continue" click instead (rendered below)
-    // so the inactivity notice is visible — the proxy/IdP still owns the
-    // actual authentication.
-    if (trustedHeadersEnabled && !hasTrustedHeadersError && !signedOutForIdle) {
-      redirectToTrustedHeadersAuth();
-    }
-  }, [
-    trustedHeadersEnabled,
-    hasTrustedHeadersError,
-    signedOutForIdle,
-    redirectToTrustedHeadersAuth,
-  ]);
-
-  useEffect(() => {
-    if (!trustedHeadersEnabled && hasUsers === false) {
+    if (hasUsers === false) {
       void navigate({ to: '/setup' });
     }
-  }, [trustedHeadersEnabled, hasUsers, navigate]);
+  }, [hasUsers, navigate]);
 
   const logInSchema = useMemo(
     () =>
@@ -394,28 +363,7 @@ export function LogInPage() {
     }
   }, [navigate, queryClient, redirectTo, t]);
 
-  // Trusted-headers deployments after an idle sign-out (#1502): make the
-  // sign-out visible and require an explicit click before the proxy
-  // re-authenticates, instead of bouncing straight back into a session.
-  if (trustedHeadersEnabled && !hasTrustedHeadersError && signedOutForIdle) {
-    return (
-      <AuthFormLayout title={t('login.loginTitle')}>
-        <Stack gap={6}>
-          <Alert
-            variant="info"
-            icon={Info}
-            live="polite"
-            description={tCommon('sessionIdle.signedOutNotice')}
-          />
-          <Button onClick={redirectToTrustedHeadersAuth} fullWidth>
-            {tCommon('sessionIdle.continueToSignIn')}
-          </Button>
-        </Stack>
-      </AuthFormLayout>
-    );
-  }
-
-  if (isLoadingUsers || (trustedHeadersEnabled && !hasTrustedHeadersError)) {
+  if (isLoadingUsers) {
     return null;
   }
 

@@ -1529,7 +1529,6 @@ common:
       with the page or use the button below to keep working.
     staySignedIn: Stay signed in
     signedOutNotice: You were signed out because your session was inactive for too long.
-    continueToSignIn: Continue to sign in
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
@@ -5495,6 +5494,48 @@ settings:
       disable: Disable
       baseUrlLabel: SCIM base URL
       tokenFailed: Couldn't generate SCIM token
+    trustedHeaders:
+      section: Trusted headers
+      help: Let an application that already signs its users in hand them into this
+        organization through its reverse proxy. On every hand-off the proxy
+        presents one of the keys below together with the identity headers.
+      enabled: Enabled
+      disabled: Disabled
+      toggleLabel: Accept sign-ins from a trusted proxy
+      toggleHelp: Off refuses every key of this organization without revoking any of them.
+      maxRoleLabel: Highest role a proxy may assert
+      maxRoleHelp: The role header is capped at this role. Owner can never be asserted
+        through a proxy.
+      endpointLabel: Hand-off URL
+      endpointHelp: Point the proxy's sign-in at this address. It sends the key as the
+        Authorization bearer token or in the key header, plus the identity headers.
+      headersLabel: Header names
+      headersHelp: The headers this deployment reads. The operator renames them with the
+        TRUSTED_*_HEADER variables.
+      headerKey: Key
+      headerEmail: Email
+      headerName: Name
+      headerRole: Role
+      headerTeams: Teams
+      keysTitle: Keys
+      keysHelp: A key is shown once, when you create it. Revoking a key does not end the
+        sessions it started.
+      noKeys: No keys yet. Create one and give it to the proxy.
+      createKey: Create key
+      keyName: Name
+      keyNamePlaceholder: e.g. Portal proxy
+      keyCreated: Key created
+      keyCreatedHelp: Copy this key now — you won't be able to see it again.
+      revoke: Revoke
+      revokeTitle: Revoke this key?
+      revokeDescription: The proxy holding “{name}” can no longer sign anyone in. Sessions
+        it already started stay signed in.
+      revoked: Key revoked
+      createdAt: Created
+      lastUsed: Last used
+      neverUsed: Never used
+      limitReached: This organization holds the maximum of {max} keys. Revoke one to create
+        another.
     disable: Disable sign-in
     remove: Remove
     test: Test connection
