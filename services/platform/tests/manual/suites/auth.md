@@ -170,14 +170,17 @@ compute codes from the enrollment secret.
   **Never used**; a reload never shows the plaintext again.
 - [ ] `AUTH-F22` · **Proxy hand-off signs a member in** — With the card on
   (ceiling Editor) and a key copied, from a terminal send
-  `GET /api/trusted-headers/authenticate` with the key as the Authorization
-  bearer header, `Remote-Email` set to a NEW address, `Remote-Name` and
-  `Remote-Role` set to admin → 200 with a Set-Cookie session token and a
+  `GET /api/trusted-headers/authenticate` with the key in the
+  `Remote-Internal-Secret` header, `Remote-Email` set to a NEW address,
+  `Remote-Name`, `Remote-Role` set to admin and `Remote-Teams` set to
+  `Finance,Operations` → 200 with a Set-Cookie session token and a
   meta-refresh to the dashboard. Paste the cookie into a fresh browser
   profile → the person is signed in to THIS organization only, **Settings >
   Members** lists the new address as **Editor** (the asserted Admin was
-  capped), and the card's key row now reads **Last used** with a relative
-  time.
+  capped), the Team switcher offers **Finance** and **Operations**, and the
+  card's key row now reads **Last used** with a relative time. Send the same
+  request again with `Remote-Role` set to member → **Members** now lists the
+  address as **Member** and **Settings > Logs** shows `update_member_role`.
 - [ ] `AUTH-F23` · **Embedding card** — On the same page the **Embedding**
   card (`settings.enterpriseSso.embedding.section`) starts **Disabled** with
   an empty origin list. Type a line that is not an origin → the field shows
@@ -248,7 +251,7 @@ compute codes from the enrollment secret.
   member sees the entry again.
 
 - [ ] `AUTH-B10` · **Door refusals** — Repeat the request of AUTH-F22 (a)
-  without the Authorization header → 401 "Missing trusted-header key" and no
+  without the key header → 401 "Missing trusted-header key" and no
   cookie; (b) with a made-up key → 401 "Invalid or revoked trusted-header
   key"; (c) with the card switched off → 403 "disabled for this organization"
   while the session from AUTH-F22 keeps working; (d) switched on again but
