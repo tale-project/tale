@@ -779,7 +779,15 @@ export function DataTable<TData, TValue = unknown>({
               // cells so the wrapper's rounded corners aren't squared off by a
               // full-width row background.
               <TableRow key={headerGroup.id}>
-                {enableExpanding && <TableHead className="w-[3rem]" />}
+                {/* The expander column carries no visible label, which leaves
+                    a `<th>` with no discernible text in EVERY expandable
+                    table (axe `empty-table-header`). Name it for assistive
+                    tech the same way the actions column is named below. */}
+                {enableExpanding && (
+                  <TableHead className="w-[3rem]">
+                    <span className="sr-only">{t('aria.expandRow')}</span>
+                  </TableHead>
+                )}
                 {headerGroup.headers.map((headerCell) => {
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
                   const meta = headerCell.column.columnDef.meta as
@@ -801,6 +809,13 @@ export function DataTable<TData, TValue = unknown>({
                   // in each table's column definition so all of them get it
                   // and none can forget it.
                   const needsActionsLabel = meta?.isAction === true && !content;
+                  // Same failure, transient: while the table skeletonizes,
+                  // `SkeletonBox` masks the select-all checkbox and marks it
+                  // `aria-hidden`, so this `<th>`'s only content stops
+                  // counting as discernible text. Name it for the load —
+                  // once the real checkbox is back it owns the name, and a
+                  // second label here would double it up.
+                  const needsSelectLabel = id === 'select' && isSkeleton;
                   return (
                     <TableHead
                       key={headerCell.id}
@@ -820,6 +835,9 @@ export function DataTable<TData, TValue = unknown>({
                     >
                       {needsActionsLabel ? (
                         <span className="sr-only">{t('aria.rowActions')}</span>
+                      ) : null}
+                      {needsSelectLabel ? (
+                        <span className="sr-only">{t('aria.selectAll')}</span>
                       ) : null}
                       {utility ? utilityCellBox(id, size, content) : content}
                     </TableHead>
@@ -971,7 +989,9 @@ export function DataTable<TData, TValue = unknown>({
                           type="button"
                           aria-expanded={isExpanded}
                           aria-label={
-                            isExpanded ? 'Collapse row' : 'Expand row'
+                            isExpanded
+                              ? t('aria.collapseRow')
+                              : t('aria.expandRow')
                           }
                           className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
                           onClick={(e) => {

@@ -123,6 +123,8 @@ common:
   aria:
     back: Zurück
     close: Schließen
+    collapseRow: Zeile einklappen
+    expandRow: Zeile ausklappen
     goToPage: Zur Seite
     hidePassword: Passwort ausblenden
     invalid: ungültig

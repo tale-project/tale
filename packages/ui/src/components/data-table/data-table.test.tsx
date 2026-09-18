@@ -776,3 +776,66 @@ describe('DataTable row-action column accessibility', () => {
     expect(actionHeader).toHaveAccessibleName('Manage');
   });
 });
+
+/**
+ * The other two header cells that carry no visible label. Both are the same
+ * WCAG AA failure the row-action column above already fixed (axe
+ * `empty-table-header`), and both belong here rather than in each table's
+ * column definitions — no single table can fix them for the others.
+ */
+describe('DataTable utility column header accessibility', () => {
+  const selectColumns: ColumnDef<TestRow>[] = [
+    createSelectColumn<TestRow>(),
+    { accessorKey: 'name', header: 'Name' },
+  ];
+
+  const selectHeader = () => screen.getAllByRole('columnheader')[0];
+
+  it('names the expander column, which never has a visible label', () => {
+    render(
+      <DataTable
+        columns={[{ accessorKey: 'name', header: 'Name' }]}
+        data={sampleRows}
+        approxRowCount={3}
+        enableExpanding
+        renderExpandedRow={() => <div>panel</div>}
+      />,
+    );
+
+    expect(screen.getAllByRole('columnheader')[0]).toHaveAccessibleName(
+      'Expand row',
+    );
+  });
+
+  // The live select-all checkbox carries the name itself. While the table
+  // skeletonizes, `SkeletonBox` masks it and marks it `aria-hidden`, so the
+  // `<th>` would be left with nothing discernible — the same failure, only
+  // transient and therefore easy to miss.
+  it('names the select column while the table skeletonizes', () => {
+    render(
+      <DataTable
+        columns={selectColumns}
+        data={[]}
+        approxRowCount={3}
+        isLoading
+        enableRowSelection
+      />,
+    );
+
+    expect(selectHeader()).toHaveAccessibleName('Select all');
+  });
+
+  it('does not double the name once the real checkbox is back', () => {
+    render(
+      <DataTable
+        columns={selectColumns}
+        data={sampleRows}
+        approxRowCount={3}
+        enableRowSelection
+      />,
+    );
+
+    // One name, from the checkbox — not "Select all Select all".
+    expect(selectHeader()).toHaveAccessibleName('Select all');
+  });
+});
