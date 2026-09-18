@@ -173,8 +173,8 @@ compute codes from the enrollment secret.
   `GET /api/trusted-headers/authenticate` with the key in the
   `Remote-Internal-Secret` header, `Remote-Email` set to a NEW address,
   `Remote-Name`, `Remote-Role` set to admin and `Remote-Teams` set to
-  `Finance,Operations` → 200 with a Set-Cookie session token and a
-  meta-refresh to the dashboard. Paste the cookie into a fresh browser
+  `Finance,Operations` → 302 to `/dashboard` with a Set-Cookie session
+  token and no body of its own. Paste the cookie into a fresh browser
   profile → the person is signed in to THIS organization only, **Settings >
   Members** lists the new address as **Editor** (the asserted Admin was
   capped), the Team switcher offers **Finance** and **Operations**, and the
@@ -191,15 +191,19 @@ compute codes from the enrollment secret.
   'self' and the listed origin and there is no X-Frame-Options header;
   switch the card off → within a few seconds the CSP is back to
   frame-ancestors 'none' and X-Frame-Options DENY.
-- [ ] `AUTH-F24` · **Sign-in page hands off by itself** — With the card on
-  and a browser extension injecting the key header and `Remote-Email` on
-  every request to the dev origin, open `/log-in` → the page shows the
-  "signing you in" notice, never the form, and lands on the dashboard
-  without any proxy rule. Change the injected key to a wrong value and open
-  `/log-in` again → the door's 401 page; go back → the form with the "did
-  not complete" notice and **Try again**, and no redirect loop. Open
-  `/log-in?reason=idle` with the headers on → the inactivity notice and a
-  **Continue with automatic sign-in** button, no automatic redirect.
+- [ ] `AUTH-F24` · **Proxied visitor signs in without a sign-in page** — With
+  the card on and a browser extension injecting the key header and
+  `Remote-Email` on every request to the dev origin, in a fresh profile open
+  `/` → the dashboard opens directly: no sign-in page, no hop through the
+  hand-off address, and the account menu offers **no Log out**. Clear the
+  session cookie and open `/log-in` → the page hands off by itself and lands
+  on the dashboard. Change the injected key to a wrong value, clear the
+  cookie and open `/log-in` → the form, with the refusal ("key is unknown or
+  revoked") rendered in the page — no bare error page, no redirect loop.
+  Trigger the inactivity sign-out (or set the `tale_handoff_hold=1` cookie
+  and open `/log-in?reason=idle`) with the headers on → the inactivity
+  notice and a **Continue with automatic sign-in** button, and nothing signs
+  in until it is pressed.
 
 ## Boundary & error tests
 
