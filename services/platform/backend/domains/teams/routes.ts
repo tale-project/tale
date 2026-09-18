@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { TEAM_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -197,7 +198,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     `;
     await emitHintInTx(deps.sql, {
       orgId: c.get('orgId'),
-      entity: 'team',
+      entity: TEAM_HINT_ENTITY,
       entityId: team.id,
     });
     return c.json({ id, alreadyMember: false }, 201);
@@ -221,7 +222,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (row !== undefined) {
       await emitHintInTx(deps.sql, {
         orgId: c.get('orgId'),
-        entity: 'team',
+        entity: TEAM_HINT_ENTITY,
         entityId: row.teamId,
       });
     }
@@ -242,7 +243,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (removed.length > 0) {
       await emitHintInTx(deps.sql, {
         orgId: c.get('orgId'),
-        entity: 'team',
+        entity: TEAM_HINT_ENTITY,
         entityId: team.id,
       });
     }

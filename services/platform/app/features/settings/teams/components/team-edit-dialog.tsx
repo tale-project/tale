@@ -12,6 +12,7 @@ import * as z from 'zod';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
 import { useTeamMembers, type Team } from '../hooks/queries';
@@ -121,7 +122,7 @@ export function TeamEditDialog({
           throw new Error(result.error.message || 'Failed to update team');
         }
         await queryClient.invalidateQueries({
-          queryKey: backendEntityPrefix(organizationId, 'team'),
+          queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
         });
       }
 

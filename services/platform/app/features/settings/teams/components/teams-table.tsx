@@ -2,13 +2,16 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useQueryClient } from '@tanstack/react-query';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import type { Team } from '../hooks/queries';
 import { useTeamMembers } from '../hooks/queries';
@@ -47,6 +50,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   // Lifted so the action menu and the empty-state CTA share one dialog.
   const [createOpen, setCreateOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const handleViewTeam = useCallback((team: Team) => {
     setSelectedTeam(team);
@@ -55,6 +59,17 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
   }, []);
+
+  // One refetch for the whole batch, once every `removeTeam` has answered.
+  // The single-row dialogs invalidate for themselves; the bar had nothing,
+  // so a bulk delete left every deleted row on screen until the page was
+  // reloaded.
+  const handleDeleteComplete = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
+    });
+    setRowSelection({});
+  }, [queryClient, organizationId]);
 
   // Bulk delete: the per-team delete path goes through Better Auth's
   // `removeTeam` (same call the single-row TeamDeleteDialog uses), wrapped
@@ -124,7 +139,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
             rowSelection={rowSelection}
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
+            onDeleteComplete={handleDeleteComplete}
           />
         }
         {...list.tableProps}

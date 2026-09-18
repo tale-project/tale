@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 66 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -216,17 +216,21 @@ any toggled setting after the run.
   (`settings.teams.createTeam`) → **Team name** (`settings.teams.teamName`) →
   create; then the row's **Delete team** (`settings.teams.deleteTeam`) →
   confirm → Toast `settings.teams.teamCreated`; the row (columns
-  `settings.teams.columns.name` / `…columns.members` / `…columns.created`) is
-  present after reload; the delete confirm
-  (`settings.teams.deleteConfirmation`) warns members are removed; after
-  delete + reload the row is gone (toast `settings.teams.teamDeleted`)
+  `settings.teams.columns.name` / `…columns.members` / `…columns.created`)
+  appears **without a reload** and is still there after one; the delete confirm
+  (`settings.teams.deleteConfirmation`) warns members are removed; the row
+  leaves the table **without a reload** (toast `settings.teams.teamDeleted`)
+  and stays gone after one. Repeat the delete on two rows at once through the
+  selection checkboxes and the footer's bulk **Delete** — both rows leave the
+  table without a reload too.
 - [ ] `SET-F19` · **Team member management** — A team row → **Edit team**
   (`settings.teams.editTeam`) → **Members** (`settings.teams.manageMembers`) →
   add/remove members → **Save changes** (`settings.teams.saveChanges`) → The
   member checklist explains multi-team membership
   (`settings.teams.memberChecklistHint`); a team never drops to zero members —
   the last one is blocked with the hint (`settings.teams.lastMemberHint`); the
-  member count survives reload.
+  new member count — and a name changed in the same save — show in the row
+  **without a reload** and survive one.
 - [ ] `SET-F20` · **Providers page** — `/dashboard/{org}/settings/providers` →
   The **Credentials** section (`settings.providers.credentialsSection.title`)
   renders the credential table (or the empty state
@@ -446,6 +450,17 @@ any toggled setting after the run.
   page's first section offers **Manage limits** (`settings.usage.manageLimits`)
   to `/dashboard/{org}/settings/governance/policies-limits`, and the member
   sees no such link.
+- [ ] `SET-F41` · **Team writes reach a second session** — Two signed-in
+  sessions of the SAME organization (two browsers/profiles), both parked on
+  `/dashboard/{org}/settings/teams`, neither reloaded for the whole box → In
+  session A create a team, then **Edit team** (`settings.teams.editTeam`) →
+  rename it → **Save changes**, then delete it. Session B's table gains the
+  row, shows the NEW name, and loses the row — each within a couple of
+  seconds and with no reload, because every team write emits its `team`
+  invalidation hint on the backend's realtime hint stream (the dialogs only
+  refresh the tab they run in). The account menu's team picker (the **Team**
+  section, `navigation.teamFilter.allTeams`) tracks the same three changes in
+  both sessions.
 
 ## Boundary & error tests
 
