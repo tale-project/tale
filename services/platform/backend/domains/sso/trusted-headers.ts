@@ -1,13 +1,16 @@
 import { frameAncestorsOf } from '@tale/shared/schemas/governance';
 import { sessionExpiryMs } from '@tale/shared/utils/session-idle';
-import { Hono } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
+import { PROXY_HANDOFF_HOLD_COOKIE } from '../../../lib/shared/constants/trusted-headers.ts';
 import {
   clampAssertedRole,
   type TrustedHeaderAssertableRole,
 } from '../../../lib/shared/schemas/trusted_headers.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
+import { rememberMintedCookie } from '../../auth/minted-cookie.ts';
+import type { AuthEnv } from '../../auth/session.ts';
 import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';
 import {
   buildSessionCookie,
@@ -380,13 +383,33 @@ function escapeHtmlAttr(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function errorPage(basePath: string, message: string): string {
+/**
+ * A refusal answered as a page — for a proxy that routes /log-in to this
+ * door, or a terminal. Kept to the app's plain typography (system font, one
+ * column, colour-scheme aware) so it reads as Tale's rather than a raw error
+ * dump, with the way back to the sign-in page.
+ */
+function refusalPage(basePath: string, message: string): string {
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Login Error</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: Canvas; color: CanvasText; }
+  main { max-width: 28rem; padding: 2rem 1.5rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+  p { margin: 0 0 1.25rem; }
+</style>
+</head>
 <body>
-  <p>Error: ${escapeHtmlAttr(message)}</p>
-  <p><a href="${basePath}/log-in">Return to login</a></p>
+<main>
+  <h1>Sign-in could not be completed</h1>
+  <p>${escapeHtmlAttr(message)}</p>
+  <p><a href="${escapeHtmlAttr(`${basePath}/log-in`)}">Back to sign in</a></p>
+</main>
 </body>
 </html>`;
 }
@@ -446,186 +469,308 @@ export function presentedTrustedHeaderKey(
   return candidate ? candidate : undefined;
 }
 
-/** GET /api/trusted-headers/authenticate — the proxy hand-off door. */
+/**
+ * What the proxy's assertion on one request amounts to: a minted (or
+ * refreshed) session with its cookie, or a refusal naming why. The hand-off
+ * door and the transparent sign-in on the app's own requests both judge a
+ * request through this one function, so a request is admitted or refused
+ * identically whichever way it arrives.
+ */
+type HandOffRefusalKind =
+  | 'missing_key'
+  | 'unknown_key'
+  | 'rate_limited'
+  | 'disabled'
+  | 'missing_email'
+  | 'not_member'
+  | 'config_error'
+  | 'failed';
+
+type HandOffOutcome =
+  | {
+      ok: true;
+      organizationId: string;
+      /** The whole Set-Cookie value the browser is handed. */
+      setCookie: string;
+      /** `name=value` — what a Cookie header carries on the next request. */
+      cookiePair: string;
+      result: TrustedHeadersAuthResult;
+    }
+  | {
+      ok: false;
+      kind: HandOffRefusalKind;
+      /** Known once the key has named an organization; null before that. */
+      organizationId: string | null;
+    };
+
+const REFUSAL_STATUS: Record<HandOffRefusalKind, 400 | 401 | 403 | 429 | 500> =
+  {
+    missing_key: 401,
+    unknown_key: 401,
+    rate_limited: 429,
+    disabled: 403,
+    missing_email: 400,
+    not_member: 403,
+    config_error: 500,
+    failed: 500,
+  };
+
+/** The app's translation key for each refusal (`auth` namespace). */
+const REFUSAL_MESSAGE_KEY: Record<HandOffRefusalKind, string> = {
+  missing_key: 'login.proxyHandoff.errors.missingKey',
+  unknown_key: 'login.proxyHandoff.errors.unknownKey',
+  rate_limited: 'login.proxyHandoff.errors.rateLimited',
+  disabled: 'login.proxyHandoff.errors.disabled',
+  missing_email: 'login.proxyHandoff.errors.missingEmail',
+  not_member: 'login.proxyHandoff.errors.notMember',
+  config_error: 'login.proxyHandoff.errors.configError',
+  failed: 'login.proxyHandoff.errors.failed',
+};
+
+function refusalMessage(
+  kind: HandOffRefusalKind,
+  names: ReturnType<typeof trustedHeaderNames>,
+): string {
+  const messages: Record<HandOffRefusalKind, string> = {
+    missing_key: `Missing trusted-header key: send it in the "${names.key}" header`,
+    unknown_key: 'Invalid or revoked trusted-header key',
+    rate_limited: 'Too many failed attempts; try again later',
+    disabled: 'Trusted headers are disabled for this organization',
+    missing_email: `Missing required header: ${names.email}`,
+    not_member:
+      'This account is not a member of the organization this key belongs to. Ask an administrator to add you, then try again.',
+    config_error: 'Server configuration error',
+    failed: 'Failed to complete login',
+  };
+  return messages[kind];
+}
+
+/**
+ * Judge one request's proxy assertion end to end: the key names the
+ * organization (and is charged to the source IP when it names nothing), the
+ * switch and the identity header are checked, the role is clamped, the
+ * teams parsed, and the session minted or refreshed — with the cookie the
+ * browser gets. Says nothing about the response: the callers decide how to
+ * answer.
+ */
+export async function handOffFromHeaders(
+  sql: Sql,
+  req: Request,
+): Promise<HandOffOutcome> {
+  const names = trustedHeaderNames();
+  const header = (name: string): string | undefined =>
+    req.headers.get(name) ?? undefined;
+  const ip =
+    header('x-forwarded-for')?.split(',')[0]?.trim() ||
+    header('x-real-ip') ||
+    undefined;
+
+  // The key is what separates "came through the organization's proxy"
+  // from "reached the endpoint directly" — the identity headers alone are
+  // forgeable by anyone who can speak to the backend.
+  const presented = presentedTrustedHeaderKey(header(names.key));
+  if (presented === undefined) {
+    return { ok: false, kind: 'missing_key', organizationId: null };
+  }
+  const resolved = await resolveTrustedHeaderKey(sql, presented);
+  if (resolved === null) {
+    // A key that resolves to nothing is charged to its source IP before
+    // it learns anything — the REST door's pre-auth posture.
+    try {
+      await checkIpRateLimit(
+        sql,
+        'trusted-headers:auth-fail-ip',
+        ip ?? 'unknown',
+      );
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return { ok: false, kind: 'rate_limited', organizationId: null };
+      }
+      throw error;
+    }
+    return { ok: false, kind: 'unknown_key', organizationId: null };
+  }
+  const organizationId = resolved.organizationId;
+  if (!resolved.enabled) {
+    return { ok: false, kind: 'disabled', organizationId };
+  }
+
+  const email = header(names.email)?.trim();
+  if (!email) {
+    return { ok: false, kind: 'missing_email', organizationId };
+  }
+  const name = header(names.name) || email.split('@')[0] || email;
+  const role = clampAssertedRole(header(names.role), resolved.maxAssertedRole);
+  const teamsRaw = header(names.teams);
+  // Absent header: the proxy makes no claim about teams. Present but
+  // empty: the proxy asserts NO teams, which revokes what it granted.
+  // A present header that parses to nothing revokes too — say so, or a
+  // misconfigured proxy strips teams silently.
+  const parsedTeams =
+    teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
+  if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
+    console.warn(
+      `[Trusted Headers] ${names.teams} carries no team entry; treating it as an empty team assertion`,
+    );
+  }
+  const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
+
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    console.error('[Trusted Headers] BETTER_AUTH_SECRET not configured');
+    return { ok: false, kind: 'config_error', organizationId };
+  }
+  // Public origin, not the internal request origin — this door lives
+  // behind a reverse-proxy chain by definition, and the origin decides the
+  // __Secure-/Secure cookie shape Better Auth will read back.
+  const frontendOrigin = publicOrigin(req);
+  const cookieName = sessionCookieName(frontendOrigin);
+  // The cookie carries what signCookieValue minted — `${token}.${signature}`
+  // — while the session row stores the bare token, so the lookup needs the
+  // verified, stripped value. A cookie that fails verification is treated
+  // as no cookie at all.
+  const presentedCookie = readCookie(header('cookie'), cookieName);
+  const existingSessionToken =
+    presentedCookie !== undefined
+      ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
+      : undefined;
+  const userAgent = header('user-agent') || undefined;
+
+  try {
+    const result = await trustedHeadersAuthenticate(sql, {
+      organizationId,
+      keyId: resolved.keyId,
+      email,
+      name,
+      role,
+      teams,
+      ...(existingSessionToken !== undefined ? { existingSessionToken } : {}),
+      ...(ip !== undefined ? { ipAddress: ip } : {}),
+      ...(userAgent !== undefined ? { userAgent } : {}),
+    });
+    try {
+      await touchTrustedHeaderKeyLastUsed(sql, resolved.keyId);
+    } catch (error) {
+      console.warn('[Trusted Headers] last-used stamp failed:', error);
+    }
+    const setCookie = await buildSessionCookie(
+      result.sessionToken,
+      frontendOrigin,
+      secret,
+    );
+    return {
+      ok: true,
+      organizationId,
+      setCookie,
+      cookiePair: setCookie.split(';')[0]?.trim() ?? setCookie,
+      result,
+    };
+  } catch (error) {
+    if (error instanceof TrustedHeadersRefusedError) {
+      console.warn(
+        `[Trusted Headers] refused: ${error.reason} (organization ${organizationId})`,
+      );
+      return { ok: false, kind: 'not_member', organizationId };
+    }
+    console.error('[Trusted Headers] Error:', error);
+    return { ok: false, kind: 'failed', organizationId };
+  }
+}
+
+/**
+ * GET /api/trusted-headers/authenticate — the proxy hand-off door. A
+ * success answers a 302 to the in-app return path with the session cookie:
+ * no page of its own. A refusal goes back to the app's sign-in page with
+ * the reason when the app sent the browser here (`via=app`), and is
+ * answered as a page with its status code otherwise — a proxy that routes
+ * /log-in to this door would only bounce a redirect straight back.
+ */
 export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
 
   app.get('/authenticate', async (c) => {
     const url = new URL(c.req.url);
-    // Public origin, not the internal request origin — this door lives
-    // behind a reverse-proxy chain by definition, and the origin decides the
-    // __Secure-/Secure cookie shape Better Auth will read back.
-    const frontendOrigin = publicOrigin(c.req.raw);
     const basePath = process.env.BASE_PATH || '';
     const redirectTo = sanitizeInternalRedirect(
       url.searchParams.get('redirect'),
       `${basePath}/dashboard`,
     );
-    const names = trustedHeaderNames();
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-      c.req.header('x-real-ip') ||
-      undefined;
-    // Framing is judged per organization once the key names one; until
-    // then (no key, unknown key) nothing may frame the answer.
-    let framing = framingHeaders([]);
-    const page = (
-      body: string,
-      status: 200 | 400 | 401 | 403 | 429 | 500 = 200,
-    ) => {
-      for (const [name, value] of Object.entries(framing))
-        c.header(name, value);
-      return c.html(body, status);
-    };
+    const fromApp = url.searchParams.get('via') === 'app';
 
-    // The key is what separates "came through the organization's proxy"
-    // from "reached the endpoint directly" — the identity headers alone are
-    // forgeable by anyone who can speak to the backend.
-    const presented = presentedTrustedHeaderKey(c.req.header(names.key));
-    if (presented === undefined) {
-      return page(
-        errorPage(
-          basePath,
-          `Missing trusted-header key: send it in the "${names.key}" header`,
-        ),
-        401,
-      );
-    }
-    const resolved = await resolveTrustedHeaderKey(deps.sql, presented);
-    if (resolved === null) {
-      // A key that resolves to nothing is charged to its source IP before
-      // it learns anything — the REST door's pre-auth posture.
-      try {
-        await checkIpRateLimit(
-          deps.sql,
-          'trusted-headers:auth-fail-ip',
-          ip ?? 'unknown',
-        );
-      } catch (error) {
-        if (error instanceof RateLimitExceededError) {
-          return page(
-            errorPage(basePath, 'Too many failed attempts; try again later'),
-            429,
-          );
-        }
-        throw error;
-      }
-      return page(
-        errorPage(basePath, 'Invalid or revoked trusted-header key'),
-        401,
-      );
-    }
-    framing = framingHeaders(
-      await resolveFrameAncestors(deps.sql, resolved.organizationId),
+    const outcome = await handOffFromHeaders(deps.sql, c.req.raw);
+    // Framing is judged per organization once the key has named one; until
+    // then nothing may frame the answer.
+    const framing = framingHeaders(
+      outcome.organizationId === null
+        ? []
+        : await resolveFrameAncestors(deps.sql, outcome.organizationId),
     );
-    if (!resolved.enabled) {
-      return page(
-        errorPage(
-          basePath,
-          'Trusted headers are disabled for this organization',
-        ),
-        403,
-      );
-    }
+    for (const [name, value] of Object.entries(framing)) c.header(name, value);
+    c.header('Cache-Control', 'no-store');
 
-    const email = c.req.header(names.email);
-    if (!email) {
-      return page(
-        errorPage(basePath, `Missing required header: ${names.email}`),
-        400,
-      );
+    if (outcome.ok) {
+      c.header('Set-Cookie', outcome.setCookie);
+      return c.redirect(redirectTo, 302);
     }
-    const name = c.req.header(names.name) || email.split('@')[0] || email;
-    const role = clampAssertedRole(
-      c.req.header(names.role),
-      resolved.maxAssertedRole,
-    );
-    const teamsRaw = c.req.header(names.teams);
-    // Absent header: the proxy makes no claim about teams. Present but
-    // empty: the proxy asserts NO teams, which revokes what it granted.
-    // A present header that parses to nothing (bare names, no `id:name`)
-    // revokes too — say so, or a misconfigured proxy strips teams silently.
-    const parsedTeams =
-      teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
-    if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
-      console.warn(
-        `[Trusted Headers] ${names.teams} carries no team entry; treating it as an empty team assertion`,
-      );
-    }
-    const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
-
-    const secret = process.env.BETTER_AUTH_SECRET;
-    if (!secret) {
-      console.error('[Trusted Headers] BETTER_AUTH_SECRET not configured');
-      return page(errorPage(basePath, 'Server configuration error'), 500);
-    }
-
-    const cookieName = sessionCookieName(frontendOrigin);
-    // The cookie carries what signCookieValue minted — `${token}.${signature}`
-    // — while the session row stores the bare token, so the lookup needs the
-    // verified, stripped value. A cookie that fails verification is treated
-    // as no cookie at all.
-    const presentedCookie = readCookie(c.req.header('cookie'), cookieName);
-    const existingSessionToken =
-      presentedCookie !== undefined
-        ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
-        : undefined;
-    const userAgent = c.req.header('user-agent') || undefined;
-
-    try {
-      const result = await trustedHeadersAuthenticate(deps.sql, {
-        organizationId: resolved.organizationId,
-        keyId: resolved.keyId,
-        email,
-        name,
-        role,
-        teams,
-        ...(existingSessionToken !== undefined ? { existingSessionToken } : {}),
-        ...(ip !== undefined ? { ipAddress: ip } : {}),
-        ...(userAgent !== undefined ? { userAgent } : {}),
+    if (fromApp) {
+      const back = new URLSearchParams({
+        error: REFUSAL_MESSAGE_KEY[outcome.kind],
+        error_code: `trusted_headers.${outcome.kind}`,
+        recovery: 'login.proxyHandoff.recovery',
       });
-      try {
-        await touchTrustedHeaderKeyLastUsed(deps.sql, resolved.keyId);
-      } catch (error) {
-        console.warn('[Trusted Headers] last-used stamp failed:', error);
-      }
-
-      const cookie = await buildSessionCookie(
-        result.sessionToken,
-        frontendOrigin,
-        secret,
-      );
-
-      const completing = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0;url=${escapeHtmlAttr(redirectTo)}">
-  <title>Completing login...</title>
-</head>
-<body>
-  <p>Completing login, please wait...</p>
-</body>
-</html>`;
-      c.header('Set-Cookie', cookie);
-      return page(completing);
-    } catch (error) {
-      if (error instanceof TrustedHeadersRefusedError) {
-        console.warn(
-          `[Trusted Headers] refused: ${error.reason} (organization ${resolved.organizationId})`,
-        );
-        return page(
-          errorPage(
-            basePath,
-            'This account is not a member of the organization this key belongs to. Ask an administrator to add you, then try again.',
-          ),
-          403,
-        );
-      }
-      console.error('[Trusted Headers] Error:', error);
-      return page(errorPage(basePath, 'Failed to complete login'), 500);
+      return c.redirect(`${basePath}/log-in?${back.toString()}`, 302);
     }
+    return c.html(
+      refusalPage(basePath, refusalMessage(outcome.kind, trustedHeaderNames())),
+      REFUSAL_STATUS[outcome.kind],
+    );
   });
 
   return app;
+}
+
+/**
+ * Transparent sign-in on the app's own requests. When a request the app
+ * makes for itself — a GET: the session probe, a read — carries the proxy's
+ * key and identity header but no session cookie, the session is minted
+ * right here and the request goes on as signed in: the cookie rides on the
+ * response and on the request the downstream gate reads. The browser never
+ * sees a sign-in page. Held back by the hold cookie the app sets after an
+ * inactivity sign-out (the notice must stay visible, #1502) and by any
+ * session cookie already present (a stale one is the sign-in page's case).
+ * A refusal is silent here — the request goes on unauthenticated and the
+ * sign-in page, whose hand-off names the reason, takes over.
+ */
+export function trustedHeadersSessionMint(deps: {
+  sql: Sql;
+}): MiddlewareHandler<AuthEnv> {
+  return async (c, next) => {
+    if (c.req.method !== 'GET') return next();
+    // A page on another site must not be able to act through the proxy's
+    // headers without a cookie of its own: the app's fetches are
+    // same-origin, and a typed address carries no Sec-Fetch-Site at all.
+    if (c.req.header('sec-fetch-site') === 'cross-site') return next();
+    const names = trustedHeaderNames();
+    if (presentedTrustedHeaderKey(c.req.header(names.key)) === undefined) {
+      return next();
+    }
+    if (!c.req.header(names.email)?.trim()) return next();
+    const cookieHeader = c.req.header('cookie');
+    if (readCookie(cookieHeader, PROXY_HANDOFF_HOLD_COOKIE) !== undefined) {
+      return next();
+    }
+    const sessionCookie = sessionCookieName(publicOrigin(c.req.raw));
+    if (readCookie(cookieHeader, sessionCookie) !== undefined) return next();
+
+    const outcome = await handOffFromHeaders(deps.sql, c.req.raw);
+    if (!outcome.ok) {
+      console.warn(
+        `[Trusted Headers] transparent sign-in refused: ${outcome.kind}`,
+      );
+      return next();
+    }
+    rememberMintedCookie(c.req.raw, outcome.cookiePair);
+    c.header('Set-Cookie', outcome.setCookie, { append: true });
+    return next();
+  };
 }

@@ -531,11 +531,13 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
 
     const res = await request(app, withKey);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
     expect(res.headers.get('set-cookie')).toContain(
       'better-auth.session_token=',
     );
-    expect(await res.text()).toContain('url=/dashboard');
+    // A success is a redirect, never a page of its own.
+    expect(res.headers.get('location')).toBe('/dashboard');
+    expect(await res.text()).toBe('');
     expect(resolveTrustedHeaderKey).toHaveBeenCalledWith(
       expect.anything(),
       'thk_live',
@@ -548,7 +550,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
 
     const res = await request(app, { ...identity, 'X-App-Key': 'thk_live' });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
     expect(resolveTrustedHeaderKey).toHaveBeenCalledWith(
       expect.anything(),
       'thk_live',
@@ -566,7 +568,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
 
     const res = await request(app, { ...withKey, 'Remote-Role': 'admin' });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
     const insert = queries.find((q) =>
       q.text.startsWith('INSERT INTO "session"'),
     );
@@ -605,7 +607,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
 
     const res = await request(app, { ...withKey, cookie });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
     const lookup = queries.find((q) =>
       q.text.startsWith(
         'SELECT "id", "userId", "token", "expiresAt" FROM "session"',
@@ -623,7 +625,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
 
     const res = await request(app, { ...withKey, cookie: forged });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
     expect(
       queries.some((q) =>
         q.text.startsWith(
@@ -646,7 +648,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(noKey.headers.get('x-frame-options')).toBe('DENY');
 
     const signedIn = await request(app, withKey);
-    expect(signedIn.status).toBe(200);
+    expect(signedIn.status).toBe(302);
     expect(signedIn.headers.get('content-security-policy')).toBe(
       "frame-ancestors 'none'",
     );
@@ -666,7 +668,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     const { app } = makeApp(memberScript());
 
     const signedIn = await request(app, withKey);
-    expect(signedIn.status).toBe(200);
+    expect(signedIn.status).toBe(302);
     expect(signedIn.headers.get('content-security-policy')).toBe(
       "frame-ancestors 'self' https://app.example https://portal.example",
     );
@@ -694,6 +696,37 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(unknown.status).toBe(401);
     expect(unknown.headers.get('x-frame-options')).toBe('DENY');
     expect(readGovernancePolicyForOrg).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a refusal back to the app's sign-in page when the app sent the browser here", async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { app } = makeApp(memberScript());
+
+    const res = await app.request(`${origin}/authenticate?via=app`, {
+      headers: withKey,
+    });
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location') ?? '';
+    expect(location.startsWith('/log-in?')).toBe(true);
+    const params = new URLSearchParams(location.slice('/log-in?'.length));
+    expect(params.get('error')).toBe('login.proxyHandoff.errors.unknownKey');
+    expect(params.get('error_code')).toBe('trusted_headers.unknown_key');
+    expect(params.get('recovery')).toBe('login.proxyHandoff.recovery');
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('answers a proxy-routed refusal as a page with its status — a redirect would only come back', async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { app } = makeApp(memberScript());
+
+    const res = await request(app, withKey);
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const body = await res.text();
+    expect(body).toContain('Sign-in could not be completed');
+    expect(body).toContain('href="/log-in"');
   });
 
   it('answers a server configuration error without the signing secret', async () => {

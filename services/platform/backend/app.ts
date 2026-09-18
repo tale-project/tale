@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 
 import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
+import { requestWithMintedCookie } from './auth/minted-cookie.ts';
 import {
   oauthTokenPrecheck,
   withDiscoveryConformance,
@@ -64,7 +65,10 @@ import {
 import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSsoAdminRoutes } from './domains/sso/admin-routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
-import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
+import {
+  createTrustedHeadersRoutes,
+  trustedHeadersSessionMint,
+} from './domains/sso/trusted-headers.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
 import { createTrustedHeaderAdminRoutes } from './domains/trusted_headers/routes.ts';
@@ -258,6 +262,17 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // refusal); every other auth route passes through as the library made it.
   // The realm is the issuer — the auth instance's own base URL, the one
   // discovery and the tokens name.
+  // Transparent sign-in from an authenticating proxy's headers: a GET the
+  // app makes for itself with the organization's key and identity header
+  // but no session cookie is answered signed in, the cookie minted on the
+  // spot (`domains/sso/trusted-headers.ts`). Registered ahead of the session
+  // gates and of Better Auth's own handler, both of which read the request
+  // as if the browser had sent that cookie (`auth/minted-cookie.ts`).
+  app.use('/api/app/*', trustedHeadersSessionMint({ sql: deps.sql }));
+  app.use(
+    '/api/auth/get-session',
+    trustedHeadersSessionMint({ sql: deps.sql }),
+  );
   const oidcRealm = () =>
     `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
   app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
@@ -269,7 +284,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     if (early !== null) return early;
     return withOAuthConformance(
       c.req.raw,
-      await deps.auth.handler(c.req.raw),
+      await deps.auth.handler(requestWithMintedCookie(c.req.raw)),
       oidcRealm(),
     );
   });

@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 
 import type { Auth } from './auth.ts';
+import { headersWithMintedCookie } from './minted-cookie.ts';
 
 /**
  * The subset of Better Auth's session bundle the backend consumes. Kept
@@ -25,8 +26,10 @@ export function requireSession<E extends AuthEnv>(
   return async (c, next) => {
     // Better Auth's inferred session type is a structural superset of
     // SessionBundle, so plain assignment narrows without a cast.
+    // A session minted on this very request (an authenticating proxy's
+    // headers, no cookie yet) rides in as if the browser had sent it.
     const bundle: SessionBundle | null = await auth.api.getSession({
-      headers: c.req.raw.headers,
+      headers: headersWithMintedCookie(c.req.raw),
     });
     if (!bundle) {
       // The one flat envelope every door speaks — `code` beside the

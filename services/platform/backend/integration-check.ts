@@ -17302,12 +17302,22 @@ async function checkTrustedHeaders(
   const door = async (
     headers: Record<string, string>,
     doorPath = '/api/trusted-headers/authenticate',
-  ): Promise<{ status: number; cookie: string; body: string }> => {
-    const res = await fetch(`${base}${doorPath}`, { headers });
+  ): Promise<{
+    status: number;
+    cookie: string;
+    body: string;
+    location: string | null;
+  }> => {
+    // A success is a 302 to the in-app return path — read it, never follow.
+    const res = await fetch(`${base}${doorPath}`, {
+      headers,
+      redirect: 'manual',
+    });
     return {
       status: res.status,
       cookie: cookieHeaderFrom(res),
       body: await res.text(),
+      location: res.headers.get('location'),
     };
   };
   const identity = (email: string, role: string): Record<string, string> => ({
@@ -17398,6 +17408,42 @@ async function checkTrustedHeaders(
     },
     '/http_api/api/trusted-headers/authenticate',
   );
+  // Transparent sign-in: a GET the app makes for itself with the proxy's
+  // headers and no cookie is answered signed in, the cookie on the response;
+  // the hold cookie the app sets after an inactivity sign-out stops it. A
+  // refusal of a hand-off the app started goes back to the sign-in page
+  // with its reason.
+  const mintEmail = 'mint.user@door.test';
+  const transparent = await fetch(`${base}/api/app/users/me`, {
+    headers: {
+      ...identity(mintEmail, 'member'),
+      'Remote-Internal-Secret': key,
+    },
+  });
+  const transparentCookie = cookieHeaderFrom(transparent);
+  const transparentBody = z
+    .looseObject({
+      user: z.looseObject({ email: z.string() }).nullable().optional(),
+    })
+    .safeParse(await transparent.json());
+  const transparentUser = transparentBody.success
+    ? (transparentBody.data.user?.email ?? null)
+    : null;
+  const held = await fetch(`${base}/api/app/users/me`, {
+    headers: {
+      ...identity(mintEmail, 'member'),
+      'Remote-Internal-Secret': key,
+      cookie: 'tale_handoff_hold=1',
+    },
+  });
+  await held.text();
+  const fromApp = await door(
+    {
+      ...identity(proxyEmail, 'member'),
+      'Remote-Internal-Secret': 'thk_not_a_real_key',
+    },
+    '/api/trusted-headers/authenticate?via=app',
+  );
   // The alias sign-in asserted `member`: the proxy is the role authority,
   // so the seat follows the assertion and Members shows what the session
   // enforces — with the same audit row a manual role change writes.
@@ -17425,6 +17471,7 @@ async function checkTrustedHeaders(
       ...identity(proxyEmail, 'member'),
       'Remote-Internal-Secret': key,
     },
+    redirect: 'manual',
   });
   await framedBefore.text();
   const embeddingSaved = await fetch(
@@ -17442,6 +17489,7 @@ async function checkTrustedHeaders(
       ...identity(proxyEmail, 'member'),
       'Remote-Internal-Secret': key,
     },
+    redirect: 'manual',
   });
   await framedAfter.text();
 
@@ -17453,7 +17501,8 @@ async function checkTrustedHeaders(
       badKey.status === 401 &&
       badKey.cookie === '' &&
       badKey.body.includes('Invalid or revoked') &&
-      first.status === 200 &&
+      first.status === 302 &&
+      first.location === '/dashboard' &&
       first.cookie.includes('better-auth.session_token=') &&
       firstEmail === proxyEmail &&
       landed.length === 1 &&
@@ -17464,10 +17513,18 @@ async function checkTrustedHeaders(
       landed[0]?.activeOrganizationId === orgId &&
       teamNames.join(',') === 'Finance,Operations' &&
       refusedAsEditor.status === 403 &&
-      viaHeader.status === 200 &&
+      viaHeader.status === 302 &&
       viaHeader.cookie === first.cookie &&
-      alias.status === 200 &&
+      alias.status === 302 &&
       alias.cookie === first.cookie &&
+      transparent.status === 200 &&
+      transparentCookie.includes('better-auth.session_token=') &&
+      transparentUser === mintEmail &&
+      held.status === 401 &&
+      fromApp.status === 302 &&
+      (fromApp.location ?? '').includes(
+        'error=login.proxyHandoff.errors.unknownKey',
+      ) &&
       reboundRole === 'member' &&
       Number(reboundAudits[0]?.count ?? '0') >= 1 &&
       proxySessions[0]?.count === '1' &&
@@ -17475,11 +17532,11 @@ async function checkTrustedHeaders(
       framedBefore.headers.get('content-security-policy') ===
         "frame-ancestors 'none'" &&
       embeddingSaved.ok &&
-      framedAfter.status === 200 &&
+      framedAfter.status === 302 &&
       framedAfter.headers.get('x-frame-options') === null &&
       framedAfter.headers.get('content-security-policy') ===
         "frame-ancestors 'self' https://embed.example",
-    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} seatAfterAlias=${reboundRole} (want member) roleAudits=${reboundAudits[0]?.count} (want ≥1) sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
+    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} seatAfterAlias=${reboundRole} (want member) roleAudits=${reboundAudits[0]?.count} (want ≥1) mint=${transparent.status}/${transparentUser === mintEmail} (want 200/true) held=${held.status} (want 401) fromApp=${fromApp.status}→${fromApp.location ?? ''} sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
   );
 
   // ---- refusals, pause, revoke ----------------------------------------------
