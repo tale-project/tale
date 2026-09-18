@@ -5484,8 +5484,7 @@ settings:
         être attribué via un proxy.
       endpointLabel: URL de passage
       endpointHelp: Fais pointer la connexion du proxy vers cette adresse. Il envoie la clé
-        comme jeton bearer Authorization ou dans l’en-tête de clé, avec les en-têtes
-        d’identité.
+        dans l’en-tête de clé, avec les en-têtes d’identité.
       headersLabel: Noms des en-têtes
       headersHelp: Les en-têtes lus par cette installation. L’opérateur les renomme avec les
         variables TRUSTED_*_HEADER.
@@ -5504,8 +5503,8 @@ settings:
       keyCreated: Clé créée
       keyCreatedHelp: Copie cette clé maintenant — elle ne sera plus affichée.
       keyCreatedSendAs:
-        Le proxy envoie la clé dans l’un de ces deux en-têtes sur la requête
-        de passage ; le libellé du champ est le nom de l’en-tête.
+        Le libellé est l’en-tête dans lequel le proxy l’envoie sur la requête
+        de passage.
       revoke: Révoquer
       revokeTitle: Révoquer cette clé ?
       revokeDescription: Le proxy qui détient « {name} » ne peut plus connecter personne.

@@ -5512,8 +5512,8 @@ settings:
       maxRoleHelp: The role header is capped at this role. Owner can never be asserted
         through a proxy.
       endpointLabel: Hand-off URL
-      endpointHelp: Point the proxy's sign-in at this address. It sends the key as the
-        Authorization bearer token or in the key header, plus the identity headers.
+      endpointHelp: Point the proxy's sign-in at this address. It sends the key in the key
+        header, plus the identity headers.
       headersLabel: Header names
       headersHelp: The headers this deployment reads. The operator renames them with the
         TRUSTED_*_HEADER variables.
@@ -5531,8 +5531,7 @@ settings:
       keyNamePlaceholder: e.g. Portal proxy
       keyCreated: Key created
       keyCreatedHelp: Copy this key now — you won't be able to see it again.
-      keyCreatedSendAs: The proxy sends the key in either of these headers on the hand-off
-        request; the field label is the header name.
+      keyCreatedSendAs: The label is the header the proxy sends it in on the hand-off request.
       revoke: Revoke
       revokeTitle: Revoke this key?
       revokeDescription: The proxy holding “{name}” can no longer sign anyone in. Sessions

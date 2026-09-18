@@ -5393,8 +5393,7 @@ settings:
         Proxy nie zugewiesen werden.
       endpointLabel: Übergabe-URL
       endpointHelp: Leite die Anmeldung des Proxys auf diese Adresse. Er sendet den
-        Schlüssel als Authorization-Bearer-Token oder im Schlüssel-Header, dazu die
-        Identitäts-Header.
+        Schlüssel im Schlüssel-Header, dazu die Identitäts-Header.
       headersLabel: Header-Namen
       headersHelp: Die Header, die diese Installation liest. Der Betreiber benennt sie über
         die TRUSTED_*_HEADER-Variablen um.
@@ -5413,8 +5412,8 @@ settings:
       keyCreated: Schlüssel erstellt
       keyCreatedHelp: Kopiere diesen Schlüssel jetzt – er wird nicht erneut angezeigt.
       keyCreatedSendAs:
-        Der Proxy sendet den Schlüssel auf der Übergabeanfrage in einem
-        dieser beiden Header; die Feldbeschriftung ist der Header-Name.
+        Die Beschriftung ist der Header, in dem der Proxy ihn auf der
+        Übergabeanfrage sendet.
       revoke: Widerrufen
       revokeTitle: Diesen Schlüssel widerrufen?
       revokeDescription: Der Proxy mit „{name}“ kann niemanden mehr anmelden. Bereits

@@ -324,25 +324,16 @@ export function TrustedHeadersSection({
             className="w-full"
           />
         ) : (
-          // Each field is labelled with the header the proxy sends the key
-          // in, so the person leaves with "header: value", not a bare secret
-          // to look up a header name for.
-          <Stack gap={4}>
-            <CopyableField
-              label={view?.headers.key ?? 'Remote-Internal-Secret'}
-              value={createdKey}
-              mono
-              copyAriaLabel={t('enterpriseSso.copy')}
-              description={t('enterpriseSso.trustedHeaders.keyCreatedHelp')}
-            />
-            <CopyableField
-              label="Authorization"
-              value={`Bearer ${createdKey}`}
-              mono
-              copyAriaLabel={t('enterpriseSso.copy')}
-              description={t('enterpriseSso.trustedHeaders.keyCreatedSendAs')}
-            />
-          </Stack>
+          // Labelled with the header the proxy sends the key in, so the
+          // person leaves with "header: value", not a bare secret to look up
+          // a header name for.
+          <CopyableField
+            label={view?.headers.key ?? 'Remote-Internal-Secret'}
+            value={createdKey}
+            mono
+            copyAriaLabel={t('enterpriseSso.copy')}
+            description={`${t('enterpriseSso.trustedHeaders.keyCreatedHelp')} ${t('enterpriseSso.trustedHeaders.keyCreatedSendAs')}`}
+          />
         )}
       </FormDialog>
 

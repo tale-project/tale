@@ -33,13 +33,16 @@ describe('GET /discovery/trusted-headers — is a proxy hand-off on this request
     expect(answer.cache).toBe('no-store');
   });
 
-  it('answers yes when the key rides as a bearer token or in the key header', async () => {
-    expect(
-      (await probe({ authorization: 'Bearer thk_0123456789abcdef' })).body,
-    ).toEqual({ handoff: true });
+  it('answers yes when the key rides in the key header', async () => {
     expect(
       (await probe({ 'remote-internal-secret': 'thk_0123456789abcdef' })).body,
     ).toEqual({ handoff: true });
+  });
+
+  it('ignores an Authorization header — the key has one slot, and the REST API key is not it', async () => {
+    expect(
+      (await probe({ authorization: 'Bearer thk_0123456789abcdef' })).body,
+    ).toEqual({ handoff: false });
   });
 
   it("answers yes on the proxy's identity header alone — the key may ride on the door only", async () => {

@@ -17337,13 +17337,13 @@ async function checkTrustedHeaders(
   const noKey = await door(identity(proxyEmail, 'member'));
   const badKey = await door({
     ...identity(proxyEmail, 'member'),
-    authorization: 'Bearer thk_not_a_real_key',
+    'Remote-Internal-Secret': 'thk_not_a_real_key',
   });
   // Asserted admin under an editor ceiling → the member row AND the session
   // carry editor.
   const first = await door({
     ...identity(proxyEmail, 'admin'),
-    authorization: `Bearer ${key}`,
+    'Remote-Internal-Secret': key,
   });
   const firstEmail = await sessionEmail(first.cookie);
   const landed = await sql<
@@ -17393,7 +17393,7 @@ async function checkTrustedHeaders(
   const alias = await door(
     {
       ...identity(proxyEmail, 'member'),
-      authorization: `Bearer ${key}`,
+      'Remote-Internal-Secret': key,
       cookie: first.cookie,
     },
     '/http_api/api/trusted-headers/authenticate',
@@ -17409,7 +17409,7 @@ async function checkTrustedHeaders(
   const framedBefore = await fetch(`${base}/api/trusted-headers/authenticate`, {
     headers: {
       ...identity(proxyEmail, 'member'),
-      authorization: `Bearer ${key}`,
+      'Remote-Internal-Secret': key,
     },
   });
   await framedBefore.text();
@@ -17426,7 +17426,7 @@ async function checkTrustedHeaders(
   const framedAfter = await fetch(`${base}/api/trusted-headers/authenticate`, {
     headers: {
       ...identity(proxyEmail, 'member'),
-      authorization: `Bearer ${key}`,
+      'Remote-Internal-Secret': key,
     },
   });
   await framedAfter.text();
@@ -17475,7 +17475,7 @@ async function checkTrustedHeaders(
   `;
   const refusedStranger = await door({
     ...identity(stranger.email, 'member'),
-    authorization: `Bearer ${key}`,
+    'Remote-Internal-Secret': key,
   });
   const strangerMemberships = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM "member" WHERE "userId" = ${stranger.userId}
@@ -17492,7 +17492,7 @@ async function checkTrustedHeaders(
   );
   const whilePaused = await door({
     ...identity(proxyEmail, 'member'),
-    authorization: `Bearer ${key}`,
+    'Remote-Internal-Secret': key,
   });
   const keptWhilePaused = await sessionEmail(first.cookie);
   // Resume, then revoke: the key is dead, the card lists nothing, a second
@@ -17505,7 +17505,7 @@ async function checkTrustedHeaders(
   const revokedAgain = await admin(`/keys/${keyId}`, { method: 'DELETE' });
   const afterRevoke = await door({
     ...identity(proxyEmail, 'member'),
-    authorization: `Bearer ${key}`,
+    'Remote-Internal-Secret': key,
   });
   const listedAfter = await view(await admin(''));
   const unknownKey = await admin('/keys/not-a-key-id', { method: 'DELETE' });

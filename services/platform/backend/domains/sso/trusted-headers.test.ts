@@ -200,19 +200,11 @@ describe('framingHeaders — what a door answer may be framed by', () => {
 });
 
 describe('presentedTrustedHeaderKey — where the key rides', () => {
-  it('prefers a bearer Authorization over the key header', () => {
-    expect(presentedTrustedHeaderKey('Bearer thk_a', 'thk_b')).toBe('thk_a');
-    expect(presentedTrustedHeaderKey('bearer   thk_a  ', undefined)).toBe(
-      'thk_a',
-    );
-  });
-
-  it('falls back to the key header, and reads empty as absent', () => {
-    expect(presentedTrustedHeaderKey(undefined, ' thk_b ')).toBe('thk_b');
-    expect(presentedTrustedHeaderKey('Basic xyz', 'thk_b')).toBe('thk_b');
-    expect(presentedTrustedHeaderKey(undefined, '')).toBeUndefined();
-    expect(presentedTrustedHeaderKey('Bearer ', undefined)).toBeUndefined();
-    expect(presentedTrustedHeaderKey(undefined, undefined)).toBeUndefined();
+  it('reads the key header, trimmed, and reads empty as absent', () => {
+    expect(presentedTrustedHeaderKey(' thk_b ')).toBe('thk_b');
+    expect(presentedTrustedHeaderKey('')).toBeUndefined();
+    expect(presentedTrustedHeaderKey('   ')).toBeUndefined();
+    expect(presentedTrustedHeaderKey(undefined)).toBeUndefined();
   });
 });
 
@@ -397,7 +389,7 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     'Remote-Name': 'Proxy User',
     'Remote-Role': 'member',
   };
-  const withKey = { ...identity, authorization: 'Bearer thk_live' };
+  const withKey = { ...identity, 'Remote-Internal-Secret': 'thk_live' };
 
   it('mints nothing when no key is presented, and never asks the database', async () => {
     const { app, queries } = makeApp(memberScript());
@@ -464,14 +456,28 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
   it('refuses a key without an email header', async () => {
     const { app, queries } = makeApp(memberScript());
 
-    const res = await request(app, { authorization: 'Bearer thk_live' });
+    const res = await request(app, { 'Remote-Internal-Secret': 'thk_live' });
 
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('Missing required header: Remote-Email');
     expect(queries).toHaveLength(0);
   });
 
-  it('sets the session cookie for an existing member and reads the key from the bearer header', async () => {
+  it('ignores an Authorization bearer — the key has one slot, and the REST API key is not it', async () => {
+    const { app, queries } = makeApp(memberScript());
+
+    const res = await request(app, {
+      ...identity,
+      authorization: 'Bearer thk_live',
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain('Missing trusted-header key');
+    expect(resolveTrustedHeaderKey).not.toHaveBeenCalled();
+    expect(queries).toHaveLength(0);
+  });
+
+  it('sets the session cookie for an existing member and reads the key from the key header', async () => {
     const { app } = makeApp(memberScript());
 
     const res = await request(app, withKey);

@@ -83,10 +83,8 @@ export function createSsoAdminRoutes(deps: {
   app.get('/discovery/trusted-headers', (c) => {
     const names = trustedHeaderNames();
     const handoff =
-      presentedTrustedHeaderKey(
-        c.req.header('authorization'),
-        c.req.header(names.key),
-      ) !== undefined || (c.req.header(names.email)?.trim() ?? '') !== '';
+      presentedTrustedHeaderKey(c.req.header(names.key)) !== undefined ||
+      (c.req.header(names.email)?.trim() ?? '') !== '';
     c.header('Cache-Control', 'no-store');
     return c.json({ handoff });
   });

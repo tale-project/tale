@@ -381,16 +381,15 @@ async function resolveFrameAncestors(
 }
 
 /**
- * The key the proxy presented: `Authorization: Bearer <key>` first, else
- * the configurable key header (the `Remote-Internal-Secret` slot proxies
- * already inject). Empty is absent.
+ * The key the proxy presented in the key header (`Remote-Internal-Secret`
+ * unless the operator renamed it with `TRUSTED_SECRET_HEADER`). One header,
+ * one way to send it — a bearer variant would only be a second thing to
+ * document and to confuse with the REST API key. Empty is absent.
  */
 export function presentedTrustedHeaderKey(
-  authorization: string | undefined,
   keyHeader: string | undefined,
 ): string | undefined {
-  const bearer = /^bearer\s+(.+)$/i.exec(authorization ?? '');
-  const candidate = bearer?.[1]?.trim() || keyHeader?.trim();
+  const candidate = keyHeader?.trim();
   return candidate ? candidate : undefined;
 }
 
@@ -429,15 +428,12 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     // The key is what separates "came through the organization's proxy"
     // from "reached the endpoint directly" — the identity headers alone are
     // forgeable by anyone who can speak to the backend.
-    const presented = presentedTrustedHeaderKey(
-      c.req.header('authorization'),
-      c.req.header(names.key),
-    );
+    const presented = presentedTrustedHeaderKey(c.req.header(names.key));
     if (presented === undefined) {
       return page(
         errorPage(
           basePath,
-          `Missing trusted-header key: send it as "Authorization: Bearer <key>" or in the "${names.key}" header`,
+          `Missing trusted-header key: send it in the "${names.key}" header`,
         ),
         401,
       );
