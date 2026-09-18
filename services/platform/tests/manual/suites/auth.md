@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 39 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 40 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -188,6 +188,15 @@ compute codes from the enrollment secret.
   'self' and the listed origin and there is no X-Frame-Options header;
   switch the card off → within a few seconds the CSP is back to
   frame-ancestors 'none' and X-Frame-Options DENY.
+- [ ] `AUTH-F24` · **Sign-in page hands off by itself** — With the card on
+  and a browser extension injecting the key header and `Remote-Email` on
+  every request to the dev origin, open `/log-in` → the page shows the
+  "signing you in" notice, never the form, and lands on the dashboard
+  without any proxy rule. Change the injected key to a wrong value and open
+  `/log-in` again → the door's 401 page; go back → the form with the "did
+  not complete" notice and **Try again**, and no redirect loop. Open
+  `/log-in?reason=idle` with the headers on → the inactivity notice and a
+  **Continue with automatic sign-in** button, no automatic redirect.
 
 ## Boundary & error tests
 
