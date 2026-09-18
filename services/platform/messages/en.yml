@@ -5531,6 +5531,8 @@ settings:
       keyNamePlaceholder: e.g. Portal proxy
       keyCreated: Key created
       keyCreatedHelp: Copy this key now — you won't be able to see it again.
+      keyCreatedSendAs: The proxy sends the key in either of these headers on the hand-off
+        request; the field label is the header name.
       revoke: Revoke
       revokeTitle: Revoke this key?
       revokeDescription: The proxy holding “{name}” can no longer sign anyone in. Sessions

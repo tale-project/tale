@@ -160,6 +160,13 @@ describe('TrustedHeadersSection', () => {
       await screen.findByText('thk_the-plaintext-shown-once'),
     ).toBeInTheDocument();
     expect(screen.getByText(/Copy this key now/)).toBeInTheDocument();
+    // The dialog names the headers the proxy sends the key in, so the person
+    // leaves with "header: value" rather than a bare secret.
+    expect(within(dialog).getByText(view.headers.key)).toBeInTheDocument();
+    expect(within(dialog).getByText('Authorization')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Bearer thk_the-plaintext-shown-once'),
+    ).toBeInTheDocument();
     expect(toastMock).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Key created' }),
     );

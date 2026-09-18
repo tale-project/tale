@@ -5503,6 +5503,9 @@ settings:
       keyNamePlaceholder: p. ex. Proxy du portail
       keyCreated: Clé créée
       keyCreatedHelp: Copie cette clé maintenant — elle ne sera plus affichée.
+      keyCreatedSendAs:
+        Le proxy envoie la clé dans l’un de ces deux en-têtes sur la requête
+        de passage ; le libellé du champ est le nom de l’en-tête.
       revoke: Révoquer
       revokeTitle: Révoquer cette clé ?
       revokeDescription: Le proxy qui détient « {name} » ne peut plus connecter personne.

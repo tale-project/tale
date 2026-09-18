@@ -5412,6 +5412,9 @@ settings:
       keyNamePlaceholder: z. B. Portal-Proxy
       keyCreated: Schlüssel erstellt
       keyCreatedHelp: Kopiere diesen Schlüssel jetzt – er wird nicht erneut angezeigt.
+      keyCreatedSendAs:
+        Der Proxy sendet den Schlüssel auf der Übergabeanfrage in einem
+        dieser beiden Header; die Feldbeschriftung ist der Header-Name.
       revoke: Widerrufen
       revokeTitle: Diesen Schlüssel widerrufen?
       revokeDescription: Der Proxy mit „{name}“ kann niemanden mehr anmelden. Bereits
