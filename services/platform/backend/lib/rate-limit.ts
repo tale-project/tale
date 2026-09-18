@@ -173,6 +173,15 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 40,
   },
+  // The trusted-headers hand-off door: a presented key that resolves to no
+  // live row is charged to the source IP before it learns anything — the
+  // `rest:auth-fail-ip` posture on the browser-facing door.
+  'trusted-headers:auth-fail-ip': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   'rest:execute': {
     kind: 'token bucket',
     rate: 20,

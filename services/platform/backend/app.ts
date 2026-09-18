@@ -67,6 +67,7 @@ import { createSsoRoutes } from './domains/sso/routes.ts';
 import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
+import { createTrustedHeaderAdminRoutes } from './domains/trusted_headers/routes.ts';
 import { createTtsRoutes } from './domains/tts/routes.ts';
 import { createTwoFactorRoutes } from './domains/two_factor/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
@@ -313,7 +314,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/scim/v2', scimRoutes);
   app.route('/http_api/scim/v2', scimRoutes);
 
-  // Trusted-headers hand-off (reverse-proxy auth) — same alias story.
+  // Trusted-headers hand-off — an application's authenticating proxy
+  // presents the organization's key and the identity headers; the key row
+  // IS the tenant (the SCIM posture). Same alias story.
   const trustedRoutes = createTrustedHeadersRoutes({ sql: deps.sql });
   app.route('/api/trusted-headers', trustedRoutes);
   app.route('/http_api/api/trusted-headers', trustedRoutes);
@@ -363,6 +366,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/knowledge', createKnowledgeRoutes(deps));
   app.route('/api/app/legal-holds', createLegalHoldRoutes(deps));
   app.route('/api/app/scim', createScimAdminRoutes(deps));
+  app.route('/api/app/trusted-headers', createTrustedHeaderAdminRoutes(deps));
   app.route('/api/app/knowledge-entries', createKnowledgeEntryRoutes(deps));
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/google-drive', createGoogleDriveRoutes(deps));

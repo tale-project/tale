@@ -1,11 +1,12 @@
-import { timingSafeEqual } from 'node:crypto';
-
 import { sessionExpiryMs } from '@tale/shared/utils/session-idle';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import {
+  clampAssertedRole,
+  type TrustedHeaderAssertableRole,
+} from '../../../lib/shared/schemas/trusted_headers.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
-import { ADMIN_ROLES } from '../../auth/membership.ts';
 import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';
 import {
   buildSessionCookie,
@@ -14,42 +15,73 @@ import {
 import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
+import { trustedHeaderNames } from '../../core/trusted_headers_auth/header_names.ts';
+import {
+  checkIpRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  resolveTrustedHeaderKey,
+  touchTrustedHeaderKeyLastUsed,
+} from '../trusted_headers/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 import { syncTeamsFromGroupNames } from './service.ts';
 
 /**
- * Trusted-headers authentication — the 0.5 twin of
- * `trusted_headers_auth/authenticate_handler.ts` +
- * `betterAuth/trusted_headers/*`: an authenticating reverse proxy
- * (Authelia, Authentik, oauth2-proxy) has already verified the user and set
- * identity headers; this door finds-or-creates the user + membership and
- * mints/reuses the session, stamping the header-borne role onto the SESSION
- * row (`trustedRole` — the proxy is the source of truth; the member row
- * keeps a placeholder role, and the org middleware applies the override at
- * read time, the 0.4 JWT-claim semantic). The header-borne TEAMS become real
- * memberships: they feed the same provenance-scoped group→team sync the SSO
- * sign-in uses, so team-scoped access reads them like any other membership.
+ * Trusted-headers authentication, organization mode — the hand-off door an
+ * application's authenticating proxy (Authelia, Authentik, oauth2-proxy, or
+ * the host application's own reverse proxy) sends its users through: the
+ * proxy has already verified the person, injects identity headers, and
+ * presents the ORGANIZATION'S trusted-header key (Settings > Enterprise SSO
+ * > Trusted headers). The door resolves the organization from that key —
+ * never from a header, a body or a path — finds-or-creates the user inside
+ * it, and mints/reuses the session, stamping the asserted role AND the
+ * organization onto the SESSION row (`trustedRole` + `trustedOrganizationId`):
+ * the proxy is the role authority for that organization only, and the org
+ * middleware applies the override at read time for that organization only.
+ * The header-borne TEAMS become real memberships through the same
+ * provenance-scoped group→team sync the SSO sign-in uses.
+ *
+ * The org-binding contract of the SSO door holds here too: a key signs in
+ * members the organization already has and JIT-creates users NEW to the
+ * deployment, but never attaches to an existing user from outside the
+ * organization — a proxy asserting a stranger's address would otherwise walk
+ * away with that stranger's session.
  */
 
 export interface TrustedHeadersAuthResult {
   userId: string;
-  organizationId: string | null;
+  organizationId: string;
   sessionToken: string;
+  isNewUser: boolean;
+  role: TrustedHeaderAssertableRole;
 }
 
-function secretsMatch(supplied: string, required: string): boolean {
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(required);
-  return a.length === b.length && timingSafeEqual(a, b);
+export type TrustedHeadersRefusal = 'existing_user_not_in_org';
+
+/** A sign-in the contract refuses before any write. */
+export class TrustedHeadersRefusedError extends Error {
+  readonly reason: TrustedHeadersRefusal;
+
+  constructor(reason: TrustedHeadersRefusal) {
+    super(`trusted-headers sign-in refused: ${reason}`);
+    this.name = 'TrustedHeadersRefusedError';
+    this.reason = reason;
+  }
 }
 
 export async function trustedHeadersAuthenticate(
   sql: Sql,
   args: {
+    /** The organization the presented key belongs to. */
+    organizationId: string;
+    /** The key row that admitted this sign-in — the audit trail's anchor. */
+    keyId: string;
     email: string;
     name: string;
-    role: string;
+    /** The asserted role, ALREADY clamped to the organization's ceiling. */
+    role: TrustedHeaderAssertableRole;
     /**
      * The proxy's team assertion — `null` when the teams header is absent
      * (teams stay whatever an admin manages), an array (possibly empty) when
@@ -58,15 +90,6 @@ export async function trustedHeadersAuthenticate(
      * the header carries and revokes only what an earlier sync granted.
      */
     teams: { id: string; name: string }[] | null;
-    /**
-     * The CALLER-SUPPLIED internal secret (the request header the trusted
-     * proxy chain injects), compared against
-     * `TRUSTED_HEADERS_INTERNAL_SECRET`. It used to be read FROM that env var
-     * at the call site, so the guard compared the secret against itself and
-     * could never fail — anyone reaching the endpoint minted a session as
-     * whoever `Remote-Email` named. Fail closed: no env secret, no door.
-     */
-    secret: string | undefined;
     /**
      * The BARE session token from the browser's own cookie, after the route
      * verified its signature (the cookie carries `${token}.${signature}`; the
@@ -80,44 +103,40 @@ export async function trustedHeadersAuthenticate(
     userAgent?: string;
   },
 ): Promise<TrustedHeadersAuthResult> {
-  const requiredSecret = process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-  if (!requiredSecret) {
-    throw new Error(
-      'TRUSTED_HEADERS_INTERNAL_SECRET is not configured — trusted-headers ' +
-        'authentication refuses to run without it',
-    );
-  }
-  if (args.secret === undefined || !secretsMatch(args.secret, requiredSecret)) {
-    throw new Error(
-      'Invalid internal secret for trusted headers authentication',
-    );
-  }
   const email = args.email.toLowerCase().trim();
   const name = args.name.trim();
 
   const result = await sql.begin<TrustedHeadersAuthResult>(async (tx) => {
     const now = new Date();
 
-    // ---- find-or-create the user + org linkage -------------------------
+    // ---- find-or-create the user inside the key's organization ----------
     const users = await tx<{ id: string; name: string }[]>`
       SELECT "id", "name" FROM "user" WHERE "email" = ${email} LIMIT 1
     `;
     let userId: string;
-    let organizationId: string | null = null;
+    let isNewUser = false;
     if (users[0] !== undefined) {
       userId = users[0].id;
+      // The org-binding contract, judged BEFORE any write: an existing user
+      // signs in only as a member of this organization. A stranger's
+      // address is refused — the proxy holds this organization's key, not
+      // a warrant for every account on the deployment.
+      const members = await tx<{ role: string }[]>`
+        SELECT "role" FROM "member"
+        WHERE "userId" = ${userId} AND "organizationId" = ${args.organizationId}
+        LIMIT 1
+      `;
+      if (members[0] === undefined) {
+        throw new TrustedHeadersRefusedError('existing_user_not_in_org');
+      }
       if (users[0].name !== name) {
         await tx`
           UPDATE "user" SET "name" = ${name}, "updatedAt" = ${now}
           WHERE "id" = ${userId}
         `;
       }
-      const members = await tx<{ organizationId: string }[]>`
-        SELECT "organizationId" FROM "member"
-        WHERE "userId" = ${userId} LIMIT 1
-      `;
-      organizationId = members[0]?.organizationId ?? null;
     } else {
+      isNewUser = true;
       const created = await tx<{ id: string }[]>`
         INSERT INTO "user" (
           "id", "email", "name", "emailVerified", "createdAt", "updatedAt"
@@ -129,50 +148,17 @@ export async function trustedHeadersAuthenticate(
       const createdId = created[0]?.id;
       if (createdId === undefined) throw new Error('user insert failed');
       userId = createdId;
-
-      // Attach to the existing org (the one with an elevated seat — its
-      // creating `owner`, or a granted `admin`) so trusted-headers users land
-      // together; the very first user gets a default org and the admin seat.
-      // Matching `admin` alone missed every org created through sign-up
-      // (Better Auth seats the creator as `owner`) and split the deployment
-      // into two tenants on the first proxy login. The member ROLE is a
-      // placeholder — the real role rides the session.
-      const admins = await tx<{ organizationId: string }[]>`
-        SELECT "organizationId" FROM "member"
-        WHERE lower("role") = ANY(${[...ADMIN_ROLES]})
-        ORDER BY "createdAt" ASC LIMIT 1
+      // The member row carries the clamped role the proxy asserted at
+      // creation; later sign-ins ride the session override, so the proxy
+      // stays the authority without rewriting the row each time.
+      await tx`
+        INSERT INTO "member" (
+          "id", "organizationId", "userId", "role", "createdAt"
+        ) VALUES (
+          gen_random_uuid(), ${args.organizationId}, ${userId}, ${args.role}, ${now}
+        )
       `;
-      if (admins[0] !== undefined) {
-        organizationId = admins[0].organizationId;
-        await tx`
-          INSERT INTO "member" (
-            "id", "organizationId", "userId", "role", "createdAt"
-          ) VALUES (
-            gen_random_uuid(), ${organizationId}, ${userId}, 'member', ${now}
-          )
-        `;
-        await joinedAudit(tx, organizationId, userId, email, 'member');
-      } else {
-        const orgs = await tx<{ id: string }[]>`
-          INSERT INTO "organization" ("id", "name", "slug", "createdAt")
-          VALUES (
-            gen_random_uuid(), ${`${name}'s Organization`},
-            ${`${email.split('@')[0]}-org-${Date.now()}`}, ${now}
-          )
-          RETURNING "id"
-        `;
-        const orgId = orgs[0]?.id;
-        if (orgId === undefined) throw new Error('organization insert failed');
-        organizationId = orgId;
-        await tx`
-          INSERT INTO "member" (
-            "id", "organizationId", "userId", "role", "createdAt"
-          ) VALUES (
-            gen_random_uuid(), ${organizationId}, ${userId}, 'admin', ${now}
-          )
-        `;
-        await joinedAudit(tx, organizationId, userId, email, 'admin');
-      }
+      await joinedAudit(tx, args.organizationId, userId, email, args.role);
     }
 
     // Org 2FA enforcement anchors on this door too — it mints sessions
@@ -183,18 +169,13 @@ export async function trustedHeadersAuthenticate(
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
     const expiresAt = new Date(sessionExpiryMs(nowMs, 24 * 60 * 60 * 1000));
+    let sessionToken: string | undefined;
 
     if (args.existingSessionToken !== undefined) {
       const existing = await tx<
-        {
-          id: string;
-          userId: string;
-          token: string;
-          expiresAt: Date;
-          trustedRole: string | null;
-        }[]
+        { id: string; userId: string; token: string; expiresAt: Date }[]
       >`
-        SELECT "id", "userId", "token", "expiresAt", "trustedRole"
+        SELECT "id", "userId", "token", "expiresAt"
         FROM "session" WHERE "token" = ${args.existingSessionToken} LIMIT 1
       `;
       const row = existing[0];
@@ -207,36 +188,55 @@ export async function trustedHeadersAuthenticate(
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
-              "trustedRole" = ${args.role ?? null}
+              "trustedRole" = ${args.role},
+              "trustedOrganizationId" = ${args.organizationId},
+              "activeOrganizationId" = ${args.organizationId}
             WHERE "id" = ${row.id}
           `;
-          return { userId, organizationId, sessionToken: row.token };
+          sessionToken = row.token;
         }
       }
     }
 
-    // No (valid, live, same-user) cookie: a fresh session for THIS browser.
-    const sessionToken = globalThis.crypto.randomUUID();
-    await tx`
-      INSERT INTO "session" (
-        "id", "token", "userId", "expiresAt", "createdAt", "updatedAt",
-        "ipAddress", "userAgent", "trustedRole", "activeOrganizationId"
-      ) VALUES (
-        gen_random_uuid(), ${sessionToken}, ${userId}, ${expiresAt}, ${now},
-        ${now}, ${args.ipAddress ?? null}, ${args.userAgent ?? null},
-        ${args.role ?? null}, ${organizationId}
-      )
-    `;
-    return { userId, organizationId, sessionToken };
+    if (sessionToken === undefined) {
+      // No (valid, live, same-user) cookie: a fresh session for THIS browser.
+      sessionToken = globalThis.crypto.randomUUID();
+      await tx`
+        INSERT INTO "session" (
+          "id", "token", "userId", "expiresAt", "createdAt", "updatedAt",
+          "ipAddress", "userAgent", "trustedRole", "trustedOrganizationId",
+          "activeOrganizationId"
+        ) VALUES (
+          gen_random_uuid(), ${sessionToken}, ${userId}, ${expiresAt}, ${now},
+          ${now}, ${args.ipAddress ?? null}, ${args.userAgent ?? null},
+          ${args.role}, ${args.organizationId}, ${args.organizationId}
+        )
+      `;
+    }
+
+    await signInAudit(tx, {
+      organizationId: args.organizationId,
+      userId,
+      email,
+      keyId: args.keyId,
+      role: args.role,
+      isNewUser,
+    });
+
+    return {
+      userId,
+      organizationId: args.organizationId,
+      sessionToken,
+      isNewUser,
+      role: args.role,
+    };
   });
 
   // The proxy's team assertion, mirrored onto real team memberships AFTER
   // the session committed — the sync tolerates a failed group by design
   // (a poisoned transaction would not), and a sync problem must not cost
-  // the sign-in, exactly as on the SSO door. The 0.4 port stamped the
-  // header onto the session row instead, which no 0.5 reader consulted:
-  // proxy-asserted teams silently granted nothing.
-  if (args.teams !== null && result.organizationId !== null) {
+  // the sign-in, exactly as on the SSO door.
+  if (args.teams !== null) {
     try {
       const syncResult = await syncTeamsFromGroupNames(sql, {
         userId: result.userId,
@@ -271,7 +271,7 @@ async function joinedAudit(
       category: 'member',
       resourceType: 'member',
       resourceId: userId,
-      newState: { role },
+      newState: { role, via: 'trusted_headers' },
       status: 'success',
     });
   } catch (error) {
@@ -282,11 +282,40 @@ async function joinedAudit(
   }
 }
 
-// ---------------------------------------------------------------- route
-
-function headerName(envVar: string, fallback: string): string {
-  return process.env[envVar] || fallback;
+/** Every admitted sign-in names the key that admitted it. */
+async function signInAudit(
+  tx: Parameters<typeof createAuditLog>[0],
+  args: {
+    organizationId: string;
+    userId: string;
+    email: string;
+    keyId: string;
+    role: string;
+    isNewUser: boolean;
+  },
+): Promise<void> {
+  try {
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: args.userId,
+      actorEmail: args.email,
+      actorType: 'user',
+      action: 'trusted_headers_sign_in',
+      category: 'auth',
+      resourceType: 'trusted_header_key',
+      resourceId: args.keyId,
+      newState: { role: args.role, newUser: args.isNewUser },
+      status: 'success',
+    });
+  } catch (error) {
+    console.error(
+      '[trusted_headers] failed to write trusted_headers_sign_in audit',
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
+
+// ---------------------------------------------------------------- route
 
 function escapeHtmlAttr(str: string): string {
   return str
@@ -307,6 +336,20 @@ function errorPage(basePath: string, message: string): string {
 </html>`;
 }
 
+/**
+ * The key the proxy presented: `Authorization: Bearer <key>` first, else
+ * the configurable key header (the `Remote-Internal-Secret` slot proxies
+ * already inject). Empty is absent.
+ */
+export function presentedTrustedHeaderKey(
+  authorization: string | undefined,
+  keyHeader: string | undefined,
+): string | undefined {
+  const bearer = /^bearer\s+(.+)$/i.exec(authorization ?? '');
+  const candidate = bearer?.[1]?.trim() || keyHeader?.trim();
+  return candidate ? candidate : undefined;
+}
+
 /** GET /api/trusted-headers/authenticate — the proxy hand-off door. */
 export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
@@ -322,55 +365,75 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       url.searchParams.get('redirect'),
       `${basePath}/dashboard`,
     );
+    const names = trustedHeaderNames();
+    const ip =
+      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+      c.req.header('x-real-ip') ||
+      undefined;
 
-    if (process.env.TRUSTED_HEADERS_ENABLED !== 'true') {
-      return c.html(
-        errorPage(basePath, 'Trusted headers authentication is not enabled'),
-      );
-    }
-
-    // The internal secret is what separates "came through the authenticating
-    // proxy" from "reached the endpoint directly" — the identity headers
-    // alone are forgeable by anyone who can speak to the backend. Enabled
-    // without a secret is a misconfiguration, not a weaker mode.
-    if (!process.env.TRUSTED_HEADERS_INTERNAL_SECRET) {
-      console.error(
-        '[Trusted Headers] TRUSTED_HEADERS_ENABLED is true but ' +
-          'TRUSTED_HEADERS_INTERNAL_SECRET is not set. Set the secret and ' +
-          'configure the authenticating proxy to send it in the ' +
-          `"${headerName('TRUSTED_SECRET_HEADER', 'Remote-Internal-Secret')}" header.`,
-      );
-      return c.html(errorPage(basePath, 'Server configuration error'));
-    }
-
-    const secretHeader = headerName(
-      'TRUSTED_SECRET_HEADER',
-      'Remote-Internal-Secret',
+    // The key is what separates "came through the organization's proxy"
+    // from "reached the endpoint directly" — the identity headers alone are
+    // forgeable by anyone who can speak to the backend.
+    const presented = presentedTrustedHeaderKey(
+      c.req.header('authorization'),
+      c.req.header(names.key),
     );
-    const suppliedSecret = c.req.header(secretHeader);
-    if (suppliedSecret === undefined) {
+    if (presented === undefined) {
       return c.html(
-        errorPage(basePath, `Missing required header: ${secretHeader}`),
+        errorPage(
+          basePath,
+          `Missing trusted-header key: send it as "Authorization: Bearer <key>" or in the "${names.key}" header`,
+        ),
+        401,
+      );
+    }
+    const resolved = await resolveTrustedHeaderKey(deps.sql, presented);
+    if (resolved === null) {
+      // A key that resolves to nothing is charged to its source IP before
+      // it learns anything — the REST door's pre-auth posture.
+      try {
+        await checkIpRateLimit(
+          deps.sql,
+          'trusted-headers:auth-fail-ip',
+          ip ?? 'unknown',
+        );
+      } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return c.html(
+            errorPage(basePath, 'Too many failed attempts; try again later'),
+            429,
+          );
+        }
+        throw error;
+      }
+      return c.html(
+        errorPage(basePath, 'Invalid or revoked trusted-header key'),
+        401,
+      );
+    }
+    if (!resolved.enabled) {
+      return c.html(
+        errorPage(
+          basePath,
+          'Trusted headers are disabled for this organization',
+        ),
+        403,
       );
     }
 
-    const emailHeader = headerName('TRUSTED_EMAIL_HEADER', 'Remote-Email');
-    const email = c.req.header(emailHeader);
+    const email = c.req.header(names.email);
     if (!email) {
       return c.html(
-        errorPage(basePath, `Missing required header: ${emailHeader}`),
+        errorPage(basePath, `Missing required header: ${names.email}`),
+        400,
       );
     }
-    const name =
-      c.req.header(headerName('TRUSTED_NAME_HEADER', 'Remote-Name')) ||
-      email.split('@')[0] ||
-      email;
-    const role =
-      c.req.header(headerName('TRUSTED_ROLE_HEADER', 'Remote-Role')) ||
-      'member';
-    const teamsRaw = c.req.header(
-      headerName('TRUSTED_TEAMS_HEADER', 'Remote-Teams'),
+    const name = c.req.header(names.name) || email.split('@')[0] || email;
+    const role = clampAssertedRole(
+      c.req.header(names.role),
+      resolved.maxAssertedRole,
     );
+    const teamsRaw = c.req.header(names.teams);
     // Absent header: the proxy makes no claim about teams. Present but
     // empty: the proxy asserts NO teams, which revokes what it granted.
     // A present header that parses to nothing (bare names, no `id:name`)
@@ -379,7 +442,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
     if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
       console.warn(
-        `[Trusted Headers] ${headerName('TRUSTED_TEAMS_HEADER', 'Remote-Teams')} carries no "id:name" entry; treating it as an empty team assertion`,
+        `[Trusted Headers] ${names.teams} carries no "id:name" entry; treating it as an empty team assertion`,
       );
     }
     const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
@@ -387,38 +450,38 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {
       console.error('[Trusted Headers] BETTER_AUTH_SECRET not configured');
-      return c.html(errorPage(basePath, 'Server configuration error'));
+      return c.html(errorPage(basePath, 'Server configuration error'), 500);
     }
 
     const cookieName = sessionCookieName(frontendOrigin);
     // The cookie carries what signCookieValue minted — `${token}.${signature}`
     // — while the session row stores the bare token, so the lookup needs the
-    // verified, stripped value. (Matching the signed string against the token
-    // column never hit: the reuse and account-switch branches were dead, and
-    // every request fell through to adopting an arbitrary row of the user.)
-    // A cookie that fails verification is treated as no cookie at all.
+    // verified, stripped value. A cookie that fails verification is treated
+    // as no cookie at all.
     const presentedCookie = readCookie(c.req.header('cookie'), cookieName);
     const existingSessionToken =
       presentedCookie !== undefined
         ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
         : undefined;
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-      c.req.header('x-real-ip') ||
-      undefined;
     const userAgent = c.req.header('user-agent') || undefined;
 
     try {
       const result = await trustedHeadersAuthenticate(deps.sql, {
+        organizationId: resolved.organizationId,
+        keyId: resolved.keyId,
         email,
         name,
         role,
         teams,
-        secret: suppliedSecret,
         ...(existingSessionToken !== undefined ? { existingSessionToken } : {}),
         ...(ip !== undefined ? { ipAddress: ip } : {}),
         ...(userAgent !== undefined ? { userAgent } : {}),
       });
+      try {
+        await touchTrustedHeaderKeyLastUsed(deps.sql, resolved.keyId);
+      } catch (error) {
+        console.warn('[Trusted Headers] last-used stamp failed:', error);
+      }
 
       const cookie = await buildSessionCookie(
         result.sessionToken,
@@ -440,8 +503,20 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       c.header('Set-Cookie', cookie);
       return c.html(html);
     } catch (error) {
+      if (error instanceof TrustedHeadersRefusedError) {
+        console.warn(
+          `[Trusted Headers] refused: ${error.reason} (organization ${resolved.organizationId})`,
+        );
+        return c.html(
+          errorPage(
+            basePath,
+            'This account is not a member of the organization this key belongs to. Ask an administrator to add you, then try again.',
+          ),
+          403,
+        );
+      }
       console.error('[Trusted Headers] Error:', error);
-      return c.html(errorPage(basePath, 'Failed to complete login'));
+      return c.html(errorPage(basePath, 'Failed to complete login'), 500);
     }
   });
 

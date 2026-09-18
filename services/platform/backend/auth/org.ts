@@ -58,21 +58,27 @@ export function requireOrgMember<E extends OrgEnv>(
         orgId,
         c.get('sessionBundle').user.id,
       );
-      // Trusted-headers mode: the reverse proxy is the role authority — the
-      // member row keeps a placeholder and the SESSION carries the real role
-      // (the 0.4 JWT-claim override, applied at read time).
+      // A trusted-headers session carries the role the proxy asserted, bound
+      // to the ONE organization whose key minted it (`trustedOrganizationId`):
+      // the override applies to that organization only — never to another
+      // the user also belongs to — and never demotes the seat that owns the
+      // organization.
       const sessionRecord: Record<string, unknown> =
         c.get('sessionBundle').session;
       const trustedRaw = Reflect.get(sessionRecord, 'trustedRole');
+      const trustedOrg = Reflect.get(sessionRecord, 'trustedOrganizationId');
       const trustedRole =
-        process.env.TRUSTED_HEADERS_ENABLED === 'true' &&
-        typeof trustedRaw === 'string'
+        typeof trustedRaw === 'string' &&
+        typeof trustedOrg === 'string' &&
+        trustedOrg === orgId
           ? trustedRaw.toLowerCase().trim()
           : undefined;
       c.set('orgId', orgId);
       c.set(
         'orgMember',
-        trustedRole !== undefined && trustedRole !== ''
+        trustedRole !== undefined &&
+          trustedRole !== '' &&
+          member.role !== 'owner'
           ? { ...member, role: trustedRole }
           : member,
       );

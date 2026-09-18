@@ -17214,198 +17214,297 @@ async function checkScim(
 }
 
 /**
- * Trusted-headers auth — the reverse-proxy hand-off door: identity headers
- * → user + placeholder membership provisioned, session minted with the
- * header-borne role stamped on the SESSION row, the teams header mirrored
- * onto REAL team memberships (the SSO group→team sync), cookie accepted by
- * Better Auth, and the org middleware applying the session role override
- * at read time (proxy says admin ⇒ admin surface opens; proxy says member
- * ⇒ it refuses — same user, same member row).
+ * Trusted headers, organization mode — the hand-off door behind an
+ * ORGANIZATION'S key. The admin card (`/api/app/trusted-headers`) flips the
+ * switch, sets the ceiling and mints a key; the door resolves the
+ * organization FROM that key, JIT-creates a user new to the deployment
+ * INSIDE the organization with the clamped role, refuses a stranger (an
+ * existing user outside the organization) before any write, mirrors the
+ * teams header onto real team memberships, and stamps role + organization
+ * on the SESSION row so the org middleware applies the override to that
+ * organization only. Pausing the organization or revoking the key closes
+ * the door without touching the sessions it minted.
  */
-async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
-  process.env.TRUSTED_HEADERS_ENABLED = 'true';
-  process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
-  try {
-    const authWith = async (
-      role: string,
-      cookie?: string,
-      secret: string | null = 'itest-trusted-door',
-      email = 'proxy.user@door.test',
-    ): Promise<{ cookie: string; status: number; body: string }> => {
-      const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
-        headers: {
-          'Remote-Email': email,
-          'Remote-Name': 'Proxy User',
-          'Remote-Role': role,
-          'Remote-Teams': 't-fin:Finance, t-ops:Operations',
-          ...(secret !== null ? { 'Remote-Internal-Secret': secret } : {}),
-          ...(cookie !== undefined ? { cookie } : {}),
-        },
-      });
-      const setCookie = res.headers.get('set-cookie') ?? '';
-      return {
-        cookie: setCookie.split(';')[0] ?? '',
-        status: res.status,
-        body: await res.text(),
-      };
+async function checkTrustedHeaders(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const admin = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/trusted-headers${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const viewSchema = z.looseObject({
+    enabled: z.boolean(),
+    maxAssertedRole: z.string(),
+    keys: z.array(
+      z.looseObject({
+        id: z.string(),
+        name: z.string(),
+        tokenPrefix: z.string(),
+      }),
+    ),
+    headers: z.looseObject({ key: z.string(), email: z.string() }),
+  });
+  const view = async (res: Response) => viewSchema.safeParse(await res.json());
+
+  // ---- the admin card ------------------------------------------------------
+  const before = await view(await admin(''));
+  const enabled = await view(
+    await admin('/settings', {
+      method: 'PUT',
+      body: { enabled: true, maxAssertedRole: 'editor' },
+    }),
+  );
+  const mintedRes = await admin('/keys', { body: { name: 'itest proxy' } });
+  const minted = z
+    .object({ id: z.string(), key: z.string(), tokenPrefix: z.string() })
+    .safeParse(await mintedRes.json());
+  const key = minted.success ? minted.data.key : '';
+  const keyId = minted.success ? minted.data.id : 'missing';
+  const listed = await view(await admin(''));
+  // A member's session cannot read the card, let alone mint.
+  const member = await signUpOrgMember(sql, base, orgId, 'th-member', 'member');
+  const memberRead = await fetch(
+    `${base}/api/app/trusted-headers?orgId=${orgId}`,
+    { headers: { cookie: member.cookie, origin: base } },
+  );
+
+  record(
+    'trusted-headers card: switch, ceiling, key minted once, member refused',
+    before.success &&
+      !before.data.enabled &&
+      before.data.maxAssertedRole === 'member' &&
+      before.data.keys.length === 0 &&
+      enabled.success &&
+      enabled.data.enabled &&
+      enabled.data.maxAssertedRole === 'editor' &&
+      mintedRes.status === 201 &&
+      minted.success &&
+      key.startsWith('thk_') &&
+      key.length === 68 &&
+      listed.success &&
+      listed.data.keys.length === 1 &&
+      listed.data.keys[0]?.tokenPrefix === minted.data.tokenPrefix &&
+      !JSON.stringify(listed.data).includes(key) &&
+      memberRead.status === 403,
+    `before=${before.success ? `${before.data.enabled}/${before.data.maxAssertedRole}/${before.data.keys.length}` : 'ERR'} enabled=${enabled.success ? `${enabled.data.enabled}/${enabled.data.maxAssertedRole}` : 'ERR'} mint=${mintedRes.status} (want 201) listed=${listed.success ? listed.data.keys.length : 'ERR'} plaintextListed=${listed.success && JSON.stringify(listed.data).includes(key)} memberRead=${memberRead.status} (want 403)`,
+  );
+
+  // ---- the door ------------------------------------------------------------
+  const door = async (
+    headers: Record<string, string>,
+    doorPath = '/api/trusted-headers/authenticate',
+  ): Promise<{ status: number; cookie: string; body: string }> => {
+    const res = await fetch(`${base}${doorPath}`, { headers });
+    return {
+      status: res.status,
+      cookie: cookieHeaderFrom(res),
+      body: await res.text(),
     };
-
-    const disabledProbe = await (async () => {
-      process.env.TRUSTED_HEADERS_ENABLED = 'false';
-      const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
-        headers: { 'Remote-Email': 'proxy.user@door.test' },
-      });
-      const text = await res.text();
-      process.env.TRUSTED_HEADERS_ENABLED = 'true';
-      return text.includes('not enabled');
-    })();
-
-    // The spoofing guard: the identity headers alone are forgeable, so the
-    // door opens only for the proxy-injected internal secret — a missing or
-    // wrong one mints NOTHING, and an unset env secret refuses the mode.
-    const noSecret = await authWith('member', undefined, null);
-    const wrongSecret = await authWith('member', undefined, 'not-the-secret');
-    const unconfigured = await (async () => {
-      delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-      const res = await authWith('member');
-      process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
-      return res;
-    })();
-
-    const first = await authWith('member');
-    // The proxy-minted cookie satisfies Better Auth itself.
-    const session1 = z
+  };
+  const identity = (email: string, role: string): Record<string, string> => ({
+    'Remote-Email': email,
+    'Remote-Name': 'Proxy User',
+    'Remote-Role': role,
+    'Remote-Teams': 't-fin:Finance, t-ops:Operations',
+  });
+  const sessionEmail = async (
+    sessionCookie: string,
+  ): Promise<string | null> => {
+    const parsed = z
       .looseObject({
         user: z.looseObject({ email: z.string() }).optional().nullable(),
       })
       .safeParse(
         await (
           await fetch(`${base}/api/auth/get-session`, {
-            headers: { cookie: first.cookie, origin: base },
+            headers: { cookie: sessionCookie, origin: base },
           })
         ).json(),
       );
-    const rows = await sql<{ role: string; trustedRole: string | null }[]>`
-      SELECT m."role", s."trustedRole"
-      FROM "user" u
-      JOIN "member" m ON m."userId" = u."id"
-      JOIN "session" s ON s."userId" = u."id"
-      WHERE u."email" = 'proxy.user@door.test'
-    `;
-    // The provisioned user joined the first admin org (or founded a fresh
-    // one) — assert on the org the membership actually landed in.
-    const memberOrg = await sql<{ organizationId: string }[]>`
-      SELECT m."organizationId" FROM "member" m
-      JOIN "user" u ON u."id" = m."userId"
-      WHERE u."email" = 'proxy.user@door.test' LIMIT 1
-    `;
-    const landedOrg = memberOrg[0]?.organizationId ?? '';
-    // The teams header is not a session annotation: it is mirrored onto
-    // teamMember rows in the org the user landed in, with the sync's
-    // provenance so a later header can revoke exactly what it granted.
-    const teamNames = (
-      await sql<{ name: string }[]>`
-        SELECT t."name" FROM "teamMember" tm
-        JOIN "team" t ON t."id" = tm."teamId"
-        JOIN "user" u ON u."id" = tm."userId"
-        JOIN app.sso_synced_team_members p
-          ON p.team_id = t."id" AND p.user_id = u."id"
-          AND p.org_id = t."organizationId"
-        WHERE u."email" = 'proxy.user@door.test'
-          AND t."organizationId" = ${landedOrg}
-        ORDER BY t."name"
-      `
-    ).map((row) => row.name);
-    // An admin-gated read (the security page's block counters) refuses the
-    // proxy-role member and opens for the proxy-role admin below.
-    const adminSurface = `${base}/api/app/audit-logs/block-counters`;
-    const refused = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
-      headers: { cookie: first.cookie, origin: base },
-    });
+    return parsed.success ? (parsed.data.user?.email ?? null) : null;
+  };
+  const proxyEmail = 'proxy.user@door.test';
 
-    // Re-auth as proxy-role ADMIN: the SAME session is reused (token equal),
-    // its trustedRole updated, and the admin surface opens.
-    const second = await authWith('admin', first.cookie);
-    const allowed = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
-      headers: { cookie: second.cookie, origin: base },
-    });
-    const sessionsAfter = await sql<{ trustedRole: string | null }[]>`
-      SELECT s."trustedRole" FROM "session" s
-      JOIN "user" u ON u."id" = s."userId"
-      WHERE u."email" = 'proxy.user@door.test'
-    `;
+  const noKey = await door(identity(proxyEmail, 'member'));
+  const badKey = await door({
+    ...identity(proxyEmail, 'member'),
+    authorization: 'Bearer thk_not_a_real_key',
+  });
+  // Asserted admin under an editor ceiling → the member row AND the session
+  // carry editor.
+  const first = await door({
+    ...identity(proxyEmail, 'admin'),
+    authorization: `Bearer ${key}`,
+  });
+  const firstEmail = await sessionEmail(first.cookie);
+  const landed = await sql<
+    {
+      role: string;
+      organizationId: string;
+      trustedRole: string | null;
+      trustedOrganizationId: string | null;
+      activeOrganizationId: string | null;
+    }[]
+  >`
+    SELECT m."role", m."organizationId", s."trustedRole",
+           s."trustedOrganizationId", s."activeOrganizationId"
+    FROM "user" u
+    JOIN "member" m ON m."userId" = u."id"
+    JOIN "session" s ON s."userId" = u."id"
+    WHERE u."email" = ${proxyEmail}
+  `;
+  // The teams header is mirrored onto teamMember rows in the key's
+  // organization, with the sync's provenance so a later header can revoke
+  // exactly what it granted.
+  const teamNames = (
+    await sql<{ name: string }[]>`
+      SELECT t."name" FROM "teamMember" tm
+      JOIN "team" t ON t."id" = tm."teamId"
+      JOIN "user" u ON u."id" = tm."userId"
+      JOIN app.sso_synced_team_members p
+        ON p.team_id = t."id" AND p.user_id = u."id"
+        AND p.org_id = t."organizationId"
+      WHERE u."email" = ${proxyEmail} AND t."organizationId" = ${orgId}
+      ORDER BY t."name"
+    `
+  ).map((row) => row.name);
+  // The clamped editor never opens an admin-gated read.
+  const refusedAsEditor = await fetch(
+    `${base}/api/app/audit-logs/block-counters?orgId=${orgId}`,
+    { headers: { cookie: first.cookie, origin: base } },
+  );
+  // The key rides the configurable key header too, and the SAME browser
+  // session is reused (its role rebound) rather than a second one minted;
+  // the proxy-era alias path answers alike.
+  const viaHeader = await door({
+    ...identity(proxyEmail, 'editor'),
+    'Remote-Internal-Secret': key,
+    cookie: first.cookie,
+  });
+  const alias = await door(
+    {
+      ...identity(proxyEmail, 'member'),
+      authorization: `Bearer ${key}`,
+      cookie: first.cookie,
+    },
+    '/http_api/api/trusted-headers/authenticate',
+  );
+  const proxySessions = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "session" s
+    JOIN "user" u ON u."id" = s."userId"
+    WHERE u."email" = ${proxyEmail}
+  `;
 
-    record(
-      'trusted-headers auth (proxy hand-off + session role override)',
-      disabledProbe &&
-        noSecret.cookie === '' &&
-        noSecret.body.includes('Missing required header') &&
-        wrongSecret.cookie === '' &&
-        wrongSecret.body.includes('Failed to complete login') &&
-        unconfigured.cookie === '' &&
-        unconfigured.body.includes('Server configuration error') &&
-        first.status === 200 &&
-        first.cookie.includes('better-auth.session_token=') &&
-        session1.success &&
-        session1.data.user?.email === 'proxy.user@door.test' &&
-        rows[0]?.trustedRole === 'member' &&
-        teamNames.join(',') === 'Finance,Operations' &&
-        refused.status === 403 &&
-        second.cookie === first.cookie &&
-        allowed.status === 200 &&
-        sessionsAfter.length === 1 &&
-        sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→admin surface=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→admin surface=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
-    );
+  record(
+    'trusted-headers door: the key names the organization; JIT member, clamped role, teams, session binding',
+    noKey.status === 401 &&
+      noKey.cookie === '' &&
+      noKey.body.includes('Missing trusted-header key') &&
+      badKey.status === 401 &&
+      badKey.cookie === '' &&
+      badKey.body.includes('Invalid or revoked') &&
+      first.status === 200 &&
+      first.cookie.includes('better-auth.session_token=') &&
+      firstEmail === proxyEmail &&
+      landed.length === 1 &&
+      landed[0]?.organizationId === orgId &&
+      landed[0]?.role === 'editor' &&
+      landed[0]?.trustedRole === 'editor' &&
+      landed[0]?.trustedOrganizationId === orgId &&
+      landed[0]?.activeOrganizationId === orgId &&
+      teamNames.join(',') === 'Finance,Operations' &&
+      refusedAsEditor.status === 403 &&
+      viaHeader.status === 200 &&
+      viaHeader.cookie === first.cookie &&
+      alias.status === 200 &&
+      alias.cookie === first.cookie &&
+      proxySessions[0]?.count === '1',
+    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} sessions=${proxySessions[0]?.count} (want 1)`,
+  );
 
-    // Session reuse is bound to the browser's OWN cookie: a second device
-    // (no cookie) gets its own session — the old fallback adopted "any
-    // session row of this user" and silently shared one session across
-    // devices (the cookie branch matched the signed value against the bare
-    // token and never hit). A cookie naming another user's session (account
-    // switch behind the proxy) kills that session and mints a new one.
-    const deviceTwo = await authWith('member');
-    const proxyUserSessions = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM "session" s
-      JOIN "user" u ON u."id" = s."userId"
-      WHERE u."email" = 'proxy.user@door.test'
-    `;
-    const switched = await authWith(
-      'member',
-      first.cookie,
-      'itest-trusted-door',
-      'other.user@door.test',
-    );
-    const proxyUserLeft = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM "session" s
-      JOIN "user" u ON u."id" = s."userId"
-      WHERE u."email" = 'proxy.user@door.test'
-    `;
-    const otherSessions = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM "session" s
-      JOIN "user" u ON u."id" = s."userId"
-      WHERE u."email" = 'other.user@door.test'
-    `;
-    record(
-      'trusted-headers sessions: cookie-bound reuse, no cross-device sharing, account switch',
-      deviceTwo.status === 200 &&
-        deviceTwo.cookie.includes('better-auth.session_token=') &&
-        deviceTwo.cookie !== first.cookie &&
-        proxyUserSessions[0]?.count === '2' &&
-        switched.status === 200 &&
-        switched.cookie.includes('better-auth.session_token=') &&
-        switched.cookie !== first.cookie &&
-        switched.cookie !== deviceTwo.cookie &&
-        proxyUserLeft[0]?.count === '1' &&
-        otherSessions[0]?.count === '1',
-      `deviceTwo=${deviceTwo.status} own=${deviceTwo.cookie !== first.cookie} sessions=${proxyUserSessions[0]?.count} (want 2), switch=${switched.status} fresh=${switched.cookie !== first.cookie && switched.cookie !== deviceTwo.cookie} proxyUserLeft=${proxyUserLeft[0]?.count} (want 1: device two only), other=${otherSessions[0]?.count} (want 1)`,
-    );
-  } finally {
-    delete process.env.TRUSTED_HEADERS_ENABLED;
-    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-  }
+  // ---- refusals, pause, revoke ----------------------------------------------
+  // A stranger — an existing user with no membership here — is refused
+  // before any write: no membership appears, no session is minted.
+  const stranger = await signUpUser(base, 'th-stranger');
+  const strangerSessionsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "session" WHERE "userId" = ${stranger.userId}
+  `;
+  const refusedStranger = await door({
+    ...identity(stranger.email, 'member'),
+    authorization: `Bearer ${key}`,
+  });
+  const strangerMemberships = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "member" WHERE "userId" = ${stranger.userId}
+  `;
+  const strangerSessionsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "session" WHERE "userId" = ${stranger.userId}
+  `;
+  // Pause the organization: the live key is refused, the session it minted stays.
+  const paused = await view(
+    await admin('/settings', {
+      method: 'PUT',
+      body: { enabled: false, maxAssertedRole: 'editor' },
+    }),
+  );
+  const whilePaused = await door({
+    ...identity(proxyEmail, 'member'),
+    authorization: `Bearer ${key}`,
+  });
+  const keptWhilePaused = await sessionEmail(first.cookie);
+  // Resume, then revoke: the key is dead, the card lists nothing, a second
+  // revoke is a no-op, and a key id outside the organization is not found.
+  await admin('/settings', {
+    method: 'PUT',
+    body: { enabled: true, maxAssertedRole: 'editor' },
+  });
+  const revoked = await admin(`/keys/${keyId}`, { method: 'DELETE' });
+  const revokedAgain = await admin(`/keys/${keyId}`, { method: 'DELETE' });
+  const afterRevoke = await door({
+    ...identity(proxyEmail, 'member'),
+    authorization: `Bearer ${key}`,
+  });
+  const listedAfter = await view(await admin(''));
+  const unknownKey = await admin('/keys/not-a-key-id', { method: 'DELETE' });
+  const audits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId}
+      AND action IN ('trusted_headers_enabled', 'trusted_headers_disabled',
+                     'trusted_headers_policy_updated',
+                     'trusted_header_key_created', 'trusted_header_key_revoked',
+                     'trusted_headers_sign_in')
+  `;
+
+  record(
+    'trusted-headers door: stranger refused, pause refuses, revoke kills the key, every step audited',
+    refusedStranger.status === 403 &&
+      refusedStranger.cookie === '' &&
+      refusedStranger.body.includes('not a member of the organization') &&
+      strangerMemberships[0]?.count === '0' &&
+      strangerSessionsAfter[0]?.count === strangerSessionsBefore[0]?.count &&
+      paused.success &&
+      !paused.data.enabled &&
+      whilePaused.status === 403 &&
+      whilePaused.body.includes('disabled for this organization') &&
+      keptWhilePaused === proxyEmail &&
+      revoked.status === 200 &&
+      revokedAgain.status === 200 &&
+      afterRevoke.status === 401 &&
+      afterRevoke.body.includes('Invalid or revoked') &&
+      listedAfter.success &&
+      listedAfter.data.keys.length === 0 &&
+      unknownKey.status === 404 &&
+      Number(audits[0]?.count ?? '0') >= 8,
+    `stranger=${refusedStranger.status} (want 403) memberships=${strangerMemberships[0]?.count} sessions=${strangerSessionsBefore[0]?.count}→${strangerSessionsAfter[0]?.count} paused=${paused.success ? paused.data.enabled : 'ERR'} whilePaused=${whilePaused.status} (want 403) sessionKept=${keptWhilePaused === proxyEmail} revoke=${revoked.status}/${revokedAgain.status} afterRevoke=${afterRevoke.status} (want 401) listed=${listedAfter.success ? listedAfter.data.keys.length : 'ERR'} unknownKey=${unknownKey.status} (want 404) audits=${audits[0]?.count} (want ≥8)`,
+  );
 }
-
 /**
  * Connector credentials — the sealed-secret store the connector lanes
  * resolve through: create against the SHIPPED catalog (auth-method +
@@ -50469,7 +50568,7 @@ async function main(): Promise<void> {
         'checkSsoAdminSurface',
         () => checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
-      ['checkTrustedHeaders', () => checkTrustedHeaders(sql, baseUrl)],
+      ['checkTrustedHeaders', () => checkTrustedHeaders(sql, baseUrl, authCtx)],
       [
         'checkConnectorCredentials',
         () => checkConnectorCredentials(sql, baseUrl, authCtx),
