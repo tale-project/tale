@@ -2,6 +2,7 @@
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { EmbeddingSection } from '@/app/features/settings/trusted-headers/components/embedding-section';
 import { TrustedHeadersSection } from '@/app/features/settings/trusted-headers/components/trusted-headers-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -41,6 +42,7 @@ export function EnterpriseSsoSettings({
     <SettingsPage>
       <EnterpriseSsoForm organizationId={organizationId} config={config} />
       <TrustedHeadersSection organizationId={organizationId} />
+      <EmbeddingSection organizationId={organizationId} />
     </SettingsPage>
   );
 }

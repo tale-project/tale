@@ -5415,6 +5415,28 @@ settings:
       neverUsed: Noch nie verwendet
       limitReached: Diese Organisation hält bereits die Höchstzahl von {max} Schlüsseln.
         Widerrufe einen, um einen weiteren zu erstellen.
+    embedding:
+      section: Einbettung
+      help: Lass eine andere Webanwendung die Seiten dieser Organisation in einem Frame
+        anzeigen. Tale weist jeden Frame ab, solange die Herkunft der umgebenden Seite
+        hier nicht aufgeführt ist.
+      enabled: Aktiviert
+      disabled: Deaktiviert
+      toggleLabel: Einbettung in einem Frame erlauben
+      toggleHelp: Ausgeschaltet bleibt jede Seite außerhalb von Frames; die Liste unten
+        bleibt erhalten.
+      originsLabel: Erlaubte Herkünfte
+      originsHelp: Eine Herkunft pro Zeile, etwa https://app.example.com. Höchstens {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Gib nur https-Herkünfte an, eine pro Zeile. Für localhost ist auch
+        http zulässig.
+      tooMany: Höchstens {max} Herkünfte.
+      save: Herkünfte speichern
+      saved: Einbettungseinstellungen gespeichert
+      saveFailed: Einbettungseinstellungen konnten nicht gespeichert werden
+      sameSiteNote: Ein Frame erhält die angemeldete Sitzung nur, wenn die umgebende Seite
+        zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter
+        der eigenen Domain des Hosts.
     disable: Anmeldung deaktivieren
     remove: Entfernen
     test: Verbindung testen

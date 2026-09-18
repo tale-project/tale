@@ -5536,6 +5536,26 @@ settings:
       neverUsed: Never used
       limitReached: This organization holds the maximum of {max} keys. Revoke one to create
         another.
+    embedding:
+      section: Embedding
+      help: Let another web application show this organization's pages inside a frame.
+        Tale refuses every frame unless the surrounding page's origin is listed here.
+      enabled: Enabled
+      disabled: Disabled
+      toggleLabel: Allow embedding in a frame
+      toggleHelp: Off keeps every page out of frames; the list below is kept.
+      originsLabel: Allowed origins
+      originsHelp: One origin per line, such as https://app.example.com. At most {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Enter https origins only, one per line. Plain http is accepted for
+        localhost.
+      tooMany: At most {max} origins.
+      save: Save origins
+      saved: Embedding settings saved
+      saveFailed: Couldn't save the embedding settings
+      sameSiteNote: A frame receives the signed-in session only when the surrounding page
+        is on the same site as Tale, for example a subdomain of the host or Tale served
+        through the host's own domain.
     disable: Disable sign-in
     remove: Remove
     test: Test connection

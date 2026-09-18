@@ -5506,6 +5506,28 @@ settings:
       neverUsed: Jamais utilisée
       limitReached: Cette organisation détient déjà le maximum de {max} clés. Révoque-en
         une pour en créer une autre.
+    embedding:
+      section: Intégration dans un cadre
+      help: Laisse une autre application web afficher les pages de cette organisation dans
+        un cadre. Tale refuse tout cadre tant que l’origine de la page englobante n’est
+        pas listée ici.
+      enabled: Activé
+      disabled: Désactivé
+      toggleLabel: Autoriser l’affichage dans un cadre
+      toggleHelp: Désactivé, aucune page ne s’affiche dans un cadre ; la liste ci-dessous
+        est conservée.
+      originsLabel: Origines autorisées
+      originsHelp: Une origine par ligne, par exemple https://app.example.com. Au plus {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Saisis uniquement des origines https, une par ligne. Le http simple est
+        accepté pour localhost.
+      tooMany: Au plus {max} origines.
+      save: Enregistrer les origines
+      saved: Paramètres d’intégration enregistrés
+      saveFailed: Impossible d’enregistrer les paramètres d’intégration
+      sameSiteNote: Un cadre ne reçoit la session connectée que si la page englobante est
+        sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
+        sous le domaine de l’hôte.
     disable: Désactiver la connexion
     remove: Supprimer
     test: Tester la connexion
