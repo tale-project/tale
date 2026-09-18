@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 35 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 38 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -23,6 +23,7 @@ open (`TALE_ALLOW_OPEN_SIGN_UP`).
 | Forced password change | `/forced-change-password/{id}`           | `app/routes/forced-change-password.$id.tsx`          |
 | Account & security     | `/dashboard/{org}/settings/account`      | `app/routes/dashboard/$id/settings/account.tsx`      |
 | Members & roles        | `/dashboard/{org}/settings/organization` | `app/routes/dashboard/$id/settings/organization.tsx` |
+| Trusted headers card   | `/dashboard/{org}/settings/enterprise-sso` | `app/features/settings/trusted-headers/components/trusted-headers-section.tsx` |
 
 > The members/roles UI was split out of the old `…/settings/people` page; it
 > now lives on the **Organization** route (`members-settings.tsx`). `_auth` is
@@ -156,6 +157,28 @@ compute codes from the enrollment secret.
 
 - [ ] `AUTH-F19` · **A new member reaches a connected application** — As an admin, add a colleague under **Settings > Members** with a new address and password, hand the credentials to a second browser profile, and start an OIDC authorization from a registered test application there (`AUTH-F18`'s flow) → the application receives the identity on the first attempt and its `email_verified` claim is true; no verification mail exists to wait for. The same account also receives its organization's notification mirror.
 
+- [ ] `AUTH-F21` · **Trusted headers card** — As an admin open
+  `/dashboard/{org}/settings/enterprise-sso` → below the SSO form the
+  **Trusted headers** card (`settings.enterpriseSso.trustedHeaders.section`)
+  shows a **Disabled** badge, the switch off, the ceiling **Member**, the
+  hand-off URL of this instance as a copyable pill, the five header names, and
+  **No keys yet**. Flip the switch and pick **Editor** → the badge reads
+  **Enabled** and both survive a reload. **Create key**
+  (`settings.enterpriseSso.trustedHeaders.createKey`) → name it → the dialog
+  shows a key starting with `thk_` exactly once, with the copy-now warning;
+  **Done** → the list shows the name, the eight-character prefix and
+  **Never used**; a reload never shows the plaintext again.
+- [ ] `AUTH-F22` · **Proxy hand-off signs a member in** — With the card on
+  (ceiling Editor) and a key copied, from a terminal send
+  `GET /api/trusted-headers/authenticate` with the key as the Authorization
+  bearer header, `Remote-Email` set to a NEW address, `Remote-Name` and
+  `Remote-Role` set to admin → 200 with a Set-Cookie session token and a
+  meta-refresh to the dashboard. Paste the cookie into a fresh browser
+  profile → the person is signed in to THIS organization only, **Settings >
+  Members** lists the new address as **Editor** (the asserted Admin was
+  capped), and the card's key row now reads **Last used** with a relative
+  time.
+
 ## Boundary & error tests
 
 - [ ] `AUTH-B1` · **Empty login** — `/log-in` with both fields empty → **Log
@@ -204,6 +227,17 @@ compute codes from the enrollment secret.
   `[organizations] refused` line. Sign in as the owner → the entry is back and
   creating an organization works. Unset the variable and restart → every
   member sees the entry again.
+
+- [ ] `AUTH-B10` · **Door refusals** — Repeat the request of AUTH-F22 (a)
+  without the Authorization header → 401 "Missing trusted-header key" and no
+  cookie; (b) with a made-up key → 401 "Invalid or revoked trusted-header
+  key"; (c) with the card switched off → 403 "disabled for this organization"
+  while the session from AUTH-F22 keeps working; (d) switched on again but
+  with `Remote-Email` naming an existing member of ANOTHER organization → 403
+  "not a member of the organization" and no new membership anywhere; (e)
+  after **Revoke** on the key → 401 again, the list is empty, and **Settings >
+  Logs** shows `trusted_header_key_created`, `trusted_headers_sign_in` and
+  `trusted_header_key_revoked` rows.
 
 ## Accessibility (WCAG 2.1 AA)
 
