@@ -1,0 +1,1249 @@
+'use client';
+
+import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import {
+  ACTIONS_COLUMN_SIZE,
+  SELECT_COLUMN_SIZE,
+} from '@tale/ui/data-table/column-builders';
+import type { DatePreset } from '@tale/ui/date-range-picker';
+import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
+import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
+import { useErrorScope } from '@tale/ui/error-boundaries/error-scope';
+import { useT } from '@tale/ui/i18n/client';
+import { chainVerticalWheelToScrollParent } from '@tale/ui/scroll-wheel-chain';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Spinner } from '@tale/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
+import { Text } from '@tale/ui/text';
+import { useInfiniteScroll } from '@tale/ui/use-infinite-scroll';
+import {
+  flexRender,
+  getCoreRowModel,
+  getExpandedRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type Row,
+  type ExpandedState,
+  type RowSelectionState,
+  type OnChangeFn,
+} from '@tanstack/react-table';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
+import {
+  Fragment,
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import type { DateRange } from 'react-day-picker';
+
+import {
+  DataTableActionMenu,
+  type DataTableActionMenuItem,
+} from './data-table-action-menu';
+import {
+  DataTableEmptyState,
+  type DataTableEmptyStateProps,
+} from './data-table-empty-state';
+import {
+  DataTableFilters,
+  isFilterActive,
+  type FilterConfig,
+} from './data-table-filters';
+import {
+  DataTablePagination,
+  type DataTablePaginationProps,
+} from './data-table-pagination';
+import {
+  DataTableSkeletonCell,
+  type DataTableSkeleton,
+} from './data-table-skeleton-cell';
+import {
+  entityLabelForms,
+  type DataTableSearchConfig,
+  type DataTableSortingConfig,
+  type EntityLabel,
+} from './data-table-types';
+
+/** Skeleton rows rendered when the row count is unknown (consistent default). */
+const DEFAULT_SKELETON_ROWS = 6;
+/** Upper bound so a large known count doesn't paint hundreds of skeleton rows. */
+const MAX_SKELETON_ROWS = 12;
+
+interface ColumnMeta {
+  isAction?: boolean;
+  hasAvatar?: boolean;
+  skeleton?: DataTableSkeleton;
+  align?: 'left' | 'center' | 'right';
+  /**
+   * Opt this column in as the table's flex column: it alone absorbs ALL the
+   * container slack while every sibling stays at its exact declared px. Use
+   * when one long prose column (e.g. a description) should soak up the space.
+   * Without it, content columns share the container proportionally to their
+   * declared `size` (used as ratios). Its declared `size` still counts toward
+   * the table's min-width floor, so keep it at the column's readable minimum.
+   */
+  flex?: boolean;
+  /**
+   * Extra classes applied to this column's header AND body cells (and the
+   * matching skeleton cell). Use responsive utilities like `hidden md:table-cell`
+   * to drop low-priority columns on small screens.
+   */
+  className?: string;
+}
+
+/**
+ * The single primary "create" affordance for a collection. Rendered in the
+ * header at a fixed size + placement when the table has rows or toolbar
+ * chrome; when the table is initially empty with no search/filters, the same
+ * control is synthesized into the empty-state CTA so the create button sits
+ * with the empty copy. Prefer this over the raw `actionMenu` slot.
+ */
+export interface DataTableAddAction {
+  /** Button label, e.g. "New customer". */
+  label: string;
+  /** Optional leading icon. */
+  icon?: LucideIcon;
+  /** Click handler (e.g. open a create dialog). Required for the empty-state CTA. */
+  onClick?: () => void;
+  /** Navigate instead of handling a click (renders a link). */
+  href?: string;
+  /** Render a dropdown of create options instead of a single button. */
+  menuItems?: DataTableActionMenuItem[];
+  /** Disable the action (e.g. lacking write permission). */
+  disabled?: boolean;
+  /** Button variant (default `primary`). */
+  variant?: 'primary' | 'secondary' | 'ghost';
+}
+
+export interface DataTableProps<TData, TValue = unknown> {
+  /** Column definitions */
+  columns: ColumnDef<TData, TValue>[];
+  /** Data to display */
+  data: TData[];
+  /** Accessible table caption for screen readers */
+  caption?: string;
+  /** Empty state configuration */
+  emptyState?: DataTableEmptyStateProps;
+  /** Pagination configuration */
+  pagination?: Omit<DataTablePaginationProps, 'currentPage'> & {
+    /** Whether to use client-side pagination */
+    clientSide?: boolean;
+  };
+  /** Current page (1-based, for server-side pagination) */
+  currentPage?: number;
+  /** Infinite scroll configuration (for cursor-based pagination) */
+  infiniteScroll?: {
+    /** Whether there are more items to load */
+    hasMore: boolean;
+    /** Callback to load more items */
+    onLoadMore: () => void;
+    /** Whether more items are currently loading */
+    isLoadingMore?: boolean;
+    /** Whether initial data is loading (prevents empty state flash) */
+    isInitialLoading?: boolean;
+    /** Enable automatic loading on scroll (default: true) */
+    autoLoad?: boolean;
+    /** Distance from bottom to trigger load in px (default: 1000) */
+    threshold?: number;
+    /** Entity noun. Enables the "Showing all X {entity}" footer — pass `{ one, other }` so a single-row table reads correctly too. */
+    entityLabel?: EntityLabel;
+    /** Unfiltered total count. When different from the shown count, shows "Showing X of Y {entity}". */
+    totalCount?: number;
+    /**
+     * Entities the visible rows represent, when a row can aggregate several —
+     * a folder row stands in for its members, so the footer must count the
+     * entities behind it, not the row itself (#2348). Defaults to data.length.
+     */
+    displayedCount?: number;
+  };
+  /**
+   * Approximate row count for the skeleton display.
+   * - `undefined`: count still loading (shows minimal skeleton placeholder)
+   * - `0`: no data expected (shows empty state immediately)
+   * - `> 0`: shows this many skeleton rows while data loads
+   */
+  approxRowCount?: number;
+  /** Whether the table data is loading externally (shows skeleton rows) */
+  isLoading?: boolean;
+  /** Controlled sorting state and its change handler. */
+  sorting?: DataTableSortingConfig;
+  /**
+   * Enable row selection. Pass `true` to allow selecting any row, or a
+   * predicate `(row) => boolean` to gate selectability per-row (folder
+   * aggregates, read-only rows, etc.). Mirrors TanStack Table's own
+   * `enableRowSelection` shape so the function form goes straight through.
+   */
+  enableRowSelection?: boolean | ((row: Row<TData>) => boolean);
+  /** Row selection state (controlled) */
+  rowSelection?: RowSelectionState;
+  /** Callback when row selection changes */
+  onRowSelectionChange?: OnChangeFn<RowSelectionState>;
+  /** Enable expandable rows */
+  enableExpanding?: boolean;
+  /** Render function for expanded row content */
+  renderExpandedRow?: (row: Row<TData>) => ReactNode;
+  /**
+   * Row ids to expand automatically ONCE when they first appear (e.g. a
+   * freshly created row whose expanded panel is the next step). Each id
+   * auto-expands a single time — a user collapse is never fought.
+   */
+  autoExpandRowIds?: string[];
+  /** Get row ID for selection/expansion */
+  getRowId?: (row: TData) => string;
+  /** Additional class name for the table container */
+  className?: string;
+  /** Additional class name for table rows */
+  rowClassName?: string | ((row: Row<TData>) => string);
+  /** Callback when a row is clicked */
+  onRowClick?: (row: Row<TData>) => void;
+  /**
+   * Per-row guard for `onRowClick`. When provided, only rows for which it
+   * returns `true` are clickable (cursor + click handler); the rest render as
+   * plain rows. Defaults to every row being clickable when `onRowClick` is set.
+   */
+  isRowClickable?: (row: Row<TData>) => boolean;
+  /** Whether rows are clickable (adds cursor pointer) */
+  clickableRows?: boolean;
+  /** Called when the pointer enters a row; use with usePreloadRoute for programmatic preloading */
+  onRowMouseEnter?: (row: Row<TData>) => void;
+
+  // ============================================================================
+  // Header configuration
+  // ============================================================================
+
+  /** Search configuration */
+  search?: DataTableSearchConfig;
+  /** Filter configurations */
+  filters?: FilterConfig[];
+  /** Date range filter configuration */
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+    onChange: (range: DateRange | undefined) => void;
+    presets?: DatePreset[];
+  };
+  /** Whether filters are loading */
+  isFiltersLoading?: boolean;
+  /** Callback to clear all filters */
+  onClearFilters?: () => void;
+  /**
+   * The primary create affordance. DataTable renders it in the header at a
+   * fixed size + placement and reuses it as the empty-state CTA. Preferred over
+   * the raw `actionMenu` slot, which exists only for bespoke header content.
+   */
+  addAction?: DataTableAddAction;
+  /**
+   * Escape hatch for bespoke header content. For the standard "Add X" button,
+   * use `addAction` instead so size/placement stay consistent across lists.
+   */
+  actionMenu?: ReactNode;
+  /**
+   * Extra content rendered inside the filter bar (left side, alongside the
+   * search input) — e.g. an inline toggle like "show archived". Keeps the
+   * `actionMenu` slot reserved for the primary right-aligned action so the
+   * header matches the other list pages.
+   */
+  filtersContent?: ReactNode;
+  /** Footer content */
+  footer?: ReactNode;
+  /** Enable sticky layout with header at top and pagination at bottom */
+  stickyLayout?: boolean;
+  /** Error from query, if any */
+  error?: Error | null;
+  /** Callback when retry is clicked */
+  onRetry?: () => void;
+}
+
+/**
+ * Unified DataTable component using TanStack Table.
+ *
+ * Features:
+ * - Column definitions via TanStack Table
+ * - Sorting (client-side or server-side)
+ * - Row selection with checkboxes
+ * - Expandable rows
+ * - Pagination (client-side or server-side)
+ * - Empty states (initial and filtered) rendered inside the table
+ * - Loading skeletons via approxRowCount
+ * - Customizable row actions
+ */
+export function DataTable<TData, TValue = unknown>({
+  columns,
+  data,
+  caption,
+  emptyState,
+  pagination,
+  currentPage = 1,
+  sorting: sortingConfig,
+  enableRowSelection = false,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
+  enableExpanding = false,
+  renderExpandedRow,
+  autoExpandRowIds,
+  getRowId,
+  className,
+  rowClassName,
+  onRowClick,
+  isRowClickable,
+  onRowMouseEnter,
+  clickableRows = false,
+  // Header configuration props
+  search,
+  filters,
+  dateRange,
+  isFiltersLoading = false,
+  onClearFilters,
+  addAction,
+  actionMenu,
+  filtersContent,
+  footer,
+  stickyLayout = false,
+  infiniteScroll,
+  approxRowCount,
+  isLoading = false,
+  error,
+  onRetry,
+}: DataTableProps<TData, TValue>) {
+  const { t } = useT('common');
+  const { organizationId: orgId } = useErrorScope();
+
+  // Extract sorting config - presence of sortingConfig enables sorting
+  const enableSorting = !!sortingConfig;
+  const initialSorting = sortingConfig?.initialSorting ?? [];
+  const onSortingChange = sortingConfig?.onSortingChange;
+
+  // Internal state for uncontrolled modes - must be called before any early returns
+  const [internalSorting, setInternalSorting] = useState(initialSorting);
+  const [internalRowSelection, setInternalRowSelection] =
+    useState<RowSelectionState>({});
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  // One-shot auto-expansion: expand each listed id the first time it shows
+  // up, then leave the row alone (so a manual collapse sticks).
+  const autoExpandedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!enableExpanding || !autoExpandRowIds || autoExpandRowIds.length === 0)
+      return;
+    const fresh = autoExpandRowIds.filter(
+      (id) => !autoExpandedRef.current.has(id),
+    );
+    if (fresh.length === 0) return;
+    for (const id of fresh) autoExpandedRef.current.add(id);
+    setExpanded((prev) =>
+      prev === true
+        ? prev
+        : { ...prev, ...Object.fromEntries(fresh.map((id) => [id, true])) },
+    );
+  }, [enableExpanding, autoExpandRowIds]);
+  const [internalPagination, setInternalPagination] = useState({
+    pageIndex: currentPage - 1,
+    pageSize: pagination?.pageSize ?? 20,
+  });
+
+  // Ref to the scroll container for sticky layout (needed for IntersectionObserver root)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Non-sticky layout: horizontal scrollport that must chain vertical wheel to
+  // the page scroller (see chainVerticalWheelToScrollParent).
+  const horizontalScrollRef = useRef<HTMLDivElement>(null);
+
+  // Track previous row count for animation on load more
+  const prevRowCountRef = useRef(0);
+  const [animatingRows, setAnimatingRows] = useState(new Set<string>());
+
+  // Stable noop callback for when infiniteScroll is not provided
+  const noop = useCallback(() => {}, []);
+
+  useEffect(() => {
+    if (stickyLayout) return undefined;
+    const el = horizontalScrollRef.current;
+    if (!el) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      chainVerticalWheelToScrollParent(el, event);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [stickyLayout]);
+
+  useEffect(() => {
+    const currentCount = data.length;
+    if (currentCount > prevRowCountRef.current && prevRowCountRef.current > 0) {
+      // New rows were added, mark them for animation
+      const newRowIds = new Set(
+        data.slice(prevRowCountRef.current).map((row) => getRowId?.(row) ?? ''),
+      );
+      setAnimatingRows(newRowIds);
+      // Clear animation flags after animation completes
+      const timer = setTimeout(() => {
+        setAnimatingRows(new Set());
+      }, 300);
+      prevRowCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    prevRowCountRef.current = currentCount;
+    return undefined;
+  }, [data, getRowId]);
+
+  // Initialize infinite scroll hook for automatic loading
+  const { sentinelRef } = useInfiniteScroll({
+    onLoadMore: infiniteScroll?.onLoadMore ?? noop,
+    hasMore: infiniteScroll?.hasMore ?? false,
+    isLoading: infiniteScroll?.isLoadingMore ?? false,
+    threshold: infiniteScroll?.threshold ?? 1000,
+    enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
+    root: stickyLayout ? scrollContainerRef : undefined,
+  });
+
+  // Use controlled or internal state
+  const sorting = onSortingChange ? initialSorting : internalSorting;
+  const rowSelection = controlledRowSelection ?? internalRowSelection;
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: {
+      sorting,
+      rowSelection,
+      expanded,
+      ...(pagination?.clientSide && { pagination: internalPagination }),
+    },
+    getRowId,
+    getCoreRowModel: getCoreRowModel(),
+    ...(enableSorting && {
+      getSortedRowModel: getSortedRowModel(),
+      onSortingChange: onSortingChange ?? setInternalSorting,
+    }),
+    ...(enableRowSelection && {
+      // Forward the consumer's predicate (or `true`) straight to TanStack so
+      // per-row gating works without an intermediate translation.
+      enableRowSelection,
+      onRowSelectionChange: onRowSelectionChange ?? setInternalRowSelection,
+    }),
+    ...(enableExpanding && {
+      getExpandedRowModel: getExpandedRowModel(),
+      onExpandedChange: setExpanded,
+    }),
+    ...(pagination?.clientSide && {
+      getPaginationRowModel: getPaginationRowModel(),
+      onPaginationChange: setInternalPagination,
+    }),
+  });
+
+  // Whether any filters are actively applied (memoized for stable dependency)
+  const hasActiveFilters = useMemo(
+    () =>
+      !!(search?.value && search.value.trim().length > 0) ||
+      !!filters?.some(isFilterActive) ||
+      !!dateRange?.from ||
+      !!dateRange?.to,
+    [search?.value, filters, dateRange?.from, dateRange?.to],
+  );
+
+  // Combined loading signal: data rows are still in flight
+  const isDataLoading = infiniteScroll?.isInitialLoading || isLoading;
+
+  // Disable the search box when the dataset is genuinely empty — no rows AND no
+  // active filters/search, so there is nothing to search. A filtered-empty
+  // result keeps it enabled so the user can still adjust or clear the query.
+  const searchDisabled =
+    !isDataLoading && data.length === 0 && !hasActiveFilters;
+
+  // A widening filter (see `FilterConfig.widensResultSet`) can reveal rows the
+  // default query hides — e.g. "show archived" on a list whose every row is
+  // archived. Its presence keeps the filter button usable on an empty
+  // unfiltered table, where a purely narrowing filter set stays disabled.
+  const filtersDisabled =
+    searchDisabled && !filters?.some((f) => f.widensResultSet);
+
+  // ---------------------------------------------------------------------------
+  // Table body state machine
+  //
+  // Derives what the table body should render from three independent signals:
+  //   1. approxRowCount — drives skeleton vs empty decision
+  //   2. isDataLoading  — whether the data query is still in flight
+  //   3. data.length    — whether actual rows have arrived
+  //
+  // States:
+  //   'loading'        — count unknown, show the default skeleton rows
+  //   'skeleton'       — count known > 0, show N skeleton rows
+  //   'empty'          — no data, emptyState provided, no active filters
+  //   'filtered-empty' — no data, active filters present
+  //   'idle-empty'     — no data, no emptyState, no filters
+  //   'data'           — rows available
+  // ---------------------------------------------------------------------------
+  const tableBodyState = useMemo(() => {
+    const isRowCountLoading = approxRowCount === undefined;
+
+    if (!isDataLoading) {
+      // Has data
+      if (data.length > 0) return 'data';
+      // A filter narrowed the loaded rows to zero, but infinite-scroll is still
+      // draining backend pages — show loading, not "no results", so a match on
+      // an un-loaded page isn't prematurely reported as empty (#2054).
+      if (hasActiveFilters && infiniteScroll?.hasMore) return 'skeleton';
+      // Has filters
+      if (hasActiveFilters) return 'filtered-empty';
+      // Has empty state
+      if (emptyState) return 'empty';
+      // Has neither data, filters nor empty state
+      return 'idle-empty';
+    }
+
+    if (!isRowCountLoading) {
+      // Can have data
+      if (approxRowCount > 0) return 'skeleton';
+      // Has empty state
+      if (emptyState) return 'empty';
+      // Has neither data nor empty state
+      return 'idle-empty';
+    }
+
+    // Count and data is loading — show minimal skeleton placeholder
+    return 'loading';
+  }, [
+    approxRowCount,
+    isDataLoading,
+    data.length,
+    emptyState,
+    hasActiveFilters,
+    infiniteScroll?.hasMore,
+  ]);
+
+  const isSkeleton =
+    tableBodyState === 'loading' || tableBodyState === 'skeleton';
+
+  // Number of skeleton rows to render based on current state. When the count
+  // is unknown we render a consistent default block; when it's known we render
+  // that many, capped so a huge table doesn't paint hundreds of skeleton rows.
+  const skeletonRowCount =
+    tableBodyState === 'loading'
+      ? DEFAULT_SKELETON_ROWS
+      : tableBodyState === 'skeleton'
+        ? Math.min(approxRowCount ?? 0, MAX_SKELETON_ROWS)
+        : 0;
+
+  // If error prop provided, show error display instead of table
+  if (error) {
+    return (
+      <ErrorDisplayCompact
+        error={error}
+        organizationId={orgId}
+        reset={onRetry || (() => {})}
+      />
+    );
+  }
+
+  // The primary "Add X" affordance. The explicit `actionMenu` slot wins (bespoke
+  // header content); otherwise `addAction` renders at the default (h-9) size and
+  // the standard right-aligned placement so every list's add button looks the
+  // same — and lines up with the h-9 search/filter controls in the same toolbar.
+  const addActionControl = addAction ? (
+    <DataTableActionMenu
+      label={addAction.label}
+      icon={addAction.icon}
+      onClick={addAction.onClick}
+      href={addAction.href}
+      menuItems={addAction.menuItems}
+      disabled={addAction.disabled}
+      variant={addAction.variant ?? 'primary'}
+    />
+  ) : null;
+
+  const hasToolbarChrome =
+    !!search ||
+    !!(filters && filters.length > 0) ||
+    !!dateRange ||
+    !!filtersContent;
+
+  // Initial empty with no search/filters: park `addAction` in the empty-state
+  // body and skip a lone toolbar button above an empty grid. Keep it in the
+  // header when toolbar chrome already exists, when `actionMenu` owns the
+  // slot, or once rows are present.
+  const emptyHostsAddAction =
+    tableBodyState === 'empty' &&
+    !!addActionControl &&
+    !actionMenu &&
+    !hasToolbarChrome;
+  const primaryAction =
+    actionMenu ?? (emptyHostsAddAction ? null : addActionControl);
+
+  // Render the toolbar row when there is search/filter chrome — or when the
+  // caller passed a primary action with nowhere else to live. A lone primary
+  // action on an empty table moves into the empty state (above).
+  const hasHeader = hasToolbarChrome || !!primaryAction;
+
+  // Build the header content
+  const headerContent = hasHeader ? (
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <DataTableFilters
+        search={search ? { ...search, disabled: searchDisabled } : undefined}
+        filters={filters}
+        dateRange={dateRange}
+        isLoading={isFiltersLoading}
+        // Mirror `searchDisabled` — empty table + no active filters → nothing
+        // to filter against — unless a widening filter could reveal rows.
+        disabled={filtersDisabled}
+        onClearAll={onClearFilters}
+      >
+        {filtersContent}
+      </DataTableFilters>
+      {primaryAction}
+    </div>
+  ) : null;
+
+  const colSpan = columns.length + (enableExpanding ? 1 : 0);
+
+  const rows = table.getRowModel().rows;
+
+  const isUtilityCol = (id: string, isAction?: boolean) =>
+    id === 'select' || id === 'actions' || !!isAction;
+
+  // The table renders with `table-layout: fixed`, so the declared column
+  // widths control how the container is divided. Utility columns (select
+  // checkbox + actions trigger) are pinned to their exact px size so they
+  // land at the same x on every table. Content columns share the REMAINING
+  // width proportionally to their declared `size` (ratios, not px) — a wide
+  // container grows every column instead of handing all the slack to the
+  // first one while its siblings stay frozen at their declared px.
+  //
+  // One content column is left `width: auto` (the explicit `meta.flex` column
+  // or, by default, the first content column): under fixed layout the auto
+  // column receives the leftover, which is exactly its proportional share
+  // when the siblings carry ratio widths — and it absorbs rounding drift so
+  // the ratios never overflow the container. When a column opts in via
+  // `meta.flex`, the siblings keep their exact declared px instead and the
+  // flex column alone soaks the slack (e.g. a prose/description column).
+  const visibleLeafColumns = table.getVisibleLeafColumns();
+  const explicitFlexColumnId = visibleLeafColumns.find(
+    (column) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+      (column.columnDef.meta as ColumnMeta | undefined)?.flex,
+  )?.id;
+  const flexColumnId =
+    explicitFlexColumnId ??
+    visibleLeafColumns.find(
+      (column) =>
+        !isUtilityCol(
+          column.id,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+          (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
+        ),
+    )?.id;
+
+  // Exact px a utility column occupies (mirrors `utilityCellBox`). A declared
+  // size of 150 is TanStack's default, i.e. "not set" → canonical width.
+  const utilityPx = (id: string, size: number | undefined) =>
+    size !== undefined && size !== 150
+      ? size
+      : id === 'actions'
+        ? ACTIONS_COLUMN_SIZE
+        : SELECT_COLUMN_SIZE;
+
+  // Pinned px (utility columns + the expand column) subtracted from the
+  // container before content columns split the remainder, and the ratio
+  // denominator for that split.
+  let pinnedPx = enableExpanding ? 48 : 0;
+  let contentSizeTotal = 0;
+  for (const column of visibleLeafColumns) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+    const meta = column.columnDef.meta as ColumnMeta | undefined;
+    if (isUtilityCol(column.id, meta?.isAction)) {
+      pinnedPx += utilityPx(column.id, column.columnDef.size);
+    } else {
+      contentSizeTotal += column.getSize();
+    }
+  }
+
+  // The table's declared floor: every content column at its declared px plus
+  // the pinned columns. `minWidth: max(100%, floor)` below floors the table
+  // here so a narrow viewport scrolls horizontally instead of squashing
+  // columns below their sizes (the earlier `columns.length * 8rem` heuristic
+  // under-counted tables with a wide column and collapsed their flex column
+  // before the scrollbar appeared), and the proportional widths are expressed
+  // against this same number so the floor resolves to exactly the declared
+  // px. Summed here rather than via `getTotalSize()`, which counts a
+  // default-sized utility column at TanStack's 150 instead of its pinned px.
+  const floorPx = contentSizeTotal + pinnedPx;
+  const tableMinWidth = `${floorPx}px`;
+
+  const cellWidthStyle = (
+    id: string,
+    size: number | undefined,
+    isAction?: boolean,
+  ): CSSProperties =>
+    isUtilityCol(id, isAction)
+      ? // Under `table-fixed` the declared px width *is* the column width, so
+        // pin utility columns to their exact size (a `1%` here would collapse
+        // them below the checkbox/trigger box). Matches `utilityCellBox`.
+        { width: utilityPx(id, size) }
+      : id === flexColumnId
+        ? // The flex column: `auto`, so it receives the container leftover —
+          // its proportional share by construction (plus rounding slack), or
+          // ALL the slack when it opted in via `meta.flex`.
+          { width: undefined }
+        : explicitFlexColumnId !== undefined || contentSizeTotal === 0
+          ? // An explicit `meta.flex` column soaks the slack alone; its
+            // siblings keep their exact declared px. Cap `maxWidth` too so
+            // unbreakable cell content (emails, ids) cannot paint into the
+            // next column under `table-fixed`.
+            {
+              width: size !== undefined && size !== 150 ? size : undefined,
+              maxWidth: size !== undefined && size !== 150 ? size : undefined,
+            }
+          : // Proportional share, using declared sizes as ratios, as a PLAIN
+            // percentage of the table width. Browsers resolve a `calc()` that
+            // mixes `%` and `px` on a fixed-layout table cell as `auto`, so
+            // the former `calc((100% - pinned) * ratio)` silently gave every
+            // content column an equal split in Chromium — and a header wider
+            // than that share painted into its neighbour. `size / floor`
+            // makes the `minWidth` floor resolve to exactly the declared px;
+            // a wider table scales every column up and the auto flex column
+            // absorbs what the px-pinned columns leave over.
+            {
+              width: `${(((size ?? 150) / floorPx) * 100).toFixed(4)}%`,
+            };
+  // Wrap a utility cell's content in a fixed-width box so the column shrinks to
+  // exactly its declared size (the select checkbox centered, the row-actions
+  // trigger right-aligned) — identical on every table. `p-0` on the cell hands
+  // all spacing to this box so padding doesn't widen the pinned column.
+  const utilityCellBox = (
+    id: string,
+    size: number | undefined,
+    node: ReactNode,
+  ): ReactNode => (
+    <div
+      style={{ width: utilityPx(id, size) }}
+      className={cn(
+        'flex h-full items-center',
+        id === 'select' ? 'mx-auto justify-center' : 'ml-auto justify-end pr-3',
+      )}
+    >
+      {node}
+    </div>
+  );
+
+  // Shared table content. Wrapped in Skeletonize (outside <table>) so the
+  // placeholder cells below pulse while loading; idle it adds no box.
+  const tableContent = (
+    <Skeletonize loading={isSkeleton}>
+      <Table
+        // Always render the bare <table> (no primitive scroll wrapper). Both
+        // layout branches below supply their own scroll container with the
+        // border placed on an inner `w-fit min-w-full` wrapper, so the rounded
+        // border wraps the full table width and scrolls with the content
+        // instead of being pinned to the visible viewport.
+        stickyLayout
+        // `table-fixed w-full`: columns share the available width by their
+        // declared `size` (used as ratios) instead of `auto` layout growing
+        // each column to fit its widest non-wrapping cell — which let long
+        // values balloon the first column and pushed trailing columns off
+        // screen. With `min-w-full` + the `max(100%, …)` floor below, a wide
+        // container fits exactly (no horizontal scroll) while a narrow one
+        // still scrolls at the content floor instead of squashing.
+        className="w-full table-fixed"
+        // `max(100%, …)` so the table still fills a wide container (preserving
+        // the primitive's `min-w-full`) while gaining a content-based floor that
+        // forces horizontal scroll on narrow viewports instead of squashing.
+        // Initial empty (no headers, no rows) must NOT inherit the column-size
+        // floor — otherwise a 7-column table (~1050px default) scrolls
+        // horizontally inside a max-w-3xl settings pane with nothing to reveal.
+        style={{
+          minWidth:
+            tableBodyState === 'empty' || tableBodyState === 'idle-empty'
+              ? '100%'
+              : `max(100%, ${tableMinWidth})`,
+        }}
+      >
+        {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
+        {/* Hide column headers on the initial empty state — an empty grid with
+            a lone "Quarter folder" header reads as a broken table; the empty
+            copy (+ optional create CTA) is the whole surface. */}
+        {tableBodyState !== 'empty' && tableBodyState !== 'idle-empty' ? (
+          <TableHeader sticky={stickyLayout}>
+            {table.getHeaderGroups().map((headerGroup) => (
+              // No `bg-muted` here — `TableHeader` paints the fill on the header
+              // cells so the wrapper's rounded corners aren't squared off by a
+              // full-width row background.
+              <TableRow key={headerGroup.id}>
+                {/* The expander column carries no visible label, which leaves
+                    a `<th>` with no discernible text in EVERY expandable
+                    table (axe `empty-table-header`). Name it for assistive
+                    tech the same way the actions column is named below. */}
+                {enableExpanding && (
+                  <TableHead className="w-[3rem]">
+                    <span className="sr-only">{t('aria.expandRow')}</span>
+                  </TableHead>
+                )}
+                {headerGroup.headers.map((headerCell) => {
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+                  const meta = headerCell.column.columnDef.meta as
+                    | ColumnMeta
+                    | undefined;
+                  const id = headerCell.column.id;
+                  const size = headerCell.column.getSize();
+                  const utility = isUtilityCol(id, meta?.isAction);
+                  const content = headerCell.isPlaceholder
+                    ? null
+                    : flexRender(
+                        headerCell.column.columnDef.header,
+                        headerCell.getContext(),
+                      );
+                  // Every entity table declares its row-action column with an
+                  // empty header string, which leaves a `<th>` with no
+                  // discernible text — a WCAG AA failure (axe
+                  // `empty-table-header`). The label belongs here rather than
+                  // in each table's column definition so all of them get it
+                  // and none can forget it.
+                  const needsActionsLabel = meta?.isAction === true && !content;
+                  // Same failure, transient: while the table skeletonizes,
+                  // `SkeletonBox` masks the select-all checkbox and marks it
+                  // `aria-hidden`, so this `<th>`'s only content stops
+                  // counting as discernible text. Name it for the load —
+                  // once the real checkbox is back it owns the name, and a
+                  // second label here would double it up.
+                  const needsSelectLabel = id === 'select' && isSkeleton;
+                  return (
+                    <TableHead
+                      key={headerCell.id}
+                      // `overflow-hidden text-ellipsis`: the primitive keeps
+                      // headers on one line, so a label wider than its column
+                      // (an under-declared `size`, or a locale whose label
+                      // runs long) must clip with an ellipsis inside its own
+                      // cell — never paint over the neighbouring header.
+                      className={cn(
+                        'overflow-hidden text-sm font-medium text-ellipsis',
+                        utility && 'p-0',
+                        meta?.align === 'right' && 'text-right',
+                        meta?.align === 'center' && 'text-center',
+                        meta?.className,
+                      )}
+                      style={cellWidthStyle(id, size, meta?.isAction)}
+                    >
+                      {needsActionsLabel ? (
+                        <span className="sr-only">{t('aria.rowActions')}</span>
+                      ) : null}
+                      {needsSelectLabel ? (
+                        <span className="sr-only">{t('aria.selectAll')}</span>
+                      ) : null}
+                      {utility ? utilityCellBox(id, size, content) : content}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+        ) : null}
+        <TableBody>
+          {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
+            Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+              <TableRow
+                key={`skeleton-${rowIndex}`}
+                data-no-hover
+                className={cn(
+                  'h-12',
+                  typeof rowClassName === 'string' && rowClassName,
+                )}
+              >
+                {enableExpanding && (
+                  <TableCell className="w-[3rem] p-0">
+                    <div className="h-12 w-12" />
+                  </TableCell>
+                )}
+                {visibleLeafColumns.map((column, colIndex) => {
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+                  const meta = column.columnDef.meta as ColumnMeta | undefined;
+                  const id = column.id;
+                  const size = column.getSize();
+                  const isActionCol =
+                    meta?.isAction === true || id === 'actions';
+                  const utility = isUtilityCol(id, isActionCol);
+                  const content = (
+                    <DataTableSkeletonCell
+                      skeleton={{
+                        ...meta?.skeleton,
+                        type: isActionCol
+                          ? 'action'
+                          : id === 'select'
+                            ? 'checkbox'
+                            : meta?.hasAvatar
+                              ? 'avatar-text'
+                              : meta?.skeleton?.type,
+                      }}
+                      align={meta?.align}
+                      rowIndex={rowIndex}
+                      columnIndex={colIndex}
+                    />
+                  );
+                  return (
+                    <TableCell
+                      key={id}
+                      className={cn(
+                        utility && 'p-0',
+                        meta?.align === 'right' && 'text-right',
+                        meta?.align === 'center' && 'text-center',
+                        meta?.className,
+                      )}
+                      style={cellWidthStyle(id, size, isActionCol)}
+                    >
+                      {utility ? utilityCellBox(id, size, content) : content}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))
+          ) : tableBodyState === 'empty' ? (
+            // Initial empty state — no data and no filters active. Table
+            // minWidth is 100% in this state (no column-size floor), so a
+            // plain `w-full` keeps the empty copy inside the bordered frame
+            // without a phantom horizontal scrollbar.
+            <TableRow data-no-hover>
+              <TableCell colSpan={colSpan} className="p-0">
+                <div className="w-full p-4">
+                  <DataTableEmptyState
+                    icon={emptyState?.icon}
+                    title={emptyState?.title ?? ''}
+                    description={emptyState?.description}
+                    headingLevel={emptyState?.headingLevel}
+                    action={emptyHostsAddAction ? addActionControl : undefined}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : tableBodyState === 'filtered-empty' ? (
+            // Filtered empty state — filters applied but no matching rows.
+            // Headers stay visible and the table may still be wider than the
+            // viewport, so stick the empty copy to the left edge of the
+            // scrollport (not the full table width).
+            <TableRow data-no-hover>
+              <TableCell colSpan={colSpan} className="p-0">
+                <div className="sticky left-0 w-screen max-w-full p-4">
+                  <DataTableEmptyState
+                    title={t('search.noResults')}
+                    description={t('search.tryAdjusting')}
+                    headingLevel={emptyState?.headingLevel}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : tableBodyState === 'idle-empty' ? null : (
+            rows.map((row, index) => {
+              const isExpanded = row.getIsExpanded();
+              const rowClassNameValue =
+                typeof rowClassName === 'function'
+                  ? rowClassName(row)
+                  : rowClassName;
+              const isNewRow = animatingRows.has(row.id);
+              // A row is click-navigable only when `onRowClick` is set and the
+              // optional `isRowClickable` guard admits it — so tables can leave
+              // dead rows (e.g. a metrics row with no destination) inert.
+              const rowClickable =
+                !!onRowClick && (isRowClickable?.(row) ?? true);
+
+              return (
+                <Fragment key={row.id}>
+                  <TableRow
+                    className={cn(
+                      'group',
+                      // Consistent baseline row height across every table — text-
+                      // only rows (e.g. projects) would otherwise sit shorter than
+                      // rows with an avatar/icon. `h-12` is a *minimum* for table
+                      // rows, so multi-line cells still grow past it.
+                      'h-12',
+                      index === rows.length - 1 ? 'border-b-0' : '',
+                      clickableRows || rowClickable ? 'cursor-pointer' : '',
+                      isNewRow && 'animate-row-enter',
+                      rowClassNameValue,
+                    )}
+                    data-state={row.getIsSelected() ? 'selected' : undefined}
+                    aria-selected={row.getIsSelected() || undefined}
+                    onMouseEnter={() => onRowMouseEnter?.(row)}
+                    onClick={() => {
+                      // When both expand and onRowClick are armed, the chevron
+                      // owns expand (see cell below) and the row body opens the
+                      // detail/navigate path — never both from one click.
+                      // Expand-only tables still toggle from the row body.
+                      if (rowClickable) {
+                        onRowClick?.(row);
+                      } else if (enableExpanding) {
+                        row.toggleExpanded();
+                      }
+                    }}
+                  >
+                    {enableExpanding && (
+                      <TableCell className="w-[3rem] p-0">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={
+                            isExpanded
+                              ? t('aria.collapseRow')
+                              : t('aria.expandRow')
+                          }
+                          className="hover:bg-muted/50 flex h-12 w-12 items-center justify-center rounded-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            row.toggleExpanded();
+                          }}
+                        >
+                          <ChevronRight
+                            className={cn(
+                              'text-muted-foreground size-4 transition-transform duration-200',
+                              isExpanded && 'rotate-90',
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                      </TableCell>
+                    )}
+                    {row.getVisibleCells().map((cell) => {
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
+                      const meta = cell.column.columnDef.meta as
+                        | ColumnMeta
+                        | undefined;
+                      const id = cell.column.id;
+                      const size = cell.column.getSize();
+                      const utility = isUtilityCol(id, meta?.isAction);
+                      const content = flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      );
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            utility && 'p-0',
+                            meta?.align === 'right' && 'text-right',
+                            meta?.align === 'center' && 'text-center',
+                            meta?.className,
+                          )}
+                          style={cellWidthStyle(id, size, meta?.isAction)}
+                        >
+                          {utility
+                            ? utilityCellBox(id, size, content)
+                            : content}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                  {enableExpanding && isExpanded && renderExpandedRow && (
+                    <TableRow className="border-0" data-no-hover>
+                      <TableCell colSpan={columns.length + 1} className="p-0">
+                        <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
+                          {/* min-w-0: a grid item's min-width:auto would let
+                              unbreakable content (mono transcripts, long ids)
+                              inflate the panel past the cell, where the card's
+                              overflow-hidden clips it. Constrain and scroll
+                              locally instead. */}
+                          <div className="bg-muted/20 min-w-0 overflow-x-auto px-4 pb-2">
+                            {renderExpandedRow(row)}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </Skeletonize>
+  );
+
+  // Shared pagination content
+  const paginationContent = pagination && (
+    <DataTablePagination
+      currentPage={
+        pagination.clientSide ? internalPagination.pageIndex + 1 : currentPage
+      }
+      total={pagination.total ?? data.length}
+      pageSize={pagination.pageSize}
+      totalPages={pagination.totalPages}
+      hasNextPage={pagination.hasNextPage}
+      hasPreviousPage={pagination.hasPreviousPage}
+      onPageChange={(page) => {
+        if (pagination.clientSide) {
+          setInternalPagination((prev) => ({
+            ...prev,
+            pageIndex: page - 1,
+          }));
+        }
+        pagination.onPageChange?.(page);
+      }}
+      isLoading={pagination.isLoading}
+      showPageSizeSelector={pagination.showPageSizeSelector}
+      pageSizeOptions={pagination.pageSizeOptions}
+      onPageSizeChange={(size) => {
+        if (pagination.clientSide) {
+          setInternalPagination((prev) => ({
+            ...prev,
+            pageSize: size,
+            pageIndex: 0,
+          }));
+        }
+        pagination.onPageSizeChange?.(size);
+      }}
+      entityLabel={pagination.entityLabel}
+      className={pagination.className}
+    />
+  );
+
+  // Infinite scroll content - renders inside table container
+  // Shows sentinel element for auto-loading, manual button, or end-of-list indicator
+  const infiniteScrollContent = infiniteScroll && data.length > 0 && (
+    <div className="border-border border-t">
+      {infiniteScroll.hasMore ? (
+        <>
+          {/* Sentinel element for IntersectionObserver (auto-loading) */}
+          {infiniteScroll.autoLoad !== false && (
+            <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
+          )}
+
+          {/* Loading indicator or manual button */}
+          <div className="flex justify-center py-3">
+            {infiniteScroll.isLoadingMore ? (
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Spinner size="sm" label={t('pagination.loading')} />
+                <Text as="span">{t('pagination.loading')}</Text>
+              </div>
+            ) : infiniteScroll.autoLoad === false ? (
+              <Button
+                variant="ghost"
+                onClick={infiniteScroll.onLoadMore}
+                aria-label={t('pagination.loadMore')}
+              >
+                {t('pagination.loadMore')}
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : !infiniteScroll.entityLabel ? (
+        <output className="text-muted-foreground block px-3 py-3 text-left text-xs">
+          {t('pagination.noMore')}
+        </output>
+      ) : null}
+    </div>
+  );
+
+  // A row can aggregate several entities (a folder row stands in for its
+  // members), so the count shown must be the entities behind the visible rows,
+  // not the row count itself (#2348).
+  const shownEntityCount = infiniteScroll
+    ? (infiniteScroll.displayedCount ?? data.length)
+    : 0;
+  const entityCountFooter = infiniteScroll &&
+    infiniteScroll.entityLabel &&
+    data.length > 0 && (
+      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block px-3 py-3 text-left text-xs">
+        {infiniteScroll.totalCount !== undefined &&
+        infiniteScroll.totalCount !== shownEntityCount
+          ? t('pagination.showingFiltered', {
+              filtered: shownEntityCount,
+              total: infiniteScroll.totalCount,
+              ...entityLabelForms(infiniteScroll.entityLabel),
+            })
+          : t('pagination.showingAll', {
+              count: shownEntityCount,
+              ...entityLabelForms(infiniteScroll.entityLabel),
+            })}
+      </output>
+    );
+
+  // Non-sticky layout: simple stacked layout with gaps
+  if (!stickyLayout) {
+    return (
+      <ErrorBoundaryBase
+        organizationId={orgId}
+        fallback={(fallbackProps) => (
+          <ErrorDisplayCompact
+            error={fallbackProps.error}
+            organizationId={orgId}
+            reset={fallbackProps.reset}
+          />
+        )}
+      >
+        <div className={cn('space-y-4', className)}>
+          {headerContent}
+          {/* The bordered frame stays at the container's width — its rounded
+              border is always fully visible — while the table scrolls inside
+              the `overflow-x-auto` scrollport. The borderless `w-fit
+              min-w-full` wrapper spans the full table width so full-width
+              children (infinite-scroll footer separators) cover overflowing
+              content too. `overflow-hidden` on the frame clips the rounded
+              corners (safe here: this layout has no sticky header). */}
+          <div className="border-border overflow-hidden rounded-lg border">
+            <div ref={horizontalScrollRef} className="overflow-x-auto">
+              <div className="w-fit min-w-full">
+                {tableContent}
+                {infiniteScrollContent}
+                {entityCountFooter}
+              </div>
+            </div>
+          </div>
+          {paginationContent}
+          {footer}
+        </div>
+      </ErrorBoundaryBase>
+    );
+  }
+
+  // Sticky layout: flex layout with fixed header/footer and scrollable table
+  return (
+    <ErrorBoundaryBase
+      organizationId={orgId}
+      fallback={(fallbackProps) => (
+        <ErrorDisplayCompact
+          error={fallbackProps.error}
+          organizationId={orgId}
+          reset={fallbackProps.reset}
+        />
+      )}
+    >
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
+        {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
+        {/* The bordered frame stays at the container's width — its rounded
+            border is always fully visible — while both axes scroll inside
+            `scrollContainerRef`. The sticky header/footer keep working because
+            they stick to that inner scrollport, not the frame; the frame's
+            `overflow-hidden` only clips the rounded corners. The borderless
+            `w-fit min-w-full` wrapper spans the full table width so full-width
+            children (infinite-scroll footer separators) cover overflowing
+            content too. */}
+        <div className="border-border flex min-h-0 flex-col overflow-hidden rounded-lg border">
+          <div
+            ref={scrollContainerRef}
+            className="min-h-0 overflow-auto overscroll-contain"
+          >
+            <div className="w-fit min-w-full">
+              {tableContent}
+              {infiniteScrollContent}
+              {entityCountFooter}
+            </div>
+          </div>
+        </div>
+        {paginationContent && (
+          <div className="shrink-0 pt-6">{paginationContent}</div>
+        )}
+        {/* `pt-4` matches the gap the non-sticky layout gets from `space-y-4`.
+            `empty:hidden` collapses the wrapper when the footer renders nothing
+            (e.g. the bulk-delete bar with no selection) so it adds no phantom
+            gap. */}
+        {footer && <div className="shrink-0 pt-4 empty:hidden">{footer}</div>}
+      </div>
+    </ErrorBoundaryBase>
+  );
+}
