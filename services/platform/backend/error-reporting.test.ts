@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { safeFetch } from '../lib/net/safe-fetch.ts';
 import {
   appErrorHandler,
   errorReportingEnabled,
@@ -71,11 +72,21 @@ describe('error reporting without a DSN', () => {
 });
 
 describe('error reporting with a DSN', () => {
+  const tracesSampleRateBefore = process.env.SENTRY_TRACES_SAMPLE_RATE;
+
   beforeAll(async () => {
+    // The production condition: the deployment's shared env file carries
+    // the browser's `SENTRY_TRACES_SAMPLE_RATE` into the backend containers
+    // (the CLI writes `'0'` by default), and the SDK reads it. With it set,
+    // `tracePropagationTargets: []` alone stopped nothing on the wire
+    // (2026-09-18 evaluation, J6-1) — so the whole suite runs with it.
+    process.env.SENTRY_TRACES_SAMPLE_RATE = '0';
     ingest = createServer((req, res) => {
-      if (req.url === '/probe') {
+      if (req.url?.startsWith('/probe')) {
         // A plain outgoing request from this process — what a third-party
-        // site the crawler visits receives.
+        // site the crawler visits receives. (The query string varies per
+        // request so the propagation decision cache never answers for a
+        // URL it has already judged.)
         probeRequests.push({ ...req.headers });
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
@@ -104,6 +115,11 @@ describe('error reporting with a DSN', () => {
   });
 
   afterAll(async () => {
+    if (tracesSampleRateBefore === undefined) {
+      delete process.env.SENTRY_TRACES_SAMPLE_RATE;
+    } else {
+      process.env.SENTRY_TRACES_SAMPLE_RATE = tracesSampleRateBefore;
+    }
     await new Promise<void>((resolve) => {
       ingest.close(() => resolve());
     });
@@ -135,21 +151,60 @@ describe('error reporting with a DSN', () => {
     expect(extra.jobId).toBe('job-1');
   });
 
-  it('stamps no trace headers onto outgoing requests', async () => {
+  it('stamps no trace headers onto outgoing requests, the sample-rate knob in the environment included', async () => {
     // The crawler carried `sentry-trace` and `baggage` — release, public
     // key, environment — to every third-party site it visited (2026-09-15
     // evaluation, i6): the SDK propagates them onto every outgoing fetch by
-    // default, tracing sampled or not. The option is what turns it off, and
-    // the wire is what proves it.
-    expect(Sentry.getClient()?.getOptions().tracePropagationTargets).toEqual(
-      [],
-    );
+    // default, tracing sampled or not. The empty target list turns the
+    // Sentry-native hook off; with `SENTRY_TRACES_SAMPLE_RATE` in the
+    // environment the SDK also registered OpenTelemetry's request
+    // instrumentation, whose propagator ignores the list for an unsampled
+    // span, and the headers went out again (2026-09-18 evaluation, J6-1).
+    // The wire is what proves it — on the global `fetch` and on the pinned
+    // dispatcher the crawler's `safeFetch` dials through.
+    const options = Sentry.getClient()?.getOptions();
+    expect(options?.tracePropagationTargets).toEqual([]);
+    // The knob reached the SDK: span recording is on, at zero.
+    expect(options?.tracesSampleRate).toBe(0);
     const res = await fetch(`http://127.0.0.1:${ingestPort}/probe`);
     expect(res.status).toBe(200);
     const headers = probeRequests.at(-1);
     expect(headers).toBeDefined();
     expect(headers).not.toHaveProperty('sentry-trace');
     expect(headers).not.toHaveProperty('baggage');
+
+    const pinned = await safeFetch(
+      `http://127.0.0.1:${ingestPort}/probe?leg=crawler`,
+      {
+        allowPrivateAddresses: true,
+        allowedHosts: ['127.0.0.1'],
+      },
+    );
+    expect(pinned.status).toBe(200);
+    const crawlerHeaders = probeRequests.at(-1);
+    expect(crawlerHeaders).not.toHaveProperty('sentry-trace');
+    expect(crawlerHeaders).not.toHaveProperty('baggage');
+  });
+
+  it('would stamp them without the target list — the negative above is a decision, not an inactive hook', async () => {
+    // The positive control: the same client, the target list lifted, a URL
+    // the propagation decision cache has not seen — the headers appear, so
+    // the instrumentation is live in this process and the empty list is
+    // what keeps them off.
+    const options = Sentry.getClient()?.getOptions();
+    expect(options).toBeDefined();
+    if (options === undefined) return;
+    const targets = options.tracePropagationTargets;
+    options.tracePropagationTargets = undefined;
+    try {
+      const res = await fetch(`http://127.0.0.1:${ingestPort}/probe?control=1`);
+      expect(res.status).toBe(200);
+      const headers = probeRequests.at(-1);
+      expect(headers).toHaveProperty('sentry-trace');
+      expect(headers).toHaveProperty('baggage');
+    } finally {
+      options.tracePropagationTargets = targets;
+    }
   });
 
   it('captures thrown route errors and keeps the stock 500 response', async () => {

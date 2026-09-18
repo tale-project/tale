@@ -11,15 +11,25 @@ import { routeClass } from './telemetry.ts';
  * reaches the backend containers (both compose lanes mount `env_file: .env`);
  * this module is what makes the process honor it.
  *
- * Errors only, deliberately: no `tracesSampleRate` is ever set, so span
- * recording stays disabled and none of the auto-performance instrumentation
- * loads. `SENTRY_TRACES_SAMPLE_RATE` remains a browser-side knob.
+ * Errors only, deliberately: this module sets no `tracesSampleRate`, and
+ * nothing outbound is ours to trace.
  *
  * `tracePropagationTargets: []` because the SDK otherwise stamps
  * `sentry-trace` and `baggage` — release, public key, environment — onto
  * every outgoing `fetch`, tracing sampled or not: the crawler carried them
  * to every third-party site it visited (2026-09-15 evaluation, i6).
- * Nothing outbound is ours to trace.
+ *
+ * `spans: false` on the http and fetch integrations, because the empty
+ * target list alone did not hold on the wire (2026-09-18 evaluation, J6-1).
+ * The SDK reads `SENTRY_TRACES_SAMPLE_RATE` from the environment, and the
+ * deployment's shared env file carries the browser's value into these
+ * containers (the CLI writes it, `'0'` by default). Any value switches span
+ * recording on; with it the integrations register OpenTelemetry's request
+ * instrumentation beside their own, and its propagator derives the target
+ * URL from the active span — an unsampled span records no URL, so the
+ * target list is never consulted and the headers go out anyway. `spans:
+ * false` keeps the request lanes on the Sentry-native hooks (breadcrumbs,
+ * request isolation), which honour the target list on every request.
  *
  * `registerEsmLoaderHooks: false` because the backend already runs under its
  * own resolve hook (`node-loader.mjs`); stacking import-in-the-middle's
@@ -34,6 +44,14 @@ import { routeClass } from './telemetry.ts';
  */
 
 let enabled = false;
+
+/** The default integrations `initErrorReporting` re-adds with its own
+ * options (their names as the SDK reports them). */
+const REPLACED_DEFAULT_INTEGRATIONS: ReadonlySet<string> = new Set([
+  'OnUnhandledRejection',
+  'Http',
+  'NodeFetch',
+]);
 
 export interface ErrorReportingOptions {
   dsn: string | undefined;
@@ -51,7 +69,12 @@ export function initErrorReporting(options: ErrorReportingOptions): boolean {
       // No outgoing request carries our trace headers (see the module note).
       tracePropagationTargets: [],
       integrations: (defaults) => [
-        ...defaults.filter((i) => i.name !== 'OnUnhandledRejection'),
+        ...defaults.filter((i) => !REPLACED_DEFAULT_INTEGRATIONS.has(i.name)),
+        // The request lanes without OpenTelemetry's span instrumentation:
+        // its propagator does not honour the target list for an unsampled
+        // span (see the module note).
+        Sentry.httpIntegration({ spans: false }),
+        Sentry.nativeNodeFetchIntegration({ spans: false }),
         Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }),
       ],
       initialScope: { tags: { 'tale.role': options.role } },
