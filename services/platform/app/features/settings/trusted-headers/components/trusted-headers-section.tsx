@@ -150,17 +150,6 @@ export function TrustedHeadersSection({
         </HStack>
       }
       description={t('enterpriseSso.trustedHeaders.help')}
-      action={
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={!canEdit || !loaded || atLimit}
-          onClick={() => setCreateOpen(true)}
-        >
-          {t('enterpriseSso.trustedHeaders.createKey')}
-        </Button>
-      }
     >
       <Stack gap={4}>
         <SettingsToggleRow
@@ -212,12 +201,27 @@ export function TrustedHeadersSection({
         </SettingsFieldList>
 
         <Stack gap={2}>
-          <Text as="h3" variant="label">
-            {t('enterpriseSso.trustedHeaders.keysTitle')}
-          </Text>
-          <Text variant="muted">
-            {t('enterpriseSso.trustedHeaders.keysHelp')}
-          </Text>
+          {/* The action sits with the list it grows, not in the card header
+              three settings above it. */}
+          <HStack gap={4} align="start" justify="between" wrap>
+            <Stack gap={1}>
+              <Text as="h3" variant="label">
+                {t('enterpriseSso.trustedHeaders.keysTitle')}
+              </Text>
+              <Text variant="muted">
+                {t('enterpriseSso.trustedHeaders.keysHelp')}
+              </Text>
+            </Stack>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={!canEdit || !loaded || atLimit}
+              onClick={() => setCreateOpen(true)}
+            >
+              {t('enterpriseSso.trustedHeaders.createKey')}
+            </Button>
+          </HStack>
           {atLimit && (
             <Text variant="muted" role="status">
               {t('enterpriseSso.trustedHeaders.limitReached', {
