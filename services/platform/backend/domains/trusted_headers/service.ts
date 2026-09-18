@@ -5,7 +5,9 @@ import {
   trustedHeaderAssertableRoleSchema,
   type TrustedHeaderAssertableRole,
   type TrustedHeaderKeyCreated,
+  type TrustedHeaderKeyCreateInput,
   type TrustedHeaderKeyView,
+  type TrustedHeaderSettingsInput,
   type TrustedHeadersView,
 } from '../../../lib/shared/schemas/trusted_headers.ts';
 import {
@@ -113,11 +115,9 @@ export async function getTrustedHeadersView(
  */
 export async function setTrustedHeaderSettings(
   sql: Sql,
-  args: {
+  args: TrustedHeaderSettingsInput & {
     organizationId: string;
     actor: TrustedHeadersActor;
-    enabled: boolean;
-    maxAssertedRole: TrustedHeaderAssertableRole;
   },
 ): Promise<TrustedHeadersView> {
   await sql.begin(async (tx) => {
@@ -184,7 +184,10 @@ export async function setTrustedHeaderSettings(
  */
 export async function createTrustedHeaderKey(
   sql: Sql,
-  args: { organizationId: string; actor: TrustedHeadersActor; name: string },
+  args: TrustedHeaderKeyCreateInput & {
+    organizationId: string;
+    actor: TrustedHeadersActor;
+  },
 ): Promise<TrustedHeaderKeyCreated> {
   const key = generateOpaqueToken(TRUSTED_HEADER_KEY_MARKER);
   const tokenHash = await hashOpaqueToken(key);

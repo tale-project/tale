@@ -1,6 +1,7 @@
 import type {
-  TrustedHeaderAssertableRole,
   TrustedHeaderKeyCreated,
+  TrustedHeaderKeyCreateInput,
+  TrustedHeaderSettingsInput,
   TrustedHeadersView,
 } from '@/lib/shared/schemas/trusted_headers';
 
@@ -19,16 +20,14 @@ export interface TrustedHeadersContract {
   };
   'trusted_headers/mutations:setSettings': {
     kind: 'mutation';
-    args: {
-      organizationId: string;
-      enabled: boolean;
-      maxAssertedRole: TrustedHeaderAssertableRole;
-    };
+    /** The body of `PUT /settings`, addressed to one organization. */
+    args: { organizationId: string } & TrustedHeaderSettingsInput;
     returns: TrustedHeadersView;
   };
   'trusted_headers/mutations:createKey': {
     kind: 'mutation';
-    args: { organizationId: string; name: string };
+    /** The body of `POST /keys`, addressed to one organization. */
+    args: { organizationId: string } & TrustedHeaderKeyCreateInput;
     /** The plaintext, exactly once. */
     returns: TrustedHeaderKeyCreated;
   };
