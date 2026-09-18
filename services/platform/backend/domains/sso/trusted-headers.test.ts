@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { checkIpRateLimit } from '../../lib/rate-limit.ts';
 import { resolveTrustedHeaderKey } from '../trusted_headers/service.ts';
 import { syncTeamsFromGroupNames } from './service.ts';
 import {
   createTrustedHeadersRoutes,
+  framingHeaders,
   presentedTrustedHeaderKey,
   trustedHeadersAuthenticate,
   TrustedHeadersRefusedError,
@@ -48,6 +50,10 @@ vi.mock('../two_factor/service.ts', () => ({
   anchorTwoFactorGraceOnSignIn: vi
     .fn()
     .mockResolvedValue({ decision: 'allowed' }),
+}));
+
+vi.mock('../../lib/org-config.ts', () => ({
+  readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('./service.ts', () => ({
@@ -161,6 +167,7 @@ beforeEach(() => {
   });
   vi.mocked(checkIpRateLimit).mockReset().mockResolvedValue(undefined);
   vi.mocked(syncTeamsFromGroupNames).mockClear();
+  vi.mocked(readGovernancePolicyForOrg).mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -179,6 +186,18 @@ const baseArgs = {
   role: 'member' as const,
   teams: null,
 };
+
+describe('framingHeaders — what a door answer may be framed by', () => {
+  it('denies every ancestor without origins, and names them with', () => {
+    expect(framingHeaders([])).toEqual({
+      'Content-Security-Policy': "frame-ancestors 'none'",
+      'X-Frame-Options': 'DENY',
+    });
+    expect(framingHeaders(['https://app.example'])).toEqual({
+      'Content-Security-Policy': "frame-ancestors 'self' https://app.example",
+    });
+  });
+});
 
 describe('presentedTrustedHeaderKey — where the key rides', () => {
   it('prefers a bearer Authorization over the key header', () => {
@@ -560,6 +579,66 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(true);
+  });
+
+  it('refuses every frame ancestor unless the organization embeds', async () => {
+    const { app } = makeApp(memberScript());
+
+    const noKey = await request(app, identity);
+    expect(noKey.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'none'",
+    );
+    expect(noKey.headers.get('x-frame-options')).toBe('DENY');
+
+    const signedIn = await request(app, withKey);
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'none'",
+    );
+    expect(signedIn.headers.get('x-frame-options')).toBe('DENY');
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'embedding',
+    );
+  });
+
+  it("admits the organization's embedding origins on its answers, refusals included", async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      enabled: true,
+      frameAncestors: ['https://portal.example', 'https://app.example'],
+    });
+    const { app } = makeApp(memberScript());
+
+    const signedIn = await request(app, withKey);
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'self' https://app.example https://portal.example",
+    );
+    expect(signedIn.headers.get('x-frame-options')).toBeNull();
+
+    const stranger = await request(makeApp(strangerScript()).app, withKey);
+    expect(stranger.status).toBe(403);
+    expect(stranger.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'self' https://app.example https://portal.example",
+    );
+    expect(stranger.headers.get('x-frame-options')).toBeNull();
+  });
+
+  it('keeps a disabled embedding policy and an unknown key on DENY', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      enabled: false,
+      frameAncestors: ['https://portal.example'],
+    });
+    const { app } = makeApp(memberScript());
+    const signedIn = await request(app, withKey);
+    expect(signedIn.headers.get('x-frame-options')).toBe('DENY');
+
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const unknown = await request(makeApp(memberScript()).app, withKey);
+    expect(unknown.status).toBe(401);
+    expect(unknown.headers.get('x-frame-options')).toBe('DENY');
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledTimes(1);
   });
 
   it('answers a server configuration error without the signing secret', async () => {

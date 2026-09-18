@@ -1202,3 +1202,98 @@ describe('shouldDeliverSseEvent — fan-out predicate', () => {
     expect(shouldDeliverSseEvent('acme', allowed)).toBe(false);
   });
 });
+
+describe('embedding — frame ancestors', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('nothing may frame Tale unless an organization admits an origin', async () => {
+    const app = createApp(baseEnv, { orgFrameAncestors: () => [] });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+
+  test("an admitted origin joins frame-ancestors beside 'self' and X-Frame-Options steps aside", async () => {
+    const app = createApp(baseEnv, {
+      orgFrameAncestors: () => [
+        'https://app.example',
+        'https://portal.example',
+      ],
+    });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    const directive = (name: string) =>
+      csp
+        .split(';')
+        .map((d) => d.trim())
+        .find((d) => d.startsWith(name)) ?? '';
+    expect(directive('frame-ancestors')).toBe(
+      "frame-ancestors 'self' https://app.example https://portal.example",
+    );
+    // X-Frame-Options knows only DENY/SAMEORIGIN; with an allowlist in the
+    // CSP it is left off rather than contradicting it.
+    expect(res.headers.get('x-frame-options')).toBeNull();
+    // The embedding origin must not leak into any other directive.
+    expect(directive('frame-src')).toBe("frame-src 'self'");
+    expect(directive('script-src')).not.toContain('app.example');
+    expect(directive('connect-src')).not.toContain('app.example');
+  });
+
+  test('a policy save reaches the headers without a restart, and a revoke closes them again', async () => {
+    let ancestors: readonly string[] = [];
+    const app = createApp(baseEnv, { orgFrameAncestors: () => ancestors });
+
+    const before = await app.fetch(new Request('http://localhost/api/health'));
+    expect(before.headers.get('x-frame-options')).toBe('DENY');
+
+    ancestors = ['https://app.example'];
+    const during = await app.fetch(new Request('http://localhost/api/health'));
+    expect(during.headers.get('content-security-policy')).toContain(
+      "frame-ancestors 'self' https://app.example",
+    );
+    expect(during.headers.get('x-frame-options')).toBeNull();
+
+    ancestors = [];
+    const after = await app.fetch(new Request('http://localhost/api/health'));
+    expect(after.headers.get('content-security-policy')).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(after.headers.get('x-frame-options')).toBe('DENY');
+  });
+
+  // The canvas preview is framed BY the shell; with the shell itself inside
+  // a host page, the browser checks every ancestor of the preview against
+  // its own directive — so it must admit the same origins.
+  test('the canvas preview, framed by the shell, admits the same ancestors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ userId: 'u1', orgSlugs: ['acme'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const app = createApp(baseEnv, {
+      orgFrameAncestors: () => ['https://app.example'],
+    });
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          cookie: 'better-auth.session_token=valid',
+        },
+        body: 'html=' + encodeURIComponent('<h1>hi</h1>'),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("frame-ancestors 'self' https://app.example;");
+    expect(res.headers.get('x-frame-options')).toBeNull();
+    // The rest of the sandboxed policy is untouched by the allowlist.
+    expect(csp).toContain('sandbox allow-scripts allow-modals');
+    expect(csp).not.toMatch(/connect-src[^;]*app\.example/);
+    expect(csp).not.toMatch(/script-src[^;]*app\.example/);
+  });
+});

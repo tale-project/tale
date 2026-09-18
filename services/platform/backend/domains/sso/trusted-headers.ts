@@ -1,3 +1,4 @@
+import { frameAncestorsOf } from '@tale/shared/schemas/governance';
 import { sessionExpiryMs } from '@tale/shared/utils/session-idle';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
@@ -16,6 +17,7 @@ import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.t
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { trustedHeaderNames } from '../../core/trusted_headers_auth/header_names.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -337,6 +339,48 @@ function errorPage(basePath: string, message: string): string {
 }
 
 /**
+ * The framing headers a door response carries. Nothing may frame the door
+ * unless the organization's `embedding` policy admits the host page's
+ * origin; then `frame-ancestors` names `'self'` plus that list and
+ * X-Frame-Options — which cannot express an allowlist — is left off. The
+ * backend's fixed DENY is switched off for this door alone
+ * (`backendSecureHeaders({frameable: true})` in `app.ts`), so what is set
+ * here is what the browser sees.
+ */
+export function framingHeaders(
+  frameAncestors: readonly string[],
+): Record<string, string> {
+  if (frameAncestors.length === 0) {
+    return {
+      'Content-Security-Policy': "frame-ancestors 'none'",
+      'X-Frame-Options': 'DENY',
+    };
+  }
+  return {
+    'Content-Security-Policy': `frame-ancestors 'self' ${frameAncestors.join(' ')}`,
+  };
+}
+
+/** The organization's admitted frame ancestors; a policy read that fails
+ * admits nothing — the safe side of a header. */
+async function resolveFrameAncestors(
+  sql: Sql,
+  organizationId: string,
+): Promise<string[]> {
+  try {
+    return frameAncestorsOf(
+      await readGovernancePolicyForOrg(sql, organizationId, 'embedding'),
+    );
+  } catch (error) {
+    console.warn(
+      '[Trusted Headers] embedding policy unreadable; framing refused:',
+      error,
+    );
+    return [];
+  }
+}
+
+/**
  * The key the proxy presented: `Authorization: Bearer <key>` first, else
  * the configurable key header (the `Remote-Internal-Secret` slot proxies
  * already inject). Empty is absent.
@@ -370,6 +414,17 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       c.req.header('x-real-ip') ||
       undefined;
+    // Framing is judged per organization once the key names one; until
+    // then (no key, unknown key) nothing may frame the answer.
+    let framing = framingHeaders([]);
+    const page = (
+      body: string,
+      status: 200 | 400 | 401 | 403 | 429 | 500 = 200,
+    ) => {
+      for (const [name, value] of Object.entries(framing))
+        c.header(name, value);
+      return c.html(body, status);
+    };
 
     // The key is what separates "came through the organization's proxy"
     // from "reached the endpoint directly" — the identity headers alone are
@@ -379,7 +434,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       c.req.header(names.key),
     );
     if (presented === undefined) {
-      return c.html(
+      return page(
         errorPage(
           basePath,
           `Missing trusted-header key: send it as "Authorization: Bearer <key>" or in the "${names.key}" header`,
@@ -399,20 +454,23 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         );
       } catch (error) {
         if (error instanceof RateLimitExceededError) {
-          return c.html(
+          return page(
             errorPage(basePath, 'Too many failed attempts; try again later'),
             429,
           );
         }
         throw error;
       }
-      return c.html(
+      return page(
         errorPage(basePath, 'Invalid or revoked trusted-header key'),
         401,
       );
     }
+    framing = framingHeaders(
+      await resolveFrameAncestors(deps.sql, resolved.organizationId),
+    );
     if (!resolved.enabled) {
-      return c.html(
+      return page(
         errorPage(
           basePath,
           'Trusted headers are disabled for this organization',
@@ -423,7 +481,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
 
     const email = c.req.header(names.email);
     if (!email) {
-      return c.html(
+      return page(
         errorPage(basePath, `Missing required header: ${names.email}`),
         400,
       );
@@ -450,7 +508,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {
       console.error('[Trusted Headers] BETTER_AUTH_SECRET not configured');
-      return c.html(errorPage(basePath, 'Server configuration error'), 500);
+      return page(errorPage(basePath, 'Server configuration error'), 500);
     }
 
     const cookieName = sessionCookieName(frontendOrigin);
@@ -489,7 +547,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         secret,
       );
 
-      const html = `<!DOCTYPE html>
+      const completing = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -501,13 +559,13 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
 </body>
 </html>`;
       c.header('Set-Cookie', cookie);
-      return c.html(html);
+      return page(completing);
     } catch (error) {
       if (error instanceof TrustedHeadersRefusedError) {
         console.warn(
           `[Trusted Headers] refused: ${error.reason} (organization ${resolved.organizationId})`,
         );
-        return c.html(
+        return page(
           errorPage(
             basePath,
             'This account is not a member of the organization this key belongs to. Ask an administrator to add you, then try again.',
@@ -516,7 +574,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         );
       }
       console.error('[Trusted Headers] Error:', error);
-      return c.html(errorPage(basePath, 'Failed to complete login'), 500);
+      return page(errorPage(basePath, 'Failed to complete login'), 500);
     }
   });
 

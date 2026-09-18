@@ -172,12 +172,20 @@ export function wrapCanvasPreviewHtml(userHtml: string): string {
 // `'self'` canvas-libs still load.
 export function buildCanvasPreviewCsp(
   extraOrigins: readonly string[] = [],
+  frameAncestors: readonly string[] = [],
 ): string {
   const validatedExtras = extraOrigins
     .map(validateExtraOrigin)
     .filter((o): o is string => o !== null);
   const extras =
     validatedExtras.length > 0 ? ' ' + validatedExtras.join(' ') : '';
+  // The SPA frames this document. When a host page frames the SPA in turn
+  // (an organization's `embedding` policy, `lib/org-frame-ancestors.ts`)
+  // the browser checks EVERY ancestor against this directive, so the same
+  // origins the shell admits must be admitted here — already validated by
+  // the policy schema before they reach a header.
+  const ancestors =
+    frameAncestors.length > 0 ? ' ' + frameAncestors.join(' ') : '';
   return (
     "default-src 'self' data: blob:; " +
     `script-src 'self' 'unsafe-inline' 'unsafe-eval'${extras}; ` +
@@ -185,7 +193,7 @@ export function buildCanvasPreviewCsp(
     `img-src 'self' data: blob:${extras}; ` +
     `font-src 'self' data:${extras}; ` +
     `connect-src 'self'${extras}; ` +
-    "frame-ancestors 'self'; " +
+    `frame-ancestors 'self'${ancestors}; ` +
     // No `form-action` directive: 'self' here means the iframe's opaque
     // origin (since sandbox runs without `allow-same-origin`), which
     // matches nothing — so any form in user HTML would be blocked. The

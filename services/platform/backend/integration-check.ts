@@ -17403,6 +17403,33 @@ async function checkTrustedHeaders(
     JOIN "user" u ON u."id" = s."userId"
     WHERE u."email" = ${proxyEmail}
   `;
+  // Framing: the door refuses every frame ancestor until the organization's
+  // `embedding` policy admits the host page's origin; then its answers name
+  // that origin beside 'self' and X-Frame-Options steps aside.
+  const framedBefore = await fetch(`${base}/api/trusted-headers/authenticate`, {
+    headers: {
+      ...identity(proxyEmail, 'member'),
+      authorization: `Bearer ${key}`,
+    },
+  });
+  await framedBefore.text();
+  const embeddingSaved = await fetch(
+    `${base}/api/app/governance/policies/embedding?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        config: { enabled: true, frameAncestors: ['https://embed.example'] },
+      }),
+    },
+  );
+  const framedAfter = await fetch(`${base}/api/trusted-headers/authenticate`, {
+    headers: {
+      ...identity(proxyEmail, 'member'),
+      authorization: `Bearer ${key}`,
+    },
+  });
+  await framedAfter.text();
 
   record(
     'trusted-headers door: the key names the organization; JIT member, clamped role, teams, session binding',
@@ -17427,8 +17454,16 @@ async function checkTrustedHeaders(
       viaHeader.cookie === first.cookie &&
       alias.status === 200 &&
       alias.cookie === first.cookie &&
-      proxySessions[0]?.count === '1',
-    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} sessions=${proxySessions[0]?.count} (want 1)`,
+      proxySessions[0]?.count === '1' &&
+      framedBefore.headers.get('x-frame-options') === 'DENY' &&
+      framedBefore.headers.get('content-security-policy') ===
+        "frame-ancestors 'none'" &&
+      embeddingSaved.ok &&
+      framedAfter.status === 200 &&
+      framedAfter.headers.get('x-frame-options') === null &&
+      framedAfter.headers.get('content-security-policy') ===
+        "frame-ancestors 'self' https://embed.example",
+    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
   );
 
   // ---- refusals, pause, revoke ----------------------------------------------

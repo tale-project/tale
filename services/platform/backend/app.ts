@@ -152,7 +152,20 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // The transport-security headers every response carries — registered
   // ahead of the guards below so a pre-route refusal (a 401, a 414, a NUL
   // 400) wears them too (lib/http-hygiene.ts).
-  app.use(backendSecureHeaders(process.env.SITE_URL));
+  // The trusted-headers hand-off renders inside a host application's frame
+  // when the organization's `embedding` policy admits it, so that door owns
+  // its framing headers per response (`domains/sso/trusted-headers.ts`);
+  // every other response keeps the fixed DENY.
+  const secure = backendSecureHeaders<AuthEnv>(process.env.SITE_URL);
+  const secureFrameable = backendSecureHeaders<AuthEnv>(process.env.SITE_URL, {
+    frameable: true,
+  });
+  app.use((c, next) =>
+    c.req.path.startsWith('/api/trusted-headers/') ||
+    c.req.path.startsWith('/http_api/api/trusted-headers/')
+      ? secureFrameable(c, next)
+      : secure(c, next),
+  );
   // The api-key plugin's header is the REST door's internal hand-off, never
   // a client credential: carried by a client it would open every session
   // gate below with the key holder's identity (lib/http-hygiene.ts).
