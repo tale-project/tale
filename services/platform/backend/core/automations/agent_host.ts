@@ -87,6 +87,10 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import {
+  retryResumePrompt,
+  type WorkflowAgentRetryResume,
+} from './agent_retry';
+import {
   answerResumePrompt,
   promptWithAnsweredAsks,
 } from './ask_answer_carryover';
@@ -165,6 +169,9 @@ export interface AutomationAgentHost {
     /** Broker-token hashes burned by prior failed attempts of this node
      * execution — the mint rotates away from them (softly). */
     excludeBrokerTokenHashes?: string[];
+    /** An auto-retry's continuation: the failed turn's conversation handle
+     * and why it ended. Absent, the turn is a fresh conversation. */
+    resume?: WorkflowAgentRetryResume;
   }): Promise<WorkflowAgentKick>;
   /** The settled result, or `null` while the turn still runs. Reads fresh —
    * the settle may land after the stepper's turn loaded its checkpoints. */
@@ -324,7 +331,13 @@ export function automationAgentHost(
   organizationId: string,
 ): AutomationAgentHost {
   return {
-    kick: async ({ runId, nodeId, request, excludeBrokerTokenHashes }) => {
+    kick: async ({
+      runId,
+      nodeId,
+      request,
+      excludeBrokerTokenHashes,
+      resume,
+    }) => {
       const harness = request.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
         throw new Error(
@@ -416,6 +429,7 @@ export function automationAgentHost(
           excludeBrokerTokenHashes.length > 0
             ? { excludeBrokerTokenHashes }
             : {}),
+          ...(resume !== undefined ? { resume } : {}),
           deadlineAt,
           request: {
             model: request.model,
@@ -1006,6 +1020,10 @@ export interface StartWorkflowAgentTurnArgs {
    * start refuses image inputs with, or briefs the agent about. */
   visionUnreadableReason?: string;
   excludeBrokerTokenHashes?: string[];
+  /** Set on an auto-retry that continues the failed turn's conversation:
+   * the exec resumes that harness session and opens with the retry prompt
+   * instead of the node prompt. */
+  resume?: WorkflowAgentRetryResume;
   deadlineAt: number;
   request: {
     model: string;
@@ -1217,19 +1235,24 @@ export async function startWorkflowAgentTurnImpl(
         secrets: args.request.secrets ?? [],
       });
 
-      // A kick is a FRESH conversation — on an auto-retry it replaces a dead
-      // turn whose conversation may already have collected operator answers
-      // (the answered-ask resume that died before progressing). Fold those
-      // answers into the prompt so the retry never asks them again; a first
-      // kick has none and the prompt stays as authored.
-      const answeredAsks = await ctx.runQuery(
-        internal.automations.human_asks.listAnsweredAsksForNode,
-        {
-          organizationId: args.organizationId,
-          runId: args.runId,
-          nodeId: args.nodeId,
-        },
-      );
+      // A kick without a resume is a FRESH conversation — on an auto-retry
+      // whose dead turn left no handle it replaces a conversation that may
+      // already have collected operator answers (the answered-ask resume
+      // that died before progressing). Fold those answers into the prompt
+      // so the retry never asks them again; a first kick has none and the
+      // prompt stays as authored. A resuming retry needs neither: its
+      // conversation already holds the assignment and every answer.
+      const answeredAsks =
+        args.resume === undefined
+          ? await ctx.runQuery(
+              internal.automations.human_asks.listAnsweredAsksForNode,
+              {
+                organizationId: args.organizationId,
+                runId: args.runId,
+                nodeId: args.nodeId,
+              },
+            )
+          : [];
       // The serving model's window, so the harness compacts before the
       // prompt outgrows what the model serves; unknown leaves it to the
       // harness.
@@ -1247,12 +1270,21 @@ export async function startWorkflowAgentTurnImpl(
         ...(contextWindow !== undefined ? { contextWindow } : {}),
         serving: auth.serving,
         instructions,
-        prompt: promptWithAnsweredAsks(args.request.prompt, answeredAsks),
+        prompt:
+          args.resume === undefined
+            ? promptWithAnsweredAsks(args.request.prompt, answeredAsks)
+            : retryResumePrompt(args.resume.reason),
         execId: args.execId,
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
+        // The auto-retry continues the failed turn's conversation: the
+        // transcript survives in the session workspace, so the agent picks
+        // up where the cut landed instead of re-deriving its plan.
+        ...(args.resume !== undefined
+          ? { resume: args.resume.agentSessionId }
+          : {}),
         ...(visionModelRef !== undefined
           ? { vision: { model: visionModelRef } }
           : {}),
@@ -2076,12 +2108,16 @@ async function continueOrSettle(
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
       : window.text;
+  // The conversation the failed turn leaves behind: the retry resumes it
+  // when the harness announced a handle (init line or end stamp).
+  const agentSessionId = ended?.sessionId ?? window.agentSessionId;
   await settleWorkflowAgentTurn(
     ctx,
     args,
     {
       errored,
       ...(reason !== undefined ? { reason } : {}),
+      ...(errored && agentSessionId !== undefined ? { agentSessionId } : {}),
       // Classification for the retry gate: a harness-reported error, a
       // crashed-no-result window and an empty answer all read
       // `harness_error`, so the stepper re-kicks them in place, except a

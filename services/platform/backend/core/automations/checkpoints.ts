@@ -62,6 +62,10 @@ export interface AgentTurnResult {
   /** HTTP status of a turn-terminating API error the harness reported
    * (429, 401, …), carried for display — never branched on for retry. */
   apiErrorStatus?: number;
+  /** The harness's conversation handle of an errored turn, when it had
+   * announced one — the auto-retry resumes that conversation over the
+   * preserved workspace instead of starting the node's reasoning again. */
+  agentSessionId?: string;
   text: string;
   files: AgentTurnFile[];
   /** Outputs the harvest could not bring back (over a cap, unreadable,
@@ -108,6 +112,9 @@ export interface AgentCursor {
    * execution, carried so the re-kick's mint can exclude them (softly — an
    * exhausted pool falls back to every account). */
   burnedBrokerTokenHashes?: string[];
+  /** The conversation this attempt resumed — the failed attempt's harness
+   * session handle — so the record says the retry continued, not restarted. */
+  resumedFrom?: string;
   result?: AgentTurnResult;
 }
 
