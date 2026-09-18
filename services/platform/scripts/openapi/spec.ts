@@ -3913,6 +3913,141 @@ export function buildSpec(): Json {
     },
   };
 
+  paths['/api/v1/projects/{id}/tasks/{taskId}/review'] = {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Read a task’s open review',
+      description:
+        'The task’s status beside the review a person still has to decide — `review: null` when none is pending. Read access, like the task itself. A task reaches `in_review` when its workflow parks there; the decision is made with a POST to this path, or on the board.',
+      operationId: 'getTaskReview',
+      security: sec,
+      parameters: taskParameters,
+      responses: {
+        '200': jsonResponse('The task’s status and its pending review', {
+          type: 'object',
+          required: ['task', 'review'],
+          properties: {
+            task: {
+              type: 'object',
+              required: ['id', 'status'],
+              properties: {
+                id: str,
+                status: {
+                  type: 'string',
+                  enum: [
+                    'backlog',
+                    'todo',
+                    'in_progress',
+                    'in_review',
+                    'done',
+                    'cancelled',
+                  ],
+                },
+              },
+            },
+            review: nullable(ref('TaskReview')),
+          },
+        }),
+        '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Tasks'],
+      summary: 'Decide a task’s review for a member',
+      description:
+        'Requires write access to an active project and a task in `in_review` (409 `TASK_NOT_IN_REVIEW` otherwise). The decision is a person’s own gesture relayed from another application, so `actor` is required and the caller needs `capabilities.actAs` from `/me` (403 `ROLE_FORBIDDEN` without it); the member is resolved by verified e-mail (see `Actor`) and it is THEIR project access and the organization’s `review_policy` that decide, exactly as on the board — 403 `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them. `approve` is the move to Done: the pending review is recorded as approved by the member and audited, and the task’s status becomes `done` (a task with open subtasks answers 409 `TASK_HAS_OPEN_SUBTASKS`). `request_changes` withdraws the review, puts the member’s `comment` on the timeline and starts `workflowSlug` again on the task — the workflow reads the comment as operator feedback — so both fields are required for it; the task’s status becomes `in_progress` and the answer carries the run to poll (`started: false` with `reason` semantics as on `…/start`: a live run is reused). Charges the execute bucket on top of the general REST bucket.',
+      operationId: 'decideTaskReview',
+      security: sec,
+      parameters: taskParameters,
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: ['decision', 'actor'],
+        properties: {
+          decision: { type: 'string', enum: ['approve', 'request_changes'] },
+          comment: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 20000,
+            description:
+              'The member’s feedback — required for `request_changes`, ignored for `approve`',
+          },
+          workflowSlug: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200,
+            description:
+              'The automation to start again with the feedback — required for `request_changes`; the `/` form (`billing/dunning`), as on `…/start`',
+          },
+          actor: ref('Actor'),
+        },
+      }),
+      responses: {
+        '200': jsonResponse('The decision was applied', {
+          type: 'object',
+          required: ['task', 'decision', 'approvalId', 'actorUserId'],
+          properties: {
+            task: {
+              type: 'object',
+              required: ['id', 'status'],
+              properties: {
+                id: str,
+                status: { type: 'string', enum: ['done', 'in_progress'] },
+              },
+            },
+            decision: {
+              type: 'string',
+              enum: ['approve', 'request_changes'],
+            },
+            approvalId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The review the decision closed, or null when the task was in review without a recorded review row',
+            },
+            actorUserId: {
+              type: 'string',
+              description:
+                'The member the e-mail resolved to — pin it as `actor.userId` on later calls',
+            },
+            started: {
+              type: 'boolean',
+              description:
+                'Present for `request_changes`: true when THIS call started the run, false when a live run was reused',
+            },
+            runId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'Present for `request_changes`: the run to poll at GET /api/v1/projects/{id}/runs/{runId}',
+            },
+            executionId: {
+              type: 'string',
+              nullable: true,
+              deprecated: true,
+              description: 'Alias of `runId`',
+            },
+          },
+        }),
+        '403': errorResponse(
+          'Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not write this task (`ACTOR_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`)',
+        ),
+        '404': errorResponse(
+          'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
+        ),
+        '409': errorResponse(
+          'The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`)',
+        ),
+        ...standardErrors,
+        '400': withDoorRefusal(
+          standardErrors['400'],
+          'a `request_changes` without `comment` or `workflowSlug` (`INVALID_BODY`, the field named under `data.issues`)',
+        ),
+      },
+    },
+  };
+
   // ── Automations ───────────────────────────────────────────────────────────
 
   /** What every run listing says about its shape. */
@@ -4531,6 +4666,96 @@ export function buildSpec(): Json {
             'The run is still queued, running or waiting (`RUN_ACTIVE`)',
           ),
           ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/ask`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Read the question a run is waiting on',
+        description: `${visibility} The live question of the run — what \`waitingFor: "ask"\` parks it on — or \`ask: null\` when nothing waits on a person: a run that is not waiting, an expired question, a finished run. Same visibility as reading the run; no developer capability. Answer it at \`POST …/asks/{askId}\`.`,
+        operationId: scope.project ? 'getProjectRunAsk' : 'getRunAsk',
+        security: sec,
+        parameters,
+        responses: {
+          '200': jsonResponse('The pending question, or null', {
+            type: 'object',
+            required: ['ask'],
+            properties: { ask: nullable(ref('PendingAsk')) },
+          }),
+          '404': errorResponse('Run missing or outside the visible URL scope'),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/asks/{askId}`] = {
+      post: {
+        tags: ['Runs'],
+        summary: 'Answer the question a run is waiting on',
+        description: `${visibility}${scope.project ? ' Requires write access to an active project.' : ' Requires membership.'} Records the answer and resumes the run in the same transaction, then mirrors the answer onto the task timeline as the answerer’s own comment when the run works on a task. The agent asked a person, so the record names one: send \`actor\` to answer FOR a verified member (the caller then needs \`capabilities.actAs\` from \`/me\` — 403 \`ROLE_FORBIDDEN\` without it; the member is resolved by e-mail, see \`Actor\`), or send none to answer as the key (\`answeredBy: "api-key:<userId>"\`). A question already answered or closed answers 409 \`HUMAN_ASK_NOT_PENDING\`, one past its deadline 409 \`HUMAN_ASK_EXPIRED\` (the run then fails with \`failureCode: "ask_expired"\`), one this run did not ask 404 \`HUMAN_ASK_NOT_FOUND\`. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project ? 'answerProjectRunAsk' : 'answerRunAsk',
+        security: sec,
+        parameters: [
+          ...parameters,
+          pathParam('askId', 'The question’s `askId`, as `GET …/ask` named it'),
+        ],
+        requestBody: jsonBody({
+          type: 'object',
+          additionalProperties: false,
+          required: ['answer'],
+          properties: {
+            answer: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 20000,
+              description:
+                'The answer as the agent reads it. For a `questions` set, one line per question in the form the app sends: `<question> → <picked label>; <typed text> (in their own words)`',
+            },
+            actor: ref('Actor'),
+          },
+        }),
+        responses: {
+          '200': jsonResponse('The answer was recorded and the run resumes', {
+            type: 'object',
+            required: ['ok', 'askId', 'runId', 'answeredBy', 'taskId'],
+            properties: {
+              ok: { type: 'boolean', enum: [true] },
+              askId: str,
+              runId: str,
+              answeredBy: {
+                type: 'string',
+                description:
+                  'What `answered_by` records: the actor’s user id, or `api-key:<userId>` when the key answered as itself',
+              },
+              actorUserId: {
+                type: 'string',
+                description:
+                  'Present when `actor` was sent: the member the e-mail resolved to — pin it as `actor.userId` on later calls so a reassigned address refuses instead of acting as its new holder',
+              },
+              taskId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The task the run works on, whose timeline carries the answer as a comment; null for a run without a task',
+              },
+            },
+          }),
+          '403': errorResponse(
+            scope.project
+              ? 'Project is read-only or archived; an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`); an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not see this project (`ACTOR_FORBIDDEN`)'
+              : 'An `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`); an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not see this project (`ACTOR_FORBIDDEN`)',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); the question is not this run’s (`HUMAN_ASK_NOT_FOUND`); no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`)',
+          ),
+          '409': errorResponse(
+            'The question was already answered or closed (`HUMAN_ASK_NOT_PENDING`) or expired (`HUMAN_ASK_EXPIRED`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`)',
+          ),
+          ...standardErrors,
+          '400': withDoorRefusal(
+            standardErrors['400'],
+            'an answer that is blank once trimmed (`EMPTY_ANSWER`)',
+          ),
         },
       },
     };
@@ -7166,7 +7391,12 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'object',
               description:
                 'What this key may do — the gates a deployment knob, the role or an administrator’s grant decides, answered here so a client learns them before its first write rather than from a 403',
-              required: ['deploymentEditor', 'developer', 'notificationExport'],
+              required: [
+                'deploymentEditor',
+                'developer',
+                'notificationExport',
+                'actAs',
+              ],
               additionalProperties: false,
               properties: {
                 deploymentEditor: {
@@ -7178,6 +7408,11 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...bool,
                   description:
                     'True when the key holder’s role (owner, admin, developer) carries the developer capability — the gate on a live `POST …/runs`, `POST …/cancel`, `DELETE /runs/{runId}`, `PUT`/`DELETE …/triggers`, `DELETE /automations/{name}`, the project install and uninstall, and the MCP `save_automation`/`deploy_automation`/`set_trigger` tools; false there answers 403 `ROLE_FORBIDDEN`',
+                },
+                actAs: {
+                  ...bool,
+                  description:
+                    'True when the key holder may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`: an organization owner or administrator by role, or any other member through a live `tale:rest.act-as` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); an `actor` sent without it answers 403 `ROLE_FORBIDDEN`',
                 },
                 notificationExport: {
                   ...bool,
@@ -7508,6 +7743,163 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             createdAt: epochMs,
             updatedAt: epochMs,
+          },
+        },
+        Actor: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['email'],
+          description:
+            'The verified member a machine caller acts FOR when it relays a person’s own gesture — named by e-mail, never by an id the caller made up. The door resolves the address against the organization’s members with the notification export’s rule: exactly one active, verified membership. Naming an actor at all needs `capabilities.actAs` from `/me`.',
+          properties: {
+            email: {
+              type: 'string',
+              format: 'email',
+              maxLength: 320,
+              description:
+                'The member’s e-mail address, compared without regard to case; it must be verified in Tale (403 `ACTOR_UNVERIFIED` otherwise), belong to exactly one active member of the organization (404 `ACTOR_NOT_FOUND`, 409 `ACTOR_AMBIGUOUS`, 403 `ACTOR_DISABLED`) and have access to the project the door acts in (403 `ACTOR_FORBIDDEN`)',
+            },
+            userId: {
+              type: 'string',
+              maxLength: 128,
+              description:
+                'The member’s id an earlier answer returned as `actorUserId`. Pin it: an address that has since moved to another account then answers 409 `ACTOR_REBOUND` instead of acting as its new holder',
+            },
+          },
+        },
+        QuestionSet: {
+          type: 'object',
+          required: ['questions'],
+          description:
+            'A structured question set an agent may ask instead of a plain sentence: up to four questions, each a choice among two to four labelled options; the person may also answer a question in their own words. Render each `question` with its `options`; the answer travels back as one string per question (see the answer door).',
+          properties: {
+            intro: {
+              type: 'string',
+              maxLength: 600,
+              description:
+                'The heading above the set — what the agent is trying to settle',
+            },
+            questions: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 4,
+              items: {
+                type: 'object',
+                required: ['id', 'question', 'options'],
+                properties: {
+                  id: { type: 'string', maxLength: 64 },
+                  question: { type: 'string', maxLength: 300 },
+                  header: {
+                    type: 'string',
+                    maxLength: 12,
+                    description: 'A very short label for a progress chip',
+                  },
+                  multiSelect: bool,
+                  options: {
+                    type: 'array',
+                    minItems: 2,
+                    maxItems: 4,
+                    items: {
+                      type: 'object',
+                      required: ['label'],
+                      properties: {
+                        label: {
+                          type: 'string',
+                          maxLength: 80,
+                          description:
+                            'The option’s label — it IS the answer value',
+                        },
+                        description: { type: 'string', maxLength: 200 },
+                        recommended: bool,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        PendingAsk: {
+          type: 'object',
+          required: [
+            'askId',
+            'runId',
+            'nodeId',
+            'question',
+            'createdAt',
+            'expiresAt',
+          ],
+          description:
+            'The question a run is parked on (`waitingFor: "ask"`): what the agent asked, on which node, and until when an answer still resumes the run. Answer at `POST …/runs/{runId}/asks/{askId}`.',
+          properties: {
+            askId: str,
+            runId: str,
+            nodeId: {
+              type: 'string',
+              description: 'The agent node that asked',
+            },
+            question: {
+              type: 'string',
+              description:
+                'The question as one sentence — always present, and the whole question when `questions` is absent',
+            },
+            questions: {
+              ...ref('QuestionSet'),
+              description:
+                'Present when the agent asked a structured set; `question` then summarises it',
+            },
+            createdAt: epochMs,
+            expiresAt: {
+              ...epochMs,
+              description:
+                'When the question stops accepting an answer — the run then fails with `failureCode: "ask_expired"`',
+            },
+            taskId: {
+              type: 'string',
+              description:
+                'The task the run works on, whose timeline mirrors the answer; absent for a run without a task',
+            },
+          },
+        },
+        TaskReview: {
+          type: 'object',
+          required: [
+            'approvalId',
+            'taskId',
+            'round',
+            'requestedFor',
+            'agentSlug',
+            'runId',
+            'createdAt',
+          ],
+          description:
+            'A task’s open review: the gate a person decides at `POST …/tasks/{taskId}/review` or on the board.',
+          properties: {
+            approvalId: str,
+            taskId: str,
+            round: {
+              type: 'integer',
+              description:
+                'Which review of this task this is; 0 when unrecorded',
+            },
+            requestedFor: {
+              type: 'string',
+              nullable: true,
+              description: 'The reviewer the request named, if any',
+            },
+            agentSlug: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The agent whose work is under review, if the park named one',
+            },
+            runId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The run whose settle parked the task in review, if any',
+            },
+            createdAt: epochMs,
           },
         },
         TaskUpsertResult: {

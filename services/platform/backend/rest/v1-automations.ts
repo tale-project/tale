@@ -6,7 +6,10 @@ import { z } from 'zod';
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
+import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
+import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
+  answerAsk,
   AutomationError,
   automationExists,
   beginRun,
@@ -21,6 +24,7 @@ import {
   deleteRunInTx,
   deleteTrigger,
   deployedVersion,
+  getPendingAskForRun,
   getRun,
   type IdempotentStart,
   listAutomations,
@@ -35,7 +39,17 @@ import {
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
-import { listProjects } from '../domains/projects/service.ts';
+import {
+  getProjectAuthContext,
+  listProjects,
+} from '../domains/projects/service.ts';
+import { addTaskComment } from '../domains/tasks/comments.ts';
+import {
+  actedBy,
+  actorBodySchema,
+  refusedForActor,
+  resolveRequestActor,
+} from './actor.ts';
 import {
   chargeLane,
   domainErrorResponse,
@@ -142,6 +156,9 @@ void RUN_FIELDS_COMPLETE;
 
 /** The query a run read takes: the fields to keep, or all of them. */
 const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
+
+/** The most an answer may carry — the store clamps at the same figure. */
+const ASK_ANSWER_MAX = 20_000;
 
 /** What a run read may project: every stored key, plus the wait family
  * the read derives while a run is parked (`waitingFor`). */
@@ -943,6 +960,151 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   app.post('/runs/:runId/cancel', stopRun);
   app.post('/projects/:id/runs/:runId/cancel', stopRun);
+
+  /**
+   * The live question of a run — null when nothing waits on a person.
+   * Membership for an organization run, project read access for a project
+   * run: the same visibility as reading the run, no developer capability.
+   */
+  const readAsk = async (c: Context<RestEnv>) => {
+    try {
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      const organizationId = c.get('organizationId');
+      if (projectId !== undefined) {
+        const auth = await restProjectAuth(deps.sql, c);
+        await loadRestProject(deps.sql, auth, projectId);
+      }
+      const run = await getRun(deps.sql, organizationId, runId);
+      if (run === null || run.projectId !== (projectId ?? null))
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      return c.json({
+        ask: await getPendingAskForRun(deps.sql, organizationId, runId),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/ask', readAsk);
+  app.get('/projects/:id/runs/:runId/ask', readAsk);
+
+  const askAnswerBody = z
+    .object({
+      answer: z.string().trim().min(1).max(ASK_ANSWER_MAX),
+      actor: actorBodySchema.optional(),
+    })
+    .strict();
+
+  /**
+   * Answer a run's question. The agent asked a PERSON, not a role, so any
+   * member may answer an organization run's question and any project
+   * writer a project run's (the app's 0.4 gate) — and the record names who:
+   * the `actor` the caller relays for (see `./actor.ts`), else the key.
+   * Recording the answer enqueues the run's resume in the same transaction
+   * (`answerAsk`); the answer is then mirrored onto the task timeline as
+   * that person's comment, the way the app's task panel does it, so the
+   * thread shows who decided what.
+   */
+  const answerRunAsk = async (c: Context<RestEnv>) => {
+    const body = await parseBody(c, askAnswerBody);
+    if (body instanceof Response) return body;
+    try {
+      const runId = c.req.param('runId') ?? '';
+      const askId = c.req.param('askId') ?? '';
+      const projectId = c.req.param('id');
+      const organizationId = c.get('organizationId');
+      // The gate on naming an actor runs before any member row is read.
+      const actor = await resolveRequestActor(deps.sql, c, body.actor);
+      const keyHolder = await restProjectAuth(deps.sql, c);
+      if (projectId !== undefined) {
+        await loadRestProject(deps.sql, keyHolder, projectId, { write: true });
+      }
+      const run = await getRun(deps.sql, organizationId, runId);
+      if (run === null || run.projectId !== (projectId ?? null))
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      const author =
+        actor === null
+          ? keyHolder
+          : await getProjectAuthContext(
+              deps.sql,
+              { organizationId, userId: actor.userId, role: actor.role },
+              actor.email,
+            );
+      // The PERSON must be able to see the project the run belongs to —
+      // judged before anything is recorded in their name, and named as
+      // theirs: the key holder's own access was proven above.
+      if (actor !== null && projectId !== undefined) {
+        await loadRestProject(deps.sql, author, projectId).catch(
+          refusedForActor,
+        );
+      }
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited) return limited;
+      const answeredBy = actedBy(actor, c);
+      const answered = await answerAsk(deps.sql, {
+        organizationId,
+        askId,
+        runId,
+        answer: body.answer,
+        answeredBy,
+      });
+      await deps.sql.begin(async (tx) => {
+        await createAuditLog(tx, {
+          organizationId,
+          actorId: author.userId,
+          ...(author.email !== undefined ? { actorEmail: author.email } : {}),
+          actorType: 'user',
+          action: 'automation.ask_answered',
+          category: 'data',
+          resourceType: 'automation_run',
+          resourceId: runId,
+          resourceName: run.name,
+          newState: { askId, answeredBy },
+          metadata: {
+            askId,
+            via: 'api-key',
+            keyHolderUserId: c.get('userId'),
+            ...(answered.taskId !== null ? { taskId: answered.taskId } : {}),
+          },
+          status: 'success',
+        });
+      });
+      // The mirror is best effort, exactly as in the app: the answer and
+      // its resume are recorded already, so a comment that cannot land
+      // (the person cannot read the task's project, say) only warns.
+      if (answered.taskId !== null) {
+        const taskId = answered.taskId;
+        try {
+          await deps.sql.begin(async (tx) => {
+            // The ask accepts twice what a comment holds; the mirror keeps
+            // the head, the answer itself is stored whole on the ask.
+            await addTaskComment(tx, author, {
+              taskId,
+              body: body.answer.slice(0, TASK_COMMENT_MAX),
+            });
+          });
+        } catch (error) {
+          console.warn('[rest] ask answer comment mirror failed', {
+            runId,
+            askId,
+            error: String(error),
+          });
+        }
+      }
+      return c.json({
+        ok: true,
+        askId,
+        runId,
+        answeredBy,
+        ...(actor === null ? {} : { actorUserId: actor.userId }),
+        taskId: answered.taskId,
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/asks/:askId', answerRunAsk);
+  app.post('/projects/:id/runs/:runId/asks/:askId', answerRunAsk);
 
   /** Remove a FINISHED run — its row, its questions, the delivery and
    * idempotency entries that pointed at it. Mirrors the stop route: the

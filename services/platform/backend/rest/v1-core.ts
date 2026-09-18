@@ -105,6 +105,7 @@ import {
   modifiedSince,
 } from '../lib/conditional-get.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
+import { mayActAs } from './actor.ts';
 import {
   productRestImageSchema,
   productRestPayload,
@@ -307,6 +308,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         // confirms its grant before its first page, not from a 403. An admin
         // costs no query.
         notificationExport: await mayExportNotifications(
+          deps.sql,
+          {
+            organizationId: c.get('organizationId'),
+            userId: c.get('userId'),
+            role: c.get('role'),
+          },
+          Date.now(),
+        ),
+        actAs: await mayActAs(
           deps.sql,
           {
             organizationId: c.get('organizationId'),

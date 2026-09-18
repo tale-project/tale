@@ -184,18 +184,21 @@ default means deleting the override and fixing what surfaces:
   Paying it down means (1) parsing usage in `parseChatReply` and booking it through
   `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
   `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
-- **Approvals and asks have no REST twins** — a run parked on `waitingFor: approval` or `ask`
-  can only be decided in the app (`backend/domains/approvals/routes.ts`,
-  `backend/domains/automations/routes.ts` `…/ask`, `…/asks/:askId/answer`); over REST the
-  `detail` (`approval:<approvalId>`) names something no door takes (2026-09, round g). Paying
-  it down means, beside cancel in `services/platform/backend/rest/v1-automations.ts` in both
-  scopes: `GET {run}/ask` → `{ask: PendingAsk|null}`, `POST {run}/asks/{askId}` `{answer}`
-  (with `runId` added to `answerAsk`'s locked read so ownership rides the lock),
-  `GET {run}/approvals/{approvalId}` (a `connector_operation` card whose `metadata.runId`
-  matches, else 404) and `POST {run}/approvals/{approvalId}` `{decision, comments?}` →
+- **Approvals have no REST twin** — a run parked on `waitingFor: approval` can only be decided
+  in the app (`backend/domains/approvals/routes.ts`); over REST the `detail`
+  (`approval:<approvalId>`) names something no door takes (2026-09, round g). The ask half was
+  paid down on 2026-09-18 (contract 1.16.0): `GET {run}/ask` → `{ask: PendingAsk|null}` and
+  `POST {run}/asks/{askId}` `{answer, actor?}` sit beside cancel in
+  `services/platform/backend/rest/v1-automations.ts` in both scopes, with `runId` on
+  `answerAsk`'s locked read, the answer mirrored onto the task timeline, and `actor` (a member
+  named by verified e-mail, `rest/actor.ts`, gated by `tale:rest.act-as`) so a relayed answer
+  records the person; the same actor rides `POST …/tasks/{taskId}/review` (approve = the move
+  to Done, request_changes = comment + restart). Paying down the approval half means, beside
+  those: `GET {run}/approvals/{approvalId}` (a `connector_operation` card whose `metadata.runId`
+  matches, else 404) and `POST {run}/approvals/{approvalId}` `{decision, comments?, actor?}` →
   `decideApproval`; membership for an org run, project write access for a project run, no
   developer capability, `rest:execute` charged; `ApprovalError`'s generic codes re-coded at the
-  door; five registry codes, schemas, docs and a contract bump.
+  door; registry codes, schemas, docs and a contract bump.
 - **A task cannot be archived or deleted over REST** — `Task.archivedAt` says "this door has
   no verb for it": the app's `POST /api/app/tasks/:taskId/archive` (`archiveTask`, editor) and
   `DELETE /api/app/tasks/:taskId` (`deleteTask`, owner/admin — the recursive retire in

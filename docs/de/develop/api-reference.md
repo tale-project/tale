@@ -67,6 +67,7 @@ Prüfe vor einer Operation sowohl die Rolle als auch den Zugriff auf die Ressour
 | `developer` | Inhaber, Admins und Entwickler dürfen beliebige Live-Läufe starten, Läufe abbrechen oder löschen, Trigger binden oder lösen, Automatisierungen löschen sowie Projekt-Automatisierungen installieren oder deinstallieren. Ohne diese Berechtigung liefern diese REST-Operationen `403 ROLE_FORBIDDEN`. MCP prüft sie ebenfalls beim Speichern, Bereitstellen und für weitere privilegierte Tools, nutzt aber sein eigenes Fehlerformat. Validierung und Mock-Tools bleiben für Mitglieder verfügbar. Der Projektzugriff wird gesondert geprüft. |
 | `deploymentEditor` | Die Freigabeliste des Betreibers erlaubt Import und Widerruf von Browsersitzungen. Eine administrative Rolle allein reicht dafür nicht. |
 | `notificationExport` | Der Schlüssel darf Benachrichtigungen von Mitgliedern über `GET /api/v1/notifications/sync` exportieren. Inhaber und Admins haben diese Berechtigung durch ihre Rolle, alle anderen Mitglieder nur mit einer gültigen Berechtigung `tale:notifications.export`, die ein Admin erteilt hat; siehe [Export ohne Admin-Rolle delegieren](#export-ohne-admin-rolle-delegieren). Ohne sie liefert der Export `403 ROLE_FORBIDDEN`. |
+| `actAs` | Der Schlüssel darf auf `POST …/runs/{runId}/asks/{askId}` und `POST …/tasks/{taskId}/review` einen `actor` nennen — das verifizierte Mitglied, für das eine weitergereichte Handlung festgehalten wird. Inhaber und Admins haben das Recht durch ihre Rolle; jedes andere Mitglied nur, solange eine `tale:rest.act-as`-Freigabe eines Admins gilt — siehe [Das Mitglied benennen, für das gehandelt wird](#das-mitglied-benennen-fuer-das-gehandelt-wird). Ohne dieses Recht antwortet ein gesendeter `actor` mit `403 ROLE_FORBIDDEN`. |
 
 ## Was für jede Anfrage gilt
 
@@ -211,7 +212,7 @@ Jede **201**, die eine adressierbare Ressource anlegt, trägt `Location` — den
 | --- | --- |
 | Automatisierungen | `/api/v1/automations/...`<br>Definitionen, Versionen, Trigger und die Projekte, in denen jede installiert ist; eine Definition löschen; Läufe ohne Projekt starten und auflisten. |
 | Projekt-Automatisierungen | `/api/v1/projects/{id}/automations/...`<br>Installierte Automatisierungen auflisten, eine installieren oder wieder entfernen und Läufe dieses Projekts starten oder lesen. |
-| Läufe | `/api/v1/runs`, `/api/v1/projects/{id}/runs` und ein einzelner Lauf unter `/api/v1/projects/{id}/runs/{runId}` oder `/api/v1/runs/{runId}`<br>Läufe über Automatisierungen hinweg auflisten; einen vollständig lesen — Status, Ausgabe, Trace, Effekte; einen laufenden mit `POST .../cancel` abbrechen und einen beendeten mit `DELETE` entfernen; Projektläufe verwenden den Projektpfad. |
+| Läufe | `/api/v1/runs`, `/api/v1/projects/{id}/runs` und ein einzelner Lauf unter `/api/v1/projects/{id}/runs/{runId}` oder `/api/v1/runs/{runId}`<br>Läufe über Automatisierungen hinweg auflisten; einen vollständig lesen — Status, Ausgabe, Trace, Effekte; einen laufenden mit `POST .../cancel` abbrechen und einen beendeten mit `DELETE` entfernen; die Frage eines wartenden Laufs unter `GET .../ask` lesen und unter `POST .../asks/{askId}` beantworten; Projektläufe verwenden den Projektpfad. |
 | Threads | `/api/v1/projects/{id}/threads/...` oder `/api/v1/threads/...`<br>Eigene Chats innerhalb eines Projekts oder ohne Projekt: auflisten, anlegen, lesen, archivieren oder wiederherstellen, löschen, Nachrichten senden, den Turn abfragen und abbrechen. |
 | Modelle | `GET /api/v1/models`<br>Konfigurierte Chat-Modelle, die dem Schlüsselbesitzer in dieser Organisation zur Verfügung stehen — dazu `harnesses`, die Coding-Harnesses, auf denen ein Projektagent laufen darf — mit `contextWindow`, `maxOutputTokens` (fehlt, wenn der Katalog keine Obergrenze nennt — dann prüft ein Senden auch keine), Fähigkeiten, optionalen `pricing`-Angaben bei veröffentlichten Katalogpreisen und `default: true` an der Wahl der Organisation, wenn eine konfiguriert und zugänglich ist. |
 | Agenten | `/api/v1/projects/{id}/agents/...`<br>Agenten im angegebenen Projekt auflisten, lesen, anlegen, ändern (bedingt, mit `expectedUpdatedAt`) und löschen. |
@@ -226,7 +227,7 @@ Jede **201**, die eine adressierbare Ressource anlegt, trägt `Location` — den
 | Gespräche | `/api/v1/conversations/...`<br>Externe Gespräche als versionierte Snapshots in den Posteingang spiegeln, die Snapshot-Quittung einer Quelle lesen, in die Zustellwarteschlange einer Quelle schauen, native Antworten abholen, ihre Zustellung bestätigen oder als fehlgeschlagen melden und eine unzustellbar abgelegte neu anstoßen; genaue Schemas stehen unter `/docs` der laufenden Instanz. |
 | Benachrichtigungen | `GET /api/v1/notifications/sync`<br>Persönliche oder sichtbare Organisationsmeldungen eines bestätigten Mitglieds exportieren; für Inhaber/Admins oder Mitglieder, denen ein Admin `tale:notifications.export` erteilt hat. Signierte Pagination, übersetzte Texte, stabile IDs und Hashes für Inhalt und Lesestatus. |
 | Projekte | `/api/v1/projects/...`<br>Der Maschinenzugang für externe Worker: Projekte auflisten oder eines per externer ID nachschlagen, anlegen, archivieren und wiederherstellen, löschen; Ordner vorbereiten, Dateien hochladen, herunterladen und löschen, eine Datei sofort indexieren, Ordner löschen. |
-| Aufgaben | `/api/v1/projects/{id}/tasks/...`<br>Aufgaben aus externen Referenzen idempotent anlegen, Status lesen, Workflows starten (die Antwort nennt die `runId` zum Pollen) und kommentieren, jeweils im benannten Projekt. |
+| Aufgaben | `/api/v1/projects/{id}/tasks/...`<br>Aufgaben aus externen Referenzen idempotent anlegen, Status lesen, Workflows starten (die Antwort nennt die `runId` zum Pollen), kommentieren und die Prüfung einer Aufgabe unter `GET .../review` lesen bzw. unter `POST .../review` für ein Mitglied entscheiden, jeweils im benannten Projekt. |
 | MCP | `POST /api/v1/mcp`<br>Der [MCP-Endpoint](/de/develop/mcp-endpoint) — derselbe Schlüssel, JSON-RPC statt REST. |
 | Webhook-Trigger | `POST /api/projects/{id}/automations/webhook/{token}` oder `POST /api/automations/webhook/{token}`<br>Eine bereitgestellte Automatisierung per Token starten; [Webhooks](/de/develop/webhooks) erklärt URLs mit und ohne Projekt. |
 
@@ -648,6 +649,55 @@ Das Projekt in der URL bestimmt den Kontext der Aufgaben- und Dokumentwerkzeuge 
 Listen antworten mit Zusammenfassungen — Identität, Geltungsbereich, Status und Zeiten, jede Zeile nennt den Lauf als `id` und, unter dem Namen, den der Start beantwortet hat, als `runId`, ein Wert unter beiden Namen —, die neuesten zuerst, als `{ "runs": [...], "isDone": ..., "continueCursor": ... }`: Hänge `?status=failed` an (ein oder mehrere Status, kommagetrennt), um sie einzugrenzen, `?include=input,output` (auch `trace`, `effects`, `checkpoints`), um die Felder der vollen Zeile einzubetten, die eine Zusammenfassung weglässt — eine einbettende Seite liest höchstens 25 Zeilen, ist auf 8 MiB davon begrenzt und endet vorzeitig mit `isDone: false`, wenn die nächste Zeile nicht mehr passt —, und gib `continueCursor` als `?cursor=` zurück, bis `isDone` gilt.
 
 `GET /api/v1/runs` ist die Sicht quer über alles: jeder Lauf, den der Schlüsselbesitzer sehen darf, Organisationsläufe wie Läufe sichtbarer Projekte, jede Zeile mit ihrer `projectId`. Eine Automatisierung ohne Bindungen kannst du mit `POST /api/v1/automations/{name}/runs` ohne Projekt starten; eine gebundene Automatisierung ergibt dort **409**. `GET /api/v1/automations/{name}/runs` und `/api/v1/runs/{runId}` zeigen ausschließlich Läufe ohne Projekt. Zum Lesen, Abbrechen und Löschen eines Projektlaufs brauchst du dessen Projekt-URL. `DELETE /api/v1/projects/{id}/runs/{runId}` (oder `/api/v1/runs/{runId}`) entfernt einen beendeten Lauf — samt gespeicherter Eingabe und Ausgabe — unter der Entwickler-Fähigkeit; ein Lauf, der noch in Arbeit ist, ergibt **409** `RUN_ACTIVE`, brich ihn also zuerst ab.
+
+## Für ein Mitglied handeln: Frage eines Laufs beantworten, Prüfung einer Aufgabe entscheiden
+
+Ein Lauf, der mit `waitingFor: "ask"` parkt, und eine Aufgabe in `in_review` warten beide auf eine Person. Arbeitet diese Person in einer anderen Anwendung — etwa einem Büroportal, das den Arbeitsplatz spiegelt —, reicht der Maschinenaufruf ihre Handlung weiter und nennt sie als `actor`. Tale hält dann die Person fest, nicht den Schlüssel. Beide Türen brauchen den API-Vertrag 1.16.0.
+
+### Die Frage beantworten, auf die ein Lauf wartet
+
+`GET /api/v1/projects/{id}/runs/{runId}/ask` liefert die offene Frage als `PendingAsk` — den Satz, optional ein strukturiertes `questions`-Set, den fragenden Knoten und die Frist `expiresAt` — oder `ask: null`, wenn niemand gefragt ist. Zum Lesen genügt derselbe Zugriff wie zum Lesen des Laufs.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/ask" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "ask": { "askId": "...", "question": "...", "expiresAt": 1758210000000, "taskId": "..." } }
+```
+
+Die Antwort geht an `POST /api/v1/projects/{id}/runs/{runId}/asks/{askId}`. Tale speichert sie, setzt den Lauf in derselben Transaktion fort und stellt die Antwort als eigenen Kommentar der antwortenden Person auf die Zeitleiste der Aufgabe. Bei einem `questions`-Set sendest du pro Frage eine Zeile, so wie es die App tut: `<Frage> → <gewählte Option>; <eingetippter Text> (in their own words)`.
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/asks/<askId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "answer": "Im Februar buchen.", "actor": { "email": "reviewer@example.com" } }'
+# → 200 { "ok": true, "askId": "...", "runId": "...", "answeredBy": "<userId>", "actorUserId": "<userId>", "taskId": "..." }
+```
+
+Ein Projektlauf verlangt Schreibzugriff auf ein aktives Projekt, ein Organisationslauf die Mitgliedschaft. Ohne `actor` antwortet der Schlüssel als er selbst, und `answeredBy` lautet `api-key:<userId>`. Eine bereits beantwortete oder geschlossene Frage liefert **409** `HUMAN_ASK_NOT_PENDING`, eine abgelaufene **409** `HUMAN_ASK_EXPIRED` — der Lauf scheitert dann mit `failureCode: "ask_expired"` — und eine Frage, die nicht dieser Lauf gestellt hat, **404** `HUMAN_ASK_NOT_FOUND`. Eine leere Antwort liefert **400** `EMPTY_ANSWER`.
+
+### Die Prüfung einer Aufgabe entscheiden
+
+`GET /api/v1/projects/{id}/tasks/{taskId}/review` liefert den Status der Aufgabe und ihre offene Prüfung als `TaskReview`, sonst `review: null`. Ein `POST` auf denselben Pfad entscheidet sie — hier ist `actor` Pflicht, denn eine Prüfung ist immer die Entscheidung einer Person:
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "actor": { "email": "reviewer@example.com", "userId": "<userId>" } }'
+# → 200 { "task": { "id": "...", "status": "done" }, "decision": "approve", "approvalId": "...", "actorUserId": "<userId>" }
+```
+
+`approve` entspricht dem Verschieben nach Erledigt auf dem Board: Es gelten der eigene Projektzugriff des Mitglieds und die `review_policy` der Organisation genau wie dort (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` oder `REVIEW_COMPETENCE_REQUIRED`, wenn die Richtlinie die Person ablehnt), die Prüfung wird als vom Mitglied freigegeben festgehalten, und die Aufgabe wird `done`; eine Aufgabe mit offenen Teilaufgaben liefert **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` braucht `comment` und `workflowSlug`: Die Prüfung wird zurückgezogen, der Kommentar landet auf der Zeitleiste, und der Workflow startet erneut auf der Aufgabe und liest den Kommentar als Rückmeldung; die Antwort nennt die `runId` zum Pollen, mit `started: false`, wenn ein laufender Lauf weiterverwendet wurde. Eine Aufgabe, die nicht in Prüfung ist, liefert **409** `TASK_NOT_IN_REVIEW`. Jede Entscheidung wird als `task.review_relayed` protokolliert, mit dem Mitglied und dem Schlüssel, der für es gehandelt hat.
+
+### Das Mitglied benennen, für das gehandelt wird
+
+`actor.email` benennt das Mitglied über seine E-Mail-Adresse. Tale löst sie in der Organisation nach derselben Regel auf wie den Benachrichtigungsexport: genau eine aktive Mitgliedschaft mit verifizierter Adresse. Kein solches Mitglied liefert **404** `ACTOR_NOT_FOUND`, zwei liefern **409** `ACTOR_AMBIGUOUS`, eine nicht verifizierte Adresse **403** `ACTOR_UNVERIFIED`, eine deaktivierte Mitgliedschaft **403** `ACTOR_DISABLED`. Jede Antwort nennt die aufgelöste `actorUserId`; pinne sie bei späteren Aufrufen als `actor.userId`. Eine Adresse, die inzwischen zu einem anderen Konto gehört, liefert dann **409** `ACTOR_REBOUND`, statt für den neuen Inhaber zu handeln. Ein Mitglied, das das Projekt nicht sehen darf – oder an der Review-Tür seine Aufgabe nicht schreiben darf –, liefert **403** `ACTOR_FORBIDDEN`; der Zugriff des Schlüsselinhabers wird zuerst geprüft, dieser Code spricht also immer vom Handelnden.
+
+Einen `actor` zu nennen ist ein eigenes Recht. Ein Inhaber- oder Admin-Schlüssel hat es durch seine Rolle; jeder andere Schlüsselinhaber braucht die Berechtigung `tale:rest.act-as`, die genau wie die Exportberechtigung in [Export ohne Admin-Rolle delegieren](#export-ohne-admin-rolle-delegieren) erteilt und entzogen wird, mit `"competence":"tale:rest.act-as"` im Freigabetext. `GET /api/v1/me` meldet sie als `capabilities.actAs`; ein ohne dieses Recht gesendeter `actor` liefert **403** `ROLE_FORBIDDEN`, bevor ein Mitglied nachgeschlagen wird. Was die weitergereichte Handlung darf, entscheiden weiterhin die eigenen Berechtigungen des Mitglieds.
 
 ## Eine Nachricht senden, dann den Turn pollen
 

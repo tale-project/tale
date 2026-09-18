@@ -247,12 +247,14 @@ describe('GET /me capabilities', () => {
       deploymentEditor: false,
       developer: true,
       notificationExport: true,
+      actAs: true,
     });
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
     expect((await me()).capabilities).toEqual({
       deploymentEditor: false,
       developer: true,
       notificationExport: true,
+      actAs: true,
     });
   });
 
@@ -263,6 +265,7 @@ describe('GET /me capabilities', () => {
       deploymentEditor: true,
       developer: true,
       notificationExport: true,
+      actAs: true,
     });
   });
 });

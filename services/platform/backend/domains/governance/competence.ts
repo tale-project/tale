@@ -12,8 +12,9 @@ import { createAuditLog } from '../audit_logs/service.ts';
  *    is the check the review gate runs.
  *  - PLATFORM CAPABILITIES. A slug under the reserved `tale:` namespace
  *    delegates ONE narrow platform right to a member without an admin seat
- *    (`tale:notifications.export` — the notification export door), checked
- *    by `holdsCapability`. The namespace is closed: only the slugs in
+ *    (`tale:notifications.export` — the notification export door;
+ *    `tale:rest.act-as` — naming an `actor` on the REST ask and review
+ *    doors), checked by `holdsCapability`. The namespace is closed: only the slugs in
  *    `PLATFORM_CAPABILITIES` can be granted under it, so a typo or a
  *    look-alike never reads as a right it does not confer. Removing the
  *    membership revokes these grants (`removeMembershipCascade`), so a
@@ -51,7 +52,13 @@ export const PLATFORM_CAPABILITY_PREFIX = 'tale:';
  * (`COMPETENCE_CAPABILITY_UNKNOWN`). A slug joins it together with the door
  * that checks it through `holdsCapability`.
  */
-export const PLATFORM_CAPABILITIES = ['tale:notifications.export'] as const;
+export const PLATFORM_CAPABILITIES = [
+  'tale:notifications.export',
+  /** The REST door may act FOR another verified member the request names
+   * (`actor` on a run's ask answer and a task's review decision —
+   * `rest/actor.ts`), so a relayed gesture carries the person, not the key. */
+  'tale:rest.act-as',
+] as const;
 
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
 

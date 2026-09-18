@@ -114,5 +114,25 @@
  * (J6-9). `createdBy` names `system:provisioning` (J3-3). `/openapi.json`
  * carries an `ETag` and answers 304 (J9-2). Documentation only elsewhere:
  * the chat send's UTF-16 content cap (J2-1).
+ *
+ * 1.16.0 — 2026-09-18: a run's question and a task's review get their REST
+ * twins, and a machine caller can act FOR a member. `GET …/runs/{runId}/ask`
+ * answers the `PendingAsk` a run waits on (or null) and
+ * `POST …/runs/{runId}/asks/{askId}` `{answer, actor?}` records the answer,
+ * resumes the run and mirrors the answer onto the task timeline; the
+ * app-only codes `EMPTY_ANSWER`, `HUMAN_ASK_NOT_FOUND`,
+ * `HUMAN_ASK_NOT_PENDING` and `HUMAN_ASK_EXPIRED` join the registry.
+ * `GET …/tasks/{taskId}/review` answers the pending `TaskReview` beside the
+ * task's status, and `POST …/tasks/{taskId}/review`
+ * `{decision, comment?, workflowSlug?, actor}` approves (the move to Done,
+ * policy-checked as on the board) or requests changes (comment + restart),
+ * with `TASK_NOT_IN_REVIEW`, `TASK_HAS_OPEN_SUBTASKS`,
+ * `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` and `REVIEW_COMPETENCE_REQUIRED`
+ * on the wire. `Actor` names the member by verified e-mail — resolved
+ * with the notification export's membership rule, pinned by `userId` —
+ * and answers `ACTOR_NOT_FOUND`, `ACTOR_AMBIGUOUS`, `ACTOR_UNVERIFIED`,
+ * `ACTOR_DISABLED` or `ACTOR_REBOUND`; naming one needs the new
+ * `tale:rest.act-as` capability (or an admin seat), which `GET /api/v1/me`
+ * answers as `capabilities.actAs`.
  */
-export const API_CONTRACT_VERSION = '1.15.0';
+export const API_CONTRACT_VERSION = '1.16.0';

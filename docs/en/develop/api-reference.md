@@ -67,6 +67,7 @@ Check both the role and the resource scope before offering an operation. Project
 | `developer` | The Owner, Admin, and Developer roles can start arbitrary live runs, cancel or delete runs, bind or unbind triggers, delete automations, and install or uninstall project automations. These REST operations return `403 ROLE_FORBIDDEN` without it. MCP also checks this capability for saving, deploying, and other privileged tools, using its own error envelope. Validation and mock tools remain available to members. Project access is checked separately. |
 | `deploymentEditor` | The operator allowlist permits browser-session import and revocation. An administrative role alone does not grant this capability. |
 | `notificationExport` | The key may export members’ notifications through `GET /api/v1/notifications/sync`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:notifications.export` grant is live — see [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role). Without it, the export returns `403 ROLE_FORBIDDEN`. |
+| `actAs` | The key may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:rest.act-as` grant is live — see [Name the member the gesture is for](#name-the-member-the-gesture-is-for). An `actor` sent without it returns `403 ROLE_FORBIDDEN`. |
 
 ## What every request is held to
 
@@ -209,7 +210,7 @@ Automation authoring is separate from this REST surface. Use the [MCP endpoint](
 | --- | --- |
 | Automations | `/api/v1/automations/...`<br>Organization definitions, versions, triggers and the projects each is installed in; delete a definition; start and list runs that have no project. |
 | Project automations | `/api/v1/projects/{id}/automations/...`<br>List installed automations, install or uninstall one, start and list this project's runs. |
-| Runs | `/api/v1/runs`, `/api/v1/projects/{id}/runs`, and one run at `/api/v1/projects/{id}/runs/{runId}` or `/api/v1/runs/{runId}`<br>List runs across automations; read one in full — status, output, trace, effects; `POST .../cancel` a live one and `DELETE` a finished one; use the project path for a project run. |
+| Runs | `/api/v1/runs`, `/api/v1/projects/{id}/runs`, and one run at `/api/v1/projects/{id}/runs/{runId}` or `/api/v1/runs/{runId}`<br>List runs across automations; read one in full — status, output, trace, effects; `POST .../cancel` a live one and `DELETE` a finished one; read the question a waiting run asks at `GET .../ask` and answer it at `POST .../asks/{askId}`; use the project path for a project run. |
 | Threads | `/api/v1/projects/{id}/threads/...` or `/api/v1/threads/...`<br>The key holder's project chats or chats with no project: list, create, read, archive or restore, delete, send messages, poll the turn and cancel it. |
 | Models | `GET /api/v1/models`<br>Configured chat models available to the key holder in this organization — plus `harnesses`, the coding harnesses a project agent may run on — with `contextWindow`, `maxOutputTokens` (absent when the catalog declares no ceiling — then no cap check applies to a send), capabilities, optional `pricing` when the catalog publishes rates, and `default: true` on the organization's pick when one is configured and accessible. |
 | Agents | `/api/v1/projects/{id}/agents/...`<br>List, read, create, update (conditionally, with `expectedUpdatedAt`) and delete agents within the required project. |
@@ -224,7 +225,7 @@ Automation authoring is separate from this REST surface. Use the [MCP endpoint](
 | Conversations | `/api/v1/conversations/...`<br>Mirror external conversations into Inbox as versioned snapshots, read a source's snapshot receipt, peek at a source's delivery queue, claim native replies, acknowledge or fail their delivery, and re-drive a dead-lettered one; exact schemas are in the running instance’s `/docs`. |
 | Notifications | `GET /api/v1/notifications/sync`<br>Read-only export of one verified member’s personal or organization feed; Owners and Admins, or a member an Admin granted `tale:notifications.export`. Signed pagination, localized text, stable IDs and content/read-state hashes. |
 | Projects | `/api/v1/projects/...`<br>The machine endpoint for external workers: list projects or look one up by external id, create, archive and restore, delete; prepare folders, upload, download and delete files, index a file now, delete folders. |
-| Tasks | `/api/v1/projects/{id}/tasks/...`<br>Idempotent task creation from an external ref, state reads, workflow starts (answering the `runId` to poll) and comments within the named project. |
+| Tasks | `/api/v1/projects/{id}/tasks/...`<br>Idempotent task creation from an external ref, state reads, workflow starts (answering the `runId` to poll), comments, and the task’s review — read at `GET .../review`, decided for a member at `POST .../review` — within the named project. |
 | MCP | `POST /api/v1/mcp`<br>The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST. |
 | Webhook trigger | `POST /api/projects/{id}/automations/webhook/{token}` or `POST /api/automations/webhook/{token}`<br>Start a deployed automation using its token; the [Webhooks page](/develop/webhooks) covers project and non-project URLs. |
 
@@ -621,6 +622,55 @@ The project in the URL is the context for the run's task and document tools. An 
 Listings answer summaries — identity, scope, status and timing, each row naming the run as `id` and, under the name the start answered, `runId`, one value under both names — newest first as `{ "runs": [...], "isDone": ..., "continueCursor": ... }`: add `?status=failed` (one or more statuses, comma-separated) to narrow them, `?include=input,output` (also `trace`, `effects`, `checkpoints`) to inline the full-row fields a summary leaves out — an inlining page reads at most 25 rows, is bounded at 8 MiB of them, and ends early, `isDone: false`, when the next row would not fit — and pass `continueCursor` back as `?cursor=` until `isDone`.
 
 `GET /api/v1/runs` is the cross-cutting view: every run the key holder can see, organization runs and the runs of visible projects alike, each row naming its `projectId`. For an automation with no bindings, `POST /api/v1/automations/{name}/runs` starts a non-project run; a bound automation returns **409** there. `GET /api/v1/automations/{name}/runs` and `/api/v1/runs/{runId}` expose only non-project runs. A project run requires its project URL for reading, cancellation and deletion. `DELETE /api/v1/projects/{id}/runs/{runId}` (or `/api/v1/runs/{runId}`) removes a finished run — stored input and output included — under the developer capability; a run still in flight returns **409** `RUN_ACTIVE`, so cancel it first.
+
+## Act for a member: answer a run’s question, decide a task’s review
+
+A run parked on `waitingFor: "ask"` and a task parked in `in_review` both wait on a person. When that person works in another application — an office portal that mirrors the desk, say — the machine caller relays their gesture and names them as the `actor`, so Tale records the person and not the key. Both doors need API contract 1.16.0.
+
+### Answer the question a run is waiting on
+
+`GET /api/v1/projects/{id}/runs/{runId}/ask` answers the live question as `PendingAsk` — the sentence, an optional structured `questions` set, the node that asked and the `expiresAt` deadline — or `ask: null` when nothing waits on a person. Reading it takes the same access as reading the run.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/ask" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "ask": { "askId": "...", "question": "...", "expiresAt": 1758210000000, "taskId": "..." } }
+```
+
+Send the answer to `POST /api/v1/projects/{id}/runs/{runId}/asks/{askId}`. Tale records it, resumes the run in the same transaction, and puts the answer on the task timeline as the answerer’s own comment. For a `questions` set, send one line per question the way the app does: `<question> → <picked label>; <typed text> (in their own words)`.
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/asks/<askId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "answer": "Book it in February.", "actor": { "email": "reviewer@example.com" } }'
+# → 200 { "ok": true, "askId": "...", "runId": "...", "answeredBy": "<userId>", "actorUserId": "<userId>", "taskId": "..." }
+```
+
+A project run needs write access to an active project; an organization run needs membership. Without `actor`, the key answers as itself and `answeredBy` reads `api-key:<userId>`. A question that was already answered or closed returns **409** `HUMAN_ASK_NOT_PENDING`, one past its deadline **409** `HUMAN_ASK_EXPIRED` — the run then fails with `failureCode: "ask_expired"` — and a question this run did not ask **404** `HUMAN_ASK_NOT_FOUND`. A blank answer returns **400** `EMPTY_ANSWER`.
+
+### Decide a task’s review
+
+`GET /api/v1/projects/{id}/tasks/{taskId}/review` answers the task’s status and its pending `TaskReview`, or `review: null`. `POST` on the same path decides it — here `actor` is required, because a review is always a person’s decision:
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "actor": { "email": "reviewer@example.com", "userId": "<userId>" } }'
+# → 200 { "task": { "id": "...", "status": "done" }, "decision": "approve", "approvalId": "...", "actorUserId": "<userId>" }
+```
+
+`approve` is the board’s move to Done: the member’s own project access and the organization’s `review_policy` apply exactly as there (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them), the review is recorded as approved by the member, and the task becomes `done`; a task with open subtasks returns **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` needs `comment` and `workflowSlug`: it withdraws the review, puts the comment on the timeline and starts the workflow again on the task, which reads the comment as feedback; the answer carries the `runId` to poll, with `started: false` when a live run was reused. A task that is not in review returns **409** `TASK_NOT_IN_REVIEW`. Every decision is audited as `task.review_relayed`, naming the member and the key that relayed for them.
+
+### Name the member the gesture is for
+
+`actor.email` names the member by e-mail. Tale resolves it against the organization with the same rule as the notification export: exactly one active membership whose address is verified. No such member returns **404** `ACTOR_NOT_FOUND`, two **409** `ACTOR_AMBIGUOUS`, an unverified address **403** `ACTOR_UNVERIFIED`, a disabled membership **403** `ACTOR_DISABLED`. Every answer returns the resolved `actorUserId`; pin it as `actor.userId` on later calls, and an address that has since moved to another account returns **409** `ACTOR_REBOUND` instead of acting as its new holder. A member who may not see the project — or, on the review door, not write its task — returns **403** `ACTOR_FORBIDDEN`; the key holder's own access is checked first, so this code always speaks of the actor.
+
+Naming an actor is a right of its own. An Owner or Admin key has it by role; any other key holder needs the `tale:rest.act-as` capability, granted and revoked exactly like the export capability in [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role), with `"competence":"tale:rest.act-as"` in the grant body. `GET /api/v1/me` answers it as `capabilities.actAs`; an `actor` sent without it returns **403** `ROLE_FORBIDDEN` before any member is looked up. The member’s own permissions still decide what the relayed gesture may do.
 
 ## Send a message, then poll the turn
 
