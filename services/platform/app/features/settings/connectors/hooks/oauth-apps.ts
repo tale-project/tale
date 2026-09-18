@@ -16,12 +16,17 @@ export function useConnectorOauthApps(organizationId: string) {
   });
 }
 
-/** The Knowledge OneDrive import lane's app state — it has no catalog row,
- * so the settings card asks the cloud-import probe for its env half. */
-export function useOnedriveImportAppStatus(organizationId: string) {
+/** A Knowledge cloud-import lane's app state. The import lanes read their
+ * env half from `CLOUD_IMPORT_*`, which are different variables from the
+ * connector lane's `CONNECTOR_OAUTH_*`, so any card row that covers an
+ * import lane has to ask here rather than read the catalog summary. */
+export function useCloudImportAppStatus(
+  organizationId: string,
+  provider: 'onedrive' | 'google-drive',
+) {
   return useBackendQuery('cloud_import/queries:getOauthAppStatus', {
     organizationId,
-    provider: 'onedrive',
+    provider,
   });
 }
 
