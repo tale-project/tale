@@ -2042,6 +2042,7 @@ documents:
     stopSyncDone: Synchronisierung beendet. Die importierten Dateien bleiben in
       deinem Workspace.
     stopSyncFailed: Synchronisierung konnte nicht beendet werden
+    moveToFolder: In Ordner verschieben…
   folder:
     newFolder: Neuer Ordner
     createFolder: Ordner erstellen
@@ -2176,6 +2177,15 @@ documents:
     extensionBlocked: '{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.'
     extensionNotAllowed: '{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.'
     uploadDocuments: Hochladen
+  move:
+    title: In Ordner verschieben
+    description: Wähle, wo {name} liegen soll.
+    destinationLabel: Ziel
+    rootOption: Wissensdatenbank (kein Ordner)
+    confirm: Verschieben
+    moving: Wird verschoben…
+    moved: Dokument verschoben
+    moveFailed: Dokument konnte nicht verschoben werden
   ocr:
     unavailable: OCR nicht verfügbar
     processingWithOcr: Dokument mit OCR verarbeitet

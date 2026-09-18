@@ -110,6 +110,12 @@ export function useFolder(folderId: string | undefined) {
   );
 }
 
+/** Every hub folder the caller can see, at any depth — the move picker's
+ *  destinations. `useFolders` answers one level; this answers the tree. */
+export function useAllHubFolders(organizationId: string) {
+  return useBackendQuery('folders/queries:listAllFolders', { organizationId });
+}
+
 export function useFolders(organizationId: string, parentFolderId?: string) {
   return useBackendQuery('folders/queries:listFolders', {
     organizationId,

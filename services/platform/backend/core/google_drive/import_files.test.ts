@@ -297,6 +297,7 @@ describe('importFiles files an adopted document under its selected folder', () =
       ['Meetings'],
       'user-1',
       undefined,
+      undefined,
     );
     expect(bindDocumentToSync).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -370,5 +371,67 @@ describe('importFiles files an adopted document under its selected folder', () =
     );
     expect(setDocumentFolder).not.toHaveBeenCalled();
     expect(getOrCreateFolderPath).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Where an import lands. Placement used to come only from mirroring the
+ * provider's own path, so a file picked at the top of the picker had no
+ * path to mirror and went to the hub root whatever folder the person had
+ * open. `destinationFolderId` is that folder.
+ */
+describe('google_drive importFiles placement', () => {
+  const rootFile: ImportItem[] = [
+    { id: 'file-r', name: 'r.docx', size: 10, relativePath: 'r.docx' },
+  ];
+
+  it('files a path-less pick into the destination instead of the root', async () => {
+    const deps = makeDeps();
+    await importFiles(
+      {
+        ...baseArgs,
+        items: rootFile,
+        importType: 'one-time',
+        destinationFolderId: 'folder-product',
+      },
+      deps as unknown as ImportFilesDependencies,
+    );
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-product' }),
+    );
+  });
+
+  it('still lands at the root when no destination is given', async () => {
+    const deps = makeDeps();
+    await importFiles(
+      { ...baseArgs, items: rootFile, importType: 'one-time' },
+      deps as unknown as ImportFilesDependencies,
+    );
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: undefined }),
+    );
+  });
+
+  it('mirrors a provider subfolder UNDER the destination, not beside it', async () => {
+    const getOrCreateFolderPath = vi
+      .fn()
+      .mockResolvedValue('folder-meetings' as Id<'folders'>);
+    const deps = makeDeps({ getOrCreateFolderPath });
+    await importFiles(
+      {
+        ...baseArgs,
+        items: folderItems,
+        importType: 'one-time',
+        destinationFolderId: 'folder-product',
+      },
+      deps as unknown as ImportFilesDependencies,
+    );
+    expect(getOrCreateFolderPath).toHaveBeenCalledWith(
+      'org-1',
+      ['Meetings'],
+      'user-1',
+      undefined,
+      'folder-product',
+    );
   });
 });

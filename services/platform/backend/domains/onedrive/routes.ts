@@ -16,6 +16,12 @@ import { listSharePointFiles } from '../../core/onedrive/list_sharepoint_files.t
 import { listSharePointSites } from '../../core/onedrive/list_sharepoint_sites.ts';
 import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import {
+  FolderError,
+  loadHubImportDestination,
+  type FolderRow,
+} from '../folders/service.ts';
+import { getProjectAuthContext } from '../projects/service.ts';
+import {
   cancelSyncConfig,
   createPgImportDeps,
   resolveGraphTokenForUser,
@@ -63,6 +69,8 @@ const importBodySchema = z.object({
   items: z.array(importItemSchema).min(1).max(500),
   importType: z.enum(['one-time', 'sync']),
   teamId: z.string().optional(),
+  /** The hub folder the person had open; the import lands there. */
+  destinationFolderId: z.string().min(1).optional(),
 });
 
 export function createOneDriveRoutes(deps: {
@@ -212,12 +220,43 @@ export function createOneDriveRoutes(deps: {
         error: token.error,
       });
     }
+    // A destination is a write into that folder, so it answers to the same
+    // gate an upload does — and a team folder owns the scope of what lands
+    // inside it, so its team wins over whatever the picker had selected.
+    let destination: FolderRow | null = null;
+    if (body.data.destinationFolderId !== undefined) {
+      const auth = await getProjectAuthContext(
+        deps.sql,
+        {
+          organizationId: c.get('orgId'),
+          userId: c.get('sessionBundle').user.id,
+          role: c.get('orgMember').role,
+        },
+        c.get('sessionBundle').user.email,
+      );
+      try {
+        destination = await loadHubImportDestination(
+          deps.sql,
+          auth,
+          body.data.destinationFolderId,
+        );
+      } catch (error) {
+        if (error instanceof FolderError) {
+          return c.json({ error: error.code, message: error.message }, 403);
+        }
+        throw error;
+      }
+    }
+    const effectiveTeamId = destination?.teamId ?? body.data.teamId;
     const result = await importFiles(
       {
         items: body.data.items,
         organizationId: c.get('orgId'),
         importType: body.data.importType,
-        ...(body.data.teamId !== undefined ? { teamId: body.data.teamId } : {}),
+        ...(effectiveTeamId != null ? { teamId: effectiveTeamId } : {}),
+        ...(destination !== null
+          ? { destinationFolderId: destination.id }
+          : {}),
         token: token.token,
         userId: c.get('sessionBundle').user.id,
       },

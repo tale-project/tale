@@ -59,7 +59,7 @@ const HUB_DOC = {
  * comparison, records every statement. */
 function fakeTx(
   doc: Record<string, unknown> = HUB_DOC,
-  options: { contentSame?: boolean } = {},
+  options: { contentSame?: boolean; folder?: Record<string, unknown> } = {},
 ): { tx: TransactionSql; statements: Statement[] } {
   const statements: Statement[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -70,6 +70,9 @@ function fakeTx(
     }
     if (text.includes('IS NOT DISTINCT FROM')) {
       return Promise.resolve([{ same: options.contentSame ?? false }]);
+    }
+    if (text.includes('FROM app.folders')) {
+      return Promise.resolve(options.folder ? [options.folder] : []);
     }
     return Promise.resolve([]);
   };
@@ -169,5 +172,78 @@ describe('updateDocument no-op', () => {
       title: 'renamed.md',
     });
     expect(updateOf(statements)?.values).toContain('renamed.md');
+  });
+});
+/**
+ * A move is a create in every way that matters to scope, so it answers to
+ * the same two folder rules `createDocumentFromBlobUpload` enforces. Until
+ * these landed nothing set `folderId` from the UI, so both were unreachable
+ * and untested; the move action makes them the door.
+ */
+describe('updateDocument folder move', () => {
+  const teamFolder = {
+    id: 'folder-team',
+    organizationId: 'org_1',
+    name: 'Product Documents',
+    parentId: null,
+    teamId: 'team-product',
+    teamTags: ['team-product'],
+    projectId: null,
+    createdBy: 'user-1',
+    createdAt: 1_700_000_000_000,
+  };
+  const orgFolder = {
+    ...teamFolder,
+    id: 'folder-org',
+    teamId: null,
+    teamTags: [],
+  };
+  const authIn = { ...auth, teamIds: ['team-product'] };
+  const authOut = { ...auth, teamIds: ['team-sales'] };
+
+  it('refuses a destination folder the caller cannot see', async () => {
+    const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
+    await expect(
+      updateDocument(tx, authOut, {
+        documentId: 'doc-1',
+        folderId: 'folder-team',
+      }),
+    ).rejects.toMatchObject({ code: 'FOLDER_NOT_ACCESSIBLE' });
+    expect(updateOf(statements)).toBeUndefined();
+  });
+
+  it('stamps the folder team onto a document moved into a team folder', async () => {
+    const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
+    await updateDocument(tx, authIn, {
+      documentId: 'doc-1',
+      folderId: 'folder-team',
+    });
+    const update = updateOf(statements);
+    expect(update).toBeDefined();
+    // An org-wide document filed into a team folder must not stay org-wide:
+    // it would sit in a place only that team can open.
+    expect(update?.values).toContain('team-product');
+    expect(update?.values).toContainEqual(['team-product']);
+  });
+
+  it('leaves the team alone for an org-wide destination', async () => {
+    const { tx, statements } = fakeTx(HUB_DOC, { folder: orgFolder });
+    await updateDocument(tx, authIn, {
+      documentId: 'doc-1',
+      folderId: 'folder-org',
+    });
+    const update = updateOf(statements);
+    expect(update).toBeDefined();
+    expect(update?.values).not.toContain('team-product');
+  });
+
+  it('lets a document leave a folder for the root', async () => {
+    const inFolder = { ...HUB_DOC, folderId: 'folder-org' };
+    const { tx, statements } = fakeTx(inFolder, { folder: orgFolder });
+    await updateDocument(tx, authIn, {
+      documentId: 'doc-1',
+      folderId: null,
+    });
+    expect(updateOf(statements)).toBeDefined();
   });
 });

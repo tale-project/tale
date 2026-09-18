@@ -179,6 +179,26 @@ export function hubFoldersQuery(
   };
 }
 
+/**
+ * Every hub folder the caller can see, at any depth. `hubFoldersQuery` sends
+ * `parentId=` and gets one level; omitting the parameter entirely leaves it
+ * undefined on the route, which is how `listFolders` answers the whole tree
+ * (already team-filtered). The move picker needs all of it to offer a
+ * destination.
+ */
+function hubFolderTreeQuery(orgId: string): {
+  queryKey: readonly unknown[];
+  queryFn: () => Promise<FolderDoc[]>;
+} {
+  return {
+    queryKey: backendKey(orgId, 'folder', 'tree'),
+    queryFn: () =>
+      backendFetch<{ folders: FolderWire[] }>('/folders', { orgId }).then(
+        (body) => body.folders.map(folderView),
+      ),
+  };
+}
+
 /** A string arg off the 0.4 call site; the empty folder name is legal. */
 function textArg(args: Record<string, unknown>, key: string): string {
   const value = args[key];
@@ -481,6 +501,11 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
     const parentId =
       typeof args.parentId === 'string' ? args.parentId : undefined;
     return hubFoldersQuery(orgId, parentId);
+  },
+  'folders/queries:listAllFolders': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return hubFolderTreeQuery(orgId);
   },
   'folders/queries:getFolder': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -808,6 +833,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           body: {
             ...(args.title !== undefined ? { title: args.title } : {}),
             ...(args.teamIds !== undefined ? { teamIds: args.teamIds } : {}),
+            // `null` is the hub root and must survive the wire, so this
+            // tests for `undefined` rather than truthiness.
+            ...(args.folderId !== undefined ? { folderId: args.folderId } : {}),
           },
         },
       ).then(() => null);
@@ -1078,6 +1106,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           items: args.items,
           importType: stringArg(args, 'importType'),
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+          ...(typeof args.destinationFolderId === 'string'
+            ? { destinationFolderId: args.destinationFolderId }
+            : {}),
         },
       }),
     invalidate: invalidateFolders,
@@ -1102,6 +1133,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           items: args.items,
           importType: stringArg(args, 'importType'),
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+          ...(typeof args.destinationFolderId === 'string'
+            ? { destinationFolderId: args.destinationFolderId }
+            : {}),
         },
       }),
     invalidate: invalidateFolders,

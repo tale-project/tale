@@ -301,6 +301,30 @@ export async function assertFolderMutable(
   }
 }
 
+/**
+ * The hub folder a Knowledge import lands in. An import writes hub
+ * documents, so a project folder is not a destination for one however much
+ * project access the caller has; beyond that it is the ordinary write gate,
+ * which is what keeps someone from filing files into a team folder they
+ * cannot open. The row comes back so the caller can adopt its team, the
+ * same way an upload does.
+ */
+export async function loadHubImportDestination(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  folderId: string,
+): Promise<FolderRow> {
+  const folder = await loadFolderOrThrow(sql, folderId);
+  if (
+    folder.organizationId !== auth.organizationId ||
+    folder.projectId !== null
+  ) {
+    throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
+  }
+  await assertFolderMutable(sql, auth, folder);
+  return folder;
+}
+
 export async function renameFolder(
   tx: TransactionSql,
   auth: ProjectAuthContext,

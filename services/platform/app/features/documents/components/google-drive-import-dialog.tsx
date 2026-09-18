@@ -49,6 +49,9 @@ function isCloudImportAuthError(error: unknown): boolean {
 const noop = () => {};
 
 interface GoogleDriveImportDialogProps {
+  /** The hub folder the person had open. The import lands there instead of
+   *  at the hub root, and a provider subfolder is mirrored underneath it. */
+  destinationFolderId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   restoreFocusRef?: RefObject<HTMLElement | null>;
@@ -60,6 +63,7 @@ interface GoogleDriveImportDialogProps {
 
 export function GoogleDriveImportDialog({
   organizationId,
+  destinationFolderId,
   onSuccess,
   onRequireConnect,
   open,
@@ -343,6 +347,7 @@ export function GoogleDriveImportDialog({
         importType,
         teamId: selectedTeamIdLocal,
         items: allFiles,
+        ...(destinationFolderId !== undefined && { destinationFolderId }),
       });
 
       if (result.success) {
