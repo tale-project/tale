@@ -313,11 +313,11 @@ default means deleting the override and fixing what surfaces:
   across them hard-fails `IDEMPOTENCY_KEY_REUSED` both ways and never answers the `duplicate`
   marker its schema documents (2026-09, round i). Paying it down means one ledger namespace
   for the three doors and the marker on the reply.
-- **`robots.txt` `$` end-anchors and `Allow:` are not honoured, and a page is fetched three to
-  four times a scan** — prefix and `*` rules are enforced; a `$`-anchored `Disallow` fails open
-  (the URL is fetched, not indexed) and an `Allow` ahead of a `Disallow` does not admit its
-  path (2026-09, round i). Paying it down means the `$` and `Allow` branches of the robots
-  parser and one fetch per page per scan.
+- **A page is fetched three to four times a scan** — the plain probe, the render pass and, for
+  the homepage, a create-time metadata probe. The robots parser now honours group selection by
+  product token (`User-agent: TaleBot` > `*`), `Allow` with longest-match precedence, `$`
+  end-anchors and `Crawl-delay` (`lib/knowledge/crawl-parse.ts`, 2026-09 round J); paying down the
+  remaining fetch count means one fetch per page per scan.
 - **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
   so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
   Paying it down means keeping the partial trace the way the failed path does.

@@ -7067,6 +7067,7 @@ websites:
       timeout: Die Seite hat nicht rechtzeitig geantwortet.
       insecurePublicHttp: Unverschlüsselte oder private Weiterleitung abgelehnt.
       privateIp: Private Adresse abgelehnt.
+      hostNotAllowed: Weiterleitung von der Website weg abgelehnt.
       httpError: Die Seite hat mit einem Fehler geantwortet.
       networkError: Die Seite war nicht erreichbar.
       renderFailed: Der Browser konnte die Seite nicht darstellen.

@@ -7127,6 +7127,7 @@ websites:
       timeout: The page didn't answer in time.
       insecurePublicHttp: Refused a plaintext or private redirect.
       privateIp: Refused a private address.
+      hostNotAllowed: Refused a redirect off the site.
       httpError: The page answered with an error.
       networkError: Couldn't reach the page.
       renderFailed: The browser couldn't render the page.

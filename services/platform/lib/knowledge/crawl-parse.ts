@@ -11,60 +11,205 @@
 import { stripRuntimeLocations } from '../net/error-message-hygiene';
 import { decodeHtmlEntities } from './html-to-text';
 
-/** What robots.txt tells a well-behaved crawler: the paths disallowed for
- * everyone (`User-agent: *`), and any sitemap locations it advertises. */
-export interface RobotsRules {
+/**
+ * The robots.txt rules that bind THIS crawler — the group that names its
+ * product token, else the `*` group (RFC 9309 §2.2.1): its `Allow` and
+ * `Disallow` rules and its `Crawl-delay`, as the scan persists them on the
+ * website row and every link of the scan judges by them.
+ */
+export interface RobotsPolicy {
+  readonly allow: readonly string[];
   readonly disallow: readonly string[];
+  /** The group's `Crawl-delay`, in milliseconds; `0` when it sets none.
+   * Capped at {@link MAX_CRAWL_DELAY_MS}. */
+  readonly crawlDelayMs: number;
+}
+
+/** What robots.txt tells this crawler: the policy that binds it, and the
+ * sitemap locations the file advertises (group-independent). */
+export interface RobotsRules extends RobotsPolicy {
   readonly sitemaps: readonly string[];
 }
 
-/** Parse robots.txt, honouring the `*` agent group only — this crawler has
- * no registered agent name, so the wildcard group is the one that binds. */
-export function parseRobots(text: string): RobotsRules {
-  const disallow: string[] = [];
+/** No rules — a site without a robots.txt, or a URL list (its rows are the
+ * operator's instruction). */
+export const EMPTY_ROBOTS_POLICY: RobotsPolicy = {
+  allow: [],
+  disallow: [],
+  crawlDelayMs: 0,
+};
+
+/** RFC 9309 §2.5 asks a crawler to parse at least 500 KiB; this one reads
+ * this much and treats the rest as absent. */
+export const ROBOTS_TXT_MAX_BYTES = 256 * 1024;
+
+/** The longest `Crawl-delay` honoured. A scan link runs five minutes, so a
+ * longer delay would fetch a handful of pages per link; a site that asks
+ * for more gets this, and the documentation says so. */
+export const MAX_CRAWL_DELAY_MS = 60_000;
+
+interface RobotsGroup {
+  readonly agents: string[];
+  readonly allow: string[];
+  readonly disallow: string[];
+  crawlDelayMs: number | null;
+}
+
+/**
+ * Parse robots.txt for the crawler named `productToken` (RFC 9309 §2.2.1,
+ * case-insensitive): every group whose `User-agent` lines name the token
+ * binds; when none does, every `*` group binds; when neither exists,
+ * nothing does. Groups that bind are merged. `Sitemap` lines are the
+ * file's, not a group's. A rule ahead of the first `User-agent` line binds
+ * nobody. `Crawl-delay` (not in the RFC, but what Bing and Yandex honour)
+ * is the group's first parsable value, in seconds, capped.
+ *
+ * The `*` group used to be the only one read, so a site that followed the
+ * documentation and addressed `TaleBot` by name to refuse or throttle it
+ * was crawled under the rules it wrote for everyone else (2026-09-18
+ * evaluation, J6-4).
+ */
+export function parseRobots(text: string, productToken: string): RobotsRules {
+  const groups: RobotsGroup[] = [];
   const sitemaps: string[] = [];
-  let inWildcardGroup = false;
-  for (const rawLine of text.split('\n')) {
+  let current: RobotsGroup | null = null;
+  // True while the last line read was a `User-agent` line: another one
+  // joins the group; a rule closes the agent list, so a later `User-agent`
+  // line starts a new group.
+  let agentsOpen = false;
+  for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.replace(/#.*$/, '').trim();
     if (line.length === 0) continue;
     const colon = line.indexOf(':');
     if (colon < 0) continue;
     const field = line.slice(0, colon).trim().toLowerCase();
     const value = line.slice(colon + 1).trim();
+    if (field === 'sitemap') {
+      if (value.length > 0) sitemaps.push(value);
+      continue;
+    }
     if (field === 'user-agent') {
-      inWildcardGroup = value === '*';
+      if (current === null || !agentsOpen) {
+        current = { agents: [], allow: [], disallow: [], crawlDelayMs: null };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      agentsOpen = true;
       continue;
     }
-    if (field === 'sitemap' && value.length > 0) {
-      sitemaps.push(value);
-      continue;
-    }
-    if (field === 'disallow' && inWildcardGroup && value.length > 0) {
-      disallow.push(value);
+    if (current === null) continue;
+    agentsOpen = false;
+    if (field === 'disallow' && value.length > 0) {
+      current.disallow.push(value);
+    } else if (field === 'allow' && value.length > 0) {
+      current.allow.push(value);
+    } else if (field === 'crawl-delay' && current.crawlDelayMs === null) {
+      const seconds = Number(value);
+      if (Number.isFinite(seconds) && seconds > 0) {
+        current.crawlDelayMs = Math.min(
+          Math.round(seconds * 1000),
+          MAX_CRAWL_DELAY_MS,
+        );
+      }
     }
   }
-  return { disallow, sitemaps };
+  const token = productToken.toLowerCase();
+  const named = groups.filter((group) => group.agents.includes(token));
+  const bound =
+    named.length > 0
+      ? named
+      : groups.filter((group) => group.agents.includes('*'));
+  return {
+    allow: bound.flatMap((group) => group.allow),
+    disallow: bound.flatMap((group) => group.disallow),
+    crawlDelayMs: bound.reduce(
+      (delay, group) => Math.max(delay, group.crawlDelayMs ?? 0),
+      0,
+    ),
+    sitemaps,
+  };
 }
 
-/** True when a robots `Disallow` prefix blocks this path. The `*` wildcard
- * inside rules is honoured as "any run of characters" (the de-facto
- * extension every major engine implements). */
-export function isDisallowed(
-  pathname: string,
-  disallow: readonly string[],
-): boolean {
-  for (const rule of disallow) {
-    if (rule.includes('*')) {
-      const pattern = rule
-        .split('*')
-        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('.*');
-      if (new RegExp(`^${pattern}`).test(pathname)) return true;
-    } else if (pathname.startsWith(rule)) {
-      return true;
-    }
+/**
+ * The policy as the website row stores it (`robots_disallow`, JSONB): the
+ * object `{disallow, allow, crawlDelayMs}`; rows written before `Allow`
+ * and `Crawl-delay` were read hold the bare `Disallow` array, and anything
+ * else reads as no rules.
+ */
+export function robotsPolicyFromStored(value: unknown): RobotsPolicy {
+  const strings = (list: unknown): readonly string[] =>
+    Array.isArray(list)
+      ? list.filter((rule): rule is string => typeof rule === 'string')
+      : [];
+  if (Array.isArray(value)) {
+    return { allow: [], disallow: strings(value), crawlDelayMs: 0 };
   }
-  return false;
+  if (value === null || typeof value !== 'object') return EMPTY_ROBOTS_POLICY;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to a non-null, non-array object above
+  const stored = value as Record<string, unknown>;
+  const delay = stored.crawlDelayMs;
+  return {
+    allow: strings(stored.allow),
+    disallow: strings(stored.disallow),
+    crawlDelayMs:
+      typeof delay === 'number' && Number.isFinite(delay) && delay > 0
+        ? Math.min(Math.round(delay), MAX_CRAWL_DELAY_MS)
+        : 0,
+  };
+}
+
+/** The stored form of a policy — what `robotsPolicyFromStored` reads back. */
+export function robotsPolicyToStored(
+  policy: RobotsPolicy,
+): Record<string, unknown> {
+  return {
+    disallow: [...policy.disallow],
+    allow: [...policy.allow],
+    crawlDelayMs: policy.crawlDelayMs,
+  };
+}
+
+/** RFC 9309 §2.2.3: `*` matches any run of characters, a trailing `$`
+ * anchors the end of the path; everything else is literal. A rule that
+ * uses neither is a plain prefix. */
+function ruleMatches(pathname: string, rule: string): boolean {
+  if (!rule.includes('*') && !rule.endsWith('$')) {
+    return pathname.startsWith(rule);
+  }
+  const anchored = rule.endsWith('$');
+  const pattern = (anchored ? rule.slice(0, -1) : rule)
+    .split('*')
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('.*');
+  return new RegExp(`^${pattern}${anchored ? '$' : ''}`).test(pathname);
+}
+
+/** The length of the longest rule that matches, or null when none does —
+ * the RFC's measure of specificity ("the most octets"). */
+function longestMatch(
+  pathname: string,
+  rules: readonly string[],
+): number | null {
+  let longest: number | null = null;
+  for (const rule of rules) {
+    if (!ruleMatches(pathname, rule)) continue;
+    if (longest === null || rule.length > longest) longest = rule.length;
+  }
+  return longest;
+}
+
+/**
+ * Whether the policy forbids fetching this path (RFC 9309 §2.2.2): the
+ * most specific matching rule decides — the longest one — and a tie between
+ * an `Allow` and a `Disallow` goes to the `Allow`. Until here `Allow` was
+ * not read and a `$` anchor was matched as a literal, so `Disallow: /*.pdf$`
+ * failed open and `Allow: /public/` under `Disallow: /` admitted nothing.
+ */
+export function isDisallowed(pathname: string, policy: RobotsPolicy): boolean {
+  const disallowed = longestMatch(pathname, policy.disallow);
+  if (disallowed === null) return false;
+  const allowed = longestMatch(pathname, policy.allow);
+  return allowed === null || allowed < disallowed;
 }
 
 /** `<loc>` entries of a sitemap or sitemap-index document. Values are
@@ -309,22 +454,19 @@ export function robotsHeaderForbidsIndexing(value: string | null): boolean {
     .some((directive) => directive === 'noindex' || directive === 'none');
 }
 
-/** True when a robots `Disallow` rule blocks this URL — judged on the path
- * and the query together, the string robots.txt rules are written against
+/** True when the robots policy blocks this URL — judged on the path and
+ * the query together, the string robots.txt rules are written against
  * (`Disallow: /search?q=` is a rule on the query); a URL that does not
  * parse is nobody's to block. */
-export function isUrlDisallowed(
-  url: string,
-  disallow: readonly string[],
-): boolean {
-  if (disallow.length === 0) return false;
+export function isUrlDisallowed(url: string, policy: RobotsPolicy): boolean {
+  if (policy.disallow.length === 0) return false;
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return false;
   }
-  return isDisallowed(parsed.pathname + parsed.search, disallow);
+  return isDisallowed(parsed.pathname + parsed.search, policy);
 }
 
 /**
@@ -339,13 +481,13 @@ export function discoverableLinks(
   html: string,
   baseUrl: string,
   hosts: ReadonlySet<string>,
-  disallow: readonly string[],
+  policy: RobotsPolicy,
 ): string[] {
   const links = new Set<string>();
   for (const href of extractLinks(html)) {
     const normalized = normalizeCandidateUrl(href, baseUrl, hosts);
     if (!normalized) continue;
-    if (isUrlDisallowed(normalized, disallow)) continue;
+    if (isUrlDisallowed(normalized, policy)) continue;
     links.add(normalized);
   }
   return [...links];
@@ -354,8 +496,9 @@ export function discoverableLinks(
 /** The `<meta name="robots">` content that forbids indexing, or null:
  * `noindex` or `none` among its comma-separated directives, whichever
  * attribute order and quoting the page uses. A meta aimed at one named
- * agent (`googlebot`) is not this crawler's to honour — the `*` stance of
- * {@link parseRobots}. The header form (`X-Robots-Tag`) was honoured while
+ * agent (`googlebot`) is not this crawler's to honour — as a robots.txt
+ * group that names another crawler is not ({@link parseRobots}). The
+ * header form (`X-Robots-Tag`) was honoured while
  * the tag, the form most sites use, was not (2026-09-14 evaluation, h5). */
 export function robotsMetaNoindexDirective(html: string): string | null {
   for (const match of html.matchAll(/<meta\s[^>]*>/gi)) {

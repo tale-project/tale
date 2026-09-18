@@ -7173,6 +7173,7 @@ websites:
       timeout: La page n'a pas répondu à temps.
       insecurePublicHttp: Redirection en clair ou vers une adresse privée refusée.
       privateIp: Adresse privée refusée.
+      hostNotAllowed: Redirection hors du site refusée.
       httpError: La page a répondu par une erreur.
       networkError: Impossible d'atteindre la page.
       renderFailed: Le navigateur n'a pas pu afficher la page.

@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyRenderReason,
   discoverableLinks,
+  EMPTY_ROBOTS_POLICY,
   isUrlDisallowed,
+  MAX_CRAWL_DELAY_MS,
   publicPageError,
   robotsMetaNoindexDirective,
+  robotsPolicyFromStored,
+  robotsPolicyToStored,
+  type RobotsPolicy,
   classifyContentType,
   documentNameForUrl,
   extractLinks,
@@ -29,8 +34,14 @@ import {
  * accidentally.
  */
 
+/** A policy of `Disallow` rules and, when given, `Allow` rules. */
+const policy = (
+  disallow: readonly string[],
+  allow: readonly string[] = [],
+): RobotsPolicy => ({ allow, disallow, crawlDelayMs: 0 });
+
 describe('parseRobots', () => {
-  it('honours only the wildcard agent group and collects sitemaps', () => {
+  it('binds the * group when no group names the crawler, and collects sitemaps', () => {
     const rules = parseRobots(
       [
         'User-agent: GPTBot',
@@ -42,17 +53,92 @@ describe('parseRobots', () => {
         'Sitemap: https://example.com/sitemap.xml',
         'Sitemap: https://example.com/news-sitemap.xml',
       ].join('\n'),
+      'TaleBot',
     );
     expect(rules.disallow).toEqual(['/admin/', '/*.pdf']);
+    expect(rules.allow).toEqual([]);
+    expect(rules.crawlDelayMs).toBe(0);
     expect(rules.sitemaps).toEqual([
       'https://example.com/sitemap.xml',
       'https://example.com/news-sitemap.xml',
     ]);
   });
 
+  /**
+   * The documented opt-out: a group that names `TaleBot` binds this crawler
+   * ALONE, whatever the `*` group says — a site that wrote one to refuse the
+   * crawler was crawled under the `*` rules instead (2026-09-18 evaluation,
+   * J6-4). The token matches case-insensitively (RFC 9309 §2.2.1).
+   */
+  it('binds the group that names the crawler instead of the * group, case-insensitively', () => {
+    const rules = parseRobots(
+      [
+        'User-agent: *',
+        'Disallow: /blocked/',
+        'Crawl-delay: 10',
+        '',
+        'User-agent: talebot',
+        'Disallow: /p/',
+        'Allow: /p/open',
+        'Crawl-delay: 2.5',
+      ].join('\n'),
+      'TaleBot',
+    );
+    expect(rules.disallow).toEqual(['/p/']);
+    expect(rules.allow).toEqual(['/p/open']);
+    expect(rules.crawlDelayMs).toBe(2500);
+  });
+
+  it('merges every group that names the crawler, and a group with several agent lines is one group', () => {
+    const rules = parseRobots(
+      [
+        'User-agent: TaleBot',
+        'User-agent: OtherBot',
+        'Disallow: /a/',
+        '',
+        'User-agent: TaleBot',
+        'Disallow: /b/',
+        'Crawl-delay: 1',
+        '',
+        'User-agent: *',
+        'Disallow: /',
+      ].join('\r\n'),
+      'TaleBot',
+    );
+    expect(rules.disallow).toEqual(['/a/', '/b/']);
+    expect(rules.crawlDelayMs).toBe(1000);
+  });
+
+  it('lets a named group allow the crawler alone under a * group that refuses everyone', () => {
+    const rules = parseRobots(
+      [
+        'User-agent: *',
+        'Disallow: /',
+        '',
+        'User-agent: TaleBot',
+        'Allow: /',
+      ].join('\n'),
+      'TaleBot',
+    );
+    expect(rules.disallow).toEqual([]);
+    expect(rules.allow).toEqual(['/']);
+    expect(isUrlDisallowed('https://example.com/any', rules)).toBe(false);
+  });
+
+  it('ignores rules ahead of the first group, and caps an oversized or unparsable Crawl-delay', () => {
+    expect(
+      parseRobots('Disallow: /\nUser-agent: *\nCrawl-delay: 600', 'TaleBot'),
+    ).toMatchObject({ disallow: [], crawlDelayMs: MAX_CRAWL_DELAY_MS });
+    expect(
+      parseRobots('User-agent: *\nCrawl-delay: soon\nDisallow: /x', 'TaleBot'),
+    ).toMatchObject({ disallow: ['/x'], crawlDelayMs: 0 });
+  });
+
   it('returns nothing for an empty or comment-only file', () => {
-    expect(parseRobots('# nothing here\n')).toEqual({
+    expect(parseRobots('# nothing here\n', 'TaleBot')).toEqual({
+      allow: [],
       disallow: [],
+      crawlDelayMs: 0,
       sitemaps: [],
     });
   });
@@ -60,13 +146,65 @@ describe('parseRobots', () => {
 
 describe('isDisallowed', () => {
   it('matches plain prefixes', () => {
-    expect(isDisallowed('/admin/users', ['/admin/'])).toBe(true);
-    expect(isDisallowed('/about', ['/admin/'])).toBe(false);
+    expect(isDisallowed('/admin/users', policy(['/admin/']))).toBe(true);
+    expect(isDisallowed('/about', policy(['/admin/']))).toBe(false);
   });
 
   it('honours the * wildcard extension', () => {
-    expect(isDisallowed('/files/report.pdf', ['/*.pdf'])).toBe(true);
-    expect(isDisallowed('/files/report.html', ['/*.pdf'])).toBe(false);
+    expect(isDisallowed('/files/report.pdf', policy(['/*.pdf']))).toBe(true);
+    expect(isDisallowed('/files/report.html', policy(['/*.pdf']))).toBe(false);
+  });
+
+  /** RFC 9309 §2.2.3: a trailing `$` anchors the end of the path — it used
+   * to be matched as a literal, so `Disallow: /*.pdf$` blocked nothing. */
+  it('honours the $ end anchor, and reads a $ elsewhere as a literal', () => {
+    expect(isDisallowed('/files/report.pdf', policy(['/*.pdf$']))).toBe(true);
+    expect(isDisallowed('/files/report.pdf?dl=1', policy(['/*.pdf$']))).toBe(
+      false,
+    );
+    expect(isDisallowed('/a$b/x', policy(['/a$b/']))).toBe(true);
+  });
+
+  /** RFC 9309 §2.2.2: the most specific rule wins, an `Allow` of equal
+   * length wins the tie — `Allow` used to be ignored altogether. */
+  it('lets the longest matching rule decide, Allow winning a tie', () => {
+    const rules = policy(
+      ['/', '/docs/private/'],
+      ['/docs/', '/docs/private/x'],
+    );
+    expect(isDisallowed('/about', rules)).toBe(true);
+    expect(isDisallowed('/docs/guide', rules)).toBe(false);
+    expect(isDisallowed('/docs/private/secret', rules)).toBe(true);
+    expect(isDisallowed('/docs/private/x1', rules)).toBe(false);
+    expect(isDisallowed('/p', policy(['/p'], ['/p']))).toBe(false);
+  });
+});
+
+describe('the stored robots policy', () => {
+  it('reads the object form, the legacy Disallow array, and nothing else', () => {
+    const stored = robotsPolicyToStored({
+      allow: ['/a'],
+      disallow: ['/b'],
+      crawlDelayMs: 1500,
+    });
+    expect(robotsPolicyFromStored(stored)).toEqual({
+      allow: ['/a'],
+      disallow: ['/b'],
+      crawlDelayMs: 1500,
+    });
+    expect(robotsPolicyFromStored(['/private/'])).toEqual({
+      allow: [],
+      disallow: ['/private/'],
+      crawlDelayMs: 0,
+    });
+    expect(robotsPolicyFromStored(null)).toEqual(EMPTY_ROBOTS_POLICY);
+    expect(robotsPolicyFromStored({ crawlDelayMs: 10 ** 9, allow: 3 })).toEqual(
+      {
+        allow: [],
+        disallow: [],
+        crawlDelayMs: MAX_CRAWL_DELAY_MS,
+      },
+    );
   });
 });
 
@@ -373,7 +511,7 @@ describe('robotsHeaderForbidsIndexing', () => {
 });
 
 describe('isUrlDisallowed', () => {
-  const rules = ['/legal/', '/search?q=', '/tmp/*.pdf'];
+  const rules = policy(['/legal/', '/search?q=', '/tmp/*.pdf']);
 
   it.each([
     ['https://example.com/legal/terms', true],
@@ -387,7 +525,9 @@ describe('isUrlDisallowed', () => {
   });
 
   it('blocks nothing with no rules, and nothing that does not parse', () => {
-    expect(isUrlDisallowed('https://example.com/legal/terms', [])).toBe(false);
+    expect(
+      isUrlDisallowed('https://example.com/legal/terms', EMPTY_ROBOTS_POLICY),
+    ).toBe(false);
     expect(isUrlDisallowed('not a url', rules)).toBe(false);
   });
 });
@@ -414,16 +554,24 @@ describe('discoverableLinks', () => {
 
   it('drops a link a plain or wildcard rule covers and keeps the rest, de-duplicated', () => {
     expect(
-      discoverableLinks(html, 'https://example.com/', hosts, [
-        '/legal/',
-        '/*/legal/',
-        '/private/*',
-      ]),
+      discoverableLinks(
+        html,
+        'https://example.com/',
+        hosts,
+        policy(['/legal/', '/*/legal/', '/private/*']),
+      ),
     ).toEqual(['https://example.com/pricing', 'https://www.example.com/docs']);
   });
 
   it('applies the host, port and asset rules with no robots rules', () => {
-    expect(discoverableLinks(html, 'https://example.com/', hosts, [])).toEqual([
+    expect(
+      discoverableLinks(
+        html,
+        'https://example.com/',
+        hosts,
+        EMPTY_ROBOTS_POLICY,
+      ),
+    ).toEqual([
       'https://example.com/legal/terms-of-service',
       'https://example.com/de/legal/privacy-policy',
       'https://example.com/pricing',

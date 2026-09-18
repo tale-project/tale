@@ -1,8 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  isUrlDisallowed,
   metaDescription,
   normalizeListedUrl,
+  parseRobots,
+  ROBOTS_TXT_MAX_BYTES,
   siteHosts,
 } from '../../../lib/knowledge/crawl-parse.ts';
 import { htmlTitle } from '../../../lib/knowledge/html-to-text.ts';
@@ -29,6 +32,10 @@ import {
   scanDueWebsitesImpl,
   scanWebsiteImpl,
 } from '../../core/knowledge/crawl_action.ts';
+import {
+  CRAWLER_PRODUCT_TOKEN,
+  crawlerRequestHeaders,
+} from '../../core/knowledge/crawler_identity.ts';
 import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
 import { toWebsiteDomain } from '../../core/websites/create_website.ts';
 import { matchesWebsiteSearch } from '../../core/websites/match_website_search.ts';
@@ -714,6 +721,39 @@ const HOMEPAGE_TIMEOUT_MS = 15_000;
 const HOMEPAGE_MAX_BYTES = 2 * 1024 * 1024;
 const REGISTER_FOLLOWUP_SYNC_MS = 600_000;
 
+/**
+ * Whether robots.txt lets this crawler fetch the homepage — read as TaleBot,
+ * so the registration-time metadata probe honours a `User-agent: TaleBot`
+ * (or `*`) `Disallow: /` the way the scan does (2026-09-18 evaluation,
+ * J6-2). A robots.txt that cannot be read, or answers non-2xx, does not
+ * block the one best-effort homepage GET.
+ */
+async function homepageAllowsCrawler(
+  domain: string,
+  hosts: readonly string[],
+): Promise<boolean> {
+  try {
+    const robots = await safeFetch(`https://${domain}/robots.txt`, {
+      method: 'GET',
+      timeoutMs: HOMEPAGE_TIMEOUT_MS,
+      maxResponseBytes: ROBOTS_TXT_MAX_BYTES,
+      allowedHosts: [...hosts],
+      allowPrivateAddresses: privateCrawlHostsAllowed(),
+      httpsOnly: true,
+      headers: crawlerRequestHeaders(),
+    });
+    if (robots.status < 200 || robots.status >= 300) return true;
+    const policy = parseRobots(robots.body, CRAWLER_PRODUCT_TOKEN);
+    return !isUrlDisallowed(`https://${domain}/`, policy);
+  } catch (error) {
+    console.warn(
+      `[websites] robots.txt probe failed for ${domain} (allowing the homepage metadata probe):`,
+      error instanceof Error ? error.message : error,
+    );
+    return true;
+  }
+}
+
 /** Validate a curated list's entries against the domain (route boundary). */
 export function normalizeListUrls(
   domain: string,
@@ -911,32 +951,42 @@ export async function runWebsiteRegister(
       if (refusal !== null) {
         throw new Error(`crawl target refused: ${refusal}`);
       }
-      const response = await safeFetch(`https://${args.domain}/`, {
-        method: 'GET',
-        headers: { accept: 'text/html' },
-        timeoutMs: HOMEPAGE_TIMEOUT_MS,
-        maxResponseBytes: HOMEPAGE_MAX_BYTES,
-        allowedHosts: [...siteHosts(args.domain)],
-        allowPrivateAddresses: privateCrawlHostsAllowed(),
-        httpsOnly: true,
-      });
-      if (response.status >= 200 && response.status < 300) {
-        const current = await getWebsite(sql, args.websiteId);
-        const title =
-          current?.title === null
-            ? (htmlTitle(response.body) ?? undefined)
-            : undefined;
-        const description =
-          current?.description === null
-            ? (metaDescription(response.body) ?? undefined)
-            : undefined;
-        if (title !== undefined || description !== undefined) {
-          await patchWebsite(sql, {
-            websiteId: args.websiteId,
-            fillMetadataBlanks: true,
-            ...(title !== undefined ? { title } : {}),
-            ...(description !== undefined ? { description } : {}),
-          });
+      const hosts = [...siteHosts(args.domain)];
+      const homepage = `https://${args.domain}/`;
+      // Read robots.txt first and identify as TaleBot on both requests: the
+      // probe used to go out as a bare `node` UA before robots was read, so
+      // it was unaddressable and could fetch a homepage the site's own
+      // TaleBot group disallows (2026-09-18 evaluation, J6-2). It is a
+      // best-effort metadata fill; a disallowed homepage simply leaves the
+      // title and description for the operator to set.
+      if (await homepageAllowsCrawler(args.domain, hosts)) {
+        const response = await safeFetch(homepage, {
+          method: 'GET',
+          headers: { ...crawlerRequestHeaders(), accept: 'text/html' },
+          timeoutMs: HOMEPAGE_TIMEOUT_MS,
+          maxResponseBytes: HOMEPAGE_MAX_BYTES,
+          allowedHosts: hosts,
+          allowPrivateAddresses: privateCrawlHostsAllowed(),
+          httpsOnly: true,
+        });
+        if (response.status >= 200 && response.status < 300) {
+          const current = await getWebsite(sql, args.websiteId);
+          const title =
+            current?.title === null
+              ? (htmlTitle(response.body) ?? undefined)
+              : undefined;
+          const description =
+            current?.description === null
+              ? (metaDescription(response.body) ?? undefined)
+              : undefined;
+          if (title !== undefined || description !== undefined) {
+            await patchWebsite(sql, {
+              websiteId: args.websiteId,
+              fillMetadataBlanks: true,
+              ...(title !== undefined ? { title } : {}),
+              ...(description !== undefined ? { description } : {}),
+            });
+          }
         }
       }
     } catch (error) {

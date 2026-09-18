@@ -11,6 +11,11 @@ export const SAFE_FETCH_ERROR_KINDS = [
   'unsupported_protocol',
   'insecure_public_http',
   'private_ip',
+  // The host is not one the caller allowed — for the crawler, a redirect
+  // that leaves the registered site. Distinct from `private_ip` so a public
+  // off-site redirect is not reported as a private-network attack
+  // (2026-09-18 evaluation, J6-6).
+  'host_not_allowed',
   'dns_failed',
   'redirect_missing_location',
   'redirect_limit_exceeded',
