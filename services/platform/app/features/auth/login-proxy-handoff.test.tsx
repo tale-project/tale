@@ -70,7 +70,9 @@ import { markProxyHandoffAttempt } from '@/app/features/auth/lib/proxy-handoff';
 import { LogInPage } from '@/app/routes/_auth/log-in';
 
 const locationAssign = vi.fn();
-const DOOR = 'http://localhost:3000/api/trusted-headers/authenticate';
+// Same-origin, never SITE_URL: the browser must stay on the host it is on —
+// that is where the proxy that injects the key sits.
+const DOOR = '/api/trusted-headers/authenticate';
 const doorFor = (path: string) =>
   `${DOOR}?redirect=${encodeURIComponent(path)}`;
 

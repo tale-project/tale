@@ -18,13 +18,20 @@ const ATTEMPT_KEY = 'tale.trusted-headers.handoff-at';
 /** A return within this window means the hand-off did not stick. */
 const RECENT_ATTEMPT_MS = 60_000;
 
-/** The door's address, carrying the validated in-app return path. */
+/**
+ * The door's address, carrying the validated in-app return path. Same-origin
+ * on purpose: the browser must reach the door through the host it is on —
+ * that is where the proxy that injects the key sits, and where the cookie
+ * the door sets must land. An absolute `SITE_URL` would send a browser that
+ * arrived through a gateway on another hostname straight to the canonical
+ * origin, past the proxy, with no key on the request.
+ */
 export function proxyHandoffUrl(redirectTo: string | undefined): string {
   const basePath = getEnv('BASE_PATH');
   // Forward only a validated same-origin path — defence in depth against the
   // open redirect the door also guards (#2037).
   const target = sanitizeInternalRedirect(redirectTo, `${basePath}/dashboard`);
-  return `${getEnv('SITE_URL')}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
+  return `${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
 }
 
 /** Remember that this tab was just sent to the door. */
