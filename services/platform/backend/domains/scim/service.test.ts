@@ -4,6 +4,10 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  MEMBER_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '../../../lib/shared/hint-entities.ts';
+import {
   deleteGroup,
   deprovisionUser,
   listGroupRecords,
@@ -11,6 +15,7 @@ import {
   patchGroup,
   patchUser,
   provisionGroup,
+  provisionUser,
   replaceGroup,
 } from './service.ts';
 
@@ -68,6 +73,12 @@ const writes = (queries: Captured[]): Captured[] =>
       q.text.startsWith('UPDATE') ||
       q.text.startsWith('DELETE'),
   );
+
+/** The invalidation hints a call wrote, as `[orgId, userId, entity, id]`. */
+const hints = (queries: Captured[]): unknown[][] =>
+  queries
+    .filter((q) => q.text.startsWith('INSERT INTO app_realtime.outbox'))
+    .map((q) => q.values);
 
 const MEMBER = 'SELECT "id", "role" FROM "member"';
 const USER_BY_ID =
@@ -513,5 +524,196 @@ describe('listings page in SQL', () => {
         q.text.startsWith('SELECT "id", "userId" FROM "teamMember"'),
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * An IdP push is the one write nobody in the app is watching for: no dialog
+ * ran, no tab invalidated anything. Without a hint in the same transaction,
+ * an open Members or Teams page kept the pre-sync list until someone
+ * reloaded it — the whole SCIM lane emitted none.
+ */
+describe('SCIM writes emit their invalidation hints', () => {
+  const team = {
+    id: 't-1',
+    name: 'Squad',
+    organizationId: 'org-1',
+    createdAt: new Date(0),
+    updatedAt: null,
+  };
+
+  it('provisionUser hints the new membership', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(USER_BY_EMAIL)) return [];
+      if (text.startsWith('INSERT INTO "user"')) return [{ id: 'u-new' }];
+      return [];
+    });
+
+    await provisionUser(sql, {
+      organizationId: 'org-1',
+      defaultRole: 'member',
+      email: 'new@x.test',
+      name: 'New One',
+      active: true,
+    });
+
+    expect(hints(queries)).toEqual([
+      ['org-1', null, MEMBER_HINT_ENTITY, 'u-new'],
+    ]);
+  });
+
+  it('patchUser hints once for the whole patch', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      return [];
+    });
+
+    await patchUser(sql, {
+      organizationId: 'org-1',
+      userId: 'u-1',
+      defaultRole: 'member',
+      active: false,
+      name: 'Renamed',
+    });
+
+    expect(hints(queries)).toEqual([
+      ['org-1', null, MEMBER_HINT_ENTITY, 'u-1'],
+    ]);
+  });
+
+  // The cascade shrinks every team the member sat in, so each one's counts
+  // are stale until it is hinted — the members door already does this.
+  it('deprovisionUser hints the membership and every team the cascade shrank', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      if (text.startsWith(USER_BY_ID)) return [userRow('u-1', 'u1@x.test')];
+      if (text.startsWith('DELETE FROM "teamMember"')) {
+        return [{ teamId: 't-a' }, { teamId: 't-b' }];
+      }
+      return [];
+    });
+
+    await expect(deprovisionUser(sql, 'org-1', 'u-1')).resolves.toBe(
+      'deprovisioned',
+    );
+
+    expect(hints(queries)).toEqual([
+      ['org-1', null, MEMBER_HINT_ENTITY, 'u-1'],
+      ['org-1', null, TEAM_HINT_ENTITY, 't-a'],
+      ['org-1', null, TEAM_HINT_ENTITY, 't-b'],
+    ]);
+  });
+
+  it('a refused write emits nothing', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-owner', role: 'owner' }];
+      return [];
+    });
+
+    await expect(deprovisionUser(sql, 'org-1', 'u-owner')).resolves.toBe(
+      'owner-protected',
+    );
+
+    expect(hints(queries)).toEqual([]);
+  });
+
+  it('provisionGroup hints the new team', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('INSERT INTO "team"')) return [{ id: 't-new' }];
+      return [];
+    });
+
+    await provisionGroup(sql, {
+      organizationId: 'org-1',
+      displayName: 'Squad',
+      memberIds: [],
+    });
+
+    expect(hints(queries)).toEqual([
+      ['org-1', null, TEAM_HINT_ENTITY, 't-new'],
+    ]);
+  });
+
+  // An IdP re-pushes its whole directory on a schedule. Hinting those calls
+  // would invalidate every connected client's reads once per synced record,
+  // per cycle, for nothing.
+  it('a re-push that moves nothing emits no hint', async () => {
+    const unchanged = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      return [];
+    });
+    await patchUser(unchanged.sql, {
+      organizationId: 'org-1',
+      userId: 'u-1',
+      defaultRole: 'member',
+      externalId: 'ext-1',
+    });
+    expect(hints(unchanged.queries)).toEqual([]);
+
+    const sameRoster = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith('SELECT "id", "userId" FROM "teamMember"')) {
+        return [{ id: 'tm-1', userId: 'u-1' }];
+      }
+      if (text.startsWith(ORG_MEMBERS)) return [{ userId: 'u-1' }];
+      return [];
+    });
+    await replaceGroup(sameRoster.sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: team.name,
+      memberIds: ['u-1'],
+    });
+    expect(hints(sameRoster.queries)).toEqual([]);
+  });
+
+  it('replaceGroup and patchGroup hint the team they rewrote', async () => {
+    const answer = (text: string) =>
+      text.startsWith(TEAM_BY_ID) ? [team] : [];
+
+    const replaced = fakeSql(answer);
+    await replaceGroup(replaced.sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: 'Renamed',
+      memberIds: [],
+    });
+    expect(hints(replaced.queries)).toEqual([
+      ['org-1', null, TEAM_HINT_ENTITY, 't-1'],
+    ]);
+
+    const patched = fakeSql(answer);
+    await patchGroup(patched.sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: 'Renamed again',
+      addMembers: [],
+      removeMembers: [],
+    });
+    expect(hints(patched.queries)).toEqual([
+      ['org-1', null, TEAM_HINT_ENTITY, 't-1'],
+    ]);
+  });
+
+  it('deleteGroup hints the team it removed', async () => {
+    const { sql, queries } = fakeSql((text) =>
+      text.startsWith(TEAM_BY_ID) ? [team] : [],
+    );
+
+    await expect(deleteGroup(sql, 'org-1', 't-1')).resolves.toBe(true);
+
+    expect(hints(queries)).toEqual([['org-1', null, TEAM_HINT_ENTITY, 't-1']]);
+  });
+
+  it('a group of another org is refused without a hint', async () => {
+    const { sql, queries } = fakeSql((text) =>
+      text.startsWith(TEAM_BY_ID)
+        ? [{ ...team, organizationId: 'org-other' }]
+        : [],
+    );
+
+    await expect(deleteGroup(sql, 'org-1', 't-1')).resolves.toBe(false);
+
+    expect(hints(queries)).toEqual([]);
   });
 });
