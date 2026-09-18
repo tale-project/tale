@@ -3,8 +3,12 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_PASSWORD_POLICY,
   effectiveMandatoryInstructions,
+  EMBEDDING_FRAME_ANCESTORS_MAX,
+  embeddingConfigSchema,
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
+  frameAncestorsOf,
+  isFrameAncestorOrigin,
   mergeStrictestPasswordPolicy,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
@@ -439,5 +443,84 @@ describe('reviewPolicyConfigSchema', () => {
 
   it('is registered as the review_policy policy schema', () => {
     expect(POLICY_SCHEMAS.review_policy).toBe(reviewPolicyConfigSchema);
+  });
+});
+
+describe('embeddingConfigSchema', () => {
+  it('admits https origins, a port, and plain http on loopback only', () => {
+    for (const origin of [
+      'https://app.example.com',
+      'https://app.example.com:8443',
+      'https://portal',
+      'http://localhost:5173',
+      'http://127.0.0.1',
+      'http://[::1]:3000',
+    ]) {
+      expect(isFrameAncestorOrigin(origin), origin).toBe(true);
+    }
+  });
+
+  // The value lands in a response header: anything that could widen the
+  // allowlist or split the directive must be refused at the schema.
+  it('refuses wildcards, paths, separators, uppercase and http off loopback', () => {
+    for (const value of [
+      'http://app.example.com',
+      'https://App.Example.com',
+      'https://*.example.com',
+      'https://app.example.com/',
+      'https://app.example.com/path',
+      'https://app.example.com;',
+      "https://app.example.com 'unsafe-inline'",
+      'https://user@app.example.com',
+      'https://app.example.com?x=1',
+      'app.example.com',
+      "'self'",
+      '*',
+      '',
+    ]) {
+      expect(isFrameAncestorOrigin(value), value).toBe(false);
+    }
+  });
+
+  it('parses the closed default, demands both fields and caps the list', () => {
+    expect(
+      embeddingConfigSchema.parse({ enabled: false, frameAncestors: [] }),
+    ).toEqual({ enabled: false, frameAncestors: [] });
+    expect(embeddingConfigSchema.safeParse({ enabled: true }).success).toBe(
+      false,
+    );
+    expect(
+      embeddingConfigSchema.safeParse({
+        enabled: true,
+        frameAncestors: Array.from(
+          { length: EMBEDDING_FRAME_ANCESTORS_MAX + 1 },
+          (_, index) => `https://h${index}.example`,
+        ),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('admits nothing while disabled and a deduplicated, sorted list while enabled', () => {
+    expect(frameAncestorsOf(null)).toEqual([]);
+    expect(
+      frameAncestorsOf({
+        enabled: false,
+        frameAncestors: ['https://b.example'],
+      }),
+    ).toEqual([]);
+    expect(
+      frameAncestorsOf({
+        enabled: true,
+        frameAncestors: [
+          'https://b.example',
+          'https://a.example',
+          'https://b.example',
+        ],
+      }),
+    ).toEqual(['https://a.example', 'https://b.example']);
+  });
+
+  it('is registered as the embedding policy schema', () => {
+    expect(POLICY_SCHEMAS.embedding).toBe(embeddingConfigSchema);
   });
 });

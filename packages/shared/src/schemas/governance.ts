@@ -79,6 +79,11 @@ export const POLICY_TYPES = [
   // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
   // in `domains/tasks/reviews.ts::closePendingTaskReviewOnStatusLeave`.
   'review_policy',
+  // Which web origins may embed this organization's pages in a frame
+  // (CSP `frame-ancestors`). Missing file / disabled ⇒ nothing may frame
+  // Tale, exactly as before the policy existed. See `embeddingConfigSchema`;
+  // read by the web tier's security headers and the trusted-headers door.
+  'embedding',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -952,6 +957,50 @@ export const reviewPolicyConfigSchema = z.object({
 });
 export type ReviewPolicyConfig = z.infer<typeof reviewPolicyConfigSchema>;
 
+/** Frame ancestors per organization — a small, deliberate allowlist. */
+export const EMBEDDING_FRAME_ANCESTORS_MAX = 16;
+
+/**
+ * An origin the CSP may name as a frame ancestor: `https://host[:port]`, or
+ * plain `http://` on loopback only (a developer's host page). Lowercase and
+ * character-restricted on purpose — the value is interpolated into a
+ * response header, so a `;`, whitespace or `*` must never get through.
+ */
+const FRAME_ANCESTOR_ORIGIN_RE =
+  /^(?:https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?|http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?)$/;
+
+export function isFrameAncestorOrigin(value: string): boolean {
+  return value.length <= 253 && FRAME_ANCESTOR_ORIGIN_RE.test(value);
+}
+
+export const frameAncestorOriginSchema = z
+  .string()
+  .max(253)
+  .refine(isFrameAncestorOrigin, {
+    message:
+      'an origin such as https://app.example.com (https, lowercase, optional port; http only on loopback)',
+  });
+
+/**
+ * `embedding` policy: which web origins may show this organization's pages
+ * inside a frame. Tale's security headers refuse every frame ancestor by
+ * default; an enabled policy with origins turns `frame-ancestors` into
+ * `'self'` plus the list. Disabled or empty ⇒ nothing may frame Tale.
+ */
+export const embeddingConfigSchema = z.object({
+  enabled: z.boolean(),
+  frameAncestors: z
+    .array(frameAncestorOriginSchema)
+    .max(EMBEDDING_FRAME_ANCESTORS_MAX),
+});
+export type EmbeddingConfig = z.infer<typeof embeddingConfigSchema>;
+
+/** The origins an embedding policy actually admits: none unless enabled. */
+export function frameAncestorsOf(config: EmbeddingConfig | null): string[] {
+  if (config === null || !config.enabled) return [];
+  return [...new Set(config.frameAncestors)].sort();
+}
+
 /**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
@@ -991,6 +1040,7 @@ export const POLICY_SCHEMAS = {
   vision_model: visionModelConfigSchema,
   transcription_model: transcriptionModelConfigSchema,
   review_policy: reviewPolicyConfigSchema,
+  embedding: embeddingConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the
