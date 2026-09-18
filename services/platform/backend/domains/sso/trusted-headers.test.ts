@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { checkIpRateLimit } from '../../lib/rate-limit.ts';
 import { resolveTrustedHeaderKey } from '../trusted_headers/service.ts';
@@ -238,6 +239,54 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
       ]),
     );
     expect(queries.some((q) => q.text.startsWith('INSERT INTO "user"'))).toBe(
+      false,
+    );
+    // Same role asserted as the seat holds: nothing to move.
+    expect(queries.some((q) => q.text.startsWith('UPDATE "member"'))).toBe(
+      false,
+    );
+  });
+
+  it('moves an existing seat to the asserted role and writes the member audit', async () => {
+    const { sql, queries } = fakeSql(memberScript());
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'admin',
+    });
+
+    expect(result.role).toBe('admin');
+    const moved = queries.find((q) => q.text.startsWith('UPDATE "member"'));
+    expect(moved?.text).toContain('SET "role" = $?');
+    expect(moved?.values).toEqual(['admin', 'user-1', 'org-1']);
+    const audit = queries.find(
+      (q) =>
+        q.text.startsWith('INSERT INTO app.audit_logs') &&
+        q.values.includes('update_member_role'),
+    );
+    expect(audit).toBeDefined();
+    // The session carries the same role the seat now holds.
+    const session = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    expect(session?.values).toEqual(expect.arrayContaining(['admin', 'org-1']));
+  });
+
+  it('never moves the owner seat, whatever the proxy asserts', async () => {
+    const script = memberScript();
+    const seat = script.find((entry) =>
+      entry.match.test('SELECT "role" FROM "member"'),
+    );
+    if (seat !== undefined) seat.rows = [{ role: 'owner' }];
+    const { sql, queries } = fakeSql(script);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'admin',
+    });
+
+    expect(result.role).toBe('admin');
+    expect(queries.some((q) => q.text.startsWith('UPDATE "member"'))).toBe(
       false,
     );
   });
@@ -656,5 +705,27 @@ describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
     expect(res.status).toBe(500);
     expect(await res.text()).toContain('Server configuration error');
     expect(writes(queries)).toHaveLength(0);
+  });
+});
+
+describe('parseTeamsHeader — the shapes a proxy sends teams in', () => {
+  it('reads a plain group list — the form most authenticating proxies emit', () => {
+    expect(parseTeamsHeader('teamA,teamB')).toEqual([
+      { id: 'teamA', name: 'teamA' },
+      { id: 'teamB', name: 'teamB' },
+    ]);
+  });
+
+  it('reads id:name entries, and a mix of both shapes', () => {
+    expect(parseTeamsHeader('t-fin:Finance, Operations ,t-x: Legal ')).toEqual([
+      { id: 't-fin', name: 'Finance' },
+      { id: 'Operations', name: 'Operations' },
+      { id: 't-x', name: 'Legal' },
+    ]);
+  });
+
+  it('drops blanks and half-empty pairs, and reads nothing usable as absent', () => {
+    expect(parseTeamsHeader(' , :Name, id: ,')).toBeNull();
+    expect(parseTeamsHeader('   ')).toBeNull();
   });
 });

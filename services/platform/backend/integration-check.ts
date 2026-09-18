@@ -17398,6 +17398,20 @@ async function checkTrustedHeaders(
     },
     '/http_api/api/trusted-headers/authenticate',
   );
+  // The alias sign-in asserted `member`: the proxy is the role authority,
+  // so the seat follows the assertion and Members shows what the session
+  // enforces — with the same audit row a manual role change writes.
+  const rebound = await sql<{ role: string }[]>`
+    SELECT m."role" FROM "member" m
+    JOIN "user" u ON u."id" = m."userId"
+    WHERE u."email" = ${proxyEmail} AND m."organizationId" = ${orgId}
+  `;
+  const reboundRole = rebound[0]?.role ?? 'missing';
+  const reboundAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'update_member_role'
+      AND new_state->>'via' = 'trusted_headers'
+  `;
   const proxySessions = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM "session" s
     JOIN "user" u ON u."id" = s."userId"
@@ -17454,6 +17468,8 @@ async function checkTrustedHeaders(
       viaHeader.cookie === first.cookie &&
       alias.status === 200 &&
       alias.cookie === first.cookie &&
+      reboundRole === 'member' &&
+      Number(reboundAudits[0]?.count ?? '0') >= 1 &&
       proxySessions[0]?.count === '1' &&
       framedBefore.headers.get('x-frame-options') === 'DENY' &&
       framedBefore.headers.get('content-security-policy') ===
@@ -17463,7 +17479,7 @@ async function checkTrustedHeaders(
       framedAfter.headers.get('x-frame-options') === null &&
       framedAfter.headers.get('content-security-policy') ===
         "frame-ancestors 'self' https://embed.example",
-    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
+    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} seatAfterAlias=${reboundRole} (want member) roleAudits=${reboundAudits[0]?.count} (want ≥1) sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
   );
 
   // ---- refusals, pause, revoke ----------------------------------------------

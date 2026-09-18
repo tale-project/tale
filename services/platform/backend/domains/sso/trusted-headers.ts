@@ -131,6 +131,24 @@ export async function trustedHeadersAuthenticate(
       if (members[0] === undefined) {
         throw new TrustedHeadersRefusedError('existing_user_not_in_org');
       }
+      // The proxy is the role authority for this organization: the seat
+      // follows the (clamped) assertion on every sign-in, so Settings >
+      // Members shows what the session enforces. The owner seat is never
+      // moved — the proxy cannot assert owner and must not demote one.
+      const seatRole = members[0].role.toLowerCase();
+      if (seatRole !== 'owner' && seatRole !== args.role) {
+        await tx`
+          UPDATE "member" SET "role" = ${args.role}
+          WHERE "userId" = ${userId} AND "organizationId" = ${args.organizationId}
+        `;
+        await roleMovedAudit(tx, {
+          organizationId: args.organizationId,
+          userId,
+          email,
+          previousRole: seatRole,
+          role: args.role,
+        });
+      }
       if (users[0].name !== name) {
         await tx`
           UPDATE "user" SET "name" = ${name}, "updatedAt" = ${now}
@@ -150,9 +168,9 @@ export async function trustedHeadersAuthenticate(
       const createdId = created[0]?.id;
       if (createdId === undefined) throw new Error('user insert failed');
       userId = createdId;
-      // The member row carries the clamped role the proxy asserted at
-      // creation; later sign-ins ride the session override, so the proxy
-      // stays the authority without rewriting the row each time.
+      // The member row carries the clamped role the proxy asserted; a later
+      // sign-in that asserts another role moves the seat (above), and the
+      // session override keeps authorization on the asserted role either way.
       await tx`
         INSERT INTO "member" (
           "id", "organizationId", "userId", "role", "createdAt"
@@ -279,6 +297,41 @@ async function joinedAudit(
   } catch (error) {
     console.error(
       '[trusted_headers] failed to write joined_organization audit',
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
+/** The seat moved to the role the proxy asserted — the same row a manual
+ * role change writes, so the Members audit reads as one history. */
+async function roleMovedAudit(
+  tx: Parameters<typeof createAuditLog>[0],
+  args: {
+    organizationId: string;
+    userId: string;
+    email: string;
+    previousRole: string;
+    role: string;
+  },
+): Promise<void> {
+  try {
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: args.userId,
+      actorEmail: args.email,
+      actorType: 'user',
+      action: 'update_member_role',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: args.userId,
+      resourceName: args.email,
+      previousState: { role: args.previousRole },
+      newState: { role: args.role, via: 'trusted_headers' },
+      status: 'success',
+    });
+  } catch (error) {
+    console.error(
+      '[trusted_headers] failed to write update_member_role audit',
       error instanceof Error ? error.message : error,
     );
   }
@@ -496,7 +549,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
     if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
       console.warn(
-        `[Trusted Headers] ${names.teams} carries no "id:name" entry; treating it as an empty team assertion`,
+        `[Trusted Headers] ${names.teams} carries no team entry; treating it as an empty team assertion`,
       );
     }
     const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
