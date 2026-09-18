@@ -61,17 +61,25 @@ function RecoveryPage() {
   );
 }
 
-it('refreshes password expiry before a successful forced change returns to the dashboard', async () => {
+/**
+ * The forced-change wall and the dashboard gate share ONE cached expiry
+ * entry, and the page navigates the moment the change resolves — so a cache
+ * still holding `expired: true` bounces the user straight back onto the wall
+ * they just cleared, with the password already changed and only a manual
+ * reload to get out. `answers` decides what the write hands back.
+ */
+function mountForcedChange(answers: {
+  /** `false` = a backend that predates the status on the write's answer. */
+  statusOnWrite: boolean;
+  /** `true` = every expiry RE-read after the change fails (flaky gateway). */
+  breakRereadAfterChange: boolean;
+}) {
   window.__ENV__ = { BASE_PATH: '' };
+  const counts = { expiryReads: 0, expiryReadsAfterChange: 0, changes: 0 };
   let expired = true;
-  let expiryReads = 0;
-  let changes = 0;
-  let releaseRefresh: () => void = () => {};
-  const refreshAllowed = new Promise<void>((resolve) => {
-    releaseRefresh = resolve;
-  });
-  const json = (body: unknown) =>
+  const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
+      status,
       headers: { 'content-type': 'application/json' },
     });
   const nativeFetch = window.fetch.bind(window);
@@ -83,14 +91,24 @@ it('refreshes password expiry before a successful forced change returns to the d
           ? input.url
           : input.href;
     if (path === '/api/app/users/password-expiry') {
-      expiryReads += 1;
-      if (!expired) await refreshAllowed;
+      counts.expiryReads += 1;
+      if (counts.changes > 0) {
+        counts.expiryReadsAfterChange += 1;
+        if (answers.breakRereadAfterChange) {
+          return json({ error: 'flaky gateway' }, 503);
+        }
+      }
       return json({ hasCredential: true, expired });
     }
     if (path.startsWith('/api/app/users/update-password')) {
-      changes += 1;
+      counts.changes += 1;
       expired = false;
-      return json({ ok: true });
+      return json({
+        ok: true,
+        ...(answers.statusOnWrite
+          ? { passwordExpiry: { hasCredential: true, expired: false } }
+          : {}),
+      });
     }
     if (path === '/api/app/two-factor/status') {
       return json({ enabled: false, hasPasskey: false });
@@ -126,21 +144,57 @@ it('refreshes password expiry before a successful forced change returns to the d
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
+  return { client, counts, router, user };
+}
+
+it('publishes the status the change answered, without re-reading it', async () => {
+  const { client, counts, router, user } = mountForcedChange({
+    statusOnWrite: true,
+    breakRereadAfterChange: false,
+  });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Save password' })).toBeEnabled(),
   );
   await user.click(screen.getByRole('button', { name: 'Save password' }));
-  await waitFor(() => expect(expiryReads).toBe(2));
-  expect(router.state.location.pathname).toBe(
-    '/forced-change-password/synthetic-org',
-  );
-  expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled();
-  releaseRefresh();
   await screen.findByRole('heading', { name: 'Dashboard' });
+  expect(router.state.location.pathname).toBe('/dashboard/synthetic-org');
   expect(client.getQueryData(passwordExpiryQuery().queryKey)).toMatchObject({
     expired: false,
   });
+  // The write is the only round-trip the landing depends on.
+  expect(counts.expiryReadsAfterChange).toBe(0);
+  expect(counts.changes).toBe(1);
+  client.clear();
+});
+
+it('still lands on the dashboard when every expiry re-read fails', async () => {
+  const { client, router, user } = mountForcedChange({
+    statusOnWrite: true,
+    breakRereadAfterChange: true,
+  });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Save password' })).toBeEnabled(),
+  );
+  await user.click(screen.getByRole('button', { name: 'Save password' }));
+  await screen.findByRole('heading', { name: 'Dashboard' });
   expect(router.state.location.pathname).toBe('/dashboard/synthetic-org');
-  expect(changes).toBe(1);
+  client.clear();
+});
+
+it('falls back to re-reading when the write answers no status (mid-roll)', async () => {
+  const { client, counts, router, user } = mountForcedChange({
+    statusOnWrite: false,
+    breakRereadAfterChange: false,
+  });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Save password' })).toBeEnabled(),
+  );
+  await user.click(screen.getByRole('button', { name: 'Save password' }));
+  await screen.findByRole('heading', { name: 'Dashboard' });
+  expect(router.state.location.pathname).toBe('/dashboard/synthetic-org');
+  expect(counts.expiryReadsAfterChange).toBe(1);
+  expect(client.getQueryData(passwordExpiryQuery().queryKey)).toMatchObject({
+    expired: false,
+  });
   client.clear();
 });

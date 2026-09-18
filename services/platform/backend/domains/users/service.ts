@@ -355,13 +355,20 @@ export function forcedResetEligible(
  * re-authenticates via Better Auth `changePassword`; forced rotation skips
  * currentPassword but revokes other sessions; OAuth-only users get
  * `setPassword`). Policy = strictest across the caller's orgs.
+ *
+ * Answers the credential's RECOMPUTED expiry status: the forced-change wall
+ * is a client-side gate over that status, and the write is the only moment
+ * the server knows it has just moved. Handing it back lets the caller leave
+ * the wall on this one round-trip instead of re-reading — a re-read that
+ * fails or lands late strands the user back on the wall with the password
+ * already changed.
  */
 export async function updateUserPassword(
   deps: { sql: Sql; auth: Auth },
   actor: { userId: string; email?: string },
   headers: Headers,
   args: UpdateUserPasswordArgs,
-): Promise<void> {
+): Promise<PasswordExpiryStatus> {
   const { sql, auth } = deps;
   const orgs = await getUserOrganizations(sql, actor.userId);
   const { policy } = await getStrictestPasswordPolicyForUser(
@@ -439,6 +446,8 @@ export async function updateUserPassword(
       });
     }
   });
+
+  return computePasswordExpiry(sql, actor.userId);
 }
 
 /**

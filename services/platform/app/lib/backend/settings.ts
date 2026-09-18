@@ -1202,8 +1202,14 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
     // clears the active-org store on unmount, so requireOrg would throw.
     // `trigger` is retained for wire compatibility; forced-reset eligibility
     // is derived server-side from the credential, never from this hint.
+    //
+    // Hands back the recomputed expiry status so the caller can publish it
+    // instead of re-reading; `null` for a backend that predates the field.
     run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>('/users/update-password', {
+      backendFetch<{
+        ok: boolean;
+        passwordExpiry?: ReturnsOf<'users/mutations:updateUserPassword'>;
+      }>('/users/update-password', {
         ...(orgOf(args, ctx) !== undefined ? { orgId: orgOf(args, ctx) } : {}),
         body: {
           ...(typeof args.currentPassword === 'string'
@@ -1214,7 +1220,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
             ? { trigger: args.trigger }
             : {}),
         },
-      }).then(() => null),
+      }).then((body) => body.passwordExpiry ?? null),
   },
   'webdav/app_password_mutations:createAppPassword': {
     run: (args, ctx) =>
