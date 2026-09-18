@@ -17,6 +17,30 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,
   },
+  // In browser mode Vite pre-bundles only what its first scan reaches; the
+  // dependencies the component tests import are otherwise found one test
+  // file at a time while the run is under way, and every late find
+  // re-bundles and reloads the page — killing the files in flight ("Vitest
+  // failed to find the current suite", a second React inside Radix). Scan
+  // the browser test files themselves, and name the packages the runs kept
+  // discovering late, so the first bundle is the last.
+  optimizeDeps: {
+    entries: ['**/*.browser.test.{ts,tsx}'],
+    include: [
+      '@radix-ui/react-toast',
+      '@radix-ui/react-toggle-group',
+      '@sentry/browser',
+      '@sentry/tanstackstart-react',
+      'ajv',
+      'framer-motion',
+      'he',
+      'qrcode.react',
+      'react-dom/client',
+      'recharts',
+      'striptags',
+      'swagger-ui-react',
+    ],
+  },
   test: {
     coverage: {
       provider: 'v8',
