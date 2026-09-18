@@ -67,6 +67,7 @@ Avant de proposer une opération, vérifie le rôle et l’accès à la ressourc
 | `developer` | Les rôles Propriétaire, Admin et Développeur peuvent démarrer des exécutions réelles arbitraires, annuler ou supprimer des exécutions, lier ou retirer des déclencheurs, supprimer des automatisations et installer ou retirer celles d’un projet. Sinon, ces opérations REST donnent `403 ROLE_FORBIDDEN`. MCP vérifie aussi cette capacité pour enregistrer, déployer et utiliser d’autres outils privilégiés, avec son propre format d’erreur. La validation et les outils de simulation restent accessibles aux membres. L’accès au projet est vérifié séparément. |
 | `deploymentEditor` | La liste d’autorisation de l’opérateur permet d’importer ou de révoquer des sessions de navigateur. Un rôle administratif seul ne donne pas cette capacité. |
 | `notificationExport` | La clé peut exporter les notifications des membres avec `GET /api/v1/notifications/sync`. Les Propriétaires et Admins disposent de cette capacité par leur rôle ; les autres membres seulement tant qu’une attribution `tale:notifications.export` accordée par un Admin est active. Voir [Déléguer l’export sans rôle Admin](#deleguer-lexport-sans-role-admin). Sinon, l’export renvoie `403 ROLE_FORBIDDEN`. |
+| `actAs` | La clé peut nommer un `actor` — le membre vérifié pour lequel un geste relayé est enregistré — sur `POST …/runs/{runId}/asks/{askId}` et `POST …/tasks/{taskId}/review`. Les Propriétaires et les Admins l’ont par leur rôle ; tout autre membre seulement tant qu’une attribution `tale:rest.act-as` faite par un Admin est active — voir [Nommer le membre pour lequel on agit](#nommer-le-membre-pour-lequel-on-agit). Sans ce droit, un `actor` envoyé donne `403 ROLE_FORBIDDEN`. |
 
 ## Ce que chaque requête doit respecter
 
@@ -233,7 +234,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | --- | --- |
 | Automatisations | `/api/v1/automations/...`<br>Consulter les définitions, versions, déclencheurs et projets associés ; supprimer une définition ; démarrer et lister les exécutions sans projet. |
 | Automatisations du projet | `/api/v1/projects/{id}/automations/...`<br>Lister, installer ou désinstaller les automatisations ; démarrer et lister leurs exécutions dans ce projet. |
-| Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}`. |
+| Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}` ; lire la question d’une exécution en attente avec `GET .../ask` et y répondre avec `POST .../asks/{askId}`. |
 | Fils de conversation | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...`<br>Gérer les chats du détenteur de la clé, dans un projet ou sans projet : lister, créer, lire, archiver, restaurer et supprimer ; envoyer un message, suivre ou annuler son tour. |
 | Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les harness de code sur lesquels un agent de projet peut tourner. |
 | Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. |
@@ -248,7 +249,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Conversations | `/api/v1/conversations/...`<br>Synchroniser des instantanés externes dans la boîte de réception et lire leurs reçus ; consulter la file de livraison, réserver les réponses, confirmer ou signaler un échec de livraison, puis relancer un échec définitif. |
 | Notifications | `GET /api/v1/notifications/sync`<br>Export en lecture seule du flux personnel ou d’organisation d’un membre vérifié ; réservé aux Propriétaires/Admins et aux membres auxquels un Admin a accordé `tale:notifications.export`. Pagination signée, textes localisés, IDs stables et empreintes du contenu et de l’état de lecture. |
 | Projets | `/api/v1/projects/...`<br>Lister les projets ou en chercher un par identifiant externe ; créer, archiver, restaurer ou supprimer un projet ; gérer ses dossiers et charger, télécharger, supprimer ou indexer ses fichiers. |
-| Tâches | `/api/v1/projects/{id}/tasks/...`<br>Créer une tâche depuis une référence externe sans doublon, lire son état, démarrer un workflow et commenter. Le démarrage renvoie le `runId` à suivre. |
+| Tâches | `/api/v1/projects/{id}/tasks/...`<br>Créer une tâche depuis une référence externe sans doublon, lire son état, démarrer un workflow, commenter, et traiter sa relecture : `GET .../review` la lit, `POST .../review` la décide pour un membre. Le démarrage renvoie le `runId` à suivre. |
 | MCP | `POST /api/v1/mcp`<br>Appeler l’[endpoint MCP](/fr/develop/mcp-endpoint) avec la même clé, en JSON-RPC. |
 | Déclencheur webhook | `POST /api/projects/{id}/automations/webhook/{token}` ou `POST /api/automations/webhook/{token}`<br>Démarrer une automatisation déployée avec son jeton ; voir [Webhooks](/fr/develop/webhooks) pour les URL avec ou sans projet. |
 
@@ -757,6 +758,55 @@ Avec `include`, une page contient au maximum 25 lignes et 8 Mio. Elle peut s’a
 Une automatisation sans association à un projet peut démarrer sans projet via `POST /api/v1/automations/{name}/runs`. Une automatisation associée donne **409** sur cette route. `GET /api/v1/automations/{name}/runs` et `/api/v1/runs/{runId}` exposent uniquement les exécutions sans projet. Pour lire, annuler ou supprimer une exécution de projet, utilise toujours la route de ce projet.
 
 `DELETE /api/v1/projects/{id}/runs/{runId}`, ou `/api/v1/runs/{runId}`, exige la capacité développeur et supprime une exécution terminée, entrée et sortie comprises. Une exécution active donne **409**, `RUN_ACTIVE` : annule-la d’abord.
+
+## Agir pour un membre : répondre à la question d’une exécution, décider la relecture d’une tâche
+
+Une exécution en pause sur `waitingFor: "ask"` et une tâche en `in_review` attendent toutes deux une personne. Quand cette personne travaille dans une autre application — un portail de bureau qui reflète le poste de travail, par exemple —, l’appel machine relaie son geste et la nomme comme `actor` : Tale enregistre alors la personne, pas la clé. Ces deux points d’entrée demandent le contrat API 1.16.0.
+
+### Répondre à la question qu’attend une exécution
+
+`GET /api/v1/projects/{id}/runs/{runId}/ask` renvoie la question ouverte sous la forme `PendingAsk` — la phrase, un ensemble structuré `questions` facultatif, le nœud qui a posé la question et l’échéance `expiresAt` — ou `ask: null` quand personne n’est sollicité. La lecture demande le même accès que la lecture de l’exécution.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/ask" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "ask": { "askId": "...", "question": "...", "expiresAt": 1758210000000, "taskId": "..." } }
+```
+
+Envoie la réponse à `POST /api/v1/projects/{id}/runs/{runId}/asks/{askId}`. Tale l’enregistre, reprend l’exécution dans la même transaction et dépose la réponse sur la chronologie de la tâche comme commentaire de la personne qui a répondu. Pour un ensemble `questions`, envoie une ligne par question, comme le fait l’application : `<question> → <option choisie>; <texte saisi> (in their own words)`.
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>/asks/<askId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "answer": "Comptabiliser en février.", "actor": { "email": "reviewer@example.com" } }'
+# → 200 { "ok": true, "askId": "...", "runId": "...", "answeredBy": "<userId>", "actorUserId": "<userId>", "taskId": "..." }
+```
+
+Une exécution de projet demande l’accès en écriture à un projet actif ; une exécution d’organisation demande l’appartenance à l’organisation. Sans `actor`, la clé répond en son propre nom et `answeredBy` vaut `api-key:<userId>`. Une question déjà traitée ou fermée donne **409** `HUMAN_ASK_NOT_PENDING`, une question expirée **409** `HUMAN_ASK_EXPIRED` — l’exécution échoue alors avec `failureCode: "ask_expired"` — et une question que cette exécution n’a pas posée **404** `HUMAN_ASK_NOT_FOUND`. Une réponse vide donne **400** `EMPTY_ANSWER`.
+
+### Décider la relecture d’une tâche
+
+`GET /api/v1/projects/{id}/tasks/{taskId}/review` renvoie l’état de la tâche et sa relecture en attente sous la forme `TaskReview`, sinon `review: null`. Un `POST` sur le même chemin la décide — ici `actor` est obligatoire, car une relecture est toujours la décision d’une personne :
+
+```bash
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approve", "actor": { "email": "reviewer@example.com", "userId": "<userId>" } }'
+# → 200 { "task": { "id": "...", "status": "done" }, "decision": "approve", "approvalId": "...", "actorUserId": "<userId>" }
+```
+
+`approve` correspond au passage en Terminé sur le tableau : l’accès au projet du membre et la `review_policy` de l’organisation s’appliquent exactement comme là (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` ou `REVIEW_COMPETENCE_REQUIRED` si la politique refuse la personne), la relecture est enregistrée comme approuvée par le membre et la tâche passe à `done` ; une tâche avec des sous-tâches ouvertes donne **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` exige `comment` et `workflowSlug` : la relecture est retirée, le commentaire est déposé sur la chronologie et le workflow redémarre sur la tâche en lisant ce commentaire comme retour ; la réponse contient le `runId` à suivre, avec `started: false` si une exécution en cours a été réutilisée. Une tâche qui n’est pas en relecture donne **409** `TASK_NOT_IN_REVIEW`. Chaque décision est auditée sous `task.review_relayed`, avec le membre et la clé qui a relayé pour lui.
+
+### Nommer le membre pour lequel on agit
+
+`actor.email` désigne le membre par son adresse e-mail. Tale la résout dans l’organisation selon la même règle que l’export des notifications : exactement une appartenance active dont l’adresse est vérifiée. Aucun membre correspondant donne **404** `ACTOR_NOT_FOUND`, deux membres **409** `ACTOR_AMBIGUOUS`, une adresse non vérifiée **403** `ACTOR_UNVERIFIED`, une appartenance désactivée **403** `ACTOR_DISABLED`. Chaque réponse renvoie l’`actorUserId` résolu ; fixe-le comme `actor.userId` lors des appels suivants. Une adresse passée depuis à un autre compte donne alors **409** `ACTOR_REBOUND` au lieu d’agir pour son nouveau titulaire. Un membre qui ne peut pas voir le projet – ou, sur la porte de revue, écrire sa tâche – donne **403** `ACTOR_FORBIDDEN` ; l’accès du détenteur de la clé est vérifié d’abord, ce code parle donc toujours de l’acteur.
+
+Nommer un `actor` est un droit à part entière. Une clé de Propriétaire ou d’Admin l’a par son rôle ; tout autre titulaire de clé a besoin de la capacité `tale:rest.act-as`, attribuée et révoquée exactement comme la capacité d’export dans [Déléguer l’export sans rôle Admin](#deleguer-lexport-sans-role-admin), avec `"competence":"tale:rest.act-as"` dans le corps de l’attribution. `GET /api/v1/me` la renvoie sous `capabilities.actAs` ; un `actor` envoyé sans ce droit donne **403** `ROLE_FORBIDDEN` avant toute recherche de membre. Ce que le geste relayé peut faire reste décidé par les propres droits du membre.
 
 ## Envoyer un message, puis suivre le tour
 
