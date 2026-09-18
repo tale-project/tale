@@ -92,6 +92,7 @@ let mockAuthState = {
   user: { name: 'John Doe', email: 'john@example.com' },
   isLoading: false,
   isAuthenticated: true,
+  proxied: false,
   signIn: vi.fn(),
   signOut: mockSignOut,
 };
@@ -198,6 +199,7 @@ beforeEach(() => {
     user: { name: 'John Doe', email: 'john@example.com' },
     isLoading: false,
     isAuthenticated: true,
+    proxied: false,
     signIn: vi.fn(),
     signOut: mockSignOut,
   };
@@ -365,6 +367,22 @@ describe('UserButton', () => {
       expect(
         within(menu).getByRole('menuitem', { name: 'Log out' }),
       ).toBeInTheDocument();
+    });
+
+    it('offers no sign-out for a session an authenticating proxy asserted', async () => {
+      // The proxy owns that session: a sign-out here would be undone by the
+      // very next request it signs in, so the item is not offered at all.
+      mockAuthState = { ...mockAuthState, proxied: true };
+
+      await openMenu();
+      const menu = screen.getByRole('menu');
+
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Documentation' }),
+      ).toBeInTheDocument();
+      expect(
+        within(menu).queryByRole('menuitem', { name: 'Log out' }),
+      ).not.toBeInTheDocument();
     });
 
     it('restores focus to the menu trigger after cancelling sign out', async () => {

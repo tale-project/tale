@@ -221,6 +221,14 @@ entries:
   - 'auth.sso.errors.assertionNotEncrypted'
   - 'auth.sso.errors.flowMismatch'
 
+  # The trusted-headers door answers a refusal of a hand-off the app started
+  # by sending the browser back to the login page with the reason as a key
+  # (`REFUSAL_MESSAGE_KEY` in domains/sso/trusted-headers.ts) plus one
+  # recovery hint, rendered there via `t(ssoError)` like the SSO refusals —
+  # server-side literals the client-source scanner cannot see.
+  - 'auth.login.proxyHandoff.errors'
+  - 'auth.login.proxyHandoff.recovery'
+
   # Skill load-error detail titles: skill-load-error.ts maps machine error codes
   # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /
   # `skills.notFound` keys in a plain object, resolved later via the `skills`

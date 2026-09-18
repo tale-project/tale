@@ -112,6 +112,9 @@ describe('useSessionIdleWatchdog (#1502)', () => {
     await advance(MINUTE);
     expect(h.signOut).toHaveBeenCalledTimes(1);
     expect(window.location.href).toBe('/log-in?reason=idle');
+    // Behind an authenticating proxy the sign-in would come straight back;
+    // the hold keeps the notice on screen until the person continues.
+    expect(document.cookie).toContain('tale_handoff_hold=1');
   });
 
   it('resets the timer on user activity', async () => {

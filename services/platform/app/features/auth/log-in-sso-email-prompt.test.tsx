@@ -37,6 +37,7 @@ vi.mock('@/app/features/auth/hooks/queries', () => ({
     data: { enabled: true, providerType: 'entra-id', multiple: true },
   }),
   useSsoSelectableOrgs: () => ({ data: mockSelectableOrgs.value }),
+  useTrustedHeadersHandoff: () => ({ data: false, isLoading: false }),
 }));
 
 // ── React Query client / toast / auth client ────────────────────────────────

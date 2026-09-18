@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 
 import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
+import { requestWithMintedCookie } from './auth/minted-cookie.ts';
 import {
   oauthTokenPrecheck,
   withDiscoveryConformance,
@@ -64,9 +65,13 @@ import {
 import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSsoAdminRoutes } from './domains/sso/admin-routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
-import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
+import {
+  createTrustedHeadersRoutes,
+  trustedHeadersSessionMint,
+} from './domains/sso/trusted-headers.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
+import { createTrustedHeaderAdminRoutes } from './domains/trusted_headers/routes.ts';
 import { createTtsRoutes } from './domains/tts/routes.ts';
 import { createTwoFactorRoutes } from './domains/two_factor/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
@@ -151,7 +156,20 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // The transport-security headers every response carries — registered
   // ahead of the guards below so a pre-route refusal (a 401, a 414, a NUL
   // 400) wears them too (lib/http-hygiene.ts).
-  app.use(backendSecureHeaders(process.env.SITE_URL));
+  // The trusted-headers hand-off renders inside a host application's frame
+  // when the organization's `embedding` policy admits it, so that door owns
+  // its framing headers per response (`domains/sso/trusted-headers.ts`);
+  // every other response keeps the fixed DENY.
+  const secure = backendSecureHeaders<AuthEnv>(process.env.SITE_URL);
+  const secureFrameable = backendSecureHeaders<AuthEnv>(process.env.SITE_URL, {
+    frameable: true,
+  });
+  app.use((c, next) =>
+    c.req.path.startsWith('/api/trusted-headers/') ||
+    c.req.path.startsWith('/http_api/api/trusted-headers/')
+      ? secureFrameable(c, next)
+      : secure(c, next),
+  );
   // The api-key plugin's header is the REST door's internal hand-off, never
   // a client credential: carried by a client it would open every session
   // gate below with the key holder's identity (lib/http-hygiene.ts).
@@ -244,6 +262,17 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // refusal); every other auth route passes through as the library made it.
   // The realm is the issuer — the auth instance's own base URL, the one
   // discovery and the tokens name.
+  // Transparent sign-in from an authenticating proxy's headers: a GET the
+  // app makes for itself with the organization's key and identity header
+  // but no session cookie is answered signed in, the cookie minted on the
+  // spot (`domains/sso/trusted-headers.ts`). Registered ahead of the session
+  // gates and of Better Auth's own handler, both of which read the request
+  // as if the browser had sent that cookie (`auth/minted-cookie.ts`).
+  app.use('/api/app/*', trustedHeadersSessionMint({ sql: deps.sql }));
+  app.use(
+    '/api/auth/get-session',
+    trustedHeadersSessionMint({ sql: deps.sql }),
+  );
   const oidcRealm = () =>
     `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
   app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
@@ -255,7 +284,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     if (early !== null) return early;
     return withOAuthConformance(
       c.req.raw,
-      await deps.auth.handler(c.req.raw),
+      await deps.auth.handler(requestWithMintedCookie(c.req.raw)),
       oidcRealm(),
     );
   });
@@ -313,7 +342,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/scim/v2', scimRoutes);
   app.route('/http_api/scim/v2', scimRoutes);
 
-  // Trusted-headers hand-off (reverse-proxy auth) — same alias story.
+  // Trusted-headers hand-off — an application's authenticating proxy
+  // presents the organization's key and the identity headers; the key row
+  // IS the tenant (the SCIM posture). Same alias story.
   const trustedRoutes = createTrustedHeadersRoutes({ sql: deps.sql });
   app.route('/api/trusted-headers', trustedRoutes);
   app.route('/http_api/api/trusted-headers', trustedRoutes);
@@ -363,6 +394,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/knowledge', createKnowledgeRoutes(deps));
   app.route('/api/app/legal-holds', createLegalHoldRoutes(deps));
   app.route('/api/app/scim', createScimAdminRoutes(deps));
+  app.route('/api/app/trusted-headers', createTrustedHeaderAdminRoutes(deps));
   app.route('/api/app/knowledge-entries', createKnowledgeEntryRoutes(deps));
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/google-drive', createGoogleDriveRoutes(deps));

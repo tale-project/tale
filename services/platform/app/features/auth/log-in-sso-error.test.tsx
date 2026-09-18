@@ -25,6 +25,7 @@ vi.mock('@/app/features/auth/hooks/queries', () => ({
   useHasAnyUsers: () => ({ data: true, isLoading: false }),
   useIsSsoConfigured: () => ({ data: { enabled: true } }),
   useSsoSelectableOrgs: () => ({ data: [] }),
+  useTrustedHeadersHandoff: () => ({ data: false, isLoading: false }),
 }));
 
 vi.mock('@/app/hooks/use-react-query-client', () => ({

@@ -2,6 +2,8 @@
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { EmbeddingSection } from '@/app/features/settings/trusted-headers/components/embedding-section';
+import { TrustedHeadersSection } from '@/app/features/settings/trusted-headers/components/trusted-headers-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -13,8 +15,10 @@ import {
 
 /**
  * Dedicated "Enterprise SSO" settings page — sign-in (OIDC/OAuth2/SAML) +
- * SCIM provisioning for the org, with per-provider setup guidance. Admin-gated
- * (`orgSettings`), matching the config mutations' `isAdmin` requirement.
+ * SCIM provisioning for the org, with per-provider setup guidance, plus the
+ * trusted-headers card (an application's authenticating proxy signing its
+ * users in with the organization's key). Admin-gated (`orgSettings`),
+ * matching the config mutations' `isAdmin` requirement.
  */
 export function EnterpriseSsoSettings({
   organizationId,
@@ -37,6 +41,8 @@ export function EnterpriseSsoSettings({
   return (
     <SettingsPage>
       <EnterpriseSsoForm organizationId={organizationId} config={config} />
+      <TrustedHeadersSection organizationId={organizationId} />
+      <EmbeddingSection organizationId={organizationId} />
     </SettingsPage>
   );
 }

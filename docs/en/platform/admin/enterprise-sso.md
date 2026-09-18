@@ -1,6 +1,6 @@
 ---
 title: Enterprise SSO and provisioning
-description: Connect your identity provider, test sign-in, and manage member roles and teams with SSO or SCIM.
+description: Connect your identity provider, test sign-in, and manage member roles and teams with SSO, SCIM or a trusted proxy.
 ---
 
 Enterprise SSO lets members sign in through your identity provider (IdP). SCIM lets that provider create, update, and deactivate members without waiting for them to sign in. An organization has one connection; you can enable sign-in, provisioning, or both in **Settings > Enterprise SSO** as an Admin or Owner.
@@ -74,6 +74,18 @@ SCIM Users map to members and Groups to teams. Deactivation (`active: false`) di
 
 The organization owner cannot be deactivated or removed through SCIM. Groups can contain only members of this organization. A username change is refused if the new email is in use or the account belongs to multiple organizations, protecting its shared sign-in identity.
 
+## Sign members in through an authenticating proxy
+
+An application that already authenticates its users can hand them into this organization through its reverse proxy, so members never see Tale's sign-in form. The **Trusted headers** card on the same page holds the switch, the role ceiling and the keys the proxy presents.
+
+1. Turn on **Accept sign-ins from a trusted proxy** and choose the **Highest role a proxy may assert**. The role header is capped at this role; Owner is never assertable. On every sign-in the member's seat follows the asserted role; an Owner seat never changes.
+2. Select **Create key**, name it after the proxy that will hold it, and copy the key immediately; it is shown once. An organization holds at most 10 live keys.
+3. Configure the proxy to send its sign-ins to the **Hand-off URL** with the key in the key header and the identity headers listed under **Header names**. A member who arrives through the proxy is signed in on the app's first request and never sees a sign-in page; the app offers them no sign-out, since the proxy owns that session. Pointing the proxy's `/log-in` at the same address remains supported.
+
+To show the pages inside the application's own page, turn on **Allow embedding in a frame** under **Embedding** and list the page's origin under **Allowed origins**; Tale then admits that origin as a frame ancestor. A frame carries the signed-in session only when the surrounding page is on the same site as Tale.
+
+The key decides the organization: a member signs in, an address Tale has never seen becomes a new member with the asserted role, and an existing account from another organization is refused. Turning the switch off refuses every key without revoking one. **Revoke** stamps a key so the proxy can no longer sign anyone in; sessions it already started stay signed in. The operator's [authentication configuration](/self-hosted/configuration/authentication) covers header names and proxy requirements.
+
 ## Verify and troubleshoot
 
 Open a separate browser session, choose **Continue with SSO**, and select the organization by its display name. Complete sign-in, then check the expected role and team memberships. **Test connection** checks connection details; it does not prove that a real user receives the right access.
@@ -85,6 +97,7 @@ Open a separate browser session, choose **Continue with SSO**, and select the or
 | Browser-binding error | Start sign-in again in the same browser and allow the cookies needed across redirects. |
 | Wrong role or missing team | Inspect the IdP's actual claims, role rules, exclusions, and group permissions. |
 | SCIM cannot connect | Check the base URL, bearer token, and whether provisioning is enabled. |
+| Proxy sign-in is refused | Check that the card is on, the key is not revoked, and the proxy sends the email header and the key on the hand-off request. |
 | Missing redirect URL or server-configuration warning | Ask the deployment operator to check [authentication configuration](/self-hosted/configuration/authentication). |
 
 **Disable sign-in** stops new SSO sign-ins while keeping active sessions. **Remove** deletes the connection configuration and credentials. Arrange another working sign-in method before using either action.

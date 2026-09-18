@@ -349,6 +349,22 @@ auth:
     ssoOrgListLabel: Organizations
     ssoBackToLogin: Back to log in
     ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
+    proxyHandoff:
+      pending: Signing you in through your organization's sign-in service…
+      stalled: Automatic sign-in did not complete. Sign in another way below, or try again.
+      retry: Try again
+      continue: Continue with automatic sign-in
+      held: Automatic sign-in is paused after a sign-out. Continue when you're ready.
+      recovery: Sign in another way below, or ask an administrator to check the proxy hand-off.
+      errors:
+        missingKey: The proxy sent no trusted-header key.
+        unknownKey: The proxy's trusted-header key is unknown or revoked.
+        rateLimited: Too many failed hand-off attempts from this address. Try again later.
+        disabled: Trusted headers are switched off for this organization.
+        missingEmail: The proxy sent no email address.
+        notMember: Your account is not a member of the organization this proxy signs into.
+        configError: The server is not configured for proxy sign-in.
+        failed: Proxy sign-in could not be completed.
     continueWithPasskey: Sign in with a passkey
     passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
     wrongCredentials: Wrong email or password
@@ -1529,7 +1545,6 @@ common:
       with the page or use the button below to keep working.
     staySignedIn: Stay signed in
     signedOutNotice: You were signed out because your session was inactive for too long.
-    continueToSignIn: Continue to sign in
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
@@ -5505,6 +5520,69 @@ settings:
       disable: Disable
       baseUrlLabel: SCIM base URL
       tokenFailed: Couldn't generate SCIM token
+    trustedHeaders:
+      section: Trusted headers
+      help: Let an application that already signs its users in hand them into this
+        organization through its reverse proxy. On every hand-off the proxy
+        presents one of the keys below together with the identity headers.
+      enabled: Enabled
+      disabled: Disabled
+      toggleLabel: Accept sign-ins from a trusted proxy
+      toggleHelp: Off refuses every key of this organization without revoking any of them.
+      maxRoleLabel: Highest role a proxy may assert
+      maxRoleHelp: The role header is capped at this role. Owner can never be asserted
+        through a proxy.
+      endpointLabel: Hand-off URL
+      endpointHelp: Point the proxy's sign-in at this address. It sends the key in the key
+        header, plus the identity headers.
+      headersLabel: Header names
+      headersHelp: The headers this deployment reads. The operator renames them with the
+        TRUSTED_*_HEADER variables.
+      headerKey: Key
+      headerEmail: Email
+      headerName: Name
+      headerRole: Role
+      headerTeams: Teams
+      keysTitle: Keys
+      keysHelp: A key is shown once, when you create it. Revoking a key does not end the
+        sessions it started.
+      noKeys: No keys yet. Create one and give it to the proxy.
+      createKey: Create key
+      keyName: Name
+      keyNamePlaceholder: e.g. Portal proxy
+      keyCreated: Key created
+      keyCreatedHelp: Copy this key now — you won't be able to see it again.
+      keyCreatedSendAs: The label is the header the proxy sends it in on the hand-off request.
+      revoke: Revoke
+      revokeTitle: Revoke this key?
+      revokeDescription: The proxy holding “{name}” can no longer sign anyone in. Sessions
+        it already started stay signed in.
+      revoked: Key revoked
+      createdAt: Created
+      lastUsed: Last used
+      neverUsed: Never used
+      limitReached: This organization holds the maximum of {max} keys. Revoke one to create
+        another.
+    embedding:
+      section: Embedding
+      help: Let another web application show this organization's pages inside a frame.
+        Tale refuses every frame unless the surrounding page's origin is listed here.
+      enabled: Enabled
+      disabled: Disabled
+      toggleLabel: Allow embedding in a frame
+      toggleHelp: Off keeps every page out of frames; the list below is kept.
+      originsLabel: Allowed origins
+      originsHelp: One origin per line, such as https://app.example.com. At most {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Enter https origins only, one per line. Plain http is accepted for
+        localhost.
+      tooMany: At most {max} origins.
+      save: Save origins
+      saved: Embedding settings saved
+      saveFailed: Couldn't save the embedding settings
+      sameSiteNote: A frame receives the signed-in session only when the surrounding page
+        is on the same site as Tale, for example a subdomain of the host or Tale served
+        through the host's own domain.
     disable: Disable sign-in
     remove: Remove
     test: Test connection

@@ -102,6 +102,8 @@ settings:
             Dateibeständen eine Weile dauern.
   enterpriseSso:
     excludeGroupsLabel: Gruppen ausschliessen
+    embedding:
+      toggleHelp: Ausgeschaltet bleibt jede Seite ausserhalb von Frames; die Liste unten bleibt erhalten.
   providers:
     broker:
       maxResponseBytes: Maximale Antwortgrösse (Bytes)

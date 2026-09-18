@@ -364,6 +364,32 @@ auth:
     ssoNoOrganizations:
       Keine Organisation für die Anmeldung verfügbar. Wende dich
       an deine Administration.
+    proxyHandoff:
+      pending: Du wirst über den Anmeldedienst deiner Organisation angemeldet …
+      stalled:
+        Die automatische Anmeldung wurde nicht abgeschlossen. Melde dich
+        unten auf einem anderen Weg an oder versuche es erneut.
+      retry: Erneut versuchen
+      continue: Mit der automatischen Anmeldung fortfahren
+      held:
+        Die automatische Anmeldung ist nach einer Abmeldung pausiert. Fahre
+        fort, wenn du bereit bist.
+      recovery:
+        Melde dich unten auf einem anderen Weg an oder bitte die
+        Administration, die Übergabe des Proxys zu prüfen.
+      errors:
+        missingKey: Der Proxy hat keinen Trusted-Header-Schlüssel gesendet.
+        unknownKey: Der Trusted-Header-Schlüssel des Proxys ist unbekannt oder widerrufen.
+        rateLimited:
+          Zu viele fehlgeschlagene Übergaben von dieser Adresse. Versuche es
+          später erneut.
+        disabled: Vertrauenswürdige Header sind für diese Organisation ausgeschaltet.
+        missingEmail: Der Proxy hat keine E-Mail-Adresse gesendet.
+        notMember:
+          Dein Konto ist kein Mitglied der Organisation, in die dieser Proxy
+          anmeldet.
+        configError: Der Server ist nicht für die Proxy-Anmeldung konfiguriert.
+        failed: Die Proxy-Anmeldung konnte nicht abgeschlossen werden.
     continueWithPasskey: Mit einem Passkey anmelden
     passkeyFailed:
       Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
@@ -1572,7 +1598,6 @@ common:
       weiterzuarbeiten.
     staySignedIn: Angemeldet bleiben
     signedOutNotice: Du wurdest abgemeldet, weil deine Sitzung zu lange inaktiv war.
-    continueToSignIn: Weiter zur Anmeldung
 composer:
   openMenu: Chat-Menü öffnen
   addFiles: Fotos & Dateien hinzufügen
@@ -5382,6 +5407,74 @@ settings:
       disable: Deaktivieren
       baseUrlLabel: SCIM-Basis-URL
       tokenFailed: SCIM-Token konnte nicht generiert werden
+    trustedHeaders:
+      section: Vertrauenswürdige Header
+      help: Lass eine Anwendung, die ihre Nutzer bereits anmeldet, sie über ihren
+        Reverse-Proxy in diese Organisation weiterreichen. Bei jeder Übergabe legt
+        der Proxy einen der Schlüssel unten zusammen mit den Identitäts-Headern vor.
+      enabled: Aktiviert
+      disabled: Deaktiviert
+      toggleLabel: Anmeldungen über einen vertrauenswürdigen Proxy annehmen
+      toggleHelp: Ausgeschaltet weist jeden Schlüssel dieser Organisation ab, ohne einen
+        davon zu widerrufen.
+      maxRoleLabel: Höchste Rolle, die ein Proxy zuweisen darf
+      maxRoleHelp: Der Rollen-Header wird auf diese Rolle begrenzt. Inhaber kann über einen
+        Proxy nie zugewiesen werden.
+      endpointLabel: Übergabe-URL
+      endpointHelp: Leite die Anmeldung des Proxys auf diese Adresse. Er sendet den
+        Schlüssel im Schlüssel-Header, dazu die Identitäts-Header.
+      headersLabel: Header-Namen
+      headersHelp: Die Header, die diese Installation liest. Der Betreiber benennt sie über
+        die TRUSTED_*_HEADER-Variablen um.
+      headerKey: Schlüssel
+      headerEmail: E-Mail
+      headerName: Name
+      headerRole: Rolle
+      headerTeams: Teams
+      keysTitle: Schlüssel
+      keysHelp: Ein Schlüssel wird einmal angezeigt, wenn du ihn erstellst. Ein Widerruf
+        beendet die Sitzungen nicht, die er gestartet hat.
+      noKeys: Noch keine Schlüssel. Erstelle einen und gib ihn dem Proxy.
+      createKey: Schlüssel erstellen
+      keyName: Name
+      keyNamePlaceholder: z. B. Portal-Proxy
+      keyCreated: Schlüssel erstellt
+      keyCreatedHelp: Kopiere diesen Schlüssel jetzt – er wird nicht erneut angezeigt.
+      keyCreatedSendAs:
+        Die Beschriftung ist der Header, in dem der Proxy ihn auf der
+        Übergabeanfrage sendet.
+      revoke: Widerrufen
+      revokeTitle: Diesen Schlüssel widerrufen?
+      revokeDescription: Der Proxy mit „{name}“ kann niemanden mehr anmelden. Bereits
+        gestartete Sitzungen bleiben angemeldet.
+      revoked: Schlüssel widerrufen
+      createdAt: Erstellt
+      lastUsed: Zuletzt verwendet
+      neverUsed: Noch nie verwendet
+      limitReached: Diese Organisation hält bereits die Höchstzahl von {max} Schlüsseln.
+        Widerrufe einen, um einen weiteren zu erstellen.
+    embedding:
+      section: Einbettung
+      help: Lass eine andere Webanwendung die Seiten dieser Organisation in einem Frame
+        anzeigen. Tale weist jeden Frame ab, solange die Herkunft der umgebenden Seite
+        hier nicht aufgeführt ist.
+      enabled: Aktiviert
+      disabled: Deaktiviert
+      toggleLabel: Einbettung in einem Frame erlauben
+      toggleHelp: Ausgeschaltet bleibt jede Seite außerhalb von Frames; die Liste unten
+        bleibt erhalten.
+      originsLabel: Erlaubte Herkünfte
+      originsHelp: Eine Herkunft pro Zeile, etwa https://app.example.com. Höchstens {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Gib nur https-Herkünfte an, eine pro Zeile. Für localhost ist auch
+        http zulässig.
+      tooMany: Höchstens {max} Herkünfte.
+      save: Herkünfte speichern
+      saved: Einbettungseinstellungen gespeichert
+      saveFailed: Einbettungseinstellungen konnten nicht gespeichert werden
+      sameSiteNote: Ein Frame erhält die angemeldete Sitzung nur, wenn die umgebende Seite
+        zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter
+        der eigenen Domain des Hosts.
     disable: Anmeldung deaktivieren
     remove: Entfernen
     test: Verbindung testen

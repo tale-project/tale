@@ -80,6 +80,10 @@ export function createMemberRoutes(deps: {
         deps.sql,
         { userId: session.user.id, name: session.user.name },
         c.get('orgId'),
+        // The role the org gate enforces on this request — a trusted-headers
+        // session's asserted role included — so the app shows exactly the
+        // authority the backend grants, never a stale seat.
+        c.get('orgMember').role,
       ),
     );
   });

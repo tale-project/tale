@@ -32,6 +32,9 @@ type TestSsoResult = ReturnsOf<'enterprise_sso/config/actions:testConnection'>;
 type ParseIdpMetadataResult =
   ReturnsOf<'enterprise_sso/config/actions:parseIdpMetadata'>;
 type RegenerateScimResult = ReturnsOf<'scim/mutations:regenerateToken'>;
+type TrustedHeadersViewResult = ReturnsOf<'trusted_headers/queries:get'>;
+type TrustedHeaderKeyCreatedResult =
+  ReturnsOf<'trusted_headers/mutations:createKey'>;
 type ObjectStorageViewResult =
   ReturnsOf<'object_storage/actions:getObjectStorageConnection'>;
 type ObjectStorageProbeResult =
@@ -235,6 +238,15 @@ export const adminReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<SsoConnectionViewResult>('/sso/config', { orgId }),
     };
   },
+  'trusted_headers/queries:get': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'trusted_headers', 'view'),
+      queryFn: () =>
+        backendFetch<TrustedHeadersViewResult>('/trusted-headers', { orgId }),
+    };
+  },
 };
 
 export const adminActionQueryAdapters: Record<string, ActionQueryAdapter> = {
@@ -375,6 +387,18 @@ function invalidateSso(
   });
 }
 
+function invalidateTrustedHeaders(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'trusted_headers'),
+  });
+}
+
 /** Strip `organizationId` (the org rides the query string on the pg wire). */
 function bodyOf(args: Record<string, unknown>): Record<string, unknown> {
   const { organizationId, ...rest } = args;
@@ -506,6 +530,31 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
         body: {},
       }).then(() => null),
     invalidate: invalidateSso,
+  },
+  'trusted_headers/mutations:setSettings': {
+    run: (args, ctx) =>
+      backendFetch<TrustedHeadersViewResult>('/trusted-headers/settings', {
+        orgId: requireOrg(args, ctx),
+        method: 'PUT',
+        body: bodyOf(args),
+      }),
+    invalidate: invalidateTrustedHeaders,
+  },
+  'trusted_headers/mutations:createKey': {
+    run: (args, ctx) =>
+      backendFetch<TrustedHeaderKeyCreatedResult>('/trusted-headers/keys', {
+        orgId: requireOrg(args, ctx),
+        body: bodyOf(args),
+      }),
+    invalidate: invalidateTrustedHeaders,
+  },
+  'trusted_headers/mutations:revokeKey': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/trusted-headers/keys/${encodeURIComponent(stringArg(args, 'keyId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateTrustedHeaders,
   },
   'object_storage/actions:saveObjectStorageConnection': {
     run: (args, ctx) =>

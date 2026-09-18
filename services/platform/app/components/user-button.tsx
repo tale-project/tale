@@ -157,7 +157,7 @@ export function UserButton({
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
   const { t: tGlobal } = useT('global');
-  const { user, signOut, isLoading: loading } = useAuth();
+  const { user, signOut, proxied, isLoading: loading } = useAuth();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const organizationId = params.id;
@@ -552,24 +552,26 @@ export function UserButton({
         className: 'py-2.5',
       });
     }
-    helpGroup.push(
-      {
-        type: 'item',
-        label: t('userButton.documentation'),
-        icon: BookOpen,
-        href: TALE_DOCS_URL,
-        external: true,
-        className: 'py-2.5',
-      },
-      {
+    helpGroup.push({
+      type: 'item',
+      label: t('userButton.documentation'),
+      icon: BookOpen,
+      href: TALE_DOCS_URL,
+      external: true,
+      className: 'py-2.5',
+    });
+    // A session an authenticating proxy asserted is the proxy's to end: a
+    // sign-out here would be undone by the very next request it signs in.
+    if (!proxied) {
+      helpGroup.push({
         type: 'item',
         label: t('userButton.logOut'),
         icon: LogOut,
         onClick: handleSignOutClick,
         disabled: loading || !user,
         className: 'py-2.5',
-      },
-    );
+      });
+    }
     groups.push(helpGroup);
 
     return groups;
@@ -593,6 +595,7 @@ export function UserButton({
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
+    proxied,
     handleInstallApp,
     canInstall,
     isIOS,

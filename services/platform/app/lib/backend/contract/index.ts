@@ -49,6 +49,7 @@ import type { ScimContract } from './scim';
 import type { SkillsContract } from './skills';
 import type { TasksContract } from './tasks';
 import type { TeamMembersContract } from './team-members';
+import type { TrustedHeadersContract } from './trusted-headers';
 import type { TtsContract } from './tts';
 import type { TwoFactorContract } from './two-factor';
 import type { UserPreferencesContract } from './user-preferences';
@@ -98,6 +99,7 @@ export interface BackendContract
     SkillsContract,
     TasksContract,
     TeamMembersContract,
+    TrustedHeadersContract,
     TtsContract,
     TwoFactorContract,
     UserPreferencesContract,

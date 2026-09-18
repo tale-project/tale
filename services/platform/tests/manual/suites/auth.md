@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 35 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 40 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -23,6 +23,7 @@ open (`TALE_ALLOW_OPEN_SIGN_UP`).
 | Forced password change | `/forced-change-password/{id}`           | `app/routes/forced-change-password.$id.tsx`          |
 | Account & security     | `/dashboard/{org}/settings/account`      | `app/routes/dashboard/$id/settings/account.tsx`      |
 | Members & roles        | `/dashboard/{org}/settings/organization` | `app/routes/dashboard/$id/settings/organization.tsx` |
+| Trusted headers card   | `/dashboard/{org}/settings/enterprise-sso` | `app/features/settings/trusted-headers/components/trusted-headers-section.tsx` |
 
 > The members/roles UI was split out of the old `…/settings/people` page; it
 > now lives on the **Organization** route (`members-settings.tsx`). `_auth` is
@@ -156,6 +157,54 @@ compute codes from the enrollment secret.
 
 - [ ] `AUTH-F19` · **A new member reaches a connected application** — As an admin, add a colleague under **Settings > Members** with a new address and password, hand the credentials to a second browser profile, and start an OIDC authorization from a registered test application there (`AUTH-F18`'s flow) → the application receives the identity on the first attempt and its `email_verified` claim is true; no verification mail exists to wait for. The same account also receives its organization's notification mirror.
 
+- [ ] `AUTH-F21` · **Trusted headers card** — As an admin open
+  `/dashboard/{org}/settings/enterprise-sso` → below the SSO form the
+  **Trusted headers** card (`settings.enterpriseSso.trustedHeaders.section`)
+  shows a **Disabled** badge, the switch off, the ceiling **Member**, the
+  hand-off URL of this instance as a copyable pill, the five header names, and
+  **No keys yet**. Flip the switch and pick **Editor** → the badge reads
+  **Enabled** and both survive a reload. **Create key**
+  (`settings.enterpriseSso.trustedHeaders.createKey`) → name it → the dialog
+  shows a key starting with `thk_` exactly once, with the copy-now warning;
+  **Done** → the list shows the name, the eight-character prefix and
+  **Never used**; a reload never shows the plaintext again.
+- [ ] `AUTH-F22` · **Proxy hand-off signs a member in** — With the card on
+  (ceiling Editor) and a key copied, from a terminal send
+  `GET /api/trusted-headers/authenticate` with the key in the
+  `Remote-Internal-Secret` header, `Remote-Email` set to a NEW address,
+  `Remote-Name`, `Remote-Role` set to admin and `Remote-Teams` set to
+  `Finance,Operations` → 302 to `/dashboard` with a Set-Cookie session
+  token and no body of its own. Paste the cookie into a fresh browser
+  profile → the person is signed in to THIS organization only, **Settings >
+  Members** lists the new address as **Editor** (the asserted Admin was
+  capped), the Team switcher offers **Finance** and **Operations**, and the
+  card's key row now reads **Last used** with a relative time. Send the same
+  request again with `Remote-Role` set to member → **Members** now lists the
+  address as **Member** and **Settings > Logs** shows `update_member_role`.
+- [ ] `AUTH-F23` · **Embedding card** — On the same page the **Embedding**
+  card (`settings.enterpriseSso.embedding.section`) starts **Disabled** with
+  an empty origin list. Type a line that is not an origin → the field shows
+  the https hint and **Save origins** stays disabled; replace it with the
+  origin of a test host page (https, no path) → **Save origins** enables and
+  saves; switch the card on → the badge reads **Enabled**. Reload any app
+  page and read its response headers → the CSP names frame-ancestors with
+  'self' and the listed origin and there is no X-Frame-Options header;
+  switch the card off → within a few seconds the CSP is back to
+  frame-ancestors 'none' and X-Frame-Options DENY.
+- [ ] `AUTH-F24` · **Proxied visitor signs in without a sign-in page** — With
+  the card on and a browser extension injecting the key header and
+  `Remote-Email` on every request to the dev origin, in a fresh profile open
+  `/` → the dashboard opens directly: no sign-in page, no hop through the
+  hand-off address, and the account menu offers **no Log out**. Clear the
+  session cookie and open `/log-in` → the page hands off by itself and lands
+  on the dashboard. Change the injected key to a wrong value, clear the
+  cookie and open `/log-in` → the form, with the refusal ("key is unknown or
+  revoked") rendered in the page — no bare error page, no redirect loop.
+  Trigger the inactivity sign-out (or set the `tale_handoff_hold=1` cookie
+  and open `/log-in?reason=idle`) with the headers on → the inactivity
+  notice and a **Continue with automatic sign-in** button, and nothing signs
+  in until it is pressed.
+
 ## Boundary & error tests
 
 - [ ] `AUTH-B1` · **Empty login** — `/log-in` with both fields empty → **Log
@@ -204,6 +253,17 @@ compute codes from the enrollment secret.
   `[organizations] refused` line. Sign in as the owner → the entry is back and
   creating an organization works. Unset the variable and restart → every
   member sees the entry again.
+
+- [ ] `AUTH-B10` · **Door refusals** — Repeat the request of AUTH-F22 (a)
+  without the key header → 401 "Missing trusted-header key" and no
+  cookie; (b) with a made-up key → 401 "Invalid or revoked trusted-header
+  key"; (c) with the card switched off → 403 "disabled for this organization"
+  while the session from AUTH-F22 keeps working; (d) switched on again but
+  with `Remote-Email` naming an existing member of ANOTHER organization → 403
+  "not a member of the organization" and no new membership anywhere; (e)
+  after **Revoke** on the key → 401 again, the list is empty, and **Settings >
+  Logs** shows `trusted_header_key_created`, `trusted_headers_sign_in` and
+  `trusted_header_key_revoked` rows.
 
 ## Accessibility (WCAG 2.1 AA)
 

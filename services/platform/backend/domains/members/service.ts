@@ -68,6 +68,13 @@ export async function getCurrentMemberContext(
   sql: Sql,
   actor: { userId: string; name?: string },
   organizationId: string,
+  /**
+   * The role the request's org gate enforces, when it differs from the seat
+   * (a trusted-headers session carries the role the proxy asserted). The
+   * membership itself is still read from the seat; only the reported role
+   * follows the gate.
+   */
+  effectiveRole?: string,
 ): Promise<MemberContext | { status: 'not_found' } | { status: 'not_member' }> {
   const orgRows = await sql<{ id: string }[]>`
     SELECT "id" FROM "organization" WHERE "id" = ${organizationId} LIMIT 1
@@ -84,7 +91,7 @@ export async function getCurrentMemberContext(
   if (!member || member.role.toLowerCase() === 'disabled') {
     return { status: 'not_member' };
   }
-  const role = member.role.toLowerCase();
+  const role = (effectiveRole ?? member.role).toLowerCase();
   const validRole: MemberRole = isValidRole(role) ? role : 'member';
   return {
     status: 'ok',

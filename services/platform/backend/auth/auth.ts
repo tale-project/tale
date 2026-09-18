@@ -481,7 +481,14 @@ export function createAuth(config: AuthConfig) {
       // activity for the per-org idle-revocation sweep.
       ...sessionIdleWindowSeconds(),
       additionalFields: {
+        // The role a trusted-headers proxy asserted at sign-in, and the ONE
+        // organization it holds for; the org middleware applies the override
+        // to that organization only (`backend/auth/org.ts`).
         trustedRole: {
+          type: 'string' as const,
+          required: false,
+        },
+        trustedOrganizationId: {
           type: 'string' as const,
           required: false,
         },

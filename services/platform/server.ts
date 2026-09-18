@@ -19,6 +19,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { createOrgFrameAncestorsProvider } from './lib/org-frame-ancestors';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
@@ -130,6 +131,14 @@ const defaultOrgStorageOrigins = createOrgObjectStorageOriginsProvider(
   configDir ?? null,
 );
 
+// Live view of the web origins organizations allow to embed their pages in
+// a frame (the `embedding` governance policy) — the SPA shell's
+// `frame-ancestors`. Same provider shape and the same independence from
+// TALE_FILE_EVENTS as the storage origins above.
+const defaultOrgFrameAncestors = createOrgFrameAncestorsProvider(
+  configDir ?? null,
+);
+
 /**
  * The backend tier this process asks for verdicts it cannot reach a database
  * to answer (the two oracles in `backend/realtime/oracle-routes.ts`). Compose,
@@ -209,7 +218,6 @@ interface EnvConfig {
   /** Every origin this deployment answers on, canonical first. */
   SITE_ORIGINS: readonly string[];
   BASE_PATH: string;
-  TRUSTED_HEADERS_ENABLED: boolean;
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
@@ -373,7 +381,6 @@ function getEnvConfig(): EnvConfig {
     // a bad list degrades to the canonical origin alone.
     SITE_ORIGINS: safeSiteOrigins(),
     BASE_PATH: getBasePath(),
-    TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     FILE_EVENTS_ENABLED: fileEventsEnabled,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
@@ -489,6 +496,7 @@ function etagMatches(header: string, etag: string): boolean {
 function buildContentSecurityPolicy(
   env: EnvConfig,
   orgStorageOrigins: readonly string[] = [],
+  frameAncestors: readonly string[] = [],
 ) {
   const sentryOrigin = sentryOriginFromDsn(env.SENTRY_DSN);
   const sentry = sentryOrigin ? [sentryOrigin] : [];
@@ -524,7 +532,12 @@ function buildContentSecurityPolicy(
     connectSrc: ["'self'", ...sentry, ...orgStorageOrigins],
     workerSrc: ["'self'", 'blob:'],
     frameSrc: ["'self'"],
-    frameAncestors: ["'none'"],
+    // Nothing may frame Tale unless an organization's `embedding` policy
+    // names the host page's origin (`lib/org-frame-ancestors.ts`); then the
+    // shell admits `'self'` plus that union, and X-Frame-Options — which
+    // cannot express an allowlist — is left off so the CSP alone rules.
+    frameAncestors:
+      frameAncestors.length > 0 ? ["'self'", ...frameAncestors] : ["'none'"],
     baseUri: ["'self'"],
     formAction: ["'self'"],
     objectSrc: ["'none'"],
@@ -559,6 +572,12 @@ export interface CreateAppOptions {
    * Production uses the TTL-cached `TALE_CONFIG_DIR` scan.
    */
   orgStorageOrigins?: () => readonly string[];
+  /**
+   * Test seam for the frame-ancestor origins fed into the CSP (the union of
+   * every organization's enabled `embedding` policy). Production uses the
+   * TTL-cached `TALE_CONFIG_DIR` scan.
+   */
+  orgFrameAncestors?: () => readonly string[];
   /**
    * Test seam for the OpenAPI document `/openapi.json` answers. Production
    * reads the built `dist/openapi.json` once.
@@ -601,9 +620,16 @@ export function createApp(
   const app = new Hono();
   const analytics = createAnalytics(process.env, env.BASE_PATH);
 
-  const makeSecure = (storageOrigins: readonly string[]) =>
+  const makeSecure = (
+    storageOrigins: readonly string[],
+    frameAncestors: readonly string[],
+  ) =>
     secureHeaders({
-      contentSecurityPolicy: buildContentSecurityPolicy(env, storageOrigins),
+      contentSecurityPolicy: buildContentSecurityPolicy(
+        env,
+        storageOrigins,
+        frameAncestors,
+      ),
       // One year — the platform-wide value, repeated by every producer
       // (`backend/lib/http-hygiene.ts`, `@tale/ui` security headers, the
       // proxy's edge refusals). No `includeSubDomains`, no `preload` —
@@ -611,7 +637,9 @@ export function createApp(
       // plain-http siblings included) and don't own preload submission.
       strictTransportSecurity: isHttpsSite(env) ? 'max-age=31536000' : false,
       xContentTypeOptions: 'nosniff',
-      xFrameOptions: 'DENY',
+      // With frame ancestors configured the CSP directive is the rule;
+      // X-Frame-Options knows only DENY/SAMEORIGIN and would contradict it.
+      xFrameOptions: frameAncestors.length > 0 ? false : 'DENY',
       referrerPolicy: 'strict-origin-when-cross-origin',
       permissionsPolicy: {
         camera: [],
@@ -646,14 +674,16 @@ export function createApp(
   // without a process restart: re-check the (TTL-cached) origin set per
   // request and rebuild the middleware only when it actually changed.
   const orgStorageOrigins = opts.orgStorageOrigins ?? defaultOrgStorageOrigins;
+  const orgFrameAncestors = opts.orgFrameAncestors ?? defaultOrgFrameAncestors;
   let secureOriginsKey: string | null = null;
-  let secure = makeSecure([]);
+  let secure = makeSecure([], []);
   const currentSecure = () => {
     const origins = orgStorageOrigins();
-    const key = origins.join(' ');
+    const ancestors = orgFrameAncestors();
+    const key = `${origins.join(' ')}|${ancestors.join(' ')}`;
     if (key !== secureOriginsKey) {
       secureOriginsKey = key;
-      secure = makeSecure(origins);
+      secure = makeSecure(origins, ancestors);
     }
     return secure;
   };
@@ -739,13 +769,21 @@ export function createApp(
     }
     const body = await c.req.parseBody();
     const userHtml = typeof body.html === 'string' ? body.html : '';
+    // The SPA frames this document; when a host page frames the SPA in turn
+    // (the `embedding` policy) every ancestor is checked, so the admitted
+    // origins ride here as well and X-Frame-Options — SAMEORIGIN would
+    // contradict them — is left off, the same rule as the shell's headers.
+    const frameAncestors = orgFrameAncestors();
     return new Response(wrapCanvasPreviewHtml(userHtml), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': buildCanvasPreviewCsp(
           env.CANVAS_PREVIEW_CSP_EXTRA_ORIGINS,
+          frameAncestors,
         ),
-        'X-Frame-Options': 'SAMEORIGIN',
+        ...(frameAncestors.length > 0
+          ? {}
+          : { 'X-Frame-Options': 'SAMEORIGIN' }),
         // Per-request bespoke HTML — no caching.
         'Cache-Control': 'no-store',
         Vary: 'Cookie',

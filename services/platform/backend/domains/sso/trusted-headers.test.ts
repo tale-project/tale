@@ -1,89 +1,174 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
-import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { checkIpRateLimit } from '../../lib/rate-limit.ts';
+import { resolveTrustedHeaderKey } from '../trusted_headers/service.ts';
+import { syncTeamsFromGroupNames } from './service.ts';
 import {
   createTrustedHeadersRoutes,
+  framingHeaders,
+  presentedTrustedHeaderKey,
   trustedHeadersAuthenticate,
+  TrustedHeadersRefusedError,
 } from './trusted-headers.ts';
 
 /**
- * The spoofing guard: the endpoint mints a session as whoever `Remote-Email`
- * names, so the ONLY thing separating "came through the authenticating
- * proxy" from "reached the backend directly" is the internal secret the
- * proxy injects. The regression under test: the route used to pass
- * `process.env.TRUSTED_HEADERS_INTERNAL_SECRET` as the caller value, so the
- * service compared the env secret against itself and never failed.
+ * The organization-mode door: the presented key decides the organization
+ * (and whether anything happens at all), the identity headers decide the
+ * person, the ceiling decides the role, and the org-binding contract
+ * decides who may be signed in — an existing member yes, a user new to the
+ * deployment yes (created inside this organization), a stranger never.
  */
+
+vi.mock('../trusted_headers/service.ts', () => ({
+  resolveTrustedHeaderKey: vi.fn(),
+  touchTrustedHeaderKeyLastUsed: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../lib/rate-limit.ts', () => {
+  class RateLimitExceededError extends Error {
+    readonly retryAfter: number;
+
+    constructor(message: string, retryAfter: number) {
+      super(message);
+      this.name = 'RateLimitExceededError';
+      this.retryAfter = retryAfter;
+    }
+  }
+  return {
+    checkIpRateLimit: vi.fn().mockResolvedValue(undefined),
+    RateLimitExceededError,
+  };
+});
+
+vi.mock('../two_factor/service.ts', () => ({
+  anchorTwoFactorGraceOnSignIn: vi
+    .fn()
+    .mockResolvedValue({ decision: 'allowed' }),
+}));
+
+vi.mock('../../lib/org-config.ts', () => ({
+  readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('./service.ts', () => ({
+  syncTeamsFromGroupNames: vi.fn().mockResolvedValue({ errors: [] }),
+}));
 
 interface Captured {
   text: string;
   values: unknown[];
 }
 
+/** What `createAuditLog` needs back from an empty chain — the door audits
+ * every sign-in and every JIT join. */
+function auditChainAnswers(text: string): object[] | undefined {
+  if (text.startsWith('SELECT last_hash AS "lastHash"')) {
+    return [{ lastHash: '', lastTs: 0 }];
+  }
+  if (text.startsWith('INSERT INTO app.audit_logs')) return [{ id: 'audit-1' }];
+  return undefined;
+}
+
 /** Tagged-template Sql double: answers by SQL-text pattern, records calls. */
 function fakeSql(script: { match: RegExp; rows: object[] }[]): {
   sql: Sql;
   queries: Captured[];
-  beginCalls: () => number;
 } {
   const queries: Captured[] = [];
-  let begins = 0;
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push({ text, values });
+    const chain = auditChainAnswers(text);
+    if (chain !== undefined) return Promise.resolve(chain);
     const hit = script.find((entry) => entry.match.test(text));
     return Promise.resolve(hit?.rows ?? []);
   };
-  const begin = async (cb: (tx: unknown) => Promise<unknown>) => {
-    begins += 1;
-    return cb(tag);
-  };
+  const begin = async (cb: (tx: unknown) => Promise<unknown>) => cb(tag);
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    sql: Object.assign(tag, { begin }) as unknown as Sql,
+    sql: Object.assign(tag, {
+      begin,
+      json: (value: unknown) => value,
+    }) as unknown as Sql,
     queries,
-    beginCalls: () => begins,
   };
 }
 
-/** Happy-path script: existing user, one membership, no reusable session. */
-function happyScript(): { match: RegExp; rows: object[] }[] {
+const writes = (queries: Captured[]): Captured[] =>
+  queries.filter(
+    (q) =>
+      (q.text.startsWith('INSERT') ||
+        q.text.startsWith('UPDATE') ||
+        q.text.startsWith('DELETE')) &&
+      !q.text.startsWith('INSERT INTO app.audit_logs'),
+  );
+
+/** Existing member of org-1, no reusable session. */
+function memberScript(): { match: RegExp; rows: object[] }[] {
   return [
     {
       match: /SELECT "id", "name" FROM "user"/,
       rows: [{ id: 'user-1', name: 'Proxy User' }],
     },
     {
-      match: /SELECT "organizationId" FROM "member"/,
-      rows: [{ organizationId: 'org-1' }],
+      match: /SELECT "role" FROM "member"/,
+      rows: [{ role: 'member' }],
     },
     { match: /SELECT .* FROM "session"/, rows: [] },
     { match: /INSERT INTO "session"/, rows: [] },
   ];
 }
 
+/** A user the deployment has never seen. */
+function newUserScript(): { match: RegExp; rows: object[] }[] {
+  return [
+    { match: /SELECT "id", "name" FROM "user"/, rows: [] },
+    { match: /INSERT INTO "user"/, rows: [{ id: 'user-new' }] },
+    { match: /INSERT INTO "member"/, rows: [] },
+    { match: /INSERT INTO "session"/, rows: [] },
+  ];
+}
+
+/** An existing user with NO membership in org-1. */
+function strangerScript(): { match: RegExp; rows: object[] }[] {
+  return [
+    {
+      match: /SELECT "id", "name" FROM "user"/,
+      rows: [{ id: 'user-elsewhere', name: 'Some One' }],
+    },
+    { match: /SELECT "role" FROM "member"/, rows: [] },
+  ];
+}
+
 const ENV_KEYS = [
-  'TRUSTED_HEADERS_INTERNAL_SECRET',
-  'TRUSTED_HEADERS_ENABLED',
-  'TRUSTED_SECRET_HEADER',
   'BETTER_AUTH_SECRET',
   'SITE_URL',
+  'TRUSTED_SECRET_HEADER',
 ] as const;
-
 let savedEnv: Record<string, string | undefined>;
 
 beforeEach(() => {
   savedEnv = {};
   for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
+  process.env.BETTER_AUTH_SECRET = 'session-signing-secret';
+  delete process.env.SITE_URL;
+  delete process.env.TRUSTED_SECRET_HEADER;
+  vi.mocked(resolveTrustedHeaderKey).mockReset().mockResolvedValue({
+    keyId: 'key-1',
+    organizationId: 'org-1',
+    enabled: true,
+    maxAssertedRole: 'admin',
+  });
+  vi.mocked(checkIpRateLimit).mockReset().mockResolvedValue(undefined);
+  vi.mocked(syncTeamsFromGroupNames).mockClear();
+  vi.mocked(readGovernancePolicyForOrg).mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -95,65 +180,247 @@ afterEach(() => {
 });
 
 const baseArgs = {
+  organizationId: 'org-1',
+  keyId: 'key-1',
   email: 'proxy.user@door.test',
   name: 'Proxy User',
-  role: 'member',
+  role: 'member' as const,
   teams: null,
 };
 
-describe('trustedHeadersAuthenticate — internal-secret guard', () => {
-  it('refuses when TRUSTED_HEADERS_INTERNAL_SECRET is not configured', async () => {
-    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-    const { sql, beginCalls } = fakeSql(happyScript());
+describe('framingHeaders — what a door answer may be framed by', () => {
+  it('denies every ancestor without origins, and names them with', () => {
+    expect(framingHeaders([])).toEqual({
+      'Content-Security-Policy': "frame-ancestors 'none'",
+      'X-Frame-Options': 'DENY',
+    });
+    expect(framingHeaders(['https://app.example'])).toEqual({
+      'Content-Security-Policy': "frame-ancestors 'self' https://app.example",
+    });
+  });
+});
 
-    await expect(
-      trustedHeadersAuthenticate(sql, { ...baseArgs, secret: 'anything' }),
-    ).rejects.toThrow(/TRUSTED_HEADERS_INTERNAL_SECRET is not configured/);
-    // Fails closed BEFORE touching the database.
-    expect(beginCalls()).toBe(0);
+describe('presentedTrustedHeaderKey — where the key rides', () => {
+  it('reads the key header, trimmed, and reads empty as absent', () => {
+    expect(presentedTrustedHeaderKey(' thk_b ')).toBe('thk_b');
+    expect(presentedTrustedHeaderKey('')).toBeUndefined();
+    expect(presentedTrustedHeaderKey('   ')).toBeUndefined();
+    expect(presentedTrustedHeaderKey(undefined)).toBeUndefined();
+  });
+});
+
+describe('trustedHeadersAuthenticate — the org-binding contract', () => {
+  it('signs an existing member into the key’s organization and stamps role + organization on the session', async () => {
+    const { sql, queries } = fakeSql(memberScript());
+
+    const result = await trustedHeadersAuthenticate(sql, baseArgs);
+
+    expect(result).toMatchObject({
+      userId: 'user-1',
+      organizationId: 'org-1',
+      isNewUser: false,
+      role: 'member',
+    });
+    const membership = queries.find((q) =>
+      q.text.startsWith('SELECT "role" FROM "member"'),
+    );
+    expect(membership?.values).toEqual(['user-1', 'org-1']);
+    const insert = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    expect(insert?.text).toContain('"trustedOrganizationId"');
+    expect(insert?.text).toContain('"activeOrganizationId"');
+    expect(insert?.values).toEqual(
+      expect.arrayContaining([
+        result.sessionToken,
+        'user-1',
+        'member',
+        'org-1',
+      ]),
+    );
+    expect(queries.some((q) => q.text.startsWith('INSERT INTO "user"'))).toBe(
+      false,
+    );
+    // Same role asserted as the seat holds: nothing to move.
+    expect(queries.some((q) => q.text.startsWith('UPDATE "member"'))).toBe(
+      false,
+    );
   });
 
-  it('refuses a wrong caller-supplied secret', async () => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-    const { sql, beginCalls } = fakeSql(happyScript());
-
-    await expect(
-      trustedHeadersAuthenticate(sql, { ...baseArgs, secret: 'wrong-secret' }),
-    ).rejects.toThrow(/Invalid internal secret/);
-    expect(beginCalls()).toBe(0);
-  });
-
-  it('refuses a missing caller-supplied secret even when the env is set', async () => {
-    // THE regression: the old call site passed the env value as the caller
-    // value, so this comparison could never fail.
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-    const { sql, beginCalls } = fakeSql(happyScript());
-
-    await expect(
-      trustedHeadersAuthenticate(sql, { ...baseArgs, secret: undefined }),
-    ).rejects.toThrow(/Invalid internal secret/);
-    expect(beginCalls()).toBe(0);
-  });
-
-  it('authenticates when the caller supplies the matching secret', async () => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-    const { sql, queries } = fakeSql(happyScript());
+  it('moves an existing seat to the asserted role and writes the member audit', async () => {
+    const { sql, queries } = fakeSql(memberScript());
 
     const result = await trustedHeadersAuthenticate(sql, {
       ...baseArgs,
-      secret: 'right-secret',
+      role: 'admin',
     });
 
-    expect(result.userId).toBe('user-1');
-    expect(result.organizationId).toBe('org-1');
-    expect(result.sessionToken).not.toBe('');
+    expect(result.role).toBe('admin');
+    const moved = queries.find((q) => q.text.startsWith('UPDATE "member"'));
+    expect(moved?.text).toContain('SET "role" = $?');
+    expect(moved?.values).toEqual(['admin', 'user-1', 'org-1']);
+    const audit = queries.find(
+      (q) =>
+        q.text.startsWith('INSERT INTO app.audit_logs') &&
+        q.values.includes('update_member_role'),
+    );
+    expect(audit).toBeDefined();
+    // The session carries the same role the seat now holds.
+    const session = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    expect(session?.values).toEqual(expect.arrayContaining(['admin', 'org-1']));
+  });
+
+  it('never moves the owner seat, whatever the proxy asserts', async () => {
+    const script = memberScript();
+    const seat = script.find((entry) =>
+      entry.match.test('SELECT "role" FROM "member"'),
+    );
+    if (seat !== undefined) seat.rows = [{ role: 'owner' }];
+    const { sql, queries } = fakeSql(script);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'admin',
+    });
+
+    expect(result.role).toBe('admin');
+    expect(queries.some((q) => q.text.startsWith('UPDATE "member"'))).toBe(
+      false,
+    );
+  });
+
+  it('creates a user new to the deployment INSIDE the organization, with the clamped role', async () => {
+    const { sql, queries } = fakeSql(newUserScript());
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'developer',
+    });
+
+    expect(result.isNewUser).toBe(true);
+    expect(result.userId).toBe('user-new');
+    const user = queries.find((q) => q.text.startsWith('INSERT INTO "user"'));
+    expect(user?.values).toEqual(
+      expect.arrayContaining(['proxy.user@door.test', 'Proxy User']),
+    );
+    const member = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "member"'),
+    );
+    expect(member?.values).toEqual(
+      expect.arrayContaining(['org-1', 'user-new', 'developer']),
+    );
+    // The door never founds an organization of its own any more.
+    expect(
+      queries.some((q) => q.text.includes('INSERT INTO "organization"')),
+    ).toBe(false);
+    const audits = queries
+      .filter((q) => q.text.startsWith('INSERT INTO app.audit_logs'))
+      .flatMap((q) => q.values);
+    expect(audits).toContain('joined_organization');
+    expect(audits).toContain('trusted_headers_sign_in');
+  });
+
+  it('refuses an existing user who is not a member of the organization, before any write', async () => {
+    const { sql, queries } = fakeSql(strangerScript());
+
+    await expect(
+      trustedHeadersAuthenticate(sql, baseArgs),
+    ).rejects.toBeInstanceOf(TrustedHeadersRefusedError);
+    expect(writes(queries)).toHaveLength(0);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.audit_logs')),
+    ).toBe(false);
+    expect(syncTeamsFromGroupNames).not.toHaveBeenCalled();
+  });
+
+  it('syncs the asserted teams into the organization after the transaction, and leaves teams alone without a header', async () => {
+    const { sql } = fakeSql(memberScript());
+
+    await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      teams: [
+        { id: 't-fin', name: 'Finance' },
+        { id: 't-ops', name: 'Operations' },
+      ],
+    });
+    expect(syncTeamsFromGroupNames).toHaveBeenCalledWith(sql, {
+      userId: 'user-1',
+      organizationId: 'org-1',
+      groupNames: ['Finance', 'Operations'],
+      excludeGroups: [],
+    });
+
+    vi.mocked(syncTeamsFromGroupNames).mockClear();
+    await trustedHeadersAuthenticate(fakeSql(memberScript()).sql, baseArgs);
+    expect(syncTeamsFromGroupNames).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the cookie's own live session instead of minting, rebinding it to this organization", async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    const { sql, queries } = fakeSql([
+      ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
+      {
+        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        rows: [
+          { id: 'sess-1', userId: 'user-1', token: 'tok-1', expiresAt: future },
+        ],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'admin',
+      existingSessionToken: 'tok-1',
+    });
+
+    expect(result.sessionToken).toBe('tok-1');
+    const update = queries.find((q) => q.text.startsWith('UPDATE "session"'));
+    expect(update?.text).toContain('"trustedOrganizationId" = $?');
+    expect(update?.values).toEqual(
+      expect.arrayContaining(['admin', 'org-1', 'sess-1']),
+    );
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(false);
+  });
+
+  it("kills another user's session on an account switch and mints afresh", async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    const { sql, queries } = fakeSql([
+      ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
+      {
+        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        rows: [
+          {
+            id: 'sess-other',
+            userId: 'user-other',
+            token: 'tok-other',
+            expiresAt: future,
+          },
+        ],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      existingSessionToken: 'tok-other',
+    });
+
+    expect(result.sessionToken).not.toBe('tok-other');
+    expect(
+      queries.find((q) => q.text.startsWith('DELETE FROM "session"'))?.values,
+    ).toEqual(['sess-other']);
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(true);
   });
 });
 
-describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', () => {
+describe('GET /api/trusted-headers/authenticate — the hand-off door', () => {
+  const origin = 'http://backend-api:3005';
+
   function makeApp(script: { match: RegExp; rows: object[] }[]) {
     const { sql, queries } = fakeSql(script);
     return { app: createTrustedHeadersRoutes({ sql }), queries };
@@ -163,605 +430,335 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     app: ReturnType<typeof createTrustedHeadersRoutes>,
     headers: Record<string, string>,
   ): Promise<Response> {
-    return app.request('http://backend-api:3005/authenticate', { headers });
+    return app.request(`${origin}/authenticate`, { headers });
   }
 
-  const identityHeaders = {
+  const identity = {
     'Remote-Email': 'proxy.user@door.test',
     'Remote-Name': 'Proxy User',
     'Remote-Role': 'member',
   };
+  const withKey = { ...identity, 'Remote-Internal-Secret': 'thk_live' };
 
-  beforeEach(() => {
-    process.env.TRUSTED_HEADERS_ENABLED = 'true';
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'door-secret';
-    process.env.BETTER_AUTH_SECRET = 'session-signing-secret';
-    delete process.env.TRUSTED_SECRET_HEADER;
-    delete process.env.SITE_URL;
+  it('mints nothing when no key is presented, and never asks the database', async () => {
+    const { app, queries } = makeApp(memberScript());
+
+    const res = await request(app, identity);
+
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain('Missing trusted-header key');
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(resolveTrustedHeaderKey).not.toHaveBeenCalled();
+    expect(queries).toHaveLength(0);
   });
 
-  it('mints no session when the secret header is missing', async () => {
-    const { app, queries } = makeApp(happyScript());
+  it('charges an unknown key to the source IP and answers 401', async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { app, queries } = makeApp(memberScript());
 
-    const res = await request(app, identityHeaders);
+    const res = await request(app, {
+      ...withKey,
+      'x-forwarded-for': '203.0.113.9, 10.0.0.1',
+    });
 
-    expect(await res.text()).toContain(
-      'Missing required header: Remote-Internal-Secret',
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain('Invalid or revoked trusted-header key');
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(checkIpRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      'trusted-headers:auth-fail-ip',
+      '203.0.113.9',
     );
-    expect(res.headers.get('set-cookie')).toBeNull();
     expect(queries).toHaveLength(0);
   });
 
-  it('mints no session when the secret header is wrong', async () => {
-    const { app, queries } = makeApp(happyScript());
+  it('answers 429 once the source IP is over its failure budget', async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { RateLimitExceededError } = await import('../../lib/rate-limit.ts');
+    vi.mocked(checkIpRateLimit).mockRejectedValue(
+      new RateLimitExceededError('over', 30_000),
+    );
+    const { app } = makeApp(memberScript());
 
-    const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'not-the-secret',
+    const res = await request(app, withKey);
+
+    expect(res.status).toBe(429);
+    expect(await res.text()).toContain('Too many failed attempts');
+  });
+
+  it('refuses a live key of a paused organization', async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue({
+      keyId: 'key-1',
+      organizationId: 'org-1',
+      enabled: false,
+      maxAssertedRole: 'admin',
     });
+    const { app, queries } = makeApp(memberScript());
 
-    expect(await res.text()).toContain('Failed to complete login');
-    expect(res.headers.get('set-cookie')).toBeNull();
+    const res = await request(app, withKey);
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('disabled for this organization');
     expect(queries).toHaveLength(0);
   });
 
-  it('refuses to run when enabled without a configured secret', async () => {
-    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-    const { app, queries } = makeApp(happyScript());
+  it('refuses a key without an email header', async () => {
+    const { app, queries } = makeApp(memberScript());
 
-    const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'anything',
-    });
+    const res = await request(app, { 'Remote-Internal-Secret': 'thk_live' });
 
-    expect(await res.text()).toContain('Server configuration error');
-    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('Missing required header: Remote-Email');
     expect(queries).toHaveLength(0);
   });
 
-  it('sets the session cookie when the proxy supplies the right secret', async () => {
-    const { app } = makeApp(happyScript());
+  it('ignores an Authorization bearer — the key has one slot, and the REST API key is not it', async () => {
+    const { app, queries } = makeApp(memberScript());
 
     const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'door-secret',
+      ...identity,
+      authorization: 'Bearer thk_live',
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain('Missing trusted-header key');
+    expect(resolveTrustedHeaderKey).not.toHaveBeenCalled();
+    expect(queries).toHaveLength(0);
+  });
+
+  it('sets the session cookie for an existing member and reads the key from the key header', async () => {
+    const { app } = makeApp(memberScript());
+
+    const res = await request(app, withKey);
+
+    expect(res.status).toBe(302);
     expect(res.headers.get('set-cookie')).toContain(
       'better-auth.session_token=',
     );
-  });
-
-  it('honours a custom TRUSTED_SECRET_HEADER name', async () => {
-    process.env.TRUSTED_SECRET_HEADER = 'X-Proxy-Secret';
-    const { app } = makeApp(happyScript());
-
-    const missing = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'door-secret',
-    });
-    expect(await missing.text()).toContain(
-      'Missing required header: X-Proxy-Secret',
-    );
-
-    const ok = await request(app, {
-      ...identityHeaders,
-      'X-Proxy-Secret': 'door-secret',
-    });
-    expect(ok.headers.get('set-cookie')).toContain(
-      'better-auth.session_token=',
+    // A success is a redirect, never a page of its own.
+    expect(res.headers.get('location')).toBe('/dashboard');
+    expect(await res.text()).toBe('');
+    expect(resolveTrustedHeaderKey).toHaveBeenCalledWith(
+      expect.anything(),
+      'thk_live',
     );
   });
 
-  // The cookie carries `${token}.${signature}` (signCookieValue's output),
-  // the row stores the bare token. The regression: the route matched the
-  // signed string against the token column, which never hit — the reuse and
-  // account-switch branches were dead and every request fell through to
-  // adopting an arbitrary session row of the user.
+  it('accepts the key in the configurable key header too', async () => {
+    process.env.TRUSTED_SECRET_HEADER = 'X-App-Key';
+    const { app } = makeApp(memberScript());
+
+    const res = await request(app, { ...identity, 'X-App-Key': 'thk_live' });
+
+    expect(res.status).toBe(302);
+    expect(resolveTrustedHeaderKey).toHaveBeenCalledWith(
+      expect.anything(),
+      'thk_live',
+    );
+  });
+
+  it("clamps the asserted role to the organization's ceiling", async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue({
+      keyId: 'key-1',
+      organizationId: 'org-1',
+      enabled: true,
+      maxAssertedRole: 'editor',
+    });
+    const { app, queries } = makeApp(memberScript());
+
+    const res = await request(app, { ...withKey, 'Remote-Role': 'admin' });
+
+    expect(res.status).toBe(302);
+    const insert = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    expect(insert?.values).toContain('editor');
+    expect(insert?.values).not.toContain('admin');
+  });
+
+  it('answers 403 for a stranger, with no session and no write', async () => {
+    const { app, queries } = makeApp(strangerScript());
+
+    const res = await request(app, withKey);
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('not a member of the organization');
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(writes(queries)).toHaveLength(0);
+  });
+
   it("looks the cookie's session up by its bare token, not the signed cookie value", async () => {
-    const signed = await signCookieValue('tok-1', 'session-signing-secret');
-    const live = {
-      id: 's-1',
-      userId: 'user-1',
-      token: 'tok-1',
-      expiresAt: new Date(Date.now() + 3_600_000),
-      trustedRole: 'member',
-    };
+    const future = new Date(Date.now() + 60 * 60 * 1000);
     const { app, queries } = makeApp([
+      ...memberScript().filter((entry) => !/session/.test(entry.match.source)),
       {
-        match: /SELECT "id", "name" FROM "user"/,
-        rows: [{ id: 'user-1', name: 'Proxy User' }],
+        match: /SELECT "id", "userId", "token", "expiresAt" FROM "session"/,
+        rows: [
+          { id: 'sess-1', userId: 'user-1', token: 'tok-1', expiresAt: future },
+        ],
       },
-      {
-        match: /SELECT "organizationId" FROM "member"/,
-        rows: [{ organizationId: 'org-1' }],
-      },
-      { match: /FROM "session" WHERE "token"/, rows: [live] },
-      { match: /SELECT .* FROM "session"/, rows: [] },
     ]);
-
-    const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'door-secret',
-      cookie: `better-auth.session_token=${signed}`,
-    });
-
-    const lookup = queries.find((q) =>
-      /FROM "session" WHERE "token"/.test(q.text),
+    const setCookie = await buildSessionCookie(
+      'tok-1',
+      origin,
+      'session-signing-secret',
     );
-    expect(lookup?.values).toContain('tok-1');
-    expect(lookup?.values).not.toContain(decodeURIComponent(signed));
-    // The browser's own session is refreshed and handed back — no new row.
+    const cookie = setCookie.split(';')[0] ?? '';
+
+    const res = await request(app, { ...withKey, cookie });
+
+    expect(res.status).toBe(302);
+    const lookup = queries.find((q) =>
+      q.text.startsWith(
+        'SELECT "id", "userId", "token", "expiresAt" FROM "session"',
+      ),
+    );
+    expect(lookup?.values).toEqual(['tok-1']);
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(false);
-    // …and the cookie is the ONE shared builder's output, byte for byte.
-    expect(res.headers.get('set-cookie')).toBe(
-      await buildSessionCookie(
-        'tok-1',
-        'http://backend-api:3005',
-        'session-signing-secret',
-      ),
-    );
-  });
-
-  it('answers the login page, not a 500, when the session cookie is malformed', async () => {
-    // A stray `%E0` in the cookie value throws URIError out of
-    // decodeURIComponent; that used to escape the route's own error-page
-    // contract as Hono's bare 500. Now it reads as "no cookie": fresh session.
-    const { app, queries } = makeApp(happyScript());
-
-    const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'door-secret',
-      cookie: 'better-auth.session_token=%E0%A4%A',
-    });
-
-    expect(res.status).toBe(200);
-    expect(queries.some((q) => /WHERE "token"/.test(q.text))).toBe(false);
-    expect(res.headers.get('set-cookie')).toContain(
-      'better-auth.session_token=',
-    );
   });
 
   it('treats a cookie that fails verification as no cookie at all', async () => {
-    const { app, queries } = makeApp(happyScript());
+    const { app, queries } = makeApp(memberScript());
+    const forged = `better-auth.session_token=${await signCookieValue('tok-1', 'another-secret')}`;
 
-    const res = await request(app, {
-      ...identityHeaders,
-      'Remote-Internal-Secret': 'door-secret',
-      cookie: 'better-auth.session_token=tok-1.forged-signature',
-    });
+    const res = await request(app, { ...withKey, cookie: forged });
 
-    expect(queries.some((q) => /WHERE "token"/.test(q.text))).toBe(false);
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
-    ).toBe(true);
-    expect(res.headers.get('set-cookie')).toContain(
-      'better-auth.session_token=',
-    );
-  });
-});
-
-/**
- * A first proxy user joins the deployment's existing org — the one that
- * holds an elevated seat. Better Auth seats an org's creator as `owner`
- * (never `admin`), so matching `admin` alone missed every org created
- * through sign-up: the first proxy login founded a SECOND org, and every
- * later proxy user joined that one (it now had an `admin`), splitting the
- * deployment across two tenants.
- */
-describe('trustedHeadersAuthenticate — a new user joins the org with an elevated seat', () => {
-  beforeEach(() => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-  });
-
-  const newUser = [
-    { match: /SELECT "id", "name" FROM "user"/, rows: [] },
-    { match: /INSERT INTO "user"/, rows: [{ id: 'user-new' }] },
-  ];
-
-  it('attaches to an org whose only elevated member is its owner', async () => {
-    const { sql, queries } = fakeSql([
-      ...newUser,
-      {
-        match: /FROM "member" WHERE lower\("role"\) = ANY/,
-        rows: [{ organizationId: 'org-owned' }],
-      },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      secret: 'right-secret',
-    });
-
-    expect(result.userId).toBe('user-new');
-    expect(result.organizationId).toBe('org-owned');
-    const seatLookup = queries.find((q) =>
-      /FROM "member" WHERE lower\("role"\) = ANY/.test(q.text),
-    );
-    // Both elevated roles qualify — the creator's `owner` included.
-    expect(seatLookup?.values[0]).toEqual(
-      expect.arrayContaining(['owner', 'admin']),
-    );
-    const joined = queries.find((q) =>
-      q.text.startsWith('INSERT INTO "member"'),
-    );
-    expect(joined?.values).toEqual(
-      expect.arrayContaining(['org-owned', 'user-new']),
-    );
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
-    ).toBe(false);
-  });
-
-  it('founds a default org only when no org has an elevated seat', async () => {
-    const { sql, queries } = fakeSql([
-      ...newUser,
-      { match: /INSERT INTO "organization"/, rows: [{ id: 'org-founded' }] },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      secret: 'right-secret',
-    });
-
-    expect(result.organizationId).toBe('org-founded');
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
-    ).toBe(true);
-  });
-});
-
-/**
- * Session reuse is bound to the browser's OWN cookie. The fallback that
- * adopted "any session row of this user" silently shared one session across
- * devices (signing out or revoking one killed both; the sessions list showed
- * one device) — it is gone.
- */
-describe("trustedHeadersAuthenticate — reuse is bound to the browser's own session", () => {
-  beforeEach(() => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-  });
-
-  const identity = [
-    {
-      match: /SELECT "id", "name" FROM "user"/,
-      rows: [{ id: 'user-1', name: 'Proxy User' }],
-    },
-    {
-      match: /SELECT "organizationId" FROM "member"/,
-      rows: [{ organizationId: 'org-1' }],
-    },
-  ];
-
-  it("never adopts another device's session for the same user", async () => {
-    const otherDevice = {
-      id: 's-other',
-      token: 'other-device-token',
-      expiresAt: new Date(Date.now() + 3_600_000),
-      trustedRole: 'member',
-    };
-    const { sql, queries } = fakeSql([
-      ...identity,
-      // The old fallback read `FROM "session" WHERE "userId" … LIMIT 1` —
-      // answer it with the other device's live row.
-      { match: /FROM "session" WHERE "userId"/, rows: [otherDevice] },
-      { match: /SELECT .* FROM "session"/, rows: [] },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      secret: 'right-secret',
-    });
-
-    expect(result.sessionToken).not.toBe('other-device-token');
-    expect(
-      queries.some((q) => /FROM "session" WHERE "userId"/.test(q.text)),
-    ).toBe(false);
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
-    ).toBe(true);
-  });
-
-  it("refreshes the cookie's own live session and answers its token", async () => {
-    const { sql, queries } = fakeSql([
-      ...identity,
-      {
-        match: /FROM "session" WHERE "token"/,
-        rows: [
-          {
-            id: 's-1',
-            userId: 'user-1',
-            token: 'tok-1',
-            expiresAt: new Date(Date.now() + 3_600_000),
-            trustedRole: 'member',
-          },
-        ],
-      },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      role: 'admin',
-      secret: 'right-secret',
-      existingSessionToken: 'tok-1',
-    });
-
-    expect(result.sessionToken).toBe('tok-1');
-    const refresh = queries.find((q) => q.text.startsWith('UPDATE "session"'));
-    expect(refresh?.values).toContain('admin');
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
-    ).toBe(false);
-  });
-
-  it("kills the other user's session on an account switch behind the proxy", async () => {
-    const { sql, queries } = fakeSql([
-      ...identity,
-      {
-        match: /FROM "session" WHERE "token"/,
-        rows: [
-          {
-            id: 's-2',
-            userId: 'user-2',
-            token: 'tok-2',
-            expiresAt: new Date(Date.now() + 3_600_000),
-            trustedRole: 'member',
-          },
-        ],
-      },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      secret: 'right-secret',
-      existingSessionToken: 'tok-2',
-    });
-
-    expect(result.sessionToken).not.toBe('tok-2');
-    const killed = queries.find((q) =>
-      q.text.startsWith('DELETE FROM "session"'),
-    );
-    expect(killed?.values).toEqual(['s-2']);
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
-    ).toBe(true);
-  });
-});
-
-/**
- * Org 2FA enforcement on the proxy door: it mints sessions outside the
- * Better Auth sign-in hook, so the grace anchor has to be set here or an
- * enforced policy never starts its clock for proxy-authenticated users.
- */
-describe('trustedHeadersAuthenticate — org 2FA enforcement anchors on the proxy door', () => {
-  let configRoot: string;
-  let savedConfigDir: string | undefined;
-
-  beforeEach(async () => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-    savedConfigDir = process.env.TALE_CONFIG_DIR;
-    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-trusted-headers-'));
-    process.env.TALE_CONFIG_DIR = configRoot;
-    clearOrgConfigCaches();
-  });
-
-  afterEach(async () => {
-    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
-    else process.env.TALE_CONFIG_DIR = savedConfigDir;
-    await rm(configRoot, { recursive: true, force: true });
-    clearOrgConfigCaches();
-  });
-
-  it('anchors the grace clock inside the sign-in transaction', async () => {
-    const governanceDir = path.join(configRoot, 'proxy-org', 'governance');
-    await mkdir(governanceDir, { recursive: true });
-    await writeFile(
-      path.join(governanceDir, 'two-factor-policy.yml'),
-      'enforced: true\ngracePeriodDays: 7\nexemptSsoUsers: false\n',
-    );
-    const { sql, queries } = fakeSql([
-      {
-        match: /SELECT "id", "name" FROM "user"/,
-        rows: [{ id: 'user-1', name: 'Proxy User' }],
-      },
-      {
-        match: /SELECT "organizationId" FROM "member"/,
-        rows: [{ organizationId: 'org-1' }],
-      },
-      {
-        match: /SELECT "slug" FROM "organization"/,
-        rows: [{ slug: 'proxy-org' }],
-      },
-      {
-        match: /SELECT "twoFactorEnabled" FROM "user"/,
-        rows: [{ twoFactorEnabled: false }],
-      },
-    ]);
-
-    const result = await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      secret: 'right-secret',
-    });
-
-    expect(result.sessionToken).not.toBe('');
-    const anchor = queries.find((q) =>
-      q.text.startsWith('INSERT INTO app.two_factor_grace'),
-    );
-    expect(anchor?.values[0]).toBe('user-1');
-    expect(anchor?.values[1]).toBeGreaterThan(Date.now());
-  });
-});
-
-/**
- * The proxy's teams header is authoritative for team membership: it feeds
- * the provenance-scoped group→team sync (the SSO door's), so the user ends
- * up in REAL teamMember rows that every team-scoped read consults. The 0.4
- * port stamped the header onto the session row instead — a column nothing
- * in 0.5 read, so proxy-asserted teams granted nothing.
- */
-describe('trustedHeadersAuthenticate — the teams header becomes team memberships', () => {
-  beforeEach(() => {
-    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
-  });
-
-  const teamSync = [
-    { match: /SELECT "id" FROM "team" WHERE "organizationId"/, rows: [] },
-    { match: /INSERT INTO "team"/, rows: [{ id: 'team-fin' }] },
-    { match: /SELECT "id" FROM "teamMember"/, rows: [] },
-  ];
-
-  it('mirrors an asserted team onto a teamMember row in the landed org', async () => {
-    const { sql, queries } = fakeSql([...happyScript(), ...teamSync]);
-
-    await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      teams: [{ id: 't-fin', name: 'Finance' }],
-      secret: 'right-secret',
-    });
-
-    const teamCreated = queries.find((q) =>
-      q.text.startsWith('INSERT INTO "team"'),
-    );
-    expect(teamCreated?.values).toEqual(
-      expect.arrayContaining(['Finance', 'org-1']),
-    );
-    const joined = queries.find((q) =>
-      q.text.startsWith('INSERT INTO "teamMember"'),
-    );
-    expect(joined?.values).toEqual(
-      expect.arrayContaining(['team-fin', 'user-1']),
-    );
-    // Provenance: the sync may later revoke what it granted here.
+    expect(res.status).toBe(302);
     expect(
       queries.some((q) =>
-        q.text.startsWith('INSERT INTO app.sso_synced_team_members'),
+        q.text.startsWith(
+          'SELECT "id", "userId", "token", "expiresAt" FROM "session"',
+        ),
       ),
+    ).toBe(false);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(true);
-    // Nothing is stamped onto the session row any more.
-    const session = queries.find((q) =>
-      q.text.startsWith('INSERT INTO "session"'),
-    );
-    expect(session?.text).not.toContain('trustedTeams');
   });
 
-  it('runs the sync after the session transaction, never inside it', async () => {
-    const { sql, queries } = fakeSql([...happyScript(), ...teamSync]);
+  it('refuses every frame ancestor unless the organization embeds', async () => {
+    const { app } = makeApp(memberScript());
 
-    await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      teams: [{ id: 't-fin', name: 'Finance' }],
-      secret: 'right-secret',
+    const noKey = await request(app, identity);
+    expect(noKey.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'none'",
+    );
+    expect(noKey.headers.get('x-frame-options')).toBe('DENY');
+
+    const signedIn = await request(app, withKey);
+    expect(signedIn.status).toBe(302);
+    expect(signedIn.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'none'",
+    );
+    expect(signedIn.headers.get('x-frame-options')).toBe('DENY');
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'embedding',
+    );
+  });
+
+  it("admits the organization's embedding origins on its answers, refusals included", async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      enabled: true,
+      frameAncestors: ['https://portal.example', 'https://app.example'],
+    });
+    const { app } = makeApp(memberScript());
+
+    const signedIn = await request(app, withKey);
+    expect(signedIn.status).toBe(302);
+    expect(signedIn.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'self' https://app.example https://portal.example",
+    );
+    expect(signedIn.headers.get('x-frame-options')).toBeNull();
+
+    const stranger = await request(makeApp(strangerScript()).app, withKey);
+    expect(stranger.status).toBe(403);
+    expect(stranger.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'self' https://app.example https://portal.example",
+    );
+    expect(stranger.headers.get('x-frame-options')).toBeNull();
+  });
+
+  it('keeps a disabled embedding policy and an unknown key on DENY', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      enabled: false,
+      frameAncestors: ['https://portal.example'],
+    });
+    const { app } = makeApp(memberScript());
+    const signedIn = await request(app, withKey);
+    expect(signedIn.headers.get('x-frame-options')).toBe('DENY');
+
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const unknown = await request(makeApp(memberScript()).app, withKey);
+    expect(unknown.status).toBe(401);
+    expect(unknown.headers.get('x-frame-options')).toBe('DENY');
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a refusal back to the app's sign-in page when the app sent the browser here", async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { app } = makeApp(memberScript());
+
+    const res = await app.request(`${origin}/authenticate?via=app`, {
+      headers: withKey,
     });
 
-    const sessionAt = queries.findIndex((q) =>
-      q.text.startsWith('INSERT INTO "session"'),
-    );
-    const teamAt = queries.findIndex((q) =>
-      q.text.startsWith('SELECT "id" FROM "team"'),
-    );
-    expect(sessionAt).toBeGreaterThanOrEqual(0);
-    expect(teamAt).toBeGreaterThan(sessionAt);
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location') ?? '';
+    expect(location.startsWith('/log-in?')).toBe(true);
+    const params = new URLSearchParams(location.slice('/log-in?'.length));
+    expect(params.get('error')).toBe('login.proxyHandoff.errors.unknownKey');
+    expect(params.get('error_code')).toBe('trusted_headers.unknown_key');
+    expect(params.get('recovery')).toBe('login.proxyHandoff.recovery');
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
-  it('leaves teams alone when the proxy sends no teams header', async () => {
-    const { sql, queries } = fakeSql(happyScript());
+  it('answers a proxy-routed refusal as a page with its status — a redirect would only come back', async () => {
+    vi.mocked(resolveTrustedHeaderKey).mockResolvedValue(null);
+    const { app } = makeApp(memberScript());
 
-    await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      teams: null,
-      secret: 'right-secret',
-    });
+    const res = await request(app, withKey);
 
-    expect(
-      queries.some((q) => /"team"|teamMember|sso_synced/.test(q.text)),
-    ).toBe(false);
+    expect(res.status).toBe(401);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const body = await res.text();
+    expect(body).toContain('Sign-in could not be completed');
+    expect(body).toContain('href="/log-in"');
   });
 
-  it('warns when a present teams header carries no id:name entry, then treats it as empty', async () => {
-    process.env.TRUSTED_HEADERS_ENABLED = 'true';
-    process.env.BETTER_AUTH_SECRET = 'session-signing-secret';
-    delete process.env.TRUSTED_SECRET_HEADER;
-    delete process.env.SITE_URL;
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      const { sql, queries } = fakeSql([
-        ...happyScript(),
-        {
-          match: /FROM app\.sso_synced_team_members p/,
-          rows: [
-            { teamId: 'team-old', teamName: 'Old', membershipId: 'tm-old' },
-          ],
-        },
-      ]);
-      const app = createTrustedHeadersRoutes({ sql });
+  it('answers a server configuration error without the signing secret', async () => {
+    delete process.env.BETTER_AUTH_SECRET;
+    const { app, queries } = makeApp(memberScript());
 
-      // Bare names — what a proxy sends when it was never told the format.
-      const res = await app.request('http://backend-api:3005/authenticate', {
-        headers: {
-          'Remote-Email': 'proxy.user@door.test',
-          'Remote-Name': 'Proxy User',
-          'Remote-Role': 'member',
-          'Remote-Teams': 'finance, sales',
-          'Remote-Internal-Secret': 'right-secret',
-        },
-      });
+    const res = await request(app, withKey);
 
-      expect(res.headers.get('set-cookie')).toContain('=');
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]?.[0]).toContain('Remote-Teams');
-      // The misconfigured header still counts as an empty assertion: what an
-      // earlier sync granted is revoked, nothing is granted.
-      const revoked = queries.find((q) =>
-        q.text.startsWith('DELETE FROM "teamMember"'),
-      );
-      expect(revoked?.values).toEqual(['tm-old']);
-      expect(
-        queries.some((q) => q.text.startsWith('INSERT INTO "teamMember"')),
-      ).toBe(false);
-
-      // A well-formed header is silent.
-      warn.mockClear();
-      const fine = fakeSql([...happyScript(), ...teamSync]);
-      await createTrustedHeadersRoutes({ sql: fine.sql }).request(
-        'http://backend-api:3005/authenticate',
-        {
-          headers: {
-            'Remote-Email': 'proxy.user@door.test',
-            'Remote-Teams': 't-fin:Finance',
-            'Remote-Internal-Secret': 'right-secret',
-          },
-        },
-      );
-      expect(warn).not.toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain('Server configuration error');
+    expect(writes(queries)).toHaveLength(0);
   });
+});
 
-  it('reconciles (revokes what earlier syncs granted) on an empty assertion', async () => {
-    const { sql, queries } = fakeSql([
-      ...happyScript(),
-      {
-        match: /FROM app\.sso_synced_team_members p/,
-        rows: [{ teamId: 'team-old', teamName: 'Old', membershipId: 'tm-old' }],
-      },
+describe('parseTeamsHeader — the shapes a proxy sends teams in', () => {
+  it('reads a plain group list — the form most authenticating proxies emit', () => {
+    expect(parseTeamsHeader('teamA,teamB')).toEqual([
+      { id: 'teamA', name: 'teamA' },
+      { id: 'teamB', name: 'teamB' },
     ]);
+  });
 
-    await trustedHeadersAuthenticate(sql, {
-      ...baseArgs,
-      teams: [],
-      secret: 'right-secret',
-    });
+  it('reads id:name entries, and a mix of both shapes', () => {
+    expect(parseTeamsHeader('t-fin:Finance, Operations ,t-x: Legal ')).toEqual([
+      { id: 't-fin', name: 'Finance' },
+      { id: 'Operations', name: 'Operations' },
+      { id: 't-x', name: 'Legal' },
+    ]);
+  });
 
-    expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO "teamMember"')),
-    ).toBe(false);
-    const revoked = queries.find((q) =>
-      q.text.startsWith('DELETE FROM "teamMember"'),
-    );
-    expect(revoked?.values).toEqual(['tm-old']);
+  it('drops blanks and half-empty pairs, and reads nothing usable as absent', () => {
+    expect(parseTeamsHeader(' , :Name, id: ,')).toBeNull();
+    expect(parseTeamsHeader('   ')).toBeNull();
   });
 });

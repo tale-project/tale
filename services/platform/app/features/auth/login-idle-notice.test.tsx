@@ -32,6 +32,7 @@ vi.mock('@/app/features/auth/hooks/queries', () => ({
   useHasAnyUsers: () => ({ data: true, isLoading: false }),
   useIsSsoConfigured: () => ({ data: { enabled: false } }),
   useSsoSelectableOrgs: () => ({ data: [] }),
+  useTrustedHeadersHandoff: () => ({ data: false, isLoading: false }),
 }));
 
 // ── React Query client ───────────────────────────────────────────────────────
@@ -81,28 +82,5 @@ describe('LogInPage – signed-out-for-inactivity notice (#1502)', () => {
     render(<LogInPage />);
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('holds the trusted-headers auto-redirect behind an explicit continue after an idle sign-out', () => {
-    mockSearch.value = { reason: 'idle' };
-    window.__ENV__ = {
-      TRUSTED_HEADERS_ENABLED: true,
-      SITE_URL: 'http://localhost',
-      BASE_PATH: '',
-    };
-
-    render(<LogInPage />);
-
-    // The notice and the click-through render instead of a silent re-auth.
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'sessionIdle.signedOutNotice',
-    );
-    expect(
-      screen.getByRole('button', { name: 'sessionIdle.continueToSignIn' }),
-    ).toBeInTheDocument();
-    // No credential form in trusted-headers mode — the proxy owns auth.
-    expect(
-      screen.queryByRole('button', { name: 'login.loginButton' }),
-    ).not.toBeInTheDocument();
   });
 });

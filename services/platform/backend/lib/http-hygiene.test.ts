@@ -671,3 +671,29 @@ describe('installClientErrorEnvelope', () => {
     }
   });
 });
+
+describe('backendSecureHeaders — frameable variant', () => {
+  it('leaves X-Frame-Options to the handler while keeping every other header', async () => {
+    const frameable = new Hono()
+      .use(backendSecureHeaders('https://tale.example', { frameable: true }))
+      .get('/door', (c) => {
+        c.header(
+          'Content-Security-Policy',
+          "frame-ancestors 'self' https://app.example",
+        );
+        return c.html('<p>hi</p>');
+      });
+    const res = await frameable.request('http://localhost/door');
+    expect(res.headers.get('x-frame-options')).toBeNull();
+    expect(res.headers.get('content-security-policy')).toBe(
+      "frame-ancestors 'self' https://app.example",
+    );
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('strict-transport-security')).toBe(
+      'max-age=31536000',
+    );
+    expect(res.headers.get('referrer-policy')).toBe(
+      'strict-origin-when-cross-origin',
+    );
+  });
+});

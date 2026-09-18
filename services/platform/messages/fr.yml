@@ -366,6 +366,32 @@ auth:
     ssoNoOrganizations:
       Aucune organisation disponible pour la connexion. Contacte
       ton administration.
+    proxyHandoff:
+      pending: Connexion en cours via le service de connexion de ton organisation…
+      stalled:
+        La connexion automatique n’a pas abouti. Connecte-toi autrement
+        ci-dessous ou réessaie.
+      retry: Réessayer
+      continue: Continuer avec la connexion automatique
+      held:
+        La connexion automatique est en pause après une déconnexion. Continue
+        quand tu es prêt.
+      recovery:
+        Connecte-toi autrement ci-dessous ou demande à l’administration de
+        vérifier le passage du proxy.
+      errors:
+        missingKey: Le proxy n’a envoyé aucune clé trusted headers.
+        unknownKey: La clé trusted headers du proxy est inconnue ou révoquée.
+        rateLimited:
+          Trop de passages échoués depuis cette adresse. Réessaie plus
+          tard.
+        disabled: Les en-têtes de confiance sont désactivés pour cette organisation.
+        missingEmail: Le proxy n’a envoyé aucune adresse e-mail.
+        notMember:
+          Ton compte n’est pas membre de l’organisation dans laquelle ce
+          proxy connecte.
+        configError: Le serveur n’est pas configuré pour la connexion par proxy.
+        failed: La connexion par proxy n’a pas pu être finalisée.
     continueWithPasskey: Se connecter avec un passkey
     passkeyFailed:
       La connexion par passkey a échoué ou a été annulée. Réessaie ou
@@ -1578,7 +1604,6 @@ common:
     signedOutNotice:
       Tu as été déconnecté parce que ta session est restée inactive
       trop longtemps.
-    continueToSignIn: Continuer vers la connexion
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
@@ -5473,6 +5498,74 @@ settings:
       disable: Désactiver
       baseUrlLabel: URL de base SCIM
       tokenFailed: Échec de la génération du jeton SCIM
+    trustedHeaders:
+      section: En-têtes de confiance
+      help: Laisse une application qui connecte déjà ses utilisateurs les faire entrer
+        dans cette organisation via son reverse proxy. À chaque passage, le proxy
+        présente l’une des clés ci-dessous avec les en-têtes d’identité.
+      enabled: Activé
+      disabled: Désactivé
+      toggleLabel: Accepter les connexions d’un proxy de confiance
+      toggleHelp: Désactivé, chaque clé de cette organisation est refusée sans qu’aucune
+        soit révoquée.
+      maxRoleLabel: Rôle le plus élevé qu’un proxy peut attribuer
+      maxRoleHelp: L’en-tête de rôle est plafonné à ce rôle. Le rôle Propriétaire ne peut jamais
+        être attribué via un proxy.
+      endpointLabel: URL de passage
+      endpointHelp: Fais pointer la connexion du proxy vers cette adresse. Il envoie la clé
+        dans l’en-tête de clé, avec les en-têtes d’identité.
+      headersLabel: Noms des en-têtes
+      headersHelp: Les en-têtes lus par cette installation. L’opérateur les renomme avec les
+        variables TRUSTED_*_HEADER.
+      headerKey: Clé
+      headerEmail: E-mail
+      headerName: Nom
+      headerRole: Rôle
+      headerTeams: Équipes
+      keysTitle: Clés
+      keysHelp: Une clé s’affiche une seule fois, à sa création. La révoquer ne met pas fin
+        aux sessions qu’elle a ouvertes.
+      noKeys: Aucune clé pour l’instant. Crée-en une et confie-la au proxy.
+      createKey: Créer une clé
+      keyName: Nom
+      keyNamePlaceholder: p. ex. Proxy du portail
+      keyCreated: Clé créée
+      keyCreatedHelp: Copie cette clé maintenant — elle ne sera plus affichée.
+      keyCreatedSendAs:
+        Le libellé est l’en-tête dans lequel le proxy l’envoie sur la requête
+        de passage.
+      revoke: Révoquer
+      revokeTitle: Révoquer cette clé ?
+      revokeDescription: Le proxy qui détient « {name} » ne peut plus connecter personne.
+        Les sessions déjà ouvertes restent connectées.
+      revoked: Clé révoquée
+      createdAt: Créée
+      lastUsed: Dernière utilisation
+      neverUsed: Jamais utilisée
+      limitReached: Cette organisation détient déjà le maximum de {max} clés. Révoque-en
+        une pour en créer une autre.
+    embedding:
+      section: Intégration dans un cadre
+      help: Laisse une autre application web afficher les pages de cette organisation dans
+        un cadre. Tale refuse tout cadre tant que l’origine de la page englobante n’est
+        pas listée ici.
+      enabled: Activé
+      disabled: Désactivé
+      toggleLabel: Autoriser l’affichage dans un cadre
+      toggleHelp: Désactivé, aucune page ne s’affiche dans un cadre ; la liste ci-dessous
+        est conservée.
+      originsLabel: Origines autorisées
+      originsHelp: Une origine par ligne, par exemple https://app.example.com. Au plus {max}.
+      originsPlaceholder: https://app.example.com
+      invalidOrigin: Saisis uniquement des origines https, une par ligne. Le http simple est
+        accepté pour localhost.
+      tooMany: Au plus {max} origines.
+      save: Enregistrer les origines
+      saved: Paramètres d’intégration enregistrés
+      saveFailed: Impossible d’enregistrer les paramètres d’intégration
+      sameSiteNote: Un cadre ne reçoit la session connectée que si la page englobante est
+        sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
+        sous le domaine de l’hôte.
     disable: Désactiver la connexion
     remove: Supprimer
     test: Tester la connexion

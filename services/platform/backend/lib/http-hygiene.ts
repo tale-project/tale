@@ -506,13 +506,23 @@ export function installClientErrorEnvelope(server: ServerType): void {
  */
 export function backendSecureHeaders<E extends Env>(
   siteUrl: string | undefined,
+  options: {
+    /**
+     * Leave `X-Frame-Options` to the handler. The trusted-headers hand-off
+     * door renders INSIDE a host application's frame when the organization's
+     * `embedding` policy admits that host, so it decides framing per response
+     * (`frame-ancestors` plus, when nothing is admitted, DENY) — a fixed DENY
+     * here would overrule it after the handler ran.
+     */
+    frameable?: boolean;
+  } = {},
 ): MiddlewareHandler<E> {
   return secureHeaders({
     strictTransportSecurity: (siteUrl ?? '').startsWith('https://')
       ? 'max-age=31536000'
       : false,
     xContentTypeOptions: 'nosniff',
-    xFrameOptions: 'DENY',
+    xFrameOptions: options.frameable ? false : 'DENY',
     referrerPolicy: 'strict-origin-when-cross-origin',
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
