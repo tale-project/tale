@@ -1,3 +1,5 @@
+import { parseEmailAllowlist } from '../../lib/email-allowlist.ts';
+
 /**
  * Deployment-editor allowlist — pure env parsing, no Convex/Node deps.
  *
@@ -19,12 +21,7 @@
  * i.e. nobody may edit (fail-safe).
  */
 export function parseDeploymentEditors(): Set<string> {
-  return new Set(
-    (process.env.TALE_DEPLOYMENT_CONFIG_ADMINS ?? '')
-      .split(/[\s,;]+/)
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0),
-  );
+  return parseEmailAllowlist(process.env.TALE_DEPLOYMENT_CONFIG_ADMINS ?? '');
 }
 
 /**

@@ -7,9 +7,14 @@ import {
   MembershipError,
   requireOrganizationMember,
 } from '../../auth/membership.ts';
+import {
+  organizationCreationAllowed,
+  parseOrganizationCreators,
+} from '../../auth/organization-creation-gate.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { notifyUser } from '../collab/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
+import { hasAnyOrganizations } from './has-any-organizations.ts';
 import {
   deleteOrganization,
   getOrganization,
@@ -46,11 +51,20 @@ export function createOrganizationRoutes(deps: {
     });
   });
 
-  // The managed deployment proxy answers this same door beside its create
-  // refusal. Keep the UI capability tied to the policy that owns the block.
-  app.get('/capabilities', (c) =>
-    c.json({ canCreate: true }, 200, { 'cache-control': 'no-store' }),
-  );
+  // Whether THIS caller may open a new organization: the operator's creator
+  // list (TALE_ORGANIZATION_CREATORS) judged by the same gate that refuses
+  // `/api/auth/organization/create`, so the UI shows the create door exactly
+  // when the door would answer. A managed deployment that declares no
+  // creators still answers this at its edge with `{"canCreate":false}`.
+  app.get('/capabilities', async (c) => {
+    const canCreate = await organizationCreationAllowed({
+      overHttp: true,
+      email: c.get('sessionBundle').user.email,
+      creators: parseOrganizationCreators(process.env),
+      deploymentHasOrganizations: () => hasAnyOrganizations(deps.sql),
+    });
+    return c.json({ canCreate }, 200, { 'cache-control': 'no-store' });
+  });
 
   app.get('/:id', async (c) => {
     const organizationId = c.req.param('id');

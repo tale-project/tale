@@ -424,6 +424,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // the before-hook raising this never runs for a `/api/v1` request,
   // though the handlers reach `auth.ts` by import.
   'SIGN_UP_CLOSED',
+  // The same door's organization-creation gate: the operator's creator
+  // list (TALE_ORGANIZATION_CREATORS) is judged in the before-hook of
+  // `/organization/create`, which the REST door never mounts either.
+  'ORGANIZATION_CREATION_FORBIDDEN',
 ]);
 
 describe('the REST error-code registry', () => {

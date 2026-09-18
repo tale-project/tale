@@ -9,7 +9,7 @@
  */
 
 import type { Context } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthEnv } from '../../auth/session.ts';
 
@@ -74,6 +74,10 @@ beforeEach(() => {
   caller.name = 'Sam Rivera';
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 it('reports self-service creation on an unmanaged backend before dynamic organization matching', async () => {
   const { sql, queries } = database([]);
   const response = await createOrganizationRoutes({
@@ -84,6 +88,53 @@ it('reports self-service creation on an unmanaged backend before dynamic organiz
   expect(await response.json()).toEqual({ canCreate: true });
   expect(queries).toHaveLength(0);
   expect(requireOrganizationMember).not.toHaveBeenCalled();
+});
+
+describe('GET /capabilities with a creator list', () => {
+  const capabilities = async (sql: never): Promise<Response> =>
+    await createOrganizationRoutes({ sql, auth: {} as never }).request(
+      '/capabilities',
+    );
+
+  it('answers true for a listed caller without asking the database', async () => {
+    vi.stubEnv(
+      'TALE_ORGANIZATION_CREATORS',
+      'Ops@example.test, SAM@example.test',
+    );
+    const { sql, queries } = database(['org-1']);
+    const response = await capabilities(sql);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ canCreate: true });
+    expect(queries).toHaveLength(0);
+  });
+
+  it('answers false for an unlisted caller once the deployment holds an organization', async () => {
+    vi.stubEnv('TALE_ORGANIZATION_CREATORS', 'ops@example.test');
+    const { sql, queries } = database(['org-1']);
+    const response = await capabilities(sql);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ canCreate: false });
+    // The one question asked is whether an organization exists at all.
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain('FROM "organization"');
+  });
+
+  it("lets an unlisted caller create the deployment's first organization", async () => {
+    vi.stubEnv('TALE_ORGANIZATION_CREATORS', 'ops@example.test');
+    const { sql } = database([]);
+    expect(await (await capabilities(sql)).json()).toEqual({
+      canCreate: true,
+    });
+  });
+
+  it('a list that names nobody closes creation to everyone', async () => {
+    vi.stubEnv('TALE_ORGANIZATION_CREATORS', '');
+    const { sql } = database(['org-1']);
+    expect(await (await capabilities(sql)).json()).toEqual({
+      canCreate: false,
+    });
+  });
 });
 
 describe('POST /:id/request-credits', () => {
