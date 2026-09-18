@@ -398,6 +398,11 @@ export async function checkConversationApi(
 
   // Office replies use the real Inbox route. A queued reply remains undoable
   // until claim; advancing only this fixture timestamp avoids a wall wait.
+  // Every Better Auth-created account arrives verified since provisioned
+  // accounts became verified accounts, so the refusal below needs an
+  // unverified fixture on purpose — the probe is about the identity gate,
+  // not about how the account was made.
+  await sql`UPDATE "user" SET "emailVerified" = false WHERE id = ${ctx.userId}`;
   assert.equal(
     (
       await app(`/${conversationId}/reply`, {

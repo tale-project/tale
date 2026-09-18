@@ -37,6 +37,7 @@ import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
 import {
   lookupHostAddresses,
   setSafeFetchResolverForTests,
@@ -30532,7 +30533,11 @@ async function checkWebsitesCrawl(
           (row) => row.url === bravoUrl && row.status === 'active',
         ) &&
         !robotsFirst.some((row) => row.url === secretUrl) &&
-        JSON.stringify(rulesFirst) === JSON.stringify(['/private/']) &&
+        // Read through the crawler's own reader: the row stores the policy
+        // object (`{disallow, allow, crawlDelayMs}`), legacy rows the bare
+        // array — the probe judges the rule set, not the storage shape.
+        JSON.stringify(robotsPolicyFromStored(rulesFirst).disallow) ===
+          JSON.stringify(['/private/']) &&
         pagesFirst === 3,
       `created=${robotsCreated.success} rows=${robotsFirst.map((row) => `${short(row.url)}:${row.status}`).join(',')} (want /, /a.txt, /b.txt active; no /private/secret.txt) rules=${JSON.stringify(rulesFirst)}/["/private/"] pages=${pagesFirst}/3`,
     );
@@ -30582,7 +30587,8 @@ async function checkWebsitesCrawl(
         listedRow?.status === 'active' &&
         Number(listedRow.chunks) >= 1 &&
         !robotsSecond.some((row) => row.url === secretUrl) &&
-        JSON.stringify(rulesSecond) === JSON.stringify(['/private/']) &&
+        JSON.stringify(robotsPolicyFromStored(rulesSecond).disallow) ===
+          JSON.stringify(['/private/']) &&
         pagesSecond === 4,
       `old=${oldRow?.status ?? 'MISSING'}/deleted chunks=${oldRow?.chunks ?? '?'}/0, listed=${listedRow?.status ?? 'MISSING'}/active chunks=${listedRow?.chunks ?? '?'}>=1, secret=${robotsSecond.some((row) => row.url === secretUrl) ? 'PRESENT' : 'absent'} rules=${JSON.stringify(rulesSecond)}/["/private/"] pages=${pagesSecond}/4`,
     );
