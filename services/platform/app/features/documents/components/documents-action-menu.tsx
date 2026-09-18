@@ -229,6 +229,7 @@ export function DocumentsActionMenu({
       {isOneDriveImportOpen && (
         <OneDriveImportDialog
           restoreFocusRef={triggerRef}
+          destinationFolderId={currentFolderId}
           open={isOneDriveImportOpen}
           onOpenChange={setIsOneDriveImportOpen}
           organizationId={organizationId}
@@ -240,6 +241,7 @@ export function DocumentsActionMenu({
       {isGoogleDriveImportOpen && (
         <GoogleDriveImportDialog
           restoreFocusRef={triggerRef}
+          destinationFolderId={currentFolderId}
           open={isGoogleDriveImportOpen}
           onOpenChange={setIsGoogleDriveImportOpen}
           organizationId={organizationId}

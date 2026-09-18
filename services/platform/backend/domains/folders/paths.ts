@@ -97,6 +97,30 @@ async function findHubChild(
  * path creation with their own per-item error handling. Throws only on a
  * depth-cap breach (the same cap the interactive create enforces).
  */
+/** How deep a folder already sits: 1 for a top-level folder. */
+async function hubFolderDepth(
+  db: Sql | TransactionSql,
+  folderId: string,
+): Promise<number> {
+  const rows = await db<{ depth: number | null }[]>`
+    WITH RECURSIVE chain AS (
+      SELECT id, parent_id, 1 AS depth FROM app.folders WHERE id = ${folderId}
+      UNION ALL
+      SELECT f.id, f.parent_id, chain.depth + 1
+      FROM app.folders f JOIN chain ON f.id = chain.parent_id
+      WHERE chain.depth < ${MAX_FOLDER_DEPTH + 2}
+    )
+    SELECT max(depth) AS depth FROM chain
+  `;
+  return rows[0]?.depth ?? 0;
+}
+
+/**
+ * `parentId` roots the walk, so an import into a chosen folder mirrors the
+ * provider's path UNDER it instead of at the hub root. The cap then counts
+ * the depth that folder already sits at — measuring the new segments alone
+ * would let a deep destination push the tree past `MAX_FOLDER_DEPTH`.
+ */
 export async function getOrCreateHubFolderPath(
   db: Sql | TransactionSql,
   args: {
@@ -104,19 +128,22 @@ export async function getOrCreateHubFolderPath(
     pathSegments: string[];
     createdBy?: string;
     teamId?: string;
+    parentId?: string;
   },
 ): Promise<string | undefined> {
   const segments = args.pathSegments.filter((s) => s.trim().length > 0);
   if (segments.length === 0) {
     return undefined;
   }
-  if (segments.length > MAX_FOLDER_DEPTH) {
+  const baseDepth =
+    args.parentId === undefined ? 0 : await hubFolderDepth(db, args.parentId);
+  if (baseDepth + segments.length > MAX_FOLDER_DEPTH) {
     throw new Error(
       `Folder path exceeds the depth cap (${MAX_FOLDER_DEPTH}): ${segments.join('/')}`,
     );
   }
 
-  let parentId: string | undefined;
+  let parentId: string | undefined = args.parentId;
   for (const segment of segments) {
     let validName: string;
     try {

@@ -122,6 +122,7 @@ export interface ImportFilesDependencies {
     pathSegments: string[],
     createdBy?: string,
     teamId?: string,
+    parentId?: string,
   ) => Promise<Id<'folders'> | undefined>;
   saveFileMetadata: (
     storageId: BlobRef,
@@ -230,6 +231,12 @@ export async function importFiles(
     organizationId: string;
     importType: 'one-time' | 'sync';
     teamId?: string;
+    /** The hub folder the import lands in — the folder the person had open.
+     *  Undefined imports at the hub root, which is what every import did
+     *  before: placement came only from mirroring the provider's own path,
+     *  so files picked at the top of the picker had no path to mirror and
+     *  landed at the root whatever folder was on screen. */
+    destinationFolderId?: string;
     token: string;
     userId: string;
   },
@@ -268,6 +275,7 @@ export async function importFiles(
             (target.itemPath || target.itemName).split('/'),
             args.userId,
             args.teamId,
+            args.destinationFolderId,
           );
         } catch (error) {
           console.warn(
@@ -284,14 +292,16 @@ export async function importFiles(
   const intendedFolderId = async (
     item: ImportItem,
   ): Promise<Id<'folders'> | undefined> => {
-    if (!deps.getOrCreateFolderPath || !item.relativePath) return undefined;
+    const destination = args.destinationFolderId as Id<'folders'> | undefined;
+    if (!deps.getOrCreateFolderPath || !item.relativePath) return destination;
     const segments = item.relativePath.split('/').slice(0, -1);
-    if (segments.length === 0) return undefined;
+    if (segments.length === 0) return destination;
     return deps.getOrCreateFolderPath(
       args.organizationId,
       segments,
       args.userId,
       args.teamId,
+      args.destinationFolderId,
     );
   };
 

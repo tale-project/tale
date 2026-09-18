@@ -666,6 +666,7 @@ export interface PgSyncImportDeps {
     pathSegments: string[],
     createdBy?: string,
     teamId?: string,
+    parentId?: string,
   ) => Promise<never>;
   saveFileMetadata: (
     storageId: string,
@@ -941,13 +942,20 @@ export function createSyncImportDeps(
     },
     updateDocument: (updateArgs) =>
       updateDocumentRow(sql, organizationId, updateArgs),
-    getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>
+    getOrCreateFolderPath: async (
+      orgId,
+      pathSegments,
+      createdBy,
+      teamId,
+      parentId,
+    ) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'folders'> brand
       (await getOrCreateHubFolderPath(sql, {
         organizationId: orgId,
         pathSegments,
         ...(createdBy !== undefined ? { createdBy } : {}),
         ...(teamId !== undefined ? { teamId } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
       })) as never,
     saveFileMetadata: async (
       storageId,

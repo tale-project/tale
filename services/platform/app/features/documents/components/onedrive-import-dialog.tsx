@@ -47,6 +47,9 @@ function isCloudImportAuthError(error: unknown): boolean {
 }
 
 interface OneDriveImportDialogProps {
+  /** The hub folder the person had open. The import lands there instead of
+   *  at the hub root, and a provider subfolder is mirrored underneath it. */
+  destinationFolderId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   restoreFocusRef?: RefObject<HTMLElement | null>;
@@ -60,6 +63,7 @@ const noop = () => {};
 
 export function OneDriveImportDialog({
   organizationId,
+  destinationFolderId,
   onSuccess,
   onRequireConnect,
   open,
@@ -482,6 +486,7 @@ export function OneDriveImportDialog({
         organizationId,
         importType,
         teamId: selectedTeamId_local,
+        ...(destinationFolderId !== undefined && { destinationFolderId }),
       });
 
       if (result.success) {

@@ -1078,6 +1078,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           items: args.items,
           importType: stringArg(args, 'importType'),
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+          ...(typeof args.destinationFolderId === 'string'
+            ? { destinationFolderId: args.destinationFolderId }
+            : {}),
         },
       }),
     invalidate: invalidateFolders,
@@ -1102,6 +1105,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           items: args.items,
           importType: stringArg(args, 'importType'),
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+          ...(typeof args.destinationFolderId === 'string'
+            ? { destinationFolderId: args.destinationFolderId }
+            : {}),
         },
       }),
     invalidate: invalidateFolders,
