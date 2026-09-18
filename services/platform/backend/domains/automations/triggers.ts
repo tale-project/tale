@@ -435,14 +435,47 @@ async function acceptWebhookDelivery(
       `;
       if ((projects[0]?.archivedAt ?? null) !== null) throw projectForbidden();
     }
+    // Cross-scope guard: the same delivery, still live, first taken at a
+    // scope that differs from this one by organization-vs-project. Two
+    // different projects are a legitimate per-project fan-out (each starts
+    // its own run), so only the organization↔project transition is the
+    // mismatch the docs name — an operator moved the automation between
+    // scopes and the sender re-posted, and without this the event ran twice
+    // (2026-09-18 evaluation, J3-1). Legacy rows carry no `identity_hash`
+    // and never match; the same-scope replay shares `delivery_key` and is
+    // the duplicate path below, never a mismatch.
+    const currentProject = args.projectId ?? null;
+    const sameIdentity = await tx<{ runId: string | null }[]>`
+      SELECT run_id AS "runId" FROM app.automation_webhook_deliveries
+      WHERE trigger_id = ${trigger.id}
+        AND identity_hash = ${identity.identityHash}
+        AND expires_at_ms > ${now}
+    `;
+    for (const row of sameIdentity) {
+      if (row.runId === null) continue;
+      const other = await getRun(tx, trigger.organizationId, row.runId);
+      const otherProject = other?.projectId ?? null;
+      if (
+        otherProject !== currentProject &&
+        (otherProject === null || currentProject === null)
+      ) {
+        throw new AutomationError(
+          'AUTOMATION_DELIVERY_SCOPE_MISMATCH',
+          'The recorded delivery belongs to a different scope.',
+          409,
+        );
+      }
+    }
     const claimed = await tx<{ triggerId: string }[]>`
       INSERT INTO app.automation_webhook_deliveries AS d (
-        trigger_id, delivery_key, source, run_id, received_at_ms, expires_at_ms
+        trigger_id, delivery_key, identity_hash, source, run_id,
+        received_at_ms, expires_at_ms
       ) VALUES (
-        ${trigger.id}, ${identity.key}, ${identity.source}, NULL,
-        ${now}, ${now + identity.windowMs}
+        ${trigger.id}, ${identity.key}, ${identity.identityHash},
+        ${identity.source}, NULL, ${now}, ${now + identity.windowMs}
       )
       ON CONFLICT (trigger_id, delivery_key) DO UPDATE SET
+        identity_hash = EXCLUDED.identity_hash,
         source = EXCLUDED.source,
         run_id = NULL,
         received_at_ms = EXCLUDED.received_at_ms,
