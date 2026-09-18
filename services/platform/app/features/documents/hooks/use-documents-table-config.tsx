@@ -341,6 +341,7 @@ export function useDocumentsTableConfig({
       },
     ],
     [
+      currentFolderId,
       onDocumentClick,
       onDocumentView,
       onFolderDeleted,

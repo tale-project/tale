@@ -292,7 +292,7 @@ export async function importFiles(
   const intendedFolderId = async (
     item: ImportItem,
   ): Promise<Id<'folders'> | undefined> => {
-    const destination = args.destinationFolderId as Id<'folders'> | undefined;
+    const destination = args.destinationFolderId;
     if (!deps.getOrCreateFolderPath || !item.relativePath) return destination;
     const segments = item.relativePath.split('/').slice(0, -1);
     if (segments.length === 0) return destination;
