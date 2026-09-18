@@ -48,6 +48,23 @@ export interface FoldersContract {
     args: { organizationId: string; folderId: string };
     returns: Array<{ _id: string; name: string }>;
   };
+  /** Every hub folder at any depth, already team-filtered — the whole tree
+   *  rather than `listFolders`' single level. */
+  'folders/queries:listAllFolders': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: Array<{
+      _id: string;
+      _creationTime: number;
+      projectId?: string;
+      createdBy?: string;
+      teamId?: string;
+      teamTags?: string[];
+      parentId?: string;
+      organizationId: string;
+      name: string;
+    }>;
+  };
   'folders/queries:listFolders': {
     kind: 'query';
     args: { parentId?: string; organizationId: string };

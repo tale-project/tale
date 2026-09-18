@@ -1974,6 +1974,7 @@ documents:
     stopSync: Stop syncing
     stopSyncDone: Syncing stopped. The imported files stay in your workspace.
     stopSyncFailed: Couldn't stop syncing
+    moveToFolder: Move to folder…
   folder:
     newFolder: New folder
     createFolder: Create folder
@@ -2102,6 +2103,15 @@ documents:
     extensionBlocked: '{name}: .{ext} files are blocked by upload policy.'
     extensionNotAllowed: '{name}: .{ext} is not allowed. Allowed types: {allowed}.'
     uploadDocuments: Upload
+  move:
+    title: Move to folder
+    description: Choose where {name} should live.
+    destinationLabel: Destination
+    rootOption: Knowledge base (no folder)
+    confirm: Move
+    moving: Moving…
+    moved: Document moved
+    moveFailed: Couldn't move the document
   ocr:
     unavailable: OCR unavailable
     processingWithOcr: Document processed with OCR

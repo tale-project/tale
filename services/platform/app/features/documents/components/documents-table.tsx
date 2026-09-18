@@ -355,6 +355,7 @@ export function DocumentsTable({
     useDocumentsTableConfig({
       onDocumentClick: handleDocumentClick,
       onDocumentView: openPreview,
+      currentFolderId,
       onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,

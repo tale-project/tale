@@ -60,6 +60,8 @@ export interface DocumentsContract {
       sourceProvider?: string;
       externalItemId?: string;
       teamIds?: string[];
+      /** The destination folder; `null` is the hub root. */
+      folderId?: string | null;
       documentId: string;
     };
     returns: null;

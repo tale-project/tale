@@ -5,10 +5,18 @@ import {
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
 import { toast } from '@tale/ui/use-toast';
-import { CloudOff, Eye, RefreshCw, Trash2, Users } from 'lucide-react';
+import {
+  CloudOff,
+  Eye,
+  FolderInput,
+  RefreshCw,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { useMemo, useCallback, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 
@@ -22,6 +30,7 @@ import {
 import { useDocumentRecordActions } from '../hooks/use-document-record-actions';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
+import { DocumentMoveDialog } from './document-move-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 
 type StorageSourceMode = 'auto' | 'manual';
@@ -39,6 +48,8 @@ interface DocumentRowActionsProps {
    *  become controlled records (the server refuses sync-owned sources). */
   sourceProvider?: string;
   teamIds?: string[];
+  /** The folder the row sits in — the move dialog opens on it. */
+  currentFolderId?: string;
   onFolderDeleted?: () => void;
   parentFolderTeamId?: string;
   /** Gates the "Reindex" action — terminal `unsupported` files (no text
@@ -62,6 +73,7 @@ export function DocumentRowActions({
   sourceMode,
   sourceProvider,
   teamIds,
+  currentFolderId,
   onFolderDeleted,
   parentFolderTeamId,
   ragStatus,
@@ -74,7 +86,13 @@ export function DocumentRowActions({
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
+  const organizationId = useOrganizationId();
+  const dialogs = useEntityRowDialogs([
+    'delete',
+    'deleteFolder',
+    'teamTags',
+    'move',
+  ]);
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
@@ -235,6 +253,15 @@ export function DocumentRowActions({
       },
       ...recordActions,
       {
+        key: 'move',
+        label: tDocuments('actions.moveToFolder'),
+        icon: FolderInput,
+        onClick: dialogs.open.move,
+        // Files only: a folder move is its own operation (the whole subtree
+        // travels with it) and has no door here yet.
+        visible: canWrite && itemType === 'file',
+      },
+      {
         key: 'teamTags',
         label: tDocuments('actions.manageTeams'),
         icon: Users,
@@ -317,6 +344,17 @@ export function DocumentRowActions({
         folderName={name}
         isSyncFolder={!!syncConfigId}
       />
+
+      {dialogs.isOpen.move && organizationId ? (
+        <DocumentMoveDialog
+          open={dialogs.isOpen.move}
+          onOpenChange={dialogs.setOpen.move}
+          organizationId={organizationId}
+          documentId={documentId}
+          documentName={name}
+          currentFolderId={currentFolderId ?? null}
+        />
+      ) : null}
 
       <DocumentTeamTagsDialog
         open={dialogs.isOpen.teamTags}

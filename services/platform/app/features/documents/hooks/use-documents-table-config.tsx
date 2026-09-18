@@ -30,6 +30,9 @@ interface DocumentsTableConfigParams {
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
   parentFolderTeamId?: string;
+  /** The folder currently open, which is the folder every listed file sits
+   *  in — the move dialog opens on it. */
+  currentFolderId?: string;
 }
 
 interface DocumentsTableConfig {
@@ -42,6 +45,7 @@ interface DocumentsTableConfig {
 export function useDocumentsTableConfig({
   onDocumentClick,
   onDocumentView,
+  currentFolderId,
   onFolderDeleted,
   isLoadingTeams,
   teamMap,
@@ -327,6 +331,7 @@ export function useDocumentsTableConfig({
               teamIds={[...scopeTeamIds(row.original)]}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
+              currentFolderId={currentFolderId}
               ragStatus={row.original.ragStatus}
               record={row.original.record}
               onView={onDocumentView}

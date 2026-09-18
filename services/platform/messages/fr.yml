@@ -2050,6 +2050,7 @@ documents:
       Synchronisation arrêtée. Les fichiers importés restent dans ton
       espace de travail.
     stopSyncFailed: Échec de l'arrêt de la synchronisation
+    moveToFolder: Déplacer vers un dossier…
   folder:
     newFolder: Nouveau dossier
     createFolder: Créer un dossier
@@ -2190,6 +2191,15 @@ documents:
       téléversement.'
     extensionNotAllowed: "{name} : .{ext} n'est pas autorisé. Types autorisés : {allowed}."
     uploadDocuments: Téléverser
+  move:
+    title: Déplacer vers un dossier
+    description: Choisis où placer {name}.
+    destinationLabel: Destination
+    rootOption: Base de connaissances (aucun dossier)
+    confirm: Déplacer
+    moving: Déplacement…
+    moved: Document déplacé
+    moveFailed: Impossible de déplacer le document
   ocr:
     unavailable: OCR indisponible
     processingWithOcr: Document traité avec l'OCR
