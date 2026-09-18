@@ -261,6 +261,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [settings](../suites/settings.md) | `SET-F3` (account name) | ✅ automated | `settings.spec.ts` |
 | [settings](../suites/settings.md) | `SET-F12` (org rename) | ✅ automated | `settings-depth.spec.ts` |
 | [settings](../suites/settings.md) | `SET-F18` (teams create/delete) | ✅ automated | `settings-depth.spec.ts` |
+| [settings](../suites/settings.md) | `SET-F18` (bulk team delete refreshes the table) | 🔶 component | — (no e2e; `teams-table.test.tsx`) |
+| [settings](../suites/settings.md) | `SET-F41` (team writes reach a second session) | 🔶 component | — (needs two live sessions for the round trip; `auth.team-hints.test.ts` owns the hint each team write emits) |
 | [settings](../suites/settings.md) | `SET-F32` (API key lifecycle) | ✅ automated | `settings-depth.spec.ts` |
 | [settings](../suites/settings.md) | `SET-F11` (theme & language) | ✅ automated | `preferences.spec.ts` (Manage-account menu) |
 | [settings](../suites/settings.md) | `SET-F6` (preference toggles) | 🔶 partial | `settings-depth.spec.ts` (custom-instructions toggle only; memories + org-default hint manual) |

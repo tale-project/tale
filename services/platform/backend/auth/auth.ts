@@ -19,6 +19,7 @@ import {
   ORG_SLUG_IMMUTABLE_MESSAGE,
 } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
+import { TEAM_HINT_ENTITY } from '../../lib/shared/hint-entities.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
@@ -49,6 +50,7 @@ import { hasAnyUsers } from '../domains/users/has-any-users.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
+import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
@@ -396,6 +398,31 @@ export function createAuth(config: AuthConfig) {
       return { ...base, action: 'passkey_removed' };
     }
     return null;
+  };
+
+  /**
+   * One `team` invalidation hint for the organization, emitted after a team
+   * lifecycle hook's own write has committed. Non-fatal by construction: the
+   * team change already landed, so a failed hint costs a live refresh (the
+   * next load is correct), never the user's request.
+   */
+  const hintTeamChange = async (
+    hook: string,
+    organizationId: string,
+    teamId: string | null,
+  ): Promise<void> => {
+    try {
+      await emitHintInTx(sql, {
+        orgId: organizationId,
+        entity: TEAM_HINT_ENTITY,
+        entityId: teamId,
+      });
+    } catch (error) {
+      console.error(
+        `[${hook}] failed to emit the team invalidation hint`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   };
 
   // Better Auth owns its own pool, so it needs the same TLS treatment as
@@ -941,6 +968,29 @@ export function createAuth(config: AuthConfig) {
               );
             }
           },
+          // Team create/rename/delete ride the plugin's OWN endpoints, so no
+          // app write adapter sees them: the dialogs invalidate the acting
+          // tab by hand, and nothing at all reached anyone else. A second tab
+          // — and every teammate with the Teams page or the account menu's
+          // team picker open — kept the stale list until reload. These three
+          // hooks put the plugin's lane on the Tier-2 bus: one `team` hint
+          // per write, delivered to every connected session of the org.
+          afterCreateTeam: async (data) => {
+            await hintTeamChange(
+              'afterCreateTeam',
+              data.organization.id,
+              data.team.id,
+            );
+          },
+          // `team` is null when the update matched no row — the hint then
+          // carries no id, which still invalidates the org's team lists.
+          afterUpdateTeam: async (data) => {
+            await hintTeamChange(
+              'afterUpdateTeam',
+              data.organization.id,
+              data.team?.id ?? null,
+            );
+          },
           // The plugin deletes the team row and its memberships alone; the
           // rows the team SCOPED (projects, folders, documents, conversation
           // queues, sync configs) have no FK to it and would stay pointed at
@@ -960,6 +1010,11 @@ export function createAuth(config: AuthConfig) {
                 error instanceof Error ? error.message : error,
               );
             }
+            await hintTeamChange(
+              'afterDeleteTeam',
+              data.organization.id,
+              data.team.id,
+            );
           },
           afterAcceptInvitation: async (data) => {
             try {

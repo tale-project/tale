@@ -7,7 +7,10 @@
  */
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
-import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
+import {
+  PROVIDER_CREDENTIAL_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '@/lib/shared/hint-entities';
 
 import type {
   ActionQueryAdapter,
@@ -199,7 +202,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'team', 'org-list'),
+      queryKey: backendKey(orgId, TEAM_HINT_ENTITY, 'org-list'),
       queryFn: () =>
         backendFetch<{ teams: OrgTeamItem[] }>('/teams', { orgId }).then(
           (body) => body.teams,
@@ -210,7 +213,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'team', 'count-mine'),
+      queryKey: backendKey(orgId, TEAM_HINT_ENTITY, 'count-mine'),
       queryFn: () =>
         backendFetch<{ count: number }>('/teams/count/mine', { orgId }).then(
           (body) => body.count,
@@ -235,7 +238,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const teamId = args.teamId;
     if (orgId === undefined || typeof teamId !== 'string') return null;
     return {
-      queryKey: backendKey(orgId, 'team', 'members', teamId),
+      queryKey: backendKey(orgId, TEAM_HINT_ENTITY, 'members', teamId),
       queryFn: () =>
         backendFetch<{ members: TeamMemberWire[] }>(
           `/teams/${encodeURIComponent(teamId)}/members`,
@@ -1013,7 +1016,7 @@ function invalidateTeams(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'team'),
+    queryKey: backendEntityPrefix(orgId, TEAM_HINT_ENTITY),
   });
 }
 

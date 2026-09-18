@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import type { WriteAdapter } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
@@ -138,7 +139,7 @@ export type MyTeamRow = ItemOf<'members/queries:getMyTeams'>;
 /** The caller's teams in one organization (the team filter's boot read). */
 export function myTeamsQuery(organizationId: string) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'team', 'mine'),
+    queryKey: backendKey(organizationId, TEAM_HINT_ENTITY, 'mine'),
     queryFn: ({ signal }) =>
       backendFetch<{ teams: MyTeamRow[] }>('/teams/mine', {
         signal,

@@ -53,3 +53,16 @@ export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
  * is how a newly added provider stayed invisible to the agent pickers.
  */
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';
+
+/**
+ * An organization's teams — the settings Teams table, the account menu's team
+ * picker and every team-scoped count keyed under it. Team create, rename and
+ * delete ride Better Auth's own organization endpoints rather than an app
+ * route, so the app's write adapters never see them: the dialogs invalidate
+ * their OWN tab by hand, and without the hooks in `auth.ts` emitting under
+ * this entity nobody else in the organization learns anything — a second tab,
+ * and every teammate with the page open, kept the stale list until reload.
+ * Team MEMBERSHIP writes, which do ride app routes, hint under the same
+ * entity so a membership change refreshes the same lists.
+ */
+export const TEAM_HINT_ENTITY = 'team';

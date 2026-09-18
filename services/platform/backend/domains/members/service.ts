@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { TEAM_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import {
   findOrganizationMember,
   isAdminRole,
@@ -344,7 +345,7 @@ export async function removeMember(
   for (const teamId of teamIds) {
     await emitHintInTx(tx, {
       orgId: member.organizationId,
-      entity: 'team',
+      entity: TEAM_HINT_ENTITY,
       entityId: teamId,
     });
   }
