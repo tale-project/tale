@@ -50,6 +50,52 @@ export function isWorkflowAgentRetryable(code: string | undefined): boolean {
   return code === undefined || !NO_RETRY_FAILURE_CODES.has(code);
 }
 
+/** What a re-kick continues: the failed turn's conversation, and why it
+ * ended — the words the resumed agent is told. */
+export interface WorkflowAgentRetryResume {
+  agentSessionId: string;
+  reason: string;
+}
+
+/** Failures that leave no conversation to continue: the sandbox session is
+ * gone with its transcript, or the turn never launched at all. Everything
+ * else — a provider error mid-answer, a truncated stream, a harness crash —
+ * cut a conversation that is still on disk, so the retry picks it up. */
+const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
+  'session_gone',
+  'start_failed',
+] satisfies WorkflowAgentFailureCode[]);
+
+/**
+ * The resume a retry of this settle should carry, or undefined when the
+ * re-kick must be a fresh conversation: no handle announced (a harness that
+ * died before its init line), or a failure class with nothing to resume.
+ */
+export function workflowAgentRetryResume(
+  settled: { failureCode?: string; agentSessionId?: string },
+  reason: string,
+): WorkflowAgentRetryResume | undefined {
+  if (settled.agentSessionId === undefined) return undefined;
+  if (
+    settled.failureCode !== undefined &&
+    NO_RESUME_FAILURE_CODES.has(settled.failureCode)
+  ) {
+    return undefined;
+  }
+  return { agentSessionId: settled.agentSessionId, reason };
+}
+
+/** The message a resumed conversation opens with: the cut was the
+ * platform's, the work stands, carry on — never a second copy of the node
+ * prompt, which the conversation already holds. */
+export function retryResumePrompt(reason: string): string {
+  return [
+    `Your previous turn on this task was cut short by an infrastructure failure, not by anything you did: ${reason}.`,
+    '',
+    'Continue the task from where you left off. The workspace and /agent/output are exactly as you left them — do not redo work that is already done, and do not ask the operator again what they have already answered.',
+  ].join('\n');
+}
+
 /** Execution time of the settled attempt — 0 when it never launched.
  * `launchedAt` is stamped only after the start action's mint succeeds, so a
  * turn that died before actually running reads as ZERO duration, never as

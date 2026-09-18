@@ -37,6 +37,7 @@ import {
   isWorkflowAgentRetryable,
   mergeBurnedHashes,
   nextAttempt,
+  workflowAgentRetryResume,
 } from './agent_retry';
 import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
 import type {
@@ -1208,6 +1209,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         parked.burnedBrokerTokenHashes,
         parked.brokerTokenHash,
       );
+      // The retry CONTINUES the failed conversation when the harness left a
+      // handle — the agent's reasoning and the operator's answers stand,
+      // only the cut is repaired. No handle (or a session that is gone)
+      // means a fresh conversation over the preserved workspace, as before.
+      const resume = workflowAgentRetryResume(settled, reason);
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
@@ -1216,6 +1222,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recorded verbatim from a WorkflowAgentRequest at kick time
         request: parked.input as unknown as WorkflowAgentRequest,
         ...(burned.length > 0 ? { excludeBrokerTokenHashes: burned } : {}),
+        ...(resume !== undefined ? { resume } : {}),
       });
       const agent: AgentCursor = {
         execId: kicked.execId,
@@ -1227,6 +1234,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         input: parked.input,
         attempt: retryAttempt,
         ...(burned.length > 0 ? { burnedBrokerTokenHashes: burned } : {}),
+        ...(resume !== undefined ? { resumedFrom: resume.agentSessionId } : {}),
       };
       const cursor: NodeCursor = {
         node: node.id,
