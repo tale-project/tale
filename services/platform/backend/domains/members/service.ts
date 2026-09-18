@@ -1,6 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { TEAM_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import {
+  MEMBER_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '../../../lib/shared/hint-entities.ts';
 import {
   findOrganizationMember,
   isAdminRole,
@@ -259,7 +262,7 @@ export async function addMember(
   });
   await emitHintInTx(tx, {
     orgId: args.organizationId,
-    entity: 'member',
+    entity: MEMBER_HINT_ENTITY,
     entityId: args.userId,
   });
   return memberId;
@@ -337,7 +340,7 @@ export async function removeMember(
   });
   await emitHintInTx(tx, {
     orgId: member.organizationId,
-    entity: 'member',
+    entity: MEMBER_HINT_ENTITY,
     entityId: member.userId,
   });
   // The cascade shrank these teams: the same hint the teams door emits on a
@@ -455,7 +458,7 @@ export async function updateMemberRole(
   });
   await emitHintInTx(tx, {
     orgId: member.organizationId,
-    entity: 'member',
+    entity: MEMBER_HINT_ENTITY,
     entityId: member.userId,
   });
 }

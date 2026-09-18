@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import {
+  MEMBER_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '../../../lib/shared/hint-entities.ts';
 import { removeMembershipCascade } from '../../auth/membership.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
@@ -10,6 +14,7 @@ import {
   planActivation,
 } from '../../core/scim/internal_mutations.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
 import {
@@ -27,7 +32,10 @@ import {
  * member/teamMember mirrors are dropped (rule 5 — PG reads the tables).
  *
  * Every write audits as actor `scim` (type `api`), category `member`, the
- * 0.4 action vocabulary unchanged.
+ * 0.4 action vocabulary unchanged, and emits its invalidation hint in the
+ * SAME transaction: an IdP push is the one write nobody in the app is
+ * watching for, so without the hint an open Members or Teams page kept the
+ * pre-sync list until someone reloaded it.
  */
 
 type Db = Sql | TransactionSql;
@@ -435,6 +443,10 @@ export async function provisionUser(
 
     let userId: string;
     let memberHere: MemberRow | null = null;
+    // An IdP re-pushes its whole directory on a schedule, so most calls here
+    // change nothing. Hint only when something actually moved, or every sync
+    // cycle would invalidate every connected client's member reads for free.
+    let changed = false;
     if (existingUser) {
       const memberships = await tx<{ organizationId: string }[]>`
         SELECT "organizationId" FROM "member"
@@ -462,6 +474,7 @@ export async function provisionUser(
           UPDATE "user" SET "name" = ${args.name}, "updatedAt" = ${now}
           WHERE "id" = ${userId}
         `;
+        changed = true;
       }
     } else {
       const created = await tx<{ id: string }[]>`
@@ -475,6 +488,7 @@ export async function provisionUser(
       const createdId = created[0]?.id;
       if (createdId === undefined) throw new Error('user insert failed');
       userId = createdId;
+      changed = true;
     }
 
     const link = await getLink(tx, args.organizationId, userId);
@@ -494,11 +508,13 @@ export async function provisionUser(
           ${plan.role}, ${now}
         )
       `;
+      changed = true;
     } else if ((memberHere.role ?? '').toLowerCase() !== plan.role) {
       await tx`
         UPDATE "member" SET "role" = ${plan.role}
         WHERE "id" = ${memberHere.id}
       `;
+      changed = true;
     }
 
     await upsertLink(tx, {
@@ -517,6 +533,13 @@ export async function provisionUser(
       email,
       { next: { role: plan.role, active: args.active } },
     );
+    if (changed) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: MEMBER_HINT_ENTITY,
+        entityId: userId,
+      });
+    }
 
     return {
       userId,
@@ -565,6 +588,10 @@ export async function patchUser(
       });
     }
     const now = new Date();
+    // A full-directory PATCH that moves nothing must stay a no-op — see
+    // `provisionUser`. The SCIM link row is not member data anyone reads, so
+    // an externalId-only patch does not count as a change.
+    let changed = false;
 
     if (args.externalId !== undefined) {
       await upsertLink(tx, {
@@ -606,6 +633,7 @@ export async function patchUser(
         }
         throw error;
       }
+      changed = true;
     }
 
     let role = (member.role ?? '').toLowerCase();
@@ -622,6 +650,7 @@ export async function patchUser(
           UPDATE "member" SET "role" = ${plan.role} WHERE "id" = ${member.id}
         `;
         role = plan.role;
+        changed = true;
       }
       await upsertLink(tx, {
         organizationId: args.organizationId,
@@ -638,6 +667,17 @@ export async function patchUser(
         args.email ?? args.userId,
         { next: { role } },
       );
+    }
+
+    // One hint for the whole PATCH: the role, the display name and the email
+    // all surface in the same member reads, and an IdP commonly moves several
+    // in one call.
+    if (changed) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: MEMBER_HINT_ENTITY,
+        entityId: args.userId,
+      });
     }
 
     return {
@@ -668,7 +708,11 @@ export async function deprovisionUser(
     await tx`DELETE FROM "member" WHERE "id" = ${member.id}`;
     // A later POST re-attaches the existing user row, so stranded team
     // memberships would silently come back into force with it.
-    await removeMembershipCascade(tx, organizationId, userId);
+    const { teamIds } = await removeMembershipCascade(
+      tx,
+      organizationId,
+      userId,
+    );
     await deleteLink(tx, organizationId, userId);
     await logScim(
       tx,
@@ -679,6 +723,20 @@ export async function deprovisionUser(
       user?.email ?? userId,
       { previous: { role: member.role } },
     );
+    await emitHintInTx(tx, {
+      orgId: organizationId,
+      entity: MEMBER_HINT_ENTITY,
+      entityId: userId,
+    });
+    // The cascade shrank these teams — the same hint the members door emits
+    // after the same call, so an open Teams page refreshes its counts.
+    for (const teamId of teamIds) {
+      await emitHintInTx(tx, {
+        orgId: organizationId,
+        entity: TEAM_HINT_ENTITY,
+        entityId: teamId,
+      });
+    }
     return 'deprovisioned';
   });
 }
@@ -728,29 +786,34 @@ function toGroupRecord(
   };
 }
 
+/** Answers whether the roster actually moved — the caller hints only then. */
 async function setTeamMembers(
   tx: TransactionSql,
   organizationId: string,
   teamId: string,
   desiredUserIds: string[],
-): Promise<void> {
+): Promise<boolean> {
   await assertOrgMembers(tx, organizationId, desiredUserIds);
   const current = await listTeamMemberUserIds(tx, teamId);
   const currentIds = new Set(current.map((m) => m.userId));
   const desired = new Set(desiredUserIds);
+  let changed = false;
   for (const userId of desired) {
     if (!currentIds.has(userId)) {
       await tx`
         INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
         VALUES (gen_random_uuid(), ${teamId}, ${userId}, ${new Date()})
       `;
+      changed = true;
     }
   }
   for (const m of current) {
     if (!desired.has(m.userId)) {
       await tx`DELETE FROM "teamMember" WHERE "id" = ${m.id}`;
+      changed = true;
     }
   }
+  return changed;
 }
 
 export async function getGroupRecord(
@@ -866,6 +929,11 @@ export async function provisionGroup(
       args.displayName,
       { next: { members: args.memberIds.length } },
     );
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: TEAM_HINT_ENTITY,
+      entityId: teamId,
+    });
     return {
       teamId,
       displayName: args.displayName,
@@ -896,14 +964,22 @@ export async function replaceGroup(
         externalId: args.externalId,
       });
     }
+    let changed = false;
     if (team.name !== args.displayName) {
       await tx`
         UPDATE "team" SET "name" = ${args.displayName},
                           "updatedAt" = ${new Date()}
         WHERE "id" = ${args.teamId}
       `;
+      changed = true;
     }
-    await setTeamMembers(tx, args.organizationId, args.teamId, args.memberIds);
+    const rosterMoved = await setTeamMembers(
+      tx,
+      args.organizationId,
+      args.teamId,
+      args.memberIds,
+    );
+    changed = changed || rosterMoved;
     const link = await getLink(tx, args.organizationId, args.teamId);
     await logScim(
       tx,
@@ -913,6 +989,13 @@ export async function replaceGroup(
       args.teamId,
       args.displayName,
     );
+    if (changed) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: TEAM_HINT_ENTITY,
+        entityId: args.teamId,
+      });
+    }
     return {
       teamId: args.teamId,
       displayName: args.displayName,
@@ -938,16 +1021,18 @@ export async function patchGroup(
     if (!team || team.organizationId !== args.organizationId) return null;
 
     let displayName = team.name;
+    let changed = false;
     if (args.displayName !== undefined && args.displayName !== team.name) {
       displayName = args.displayName;
       await tx`
         UPDATE "team" SET "name" = ${displayName}, "updatedAt" = ${new Date()}
         WHERE "id" = ${args.teamId}
       `;
+      changed = true;
     }
 
     if (args.replaceMembers !== undefined) {
-      await setTeamMembers(
+      const rosterMoved = await setTeamMembers(
         tx,
         args.organizationId,
         args.teamId,
@@ -957,6 +1042,7 @@ export async function patchGroup(
           args.removeMembers,
         ),
       );
+      changed = changed || rosterMoved;
     } else {
       await assertOrgMembers(tx, args.organizationId, args.addMembers);
       const current = await listTeamMemberUserIds(tx, args.teamId);
@@ -968,12 +1054,14 @@ export async function patchGroup(
             VALUES (gen_random_uuid(), ${args.teamId}, ${userId},
                     ${new Date()})
           `;
+          changed = true;
         }
       }
       const removeSet = new Set(args.removeMembers);
       for (const m of current) {
         if (removeSet.has(m.userId)) {
           await tx`DELETE FROM "teamMember" WHERE "id" = ${m.id}`;
+          changed = true;
         }
       }
     }
@@ -988,6 +1076,13 @@ export async function patchGroup(
       args.teamId,
       displayName,
     );
+    if (changed) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: TEAM_HINT_ENTITY,
+        entityId: args.teamId,
+      });
+    }
     return {
       teamId: args.teamId,
       displayName,
@@ -1029,6 +1124,11 @@ export async function deleteGroup(
         },
       },
     );
+    await emitHintInTx(tx, {
+      orgId: organizationId,
+      entity: TEAM_HINT_ENTITY,
+      entityId: teamId,
+    });
     return retired;
   });
   if (retirement === null) return false;

@@ -8,6 +8,7 @@
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
@@ -225,7 +226,12 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const email = args.email;
     if (orgId === undefined || typeof email !== 'string') return null;
     return {
-      queryKey: backendKey(orgId, 'member', 'user-id-by-email', email),
+      queryKey: backendKey(
+        orgId,
+        MEMBER_HINT_ENTITY,
+        'user-id-by-email',
+        email,
+      ),
       queryFn: () =>
         backendFetch<{ userId: string | null }>(
           `/members/user-id-by-email?email=${encodeURIComponent(email)}`,
@@ -587,7 +593,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const memberId = args.memberId;
     if (orgId === undefined || typeof memberId !== 'string') return null;
     return {
-      queryKey: backendKey(orgId, 'member', 'passkeys', memberId),
+      queryKey: backendKey(orgId, MEMBER_HINT_ENTITY, 'passkeys', memberId),
       queryFn: () =>
         backendFetch<{ passkeys: MemberPasskeyItem[] }>(
           `/members/${encodeURIComponent(memberId)}/passkeys`,
@@ -683,7 +689,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'member', 'picker'),
+      queryKey: backendKey(orgId, MEMBER_HINT_ENTITY, 'picker'),
       queryFn: () =>
         backendFetch<{ members: MemberDirectoryWire[] }>('/members', {
           orgId,
@@ -902,7 +908,7 @@ function invalidateMembers(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'member'),
+    queryKey: backendEntityPrefix(orgId, MEMBER_HINT_ENTITY),
   });
 }
 

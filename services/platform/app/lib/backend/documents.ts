@@ -10,6 +10,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { MEMBER_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import type { DocumentSyncHealth } from '@/types/documents';
 
 import type {
@@ -410,7 +411,7 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'member', 'list'),
+      queryKey: backendKey(orgId, MEMBER_HINT_ENTITY, 'list'),
       queryFn: () =>
         backendFetch<{ members: MemberListWire[] }>('/members', {
           orgId,

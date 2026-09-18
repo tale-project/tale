@@ -55,6 +55,15 @@ export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';
 
 /**
+ * An organization's membership — the Members settings table, the member
+ * pickers a document review or a team dialog reads, and the shell's own
+ * member context. Both doors that change it must agree on the name: the app's
+ * members routes and the SCIM provisioning lane, which writes `member` rows
+ * straight from an IdP push.
+ */
+export const MEMBER_HINT_ENTITY = 'member';
+
+/**
  * An organization's teams — the settings Teams table, the account menu's team
  * picker and every team-scoped count keyed under it. Team create, rename and
  * delete ride Better Auth's own organization endpoints rather than an app

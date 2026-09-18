@@ -1,7 +1,10 @@
 import { queryOptions } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
-import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
+import {
+  MEMBER_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '@/lib/shared/hint-entities';
 
 import type { WriteAdapter } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
@@ -117,7 +120,7 @@ export type MemberContextView =
 /** The caller's membership context for one organization. */
 export function memberContextQuery(organizationId: string) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'member', 'context'),
+    queryKey: backendKey(organizationId, MEMBER_HINT_ENTITY, 'context'),
     queryFn: ({ signal }) =>
       backendFetch<Exclude<MemberContextView, null>>('/members/me', {
         signal,
