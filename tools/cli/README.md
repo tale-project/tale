@@ -204,6 +204,19 @@ cannot trust an external TLS terminator (`Runtime does not serve additional
 origins`). The [additional-origins guide](../../docs/en/self-hosted/install/cli-install.md#managed-additional-origins)
 covers forwarding, `TRUSTED_PROXIES` and callback registration.
 
+### Name who may create organizations
+
+A managed deployment refuses organization creation at its proxy for everyone.
+Declare `organizations.creators` — 1 to 64 distinct sign-in addresses, literal or
+environment references that preparation resolves — and the CLI writes them to the
+managed `TALE_ORGANIZATION_CREATORS` runtime variable, drops the proxy refusal and
+leaves the backend to judge each caller: listed addresses may create, everyone
+else gets `403 ORGANIZATION_CREATION_FORBIDDEN`, and the app shows **Create
+organization** only to them. The managed organization is created during bootstrap,
+and a deployment's first organization is always allowed. Removing the declaration
+restores the refusal and removes the variable; an `environment` entry cannot set
+it. See the [organization-creators guide](../../docs/en/self-hosted/install/cli-install.md#managed-organization-creators).
+
 ## Apply native configuration
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration

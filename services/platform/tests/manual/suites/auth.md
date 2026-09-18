@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 35 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -185,6 +185,17 @@ compute codes from the enrollment secret.
   **403** carrying `SIGN_UP_CLOSED`, and the backend log carries one
   `[sign-up] refused` line; no account appears in **Settings > Members**.
   Adding that same address through **Settings > Members** still works.
+- [ ] `AUTH-B9` · **Organization creation limited to named creators** — With
+  `TALE_ORGANIZATION_CREATORS` set to the owner's address only (a managed
+  instance declares its organization creators in the specification; boot mode A/B sets the
+  variable), sign in as another member → the organization picker shows no
+  **Create organization** entry and `/dashboard/create-organization` says you
+  cannot create an organization on this deployment; from that session
+  `POST /api/auth/organization/create` → **403** carrying
+  `ORGANIZATION_CREATION_FORBIDDEN`, and the backend log carries one
+  `[organizations] refused` line. Sign in as the owner → the entry is back and
+  creating an organization works. Unset the variable and restart → every
+  member sees the entry again.
 
 ## Accessibility (WCAG 2.1 AA)
 

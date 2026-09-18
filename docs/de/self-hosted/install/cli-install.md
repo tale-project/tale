@@ -217,6 +217,22 @@ Die native Identität bleibt bei `origin`: Konto- und Organisationsbindungen, Cl
 
 Die Vorbereitung lehnt eine Laufzeitrevision ab, deren Proxy einem externen TLS-Terminator nicht vertrauen kann, und meldet `Runtime does not serve additional origins`. Wenn du die Liste hinzufügst, änderst oder entfernst, werden die Dienste neu erstellt, die sie lesen. Entfernst du die Deklaration, entfernt das nächste angewendete Bundle auch die Variable. Registriere die Callback-URLs jedes Ursprungs bei deinen Identitäts- und Connector-Anbietern und plane DNS und Zertifikate mit [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#mehrere-domains-gleichzeitig).
 
+#### Festlegen, wer Organisationen erstellen darf {#managed-organization-creators}
+
+Ein verwaltetes Deployment lehnt das Erstellen von Organisationen an seinem Proxy für alle ab: Die Organisationsauswahl zeigt keinen Eintrag **Organisation erstellen**, und `POST /api/auth/organization/create` antwortet mit 403. Damit benannte Personen weitere Arbeitsbereiche eröffnen können, deklariere `organizations.creators` — 1 bis 64 verschiedene Anmeldeadressen, wörtlich oder als Umgebungsreferenzen, die die Vorbereitung auflöst.
+
+```json
+{
+  "organizations": {
+    "creators": ["ops@example.org", { "env": "TALE_WORKSPACE_LEAD" }]
+  }
+}
+```
+
+Die CLI schreibt die Liste in die Laufzeitvariable `TALE_ORGANIZATION_CREATORS` und verwaltet sie selbst, deshalb kann ein Eintrag unter `environment` sie nicht setzen. Mit der Deklaration lehnt der Proxy das Erstellen nicht mehr ab; stattdessen prüft das Backend jede anfragende Person gegen die Liste, antwortet allen anderen mit `403 ORGANIZATION_CREATION_FORBIDDEN`, und die App zeigt **Organisation erstellen** nur den benannten Personen. Adressen werden ohne Rücksicht auf Groß- und Kleinschreibung verglichen; zwei Schreibweisen derselben Adresse gelten als Duplikat und werden abgelehnt.
+
+Die verwaltete Organisation selbst bleibt unberührt: Das Deployment erstellt sie beim Bootstrap, und die erste Organisation eines Deployments ist immer erlaubt. Entfernst du die Deklaration und wendest das nächste Bundle an, kehrt die Ablehnung am Proxy zurück und die Variable wird entfernt. Dieselbe Variable funktioniert auch auf einem Deployment, das du selbst betreibst; siehe die [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference).
+
 #### Bundle vorbereiten, prüfen und anwenden
 
 Setze `TALE_DEPLOY_SPEC` auf die JSON-Datei, `TALE_DEPLOY_BUNDLE` auf ein neues absolutes Ausgabeverzeichnis und `TALE_CLI_COMMIT` auf den vollständigen Commit des Binaries. `DEPLOYMENT_COMMIT` ist ein optionaler Herkunftsvermerk für die Orchestrierung; lass die zugehörigen Flags bei Nichtgebrauch weg. Bereite vor und prüfe, übertrage das vollständige Verzeichnis und führe Vorschau und Deployment auf dem Ziel mit derselben festgelegten CLI aus.

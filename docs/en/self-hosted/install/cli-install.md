@@ -217,6 +217,22 @@ The native identity stays on `origin`: account and organization bindings, client
 
 Preparation refuses a runtime revision whose proxy cannot trust an external TLS terminator and reports `Runtime does not serve additional origins`. Adding, changing or removing the list recreates the services that read it. After you remove the declaration, applying the next bundle removes the variable. Register each origin's callback URLs with your identity and connector providers, and plan DNS and certificates with [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once).
 
+#### Name who may create organizations {#managed-organization-creators}
+
+A managed deployment refuses organization creation at its proxy for everyone: the organization picker shows no **Create organization** entry, and `POST /api/auth/organization/create` answers 403. To let named people open further workspaces, declare `organizations.creators` — 1 to 64 distinct sign-in addresses, literal or as environment references that preparation resolves.
+
+```json
+{
+  "organizations": {
+    "creators": ["ops@example.org", { "env": "TALE_WORKSPACE_LEAD" }]
+  }
+}
+```
+
+The CLI writes the list to the runtime's `TALE_ORGANIZATION_CREATORS` and manages that variable, so an `environment` entry cannot set it. With the declaration in place the proxy no longer refuses organization creation; the backend judges every caller against the list instead, answers anyone else with `403 ORGANIZATION_CREATION_FORBIDDEN`, and the app shows **Create organization** only to the people named. Addresses are matched case-insensitively, so two spellings of one address are refused as a duplicate.
+
+The managed organization itself is unaffected: the deployment creates it during bootstrap, and a deployment's first organization is always allowed. Remove the declaration and apply the next bundle to restore the proxy refusal and remove the variable. The same variable works on a deployment you run yourself; see the [environment reference](/self-hosted/configuration/environment-reference).
+
 #### Prepare, verify, and apply the bundle
 
 Set `TALE_DEPLOY_SPEC` to that JSON file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.

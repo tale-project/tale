@@ -217,6 +217,22 @@ L’identité native reste sur `origin` : les liaisons du compte et de l’orga
 
 La préparation refuse une révision du runtime dont le proxy ne peut pas faire confiance à un terminateur TLS externe, avec le message `Runtime does not serve additional origins`. Ajouter, modifier ou retirer la liste recrée les services qui la lisent. Une fois la déclaration retirée, le bundle appliqué suivant supprime aussi la variable. Enregistre les URL de callback de chaque origine auprès de tes fournisseurs d’identité et de connecteurs, et prépare le DNS et les certificats avec [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois).
 
+#### Désigner qui peut créer des organisations {#managed-organization-creators}
+
+Un déploiement géré refuse la création d’organisations à son proxy pour tout le monde : le choix d’organisation n’affiche pas d’entrée **Créer une organisation**, et `POST /api/auth/organization/create` répond 403. Pour que des personnes désignées puissent ouvrir d’autres espaces de travail, déclare `organizations.creators` — de 1 à 64 adresses de connexion distinctes, littérales ou sous forme de références d’environnement que la préparation résout.
+
+```json
+{
+  "organizations": {
+    "creators": ["ops@example.org", { "env": "TALE_WORKSPACE_LEAD" }]
+  }
+}
+```
+
+La CLI écrit la liste dans la variable `TALE_ORGANIZATION_CREATORS` du runtime et la gère elle-même : une entrée de `environment` ne peut donc pas la définir. Une fois la déclaration en place, le proxy ne refuse plus la création d’organisations ; c’est le backend qui compare chaque personne à la liste, répond `403 ORGANIZATION_CREATION_FORBIDDEN` à toutes les autres, et l’application n’affiche **Créer une organisation** qu’aux personnes désignées. Les adresses sont comparées sans tenir compte de la casse ; deux graphies d’une même adresse sont refusées comme doublon.
+
+L’organisation gérée elle-même n’est pas concernée : le déploiement la crée pendant le bootstrap, et la première organisation d’un déploiement est toujours autorisée. Retire la déclaration et applique le bundle suivant pour rétablir le refus au proxy et supprimer la variable. La même variable fonctionne sur un déploiement que tu exploites toi-même ; voir la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference).
+
 #### Préparer, vérifier et appliquer le bundle
 
 Définis `TALE_DEPLOY_SPEC` avec ce fichier JSON, `TALE_DEPLOY_BUNDLE` avec un nouveau répertoire absolu et `TALE_CLI_COMMIT` avec le commit complet du binaire. `DEPLOYMENT_COMMIT` est une provenance d’orchestration optionnelle ; omets ses arguments si tu ne l’utilises pas. Prépare et vérifie, transfère le répertoire entier, puis lance l’aperçu et le déploiement sur la destination avec la même CLI fixée.
