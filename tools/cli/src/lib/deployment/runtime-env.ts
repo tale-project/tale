@@ -32,6 +32,7 @@ const MANAGED_KEYS = new Set<string>([
   'HOST',
   'SITE_URL',
   'ADDITIONAL_SITE_URLS',
+  'TALE_ORGANIZATION_CREATORS',
   'TLS_MODE',
   'TLS_EMAIL',
   'VERSION',
@@ -226,6 +227,9 @@ export function prepareRuntimeEnvironment(
     ...(options.additionalOrigins?.length
       ? { ADDITIONAL_SITE_URLS: options.additionalOrigins.join(',') }
       : {}),
+    ...(options.organizationCreators?.length
+      ? { TALE_ORGANIZATION_CREATORS: options.organizationCreators.join(',') }
+      : {}),
     TLS_MODE: options.tlsMode,
     TLS_EMAIL: options.tlsEmail ?? '',
     PULL_POLICY: 'never',
@@ -246,6 +250,15 @@ export function prepareRuntimeEnvironment(
   // carried already means none and stays byte-for-byte.
   if (!options.additionalOrigins?.length && environment.ADDITIONAL_SITE_URLS)
     delete environment.ADDITIONAL_SITE_URLS;
+  // The creator list likewise: without a declaration the variable goes, and
+  // the edge refuses organization creation for everyone again. A set-but-
+  // empty value would mean "nobody" to the backend, so it is never left
+  // behind by accident either.
+  if (
+    !options.organizationCreators?.length &&
+    environment.TALE_ORGANIZATION_CREATORS !== undefined
+  )
+    delete environment.TALE_ORGANIZATION_CREATORS;
   for (const key of RUNTIME_SECRET_KEYS) {
     if (key !== 'TALE_BOOTSTRAP_PASSWORD')
       environment[key] = secrets[key] ?? '';

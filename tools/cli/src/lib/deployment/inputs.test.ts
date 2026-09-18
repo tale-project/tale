@@ -537,3 +537,59 @@ test('configuration recovery requires an exact plan hash and a native declaratio
     }).success,
   ).toBe(false);
 });
+
+test('resolves organization creators from literals and environment references', () => {
+  const input = spec();
+  const resolved = resolveDeploymentSpec(
+    {
+      ...input,
+      organizations: {
+        creators: ['ops@north-labs.example', { env: 'SECOND_CREATOR' }],
+      },
+    },
+    { SECOND_CREATOR: 'sam@north-labs.example' },
+  );
+  expect(resolved.organizations).toEqual({
+    creators: ['ops@north-labs.example', 'sam@north-labs.example'],
+  });
+  expect(resolveDeploymentSpec(input)).not.toHaveProperty('organizations');
+  expect(() =>
+    resolveDeploymentSpec(
+      { ...input, organizations: { creators: [{ env: 'MISSING_CREATOR' }] } },
+      {},
+    ),
+  ).toThrow('MISSING_CREATOR');
+  // A reference must resolve to an address, not to whatever the host holds.
+  expect(() =>
+    resolveDeploymentSpec(
+      { ...input, organizations: { creators: [{ env: 'NOT_AN_ADDRESS' }] } },
+      { NOT_AN_ADDRESS: 'north-labs' },
+    ),
+  ).toThrow();
+});
+
+test('refuses organization creator lists the backend could not honour', () => {
+  const input = spec();
+  for (const creators of [
+    [],
+    ['not-an-address'],
+    // The backend compares case-insensitively: one address declared twice.
+    ['ops@north-labs.example', 'OPS@north-labs.example'],
+    Array.from(
+      { length: 65 },
+      (_, index) => `creator-${index}@north-labs.example`,
+    ),
+  ])
+    expect(() =>
+      resolveDeploymentSpec({ ...input, organizations: { creators } }),
+    ).toThrow();
+  expect(() =>
+    resolveDeploymentSpec({ ...input, organizations: {} }),
+  ).toThrow();
+  expect(() =>
+    resolveDeploymentSpec({
+      ...input,
+      organizations: { creators: ['ops@north-labs.example'], extra: true },
+    }),
+  ).toThrow();
+});

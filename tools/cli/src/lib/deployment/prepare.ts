@@ -100,6 +100,7 @@ export async function prepareDeployment(
         platform: spec.runtime.platform,
         containerPrefix: spec.runtime.containerPrefix,
         additionalOrigins: spec.additionalOrigins,
+        organizationCreators: spec.organizations?.creators,
         output: join(output, 'runtime'),
       });
       return writeDeploymentBundle(output, {

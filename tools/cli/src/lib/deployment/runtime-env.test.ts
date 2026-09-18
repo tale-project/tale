@@ -251,6 +251,48 @@ describe('managed runtime credential adoption', () => {
     ).toBe(empty);
   });
 
+  test('writes declared organization creators and removes them once the declaration is gone', async () => {
+    const { fixture } = await create();
+    const envPath = join(fixture.options.stateDirectory, 'src/.env');
+    const declared = {
+      ...fixture.options,
+      organizationCreators: [
+        'ops@north-labs.example',
+        'sam@north-labs.example',
+      ],
+    };
+    const written = prepareRuntimeEnvironment(declared, fixture.revision, true);
+    expect(
+      parseRuntimeEnvironment(written.environment, 'compose')
+        .TALE_ORGANIZATION_CREATORS,
+    ).toBe('ops@north-labs.example,sam@north-labs.example');
+    writeFileSync(envPath, written.environment);
+    expect(
+      prepareRuntimeEnvironment(declared, fixture.revision, true).environment,
+    ).toBe(written.environment);
+    const removed = prepareRuntimeEnvironment(
+      fixture.options,
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(removed.environment, 'compose')
+        .TALE_ORGANIZATION_CREATORS,
+    ).toBeUndefined();
+    // The declaration is the variable's only source: an `environment` entry
+    // cannot set it behind the declaration's back.
+    expect(() =>
+      prepareRuntimeEnvironment(
+        {
+          ...fixture.options,
+          environment: { TALE_ORGANIZATION_CREATORS: 'x@example.test' },
+        },
+        fixture.revision,
+        true,
+      ),
+    ).toThrow('not permitted');
+  });
+
   test('carries declared optional analytics configuration through the runtime environment', async () => {
     const { fixture } = await create();
     const analytics = {

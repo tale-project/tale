@@ -25,7 +25,11 @@ afterEach(() => {
 });
 function create(
   containerPrefix?: string,
-  declared: { additionalOrigins?: string[]; trustsTerminator?: boolean } = {},
+  declared: {
+    additionalOrigins?: string[];
+    trustsTerminator?: boolean;
+    organizationCreators?: string[];
+  } = {},
 ) {
   const fixture = runtimeFixture({
     trustsTerminator: declared.trustsTerminator,
@@ -41,6 +45,7 @@ function create(
         platform: 'linux/amd64',
         containerPrefix,
         additionalOrigins: declared.additionalOrigins,
+        organizationCreators: declared.organizationCreators,
       },
       docker.dependencies(),
     );
@@ -87,6 +92,24 @@ describe('committed source runtime preparation', () => {
     expect(policy).toContain('handle /api/auth/organization/create');
     expect(policy).toContain(
       'respond "Organization provisioning is managed by the operator" 403',
+    );
+  });
+
+  test('hands organization creation to the backend when creators are declared', async () => {
+    const { fixture, prepare } = create(undefined, {
+      organizationCreators: ['ops@north-labs.example'],
+    });
+    await prepare();
+    const policy = readRuntimeBundle(fixture.options.bundleDirectory).contents[
+      'Caddyfile.production'
+    ].toString();
+    // Account creation stays refused at the edge; organization creation is
+    // the backend's to judge against TALE_ORGANIZATION_CREATORS.
+    expect(policy).toContain('handle /api/auth/sign-up/email');
+    expect(policy).not.toContain('handle /api/app/organizations/capabilities');
+    expect(policy).not.toContain('handle /api/auth/organization/create');
+    expect(policy).not.toContain(
+      'Organization provisioning is managed by the operator',
     );
   });
 
