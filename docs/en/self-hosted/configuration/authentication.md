@@ -58,6 +58,8 @@ The proxy must remove client-supplied identity headers, set its own authenticate
 
 Route the proxy's `/log-in` to the hand-off address so members never see the credential form; the sign-in page itself does not redirect.
 
+To show Tale inside the application's own page rather than in a tab, an Admin lists that page's origin under **Embedding** on the same settings page. Tale's pages then answer with a `frame-ancestors` policy naming `'self'` and the listed origins instead of refusing every frame, and the `X-Frame-Options` header is left off. The list belongs to one organization, but the sign-in shell is one document for the whole deployment, so an origin any organization admits may load it. The browser sends the session cookie into a frame only when the surrounding page is on the same site as Tale, for example a subdomain of the host or Tale served under the host's own domain; a cross-site frame shows the sign-in page instead.
+
 ## Diagnose sign-in failures
 
 | Symptom | Check first |

@@ -58,6 +58,8 @@ Le proxy doit supprimer les en-têtes d’identité fournis par le client, défi
 
 Redirige `/log-in` du proxy vers l’adresse de passage pour que les membres ne voient jamais le formulaire d’identifiants ; la page de connexion elle-même ne redirige pas.
 
+Pour afficher Tale dans la page de l’application elle-même plutôt que dans un onglet, un administrateur ajoute l’origine de cette page sous **Intégration dans un cadre**, sur la même page de paramètres. Les pages de Tale répondent alors avec une règle `frame-ancestors` qui nomme `'self'` et les origines listées au lieu de refuser tout cadre, et l’en-tête `X-Frame-Options` disparaît. La liste appartient à une organisation, mais l’enveloppe de connexion est un seul document pour toute l’instance : une origine admise par n’importe quelle organisation peut donc la charger. Le navigateur n’envoie le cookie de session dans un cadre que si la page englobante est sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi sous le domaine de l’hôte ; un cadre d’un autre site affiche la page de connexion.
+
 ## Diagnostiquer les échecs de connexion
 
 | Symptôme | Première vérification |

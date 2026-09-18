@@ -82,6 +82,8 @@ An application that already authenticates its users can hand them into this orga
 2. Select **Create key**, name it after the proxy that will hold it, and copy the key immediately; it is shown once. An organization holds at most 10 live keys.
 3. Configure the proxy to send its sign-ins to the **Hand-off URL** with the key as the `Authorization` bearer token (or in the key header) and the identity headers listed under **Header names**. Point the proxy's `/log-in` at the same address.
 
+To show the pages inside the application's own page, turn on **Allow embedding in a frame** under **Embedding** and list the page's origin under **Allowed origins**; Tale then admits that origin as a frame ancestor. A frame carries the signed-in session only when the surrounding page is on the same site as Tale.
+
 The key decides the organization: a member signs in, an address Tale has never seen becomes a new member with the asserted role, and an existing account from another organization is refused. Turning the switch off refuses every key without revoking one. **Revoke** stamps a key so the proxy can no longer sign anyone in; sessions it already started stay signed in. The operator's [authentication configuration](/self-hosted/configuration/authentication) covers header names and proxy requirements.
 
 ## Verify and troubleshoot

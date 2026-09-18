@@ -82,6 +82,8 @@ Eine Anwendung, die ihre Nutzer bereits authentifiziert, kann sie über ihren Re
 2. Wähle **Schlüssel erstellen**, benenne ihn nach dem Proxy, der ihn erhält, und kopiere den Schlüssel sofort, denn er wird nur einmal angezeigt. Eine Organisation hält höchstens 10 gültige Schlüssel.
 3. Richte den Proxy so ein, dass er Anmeldungen an die **Übergabe-URL** sendet, mit dem Schlüssel als `Authorization`-Bearer-Token (oder im Schlüssel-Header) und den Identitäts-Headern unter **Header-Namen**. Leite `/log-in` des Proxys auf dieselbe Adresse.
 
+Sollen die Seiten in der Seite der Anwendung selbst erscheinen, schalte unter **Einbettung** die Option **Einbettung in einem Frame erlauben** ein und trage die Herkunft der Seite unter **Erlaubte Herkünfte** ein; Tale lässt diese Herkunft dann als Frame-Vorfahren zu. Ein Frame trägt die angemeldete Sitzung nur, wenn die umgebende Seite zur selben Site wie Tale gehört.
+
 Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adresse, die Tale noch nie gesehen hat, wird zum neuen Mitglied mit der zugewiesenen Rolle, und ein bestehendes Konto aus einer anderen Organisation wird abgewiesen. Schaltest du den Schalter aus, wird jeder Schlüssel abgewiesen, ohne dass einer widerrufen wird. **Widerrufen** stempelt einen Schlüssel, sodass der Proxy niemanden mehr anmelden kann; bereits gestartete Sitzungen bleiben angemeldet. Die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) des Betreibers beschreibt Header-Namen und Anforderungen an den Proxy.
 
 ## Prüfen und Fehler beheben

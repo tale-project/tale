@@ -58,6 +58,8 @@ Der Proxy muss Identitäts-Header des Clients entfernen, eigene authentifizierte
 
 Leite `/log-in` im Proxy auf die Übergabeadresse um, damit Mitglieder das Anmeldeformular nie sehen; die Anmeldeseite selbst leitet nicht weiter.
 
+Soll Tale in der Seite der Anwendung selbst statt in einem Tab erscheinen, trägt ein Admin die Herkunft dieser Seite unter **Einbettung** auf derselben Einstellungsseite ein. Die Seiten von Tale antworten dann mit einer `frame-ancestors`-Richtlinie, die `'self'` und die eingetragenen Herkünfte nennt, statt jeden Frame abzuweisen, und der Header `X-Frame-Options` entfällt. Die Liste gehört einer Organisation, die Anmelde-Shell ist aber ein einziges Dokument für die ganze Installation, sodass eine Herkunft, die irgendeine Organisation zulässt, es laden kann. Der Browser sendet das Sitzungs-Cookie nur dann in einen Frame, wenn die umgebende Seite zur selben Site wie Tale gehört, etwa eine Subdomain des Hosts oder Tale unter der eigenen Domain des Hosts; ein Frame von einer anderen Site zeigt stattdessen die Anmeldeseite.
+
 ## Anmeldefehler eingrenzen
 
 | Symptom | Erste Prüfung |

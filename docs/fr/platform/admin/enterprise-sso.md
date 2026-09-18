@@ -82,6 +82,8 @@ Une application qui authentifie déjà ses utilisateurs peut les faire entrer da
 2. Sélectionne **Créer une clé**, nomme-la d’après le proxy qui la détiendra et copie-la immédiatement : elle ne s’affiche qu’une fois. Une organisation détient au plus 10 clés actives.
 3. Configure le proxy pour qu’il envoie ses connexions à l’**URL de passage**, avec la clé comme jeton bearer `Authorization` (ou dans l’en-tête de clé) et les en-têtes d’identité listés sous **Noms des en-têtes**. Fais pointer `/log-in` du proxy vers la même adresse.
 
+Pour afficher les pages dans la page de l’application elle-même, active **Autoriser l’affichage dans un cadre** sous **Intégration dans un cadre** et liste l’origine de la page sous **Origines autorisées** ; Tale admet alors cette origine comme ancêtre de cadre. Un cadre ne porte la session connectée que si la page englobante est sur le même site que Tale.
+
 La clé détermine l’organisation : un membre est connecté, une adresse que Tale n’a jamais vue devient un nouveau membre avec le rôle attribué, et un compte existant d’une autre organisation est refusé. Désactiver l’interrupteur refuse toutes les clés sans en révoquer aucune. **Révoquer** marque une clé afin que le proxy ne puisse plus connecter personne ; les sessions déjà ouvertes restent connectées. La [configuration de l’authentification](/fr/self-hosted/configuration/authentication) côté opérateur décrit les noms d’en-têtes et les exigences du proxy.
 
 ## Vérifier et résoudre les problèmes
