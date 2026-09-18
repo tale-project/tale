@@ -78,9 +78,9 @@ Le propriétaire de l’organisation ne peut pas être désactivé ni retiré pa
 
 Une application qui authentifie déjà ses utilisateurs peut les faire entrer dans cette organisation via son reverse proxy, sans que les membres voient le formulaire de connexion de Tale. La carte **En-têtes de confiance**, sur la même page, regroupe l’interrupteur, le plafond de rôle et les clés que le proxy présente.
 
-1. Active **Accepter les connexions d’un proxy de confiance** et choisis le **Rôle le plus élevé qu’un proxy peut attribuer**. L’en-tête de rôle est plafonné à ce rôle ; le rôle Propriétaire ne peut jamais être attribué.
+1. Active **Accepter les connexions d’un proxy de confiance** et choisis le **Rôle le plus élevé qu’un proxy peut attribuer**. L’en-tête de rôle est plafonné à ce rôle ; le rôle Propriétaire ne peut jamais être attribué. À chaque connexion, le siège du membre suit le rôle attribué ; un siège Propriétaire ne change jamais.
 2. Sélectionne **Créer une clé**, nomme-la d’après le proxy qui la détiendra et copie-la immédiatement : elle ne s’affiche qu’une fois. Une organisation détient au plus 10 clés actives.
-3. Configure le proxy pour qu’il envoie ses connexions à l’**URL de passage**, avec la clé comme jeton bearer `Authorization` (ou dans l’en-tête de clé) et les en-têtes d’identité listés sous **Noms des en-têtes**. La page de connexion de Tale y renvoie elle-même dès qu’elle voit les en-têtes d’identité ; faire pointer aussi `/log-in` du proxy vers cette adresse évite le détour.
+3. Configure le proxy pour qu’il envoie ses connexions à l’**URL de passage**, avec la clé dans l’en-tête de clé et les en-têtes d’identité listés sous **Noms des en-têtes**. La page de connexion de Tale y renvoie elle-même dès qu’elle voit les en-têtes d’identité ; faire pointer aussi `/log-in` du proxy vers cette adresse évite le détour.
 
 Pour afficher les pages dans la page de l’application elle-même, active **Autoriser l’affichage dans un cadre** sous **Intégration dans un cadre** et liste l’origine de la page sous **Origines autorisées** ; Tale admet alors cette origine comme ancêtre de cadre. Un cadre ne porte la session connectée que si la page englobante est sur le même site que Tale.
 

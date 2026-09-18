@@ -44,9 +44,9 @@ Follow [Enterprise SSO and provisioning](/platform/admin/enterprise-sso) for pro
 
 ## Trust an authentication proxy
 
-An application that already signs its users in can hand them into one organization through its reverse proxy. An Admin turns the feature on under **Settings > Enterprise SSO**, in the **Trusted headers** card: choose the highest role the proxy may assert, then create a key and copy it, because it is shown once. Point the proxy's sign-in at `/api/trusted-headers/authenticate` with that key as the `Authorization` bearer token (or in the `Remote-Internal-Secret` header) and the identity headers `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams`. The [environment reference](/self-hosted/configuration/environment-reference) lists the `TRUSTED_*_HEADER` variables for renaming those headers.
+An application that already signs its users in can hand them into one organization through its reverse proxy. An Admin turns the feature on under **Settings > Enterprise SSO**, in the **Trusted headers** card: choose the highest role the proxy may assert, then create a key and copy it, because it is shown once. Point the proxy's sign-in at `/api/trusted-headers/authenticate` with that key in the `Remote-Internal-Secret` header and the identity headers `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams`. The [environment reference](/self-hosted/configuration/environment-reference) lists the `TRUSTED_*_HEADER` variables for renaming those headers.
 
-The key decides the organization. A member of that organization signs in; an address the deployment has never seen becomes a new member with the asserted role; an existing account from another organization is refused. Owner is never assertable, and a role above the organization's ceiling is lowered to it. Turning the card off refuses every key without revoking one; revoking a key does not end the sessions it started.
+The key decides the organization. A member of that organization signs in; an address the deployment has never seen becomes a new member with the asserted role; an existing account from another organization is refused. Owner is never assertable, and a role above the organization's ceiling is lowered to it. On every sign-in the member's seat follows the asserted role, so **Settings > Members** shows what the proxy asserted; an Owner seat never changes. Turning the card off refuses every key without revoking one; revoking a key does not end the sessions it started.
 
 <Warning>
 
@@ -54,7 +54,7 @@ The proxy must remove client-supplied identity headers, set its own authenticate
 
 </Warning>
 
-`Remote-Teams` contains comma-separated `id:name` entries, for example `t-fin:Finance,t-ops:Operations`. An omitted header leaves team management alone; a present empty header removes memberships previously granted by this synchronization. Invalid entries can therefore remove synchronized memberships. Manually granted memberships are preserved.
+`Remote-Teams` lists team names separated by commas, for example `Finance,Operations`; an `id:name` entry such as `t-fin:Finance` is accepted too, and teams are matched and created by name. An omitted header leaves team management alone; a present empty header removes memberships previously granted by this synchronization. Invalid entries can therefore remove synchronized memberships. Manually granted memberships are preserved.
 
 Tale's sign-in page hands the browser to the hand-off address by itself when the request carries the proxy's identity header, so members never see the credential form; routing the proxy's `/log-in` straight to the hand-off address saves that round trip and is still recommended. When a hand-off does not end in a session (refused, or cookies blocked inside a frame), the page shows the form with a retry button instead of looping.
 

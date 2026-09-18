@@ -78,9 +78,9 @@ Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen d�
 
 Eine Anwendung, die ihre Nutzer bereits authentifiziert, kann sie über ihren Reverse-Proxy in diese Organisation weiterreichen, sodass Mitglieder das Anmeldeformular von Tale nie sehen. Die Karte **Vertrauenswürdige Header** auf derselben Seite enthält den Schalter, die Rollen-Obergrenze und die Schlüssel, die der Proxy vorlegt.
 
-1. Schalte **Anmeldungen über einen vertrauenswürdigen Proxy annehmen** ein und wähle die **Höchste Rolle, die ein Proxy zuweisen darf**. Der Rollen-Header wird auf diese Rolle begrenzt; Inhaber lässt sich nie zuweisen.
+1. Schalte **Anmeldungen über einen vertrauenswürdigen Proxy annehmen** ein und wähle die **Höchste Rolle, die ein Proxy zuweisen darf**. Der Rollen-Header wird auf diese Rolle begrenzt; Inhaber lässt sich nie zuweisen. Bei jeder Anmeldung folgt der Sitz des Mitglieds der zugewiesenen Rolle; ein Inhaber-Sitz ändert sich nie.
 2. Wähle **Schlüssel erstellen**, benenne ihn nach dem Proxy, der ihn erhält, und kopiere den Schlüssel sofort, denn er wird nur einmal angezeigt. Eine Organisation hält höchstens 10 gültige Schlüssel.
-3. Richte den Proxy so ein, dass er Anmeldungen an die **Übergabe-URL** sendet, mit dem Schlüssel als `Authorization`-Bearer-Token (oder im Schlüssel-Header) und den Identitäts-Headern unter **Header-Namen**. Die Anmeldeseite von Tale leitet selbst dorthin weiter, sobald sie die Identitäts-Header sieht; leitet der Proxy `/log-in` zusätzlich direkt dorthin, entfällt der Umweg.
+3. Richte den Proxy so ein, dass er Anmeldungen an die **Übergabe-URL** sendet, mit dem Schlüssel im Schlüssel-Header und den Identitäts-Headern unter **Header-Namen**. Die Anmeldeseite von Tale leitet selbst dorthin weiter, sobald sie die Identitäts-Header sieht; leitet der Proxy `/log-in` zusätzlich direkt dorthin, entfällt der Umweg.
 
 Sollen die Seiten in der Seite der Anwendung selbst erscheinen, schalte unter **Einbettung** die Option **Einbettung in einem Frame erlauben** ein und trage die Herkunft der Seite unter **Erlaubte Herkünfte** ein; Tale lässt diese Herkunft dann als Frame-Vorfahren zu. Ein Frame trägt die angemeldete Sitzung nur, wenn die umgebende Seite zur selben Site wie Tale gehört.
 
