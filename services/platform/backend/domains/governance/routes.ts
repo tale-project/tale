@@ -18,13 +18,9 @@ import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
-  collectAllApplicableRules,
-  collectOrgWarnings,
-  collectWarnings,
-  resolveEffectiveLimits,
+  collectStandingWarnings,
   type BudgetWarning,
 } from '../../core/governance/budget_enforcement.ts';
-import { buildPeriodKey } from '../../core/governance/helpers.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { appErrorHandler } from '../../error-reporting';
@@ -36,8 +32,12 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
-import { checkTtsBudget } from '../tts/service.ts';
-import { readBudgetStanding } from './budget-gate.ts';
+import {
+  findBudgetViolation,
+  loadBudgetSubject,
+  readBudgetStanding,
+} from './budget-gate.ts';
+import { readInFlightReservations } from './budget-reservations.ts';
 import {
   CompetenceError,
   grantCompetence,
@@ -415,118 +415,83 @@ export function createGovernanceRoutes(deps: {
     return c.json({ flags });
   });
 
+  /**
+   * The composer banner's read. `exceeded` is what the admission gate would
+   * refuse RIGHT NOW — booked usage plus in-flight holds, over every bucket
+   * that binds the member (their personal cap, each of their teams' shared
+   * caps, the organization's) — and the warnings are read off the SAME
+   * standing the gate measures (`readBudgetStanding`), so the banner and the
+   * gate can never disagree. A team bucket's warning names the team.
+   *
+   * `selectedTeamId` is accepted and ignored: the account-menu team switcher
+   * that used to narrow this view is gone — a member's standing is the
+   * whole of what binds them, not one team's slice of it.
+   */
   app.get('/my/budget-status', async (c) => {
     const organizationId = c.get('orgId');
     const userId = c.get('sessionBundle').user.id;
-    const role = c.get('orgMember').role;
-    const allTeamIds = await getUserTeamIds(deps.sql, organizationId, userId);
-    const full = await checkTtsBudget(deps.sql, {
+    const subject = await loadBudgetSubject(deps.sql, {
       organizationId,
       userId,
-      userTeamIds: allTeamIds,
-      userRole: role,
-      prospectiveCostCents: 0,
-      prospectiveRequests: 0,
     });
-    if (!full.allowed) {
+    const violation = await findBudgetViolation(deps.sql, subject, {
+      reservations: await readInFlightReservations(deps.sql, subject),
+    });
+    if (violation !== null) {
       return c.json({
         status: {
           exceeded: true,
-          code: full.code ?? null,
-          period: full.period ?? null,
-          used: full.used ?? null,
-          limit: full.limit ?? null,
-          reason: full.reason ?? null,
+          code: violation.code,
+          period: violation.period,
+          used: violation.used,
+          limit: violation.limit,
+          reason: violation.reason,
           warnings: null,
         },
       });
     }
-    // Warnings scoped to the selected team context (the 0.4 display rule).
-    const selectedTeamId = c.req.query('selectedTeamId');
-    const displayTeamIds =
-      selectedTeamId !== undefined && allTeamIds.includes(selectedTeamId)
-        ? [selectedTeamId]
-        : [];
-    const config = await readGovernancePolicyForOrg(
-      deps.sql,
-      organizationId,
-      'budgets',
+    const warnings = collectStandingWarnings(
+      await readBudgetStanding(deps.sql, subject),
     );
-    if (!config || !config.enabled || config.rules.length === 0) {
+    if (warnings.length === 0) {
       return c.json({ status: null });
     }
-    const applicable = collectAllApplicableRules(
-      config.rules,
-      userId,
-      displayTeamIds,
-      role,
-      undefined,
-    );
-    const warnings: BudgetWarning[] = [];
-    for (const period of new Set(applicable.map((rule) => rule.period))) {
-      const periodRules = applicable.filter((r) => r.period === period);
-      const limits = resolveEffectiveLimits(
-        periodRules,
-        userId,
-        displayTeamIds,
-        role,
-        undefined,
-      );
-      const periodKey = buildPeriodKey(period);
-      const usage = await deps.sql<
-        { totalTokens: number; costEstimate: number; requestCount: number }[]
-      >`
-        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
-               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
-        FROM app.usage_ledger
-        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND user_id = ${userId}
-      `;
-      warnings.push(
-        ...collectWarnings(
-          limits,
-          usage[0] ?? { totalTokens: 0, costEstimate: 0, requestCount: 0 },
-          period,
+    const teamIds = [
+      ...new Set(
+        warnings.flatMap((warning) =>
+          warning.teamId === undefined ? [] : [warning.teamId],
         ),
-      );
-      // The organization's own approach signal: an org-scoped rule's
-      // threshold against the org's whole spend. It has no team filter by
-      // nature, so it shows whatever team context is selected — the banner
-      // labels it as the organization's, not the reader's.
-      if (limits.orgWarningThresholdPercent !== undefined) {
-        const orgUsage = await deps.sql<
-          { totalTokens: number; costEstimate: number; requestCount: number }[]
-        >`
-          SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
-                 coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-                 coalesce(sum(request_count), 0)::float8 AS "requestCount"
-          FROM app.usage_ledger
-          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-        `;
-        warnings.push(
-          ...collectOrgWarnings(
-            limits,
-            orgUsage[0] ?? { totalTokens: 0, costEstimate: 0, requestCount: 0 },
-            period,
-          ),
-        );
+      ),
+    ];
+    const teams =
+      teamIds.length === 0
+        ? []
+        : await deps.sql<{ id: string; name: string }[]>`
+            SELECT "id", "name" FROM "team" WHERE "id" = ANY(${teamIds})
+          `;
+    const teamName = new Map(teams.map((team) => [team.id, team.name]));
+    const named: (BudgetWarning & { teamName?: string | null })[] = [];
+    for (const warning of warnings) {
+      if (warning.teamId === undefined) {
+        named.push(warning);
+        continue;
       }
-    }
-    if (warnings.length > 0) {
-      return c.json({
-        status: {
-          exceeded: false,
-          code: null,
-          period: null,
-          used: null,
-          limit: null,
-          reason: null,
-          warnings,
-        },
+      named.push({
+        ...warning,
+        teamName: teamName.get(warning.teamId) ?? null,
       });
     }
-    return c.json({ status: null });
+    return c.json({
+      status: {
+        exceeded: false,
+        code: null,
+        period: null,
+        used: null,
+        limit: null,
+        reason: null,
+        warnings: named,
+      },
+    });
   });
 
   /**

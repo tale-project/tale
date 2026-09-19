@@ -265,7 +265,6 @@ type ReserveOutcome =
       kind: 'reserved';
       chunkId: string;
       attemptCreatedAt: number;
-      teamId: string | undefined;
     };
 
 /**
@@ -429,7 +428,9 @@ export async function reserveChunk(
       organizationId: args.organizationId,
       userId: args.userId,
     });
-    const teamId = subject.userTeamIds[0];
+    // No lane books a team on a ledger row: a team's usage is its CURRENT
+    // members' usage, read through membership by the budget gate — so this
+    // lane no longer stamps one arbitrary team of a multi-team member.
     const prospectiveCostCents = estimateTtsCostCents(
       args.text.length,
       args.prospectiveCostCentsPerMChars ?? PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
@@ -464,7 +465,7 @@ export async function reserveChunk(
           usage_recorded_at_ms = NULL, voice = NULL, provider_name = NULL,
           model_id = NULL, format = NULL, storage_ref = NULL,
           character_count = NULL, cost_estimate_cents = NULL,
-          user_id = ${args.userId}, team_id = ${teamId ?? null},
+          user_id = ${args.userId}, team_id = NULL,
           agent_slug = ${args.agentSlug ?? tx.unsafe('agent_slug')}
         WHERE id = ${existing.id}
       `;
@@ -477,7 +478,7 @@ export async function reserveChunk(
           attempt_created_at_ms
         ) VALUES (
           ${args.organizationId}, ${args.threadId}, ${args.messageId},
-          ${args.userId}, ${teamId ?? null}, ${args.agentSlug},
+          ${args.userId}, NULL, ${args.agentSlug},
           ${args.index}, ${args.text}, 'pending', ${args.locale},
           ${attemptCreatedAt}, ${attemptCreatedAt}
         )
@@ -500,7 +501,7 @@ export async function reserveChunk(
         ),
       },
     );
-    return { kind: 'reserved', chunkId, attemptCreatedAt, teamId };
+    return { kind: 'reserved', chunkId, attemptCreatedAt };
   });
 }
 

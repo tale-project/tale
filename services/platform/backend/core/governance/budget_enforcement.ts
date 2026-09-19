@@ -1,12 +1,17 @@
 import type { BudgetRule } from '@tale/shared/schemas/governance';
 
-/** Whose bucket a warning is about: the caller's own usage, the whole
- * organization's, or the authenticating API key's. */
-export type BudgetWarningScope = 'user' | 'org' | 'apiKey';
+import { matchingTeamRules, strictestCap } from './rule_precedence.ts';
+
+/** Whose bucket a warning is about: the caller's own usage, one of their
+ * teams' shared usage, the whole organization's, or the authenticating API
+ * key's. */
+export type BudgetWarningScope = 'user' | 'team' | 'org' | 'apiKey';
 
 export interface BudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
   scope: BudgetWarningScope;
+  /** The team whose shared cap this is — team scope only. */
+  teamId?: string;
   period: string;
   used: number;
   limit: number;
@@ -67,6 +72,8 @@ export interface TeamLimits {
   maxTokens?: number;
   maxCostCents?: number;
   maxRequests?: number;
+  /** The team rule's own approach threshold, for the shared cap's warning. */
+  warningThresholdPercent?: number;
 }
 
 /** True when the team declares at least one cap worth an aggregate read. */
@@ -129,11 +136,12 @@ export function collectAllApplicableRules(
  * is an independent bucket checked against the authenticating key's own usage,
  * so it binds regardless of how high the owner's user/team/org caps are.
  *
- * For multi-team users, the most permissive (highest) team limit wins the
- * PERSONAL tier. Each team's own values are ALSO returned as that team's
- * shared cap (`teamLimits`) — the aggregate check measures a team's rule
- * against the team's usage and nothing else, whichever tier the personal
- * triple came from.
+ * For multi-team users, the STRICTEST (lowest) team limit wins the PERSONAL
+ * tier — a limit combines to the strictest (`rule_precedence.ts`), so
+ * joining a lenient team never raises anyone's cap. Each team's own values
+ * are ALSO returned as that team's shared cap (`teamLimits`) — the aggregate
+ * check measures a team's rule against the team's usage and nothing else,
+ * whichever tier the personal triple came from.
  */
 export function resolveEffectiveLimits(
   rules: BudgetRule[],
@@ -145,12 +153,7 @@ export function resolveEffectiveLimits(
   const userRules = rules.filter(
     (r) => r.scope === 'user' && r.scopeId === userId,
   );
-  const teamRules = rules.filter(
-    (r) =>
-      r.scope === 'team' &&
-      r.scopeId != null &&
-      userTeamIds.includes(r.scopeId),
-  );
+  const teamRules = matchingTeamRules(rules, userTeamIds);
   const roleRules = userRole
     ? rules.filter((r) => r.scope === 'role' && r.scopeId === userRole)
     : [];
@@ -172,8 +175,9 @@ export function resolveEffectiveLimits(
         .map((r) => r[field])
         .filter((v): v is number => v != null);
       if (values.length > 0) {
-        // For team tier with multiple matching teams, use the most permissive (highest)
-        return Math.max(...values);
+        // Several rules in one tier (a member of two teams that both cap):
+        // a limit combines to the strictest.
+        return strictestCap(values);
       }
     }
     return undefined;
@@ -234,9 +238,16 @@ export function resolveEffectiveLimits(
     const teamTokens = minNonNull([current.maxTokens, rule.maxTokens]);
     const teamCost = minNonNull([current.maxCostCents, rule.maxCostCents]);
     const teamRequests = minNonNull([current.maxRequests, rule.maxRequests]);
+    const teamThreshold = minNonNull([
+      current.warningThresholdPercent,
+      rule.warningThresholdPercent,
+    ]);
     if (teamTokens !== undefined) merged.maxTokens = teamTokens;
     if (teamCost !== undefined) merged.maxCostCents = teamCost;
     if (teamRequests !== undefined) merged.maxRequests = teamRequests;
+    if (teamThreshold !== undefined) {
+      merged.warningThresholdPercent = teamThreshold;
+    }
     teamLimitsById.set(rule.scopeId, merged);
   }
   const teamLimits = [...teamLimitsById.values()];
@@ -412,6 +423,46 @@ export function collectApiKeyWarnings(
     prospectiveCostCents,
     prospectiveRequests,
   );
+}
+
+/** One cap that binds a subject with the usage measured against it — the
+ * shape `readBudgetStanding` answers (`budget-gate.ts`). */
+export interface StandingBucket {
+  scope: 'user' | 'team' | 'org';
+  /** The team whose shared cap this is — team scope only. */
+  teamId?: string;
+  period: string;
+  warningThresholdPercent?: number;
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+  usage: UsageTotals;
+}
+
+/**
+ * The warnings of every cap that binds the subject — read off the SAME
+ * buckets the admission gate walks, so the banner can never announce a
+ * standing the gate would not enforce: the personal cap against the
+ * subject's own usage, each team's shared cap against that team's aggregate
+ * (at the team rule's own threshold), the organization's against the
+ * organization's.
+ */
+export function collectStandingWarnings(
+  standings: readonly StandingBucket[],
+): BudgetWarning[] {
+  return standings.flatMap((standing) => {
+    const warnings = collectBucketWarnings(
+      standing.scope,
+      standing.warningThresholdPercent,
+      standing,
+      standing.usage,
+      standing.period,
+    );
+    if (standing.teamId !== undefined) {
+      for (const warning of warnings) warning.teamId = standing.teamId;
+    }
+    return warnings;
+  });
 }
 
 /** One bucket's caps — the triple a warning is measured against. */

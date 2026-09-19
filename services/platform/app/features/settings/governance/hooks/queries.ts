@@ -58,13 +58,12 @@ export function useDsarPolicyForUi(organizationId: string) {
   });
 }
 
-export function useMyBudgetStatus(
-  organizationId: string,
-  selectedTeamId?: string | null,
-) {
+/** The reader's budget standing as the admission gate measures it — every
+ * cap that binds them, not one team's slice (the team switcher that used to
+ * narrow this read is gone). */
+export function useMyBudgetStatus(organizationId: string) {
   return useBackendQuery('governance/queries:getMyBudgetStatus', {
     organizationId,
-    selectedTeamId: selectedTeamId ?? null,
   });
 }
 

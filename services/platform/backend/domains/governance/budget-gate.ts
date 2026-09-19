@@ -456,7 +456,8 @@ export interface BudgetStanding {
   /** When the period rolls over and this usage starts again from zero. */
   resetsAt: number;
   /** The share of a cap the budget banner starts warning at, when a rule
-   * for this bucket sets one (team shared caps have none). */
+   * for this bucket sets one (a team's shared cap warns at its own rule's
+   * threshold). */
   warningThresholdPercent?: number;
   maxTokens?: number;
   maxCostCents?: number;
@@ -497,7 +498,8 @@ export async function readBudgetStanding(
           ? limits.warningThresholdPercent
           : scope === 'org'
             ? limits.orgWarningThresholdPercent
-            : undefined;
+            : limits.teamLimits.find((team) => team.teamId === teamId)
+                ?.warningThresholdPercent;
       standings.push({
         scope,
         ...(teamId !== undefined ? { teamId } : {}),

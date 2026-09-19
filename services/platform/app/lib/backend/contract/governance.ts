@@ -568,7 +568,7 @@ export interface GovernanceContract {
   };
   'governance/queries:getMyBudgetStatus': {
     kind: 'query';
-    args: { selectedTeamId?: null | string; organizationId: string };
+    args: { organizationId: string };
     returns:
       | null
       | {
@@ -589,9 +589,14 @@ export interface GovernanceContract {
           reason: null;
           warnings: Array<{
             code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
-            /** Whose bucket: the reader's own usage, the organization's, or
-             * an API key's. Absent on rows written before the field shipped. */
-            scope?: 'user' | 'org' | 'apiKey';
+            /** Whose bucket: the reader's own usage, one of their teams'
+             * shared usage, the organization's, or an API key's. Absent on
+             * rows written before the field shipped. */
+            scope?: 'user' | 'team' | 'org' | 'apiKey';
+            /** The team whose shared cap this is — team scope only. */
+            teamId?: string;
+            /** Its name, resolved by the door; null when the team is gone. */
+            teamName?: string | null;
             period: string;
             used: number;
             limit: number;

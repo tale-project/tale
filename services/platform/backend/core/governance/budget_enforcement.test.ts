@@ -286,7 +286,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxRequests).toBeUndefined();
   });
 
-  it('picks most permissive team rule for multi-team users', () => {
+  it('picks the strictest team rule for multi-team users', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -307,7 +307,9 @@ describe('resolveEffectiveLimits', () => {
       ['team-a', 'team-b'],
       'member',
     );
-    expect(result.maxTokens).toBe(1_000_000);
+    // Caps combine to the strictest (`rule_precedence.ts`): a member of two
+    // teams never gets the looser team's allowance.
+    expect(result.maxTokens).toBe(500_000);
   });
 
   it("returns the team's own caps as its shared teamLimits entry", () => {
@@ -386,7 +388,7 @@ describe('resolveEffectiveLimits', () => {
     ]);
   });
 
-  it('measures each team against its own rule, not the most permissive union', () => {
+  it('measures each team against its own rule, and the person against the strictest', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -408,8 +410,10 @@ describe('resolveEffectiveLimits', () => {
       ['team-a', 'team-b'],
       'member',
     );
-    // Personal tier keeps the multi-team "most permissive" rule.
-    expect(result.maxCostCents).toBe(20_000);
+    // The personal tier is the strictest of the caller's team rules; each
+    // team bucket keeps its own cap for the shared-pool check.
+    expect(result.maxCostCents).toBe(5_000);
+    expect(result.maxRequests).toBe(100);
     expect(result.teamLimits).toEqual([
       { teamId: 'team-a', maxCostCents: 5_000 },
       { teamId: 'team-b', maxCostCents: 20_000, maxRequests: 100 },

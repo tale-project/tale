@@ -26,7 +26,6 @@ import { Link } from '@tanstack/react-router';
 import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { requestUsageCreditsRequest } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 
@@ -40,11 +39,9 @@ function formatAmount(code: string, value: number): string {
 
 export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const { t } = useT('chat');
-  const teamFilter = useOptionalTeamFilter();
-  const { data: budgetStatus } = useMyBudgetStatus(
-    organizationId,
-    teamFilter?.selectedTeamId,
-  );
+  // The reader's whole standing — every cap that binds them (their own,
+  // each team's shared cap, the organization's), as the gate measures it.
+  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
   // Derive a stable key so dismissed state resets only when the status meaningfully changes,
   // not on every Convex subscription tick (which creates new object references).
   const budgetStatusKey = useMemo(
@@ -113,11 +110,16 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
             type: typeLabel(w.code),
             period: w.period,
           };
-          // An org-bucket warning is about the organization's whole
-          // spend, not the reader's — say so, or "left" reads as theirs.
-          return w.scope === 'org'
-            ? t('budgetRemainingOrg', values)
-            : t('budgetRemaining', values);
+          // An org- or team-bucket warning is about a shared spend, not the
+          // reader's own — say whose, or "left" reads as theirs.
+          if (w.scope === 'org') return t('budgetRemainingOrg', values);
+          if (w.scope === 'team') {
+            return t('budgetRemainingTeam', {
+              ...values,
+              team: w.teamName ?? '',
+            });
+          }
+          return t('budgetRemaining', values);
         })
         .join(' · ');
 
