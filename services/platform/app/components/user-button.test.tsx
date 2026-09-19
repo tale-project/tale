@@ -31,8 +31,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'userButton.themeDark': 'Dark theme',
         // navigation.*
         'orgSwitcher.label': 'Organization',
-        'teamFilter.label': 'Team',
-        'teamFilter.allTeams': 'All',
+        'myTeams.label': 'Teams',
+        'myTeams.none': 'No teams',
+        'myTeams.more': 'and more',
         // global.languages.*
         'languages.en': 'English',
         'languages.de': 'Deutsch',
@@ -127,22 +128,16 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => mockMemberContext,
 }));
 
-// Mock team filter
-let mockTeamFilter: {
-  teams: { id: string; name: string }[] | null;
-  selectedTeamId: string | null;
-  setSelectedTeamId: ReturnType<typeof vi.fn>;
-  isLoadingTeams: boolean;
-  filterByTeam: <T>(items: T[]) => T[];
-} | null = {
-  teams: null,
-  selectedTeamId: null,
-  setSelectedTeamId: vi.fn(),
-  isLoadingTeams: false,
-  filterByTeam: <T,>(items: T[]) => items,
-};
-vi.mock('@/app/hooks/use-team-filter', () => ({
-  useOptionalTeamFilter: () => mockTeamFilter,
+// The caller's own teams (`useTeams`, TanStack Query under the hood): the
+// menu shows them as a read-only row — there is no team to switch to.
+let mockTeams: {
+  teams:
+    | { id: string; name: string; memberCount: number; createdAt: number }[]
+    | undefined;
+  isLoading: boolean;
+} = { teams: undefined, isLoading: true };
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => mockTeams,
 }));
 
 // Mock notifications and PWA hooks — both were added when user-button gained
@@ -162,9 +157,10 @@ vi.mock('@tale/ui/pwa/use-install-prompt', () => ({
 }));
 
 // Mock router
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ preloadRoute: vi.fn() }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useParams: () => ({ id: 'org-123' }),
   useLocation: () => ({ href: '/dashboard/org-123' }),
 }));
@@ -207,15 +203,14 @@ beforeEach(() => {
     data: { displayName: 'John Doe', role: 'admin' },
     isLoading: false,
   };
-  mockTeamFilter = {
-    teams: null,
-    selectedTeamId: null,
-    setSelectedTeamId: vi.fn(),
-    isLoadingTeams: false,
-    filterByTeam: <T,>(items: T[]) => items,
-  };
+  mockTeams = { teams: undefined, isLoading: true };
   mockIsMobile = false;
 });
+
+const TWO_TEAMS = [
+  { id: 'team-1', name: 'Engineering', memberCount: 3, createdAt: 0 },
+  { id: 'team-2', name: 'Design', memberCount: 2, createdAt: 0 },
+];
 
 describe('UserButton', () => {
   function getDropdownTrigger(container: HTMLElement) {
@@ -265,27 +260,18 @@ describe('UserButton', () => {
     expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
 
-  it('renders without crashing when team filter context is unavailable', () => {
-    mockTeamFilter = null;
+  it('renders without crashing while the teams are still loading', () => {
+    mockTeams = { teams: undefined, isLoading: true };
     const { container } = render(<UserButton />);
     expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
 
   it('renders without crashing when teams are present', () => {
-    // Exercises the org / team / language picker rows, which render as
-    // inline collapsibles on mobile and Radix sub-menu popups on larger
-    // screens. Regression guard that the responsive branch builds without
-    // crashing when teams are present.
-    mockTeamFilter = {
-      teams: [
-        { id: 'team-1', name: 'Engineering' },
-        { id: 'team-2', name: 'Design' },
-      ],
-      selectedTeamId: 'team-1',
-      setSelectedTeamId: vi.fn(),
-      isLoadingTeams: false,
-      filterByTeam: <T,>(items: T[]) => items,
-    };
+    // Exercises the org / language picker rows, which render as inline
+    // collapsibles on mobile and Radix sub-menu popups on larger screens,
+    // plus the teams row. Regression guard that the responsive branch
+    // builds without crashing when teams are present.
+    mockTeams = { teams: TWO_TEAMS, isLoading: false };
     const { container } = render(<UserButton />);
     expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
@@ -310,17 +296,8 @@ describe('UserButton', () => {
     }
 
     it('renders the account, preference, and session items', async () => {
-      // Teams must be present for the team-filter row to render.
-      mockTeamFilter = {
-        teams: [
-          { id: 'team-1', name: 'Engineering' },
-          { id: 'team-2', name: 'Design' },
-        ],
-        selectedTeamId: 'team-1',
-        setSelectedTeamId: vi.fn(),
-        isLoadingTeams: false,
-        filterByTeam: <T,>(items: T[]) => items,
-      };
+      // The teams row renders once the caller's teams have loaded.
+      mockTeams = { teams: TWO_TEAMS, isLoading: false };
 
       await openMenu();
       const menu = screen.getByRole('menu');
@@ -328,15 +305,16 @@ describe('UserButton', () => {
       // Account header anchors on the owner's email.
       expect(menu).toHaveTextContent('john@example.com');
 
-      // Org + team pickers render as sub-menu triggers (menuitems) on desktop.
-      // Each trigger's accessible name is its static label followed by a
-      // trailing "current selection" badge, so match on the label prefix.
+      // The org picker renders as a sub-menu trigger (menuitem) on desktop;
+      // its accessible name is the static label followed by a trailing
+      // "current selection" badge, so match on the label prefix. The teams
+      // row is a plain item carrying the caller's team names.
       expect(
         within(menu).getByRole('menuitem', { name: /^Organization/ }),
       ).toBeInTheDocument();
       expect(
-        within(menu).getByRole('menuitem', { name: /^Team/ }),
-      ).toBeInTheDocument();
+        within(menu).getByRole('menuitem', { name: /^Teams/ }),
+      ).toHaveTextContent('Engineering, Design');
 
       // Theme control: the three theme tabs each render with their aria-label.
       expect(
@@ -367,6 +345,34 @@ describe('UserButton', () => {
       expect(
         within(menu).getByRole('menuitem', { name: 'Log out' }),
       ).toBeInTheDocument();
+    });
+
+    it('shows the caller’s teams as a read-only row that opens the account page', async () => {
+      // A team is an audience label on the things it scopes, not a workspace
+      // to step into: the row names the teams and leads to the account page's
+      // Teams section — it selects nothing and leaves the current page alone.
+      mockTeams = { teams: TWO_TEAMS, isLoading: false };
+      const { user } = await openMenu();
+      const menu = screen.getByRole('menu');
+      const row = within(menu).getByRole('menuitem', { name: /^Teams/ });
+      expect(row).not.toHaveAttribute('aria-haspopup');
+
+      await user.click(row);
+
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: '/dashboard/$id/settings/account',
+        params: { id: 'org-123' },
+        hash: 'teams',
+      });
+    });
+
+    it('says so when the caller is in no team', async () => {
+      mockTeams = { teams: [], isLoading: false };
+      await openMenu();
+      const menu = screen.getByRole('menu');
+      expect(
+        within(menu).getByRole('menuitem', { name: /^Teams/ }),
+      ).toHaveTextContent('No teams');
     });
 
     it('offers no sign-out for a session an authenticating proxy asserted', async () => {

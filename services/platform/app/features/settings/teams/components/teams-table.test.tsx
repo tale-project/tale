@@ -48,13 +48,12 @@ vi.mock('./teams-action-menu', () => ({
   TeamsActionMenu: () => <button type="button">Create team</button>,
 }));
 
-vi.mock('@/lib/auth-client', () => ({
-  authClient: { organization: { removeTeam: vi.fn() } },
+// Bulk delete runs the same atomic door as the single-row dialog
+// (`DELETE /api/app/teams/:teamId`), one call per selected row.
+const { deleteTeam } = vi.hoisted(() => ({ deleteTeam: vi.fn() }));
+vi.mock('../hooks/mutations', () => ({
+  useDeleteTeam: () => ({ mutateAsync: deleteTeam, isPending: false }),
 }));
-
-import { authClient } from '@/lib/auth-client';
-
-const removeTeam = vi.mocked(authClient.organization.removeTeam);
 
 function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
@@ -115,18 +114,24 @@ describe('TeamsTable', () => {
     });
   });
 
-  // The bulk bar deletes through Better Auth's `removeTeam`, one call per
-  // selected row and no write adapter behind any of them — so the batch has to
-  // ask for the refetch itself. The single-row dialogs each learned to; the bar
-  // never did, and left every deleted row on screen until the page reloaded.
+  // The bulk bar deletes one team per selected row and asks for the refetch
+  // itself once the batch has run — it used to leave every deleted row on
+  // screen until the page reloaded.
   describe('bulk delete', () => {
     beforeEach(() => {
       vi.clearAllMocks();
       columnConfig.selectable = true;
-      removeTeam.mockResolvedValue({
-        data: null,
-        error: null,
-      } as unknown as Awaited<ReturnType<typeof removeTeam>>);
+      deleteTeam.mockResolvedValue({
+        deleted: true,
+        retirement: {
+          projectsRetagged: 0,
+          foldersRetagged: 0,
+          documentsRetagged: 0,
+          conversationsUnassigned: 0,
+          syncConfigsUnscoped: 0,
+          nowOrgWide: { projects: 0, folders: 0, documents: 0 },
+        },
+      });
     });
 
     afterEach(() => {
@@ -159,9 +164,9 @@ describe('TeamsTable', () => {
       await waitFor(() =>
         expect(client.getQueryState(teamsOfThisOrg)?.isInvalidated).toBe(true),
       );
-      expect(removeTeam).toHaveBeenCalledWith({
-        teamId: 'team-1',
+      expect(deleteTeam).toHaveBeenCalledWith({
         organizationId: 'org-1',
+        teamId: 'team-1',
       });
       // Another organization's list is nobody else's business.
       expect(client.getQueryState(teamsOfOtherOrg)?.isInvalidated).toBe(false);

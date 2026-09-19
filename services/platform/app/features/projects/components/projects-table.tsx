@@ -14,6 +14,15 @@ import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Globe, Plus, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import {
+  useTeamNames,
+  useTeams,
+} from '@/app/features/settings/teams/hooks/queries';
+import {
+  audienceMatcher,
+  MY_TEAMS_AUDIENCE,
+  ORG_WIDE_AUDIENCE,
+} from '@/app/features/settings/teams/lib/audience-filter';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useT } from '@/lib/i18n/client';
@@ -42,6 +51,26 @@ function CountCell({ count, label }: { count: number; label: string }) {
 
 interface ProjectsTableProps {
   organizationId: string;
+  /**
+   * The Teams filter's selection when the page owns it (the URL): team ids
+   * and/or the `ORG_WIDE_AUDIENCE` / `MY_TEAMS_AUDIENCE` tokens. Absent, the
+   * table keeps the selection itself.
+   */
+  teamFilter?: string[];
+  onTeamFilterChange?: (teamIds: string[]) => void;
+}
+
+/** A project's audience — the array, else the legacy owning + shared pair. */
+function projectTeamIds(project: {
+  teamIds?: string[];
+  teamId?: string;
+  sharedWithTeamIds?: string[];
+}): string[] {
+  if (project.teamIds !== undefined) return project.teamIds;
+  return [
+    ...(project.teamId ? [project.teamId] : []),
+    ...(project.sharedWithTeamIds ?? []),
+  ];
 }
 
 function formatRelative(timestamp: number, locale: string): string {
@@ -58,7 +87,11 @@ function formatRelative(timestamp: number, locale: string): string {
   return rtf.format(-diffDay, 'day');
 }
 
-export function ProjectsTable({ organizationId }: ProjectsTableProps) {
+export function ProjectsTable({
+  organizationId,
+  teamFilter,
+  onTeamFilterChange,
+}: ProjectsTableProps) {
   const { t } = useT('projects');
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
@@ -70,6 +103,32 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
     { includeArchived },
   );
   const { mutateAsync: archiveProject } = useArchiveProject();
+  // Names resolve through the org's team DIRECTORY (every team, for any
+  // member) so a row shared with a team the viewer is not in still says
+  // which; the viewer's OWN teams feed the "My teams" audience filter.
+  const { teams: directoryTeams, nameOf } = useTeamNames();
+  const { teams: myTeams } = useTeams();
+  const myTeamIds = useMemo(
+    () => (myTeams ?? []).map((team) => team.id),
+    [myTeams],
+  );
+
+  // The Teams filter lives in the URL when the page owns it (shareable,
+  // survives a reload); the table keeps it itself otherwise.
+  const [localTeamFilter, setLocalTeamFilter] = useState<string[]>([]);
+  const selectedTeamIds = teamFilter ?? localTeamFilter;
+  const setSelectedTeamIds = useCallback(
+    (teamIds: string[]) => {
+      if (onTeamFilterChange) onTeamFilterChange(teamIds);
+      else setLocalTeamFilter(teamIds);
+    },
+    [onTeamFilterChange],
+  );
+  const visibleProjects = useMemo(() => {
+    if (selectedTeamIds.length === 0) return projects;
+    const matches = audienceMatcher(selectedTeamIds, myTeamIds);
+    return projects.filter((project) => matches(projectTeamIds(project)));
+  }, [projects, selectedTeamIds, myTeamIds]);
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -81,10 +140,11 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
 
   const handleClearFilters = useCallback(() => {
     setIncludeArchived(false);
-  }, []);
+    setSelectedTeamIds([]);
+  }, [setSelectedTeamIds]);
 
-  const filterConfigs = useMemo(
-    () => [
+  const filterConfigs = useMemo(() => {
+    const configs = [
       {
         key: 'archived',
         title: t('archived.badge'),
@@ -94,9 +154,40 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         multiSelect: true,
         widensResultSet: true,
       },
-    ],
-    [t, includeArchived, handleArchivedFilterChange],
-  );
+    ];
+    // By AUDIENCE: organization-wide projects, the ones any of the viewer's
+    // teams may see, and each team by name. Only offered once the org has
+    // teams.
+    if (directoryTeams && directoryTeams.length > 0) {
+      configs.push({
+        key: 'teams',
+        title: t('list.columnSharing'),
+        options: [
+          { value: ORG_WIDE_AUDIENCE, label: t('list.sharingOrgWide') },
+          ...(myTeamIds.length > 0
+            ? [{ value: MY_TEAMS_AUDIENCE, label: t('list.filterMyTeams') }]
+            : []),
+          ...directoryTeams.map((team) => ({
+            value: team.id,
+            label: team.name,
+          })),
+        ],
+        selectedValues: selectedTeamIds,
+        onChange: setSelectedTeamIds,
+        multiSelect: true,
+        widensResultSet: false,
+      });
+    }
+    return configs;
+  }, [
+    t,
+    includeArchived,
+    handleArchivedFilterChange,
+    directoryTeams,
+    myTeamIds,
+    selectedTeamIds,
+    setSelectedTeamIds,
+  ]);
 
   const handleArchiveItem = useCallback(
     async (id: string) => {
@@ -263,25 +354,58 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
-        size: 88,
-        meta: { className: 'hidden md:table-cell', skeleton: { type: 'icon' } },
+        size: 160,
+        meta: {
+          className: 'hidden md:table-cell',
+          skeleton: { type: 'badge' },
+        },
         cell: ({ row }) => {
-          const teamCount =
-            (row.original.teamId ? 1 : 0) +
-            (row.original.sharedWithTeamIds?.length ?? 0);
-          // Demoted from a text column to an icon: sharing is an ACL fact, and
-          // it was competing for width with the execution signal above.
-          const label =
-            teamCount === 0
-              ? t('list.sharingOrgWide')
-              : t('list.sharingMultipleTeams', { count: teamCount });
-          const Icon = teamCount === 0 ? Globe : Users;
+          // The audience, by NAME: who can open this project is the fact a
+          // member of two teams needs at a glance. An icon alone said only
+          // "some teams"; the names come from the directory so a team the
+          // viewer is not in still reads as itself.
+          const teamIds = projectTeamIds(row.original);
+          if (teamIds.length === 0) {
+            const label = t('list.sharingOrgWide');
+            return (
+              <span
+                className="text-muted-foreground inline-flex items-center gap-1 text-xs"
+                title={label}
+              >
+                <Globe className="size-3.5" aria-hidden />
+                {label}
+              </span>
+            );
+          }
+          const names = teamIds.map(
+            (id) => nameOf(id) ?? t('list.unknownTeam'),
+          );
+          const shown = names.slice(0, 2);
+          const remaining = names.length - shown.length;
+          const label = names.join(', ');
           return (
             <span
-              className="text-muted-foreground inline-flex items-center"
+              className="inline-flex max-w-full items-center gap-1"
               title={label}
             >
-              <Icon className="size-4" aria-hidden />
+              <Users
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden
+              />
+              {shown.map((name) => (
+                <Badge
+                  key={name}
+                  variant="outline"
+                  className="max-w-[9rem] truncate"
+                >
+                  {name}
+                </Badge>
+              ))}
+              {remaining > 0 ? (
+                <span className="text-muted-foreground text-xs">
+                  {t('list.sharingMoreTeams', { count: remaining })}
+                </span>
+              ) : null}
               <span className="sr-only">{label}</span>
             </span>
           );
@@ -322,13 +446,13 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         enableSorting: false,
       },
     ],
-    [t, locale, organizationId, overdueTruncated],
+    [t, locale, organizationId, overdueTruncated, nameOf],
   );
 
   const list = useListPage<ProjectOverviewRow>({
     dataSource: {
       type: 'query',
-      data: isLoading ? undefined : projects,
+      data: isLoading ? undefined : visibleProjects,
     },
     pageSize: 25,
     search: {

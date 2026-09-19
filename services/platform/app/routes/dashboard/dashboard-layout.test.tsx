@@ -146,12 +146,6 @@ vi.mock('@/app/components/layout/mobile-bottom-nav', () => ({
   MobileBottomNav: () => null,
 }));
 
-vi.mock('@/app/hooks/use-team-filter', () => ({
-  TeamFilterProvider: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-}));
-
 // --- Tests ---
 
 let DashboardLayout: React.ComponentType;

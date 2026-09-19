@@ -58,6 +58,28 @@ vi.mock('../hooks/queries', () => ({
   useProjectsOverview: () => overview,
 }));
 
+// The audience column and the Teams filter read the org's team DIRECTORY
+// (every team's id and name, for any member) and the viewer's own teams.
+const DIRECTORY = [
+  { id: 'team_1', name: 'Engineering' },
+  { id: 'team_2', name: 'Design' },
+  { id: 'team_3', name: 'Sales' },
+];
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeamNames: () => ({
+    nameOf: (teamId: string) =>
+      DIRECTORY.find((team) => team.id === teamId)?.name,
+    isLoading: false,
+    teams: DIRECTORY,
+  }),
+  useTeams: () => ({
+    teams: [
+      { id: 'team_1', name: 'Engineering', memberCount: 1, createdAt: 0 },
+    ],
+    isLoading: false,
+  }),
+}));
+
 import { ProjectsTable } from './projects-table';
 
 interface RowOverrides {
@@ -68,7 +90,7 @@ interface RowOverrides {
   doneTaskCount?: number;
   overdueTaskCount?: number;
   projectAgentCount?: number;
-  teamId?: string;
+  teamIds?: string[];
 }
 
 function row(overrides: RowOverrides = {}) {
@@ -81,13 +103,12 @@ function row(overrides: RowOverrides = {}) {
     key: overrides.key,
     icon: undefined,
     color: undefined,
-    teamId: overrides.teamId,
-    sharedWithTeamIds: undefined,
+    teamIds: overrides.teamIds ?? [],
     createdBy: 'user_1',
     createdAt: 0,
     updatedAt: Date.now(),
     archivedAt: undefined,
-    isOrgWide: overrides.teamId === undefined,
+    isOrgWide: (overrides.teamIds ?? []).length === 0,
     canEdit: true,
     canAdminister: true,
     openTaskCount: overrides.openTaskCount ?? 0,
@@ -132,11 +153,12 @@ describe('ProjectsTable', () => {
   it('shares width proportionally so metadata columns are not clustered', () => {
     // Name is the implicit flex column; Tasks/Activity get their declared
     // size as a plain percentage of the table's floor — the content sizes
-    // 240+152+92+80+88+136 = 788 plus the pinned select + actions px — so
-    // the floor resolves to exactly the declared px and a wider table scales
-    // every column up. No meta.flex on Tasks (that packed Overdue…Activity
-    // against the right edge).
-    const floorPx = 788 + SELECT_COLUMN_SIZE + ACTIONS_COLUMN_SIZE;
+    // 240+152+92+80+160+136 = 860 (Audience is wide enough for two team
+    // names) plus the pinned select + actions px — so the floor resolves to
+    // exactly the declared px and a wider table scales every column up. No
+    // meta.flex on Tasks (that packed Overdue…Activity against the right
+    // edge).
+    const floorPx = 860 + SELECT_COLUMN_SIZE + ACTIONS_COLUMN_SIZE;
     const share = (size: number) => `${((size / floorPx) * 100).toFixed(4)}%`;
     renderTable([row({ name: 'Acme onboarding' })]);
 
@@ -216,17 +238,41 @@ describe('ProjectsTable', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('distinguishes org-wide from team-scoped sharing without spending a text column', () => {
+  it('names the audience: organization-wide, the teams by name, and how many more', () => {
     const { unmount } = renderTable([row()]);
     expect(
       screen.getByText('projects.list.sharingOrgWide'),
     ).toBeInTheDocument();
     unmount();
 
-    renderTable([row({ teamId: 'team_1' })]);
+    // The names come from the directory, so a team the viewer is NOT in
+    // (Design) still reads as itself instead of a raw id.
+    const two = renderTable([row({ teamIds: ['team_1', 'team_2'] })]);
+    expect(screen.getByText('Engineering')).toBeInTheDocument();
+    expect(screen.getByText('Design')).toBeInTheDocument();
     expect(
-      screen.getByText('projects.list.sharingMultipleTeams'),
+      screen.queryByText('projects.list.sharingMoreTeams'),
+    ).not.toBeInTheDocument();
+    two.unmount();
+
+    // Beyond two, the rest folds into a count; the full list stays in the
+    // title and the screen-reader text.
+    renderTable([row({ teamIds: ['team_1', 'team_2', 'team_3'] })]);
+    expect(
+      screen.getByText('projects.list.sharingMoreTeams'),
     ).toBeInTheDocument();
+    expect(screen.getByTitle('Engineering, Design, Sales')).toBeInTheDocument();
+    expect(screen.queryByText('Sales')).not.toBeInTheDocument();
+  });
+
+  it('labels a team the directory no longer knows instead of showing its id', () => {
+    renderTable([row({ teamIds: ['team_gone'] })]);
+    // The chip and its screen-reader twin both carry the label; the id
+    // appears nowhere.
+    expect(
+      screen.getAllByText('projects.list.unknownTeam').length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText('team_gone')).not.toBeInTheDocument();
   });
 
   it('offers bulk archive, not bulk delete', async () => {

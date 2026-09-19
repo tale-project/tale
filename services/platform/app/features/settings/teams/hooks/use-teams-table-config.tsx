@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import {
   ACTIONS_COLUMN_SIZE,
   createSelectColumn,
@@ -38,9 +39,18 @@ export function useTeamsTableConfig(
         accessorKey: 'name',
         header: tSettings('teams.columns.name'),
         cell: ({ row }) => (
-          <Text as="span" variant="label">
-            {row.original.name}
-          </Text>
+          <HStack gap={2} align="center" className="min-w-0">
+            <Text as="span" variant="label" className="truncate">
+              {row.original.name}
+            </Text>
+            {/* An identity provider owns this roster: local edits are
+                locked (the edit dialog says so); delete stays possible. */}
+            {row.original.synced ? (
+              <Badge variant="outline" className="shrink-0">
+                {tSettings('teams.syncedBadge')}
+              </Badge>
+            ) : null}
+          </HStack>
         ),
       },
       {

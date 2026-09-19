@@ -126,7 +126,6 @@ analytics:
       users:
         title: Nutzung pro Benutzer
         user: Benutzer
-        team: Team
         inputTokens: Eingabe-Tokens
         outputTokens: Ausgabe-Tokens
         requests: Anfragen
@@ -1497,6 +1496,7 @@ chat:
   budgetExceededDefault: Nutzungslimit für diesen Zeitraum erreicht. Wende dich an deinen Administrator.
   budgetRemaining: 'Noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
   budgetRemainingOrg: 'Organisation: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
+  budgetRemainingTeam: 'Team {team}: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
   budgetLimitReached: 'Nutzungslimit erreicht · wird {period, select, daily {täglich} weekly {wöchentlich} other {monatlich}} zurückgesetzt'
   budgetRequestCredits: Mehr Kontingent anfragen
   budgetRequestCreditsSent: Anfrage an deine Admins gesendet
@@ -1806,6 +1806,12 @@ conversations:
     unread: Ungelesen
     channel: Kanal
     allChannels: Alle Kanäle
+  queue:
+    filterLabel: Nach Warteschlange filtern
+    all: Alle Warteschlangen
+    mine: Meine Teams
+    unassigned: Nicht zugewiesen
+    unknownTeam: Unbekanntes Team
   category:
     churnSurvey: Abwanderungsumfrage
     productRecommendation: Produktempfehlung
@@ -2117,6 +2123,9 @@ documents:
       upload: Upload
       oneDrive: OneDrive
       sharePoint: SharePoint
+    teams:
+      orgWide: Organisationsweit
+      mine: Meine Teams
   preview:
     loading: Lädt...
     failedToLoad: Dokument konnte nicht geladen werden
@@ -4312,10 +4321,10 @@ navigation:
   agents: Agenten
   mcp: MCP
   webdav: WebDAV
-  teamFilter:
-    label: Team
-    allTeams: Alle
-    manageTeams: Teams verwalten
+  myTeams:
+    label: Teams
+    none: Keine Teams
+    more: '{names} +{count}'
   orgSwitcher:
     label: Organisation
   aria:
@@ -4986,6 +4995,14 @@ settings:
       namePlaceholder: Gib deinen Namen ein
       email: E-Mail
       nameRequired: Name ist erforderlich
+    teams:
+      title: Deine Teams
+      description: Teams bestimmen, welche Team-Dokumente, Projekte und
+        Posteingangs-Warteschlangen du siehst. Admins verwalten sie unter
+        Einstellungen › Teams.
+      none: Du bist noch in keinem Team. Du siehst alles, was mit der ganzen
+        Organisation geteilt ist.
+      manageLink: Teams verwalten
     security:
       title: Sicherheit
       description: Passwort und Zwei-Faktor-Authentifizierung.
@@ -5131,6 +5148,15 @@ settings:
       ausgewählt wird, wirst du automatisch hinzugefügt.
     lastMemberHint: Ein Team muss mindestens ein Mitglied behalten. Lösche
       stattdessen das Team, um das letzte Mitglied zu entfernen.
+    teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
+    membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
+    syncedBadge: Synchronisiert
+    syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,
+      der Name und Mitglieder verwaltet. Ändere sie dort – eine lokale Änderung
+      würde beim nächsten Abgleich zurückgesetzt.
+    deleteImpact:
+      summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
+      becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
     description: Teams innerhalb deiner Organisation erstellen und verwalten für
       granulare Zugriffskontrolle
   credentials:
@@ -7233,7 +7259,9 @@ projects:
     columnSharing: Freigabe
     columnActivity: Letzte Aktivität
     sharingOrgWide: Organisationsweit
-    sharingMultipleTeams: '{count, plural, one {# Team} other {# Teams}}'
+    sharingMoreTeams: '+{count}'
+    filterMyTeams: Meine Teams
+    unknownTeam: Unbekanntes Team
     taskProgressA11y: '{done} von {total} Aufgaben erledigt'
     noTasks: Noch keine Aufgaben
     overdueA11y: '{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}'
@@ -7255,6 +7283,10 @@ projects:
     submitting: Erstellen…
     successToast: Projekt erstellt
     errorToast: Projekt konnte nicht erstellt werden
+    audienceLabel: Wer es sehen kann
+    audienceHelp: Leer lassen, damit alle in der Organisation es sehen, oder
+      die Teams wählen, für die dieses Projekt gedacht ist. Admins sehen es
+      immer.
   overview:
     newChatCta: Neuer Chat
     projectSection: Projekt
@@ -7428,13 +7460,9 @@ projects:
     descriptionHint:
       Eine kurze Zusammenfassung, damit dein Team weiß, was hierher
       gehört.
-    owningTeam: Verantwortliches Team
-    owningTeamHelp:
-      Mitglieder dieses Teams haben Vollzugriff. Organisationsadmins
-      haben immer Zugriff.
-    alsoSharedWith: Auch geteilt mit
-    alsoSharedWithHelp: Wähle weitere Teams, die dieses Projekt sehen sollen.
-    noAdditionalTeams: Keine weiteren Teams
+    audience: Reichweite
+    audienceHelp: Die Teams, die dieses Projekt sehen. Leer bedeutet alle in
+      der Organisation. Admins sehen es immer.
     archiveButton: Projekt archivieren
     archiveSuccess: Projekt archiviert
     archiveError: Projekt konnte nicht archiviert werden
@@ -7514,6 +7542,7 @@ projects:
     PROJECT_CONFIRM_PHRASE_MISMATCH: Tippe den Projektnamen exakt, um zu bestätigen.
     PROJECT_SHARING_INVALID: Freigabeeinstellungen sind ungültig.
     PROJECT_TEAM_INVALID: Team in deiner Organisation nicht gefunden.
+    TEAM_ACCESS_DENIED: Du kannst ein Projekt nur auf Teams beschränken, in denen du selbst bist.
     PROJECT_RECOMMENDED_NOT_SUBSET: Empfohlene Einträge müssen alle in der erlaubten Liste enthalten sein.
     PROJECT_ORG_MISMATCH: Dieses Projekt gehört zu einer anderen Organisation.
     RATE_LIMITED: Das passiert gerade zu oft. Bitte versuche es in einem Moment erneut.

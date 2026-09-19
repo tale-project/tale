@@ -9,10 +9,10 @@ import { useCallback, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
-import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
+import { useDeleteTeam } from '../hooks/mutations';
 import type { Team } from '../hooks/queries';
 import { useTeamMembers } from '../hooks/queries';
 import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
@@ -71,23 +71,17 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
     setRowSelection({});
   }, [queryClient, organizationId]);
 
-  // Bulk delete: the per-team delete path goes through Better Auth's
-  // `removeTeam` (same call the single-row TeamDeleteDialog uses), wrapped
-  // here so the BulkDeleteBar can run them in parallel. Throwing on error
-  // lets the bar surface a failure toast for the whole batch.
+  // Bulk delete: the same atomic door the single-row TeamDeleteDialog uses
+  // (`DELETE /api/app/teams/:teamId` — scopes, provenance, members and the
+  // row in one transaction), wrapped here so the BulkDeleteBar can run them
+  // in parallel. A rejection lets the bar surface one failure toast for the
+  // whole batch rather than one per failed row.
+  const { mutateAsync: deleteTeam } = useDeleteTeam();
   const handleDeleteItem = useCallback(
     async (id: string) => {
-      const result = await authClient.organization.removeTeam({
-        teamId: id,
-        organizationId,
-      });
-      if (result.error) {
-        // Throw so `BulkDeleteBar` surfaces a single batch-failure toast
-        // rather than one toast per failed row.
-        throw new Error(result.error.message || 'Failed to delete team');
-      }
+      await deleteTeam({ organizationId, teamId: id });
     },
-    [organizationId],
+    [deleteTeam, organizationId],
   );
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =

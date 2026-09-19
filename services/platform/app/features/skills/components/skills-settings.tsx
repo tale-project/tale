@@ -14,7 +14,7 @@ import { useMemo, useRef, useState } from 'react';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useTeamDirectory } from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
@@ -75,7 +75,9 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
 
   const skillsQuery = useSkills(organizationId);
   const failures = skillsQuery.data?.failures ?? [];
-  const { teams } = useOrgTeams();
+  // Every team by name (the directory), so a skill shared with a team the
+  // viewer is not in still says which team.
+  const { teams } = useTeamDirectory();
   const teamNames = useMemo(
     () => new Map((teams ?? []).map((team) => [team.id, team.name])),
     [teams],

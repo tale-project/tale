@@ -37,10 +37,6 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ prefetchQuery: vi.fn() }),
 }));
 
-vi.mock('@/app/hooks/use-team-filter', () => ({
-  useTeamFilter: () => ({ teams: [], selectedTeamId: undefined }),
-}));
-
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true }),
 }));
@@ -49,8 +45,11 @@ vi.mock('@tale/ui/use-debounce', () => ({
   useDebounce: (value: string) => value,
 }));
 
+// The Teams filter lists the org's team directory (every team by name) and
+// expands "My teams" from the viewer's own memberships.
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
+  useTeamDirectory: () => ({ teams: [], isLoading: false }),
 }));
 
 const paginatedMock = vi.hoisted(() => ({

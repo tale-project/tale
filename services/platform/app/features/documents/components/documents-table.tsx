@@ -9,9 +9,11 @@ import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import {
+  useTeamDirectory,
+  useTeams,
+} from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';
@@ -24,7 +26,11 @@ import {
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
-import { filterDocumentResults } from '../utils/filter-documents';
+import {
+  filterDocumentResults,
+  MY_TEAMS_AUDIENCE,
+  ORG_WIDE_AUDIENCE,
+} from '../utils/filter-documents';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentsActionMenu } from './documents-action-menu';
@@ -34,6 +40,13 @@ interface DocumentsTableProps {
   searchQuery?: string;
   currentFolderId?: string;
   docId?: string;
+  /**
+   * The Teams filter's selection when the page owns it (the URL): team ids
+   * and/or the `ORG_WIDE_AUDIENCE` / `MY_TEAMS_AUDIENCE` tokens. Absent, the
+   * table keeps the selection itself.
+   */
+  teamFilter?: string[];
+  onTeamFilterChange?: (teamIds: string[]) => void;
   /** Controlled Microsoft 365 picker (set after cloud-import OAuth return). */
   oneDriveOpen?: boolean;
   onOneDriveOpenChange?: (open: boolean) => void;
@@ -47,6 +60,8 @@ export function DocumentsTable({
   searchQuery,
   currentFolderId,
   docId,
+  teamFilter,
+  onTeamFilterChange,
   oneDriveOpen,
   onOneDriveOpenChange,
   googleDriveOpen,
@@ -60,21 +75,37 @@ export function DocumentsTable({
   const [query, setQuery] = useState(searchQuery ?? '');
   const debouncedQuery = useDebounce(query, 300);
 
-  const { teams, isLoading: isLoadingTeams } = useTeams();
+  // Names resolve through the org's team DIRECTORY (every team, for any
+  // member), so a row shared with a team the viewer is not in still says
+  // which; the viewer's OWN teams feed the "My teams" audience filter.
+  const { teams: directoryTeams, isLoading: isLoadingTeams } =
+    useTeamDirectory();
+  const { teams: myTeams } = useTeams();
 
   const teamMap = useMemo(() => {
-    if (!teams) return new Map();
-    return new Map(
-      teams.map((team: { id: string; name: string }) => [team.id, team.name]),
-    );
-  }, [teams]);
+    if (!directoryTeams) return new Map<string, string>();
+    return new Map(directoryTeams.map((team) => [team.id, team.name]));
+  }, [directoryTeams]);
+  const myTeamIds = useMemo(
+    () => (myTeams ?? []).map((team) => team.id),
+    [myTeams],
+  );
 
-  const { selectedTeamId } = useTeamFilter();
   const { t: tTables } = useT('tables');
 
   const [selectedRagStatuses, setSelectedRagStatuses] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  // The Teams filter lives in the URL when the page owns it (shareable,
+  // survives a reload); the table keeps it itself otherwise.
+  const [localTeamIds, setLocalTeamIds] = useState<string[]>([]);
+  const selectedTeamIds = teamFilter ?? localTeamIds;
+  const setSelectedTeamIds = useCallback(
+    (teamIds: string[]) => {
+      if (onTeamFilterChange) onTeamFilterChange(teamIds);
+      else setLocalTeamIds(teamIds);
+    },
+    [onTeamFilterChange],
+  );
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
@@ -87,16 +118,11 @@ export function DocumentsTable({
   // scroll while a query is active, so further pages never load and any match
   // beyond the first page reads as "no results". Eagerly pull every page while
   // a search/filter is active so the client-side filter sees the full set.
-  // Includes `selectedTeamId` from the page-level team filter context —
-  // filterDocumentResults reads it too, so omitting it from this predicate
-  // means a context-only filter (no search, no local filters) still showed
-  // only the first page (round-3 P2 R19-P2-a).
   const hasActiveQuery =
     debouncedQuery.trim().length > 0 ||
     selectedRagStatuses.length > 0 ||
     selectedSources.length > 0 ||
-    selectedTeamIds.length > 0 ||
-    selectedTeamId != null;
+    selectedTeamIds.length > 0;
 
   const { status: pageStatus, loadMore: loadMorePage } = paginatedResult;
   useEffect(() => {
@@ -193,14 +219,32 @@ export function DocumentsTable({
       },
     ];
 
-    if (teams && teams.length > 0) {
+    // The Teams filter is by AUDIENCE: organization-wide rows, rows any of
+    // the viewer's own teams may see, and each team by name (the whole
+    // directory — a viewer can filter by a team they are not in and simply
+    // see nothing). Only offered once the org has teams.
+    if (directoryTeams && directoryTeams.length > 0) {
       configs.push({
         key: 'teams',
         title: tTables('headers.teams'),
-        options: teams.map((team: { id: string; name: string }) => ({
-          value: team.id,
-          label: team.name,
-        })),
+        options: [
+          {
+            value: ORG_WIDE_AUDIENCE,
+            label: tDocuments('filter.teams.orgWide'),
+          },
+          ...(myTeamIds.length > 0
+            ? [
+                {
+                  value: MY_TEAMS_AUDIENCE,
+                  label: tDocuments('filter.teams.mine'),
+                },
+              ]
+            : []),
+          ...directoryTeams.map((team) => ({
+            value: team.id,
+            label: team.name,
+          })),
+        ],
         selectedValues: selectedTeamIds,
         onChange: setSelectedTeamIds,
         multiSelect: true,
@@ -214,14 +258,16 @@ export function DocumentsTable({
     selectedRagStatuses,
     selectedSources,
     selectedTeamIds,
-    teams,
+    setSelectedTeamIds,
+    directoryTeams,
+    myTeamIds,
   ]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedRagStatuses([]);
     setSelectedSources([]);
     setSelectedTeamIds([]);
-  }, []);
+  }, [setSelectedTeamIds]);
 
   const filteredResults = useMemo(
     () =>
@@ -230,8 +276,8 @@ export function DocumentsTable({
         paginatedResult.results as DocumentItem[],
         folderRows,
         {
-          selectedTeamId,
           selectedTeamIds,
+          myTeamIds,
           selectedRagStatuses,
           selectedSources,
           searchQuery: debouncedQuery,
@@ -240,7 +286,7 @@ export function DocumentsTable({
       ),
     [
       paginatedResult.results,
-      selectedTeamId,
+      myTeamIds,
       selectedRagStatuses,
       selectedSources,
       selectedTeamIds,

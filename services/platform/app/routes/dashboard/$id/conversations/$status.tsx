@@ -32,6 +32,12 @@ const searchSchema = z.object({
   conversation: z.string().optional(),
   /** Channel filter: an inbox provider's connector slug (e.g. `gmail`). */
   channel: z.string().optional(),
+  /**
+   * Queue filter: a team id, `mine` (any of the viewer's teams' queues) or
+   * `unassigned` (administrator triage). In the URL so a filtered inbox
+   * survives a reload and can be shared.
+   */
+  queue: z.string().optional(),
   /** Compose mode: any value opens the compose pane in the reading pane. */
   compose: z.string().optional(),
   /** Contact id to seed the composer with (from a contact-row "Email" action). */
@@ -82,7 +88,7 @@ const EMPTY_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [];
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { search, conversation, channel, compose, composeContact } =
+  const { search, conversation, channel, queue, compose, composeContact } =
     Route.useSearch();
   const navigate = useNavigate();
 
@@ -126,6 +132,17 @@ function ConversationsStatusPage() {
     },
     [navigate, organizationId, status],
   );
+  const handleQueueChange = useCallback(
+    (value?: string) => {
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status },
+        search: (prev) => ({ ...prev, queue: value }),
+        replace: true,
+      });
+    },
+    [navigate, organizationId, status],
+  );
 
   return (
     <Conversations
@@ -142,6 +159,8 @@ function ConversationsStatusPage() {
         value: channel,
         onChange: handleChannelChange,
       }}
+      queueFilter={queue}
+      onQueueFilterChange={handleQueueChange}
       composing={compose !== undefined}
       composeContact={composeContact}
     />

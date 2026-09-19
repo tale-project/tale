@@ -116,7 +116,6 @@ analytics:
       users:
         title: Per-user usage
         user: User
-        team: Team
         inputTokens: Input tokens
         outputTokens: Output tokens
         requests: Requests
@@ -1445,6 +1444,7 @@ chat:
   budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
   budgetRemaining: '{remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
   budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+  budgetRemainingTeam: 'Team {team}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
   budgetLimitReached: 'Usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
   budgetRequestCredits: Request usage credits
   budgetRequestCreditsSent: Request sent to your admins
@@ -1740,6 +1740,12 @@ conversations:
     unread: Unread
     channel: Channel
     allChannels: All channels
+  queue:
+    filterLabel: Filter by queue
+    all: All queues
+    mine: My teams
+    unassigned: Unassigned
+    unknownTeam: Unknown team
   category:
     churnSurvey: Churn survey
     productRecommendation: Product recommendation
@@ -2037,6 +2043,9 @@ documents:
       upload: Upload
       oneDrive: OneDrive
       sharePoint: SharePoint
+    teams:
+      orgWide: Organization-wide
+      mine: My teams
   preview:
     loading: Loading…
     failedToLoad: Couldn't load document
@@ -4151,10 +4160,10 @@ navigation:
   agents: Agents
   mcp: MCP
   webdav: WebDAV
-  teamFilter:
-    label: Team
-    allTeams: All
-    manageTeams: Manage teams
+  myTeams:
+    label: Teams
+    none: No teams
+    more: '{names} +{count}'
   orgSwitcher:
     label: Organization
   aria:
@@ -4749,7 +4758,9 @@ projects:
     columnSharing: Sharing
     columnActivity: Last activity
     sharingOrgWide: Org-wide
-    sharingMultipleTeams: '{count, plural, one {# team} other {# teams}}'
+    sharingMoreTeams: '+{count}'
+    filterMyTeams: My teams
+    unknownTeam: Unknown team
     taskProgressA11y: '{done} of {total} tasks done'
     noTasks: No tasks yet
     overdueA11y: '{count, plural, one {# overdue task} other {# overdue tasks}}'
@@ -4765,6 +4776,9 @@ projects:
       becomes TAL-1). Fixed — it can't be changed after the project is created.
     descriptionLabel: Description
     descriptionPlaceholder: Optional — for a contact desk, use the company name as the project name.
+    audienceLabel: Who can see it
+    audienceHelp: Leave empty for everyone in the organization, or pick the
+      teams this project is for. Admins always see it.
     submit: Create project
     submitting: Creating…
     successToast: Project created
@@ -4933,11 +4947,9 @@ projects:
     nameHint: Shown in the projects list and the chat sidebar.
     description: Description
     descriptionHint: A short summary that tells teammates what belongs here.
-    owningTeam: Owning team
-    owningTeamHelp: Members of this team get full access. Admins of the org always have access.
-    alsoSharedWith: Also shared with
-    alsoSharedWithHelp: Pick additional teams that should see this project.
-    noAdditionalTeams: No additional teams
+    audience: Audience
+    audienceHelp: The teams that can see this project. Empty means everyone
+      in the organization. Admins always see it.
     archiveButton: Archive project
     archiveSuccess: Project archived
     archiveError: Couldn't archive project
@@ -5005,6 +5017,7 @@ projects:
     PROJECT_CONFIRM_PHRASE_MISMATCH: Type the project name exactly to confirm.
     PROJECT_SHARING_INVALID: Sharing settings are invalid.
     PROJECT_TEAM_INVALID: Team not found in your organization.
+    TEAM_ACCESS_DENIED: You can only scope a project to teams you belong to.
     PROJECT_RECOMMENDED_NOT_SUBSET: Recommended items must all appear in the allowed list.
     PROJECT_ORG_MISMATCH: That project belongs to a different organization.
     DOCUMENT_SCOPE_CONFLICT: This document is already in a team library. Detach it first.
@@ -5119,6 +5132,13 @@ settings:
       namePlaceholder: Enter your name
       email: Email
       nameRequired: Name is required
+    teams:
+      title: Your teams
+      description: Teams decide which team documents, projects and inbox
+        queues you can see. Admins manage them under Settings › Teams.
+      none: You are not in any team yet. You see everything shared with the
+        whole organization.
+      manageLink: Manage teams
     security:
       title: Security
       description: Password and two-factor authentication.
@@ -5258,6 +5278,15 @@ settings:
     lastMemberHint:
       A team must keep at least one member. Delete the team instead to
       remove the last member.
+    teamNameTooLong: Team name can be at most 80 characters
+    membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
+    syncedBadge: Synced
+    syncedNotice: This team is provisioned by your identity provider, which owns
+      its name and members. Change them there; a local edit would be undone by
+      the next sync.
+    deleteImpact:
+      summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
+      becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
     description: Create and manage teams within your organization for granular
       access control
   credentials:

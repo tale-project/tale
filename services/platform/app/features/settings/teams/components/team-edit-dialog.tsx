@@ -13,6 +13,7 @@ import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
 import { useTeamMembers, type Team } from '../hooks/queries';
@@ -47,13 +48,23 @@ export function TeamEditDialog({
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
 
+  // The same 80-character cap the create dialog enforces (the docs promise
+  // it for a team name); the rename used to accept any length.
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, tSettings('teams.teamNameRequired')),
+        name: z
+          .string()
+          .trim()
+          .min(1, tSettings('teams.teamNameRequired'))
+          .max(80, tSettings('teams.teamNameTooLong')),
       }),
     [tSettings],
   );
+  // An identity provider (SSO group sync / SCIM) owns this team's name and
+  // roster: a local edit would be overwritten on the next sync, so the form
+  // is read-only and says why. Deleting the team stays possible elsewhere.
+  const synced = team.synced === true;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState(new Set<string>());
@@ -151,9 +162,30 @@ export function TeamEditDialog({
             }),
           ),
         ]);
-        const failures = results.filter((r) => r.status === 'rejected');
+        const failures = results.filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected',
+        );
         if (failures.length > 0) {
           console.warn('Some membership changes failed:', failures);
+          // A partial save is not a success: say what was refused. The one
+          // refusal with its own sentence is the server's last-member rule
+          // (`TEAM_LAST_MEMBER`, 409) — every other one shows its code.
+          const lastMember = failures.some(
+            (f) => backendErrorCode(f.reason) === 'TEAM_LAST_MEMBER',
+          );
+          toast({
+            title: tSettings('teams.teamUpdateFailed'),
+            description: lastMember
+              ? tSettings('teams.lastMemberHint')
+              : tSettings('teams.membershipChangesFailed', {
+                  count: failures.length,
+                }),
+            variant: 'destructive',
+          });
+          await queryClient.invalidateQueries({
+            queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
+          });
+          return;
         }
       }
 
@@ -202,6 +234,11 @@ export function TeamEditDialog({
       isValid={formState.isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
+      {synced ? (
+        <p className="text-muted-foreground text-sm">
+          {tSettings('teams.syncedNotice')}
+        </p>
+      ) : null}
       <Input
         id="name"
         label={tSettings('teams.teamName')}
@@ -209,14 +246,17 @@ export function TeamEditDialog({
         {...register('name')}
         className="w-full"
         required
+        disabled={synced}
         errorMessage={formState.errors.name?.message}
       />
-      <TeamMemberChecklist
-        organizationId={organizationId}
-        selectedMemberIds={selectedMemberIds}
-        onToggleMember={handleToggleMember}
-        enforceMinimumOne
-      />
+      {synced ? null : (
+        <TeamMemberChecklist
+          organizationId={organizationId}
+          selectedMemberIds={selectedMemberIds}
+          onToggleMember={handleToggleMember}
+          enforceMinimumOne
+        />
+      )}
     </FormDialog>
   );
 }

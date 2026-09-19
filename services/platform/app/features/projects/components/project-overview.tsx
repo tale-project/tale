@@ -268,8 +268,12 @@ function ProjectOverviewContent({
         <ProjectSharingSection
           projectId={projectId}
           organizationId={organizationId}
-          teamId={project.teamId}
-          sharedWithTeamIds={project.sharedWithTeamIds ?? []}
+          teamIds={
+            project.teamIds ?? [
+              ...(project.teamId ? [project.teamId] : []),
+              ...(project.sharedWithTeamIds ?? []),
+            ]
+          }
           canAdminister={canAdminister}
         />
       </SettingsSection>

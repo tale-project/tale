@@ -18,9 +18,15 @@ import {
   MailXIcon,
   SendHorizontalIcon,
   ShieldXIcon,
+  UsersRoundIcon,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
+import {
+  useTeamDirectory,
+  useTeams,
+} from '@/app/features/settings/teams/hooks/queries';
+import { useAbility } from '@/app/hooks/use-ability';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
@@ -68,7 +74,20 @@ interface ConversationsProps {
   composing?: boolean;
   /** Contact to seed the composer with (URL: `?composeContact`). */
   composeContact?: string;
+  /**
+   * Queue filter (URL: `?queue`): a team id, `mine` (any of the viewer's
+   * teams' queues) or `unassigned` (administrator triage). In-page over the
+   * loaded rows, like search — the list is already scoped server-side to
+   * what the viewer may see.
+   */
+  queueFilter?: string;
+  onQueueFilterChange?: (value?: string) => void;
 }
+
+/** Queue-filter token: any of the viewer's own teams' queues. */
+export const MY_QUEUES = 'mine';
+/** Queue-filter token: conversations with no person and no team assigned. */
+export const UNASSIGNED_QUEUE = 'unassigned';
 
 // ---------------------------------------------------------------------------
 // Body state machine
@@ -118,8 +137,23 @@ export function Conversations({
   channelFilter,
   composing = false,
   composeContact,
+  queueFilter,
+  onQueueFilterChange,
 }: ConversationsProps) {
   const navigate = useNavigate();
+  // The queue filter's options: the viewer's own teams (every team for an
+  // admin, who also sees the unassigned triage queue), by name.
+  const { teams: myTeams } = useTeams();
+  const { teams: directoryTeams } = useTeamDirectory();
+  const isAdmin = useAbility().can('read', 'orgSettings');
+  const myTeamIds = useMemo(
+    () => new Set((myTeams ?? []).map((team) => team.id)),
+    [myTeams],
+  );
+  const queueOptions = useMemo(() => {
+    const teams = isAdmin ? (directoryTeams ?? []) : (myTeams ?? []);
+    return teams.map((team) => ({ value: team.id, label: team.name }));
+  }, [isAdmin, directoryTeams, myTeams]);
 
   const [selectedConversationId, setSelectedConversationId] = useState(
     initialConversationId ?? null,
@@ -211,14 +245,35 @@ export function Conversations({
       results = results.filter((c) => c.unread_count === 0);
     }
 
+    if (queueFilter === MY_QUEUES) {
+      results = results.filter(
+        (c) =>
+          c.assigneeTeamId !== undefined && myTeamIds.has(c.assigneeTeamId),
+      );
+    } else if (queueFilter === UNASSIGNED_QUEUE) {
+      results = results.filter(
+        (c) => c.assigneeTeamId === undefined && c.assigneeUserId === undefined,
+      );
+    } else if (queueFilter !== undefined && queueFilter.length > 0) {
+      results = results.filter((c) => c.assigneeTeamId === queueFilter);
+    }
+
     return results;
-  }, [paginatedResult.results, searchQuery, readFilter]);
+  }, [
+    paginatedResult.results,
+    searchQuery,
+    readFilter,
+    queueFilter,
+    myTeamIds,
+  ]);
 
   // Search and the read-status filter run client-side over the loaded pages
   // only, so while either is active we must keep draining backend pages — a
   // match beyond the first page would otherwise be silently missed (#2054).
   const isFiltering =
-    Boolean(searchQuery || initialSearch) || readFilter !== 'all';
+    Boolean(searchQuery || initialSearch) ||
+    readFilter !== 'all' ||
+    (queueFilter !== undefined && queueFilter.length > 0);
 
   const {
     selectionState,
@@ -369,6 +424,71 @@ export function Conversations({
               align="start"
             />
           </div>
+
+          {/* Queue filter — which team's queue a row sits in is the fact a
+              member of two teams needs; the rows carry the queue chip, this
+              narrows the list to one. */}
+          {queueOptions.length > 0 || isAdmin ? (
+            <DropdownMenu
+              disabled={controlsDisabled}
+              trigger={
+                <button
+                  type="button"
+                  disabled={controlsDisabled}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs disabled:cursor-not-allowed',
+                    queueFilter ? 'bg-blue-100 dark:bg-blue-950' : undefined,
+                    controlsDisabled && 'opacity-50',
+                  )}
+                  aria-label={tConversations('queue.filterLabel')}
+                >
+                  <UsersRoundIcon className="text-muted-foreground size-3.5" />
+                  <span className="max-w-[8rem] truncate">
+                    {queueFilter === undefined || queueFilter.length === 0
+                      ? tConversations('queue.all')
+                      : queueFilter === MY_QUEUES
+                        ? tConversations('queue.mine')
+                        : queueFilter === UNASSIGNED_QUEUE
+                          ? tConversations('queue.unassigned')
+                          : (queueOptions.find((o) => o.value === queueFilter)
+                              ?.label ?? tConversations('queue.unknownTeam'))}
+                  </span>
+                </button>
+              }
+              items={[
+                [
+                  {
+                    type: 'radio-group',
+                    value: queueFilter ?? '',
+                    onValueChange: (v) => {
+                      onQueueFilterChange?.(v === '' ? undefined : v);
+                    },
+                    options: [
+                      { value: '', label: tConversations('queue.all') },
+                      ...(myTeamIds.size > 0
+                        ? [
+                            {
+                              value: MY_QUEUES,
+                              label: tConversations('queue.mine'),
+                            },
+                          ]
+                        : []),
+                      ...(isAdmin
+                        ? [
+                            {
+                              value: UNASSIGNED_QUEUE,
+                              label: tConversations('queue.unassigned'),
+                            },
+                          ]
+                        : []),
+                      ...queueOptions,
+                    ],
+                  } satisfies DropdownMenuItem,
+                ],
+              ]}
+              align="start"
+            />
+          ) : null}
 
           {hasSelectedItems ? (
             <>

@@ -126,7 +126,6 @@ analytics:
       users:
         title: Utilisation par utilisateur
         user: Utilisateur
-        team: Équipe
         inputTokens: Tokens d'entrée
         outputTokens: Tokens de sortie
         requests: Requêtes
@@ -1502,6 +1501,7 @@ chat:
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
   budgetRemaining: "Encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
   budgetRemainingOrg: "Organisation : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+  budgetRemainingTeam: "Équipe {team} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
   budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
   budgetRequestCredits: Demander plus de crédits
   budgetRequestCreditsSent: Demande envoyée à tes admins
@@ -1814,6 +1814,12 @@ conversations:
     unread: Non lus
     channel: Canal
     allChannels: Tous les canaux
+  queue:
+    filterLabel: Filtrer par file
+    all: Toutes les files
+    mine: Mes équipes
+    unassigned: Non assignées
+    unknownTeam: Équipe inconnue
   category:
     churnSurvey: Enquête de désabonnement
     productRecommendation: Recommandation de produit
@@ -2125,6 +2131,9 @@ documents:
       upload: Téléversement
       oneDrive: OneDrive
       sharePoint: SharePoint
+    teams:
+      orgWide: Toute l'organisation
+      mine: Mes équipes
   preview:
     loading: Chargement…
     failedToLoad: Échec du chargement du document
@@ -4380,10 +4389,10 @@ navigation:
   agents: Agents
   mcp: MCP
   webdav: WebDAV
-  teamFilter:
-    label: Équipe
-    allTeams: Toutes
-    manageTeams: Gérer les équipes
+  myTeams:
+    label: Équipes
+    none: Aucune équipe
+    more: '{names} +{count}'
   orgSwitcher:
     label: Organisation
   aria:
@@ -5063,6 +5072,11 @@ settings:
       namePlaceholder: Entre ton nom
       email: Courriel
       nameRequired: Le nom est requis
+    teams:
+      title: Tes équipes
+      description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."
+      none: "Tu n'es encore dans aucune équipe. Tu vois tout ce qui est partagé avec toute l'organisation."
+      manageLink: Gérer les équipes
     security:
       title: Sécurité
       description: Mot de passe et authentification à deux facteurs.
@@ -5218,6 +5232,13 @@ settings:
     lastMemberHint:
       Une équipe doit conserver au moins un membre. Supprime plutôt
       l'équipe pour retirer le dernier membre.
+    teamNameTooLong: Le nom de l'équipe ne peut pas dépasser 80 caractères
+    membershipChangesFailed: "{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée."
+    syncedBadge: Synchronisée
+    syncedNotice: "Cette équipe est provisionnée par ton fournisseur d'identité, qui gère son nom et ses membres. Modifie-les là-bas : une modification locale serait annulée à la prochaine synchronisation."
+    deleteImpact:
+      summary: "Cette équipe compte {members, plural, one {# membre} other {# membres}}. Elle fait partie de l'audience de {projects, plural, one {# projet} other {# projets}}, {folders, plural, one {# dossier} other {# dossiers}} et {documents, plural, one {# document} other {# documents}}, et {conversations, plural, one {# conversation est} other {# conversations sont}} dans sa file."
+      becomeOrgWide: "{count, plural, one {# élément n'a pas d'autre équipe et deviendra visible} other {# éléments n'ont pas d'autre équipe et deviendront visibles}} pour toute l'organisation."
     description: Crée et gère des équipes au sein de ton organisation pour un
       contrôle d'accès granulaire
   credentials:
@@ -7340,7 +7361,9 @@ projects:
     columnSharing: Partage
     columnActivity: Dernière activité
     sharingOrgWide: Toute l'organisation
-    sharingMultipleTeams: '{count, plural, one {# équipe} other {# équipes}}'
+    sharingMoreTeams: '+{count}'
+    filterMyTeams: Mes équipes
+    unknownTeam: Équipe inconnue
     taskProgressA11y: '{done} tâches terminées sur {total}'
     noTasks: Pas encore de tâches
     overdueA11y: '{count, plural, one {# tâche en retard} other {# tâches en retard}}'
@@ -7362,6 +7385,9 @@ projects:
     submitting: Création…
     successToast: Projet créé
     errorToast: Impossible de créer le projet
+    audienceLabel: Qui peut le voir
+    audienceHelp: Laisse vide pour toute l'organisation, ou choisis les équipes
+      concernées par ce projet. Les admins le voient toujours.
   overview:
     newChatCta: Nouveau chat
     projectSection: Projet
@@ -7534,12 +7560,9 @@ projects:
     description: Description
     descriptionHint: Un court résumé pour que ton équipe sache ce qui va
       ici.
-    owningTeam: Équipe propriétaire
-    owningTeamHelp: Les membres de cette équipe ont un accès complet. Les
-      administrateurs de l'organisation ont toujours accès.
-    alsoSharedWith: Également partagé avec
-    alsoSharedWithHelp: Choisis d'autres équipes qui devraient voir ce projet.
-    noAdditionalTeams: Aucune équipe supplémentaire
+    audience: Audience
+    audienceHelp: Les équipes qui voient ce projet. Vide signifie toute
+      l'organisation. Les admins le voient toujours.
     archiveButton: Archiver le projet
     archiveSuccess: Projet archivé
     archiveError: Impossible d'archiver le projet
@@ -7617,6 +7640,7 @@ projects:
     PROJECT_CONFIRM_PHRASE_MISMATCH: Tape le nom du projet exactement pour confirmer.
     PROJECT_SHARING_INVALID: Les paramètres de partage sont invalides.
     PROJECT_TEAM_INVALID: Équipe introuvable dans ton organisation.
+    TEAM_ACCESS_DENIED: Tu ne peux limiter un projet qu'aux équipes dont tu fais partie.
     DOCUMENT_SCOPE_CONFLICT: Ce document est déjà dans une bibliothèque d'équipe. Détache-le d'abord.
     DOCUMENT_NOT_FOUND: Document introuvable.
     RBAC_FORBIDDEN: Rôle éditeur ou administrateur requis pour effectuer cette modification.

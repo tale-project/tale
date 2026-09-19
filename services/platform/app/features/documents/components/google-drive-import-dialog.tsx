@@ -18,7 +18,6 @@ import {
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportGoogleDriveFiles } from '../hooks/actions';
@@ -72,7 +71,6 @@ export function GoogleDriveImportDialog({
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
-  const { selectedTeamId } = useTeamFilter();
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportGoogleDriveFiles();
@@ -84,9 +82,11 @@ export function GoogleDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
+  // The picker's team for a root-level import; a destination folder's own
+  // audience wins over it (the server re-reads the landing folder).
   const [selectedTeamIdLocal, setSelectedTeamIdLocal] = useState<
     string | undefined
-  >(() => selectedTeamId ?? undefined);
+  >(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState(
     new Map<string, OneDriveSelectedItem>(),

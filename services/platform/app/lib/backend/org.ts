@@ -152,6 +152,31 @@ export function myTeamsQuery(organizationId: string) {
   });
 }
 
+/** One entry of the team directory: the id and the name, nothing else. */
+export interface TeamDirectoryEntry {
+  id: string;
+  name: string;
+}
+
+/**
+ * Every team of the organization by id and name, for ANY member — the one
+ * read every audience badge, project row, inbox queue and skill label
+ * resolves names through. A team's name is not a secret; resolving through
+ * the caller's own teams left members looking at blanks and raw ids for
+ * teams they are not in.
+ */
+export function teamDirectoryQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, TEAM_HINT_ENTITY, 'directory'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ teams: TeamDirectoryEntry[] }>('/teams/directory', {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.teams),
+    retry: retryTransportOnly,
+  });
+}
+
 /** The persistent last-active organization pointer. */
 export function lastActiveOrgQuery() {
   return queryOptions({

@@ -12,9 +12,11 @@ import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod/v4';
 
+import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -55,6 +57,10 @@ export function ProjectCreateDialog({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: createProject } = useCreateProject();
+  // The audience: the teams the creator may assign (their own; every team
+  // for an admin). Empty = organization-wide, the default.
+  const { teams: assignableTeams } = useOrgTeams();
+  const [teamIds, setTeamIds] = useState<string[]>([]);
 
   const formSchema = useMemo(
     () =>
@@ -106,6 +112,7 @@ export function ProjectCreateDialog({
   useEffect(() => {
     if (!open) {
       reset();
+      setTeamIds([]);
       keyEditedRef.current = false;
     }
   }, [open, reset]);
@@ -119,6 +126,7 @@ export function ProjectCreateDialog({
         name: data.name,
         key: normalizeProjectKey(data.key),
         description: data.description || undefined,
+        ...(teamIds.length > 0 ? { teamIds } : {}),
       });
       toast({
         title: t('create.successToast'),
@@ -150,6 +158,18 @@ export function ProjectCreateDialog({
         if (code === 'RBAC_FORBIDDEN') {
           toast({
             title: t('errors.RBAC_FORBIDDEN'),
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (
+          code === 'TEAM_ACCESS_DENIED' ||
+          code === 'PROJECT_SHARING_INVALID'
+        ) {
+          toast({
+            title: t('errors.' + code, {
+              defaultValue: t('create.errorToast'),
+            }),
             variant: 'destructive',
           });
           return;
@@ -206,6 +226,23 @@ export function ProjectCreateDialog({
         {...register('description')}
         errorMessage={errors.description?.message}
       />
+      {assignableTeams && assignableTeams.length > 0 ? (
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="project-audience">
+            {t('create.audienceLabel')}
+          </label>
+          <p className="text-muted-foreground text-sm">
+            {t('create.audienceHelp')}
+          </p>
+          <TeamMultiSelect
+            teams={assignableTeams}
+            selectedTeamIds={teamIds}
+            onSelectionChange={setTeamIds}
+            orgWideLabel={t('list.sharingOrgWide')}
+            disabled={isSubmitting}
+          />
+        </div>
+      ) : null}
     </FormDialog>
   );
 }

@@ -2,13 +2,15 @@
 
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormSection } from '@tale/ui/form-section';
-import { Select } from '@tale/ui/select';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
-import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import {
+  useOrgTeams,
+  useTeamNames,
+} from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -17,83 +19,40 @@ import { useUpdateProjectSharing } from '../hooks/mutations';
 interface ProjectSharingSectionProps {
   projectId: string;
   organizationId: string;
-  /** Current owning team id; `undefined` means org-wide. */
-  teamId: string | undefined;
-  /** Currently shared-with team ids. */
-  sharedWithTeamIds: string[];
+  /** The audience — every team the project is scoped to; [] = org-wide. */
+  teamIds: string[];
   /** Whether the current viewer can administer (gate the edit affordance). */
   canAdminister: boolean;
 }
 
-const NONE_OWNING_TEAM = '__org_wide__';
-
-type PendingChange = {
-  teamId: string | null;
-  sharedWithTeamIds: string[];
-};
-
+/**
+ * A project's AUDIENCE — the one set of teams that may see it (empty =
+ * organization-wide). There is no owning-versus-shared distinction any more:
+ * the audience is a set, the same vocabulary a document or a folder uses.
+ */
 export function ProjectSharingSection({
   projectId,
   organizationId,
-  teamId,
-  sharedWithTeamIds,
+  teamIds,
   canAdminister,
 }: ProjectSharingSectionProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
-  const { teams } = useOrgTeams();
+  // What the viewer may ASSIGN (an admin: every team) — the picker's options.
+  const { teams: assignableTeams } = useOrgTeams();
+  // Every team by name — the read-only summary must name a team the viewer
+  // is not in, too.
+  const { nameOf } = useTeamNames();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
 
-  const [pendingNarrowChange, setPendingNarrowChange] =
-    useState<PendingChange | null>(null);
-
-  const teamOptions = useMemo(() => {
-    const opts = [{ value: NONE_OWNING_TEAM, label: t('list.sharingOrgWide') }];
-    for (const team of teams ?? []) {
-      opts.push({ value: team.id, label: team.name });
-    }
-    return opts;
-  }, [teams, t]);
-
-  // Teams available for the "Also shared with" multiselect — exclude the
-  // owning team (mirrors `validateSharing` server-side).
-  const shareableTeams = useMemo(
-    () => (teams ?? []).filter((tm) => tm.id !== teamId),
-    [teams, teamId],
-  );
-
-  const teamNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const team of teams ?? []) map.set(team.id, team.name);
-    return map;
-  }, [teams]);
-
-  const computeIsNarrowing = useCallback(
-    (next: PendingChange): boolean => {
-      const wasOrgWide = !teamId && sharedWithTeamIds.length === 0;
-      const willBeOrgWide =
-        next.teamId === null && next.sharedWithTeamIds.length === 0;
-      if (wasOrgWide && !willBeOrgWide) return true;
-      const previous = new Set<string>(sharedWithTeamIds);
-      if (teamId) previous.add(teamId);
-      const upcoming = new Set<string>(next.sharedWithTeamIds);
-      if (next.teamId) upcoming.add(next.teamId);
-      for (const id of previous) {
-        if (!upcoming.has(id)) return true;
-      }
-      return false;
-    },
-    [teamId, sharedWithTeamIds],
-  );
+  const [pendingNarrowChange, setPendingNarrowChange] = useState<
+    string[] | null
+  >(null);
 
   const applySave = useCallback(
-    async (next: PendingChange) => {
+    async (next: string[]) => {
       try {
-        await updateSharing({
-          projectId,
-          teamId: next.teamId,
-          sharedWithTeamIds: next.sharedWithTeamIds,
-        });
+        await updateSharing({ projectId, teamIds: next });
         toast({ title: t('settings.saveSuccess'), variant: 'success' });
         setPendingNarrowChange(null);
       } catch (error) {
@@ -102,6 +61,7 @@ export function ProjectSharingSection({
           if (
             code === 'PROJECT_SHARING_INVALID' ||
             code === 'PROJECT_TEAM_INVALID' ||
+            code === 'TEAM_ACCESS_DENIED' ||
             code === 'ROLE_FORBIDDEN' ||
             code === 'PROJECT_FORBIDDEN'
           ) {
@@ -121,50 +81,32 @@ export function ProjectSharingSection({
     [projectId, t, updateSharing],
   );
 
-  const commit = useCallback(
-    (next: PendingChange) => {
-      if (computeIsNarrowing(next)) {
+  // A change NARROWS access when it takes the project from organization-wide
+  // to some teams, or drops a team that could see it — those are confirmed
+  // first; widening (adding a team, going organization-wide) just saves.
+  const handleChange = useCallback(
+    (next: string[]) => {
+      const wasOrgWide = teamIds.length === 0;
+      const willBeOrgWide = next.length === 0;
+      const upcoming = new Set(next);
+      const narrows =
+        (wasOrgWide && !willBeOrgWide) ||
+        (!willBeOrgWide && teamIds.some((id) => !upcoming.has(id)));
+      if (narrows) {
         setPendingNarrowChange(next);
         return;
       }
       void applySave(next);
     },
-    [applySave, computeIsNarrowing],
-  );
-
-  const handleOwningTeamChange = useCallback(
-    (value: string) => {
-      const nextOwningTeam = value === NONE_OWNING_TEAM ? null : value;
-      // Going org-wide clears every share — a "shared-with" team is additional
-      // to an owning team, so without an owner those shares would silently keep
-      // the project restricted while the Select reads "Org-wide" (mirrors the
-      // server-side `normalizeSharing`). Otherwise drop just the new owning team
-      // from the shared list (the owning team can't also appear in it).
-      const nextShared =
-        nextOwningTeam === null
-          ? []
-          : sharedWithTeamIds.filter((id) => id !== nextOwningTeam);
-      commit({ teamId: nextOwningTeam, sharedWithTeamIds: nextShared });
-    },
-    [commit, sharedWithTeamIds],
-  );
-
-  const handleSharedTeamsChange = useCallback(
-    (nextShared: string[]) => {
-      commit({ teamId: teamId ?? null, sharedWithTeamIds: nextShared });
-    },
-    [commit, teamId],
+    [applySave, teamIds],
   );
 
   if (!canAdminister) {
     // Read-only audience summary for non-admin viewers.
-    const names: string[] = [];
-    if (teamId) names.push(teamNameMap.get(teamId) ?? teamId);
-    for (const sid of sharedWithTeamIds) {
-      names.push(teamNameMap.get(sid) ?? sid);
-    }
     const audience =
-      names.length === 0 ? t('list.sharingOrgWide') : names.join(', ');
+      teamIds.length === 0
+        ? t('list.sharingOrgWide')
+        : teamIds.map((id) => nameOf(id) ?? t('list.unknownTeam')).join(', ');
     return (
       <FormSection label={t('sharing.effectiveAudience')}>
         <p className="text-muted-foreground text-sm">{audience}</p>
@@ -172,7 +114,7 @@ export function ProjectSharingSection({
     );
   }
 
-  if (!teams || teams.length === 0) {
+  if (!assignableTeams || assignableTeams.length === 0) {
     return (
       <FormSection>
         <p className="text-muted-foreground text-sm">
@@ -192,36 +134,22 @@ export function ProjectSharingSection({
   return (
     <>
       <FormSection>
-        <Select
-          options={teamOptions}
-          label={t('settings.owningTeam')}
-          description={t('settings.owningTeamHelp')}
-          value={teamId ?? NONE_OWNING_TEAM}
-          onValueChange={handleOwningTeamChange}
-          disabled={isPending}
-        />
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">
+            {t('settings.audience')}
+          </label>
+          <p className="text-muted-foreground text-sm">
+            {t('settings.audienceHelp')}
+          </p>
+          <TeamMultiSelect
+            teams={assignableTeams}
+            selectedTeamIds={teamIds}
+            onSelectionChange={handleChange}
+            orgWideLabel={t('list.sharingOrgWide')}
+            disabled={isPending}
+          />
+        </div>
       </FormSection>
-
-      {teamId && shareableTeams.length > 0 ? (
-        <FormSection>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">
-              {t('settings.alsoSharedWith')}
-            </label>
-            <p className="text-muted-foreground text-sm">
-              {t('settings.alsoSharedWithHelp')}
-            </p>
-            <TeamMultiSelect
-              teams={shareableTeams}
-              selectedTeamIds={sharedWithTeamIds}
-              onSelectionChange={handleSharedTeamsChange}
-              orgWideLabel={t('settings.noAdditionalTeams')}
-              emptyPlaceholderStyle="muted"
-              disabled={isPending}
-            />
-          </div>
-        </FormSection>
-      ) : null}
 
       <ConfirmDialog
         open={pendingNarrowChange !== null}

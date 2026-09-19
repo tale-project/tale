@@ -20,7 +20,6 @@ import {
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -68,11 +67,10 @@ export function DocumentUploadDialog({
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
   const { locale, formatNumber } = useFormatNumber();
-  const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(() =>
-    selectedTeamId ? [selectedTeamId] : [],
-  );
+  // The audience of the uploads: organization-wide unless the caller picks
+  // teams — or the destination folder has its own, which then wins.
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
   const policyLimits = useUploadPolicy(organizationId);
@@ -140,23 +138,11 @@ export function DocumentUploadDialog({
       if (!newOpen && isUploading) return; // Block close while uploading
       if (!newOpen) {
         clearTrackedFiles();
-        setSelectedTeamIds(
-          folderTeamId
-            ? [folderTeamId]
-            : selectedTeamId
-              ? [selectedTeamId]
-              : [],
-        );
+        setSelectedTeamIds(folderTeamId ? [folderTeamId] : []);
       }
       onOpenChange(newOpen);
     },
-    [
-      onOpenChange,
-      isUploading,
-      clearTrackedFiles,
-      folderTeamId,
-      selectedTeamId,
-    ],
+    [onOpenChange, isUploading, clearTrackedFiles, folderTeamId],
   );
 
   const processFiles = useCallback(

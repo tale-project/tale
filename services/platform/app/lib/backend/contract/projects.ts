@@ -23,6 +23,8 @@ export interface ProjectsContract {
       icon?: string;
       color?: string;
       sharedWithTeamIds?: string[];
+      /** The audience — every team the project is scoped to; [] = org-wide. */
+      teamIds?: string[];
       organizationId: string;
       name: string;
     };
@@ -162,6 +164,8 @@ export interface ProjectsContract {
     args: {
       teamId?: null | string;
       sharedWithTeamIds?: string[];
+      /** The audience — every team the project is scoped to; [] = org-wide. */
+      teamIds?: string[];
       projectId: string;
     };
     returns: null;
@@ -189,6 +193,8 @@ export interface ProjectsContract {
       projectAgentCount?: number;
       taskLabelColors?: Record<string, string>;
       sharedWithTeamIds?: string[];
+      /** The audience — every team the project is scoped to; [] = org-wide. */
+      teamIds?: string[];
       knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
       agentMode?: 'all' | 'recommended' | 'restricted';
       recommendedAgentSlugs?: string[];
@@ -296,6 +302,8 @@ export interface ProjectsContract {
         projectAgentCount?: number;
         taskLabelColors?: Record<string, string>;
         sharedWithTeamIds?: string[];
+        /** The audience — every team the project is scoped to; [] = org-wide. */
+        teamIds?: string[];
         knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
         agentMode?: 'all' | 'recommended' | 'restricted';
         recommendedAgentSlugs?: string[];
@@ -340,6 +348,8 @@ export interface ProjectsContract {
           projectAgentCount?: number;
           taskLabelColors?: Record<string, string>;
           sharedWithTeamIds?: string[];
+          /** The audience — every team the project is scoped to; [] = org-wide. */
+          teamIds?: string[];
           knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
           agentMode?: 'all' | 'recommended' | 'restricted';
           recommendedAgentSlugs?: string[];

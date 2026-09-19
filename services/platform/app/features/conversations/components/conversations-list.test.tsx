@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
+
+// The queue chip resolves a team id through the org's team directory; the
+// list under test carries no team queues, so an empty directory is enough.
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeamNames: () => ({
+    nameOf: () => undefined,
+    isLoading: false,
+    teams: [],
+  }),
+}));
 
 import type { Conversation } from '../types';
 import { ConversationsList } from './conversations-list';
