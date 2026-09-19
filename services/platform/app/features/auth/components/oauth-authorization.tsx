@@ -1,19 +1,21 @@
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
-import { LogoLink } from '@/app/components/logo/logo-link';
 import type { TwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { backendFetch } from '@/app/lib/backend/api-client';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 import { AuthFormLayout } from './auth-form-layout';
+import { AuthPageLayout } from './auth-page-layout';
 
 /** The query is signed and expires in the provider; the browser never interprets its authority. */
 export function OAuthAuthorization({ consent }: { consent: boolean }) {
   const { t } = useT('auth');
+  const navigate = useNavigate();
   const [clientName, setClientName] = useState<string>();
   const [email, setEmail] = useState<string>();
   const [failed, setFailed] = useState(false);
@@ -55,13 +57,13 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
         if (!mounted.current) return;
         if (session.error) throw new Error('Session unavailable');
         if (!session.data?.user) {
-          const base = window.__ENV__?.BASE_PATH ?? '';
-          const login = new URL(`${base}/log-in`, window.location.origin);
-          login.searchParams.set(
-            'redirectTo',
-            window.location.pathname + window.location.search,
-          );
-          window.location.replace(login.toString());
+          await navigate({
+            to: '/log-in',
+            search: {
+              redirectTo: window.location.pathname + window.location.search,
+            },
+            replace: true,
+          });
           return;
         }
         const factor =
@@ -100,56 +102,51 @@ export function OAuthAuthorization({ consent }: { consent: boolean }) {
     return () => {
       mounted.current = false;
     };
-  }, [consent]);
+  }, [consent, navigate]);
 
   return (
-    <div className="bg-background text-foreground min-h-dvh px-4 py-8">
-      <div className="mb-16">
-        <LogoLink href="/" />
-      </div>
-      <main id="main-content" tabIndex={-1} className="outline-none">
-        <AuthFormLayout title={t('oauth.title')}>
-          <Stack gap={4}>
-            {clientName ? (
-              <Text>{t('oauth.request', { application: clientName })}</Text>
-            ) : null}
-            {email ? <Text className="break-words">{email}</Text> : null}
-            {consent ? (
-              <Text variant="muted">{t('oauth.permissions')}</Text>
-            ) : null}
-            {failed ? <Text role="alert">{t('oauth.failed')}</Text> : null}
-            {consent ? (
-              <>
-                <Button
-                  disabled={!clientName || busy}
-                  onClick={() => void continueRequest(true)}
-                  fullWidth
-                >
-                  {busy ? t('oauth.continuing') : t('oauth.allow')}
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={!clientName || busy}
-                  onClick={() => void continueRequest(false)}
-                  fullWidth
-                >
-                  {t('oauth.cancel')}
-                </Button>
-              </>
-            ) : failed ? (
+    <AuthPageLayout>
+      <AuthFormLayout title={t('oauth.title')}>
+        <Stack gap={4}>
+          {clientName ? (
+            <Text>{t('oauth.request', { application: clientName })}</Text>
+          ) : null}
+          {email ? <Text className="break-words">{email}</Text> : null}
+          {consent ? (
+            <Text variant="muted">{t('oauth.permissions')}</Text>
+          ) : null}
+          {failed ? <Text role="alert">{t('oauth.failed')}</Text> : null}
+          {consent ? (
+            <>
               <Button
-                disabled={busy}
-                onClick={() => void continueRequest()}
+                disabled={!clientName || busy}
+                onClick={() => void continueRequest(true)}
                 fullWidth
               >
-                {t('oauth.retry')}
+                {busy ? t('oauth.continuing') : t('oauth.allow')}
               </Button>
-            ) : (
-              <Text role="status">{t('oauth.continuing')}</Text>
-            )}
-          </Stack>
-        </AuthFormLayout>
-      </main>
-    </div>
+              <Button
+                variant="secondary"
+                disabled={!clientName || busy}
+                onClick={() => void continueRequest(false)}
+                fullWidth
+              >
+                {t('oauth.cancel')}
+              </Button>
+            </>
+          ) : failed ? (
+            <Button
+              disabled={busy}
+              onClick={() => void continueRequest()}
+              fullWidth
+            >
+              {t('oauth.retry')}
+            </Button>
+          ) : (
+            <Text role="status">{t('oauth.continuing')}</Text>
+          )}
+        </Stack>
+      </AuthFormLayout>
+    </AuthPageLayout>
   );
 }

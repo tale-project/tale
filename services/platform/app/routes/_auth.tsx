@@ -1,4 +1,3 @@
-import { VStack, Spacer } from '@tale/ui/layout';
 import {
   Outlet,
   createFileRoute,
@@ -7,7 +6,7 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { LogoLink } from '@/app/components/logo/logo-link';
+import { AuthPageLayout } from '@/app/features/auth/components/auth-page-layout';
 import { AuthSsoHeader } from '@/app/features/auth/components/auth-sso-header';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
@@ -54,24 +53,8 @@ function AuthLayout() {
   const ssoOrgPicker = isSsoOrgPickerStep(pathname, searchStr);
 
   return (
-    <VStack
-      gap={0}
-      align="stretch"
-      className="bg-background text-foreground min-h-dvh"
-    >
-      {ssoOrgPicker ? (
-        <AuthSsoHeader />
-      ) : (
-        <div className="pt-[calc(2rem+var(--safe-top))] pr-[calc(1rem+var(--safe-right))] pb-16 pl-[calc(1rem+var(--safe-left))] sm:pr-[calc(2rem+var(--safe-right))] sm:pl-[calc(2rem+var(--safe-left))] md:pb-32">
-          <LogoLink href="/" />
-        </div>
-      )}
-      {/* outline-none: skip-link target focused only programmatically — the
-          browser's focus ring would outline the whole page body. */}
-      <main id="main-content" tabIndex={-1} className="outline-none">
-        <Outlet />
-      </main>
-      <Spacer />
-    </VStack>
+    <AuthPageLayout header={ssoOrgPicker ? <AuthSsoHeader /> : undefined}>
+      <Outlet />
+    </AuthPageLayout>
   );
 }
