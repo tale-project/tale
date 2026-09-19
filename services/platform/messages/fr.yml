@@ -126,6 +126,7 @@ analytics:
       users:
         title: Utilisation par utilisateur
         user: Utilisateur
+        automations: Automatisations (déclencheurs)
         inputTokens: Tokens d'entrée
         outputTokens: Tokens de sortie
         requests: Requêtes

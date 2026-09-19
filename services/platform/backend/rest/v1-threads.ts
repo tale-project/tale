@@ -50,6 +50,7 @@ import {
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  restApiKeyId,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -1130,7 +1131,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             });
       // The key that authenticated the send: its own caps bind the turn,
       // and the worker books the turn's usage against it.
-      const apiKeyId = c.get('apiKeyId') === '' ? undefined : c.get('apiKeyId');
+      const apiKeyId = restApiKeyId(c);
       let replay: Record<string, unknown> | undefined;
       try {
         await deps.sql.begin(async (tx) => {

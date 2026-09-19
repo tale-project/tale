@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
+import { isAutomationSubject } from '@/lib/shared/constants/usage';
 
 export interface UserRow {
   userId: string;
@@ -44,7 +45,9 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
             variant="label"
             className="block max-w-[220px] truncate text-sm"
           >
-            {row.original.displayName}
+            {isAutomationSubject(row.original.userId)
+              ? t('usage.tables.users.automations')
+              : row.original.displayName}
           </Text>
         ),
         size: 220,

@@ -19,6 +19,9 @@ import {
 
 export interface TopAgentRow {
   agentSlug: string;
+  /** The name the backend resolved for a slug that is an id (a project
+   * agent); the slug itself is shown when there is none. */
+  displayName?: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -85,7 +88,7 @@ export function TopAgentsTable({
             variant="label"
             className="block max-w-[260px] truncate text-sm"
           >
-            {resolveName(row.original.agentSlug)}
+            {row.original.displayName ?? resolveName(row.original.agentSlug)}
           </Text>
         ),
         size: 260,

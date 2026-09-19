@@ -67,6 +67,7 @@ import {
   readPageLimit,
   readQuery,
   requireDeveloper,
+  restApiKeyId,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -736,6 +737,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           );
         }
       }
+      // The key that authenticated the start: the run's spend books to it
+      // beside the starter's own usage, so the key's caps see it.
+      const keyId = restApiKeyId(c);
       const args = {
         organizationId,
         name,
@@ -744,6 +748,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         input: body.input === undefined ? {} : body.input,
         mode,
         startedBy: `api-key:${c.get('userId')}`,
+        ...(keyId !== undefined ? { apiKeyId: keyId } : {}),
         ...(body.version !== undefined ? { version: body.version } : {}),
       };
       let started: IdempotentStart | null;

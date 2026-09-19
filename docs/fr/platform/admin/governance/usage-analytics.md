@@ -14,6 +14,8 @@ En tant qu’admin ou propriétaire, ouvre **Paramètres > Métriques > Utilisat
 
 Les noms d’assistants peuvent inclure des tâches auxiliaires, comme la création des titres de chat. Le nombre de requêtes ne correspond donc pas toujours au nombre de messages envoyés. La synthèse vocale possède son propre tableau de modèles vocaux.
 
+**Utilisation par utilisateur** attribue chaque requête à une personne : le membre qui a envoyé le message de chat ou lancé l’exécution d’agent, y compris par l’API REST ou le point d’accès MCP. Les exécutions démarrées par une planification, un webhook ou un événement n’ont personne derrière elles. Leur usage apparaît sur une seule ligne nommée **Automatisations (déclencheurs)**, qui ne compte pas comme utilisateur actif. Dans le tableau des assistants, un agent de projet et une automatisation apparaissent chacun sous leur nom.
+
 ## Lire les coûts avec les tokens
 
 Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la voix ou la génération d’images peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts.

@@ -78,9 +78,11 @@ export async function readSessionOpSettlement(
 /**
  * Book a turn's spend: stamp the op row (`spent_cents`,
  * `spend_settled_at_ms`) and, in the same transaction, increment the org
- * usage ledger under the run's starter and agent. The stamp is the
- * idempotency gate — a replay (a burned finalize claim, a reconcile after a
- * partial attempt) finds the fact closed and books nothing twice.
+ * usage ledger under the run's billing subject — the person (or the
+ * automation sentinel) the run's starter names, the agent, and the API key
+ * when a keyed door started it (`resolveSessionOpAttribution`). The stamp is
+ * the idempotency gate — a replay (a burned finalize claim, a reconcile after
+ * a partial attempt) finds the fact closed and books nothing twice.
  */
 export async function settleSessionOpSpend(
   sql: Sql,
@@ -137,6 +139,9 @@ export async function settleSessionOpSpend(
     await incrementUsageLedger(tx, {
       organizationId: op.organizationId,
       userId: attribution.userId,
+      ...(attribution.apiKeyId !== undefined
+        ? { apiKeyId: attribution.apiKeyId }
+        : {}),
       inputTokens: args.usage?.inputTokens ?? 0,
       outputTokens: args.usage?.outputTokens ?? 0,
       costEstimateCents: args.spentCents ?? 0,

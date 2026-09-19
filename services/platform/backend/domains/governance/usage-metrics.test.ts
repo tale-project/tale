@@ -9,6 +9,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import { getOrgUsageMetricsPg } from './usage-metrics.ts';
 
@@ -87,5 +88,39 @@ describe('getOrgUsageMetricsPg', () => {
 
     expect(metrics.summary.capped).toBe(true);
     expect(metrics.summary.totalRequests).toBe(20_000);
+  });
+
+  it('names a project agent booked under its id and keeps the automation bucket out of the active users', async () => {
+    const today = buildPeriodKeyFromTimestamp('daily', Date.now());
+    const rows = [
+      { ...bucket(today, 0), userId: 'user_1', agentSlug: 'agent-1' },
+      {
+        ...bucket(today, 1),
+        userId: AUTOMATION_SUBJECT_ID,
+        agentSlug: 'invoices/monthly',
+      },
+    ];
+    const { sql } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.usage_ledger')) return rows;
+      if (statement.text.includes('FROM app.project_agents')) {
+        return [{ id: 'agent-1', name: 'Alice' }];
+      }
+      return [];
+    });
+
+    const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+      granularity: 'daily',
+      periodDays: 7,
+    });
+
+    // The sentinel's spend counts; the sentinel is not a person.
+    expect(metrics.summary.totalRequests).toBe(2);
+    expect(metrics.summary.activeUsers).toBe(1);
+    expect(metrics.users.map((user) => user.userId).sort()).toEqual(
+      [AUTOMATION_SUBJECT_ID, 'user_1'].sort(),
+    );
+    const byAgent = new Map(metrics.topAgents.map((a) => [a.agentSlug, a]));
+    expect(byAgent.get('agent-1')).toMatchObject({ displayName: 'Alice' });
+    expect(byAgent.get('invoices/monthly')).not.toHaveProperty('displayName');
   });
 });

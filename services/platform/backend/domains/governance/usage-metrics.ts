@@ -82,5 +82,16 @@ export async function getOrgUsageMetricsPg(
       }
       return map;
     },
+    async (agentSlugs) => {
+      if (agentSlugs.length === 0) return new Map();
+      // Project agents book under their id (`governance/README.md`); the
+      // Top assistants table shows the agent's name. Slugs that are no
+      // project agent (a chat assistant, an automation, a sentinel) stay.
+      const agents = await sql<{ id: string; name: string }[]>`
+        SELECT id, name FROM app.project_agents
+        WHERE org_id = ${organizationId} AND id = ANY(${agentSlugs})
+      `;
+      return new Map(agents.map((agent) => [agent.id, agent.name] as const));
+    },
   );
 }

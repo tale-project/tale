@@ -244,6 +244,17 @@ select lists only the current admin's keys (`useApiKeys`).
   shows `governance.dataNotice.charLimitExceeded`; turning the switch off hides
   the tabs and turning it on again brings the saved text back. Turn it off to
   restore.
+- [ ] `GOV-F20` · **Automation spend lands on the person; triggers on one row** —
+  Start a deployed automation that has an agent step by hand from its run
+  list and let the run finish; let a schedule or webhook trigger start
+  another run of it; open `usage` → In **Per-user usage**
+  (`analytics.usage.tables.users.title`) the run you started sits on YOUR
+  row — no row reads `user:…` or `api-key:…` — and the trigger's run sits on
+  the single **Automations (triggers)** row
+  (`analytics.usage.tables.users.automations`), which does not raise
+  **Active users** (`analytics.usage.cards.activeUsers`); in **Top
+  assistants** (`analytics.usage.tables.topAgents.title`) the automation
+  appears under its name and a project agent under its name, never an id.
 
 ## Boundary & error tests
 

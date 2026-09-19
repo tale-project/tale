@@ -591,6 +591,9 @@ interface StartWorkflowForTaskArgs {
   workflowSlug: string;
   startedByUserId: string;
   startedVia?: 'user' | 'api-key';
+  /** The API key behind an `api-key` start — booked beside the starter so
+   * the key's budget caps see the run's spend. */
+  apiKeyId?: string;
 }
 
 export async function startWorkflowForTask(
@@ -671,6 +674,7 @@ export async function startWorkflowForTaskInTx(
         input,
         mode: 'live',
         startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
+        ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
         projectId: args.task.projectId,
       }),
     );

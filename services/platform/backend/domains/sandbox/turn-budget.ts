@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
 import type { ReserveTurnBudgetResult } from '../../core/node_only/sandbox/turn_budget.ts';
 import {
   loadBudgetSubject,
@@ -45,12 +46,27 @@ export async function reserveTurnBudget(
     await lockOrgAdmission(tx, args.organizationId);
     const attribution = await resolveSessionOpAttribution(tx, args);
     const userId = attribution?.userId ?? '';
+    const apiKey =
+      attribution?.apiKeyId !== undefined
+        ? { apiKeyId: attribution.apiKeyId }
+        : {};
+    // Nobody to measure — an op without a run to attribute, or a run a
+    // trigger started — is evaluated against the organization's caps (and
+    // the key's, were one involved) alone; a person is measured as they are
+    // now, teams and role included.
     const subject: OrgBudgetSubject =
-      userId === ''
-        ? { organizationId: args.organizationId, userId, userTeamIds: [] }
+      userId === '' || isAutomationSubject(userId)
+        ? {
+            organizationId: args.organizationId,
+            userId,
+            userTeamIds: [],
+            impersonal: true,
+            ...apiKey,
+          }
         : await loadBudgetSubject(tx, {
             organizationId: args.organizationId,
             userId,
+            ...apiKey,
           });
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
@@ -68,12 +84,13 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        model_ref, budget_cents, heartbeat_at_ms, started_at_ms
+        api_key_id, model_ref, budget_cents, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
-        ${attribution?.agentSlug ?? null}, ${args.modelRef ?? null},
+        ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
+        ${args.modelRef ?? null},
         ${allowance.budgetCents}, ${now}, ${now}
       )
       ON CONFLICT (session_id, exec_id) DO UPDATE SET
@@ -81,6 +98,8 @@ export async function reserveTurnBudget(
         user_id = coalesce(app.sandbox_session_ops.user_id, EXCLUDED.user_id),
         agent_slug = coalesce(app.sandbox_session_ops.agent_slug,
           EXCLUDED.agent_slug),
+        api_key_id = coalesce(app.sandbox_session_ops.api_key_id,
+          EXCLUDED.api_key_id),
         model_ref = coalesce(EXCLUDED.model_ref,
           app.sandbox_session_ops.model_ref)
     `;

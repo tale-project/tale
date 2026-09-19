@@ -176,6 +176,32 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
+  it('binds no personal cap to an impersonal subject — the org cap alone sizes a trigger-started turn', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'daily', maxCostCents: 100 },
+        { scope: 'org', period: 'daily', maxCostCents: 10_000 },
+      ],
+    };
+    const { sql, queries } = recordingLedger({
+      // Were the default cap applied to the sentinel's own bucket, 5 cents
+      // would remain; nobody is there to cap, so only the org's 1_000 count.
+      user: { totalTokens: 0, costEstimate: 95, requestCount: 1 },
+      org: { totalTokens: 0, costEstimate: 9_000, requestCount: 40 },
+    });
+    const allowance = await resolveTurnAllowance(sql, {
+      organizationId: 'org-1',
+      userId: '__automation__',
+      userTeamIds: [],
+      impersonal: true,
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    expect(allowance).toEqual({ allowed: true, budgetCents: 500 });
+    expect(queries.some((q) => q.includes('user_id ='))).toBe(false);
+  });
+
   it('measures a team’s shared cap against the team’s aggregate', async () => {
     policy.config = {
       enabled: true,

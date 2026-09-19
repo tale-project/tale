@@ -66,6 +66,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   (there is no separate migrations gate or generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
+- **Spend is booked under a person, never a door** — every `app.usage_ledger` write names its
+  subject by bare user id (or the `__automation__` sentinel for a run a trigger started), plus the
+  API key when one authenticated the start; a run's `started_by` is the door (`user:` /
+  `api-key:` / `trigger:`) and is read only through `lib/shared/run-starter.ts`. The contract,
+  lanes, readers and guards: [`services/platform/backend/domains/governance/README.md`](../services/platform/backend/domains/governance/README.md).
 - **Every locale is covered, always** — a user-visible string never ships in fewer languages than
   the app supports: adding/changing/removing a key touches `en` AND every sibling locale (`de`,
   `fr`, relevant sparse `de-CH` overrides, shared package messages, and translated docs trees) in the same change, following the
@@ -324,3 +329,12 @@ default means deleting the override and fixing what surfaces:
 - **A cancelled run answers `trace: null` and `effects: null`** where a failed run answers both,
   so what a cancel did not undo is readable only through `checkpoints` (2026-09, round i).
   Paying it down means keeping the partial trace the way the failed path does.
+- **`app.usage_events` is write-retired, not dropped** — the chat lane stopped writing the
+  per-turn row (no reader ever folded it; `0110`, 2026-09); erasure and retention still sweep its
+  legacy rows. Paying it down means a `DROP TABLE` migration one release after every image has
+  stopped writing it, and removing the two sweeps with it.
+- **Nothing in the schema forbids a door string in `usage_ledger.user_id`** — rule 2 of the
+  governance contract is enforced by the resolver and its tests only, because rows booked before
+  2026-09 carry `user:` / `api-key:` forms and the previous image writes them mid-roll. Paying it
+  down means a `CHECK (user_id NOT LIKE '%:%' OR user_id = '__automation__') NOT VALID` once every
+  image books bare ids.

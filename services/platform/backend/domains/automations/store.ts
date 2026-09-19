@@ -1435,6 +1435,10 @@ export interface BeginRunArgs {
   input: unknown;
   mode: 'mock' | 'live';
   startedBy: string;
+  /** The API key that authenticated a keyed start (an `api-key:<userId>`
+   * starter) — the run's spend is booked to it beside the starter's own
+   * usage, so the key's budget caps see it. Absent for every other door. */
+  apiKeyId?: string;
   version?: number;
   projectId?: string;
   /** Machine org routes must never infer a project from installation bindings. */
@@ -1561,11 +1565,12 @@ export async function beginRunInTx(
     const now = Date.now();
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
-        org_id, name, version, project_id, status, mode, started_by, input,
-        checkpoints, wake_at_ms, claim_epoch, started_at_ms
+        org_id, name, version, project_id, status, mode, started_by,
+        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
+        ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
         ${tx.json(toJson({ nodes: {}, executions: 0 }))},
         ${now}, 0, ${now}

@@ -967,13 +967,25 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The ledger names its subject by bare user id (`governance/README.md`);
+  // rows the workflow lane booked before it derived the person from the
+  // run's starter carry the door forms (`user:<id>`, `api-key:<id>`) and are
+  // the subject's spend all the same.
   await pass('usageLedger', async () => {
     const removed = await sql<{ orgId: string }[]>`
       DELETE FROM app.usage_ledger
+      WHERE org_id = ${organizationId}
+        AND user_id = ANY(${[targetUserId, `user:${targetUserId}`, `api-key:${targetUserId}`]})
+      RETURNING org_id AS "orgId"
+    `;
+    // The retired per-turn rows the chat lane wrote beside the ledger (no
+    // reader; the table goes in a later release) still name the subject.
+    const events = await sql<{ orgId: string }[]>`
+      DELETE FROM app.usage_events
       WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
       RETURNING org_id AS "orgId"
     `;
-    return removed.length;
+    return removed.length + events.length;
   });
 
   // `video_link_jobs` is its own category, not part of `uploads`: the job can
