@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import { taskCommentBodiesSchema } from '../../lib/shared/schemas/task-comment.ts';
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
 import { isHttpUrl } from '../../lib/utils/url.ts';
 import {
@@ -117,7 +118,10 @@ const taskIntakeBody = z
     },
   );
 const taskCommentBody = z
-  .object({ body: z.string().trim().min(1).max(TASK_COMMENT_MAX) })
+  .object({
+    body: z.string().trim().min(1).max(TASK_COMMENT_MAX),
+    bodyByLocale: taskCommentBodiesSchema.optional(),
+  })
   .strict();
 const taskStartBody = z
   .object({ workflowSlug: z.string().min(1).max(200) })
@@ -507,6 +511,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           authorType: comment.authorType,
           authorId: comment.authorId,
           body: comment.body,
+          ...(comment.bodyByLocale != null
+            ? { bodyByLocale: comment.bodyByLocale }
+            : {}),
           createdAt: comment.createdAt,
           ...(comment.editedAt !== null ? { editedAt: comment.editedAt } : {}),
         })),
@@ -537,7 +544,13 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const task = await loadVisibleTask(tx, auth, projectId, taskId, {
           active: true,
         });
-        return addTaskComment(tx, auth, { taskId: task.id, body: body.body });
+        return addTaskComment(tx, auth, {
+          taskId: task.id,
+          body: body.body,
+          ...(body.bodyByLocale !== undefined
+            ? { bodyByLocale: body.bodyByLocale }
+            : {}),
+        });
       });
       return c.json({ comment: { id: result.messageId } }, 201);
     } catch (error) {

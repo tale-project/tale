@@ -73,13 +73,15 @@ actions:
         body: { type: string, description: Markdown comment body. }
         bodyByLocale:
           type: object
-          additionalProperties: false
+          maxProperties: 16
+          additionalProperties: { type: string, minLength: 1, maxLength: 10000 }
+          propertyNames: { pattern: '^[a-z]{2}(-[A-Z]{2})?$' }
           required: [en, de, fr]
           properties:
-            en: { type: string }
-            de: { type: string }
-            fr: { type: string }
-          description: Optional per-locale bodies rendered to each reader's language.
+            en: { type: string, minLength: 1, maxLength: 10000 }
+            de: { type: string, minLength: 1, maxLength: 10000 }
+            fr: { type: string, minLength: 1, maxLength: 10000 }
+          description: Optional equivalent per-locale bodies, with en/de/fr required and additional language or language-region keys allowed. Readers select exact locale, base language, then English before falling back to body.
     output: '{ messageId: string }'
     mock: |
       return { messageId: `msg_${String(input.body ?? '').length}` };
@@ -107,7 +109,7 @@ actions:
           type: string
           description: Only comments newer than the last one containing this text.
         limit: { type: number, description: 'Newest N comments (max 100).' }
-    output: '{ count: number, truncated: boolean, comments: Array<{ authorType: string, authorId: string, body: string, createdAt: number }> }'
+    output: '{ count: number, truncated: boolean, comments: Array<{ authorType: string, authorId: string, body: string, bodyByLocale?: Record<string, string>, createdAt: number }> }'
     mock: |
       return {
         count: 1,

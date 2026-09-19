@@ -967,6 +967,67 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     ).toBe(false);
   });
 
+  it('task_comment preserves localized progress through the scoped agent writer', async () => {
+    const { dispatch } = await getActions();
+    const commentMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ messageId: 'm' }),
+    );
+    const { ctx } = createCtx({
+      actionContext: PROJECT_CTX,
+      readQuery: vi.fn(() =>
+        Promise.resolve({ _id: 'task_1', projectId: 'proj_1' }),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentAddComment')
+          ? commentMutation(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const bodies = {
+      en: 'Checked.',
+      de: 'Geprüft.',
+      fr: 'Vérifié.',
+      nl: 'Gecontroleerd.',
+    };
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_comment',
+      callArgs: { taskId: 'task_1', body: 'Geprüft.', bodyByLocale: bodies },
+    });
+    expect(result.status).toBe('ok');
+    expect(commentMutation.mock.calls[0]?.[1]).toMatchObject({
+      actorId: 'agent_7',
+      body: 'Geprüft.',
+      bodyByLocale: bodies,
+    });
+  });
+
+  it('task_comment refuses incomplete progress translations without writing', async () => {
+    const { dispatch } = await getActions();
+    const mutation = vi.fn<(...args: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { ctx } = createCtx({
+      actionContext: PROJECT_CTX,
+      runMutation: mutation,
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_comment',
+      callArgs: {
+        taskId: 'task_1',
+        body: 'Checked.',
+        bodyByLocale: { en: 'Checked.' },
+      },
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(
+      mutation.mock.calls.some((call) =>
+        fnName(call[0]).includes('agentAddComment'),
+      ),
+    ).toBe(false);
+  });
+
   it('task_upsert_by_external_ref on a bound run forces dedupeScope=project', async () => {
     const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ taskId: 'task_5', created: false }),

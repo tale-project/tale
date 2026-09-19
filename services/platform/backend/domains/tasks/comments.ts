@@ -517,6 +517,7 @@ export async function editTaskComment(
   await tx`
     UPDATE app.task_discussion_message_meta
     SET edited_at_ms = ${Date.now()},
+        body_by_locale = NULL,
         mentions = ${mentions.length > 0 ? tx.json(toJson(mentions)) : null}
     WHERE message_id = ${args.messageId}
   `;

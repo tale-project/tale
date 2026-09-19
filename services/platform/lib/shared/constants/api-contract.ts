@@ -148,5 +148,10 @@
  * `TEAM_NOT_IN_ORG`; a project audience that is too long or repeats a
  * team is `PROJECT_SHARING_INVALID`. Owners and admins now read every
  * team-scoped hub document and folder, as they already did every project.
+ *
+ * 1.18.0 — task discussion reads and comment writes preserve optional
+ * `bodyByLocale` snapshots so clients render workflow progress in the reader's
+ * selected language. Writes require en/de/fr and accept additional locale keys;
+ * plain-text edits clear stale translations.
  */
-export const API_CONTRACT_VERSION = '1.17.0';
+export const API_CONTRACT_VERSION = '1.18.0';

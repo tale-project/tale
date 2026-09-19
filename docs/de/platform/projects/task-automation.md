@@ -20,9 +20,15 @@ Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur 
 
 Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet.
 
+Agenten erhalten die Anweisung, Aktualisierungen, Berichte, zugehörige Aufgaben und Rückfragen in der Sprache von Titel und Beschreibung der Aufgabe zu verfassen. Ist daraus keine Sprache erkennbar, verwenden sie die Standardsprache der Organisation für Agenten. Eine Kennung, ein Quartal oder eine automatisch ausgefüllte Titelvorlage legt keine Sprache fest. Ein Wechsel deiner Oberflächensprache ändert die Sprache der Aufgabe nicht; du kannst den Agenten ausdrücklich um einen Sprachwechsel bitten.
+
+Fortschrittskommentare eines Workflows können Übersetzungen für jede unterstützte Oberflächensprache enthalten. Derselbe gespeicherte Kommentar erscheint dann in der jeweils gewählten Sprache. Kommentare ohne Übersetzungen behalten ihren ursprünglichen Text.
+
 ## Das Ergebnis lesen und annehmen
 
 Der Agent schreibt seinen Bericht als Aufgabenkommentar und legt erzeugte Dateien als Ergebnisse ab. Danach wechselt die Aufgabe auf **In Prüfung**. Der Reviewer erhält eine Benachrichtigung und bei eingerichtetem E-Mail-Versand auch eine E-Mail.
+
+Bereitgestellte oder übersprungene Dateien führt Tale in einem separaten Systemkommentar in deiner Oberflächensprache auf. Dort steht auch, wenn der Bericht fehlt oder gekürzt wurde. Der Bericht selbst bleibt in der Sprache der Aufgabe.
 
 Lies den Bericht, öffne die Dateien und vergleiche sie mit den Abschlusskriterien. Setze die Aufgabe erst auf **Erledigt**, wenn du die Arbeit annimmst. Tale hält die menschliche Entscheidung fest. Ein Agent darf seine eigene Aufgabe nicht als erledigt markieren.
 

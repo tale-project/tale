@@ -766,6 +766,49 @@ describe('project-scoped task reads and operations', () => {
     expect(service.addTaskComment).not.toHaveBeenCalled();
   });
 
+  it('accepts localized comments with the key holder’s existing attribution', async () => {
+    const { request, tx } = mount({ role: 'member' });
+    const bodies = {
+      en: 'Checked.',
+      de: 'Geprüft.',
+      fr: 'Vérifié.',
+      nl: 'Gecontroleerd.',
+    };
+    const response = await request(`${item}/comments`, 'POST', {
+      body: 'Geprüft.',
+      bodyByLocale: bodies,
+    });
+    expect(response.status).toBe(201);
+    expect(service.addTaskComment).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ userId: 'user-1' }),
+      { taskId: 't-1', body: 'Geprüft.', bodyByLocale: bodies },
+    );
+  });
+
+  it.each([
+    { en: 'Checked.', de: 'Geprüft.' },
+    { en: 'Checked.', de: 'Geprüft.', fr: '  ' },
+    {
+      en: 'Checked.',
+      de: 'Geprüft.',
+      fr: 'Vérifié.',
+      invalid_locale: 'Invalid.',
+    },
+    { en: 'Checked.', de: 'x'.repeat(10001), fr: 'Vérifié.' },
+  ])(
+    'refuses an invalid translation snapshot before writing',
+    async (bodyByLocale) => {
+      const { request } = mount();
+      const response = await request(`${item}/comments`, 'POST', {
+        body: 'Checked.',
+        bodyByLocale,
+      });
+      expect(response.status).toBe(400);
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+    },
+  );
+
   it('preserves comment pagination and rejects malformed cursors', async () => {
     const { request, sql } = mount();
     const list = 'task-comments:t-1';
@@ -801,6 +844,38 @@ describe('project-scoped task reads and operations', () => {
     const limit = await request(`${item}/comments?limit=abc`);
     expect(limit.status).toBe(400);
     expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+  });
+
+  it('returns locale snapshots for clients to render each reader’s selected language', async () => {
+    const bodies = {
+      en: 'Checked.',
+      de: 'Geprüft.',
+      fr: 'Vérifié.',
+      'de-CH': 'Geprüft.',
+      nl: 'Gecontroleerd.',
+      it: 'Verificato.',
+    };
+    service.listTaskComments.mockResolvedValue({
+      comments: [
+        {
+          messageId: 'comment-1',
+          authorType: 'agent',
+          authorId: 'workflow',
+          body: 'Geprüft.',
+          bodyByLocale: bodies,
+          createdAt: 3,
+          editedAt: null,
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    });
+    const { request } = mount();
+    const response = await request(`${item}/comments`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      comments: [{ body: 'Geprüft.', bodyByLocale: bodies }],
+    });
   });
 
   it('refuses a member workflow start', async () => {

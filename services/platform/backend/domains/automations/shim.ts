@@ -14,6 +14,7 @@ import { runConnectorAction } from '../connectors/service.ts';
 import { listFilesByFolder } from '../documents/agent-list.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { scheduleGatewayKeyReconcile } from '../sandbox/spend-settlement.ts';
+import { loadAgentLanguageContext } from '../tasks/agent-language.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -443,6 +444,53 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         `;
         return { stamped: true };
       });
+    },
+
+    'automations/queries:getRunLanguageContext': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const runs = await sql<
+        {
+          taskId: string | null;
+          taskTitleTemplate: string | null;
+          projectId: string | null;
+          name: string;
+        }[]
+      >`
+        SELECT r.input -> 'task' ->> 'id' AS "taskId",
+               r.project_id AS "projectId", r.name,
+               a.task_contract -> 'create' ->> 'titleTemplate' AS "taskTitleTemplate"
+        FROM app.automation_runs r
+        LEFT JOIN app.automations a ON a.org_id = r.org_id
+          AND a.name = r.name AND a.version = r.version
+        WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const run = runs[0];
+      const bindings =
+        run !== undefined && run.projectId === null
+          ? await sql<{ projectId: string }[]>`
+            SELECT project_id AS "projectId" FROM app.automation_project_bindings
+            WHERE org_id = ${args.organizationId} AND automation_name = ${run.name}
+          `
+          : [];
+      const projectIds =
+        run?.projectId != null
+          ? [run.projectId]
+          : bindings.length > 0
+            ? bindings.map((binding) => binding.projectId)
+            : undefined;
+      const context = await loadAgentLanguageContext(sql, {
+        organizationId: args.organizationId,
+        taskId: run?.taskId,
+        ...(projectIds !== undefined ? { projectIds } : {}),
+      });
+      return {
+        ...context,
+        ...(run?.taskTitleTemplate != null
+          ? { taskTitleTemplate: run.taskTitleTemplate }
+          : {}),
+      };
     },
 
     'automations/queries:getRunProjectId': async (raw) => {

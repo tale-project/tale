@@ -11,6 +11,10 @@
 
 import { z } from 'zod';
 
+import {
+  taskCommentBodiesSchema,
+  type TaskCommentBodies,
+} from '../../shared/schemas/task-comment';
 import type {
   NativeConnectorContext,
   NativeConnectorImpl,
@@ -49,6 +53,7 @@ export interface WorkflowTaskComment {
   authorType: 'user' | 'agent';
   authorId: string;
   body: string;
+  bodyByLocale?: Record<string, string>;
   createdAt: number;
 }
 
@@ -67,7 +72,7 @@ export interface WorkflowTaskStore {
     organizationId: string;
     taskId: string;
     body: string;
-    bodyByLocale?: { en: string; de: string; fr: string };
+    bodyByLocale?: TaskCommentBodies;
   }): Promise<{ messageId: string }>;
   /** The NEWEST comments the store will answer in one read, chronological;
    * `truncated` when the discussion holds older ones beyond that window. */
@@ -105,10 +110,7 @@ function refusalSentence(reason: string | undefined): string {
 const commentInput = taskRef
   .extend({
     body: z.string().min(1),
-    bodyByLocale: z
-      .object({ en: z.string(), de: z.string(), fr: z.string() })
-      .strict()
-      .optional(),
+    bodyByLocale: taskCommentBodiesSchema.optional(),
   })
   .strict();
 
@@ -231,12 +233,17 @@ export function platformTaskNatives(
     return {
       count: window.length,
       truncated: listed.truncated,
-      comments: window.map((entry) => ({
-        authorType: entry.authorType,
-        authorId: entry.authorId,
-        body: entry.body,
-        createdAt: entry.createdAt,
-      })),
+      comments: window.map((entry) => {
+        const projected: WorkflowTaskComment = {
+          authorType: entry.authorType,
+          authorId: entry.authorId,
+          body: entry.body,
+          createdAt: entry.createdAt,
+        };
+        if (entry.bodyByLocale !== undefined)
+          projected.bodyByLocale = entry.bodyByLocale;
+        return projected;
+      }),
     };
   };
 

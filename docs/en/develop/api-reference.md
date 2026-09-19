@@ -1128,6 +1128,10 @@ curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>
 
 ### Read comments and download deliverables
 
+Comment writes accept optional `bodyByLocale` alongside the canonical `body`, and comment reads return it when present. Supply equivalent nonblank translations for `en`, `de` and `fr`; additional language or language-region keys such as `nl`, `it` and `de-CH` are allowed. Each value is trimmed and limited to 10,000 characters, with at most 16 locales per comment. Render the reader's exact locale, then its base language, then `en`, then `body`. Attribution remains the key holder's. A plain-text edit in Tale clears the old translations so they cannot hide the edit.
+
+Task and workflow agents receive instructions to preserve the language established by the task title and description, falling back to the organization's default agent language. Generated title-template words, quarter identifiers, source-document languages and the run starter's UI locale do not establish the task language. The same policy applies to operator questions, resumed turns and related task creation. This is model guidance; localized progress snapshots let clients select a translation independently of the canonical task language.
+
 Read the run output and task comments to collect the automation's results. Whether it also creates files, and where it stores them, depends on the workflow; starting a task does not by itself put files in the example quarter folder.
 
 Comments arrive in pages, newest page first and chronological within each page. `limit` defaults to 200 and allows at most 500. While `isDone` is `false`, pass `continueCursor` unchanged as `cursor` to read older comments. It is an opaque signed token, not a page number.

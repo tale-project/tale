@@ -2,7 +2,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getProjectAuthContext } from '../projects/service.ts';
-import { addTaskComment } from '../tasks/comments.ts';
+import { addTaskComment, listTaskComments } from '../tasks/comments.ts';
 import { pgTaskStore } from './task-store.ts';
 
 vi.mock('../projects/service.ts', () => ({ getProjectAuthContext: vi.fn() }));
@@ -15,6 +15,7 @@ vi.mock('../tasks/comments.ts', () => ({
 beforeEach(() => {
   vi.mocked(getProjectAuthContext).mockReset();
   vi.mocked(addTaskComment).mockReset();
+  vi.mocked(listTaskComments).mockReset();
 });
 
 /**
@@ -146,5 +147,44 @@ describe('pgTaskStore.comment', () => {
     });
     const [, , args] = vi.mocked(addTaskComment).mock.calls[0] ?? [];
     expect(args).not.toHaveProperty('bodyByLocale');
+  });
+});
+
+it('preserves localized workflow comments through native readback', async () => {
+  const bodies = {
+    en: 'Checked.',
+    de: 'Geprüft.',
+    fr: 'Vérifié.',
+    nl: 'Gecontroleerd.',
+  };
+  vi.mocked(getProjectAuthContext).mockResolvedValue({
+    organizationId: 'org-1',
+    userId: 'system',
+    role: 'owner',
+    teamIds: [],
+  });
+  vi.mocked(listTaskComments).mockResolvedValue({
+    comments: [
+      {
+        messageId: 'm-1',
+        authorType: 'agent',
+        authorId: 'workflow',
+        body: 'Checked.',
+        bodyByLocale: bodies,
+        createdAt: 3,
+        editedAt: null,
+        mentions: [],
+      },
+    ],
+    hasMore: false,
+    nextCursor: null,
+  });
+  const result = await pgTaskStore(sqlStub({ rows: [] })).listComments({
+    organizationId: 'org-1',
+    taskId: 'task-1',
+  });
+  expect(result.comments[0]).toMatchObject({
+    body: 'Checked.',
+    bodyByLocale: bodies,
   });
 });

@@ -360,7 +360,7 @@ export interface TasksContract {
         createdAt: number;
         editedAt?: number;
         mentions?: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
-        bodyByLocale?: { en: string; de: string; fr: string };
+        bodyByLocale?: Record<string, string>;
       }>;
       isDone: boolean;
       continueCursor: string;

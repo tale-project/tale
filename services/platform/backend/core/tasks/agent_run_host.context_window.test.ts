@@ -14,6 +14,7 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
 
 const io = vi.hoisted(() => ({
+  instructions: [] as string[],
   starts: [] as Array<{ execId: string; env: Record<string, string> }>,
   builds: [] as Array<{ execId: string; contextWindow?: number }>,
   /** The windows the drain answers, in order; `running` once they run out. */
@@ -28,6 +29,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     buildExternalTurnExec: (
       args: Parameters<typeof actual.buildExternalTurnExec>[0],
     ) => {
+      io.instructions.push(args.instructions);
       io.builds.push({
         execId: args.execId,
         ...(args.contextWindow !== undefined
@@ -137,6 +139,12 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       if (name === 'projects/internal_queries:getProjectAgentSkillScope') {
         return null;
       }
+      if (name === 'tasks/agent_runs:getAgentLanguageContext') {
+        return {
+          defaultLocale: 'fr',
+          task: { id: 'task-1', title: 'Unterlagen prüfen', description: null },
+        };
+      }
       if (name === 'tasks/agent_runs:getTaskBriefForAgentRun') {
         return {
           title: 'Book the synthetic invoice',
@@ -200,6 +208,7 @@ const KEYS = {
 
 beforeEach(() => {
   io.starts = [];
+  io.instructions = [];
   io.builds = [];
   io.windows = [];
   vi.mocked(resolveModel).mockReset();
@@ -215,6 +224,10 @@ describe('a task agent start', () => {
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     expect(io.starts).toHaveLength(1);
+    expect(io.instructions[0]).toContain(
+      'default agent language is French (fr)',
+    );
+    expect(io.instructions[0]).toContain('Unterlagen prüfen');
     expect(io.starts[0]?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('32768');
     // The context limit is read for the run's starter, through this very
     // exec's op.
@@ -276,6 +289,10 @@ describe('a task agent start', () => {
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     expect(io.starts).toHaveLength(1);
+    expect(io.instructions[0]).toContain(
+      'default agent language is French (fr)',
+    );
+    expect(io.instructions[0]).toContain('Unterlagen prüfen');
     expect(io.starts[0]?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('');
     expect(console.error).not.toHaveBeenCalled();
   });

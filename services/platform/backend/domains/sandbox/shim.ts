@@ -463,6 +463,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         actorId: string;
         taskId: string;
         body: string;
+        bodyByLocale?: Record<string, string>;
       };
       // The bridge already resolved WRITE authority (a project-bound
       // session); this writer is the trusted lower half, so it runs with an
@@ -479,6 +480,9 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           {
             taskId: args.taskId,
             body: args.body,
+            ...(args.bodyByLocale !== undefined
+              ? { bodyByLocale: args.bodyByLocale }
+              : {}),
             author: { actorType: 'agent', actorId: args.actorId },
           },
         );

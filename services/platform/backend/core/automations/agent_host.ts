@@ -25,6 +25,7 @@
 
 import { randomBytes, randomUUID } from 'node:crypto';
 
+import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import type { SkillViewer } from '../../../lib/skills/visibility';
 import {
   buildExternalTurnExec,
@@ -1207,6 +1208,15 @@ export async function startWorkflowAgentTurnImpl(
         ...(args.request.system !== undefined && args.request.system !== ''
           ? [args.request.system]
           : []),
+        agentLanguageGuidance(
+          await ctx.runQuery(
+            internal.automations.queries.getRunLanguageContext,
+            {
+              organizationId: args.organizationId,
+              runId: args.runId,
+            },
+          ),
+        ),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         ...(mounts.length > 0
           ? [
@@ -1764,6 +1774,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         ...(request.system !== undefined && request.system !== ''
           ? [request.system]
           : []),
+        agentLanguageGuidance(
+          await ctx.runQuery(
+            internal.automations.queries.getRunLanguageContext,
+            {
+              organizationId: args.organizationId,
+              runId: askRunId,
+            },
+          ),
+        ),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
