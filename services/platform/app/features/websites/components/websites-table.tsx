@@ -51,8 +51,7 @@ export function WebsitesTable({
     sessionStorage.setItem(key, String(Date.now()));
     syncStatuses({ organizationId });
   }, [organizationId, syncStatuses]);
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useWebsitesTableConfig();
+  const { columns, searchPlaceholder, pageSize } = useWebsitesTableConfig();
   const paginatedResult = useListWebsitesPaginated({
     organizationId,
     status,
@@ -190,7 +189,7 @@ export function WebsitesTable({
     <>
       <DataTable
         columns={columns}
-        stickyLayout={stickyLayout}
+        stickyLayout
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}

@@ -47,9 +47,7 @@ function KnowledgeLayout() {
       }
       organizationId={organizationId}
     >
-      <ContentArea className="min-h-0 flex-1 py-4">
-        {!abilityLoading && <Outlet />}
-      </ContentArea>
+      <ContentArea variant="list">{!abilityLoading && <Outlet />}</ContentArea>
     </PageLayout>
   );
 }

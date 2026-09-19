@@ -23,6 +23,7 @@ import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 import {
   automationDisplayIcon,
@@ -50,18 +51,19 @@ interface AutomationListRow {
   presentation?: unknown;
 }
 
-const PAGE_SIZE = 25;
-
 /**
  * The organization's automations — or one project's, when rendered in that
  * project's Automations tab.
  *
- * A DataTable like Projects: full-width rows under the area header, create in
- * the toolbar, search, and a row menu for delete. Each row still answers the
- * two questions the list can — how many versions exist, and which one (if any)
- * is live — so an undeployed draft cannot be mistaken for a running schedule.
+ * A DataTable like Projects and the Knowledge tables: full-width rows under
+ * the area header, create in the toolbar, search, and a row menu for delete.
+ * Each row still answers the two questions the list can — how many versions
+ * exist, and which one (if any) is live — so an undeployed draft cannot be
+ * mistaken for a running schedule.
  *
- * The area shell already owns the page title (`AdaptiveHeaderTitle`).
+ * The area shell owns the page title (`AdaptiveHeaderTitle`) and the
+ * `ContentArea variant="list"` frame this table measures its `stickyLayout`
+ * scrollport against.
  */
 export function AutomationsList({
   organizationId,
@@ -245,7 +247,7 @@ export function AutomationsList({
       type: 'query',
       data: automationsQuery.isPending ? undefined : rows,
     },
-    pageSize: PAGE_SIZE,
+    pageSize: DEFAULT_TABLE_PAGE_SIZE,
     search: {
       fields: ['displayName', 'name'],
       placeholder: t('list.searchPlaceholder'),
@@ -323,20 +325,21 @@ export function AutomationsList({
         />
       )}
 
+      {/* Named reason beats the table's generic `error` display here: a
+          provider or config fault is the usual cause and the operator needs
+          to read it. The list frame supplies the inset. */}
       {automationsQuery.isError && (
-        <div className="px-4 pt-4">
-          <Alert
-            variant="destructive"
-            description={t('list.loadFailed', {
-              error: automationErrorMessage(automationsQuery.error),
-            })}
-          />
-        </div>
+        <Alert
+          variant="destructive"
+          description={t('list.loadFailed', {
+            error: automationErrorMessage(automationsQuery.error),
+          })}
+        />
       )}
 
       {!automationsQuery.isError && (
         <DataTable
-          className="p-4"
+          stickyLayout
           caption={t('title')}
           columns={columns}
           onRowClick={handleRowClick}

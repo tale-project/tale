@@ -17,7 +17,6 @@ export const DEFAULT_TABLE_PAGE_SIZE = 20;
 
 interface TableConfigMetadata {
   searchPlaceholder: string;
-  stickyLayout: boolean;
   pageSize: number;
   defaultSort: string;
   defaultSortDesc: boolean;
@@ -39,8 +38,6 @@ interface CreateTableConfigOptions<TRow> {
   defaultSortDesc?: boolean;
   /** Page size (default: {@link DEFAULT_TABLE_PAGE_SIZE}) */
   pageSize?: number;
-  /** Enable sticky layout (default: true) */
-  stickyLayout?: boolean;
   /** Enable infinite scroll (default: true) */
   infiniteScroll?: boolean;
 }
@@ -65,6 +62,12 @@ type ColumnsBuilder<TData> = (ctx: ColumnBuilderContext) => ColumnDef<TData>[];
  * - Automatic translation hook setup
  * - Pre-built column builders for common patterns
  * - Consistent return type structure
+ *
+ * How the table SCROLLS is not configured here. Every overview list — the
+ * Knowledge tables, Automations and Projects — is a fixed frame: the page
+ * renders `<ContentArea variant="list">` and the table takes the bare
+ * `stickyLayout` flag, so the contract reads the same at all of them and an
+ * entity cannot opt one list out of it by hand.
  *
  * @example
  * ```tsx
@@ -98,7 +101,6 @@ export function createTableConfigHook<TRow>(
     defaultSort,
     defaultSortDesc = true,
     pageSize = DEFAULT_TABLE_PAGE_SIZE,
-    stickyLayout = true,
     infiniteScroll = true,
   } = options;
 
@@ -132,7 +134,6 @@ export function createTableConfigHook<TRow>(
     return {
       columns,
       searchPlaceholder: tEntity('searchPlaceholder'),
-      stickyLayout,
       pageSize,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- keyof TRow is always string here; narrowing for the TableConfig interface
       defaultSort: defaultSort as string,

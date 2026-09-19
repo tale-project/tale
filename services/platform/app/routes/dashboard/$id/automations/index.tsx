@@ -2,6 +2,7 @@ import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@tale/ui/adaptive-header';
+import { ContentArea } from '@tale/ui/content-area';
 import { PageLayout } from '@tale/ui/page-layout';
 import { createFileRoute } from '@tanstack/react-router';
 
@@ -28,9 +29,10 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
 });
 
 /**
- * The Automations list — the same shell as the Projects list: the page owns
- * its layout, and the title row ends in the section divider because no tab
- * strip follows it.
+ * The Automations list — the same shell as the Projects list and the Knowledge
+ * tables: the title row ends in the section divider because no tab strip
+ * follows it, and `ContentArea variant="list"` bounds the body so the table
+ * scrolls inside its own frame instead of growing the page.
  */
 function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
@@ -44,7 +46,9 @@ function AutomationsPage() {
         </AdaptiveHeaderRoot>
       }
     >
-      <AutomationsList organizationId={organizationId} />
+      <ContentArea variant="list">
+        <AutomationsList organizationId={organizationId} />
+      </ContentArea>
     </PageLayout>
   );
 }

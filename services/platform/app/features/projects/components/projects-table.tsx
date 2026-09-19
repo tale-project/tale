@@ -25,6 +25,7 @@ import {
 } from '@/app/features/settings/teams/lib/audience-filter';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 
 import { useArchiveProject } from '../hooks/mutations';
@@ -454,7 +455,7 @@ export function ProjectsTable({
       type: 'query',
       data: isLoading ? undefined : visibleProjects,
     },
-    pageSize: 25,
+    pageSize: DEFAULT_TABLE_PAGE_SIZE,
     search: {
       // `key` is visible in the row now, so typing `TAL` must find the project.
       fields: ['name', 'description', 'key'],
@@ -470,13 +471,10 @@ export function ProjectsTable({
   return (
     <>
       <DataTable
-        // `p-4` gives this table the same 16px page inset every other
-        // top-level entity table has — knowledge tables inherit it from the
-        // `_knowledge` layout's `<ContentArea py-4>`, agents sets it here the
-        // same way. `PageLayout` itself adds no padding, so without this the
-        // table renders flush to the edge (no gap) and its select / 3-dot
-        // columns sit out of line with the rest of the app.
-        className="p-4"
+        // The page inset comes from the route's `ContentArea variant="list"`,
+        // which also bounds the height this sticky frame fills — so the
+        // toolbar and the header row stay put and only the rows scroll.
+        stickyLayout
         {...list.tableProps}
         columns={columns}
         // Mirror single-row archive gating: only admins, and skip rows that

@@ -1226,6 +1226,10 @@ export function DataTable<TData, TValue = unknown>({
         <div className="border-border flex min-h-0 flex-col overflow-hidden rounded-lg border">
           <div
             ref={scrollContainerRef}
+            // The fixed frame's one scrollport. Named so a list page can
+            // assert it takes the overflow instead of the page shell — the
+            // difference between a table that scrolls and a page that grows.
+            data-testid="data-table-scrollport"
             className="min-h-0 overflow-auto overscroll-contain"
           >
             <div className="w-fit min-w-full">

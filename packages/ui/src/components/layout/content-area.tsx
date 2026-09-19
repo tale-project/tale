@@ -21,6 +21,16 @@ const contentAreaVariants = cva(
     variants: {
       variant: {
         page: 'px-4 pt-6 [--content-area-pb:1.5rem]',
+        // The overview-list measure: ONE frame for every collection screen
+        // (Automations, Projects, the Knowledge tables). `min-h-0 flex-1`
+        // bounds the height against the page shell, which is what a
+        // `DataTable stickyLayout` measures itself against — so the toolbar,
+        // the header row and the footer stay put and only the rows scroll,
+        // inside the table's own scrollport. Without it the table grows and
+        // the PAGE scrolls instead, which is the drift this variant exists to
+        // prevent. Anything else the page stacks above the table (a folder
+        // breadcrumb, a load-failure alert) is a sibling inside this frame.
+        list: 'min-h-0 flex-1 px-4 pt-4 [--content-area-pb:1.5rem]',
         // `max-w-3xl` is the settings measure (`SettingsPage`, #2567): every
         // configuration surface — org settings, project tabs, automation
         // settings — shares one content width so switching between them

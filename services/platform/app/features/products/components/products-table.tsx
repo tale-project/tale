@@ -42,8 +42,7 @@ export function ProductsTable({
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: count } = useApproxProductCount(organizationId);
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useProductsTableConfig();
+  const { columns, searchPlaceholder, pageSize } = useProductsTableConfig();
   const paginatedResult = useListProductsPaginated({
     organizationId,
     status,
@@ -148,7 +147,7 @@ export function ProductsTable({
     <>
       <DataTable
         columns={columns}
-        stickyLayout={stickyLayout}
+        stickyLayout
         onRowClick={handleRowClick}
         enableRowSelection
         rowSelection={rowSelection}

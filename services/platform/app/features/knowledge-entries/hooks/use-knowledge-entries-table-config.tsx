@@ -23,7 +23,6 @@ import type { KnowledgeEntryItem } from './queries';
 interface KnowledgeEntriesTableConfig {
   columns: ColumnDef<KnowledgeEntryItem>[];
   searchPlaceholder: string;
-  stickyLayout: boolean;
   pageSize: number;
 }
 
@@ -153,7 +152,6 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
   return {
     columns,
     searchPlaceholder: tEntity('searchPlaceholder'),
-    stickyLayout: true,
     pageSize: DEFAULT_TABLE_PAGE_SIZE,
   };
 }

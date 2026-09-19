@@ -397,16 +397,15 @@ export function DocumentsTable({
     [navigateToFolder, openPreview],
   );
 
-  const { columns, stickyLayout, pageSize, searchPlaceholder } =
-    useDocumentsTableConfig({
-      onDocumentClick: handleDocumentClick,
-      onDocumentView: openPreview,
-      currentFolderId,
-      onFolderDeleted: handleFolderDeleted,
-      isLoadingTeams,
-      teamMap,
-      parentFolderTeamId,
-    });
+  const { columns, pageSize, searchPlaceholder } = useDocumentsTableConfig({
+    onDocumentClick: handleDocumentClick,
+    onDocumentView: openPreview,
+    currentFolderId,
+    onFolderDeleted: handleFolderDeleted,
+    isLoadingTeams,
+    teamMap,
+    parentFolderTeamId,
+  });
 
   const list = useListPage({
     dataSource: {
@@ -460,7 +459,7 @@ export function DocumentsTable({
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
         rowClassName={getRowClassName}
-        stickyLayout={stickyLayout}
+        stickyLayout
         actionMenu={
           <DocumentsActionMenu
             organizationId={organizationId}

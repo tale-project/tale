@@ -53,7 +53,6 @@ vi.mock('../hooks/use-websites-table-config', () => ({
   useWebsitesTableConfig: () => ({
     columns: [],
     searchPlaceholder: 'Search websites',
-    stickyLayout: undefined,
     pageSize: 10,
   }),
 }));
