@@ -29,9 +29,10 @@ keeps viewport-layout rows only.
 Bring the stack up and sign in per [SETUP.md](../setup.md). For NAV-F4
 (command palette) have at least one chat thread with searchable content.
 NAV-F5 (org switcher) needs the signed-in account to belong to **two or more**
-orgs — a freshly-seeded single-org account cannot switch. NAV-F6 (team filter)
-needs the org to have **at least one team** (Settings → Teams); the filter row
-is hidden when the org has no teams.
+orgs — a freshly-seeded single-org account cannot switch. NAV-F6 (teams row)
+needs the signed-in account to be a member of **at least one team** (Settings
+→ Teams → add yourself); the row is always present once the teams have
+loaded, and reads **No teams** for an account in none.
 
 > **Agent note**: smoke every route once (navigate + check it renders), then
 > drive NAV-F4/NAV-F8/NAV-A1 by hand. The chat palette (Cmd/Ctrl+K) is wired
@@ -77,10 +78,14 @@ is hidden when the org has no teams.
   ≥2 orgs) → URL passes through `/dashboard/switching?to={otherOrg}` (shows
   the switching spinner), then lands on `/dashboard/{otherOrg}/…`; data is
   scoped to the new org.
-- [ ] `NAV-F6` · **Team filter** — In the user/avatar menu (bottom-left),
-  expand the **Team** row (`navigation.teamFilter.label`) and pick a team
-  (needs ≥1 team) → The selected team name shows as the row badge; lists scope
-  to that team (verify a list count/contents changes)
+- [ ] `NAV-F6` · **Teams row** — In the user/avatar menu (bottom-left), read
+  the **Teams** row (`navigation.myTeams.label`), then click it → The row is a
+  plain item, not a picker: its badge names the caller's teams (two names,
+  then `+n` per `navigation.myTeams.more`; `navigation.myTeams.none` for an
+  account in no team); clicking it closes the menu and lands on
+  `/dashboard/{org}/settings/account#teams` with the **Your teams** section
+  (`settings.account.teams.title`) in view; no list anywhere changes — a
+  team is an audience label on work, never a context to switch into.
 - [ ] `NAV-F7` · **Governance disclosure** — **Settings** → in the settings
   rail (`<nav aria-label>` = **Settings**, `navigation.userSettings`) expand
   **Governance** (`navigation.governance`) → click **Policies & Limits**

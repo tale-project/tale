@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 32 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 33 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -304,6 +304,17 @@ records and delete them after.
   (`documents.preview.sidebar.source`) shows the same mark and words, never
   `google_drive`. Repeat in the dark theme → the marks and glyphs stay
   visible.
+
+- [ ] `KNOW-F20` · **Teams filter = audience, not context** — As a member of
+  team A only, with one org-wide document, one document assigned to A and one
+  assigned to another team B that you can still see as an admin (or seed via
+  REST as owner) → The **Teams** filter offers **Organization-wide**
+  (`documents.filter.teams.orgWide`), **My teams**
+  (`documents.filter.teams.mine`) and every team of the org by name (the
+  directory, not only your own); **Organization-wide** keeps only the untagged
+  row, **My teams** only the A row, picking B by name only the B row, and any
+  two selections union; the choice lands in the URL as `?teams=org,mine,…`
+  and survives a reload; **Clear filters** empties it.
 
 ## Boundary & error tests
 
