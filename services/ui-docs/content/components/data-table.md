@@ -45,6 +45,12 @@ When an initially empty table has no search/filter toolbar, `addAction` moves in
 
 When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `triggerRef` and pass the same ref to the dialog's `restoreFocusRef`. The menu item disappears when the dialog opens; the toolbar button remains the keyboard user's return point after closing it.
 
+## Decide what scrolls
+
+`stickyLayout` turns the table into a fixed frame: the toolbar, the header row and the footer hold their place while the rows scroll in the table's own scrollport. It measures itself against its parent, so it needs a bounded one — `ContentArea variant="list"` on a collection screen. Without that bound the frame collapses.
+
+Leave it off for a table embedded in a page that scrolls as a whole, such as a section of a settings page. Every collection screen takes it; see the [list-page pattern](/docs/patterns/list-page).
+
 ## Loading and errors
 
 Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve space: an unknown count gives the default skeleton; a positive estimate gives skeleton rows up to the component's cap; zero allows the supplied initial empty state. Do not pass zero merely because a request has not returned yet.

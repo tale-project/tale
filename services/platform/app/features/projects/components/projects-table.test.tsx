@@ -308,6 +308,16 @@ describe('ProjectsTable', () => {
     ).toHaveLength(1);
   });
 
+  it('renders the fixed frame every overview list uses', () => {
+    // Projects, Automations and the Knowledge tables are all the same shape:
+    // the table owns a scrollport so the toolbar, the header row and the
+    // count footer stay put. Without it the page shell scrolls instead and
+    // this list drifts away from the other two.
+    renderTable([row({ name: 'Acme onboarding' })]);
+
+    expect(screen.getByTestId('data-table-scrollport')).toBeInTheDocument();
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = renderTable([
       row({

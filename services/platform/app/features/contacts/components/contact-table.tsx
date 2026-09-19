@@ -42,8 +42,7 @@ export function ContactsTable({
   const { t: tGlobal } = useT('global');
 
   const { data: count } = useApproxContactCount(organizationId);
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useContactsTableConfig();
+  const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
   const paginatedResult = useListContactsPaginated({
     organizationId,
     source,
@@ -194,7 +193,7 @@ export function ContactsTable({
     <>
       <DataTable
         columns={columns}
-        stickyLayout={stickyLayout}
+        stickyLayout
         onRowClick={handleRowClick}
         enableRowSelection
         rowSelection={rowSelection}

@@ -21,8 +21,9 @@ The following excerpt assumes the host supplies columns, filtered rows, query st
     </AdaptiveHeaderRoot>
   }
 >
-  <ContentArea>
+  <ContentArea variant="list">
     <DataTable
+      stickyLayout
       columns={columns}
       data={rows}
       getRowId={(row) => row.id}
@@ -36,6 +37,14 @@ The following excerpt assumes the host supplies columns, filtered rows, query st
 ```
 
 Import these components from their `@tale/ui` subpaths and mount the [adaptive header context and mobile slot](/docs/components/app-shell) in the surrounding application. This fragment is the page body, not a complete app entry point.
+
+## Scroll the rows, not the page
+
+`ContentArea variant="list"` and `DataTable stickyLayout` are one decision, not two options. The variant bounds the body against the page shell; the table then takes that bound and puts its own scrollport around the rows, so the toolbar, the header row and the count footer stay where the reader left them. Write both on every collection screen.
+
+Omit either and the table grows to its content and the page scroller moves instead: search and the create action scroll off the top, and two collection screens in the same product start behaving differently. A short list is unaffected — the frame hugs its rows rather than stretching to fill the viewport.
+
+Content the page stacks above the table — a folder breadcrumb, a load-failure alert — is a sibling inside the same `ContentArea`, so it keeps the page inset and the table keeps the remaining height. Tables embedded in a scrolling settings page are the exception: they are not collection screens and take neither the variant nor the flag.
 
 ## Connect the controls to one data source
 

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -72,7 +72,6 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('../hooks/use-documents-table-config', () => ({
   useDocumentsTableConfig: () => ({
     columns: [],
-    stickyLayout: undefined,
     pageSize: 20,
     searchPlaceholder: 'Search documents',
   }),
@@ -120,6 +119,14 @@ describe('DocumentsTable', () => {
       );
       expect(paginatedMock.loadMore).not.toHaveBeenCalled();
     });
+  });
+
+  it('renders the fixed frame every overview list uses', () => {
+    // The knowledge side of the same contract Projects and Automations now
+    // hold: the table owns the scrollport, the page shell never grows.
+    render(<DocumentsTable organizationId="test-org-id" />);
+
+    expect(screen.getByTestId('data-table-scrollport')).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

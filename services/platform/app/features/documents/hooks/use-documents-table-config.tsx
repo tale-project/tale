@@ -11,6 +11,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 import { documentScopeKind, scopeTeamIds } from '@/lib/knowledge/types';
 import { documentIconExtension } from '@/lib/shared/file-types';
@@ -37,7 +38,6 @@ interface DocumentsTableConfigParams {
 
 interface DocumentsTableConfig {
   columns: ColumnDef<DocumentItem>[];
-  stickyLayout: boolean;
   pageSize: number;
   searchPlaceholder: string;
 }
@@ -357,8 +357,7 @@ export function useDocumentsTableConfig({
 
   return {
     columns,
-    stickyLayout: true,
-    pageSize: 20,
+    pageSize: DEFAULT_TABLE_PAGE_SIZE,
     searchPlaceholder: tDocuments('searchPlaceholder'),
   };
 }

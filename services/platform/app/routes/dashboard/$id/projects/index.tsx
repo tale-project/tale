@@ -2,6 +2,7 @@ import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@tale/ui/adaptive-header';
+import { ContentArea } from '@tale/ui/content-area';
 import { PageLayout } from '@tale/ui/page-layout';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
@@ -71,11 +72,13 @@ function ProjectsPage() {
         </AdaptiveHeaderRoot>
       }
     >
-      <ProjectsTable
-        organizationId={organizationId}
-        teamFilter={teamFilter}
-        onTeamFilterChange={handleTeamFilterChange}
-      />
+      <ContentArea variant="list">
+        <ProjectsTable
+          organizationId={organizationId}
+          teamFilter={teamFilter}
+          onTeamFilterChange={handleTeamFilterChange}
+        />
+      </ContentArea>
     </PageLayout>
   );
 }

@@ -140,6 +140,19 @@ describe('AutomationsList', () => {
   });
 });
 
+describe('AutomationsList frame', () => {
+  it('renders the fixed frame every overview list uses', () => {
+    // The defect this locks: Automations used to render the non-sticky
+    // layout, so the whole page scrolled and the search + Create toolbar
+    // slid away — while Projects and the Knowledge tables kept theirs. One
+    // scrollport, owned by the table, at all three.
+    automationsData = [{ name: 'org/digest', latest: 1, projectIds: [] }];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(screen.getByTestId('data-table-scrollport')).toBeInTheDocument();
+  });
+});
+
 describe('AutomationsList presentation', () => {
   it('shows the pack s declared glyph and catalog chips beside the name', () => {
     automationsData = [

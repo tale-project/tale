@@ -32,7 +32,7 @@ export function KnowledgeEntriesTable({
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: count } = useApproxKnowledgeEntryCount(organizationId);
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
+  const { columns, searchPlaceholder, pageSize } =
     useKnowledgeEntriesTableConfig();
   const paginatedResult = useListKnowledgeEntriesPaginated({
     organizationId,
@@ -90,7 +90,7 @@ export function KnowledgeEntriesTable({
     <>
       <DataTable
         columns={columns}
-        stickyLayout={stickyLayout}
+        stickyLayout
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}

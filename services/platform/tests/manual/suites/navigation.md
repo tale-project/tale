@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 37 boxes
 
 Exercise cross-app navigation — the primary side-nav rail, the breadcrumb
 trail, browser back/forward, the chat command palette (Cmd/Ctrl+K), the org
@@ -181,6 +181,20 @@ loaded, and reads **No teams** for an account in none.
   The request went out authorized; after the reload the lock is open again
   and DevTools → Application → Local storage for the origin holds no
   `authorized` entry.
+- [ ] `NAV-F21` · **Every overview list is one fixed frame** — At a viewport
+  short enough that the rows overflow (1280×720 is enough with ~25 rows), visit
+  `/dashboard/{org}/automations`, `/dashboard/{org}/projects` and
+  `/dashboard/{org}/knowledge-entries` in turn and scroll each with the wheel →
+  On all three the rows move INSIDE the bordered table while the search field,
+  the create button, the column header row and the "Showing all N …" footer
+  stay put; the page itself never scrolls. In the console,
+  `[...document.querySelectorAll('*')].filter(el => el.scrollHeight >
+  el.clientHeight + 4 && ['auto','scroll'].includes(getComputedStyle(el).overflowY))`
+  returns exactly ONE element per page, and it is
+  `[data-testid="data-table-scrollport"]` — never the page shell
+  (`[scrollbar-gutter:stable]`). Filter a list down to two rows: the frame
+  hugs those rows instead of stretching. Repeat at 390×740: the frame ends
+  above the bottom tab bar, same three pages, same behaviour.
 
 ## Boundary & error tests
 

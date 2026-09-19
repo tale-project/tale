@@ -95,7 +95,6 @@ vi.mock('../hooks/use-contacts-table-config', () => ({
   useContactsTableConfig: () => ({
     columns,
     searchPlaceholder: 'Search contacts',
-    stickyLayout: undefined,
     pageSize: 20,
   }),
 }));

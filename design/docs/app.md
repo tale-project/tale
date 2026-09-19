@@ -66,6 +66,12 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
   elements mounted as loading resolves.
 - **Settings pages have no page titles** — the rail/tab already names the page; content starts at the
   first section header.
+- **A collection screen scrolls its rows, never the page** — Automations, Projects and every
+  Knowledge tab are one shape: `ContentArea variant="list"` bounds the body and the `DataTable`
+  takes `stickyLayout`, so search, the create button, the column header row and the count footer
+  hold their place while only the rows move. Both parts, every time; a short list hugs its rows
+  instead of stretching. Tables embedded in a scrolling settings page are the exception and take
+  neither.
 
 ## Dark mode
 

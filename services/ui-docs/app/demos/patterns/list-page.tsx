@@ -76,8 +76,9 @@ export default function PatternListPage() {
               </AdaptiveHeaderRoot>
             }
           >
-            <ContentArea>
+            <ContentArea variant="list">
               <DataTable
+                stickyLayout
                 columns={columns}
                 data={rows}
                 caption="Automations"
