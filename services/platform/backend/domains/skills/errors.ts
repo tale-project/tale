@@ -1,5 +1,11 @@
 import type { Context, Env } from 'hono';
+import type { Sql } from 'postgres';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
+import {
+  assertTeamsAssignable,
+  TeamAssignmentError,
+} from '../../core/lib/audience.ts';
 import { SKILL_BUNDLE_REFUSAL_CODES } from '../../core/skills/bundle_zip.ts';
 import {
   appErrorResponse,
@@ -29,6 +35,9 @@ export const SKILL_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
     STORAGE_NOT_OWNED: 403,
     STORAGE_NOT_FOUND: 404,
     WRITE_FAILED: 400,
+    // The audience rule for a team skill's `teams` (`assertSkillTeamsAssignable`).
+    TEAM_NOT_IN_ORG: 400,
+    TEAM_ACCESS_DENIED: 403,
     ...Object.fromEntries(
       SKILL_BUNDLE_REFUSAL_CODES.map((code) => [code, 400 as const]),
     ),
@@ -40,4 +49,31 @@ export function skillErrorResponse<E extends Env>(
   error: unknown,
 ): Response {
   return appErrorResponse(c, error, SKILL_ERROR_STATUS);
+}
+
+/**
+ * The audience rule for a team skill's `teams`, as the file layer's
+ * `assertTeamsAssignable` hook: every id must be one of the organization's
+ * teams (`TEAM_NOT_IN_ORG`), and a non-admin may only share with teams they
+ * belong to (`TEAM_ACCESS_DENIED`) — `core/lib/audience.ts`, re-thrown in
+ * the `AppError` shape the skill doors answer with the statuses above.
+ */
+export function assertSkillTeamsAssignable(
+  sql: Sql,
+  viewer: { organizationId: string; role: string; teamIds: readonly string[] },
+): (teamIds: string[]) => Promise<void> {
+  return async (teamIds) => {
+    try {
+      await assertTeamsAssignable(sql, viewer, teamIds);
+    } catch (error) {
+      if (error instanceof TeamAssignmentError) {
+        throw new AppError({
+          code: error.code,
+          message: error.message,
+          teamIds: error.data.teamIds,
+        });
+      }
+      throw error;
+    }
+  };
 }

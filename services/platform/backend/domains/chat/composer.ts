@@ -5,6 +5,7 @@ import {
   type ComposerModelOption,
 } from '../../core/chat/composer.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { walkChatCatalog } from '../../core/lib/providers/chat_catalog.ts';
 import {
   loadHarnesses,
@@ -162,21 +163,11 @@ export async function listComposerModels(
 
 /** The project's team scope for skill visibility. */
 async function projectTeamIds(sql: Sql, projectId: string): Promise<string[]> {
-  const rows = await sql<
-    { teamId: string | null; sharedWithTeamIds: string[] }[]
-  >`
-    SELECT team_id AS "teamId",
-           shared_with_team_ids AS "sharedWithTeamIds"
+  const rows = await sql<{ teamIds: string[] | null }[]>`
+    SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
     FROM app.projects WHERE id = ${projectId} LIMIT 1
   `;
-  const row = rows[0];
-  if (!row) return [];
-  return [
-    ...new Set([
-      ...(row.teamId !== null ? [row.teamId] : []),
-      ...row.sharedWithTeamIds,
-    ]),
-  ];
+  return rows[0]?.teamIds ?? [];
 }
 
 /**

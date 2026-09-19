@@ -11,7 +11,15 @@ import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-confi
 import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { TERMINAL_RAG_ERROR_CODES } from '../../core/knowledge/rag_error_codes.ts';
-import { hasTeamAccess } from '../../core/lib/team_access.ts';
+import {
+  assertTeamsAssignable,
+  audienceClause,
+  audienceMirror,
+  canSeeAudience,
+  normalizeTeamIds,
+  TeamAssignmentError,
+  type AudienceViewer,
+} from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
@@ -200,18 +208,20 @@ function isProjectScoped(doc: Pick<DocumentRow, 'projectId'>): boolean {
   return doc.projectId != null;
 }
 
-/** Hub visibility (never true for project docs) — the list-safe predicate. */
+/**
+ * Hub visibility (never true for project docs) — the list-safe predicate:
+ * the audience rule over `team_tags` (`core/lib/audience.ts`), so an owner
+ * or admin sees every team library and a member sees the org-wide rows plus
+ * their teams'. `team_id` is a derived mirror and is never consulted.
+ */
 export function hasKnowledgeHubDocumentAccess(
-  doc: Pick<DocumentRow, 'projectId' | 'teamId' | 'teamTags'>,
-  userTeamIds: string[],
+  doc: Pick<DocumentRow, 'projectId' | 'teamTags'>,
+  viewer: AudienceViewer,
 ): boolean {
   if (isProjectScoped(doc)) {
     return false;
   }
-  return hasTeamAccess(
-    { teamId: doc.teamId ?? undefined, teamTags: doc.teamTags },
-    userTeamIds,
-  );
+  return canSeeAudience({ teamIds: doc.teamTags }, viewer);
 }
 
 /** Point-read gate, whatever the scope; 404-shaped to avoid probing. */
@@ -224,17 +234,13 @@ export async function assertDocumentVisible(
     throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
   }
   if (!isProjectScoped(doc)) {
-    if (!hasKnowledgeHubDocumentAccess(doc, auth.teamIds)) {
+    if (!hasKnowledgeHubDocumentAccess(doc, auth)) {
       throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
     }
     return;
   }
   const project = await loadProjectOrThrow(sql, doc.projectId ?? '');
-  const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  );
+  const access = checkProjectAccess(project, auth.teamIds, auth.role);
   if (!access.canRead) {
     throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
   }
@@ -289,24 +295,64 @@ export function assertGenericDocumentContentWritableJson(
 }
 
 /**
- * A hub team assignment must come from the caller's own teams — the rule the
- * plural `teamIds` lane established (`TEAM_ACCESS_DENIED`), applied to every
- * lane that stamps `team_id`/`team_tags`. Membership implies the team exists
- * and is in-org, and it keeps the invariant that you can never file a
- * document into a scope nobody — including you — can see (`hasTeamAccess`
- * has no admin bypass, so an unknown id would hide the row from everyone).
+ * `assertTeamsAssignable` (`core/lib/audience.ts`) in this domain's refusal
+ * class: every team must be one of the organization's (`TEAM_NOT_IN_ORG`,
+ * 400) and a non-admin may only file into teams they belong to
+ * (`TEAM_ACCESS_DENIED`, 403). Returns the normalized list to store.
  */
-export function assertHubTeamAssignable(
-  auth: Pick<ProjectAuthContext, 'teamIds'>,
-  teamId: string,
-): void {
-  if (!auth.teamIds.includes(teamId)) {
-    throw new DocumentError(
-      'TEAM_ACCESS_DENIED',
-      'Cannot assign document to a team you do not belong to',
-      403,
-    );
+async function assignableTeams(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  teamIds: readonly string[],
+): Promise<string[]> {
+  try {
+    return await assertTeamsAssignable(db, auth, teamIds);
+  } catch (error) {
+    if (error instanceof TeamAssignmentError) {
+      throw new DocumentError(
+        error.code,
+        error.code === 'TEAM_ACCESS_DENIED'
+          ? 'Cannot assign document to a team you do not belong to'
+          : error.message,
+        error.status,
+        error.data,
+      );
+    }
+    throw error;
   }
+}
+
+/**
+ * The audience a hub document takes. Inside a team folder it is the
+ * folder's — a team folder owns the scope of everything in it, so a request
+ * naming a team OUTSIDE the folder's audience is refused
+ * (`TEAM_INHERITED_FROM_FOLDER`) and a narrower or empty request simply
+ * inherits. Anywhere else it is the requested teams, validated against the
+ * caller (`assignableTeams`); no request = organization-wide.
+ */
+async function resolveHubAudience(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: {
+    folder: { teamTags: string[] } | null;
+    requestedTeamIds: readonly string[];
+  },
+): Promise<string[]> {
+  const inherited = args.folder?.teamTags ?? [];
+  if (inherited.length > 0) {
+    const owned = new Set(inherited);
+    const outside = args.requestedTeamIds.filter((id) => !owned.has(id));
+    if (outside.length > 0) {
+      throw new DocumentError(
+        'TEAM_INHERITED_FROM_FOLDER',
+        'Cannot choose a team: inherited from the parent folder',
+        400,
+        { teamIds: outside },
+      );
+    }
+    return [...inherited];
+  }
+  return assignableTeams(db, auth, args.requestedTeamIds);
 }
 
 /**
@@ -334,11 +380,7 @@ export async function requireDocumentWriteAccess(
   await assertDocumentVisible(db, auth, doc);
   if (doc.projectId !== null) {
     const project = await loadProjectOrThrow(db, doc.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
     }
@@ -353,7 +395,10 @@ export async function requireDocumentWriteAccess(
 export interface CreateDocumentFromUploadArgs {
   fileId: string;
   fileName: string;
+  /** @deprecated The single-team spelling of `teamIds`; still accepted. */
   teamId?: string;
+  /** The audience of a hub document; empty or absent = organization-wide. */
+  teamIds?: string[];
   projectId?: string;
   folderId?: string;
   metadata?: Record<string, unknown>;
@@ -390,9 +435,13 @@ export async function createDocumentFromUpload(
     }
   }
 
-  let effectiveTeamId = args.teamId ?? null;
+  const requestedTeamIds = normalizeTeamIds([
+    ...(args.teamIds ?? []),
+    ...(args.teamId ? [args.teamId] : []),
+  ]);
+  let effectiveTeamIds: string[] = [];
   if (args.projectId) {
-    if (args.teamId) {
+    if (requestedTeamIds.length > 0) {
       throw new DocumentError(
         'DOCUMENT_SCOPE_CONFLICT',
         'A project document cannot also carry a team',
@@ -402,11 +451,7 @@ export async function createDocumentFromUpload(
     if (project.organizationId !== auth.organizationId) {
       throw new DocumentError('ORG_FORBIDDEN', 'Wrong organization', 403);
     }
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canRead) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
     }
@@ -422,33 +467,31 @@ export async function createDocumentFromUpload(
         throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
       }
     }
-  } else if (args.teamId) {
-    assertHubTeamAssignable(auth, args.teamId);
-  }
-  if (!args.projectId && args.folderId) {
-    const folder = await loadFolderOrThrow(tx, args.folderId);
-    if (
-      folder.organizationId !== auth.organizationId ||
-      folder.projectId !== null
-    ) {
-      throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
-    }
-    if (folder.teamId) {
+  } else {
+    let folder: { teamTags: string[] } | null = null;
+    if (args.folderId) {
+      const landing = await loadFolderOrThrow(tx, args.folderId);
       if (
-        !hasTeamAccess(
-          { teamId: folder.teamId, teamTags: folder.teamTags },
-          auth.teamIds,
-        )
+        landing.organizationId !== auth.organizationId ||
+        landing.projectId !== null
       ) {
+        throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
+      }
+      if (!canSeeAudience({ teamIds: landing.teamTags }, auth)) {
         throw new DocumentError(
           'FOLDER_NOT_ACCESSIBLE',
           'Folder not accessible',
           403,
         );
       }
-      effectiveTeamId = folder.teamId;
+      folder = landing;
     }
+    effectiveTeamIds = await resolveHubAudience(tx, auth, {
+      folder,
+      requestedTeamIds,
+    });
   }
+  const mirror = audienceMirror(effectiveTeamIds);
 
   const now = Date.now();
   const extension = extractExtension(args.fileName);
@@ -461,7 +504,7 @@ export async function createDocumentFromUpload(
       ${auth.organizationId}, ${args.fileName}, ${file.storageRef},
       ${file.contentType}, ${extension ?? null}, 'upload',
       ${args.contentHash ?? null},
-      ${effectiveTeamId}, ${effectiveTeamId ? [effectiveTeamId] : []},
+      ${mirror.teamId}, ${effectiveTeamIds},
       ${args.projectId ?? null}, ${auth.userId}, ${args.folderId ?? null},
       ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
       ${now}, ${now}
@@ -495,7 +538,7 @@ export async function createDocumentFromUpload(
     metadata: {
       sourceProvider: 'upload',
       projectId: args.projectId ?? null,
-      teamId: effectiveTeamId,
+      teamIds: effectiveTeamIds,
     },
     status: 'success',
   });
@@ -600,12 +643,7 @@ export async function updateDocument(
       if (folder.organizationId !== auth.organizationId || !sameScope) {
         throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
       }
-      if (
-        !hasTeamAccess(
-          { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-          auth.teamIds,
-        )
-      ) {
+      if (!canSeeAudience({ teamIds: folder.teamTags }, auth)) {
         throw new DocumentError(
           'FOLDER_NOT_ACCESSIBLE',
           'Folder not accessible',
@@ -616,66 +654,54 @@ export async function updateDocument(
     }
     folderId = args.folderId;
   }
-  let teamId = doc.teamId;
+  // The audience request, in one spelling: the plural `teamIds` wins, the
+  // legacy single `teamId` folds into it (`null` = organization-wide).
+  const teamRequest =
+    args.teamIds !== undefined
+      ? normalizeTeamIds(args.teamIds)
+      : args.teamId !== undefined
+        ? args.teamId === null
+          ? []
+          : [args.teamId]
+        : undefined;
   let teamTags = doc.teamTags;
-  if (args.teamId !== undefined) {
-    if (isProjectScoped(doc) && args.teamId !== null) {
-      throw new DocumentError(
-        'DOCUMENT_SCOPE_CONFLICT',
-        'A project document cannot carry a team',
-      );
-    }
-    if (args.teamId !== null) {
-      assertHubTeamAssignable(auth, args.teamId);
-    }
-    teamId = args.teamId;
-    teamTags = args.teamId ? [args.teamId] : [];
-  }
-  if (args.teamIds !== undefined) {
-    if (args.teamIds.length > 0) {
-      if (isProjectScoped(doc)) {
+  if (teamRequest !== undefined || args.folderId !== undefined) {
+    if (isProjectScoped(doc)) {
+      if (teamRequest !== undefined && teamRequest.length > 0) {
         throw new DocumentError(
           'DOCUMENT_SCOPE_CONFLICT',
           'A project document cannot be assigned to teams. Detach it from the project first.',
         );
       }
+      teamTags = [];
+    } else {
       // The folder the document ends up in, which is the destination when
       // this same call moves it — reading `doc.folderId` would judge a
-      // combined move-and-retag against the folder being left behind.
+      // combined move-and-retag against the folder being left behind. A
+      // team folder owns the scope of everything inside it: a move into one
+      // re-stamps the document, and an explicit choice cannot leave it.
       const landing =
         args.folderId !== undefined
           ? destination
           : doc.folderId !== null
             ? await loadFolderOrThrow(tx, doc.folderId)
             : null;
-      if (landing?.teamId) {
-        throw new DocumentError(
-          'TEAM_INHERITED_FROM_FOLDER',
-          'Cannot change team: inherited from parent folder',
-        );
-      }
-      const memberTeams = new Set(auth.teamIds);
-      for (const id of args.teamIds) {
-        if (!memberTeams.has(id)) {
-          throw new DocumentError(
-            'TEAM_ACCESS_DENIED',
-            'Cannot assign document to a team you do not belong to',
-            403,
-          );
-        }
+      if (teamRequest === undefined) {
+        // A plain move chooses nothing: the document takes a team folder's
+        // audience and otherwise keeps its own — its existing teams are not
+        // a request to re-validate (a member outside one of them could not
+        // move it at all otherwise).
+        const inherited = landing?.teamTags ?? [];
+        teamTags = inherited.length > 0 ? [...inherited] : doc.teamTags;
+      } else {
+        teamTags = await resolveHubAudience(tx, auth, {
+          folder: landing,
+          requestedTeamIds: teamRequest,
+        });
       }
     }
-    teamId = args.teamIds[0] ?? null;
-    teamTags = args.teamIds;
   }
-  // Same rule the create lane applies (`effectiveTeamId = folder.teamId`):
-  // a team folder owns the scope of everything inside it, so a move into
-  // one re-stamps the document rather than leaving it org-wide in a place
-  // only that team can open.
-  if (destination?.teamId) {
-    teamId = destination.teamId;
-    teamTags = [destination.teamId];
-  }
+  const teamId = audienceMirror(teamTags).teamId;
   const teamScopeChanged =
     teamId !== doc.teamId ||
     teamTags.length !== doc.teamTags.length ||
@@ -794,11 +820,7 @@ export async function detachDocumentFromProject(
     );
   }
   const project = await loadProjectOrThrow(tx, doc.projectId);
-  const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  );
+  const access = checkProjectAccess(project, auth.teamIds, auth.role);
   if (!access.canEdit) {
     throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
   }
@@ -884,7 +906,7 @@ export async function listDocuments(
   const truncated = rows.length > limit;
   return {
     documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
-      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+      hasKnowledgeHubDocumentAccess(doc, auth),
     ),
     truncated,
   };
@@ -924,9 +946,7 @@ export async function listFolderDocumentsBounded(
   const truncated = rows.length > limit;
   return {
     documents: (truncated ? rows.slice(0, limit) : rows).filter(
-      (doc) =>
-        isProjectScoped(doc) ||
-        hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+      (doc) => isProjectScoped(doc) || hasKnowledgeHubDocumentAccess(doc, auth),
     ),
     truncated,
   };
@@ -939,11 +959,7 @@ export async function listProjectDocuments(
   projectId: string,
 ): Promise<DocumentRow[]> {
   const project = await loadProjectOrThrow(sql, projectId);
-  const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  );
+  const access = checkProjectAccess(project, auth.teamIds, auth.role);
   if (!access.canRead) {
     throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
   }
@@ -979,7 +995,10 @@ export interface CreateHubDocumentArgs {
   extension?: string;
   sourceProvider?: string;
   metadata?: Record<string, unknown>;
+  /** @deprecated The single-team spelling of `teamIds`; still accepted. */
   teamId?: string;
+  /** The audience; empty or absent = organization-wide. */
+  teamIds?: string[];
   folderId?: string;
 }
 
@@ -1000,18 +1019,34 @@ export async function createHubDocument(
   if (title.length === 0 || title.length > 512) {
     throw new DocumentError('DOCUMENT_TITLE_INVALID', 'Invalid title');
   }
-  if (args.teamId !== undefined) {
-    assertHubTeamAssignable(auth, args.teamId);
-  }
+  let folder: { teamTags: string[] } | null = null;
   if (args.folderId !== undefined) {
-    const folder = await loadFolderOrThrow(tx, args.folderId);
+    const landing = await loadFolderOrThrow(tx, args.folderId);
     if (
-      folder.organizationId !== auth.organizationId ||
-      folder.projectId !== null
+      landing.organizationId !== auth.organizationId ||
+      landing.projectId !== null
     ) {
       throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
     }
+    // A folder the caller cannot see is not a destination (the refusal the
+    // REST contract always documented for this door).
+    if (!canSeeAudience({ teamIds: landing.teamTags }, auth)) {
+      throw new DocumentError(
+        'FOLDER_NOT_ACCESSIBLE',
+        'Folder not accessible',
+        403,
+      );
+    }
+    folder = landing;
   }
+  const teamTags = await resolveHubAudience(tx, auth, {
+    folder,
+    requestedTeamIds: normalizeTeamIds([
+      ...(args.teamIds ?? []),
+      ...(args.teamId ? [args.teamId] : []),
+    ]),
+  });
+  const mirror = audienceMirror(teamTags);
   const file =
     args.fileId !== undefined
       ? await getFileMetadata(tx, auth.organizationId, args.fileId, {
@@ -1042,8 +1077,8 @@ export async function createHubDocument(
       ${auth.organizationId}, ${title}, ${args.content ?? null},
       ${file?.storageRef ?? null},
       ${args.mimeType ?? file?.contentType ?? null}, ${extension ?? null},
-      ${args.sourceProvider ?? 'api_import'}, ${args.teamId ?? null},
-      ${args.teamId !== undefined ? [args.teamId] : []}, ${auth.userId},
+      ${args.sourceProvider ?? 'api_import'}, ${mirror.teamId},
+      ${teamTags}, ${auth.userId},
       ${args.folderId ?? null},
       ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
       ${now}, ${now}
@@ -1220,13 +1255,12 @@ export async function readDocumentRestExtras(
 const HUB_PAGE_MAX = 100;
 const HUB_SEARCH_MAX = 25;
 
-/** SQL twin of `hasKnowledgeHubDocumentAccess`: hub rows only, team rules. */
+/** SQL twin of `hasKnowledgeHubDocumentAccess`: hub rows only, the audience
+ * rule over `team_tags` (`audienceClause`) — admins see every team library. */
 function hubAccessClause(sql: Sql, auth: ProjectAuthContext) {
   return sql`
     project_id IS NULL
-    AND ((team_id IS NULL AND cardinality(team_tags) = 0)
-      OR team_id = ANY(${auth.teamIds})
-      OR team_tags && ${auth.teamIds})
+    AND ${audienceClause(sql, 'team_tags', auth)}
   `;
 }
 
@@ -1997,7 +2031,10 @@ export interface CreateDocumentFromBlobUploadArgs {
   contentType?: string;
   contentHash?: string;
   metadata?: Record<string, unknown>;
+  /** @deprecated The single-team spelling of `teamIds`; still accepted. */
   teamId?: string;
+  /** The audience of a hub document; empty or absent = organization-wide. */
+  teamIds?: string[];
   projectId?: string;
   folderId?: string;
   skipRagIndexing?: boolean;
@@ -2059,6 +2096,7 @@ export async function createDocumentFromBlobUpload(
     fileId,
     fileName: args.fileName,
     ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
+    ...(args.teamIds !== undefined ? { teamIds: args.teamIds } : {}),
     ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
     ...(args.folderId !== undefined ? { folderId: args.folderId } : {}),
     ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
@@ -2125,11 +2163,7 @@ export async function deleteDocumentHard(
   await assertDocumentVisible(sql, auth, doc);
   if (isProjectScoped(doc)) {
     const project = await loadProjectOrThrow(sql, doc.projectId ?? '');
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
     }

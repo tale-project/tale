@@ -335,9 +335,8 @@ export async function readSkillAssetForViewer(args: {
  * changes the body cannot blank the icon, the labels, the teams or the
  * model-invocation flag; `null` on `icon` or `labels` is the explicit clear,
  * and `disableModelInvocation: false` drops the flag from the file. Team
- * ids are not checked against the org's teams here: the library only
- * offers real ones, and an id that matches no team simply never matches a
- * viewer either.
+ * ids are checked through the door's `assertTeamsAssignable` (the audience
+ * rule: the organization's own teams, and for a non-admin only their own).
  *
  * `precondition` carries the door's `If-Match` / `If-None-Match`, checked
  * here — under the caller's writer lock, after the permission gates and
@@ -368,6 +367,15 @@ export async function saveSkillForViewer(
     slug: string;
     viewer: SkillViewer;
     precondition?: SkillWritePrecondition;
+    /**
+     * The audience rule for the `teams` of a team skill — every id must be
+     * one of the organization's teams, and a non-admin may only share with
+     * teams they belong to (`backend/core/lib/audience.ts`
+     * `assertTeamsAssignable`). Supplied by the doors, which own the
+     * database handle this file layer does not have; it throws the refusal
+     * the door answers. Absent = unchecked (the file layer alone).
+     */
+    assertTeamsAssignable?: (teamIds: string[]) => Promise<void>;
   } & SkillEditInput,
 ): Promise<SkillSaveResult> {
   {
@@ -394,6 +402,15 @@ export async function saveSkillForViewer(
       });
     }
     const teams = resolveTeams(visibility, args.teams, existing?.meta.teams);
+    // Only a CHANGED team list is checked: an edit that leaves `teams`
+    // alone must not fail on a team the org has since deleted.
+    if (
+      teams !== undefined &&
+      args.assertTeamsAssignable !== undefined &&
+      (args.teams !== undefined || existing === null)
+    ) {
+      await args.assertTeamsAssignable(teams);
+    }
     const owner =
       existing === null
         ? viewer.userId

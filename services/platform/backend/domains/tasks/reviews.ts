@@ -4,6 +4,7 @@ import {
   getUserTeamIds,
   findOrganizationMember,
 } from '../../auth/membership.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -95,15 +96,8 @@ export async function resolveReviewer(
   tx: TransactionSql | Sql,
   task: TaskRow,
 ): Promise<string | undefined> {
-  const projects = await tx<
-    {
-      createdBy: string;
-      teamId: string | null;
-      sharedWithTeamIds: string[];
-    }[]
-  >`
-    SELECT created_by AS "createdBy", team_id AS "teamId",
-           shared_with_team_ids AS "sharedWithTeamIds"
+  const projects = await tx<{ createdBy: string; teamIds: string[] | null }[]>`
+    SELECT created_by AS "createdBy", ${tx.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
     FROM app.projects WHERE id = ${task.projectId} LIMIT 1
   `;
   const project = projects[0];
@@ -124,10 +118,7 @@ export async function resolveReviewer(
     if (member === null || member.role === 'disabled') continue;
     const teamIds = await getUserTeamIds(tx, task.organizationId, candidate);
     const access = checkProjectAccess(
-      {
-        teamId: project?.teamId ?? null,
-        sharedWithTeamIds: project?.sharedWithTeamIds ?? [],
-      },
+      { teamIds: project?.teamIds ?? [] },
       teamIds,
       member.role,
     );

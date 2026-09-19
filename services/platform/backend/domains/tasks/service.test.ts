@@ -23,6 +23,7 @@ const project = (overrides: Partial<ProjectRow> = {}): ProjectRow => ({
   projectAgentCount: 0,
   teamId: null,
   sharedWithTeamIds: [],
+  teamIds: [],
   instructions: null,
   knowledgeMode: null,
   agentMode: null,

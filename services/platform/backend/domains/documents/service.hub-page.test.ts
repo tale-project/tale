@@ -102,10 +102,13 @@ describe('listHubDocumentsPage', () => {
     await listHubDocumentsPage(sql, auth, { cursor: null, limit: 25 });
 
     const { text, values } = pageStatement(statements);
-    // The same clause the in-app twin embeds — hub rows, team rules.
-    expect(text).toContain('team_tags && ?');
-    expect(text).toContain('team_id = ANY(?)');
+    // The same clause the in-app twin embeds — hub rows, the audience rule
+    // (`audienceClause`): admin, organization-wide, or a team in common.
+    expect(text).toContain('project_id IS NULL');
+    expect(text).toContain('cardinality(team_tags) = 0');
+    expect(text).toContain('team_tags && ?::text[]');
     expect(values).toContainEqual(auth.teamIds);
+    expect(values).toContain(false);
     // …and it is in the statement that carries the LIMIT, not applied after.
     expect(text).toMatch(/ORDER BY .* LIMIT \?$/);
   });

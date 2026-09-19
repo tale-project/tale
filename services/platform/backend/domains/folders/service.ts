@@ -1,6 +1,14 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { hasTeamAccess } from '../../core/lib/team_access.ts';
+import {
+  assertTeamsAssignable,
+  audienceClause,
+  audienceMirror,
+  canSeeAudience,
+  normalizeTeamIds,
+  sameAudience,
+  TeamAssignmentError,
+} from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
@@ -164,25 +172,69 @@ export async function assertProjectFolderWrite(
   }
 }
 
+/**
+ * `assertTeamsAssignable` in this domain's refusal vocabulary: a team the
+ * caller is not in keeps the code the folder doors always answered
+ * (`FOLDER_TEAM_FORBIDDEN`); an id that is not one of the organization's
+ * teams is `TEAM_NOT_IN_ORG`.
+ */
+async function assignableTeams(
+  tx: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  teamIds: readonly string[],
+): Promise<string[]> {
+  try {
+    return await assertTeamsAssignable(tx, auth, teamIds);
+  } catch (error) {
+    if (error instanceof TeamAssignmentError) {
+      if (error.code === 'TEAM_ACCESS_DENIED') {
+        throw new FolderError(
+          'FOLDER_TEAM_FORBIDDEN',
+          'Cannot assign folder to a team you do not belong to',
+          403,
+          error.data,
+        );
+      }
+      throw new FolderError(
+        error.code,
+        error.message,
+        error.status,
+        error.data,
+      );
+    }
+    throw error;
+  }
+}
+
 export async function createFolder(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: {
     name: string;
     parentId?: string;
+    /** @deprecated The single-team spelling of `teamIds`; still accepted. */
     teamId?: string;
+    /** The audience; empty or absent = organization-wide (hub folders). */
+    teamIds?: string[];
     projectId?: string;
   },
 ): Promise<string> {
   const name = validateFolderName(args.name);
-  if (args.projectId && args.teamId) {
+  const requestedTeamIds = normalizeTeamIds([
+    ...(args.teamIds ?? []),
+    ...(args.teamId ? [args.teamId] : []),
+  ]);
+  if (args.projectId && requestedTeamIds.length > 0) {
     throw new FolderError(
       'FOLDER_SCOPE_CONFLICT',
       'A project folder cannot also carry a team',
     );
   }
 
-  let effectiveTeamId = args.teamId ?? null;
+  // Decided below: a team folder hands its whole audience to everything
+  // created inside it; a root-level or org-wide-parented folder takes the
+  // requested audience, validated against the caller.
+  let effectiveTeamIds: string[] | null = null;
   let effectiveProjectId = args.projectId ?? null;
 
   if (args.parentId) {
@@ -201,23 +253,24 @@ export async function createFolder(
       );
     }
     effectiveProjectId = parent.projectId ?? args.projectId ?? null;
-    if (parent.projectId === null) {
-      if (
-        (parent.teamId || parent.teamTags.length > 0) &&
-        !hasTeamAccess(
-          { teamId: parent.teamId ?? undefined, teamTags: parent.teamTags },
-          auth.teamIds,
-        )
-      ) {
+    if (parent.projectId === null && parent.teamTags.length > 0) {
+      if (!canSeeAudience({ teamIds: parent.teamTags }, auth)) {
         throw new FolderError(
           'FOLDER_PARENT_NOT_ACCESSIBLE',
           'Parent folder not accessible',
           403,
         );
       }
-      if (parent.teamId) {
-        effectiveTeamId = parent.teamId;
+      if (
+        requestedTeamIds.length > 0 &&
+        !sameAudience(requestedTeamIds, parent.teamTags)
+      ) {
+        throw new FolderError(
+          'FOLDER_TEAM_INHERITED',
+          'Cannot choose a team: inherited from the parent folder',
+        );
       }
+      effectiveTeamIds = [...parent.teamTags];
     }
     if ((await folderDepth(tx, args.parentId)) >= MAX_FOLDER_DEPTH) {
       throw new FolderError('FOLDER_DEPTH_EXCEEDED', 'Folder tree too deep');
@@ -225,9 +278,12 @@ export async function createFolder(
   }
 
   if (effectiveProjectId) {
-    effectiveTeamId = null;
+    effectiveTeamIds = [];
     await assertProjectFolderWrite(tx, auth, effectiveProjectId);
+  } else if (effectiveTeamIds === null) {
+    effectiveTeamIds = await assignableTeams(tx, auth, requestedTeamIds);
   }
+  const mirror = audienceMirror(effectiveTeamIds);
 
   const sibling = await tx<{ id: string }[]>`
     SELECT id FROM app.folders
@@ -253,7 +309,7 @@ export async function createFolder(
       created_at_ms
     ) VALUES (
       ${auth.organizationId}, ${name}, ${args.parentId ?? null},
-      ${effectiveTeamId}, ${effectiveTeamId ? [effectiveTeamId] : []},
+      ${mirror.teamId}, ${effectiveTeamIds},
       ${effectiveProjectId}, ${auth.userId}, ${Date.now()}
     )
     ON CONFLICT (org_id, project_id, (coalesce(parent_id, '')), (lower(name)))
@@ -286,13 +342,7 @@ export async function assertFolderMutable(
     await assertProjectFolderWrite(tx, auth, folder.projectId);
     return;
   }
-  if (
-    (folder.teamId || folder.teamTags.length > 0) &&
-    !hasTeamAccess(
-      { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-      auth.teamIds,
-    )
-  ) {
+  if (!canSeeAudience({ teamIds: folder.teamTags }, auth)) {
     throw new FolderError(
       'FOLDER_NOT_ACCESSIBLE',
       'Folder not accessible',
@@ -367,11 +417,7 @@ export async function listFolders(
 ): Promise<FolderRow[]> {
   if (args.projectId) {
     const project = await loadProjectOrThrow(sql, args.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canRead) {
       throw new FolderError('PROJECT_FORBIDDEN', 'No project access', 403);
     }
@@ -390,14 +436,10 @@ export async function listFolders(
       AND project_id IS NULL
       AND (${args.parentId === undefined}
         OR parent_id IS NOT DISTINCT FROM ${args.parentId ?? null})
+      AND ${audienceClause(sql, 'team_tags', auth)}
     ORDER BY name ASC
   `;
-  return rows.filter((folder) =>
-    hasTeamAccess(
-      { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-      auth.teamIds,
-    ),
-  );
+  return rows;
 }
 
 /** Root-to-leaf breadcrumb for one folder (access-checked at the leaf). */
@@ -435,23 +477,13 @@ async function assertFolderMutableReadOnly(
   }
   if (folder.projectId) {
     const project = await loadProjectOrThrow(sql, folder.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canRead) {
       throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
     }
     return;
   }
-  if (
-    (folder.teamId || folder.teamTags.length > 0) &&
-    !hasTeamAccess(
-      { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-      auth.teamIds,
-    )
-  ) {
+  if (!canSeeAudience({ teamIds: folder.teamTags }, auth)) {
     throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
   }
 }
@@ -539,19 +571,10 @@ export async function getFolderView(
   }
   if (folder.projectId !== null) {
     const project = await loadProjectOrThrow(sql, folder.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
     return access.canRead ? folder : null;
   }
-  return hasTeamAccess(
-    { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-    auth.teamIds,
-  )
-    ? folder
-    : null;
+  return canSeeAudience({ teamIds: folder.teamTags }, auth) ? folder : null;
 }
 
 export interface FolderTeamCascadeTouchedDoc {
@@ -586,35 +609,18 @@ export async function updateFolderTeams(
   }
   if (folder.parentId !== null) {
     const parent = await loadFolderOrThrow(tx, folder.parentId);
-    if (parent.teamId) {
+    if (parent.teamTags.length > 0) {
       throw new FolderError(
         'FOLDER_TEAM_INHERITED',
         'Cannot change team: inherited from parent folder',
       );
     }
   }
-  if (folder.teamId !== null || folder.teamTags.length > 0) {
-    if (
-      !hasTeamAccess(
-        { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
-        auth.teamIds,
-      )
-    ) {
-      throw new FolderError('FOLDER_ACCESS_DENIED', 'Access denied', 403);
-    }
+  if (!canSeeAudience({ teamIds: folder.teamTags }, auth)) {
+    throw new FolderError('FOLDER_ACCESS_DENIED', 'Access denied', 403);
   }
-  const memberTeams = new Set(auth.teamIds);
-  for (const teamId of args.teamIds) {
-    if (!memberTeams.has(teamId)) {
-      throw new FolderError(
-        'FOLDER_TEAM_FORBIDDEN',
-        'Cannot assign folder to a team you do not belong to',
-        403,
-      );
-    }
-  }
-  const teamId = args.teamIds[0] ?? null;
-  const teamTags = args.teamIds;
+  const teamTags = await assignableTeams(tx, auth, args.teamIds);
+  const { teamId } = audienceMirror(teamTags);
   await tx`
     WITH RECURSIVE subtree AS (
       SELECT id FROM app.folders

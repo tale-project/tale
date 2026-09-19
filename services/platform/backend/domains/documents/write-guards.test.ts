@@ -5,7 +5,6 @@ import { checkProjectAccess } from '../../core/projects/access.ts';
 import {
   assertDocumentsWriteRole,
   assertGenericDocumentContentWritableJson,
-  assertHubTeamAssignable,
   assertRecordTrashableJson,
   DocumentError,
 } from './service.ts';
@@ -138,24 +137,5 @@ describe('assertRecordTrashableJson (delete protection incl. history)', () => {
         }),
       ),
     ).toEqual({ code: 'DOCUMENT_RECORD_PROTECTED', status: 400 });
-  });
-});
-
-describe('assertHubTeamAssignable (team scope must stay visible)', () => {
-  it('admits a team the caller belongs to', () => {
-    expect(
-      codeOf(() =>
-        assertHubTeamAssignable({ teamIds: ['team_a', 'team_b'] }, 'team_b'),
-      ),
-    ).toBeNull();
-  });
-
-  it.each([
-    ['a foreign team', 'team_other'],
-    ['an unknown id', 'no-such-team'],
-  ])('refuses %s', (_label, teamId) => {
-    expect(
-      codeOf(() => assertHubTeamAssignable({ teamIds: ['team_a'] }, teamId)),
-    ).toEqual({ code: 'TEAM_ACCESS_DENIED', status: 403 });
   });
 });

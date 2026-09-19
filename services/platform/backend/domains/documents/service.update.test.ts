@@ -198,8 +198,8 @@ describe('updateDocument folder move', () => {
     teamId: null,
     teamTags: [],
   };
-  const authIn = { ...auth, teamIds: ['team-product'] };
-  const authOut = { ...auth, teamIds: ['team-sales'] };
+  const authIn = { ...auth, role: 'editor', teamIds: ['team-product'] };
+  const authOut = { ...auth, role: 'editor', teamIds: ['team-sales'] };
 
   it('refuses a destination folder the caller cannot see', async () => {
     const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
@@ -210,6 +210,18 @@ describe('updateDocument folder move', () => {
       }),
     ).rejects.toMatchObject({ code: 'FOLDER_NOT_ACCESSIBLE' });
     expect(updateOf(statements)).toBeUndefined();
+  });
+
+  it('lets an admin file into a team folder they are not a member of', async () => {
+    // Owners and admins see every audience (`canSeeAudience`), so the folder
+    // rule never hides a destination from them — the document still takes
+    // the folder's audience, as for anyone else.
+    const { tx, statements } = fakeTx(HUB_DOC, { folder: teamFolder });
+    await updateDocument(tx, auth, {
+      documentId: 'doc-1',
+      folderId: 'folder-team',
+    });
+    expect(updateOf(statements)?.values).toContainEqual(['team-product']);
   });
 
   it('stamps the folder team onto a document moved into a team folder', async () => {
@@ -235,6 +247,46 @@ describe('updateDocument folder move', () => {
     const update = updateOf(statements);
     expect(update).toBeDefined();
     expect(update?.values).not.toContain('team-product');
+  });
+
+  it('keeps a team document’s audience on a plain move to an org-wide folder — nothing is re-validated', async () => {
+    // The document's existing teams are not a request: an editor in sales
+    // moves a sales document into an org-wide folder and it stays sales —
+    // no team read, no `TEAM_ACCESS_DENIED` for a team they are not in.
+    const salesDoc = {
+      ...HUB_DOC,
+      teamId: 'team-sales',
+      teamTags: ['team-sales', 'team-product'],
+    };
+    const { tx, statements } = fakeTx(salesDoc, { folder: orgFolder });
+    await updateDocument(tx, authOut, {
+      documentId: 'doc-1',
+      folderId: 'folder-org',
+    });
+    expect(statements.some((s) => s.text.includes('FROM "team"'))).toBe(false);
+    const update = updateOf(statements);
+    expect(update).toBeDefined();
+    expect(update?.values).not.toContainEqual([]);
+    expect(update?.values).not.toContainEqual(['team-sales']);
+  });
+
+  it('re-stamps a team document moved into another team’s folder with that folder’s audience', async () => {
+    const salesDoc = {
+      ...HUB_DOC,
+      teamId: 'team-sales',
+      teamTags: ['team-sales'],
+    };
+    const both = {
+      ...auth,
+      role: 'editor',
+      teamIds: ['team-sales', 'team-product'],
+    };
+    const { tx, statements } = fakeTx(salesDoc, { folder: teamFolder });
+    await updateDocument(tx, both, {
+      documentId: 'doc-1',
+      folderId: 'folder-team',
+    });
+    expect(updateOf(statements)?.values).toContainEqual(['team-product']);
   });
 
   it('lets a document leave a folder for the root', async () => {

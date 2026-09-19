@@ -117,6 +117,7 @@ const project = {
   projectAgentCount: 0,
   teamId: null,
   sharedWithTeamIds: [],
+  teamIds: [],
   instructions: null,
   knowledgeMode: null,
   agentMode: null,
@@ -467,6 +468,7 @@ describe('GET /projects — lookup and list', () => {
           id: 'p-1',
           name: 'Ledger',
           externalItemId: 'acme-café',
+          teamIds: [],
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
         },
@@ -513,6 +515,7 @@ describe('GET /projects — lookup and list', () => {
         {
           id: 'p-2',
           name: 'Ledger',
+          teamIds: [],
           createdAt: listed.createdAt,
           updatedAt: listed.updatedAt,
         },

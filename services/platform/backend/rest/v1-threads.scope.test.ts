@@ -143,6 +143,9 @@ function mount(
                     ? 'org-2'
                     : 'org-1',
                 name: 'Project',
+                // The audience (`PROJECT_TEAM_IDS_SQL` as `teamIds`) beside
+                // the legacy pair the REST projection still derives.
+                teamIds: ['team-1'],
                 teamId: 'team-1',
                 sharedWithTeamIds: [],
                 archivedAt:

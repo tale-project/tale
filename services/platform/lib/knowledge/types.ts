@@ -166,6 +166,13 @@ export interface FusedKnowledgeHit extends KnowledgeHit {
 export interface KnowledgeAccessScope {
   /** Teams whose library documents the caller may read. */
   readonly teamIds: readonly string[];
+  /**
+   * Whether the caller is an owner/admin of the organization — the audience
+   * rule (`backend/core/lib/audience.ts`) never restricts them, so every
+   * team-scoped hub document is visible whatever `teamIds` lists. Absent
+   * reads as false (a member).
+   */
+  readonly isAdmin?: boolean;
   /** Projects whose attached documents the caller may read. */
   readonly projectIds: readonly string[];
   /** Whether org-hub documents (no team, no project) are visible. */
@@ -278,8 +285,10 @@ export function knowledgeScopeAllows(
   if (access === undefined) return true;
   const teamIds = scopeTeamIds(scope);
   const isHub = documentScopeKind(scope) === 'hub';
+  const isTeamRow = scope.projectId == null && teamIds.length > 0;
   return (
     (isHub && access.includeHub) ||
+    (isTeamRow && access.isAdmin === true) ||
     teamIds.some((teamId) => access.teamIds.includes(teamId)) ||
     (scope.projectId != null && access.projectIds.includes(scope.projectId))
   );

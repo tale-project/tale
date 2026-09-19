@@ -144,6 +144,8 @@ export const REST_ERROR_CODES = [
   'PROJECT_KEY_TAKEN',
   'PROJECT_LEGAL_HOLD',
   'PROJECT_NOT_FOUND',
+  // A project audience that is too long, or repeats or blanks a team.
+  'PROJECT_SHARING_INVALID',
   'PURGE_INCOMPLETE',
   'RATE_LIMITED',
   'RBAC_FORBIDDEN',
@@ -166,6 +168,11 @@ export const REST_ERROR_CODES = [
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
   'TEAM_ACCESS_DENIED',
+  // A hub document inside a team folder takes the folder's audience; a
+  // request naming a team outside it is refused.
+  'TEAM_INHERITED_FROM_FOLDER',
+  // An audience names a team that is not one of this organization's.
+  'TEAM_NOT_IN_ORG',
   'THREAD_NOT_FOUND',
   'UNAUTHORIZED',
   'UNSUPPORTED_FILE_TYPE',

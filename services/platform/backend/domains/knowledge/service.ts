@@ -848,12 +848,7 @@ export async function indexUploadedFile(
       `;
       const doc = docRows[0];
       if (doc) {
-        teamIds =
-          doc.teamTags.length > 0
-            ? doc.teamTags
-            : doc.teamId
-              ? [doc.teamId]
-              : null;
+        teamIds = doc.teamTags.length > 0 ? doc.teamTags : null;
         projectId = doc.projectId;
         folderPath = await resolveDocumentFolderPath(
           sql,
@@ -1178,8 +1173,7 @@ export async function syncRagDocumentScope(
     );
     const orgSlug = await requireOrgSlug(sql, organizationId);
     const pool = await getKnowledgePoolForOrg(orgSlug);
-    const teamIds =
-      doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+    const teamIds = doc.teamTags;
     // `team_ids` (retrieval matches ANY) + the deprecated single mirror.
     await pool.unsafe(
       `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
@@ -1255,8 +1249,7 @@ export async function syncRagDocumentScopes(
     const intended = docs.map((doc) => {
       // The tag array wins, the single column is its deprecated mirror —
       // the same precedence the per-edit sync and the reconcile apply.
-      const teamIds =
-        doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+      const teamIds = doc.teamTags;
       return {
         file_id: doc.fileRef,
         team_ids: teamIds.length > 0 ? teamIds : null,
@@ -1392,8 +1385,7 @@ async function reconcileScopeStampPage(
   const intended = docs.map((doc) => {
     // Same precedence as the per-edit sync: the tag array wins, the single
     // column is its deprecated mirror.
-    const teamIds =
-      doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+    const teamIds = doc.teamTags;
     return {
       file_id: doc.fileRef,
       team_ids: teamIds.length > 0 ? teamIds : null,

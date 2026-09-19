@@ -118,6 +118,11 @@ const teamIdSchema = z.string().min(1);
 const sharedWithTeamIdsSchema = z
   .array(teamIdSchema)
   .max(PROJECT_SHARED_TEAMS_MAX);
+/** The audience — every team the project is scoped to; empty = org-wide.
+ * One more than the shared-teams cap: the former owning team folds in. */
+const projectTeamIdsSchema = z
+  .array(teamIdSchema)
+  .max(PROJECT_SHARED_TEAMS_MAX + 1);
 
 const agentSlugSchema = z
   .string()
@@ -149,7 +154,10 @@ export const createProjectInputSchema = z.object({
   description: projectDescriptionSchema.optional(),
   icon: projectIconSchema.optional(),
   color: projectColorSchema.optional(),
+  teamIds: projectTeamIdsSchema.optional(),
+  /** @deprecated Legacy owning team — folds into `teamIds` first. */
   teamId: teamIdSchema.optional(),
+  /** @deprecated Legacy shared teams — fold into `teamIds` after `teamId`. */
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
 });
 
@@ -168,7 +176,10 @@ export const updateProjectInstructionsSchema = z.object({
 });
 
 export const updateProjectSharingSchema = z.object({
+  teamIds: projectTeamIdsSchema.optional(),
+  /** @deprecated Legacy owning team; `null` alone clears the audience. */
   teamId: teamIdSchema.nullable().optional(),
+  /** @deprecated Legacy shared teams. */
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
 });
 

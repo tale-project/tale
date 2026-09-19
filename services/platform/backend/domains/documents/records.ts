@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { authorizeRls } from '../../auth/access.ts';
+import { getUserTeamIds } from '../../auth/membership.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -290,16 +291,6 @@ async function memberRole(
   return rows[0]?.role ?? null;
 }
 
-async function userTeamIds(
-  db: Sql | TransactionSql,
-  userId: string,
-): Promise<string[]> {
-  const rows = await db<{ teamId: string }[]>`
-    SELECT "teamId" FROM "teamMember" WHERE "userId" = ${userId}
-  `;
-  return rows.map((row) => row.teamId);
-}
-
 /**
  * Whether `userId` could RESPOND to a review on this document — the single
  * rule behind the submit designee gate AND the reviewer picker: a
@@ -315,17 +306,14 @@ export async function isEligibleDocumentReviewer(
 ): Promise<boolean> {
   const role = await memberRole(db, doc.organizationId, userId);
   if (role === null || !authorizeRls(role, 'documents', 'write')) return false;
-  const teamIds = await userTeamIds(db, userId);
+  // The candidate's teams IN THIS ORGANIZATION — a team membership another
+  // tenant granted must never widen eligibility here.
+  const teamIds = await getUserTeamIds(db, doc.organizationId, userId);
   if (doc.projectId !== null) {
     const project = await loadProjectOrThrow(db, doc.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      teamIds,
-      role,
-    );
-    return access.canEdit;
+    return checkProjectAccess(project, teamIds, role).canEdit;
   }
-  return hasKnowledgeHubDocumentAccess(doc, teamIds);
+  return hasKnowledgeHubDocumentAccess(doc, { role, teamIds });
 }
 
 /** The picker's server-derived option set (caller needs read access; the

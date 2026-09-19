@@ -42,6 +42,9 @@ import {
 const createSchema = z.object({
   name: z.string().min(1).max(200),
   parentId: z.string().optional(),
+  /** The audience; empty or absent = organization-wide. */
+  teamIds: z.array(z.string().min(1)).max(64).optional(),
+  /** @deprecated The single-team spelling of `teamIds`; still accepted. */
   teamId: z.string().optional(),
   projectId: z.string().optional(),
 });

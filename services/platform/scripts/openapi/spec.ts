@@ -14,6 +14,7 @@
 import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_MODEL_MAX,
+  PROJECT_SHARED_TEAMS_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
 import {
@@ -1567,7 +1568,7 @@ export function buildSpec(): Json {
       responses: {
         '201': createdId('Created — the new document’s id'),
         '403': errorResponse(
-          'The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
+          'The key holder’s role cannot write documents, `teamIds` (or `teamId`) names a team a non-admin key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
         ),
         '404': errorResponse(
           'The upload is absent, not owned by the key holder or already bound',
@@ -1576,6 +1577,9 @@ export function buildSpec(): Json {
           'The body exceeds 32 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a 5,000,000-character inline `content` (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
         ...standardErrors,
+        '400': errorResponse(
+          'A body the schema refuses (`INVALID_BODY`); `teamIds` names a team that is not this organization’s (`TEAM_NOT_IN_ORG`, the ids in `data.teamIds`); or `folderId` is a team folder and `teamIds` names a team outside its audience (`TEAM_INHERITED_FROM_FOLDER`) — inside a team folder the folder’s audience applies',
+        ),
       },
     },
   };
@@ -1643,7 +1647,7 @@ export function buildSpec(): Json {
           headers: { ETag: headerRef('ETag') },
         },
         '403': errorResponse(
-          'The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
+          'The key holder’s role cannot write documents, `teamIds` (or `teamId`) names a team a non-admin key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
         ),
         '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '409': errorResponse(
@@ -1654,7 +1658,7 @@ export function buildSpec(): Json {
         ),
         ...standardErrors,
         '400': errorResponse(
-          'Invalid request (malformed body or parameters); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)',
+          'Invalid request (malformed body or parameters); `teamIds` names a team that is not this organization’s (`TEAM_NOT_IN_ORG`); the document sits in (or moves into) a team folder and `teamIds` names a team outside its audience (`TEAM_INHERITED_FROM_FOLDER`); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)',
         ),
         '413': errorResponse(
           'The body exceeds 32 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a 5,000,000-character inline `content` (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
@@ -2567,6 +2571,17 @@ export function buildSpec(): Json {
             pattern: '^[A-Za-z][A-Za-z0-9]{1,5}$',
           },
           description: { type: 'string', maxLength: 500 },
+          teamIds: {
+            type: 'array',
+            items: { type: 'string', minLength: 1, maxLength: 128 },
+            maxItems: PROJECT_SHARED_TEAMS_MAX + 1,
+            description:
+              'The audience: the teams that may see the project, by id — ' +
+              'teams of this organization, and for a key holder who is not ' +
+              'an admin, teams they belong to (`TEAM_ACCESS_DENIED`). ' +
+              'Omitted or empty = organization-wide. Owners and admins see ' +
+              'every project regardless.',
+          },
         },
       }),
       responses: {
@@ -2577,12 +2592,17 @@ export function buildSpec(): Json {
           properties: { project: ref('Project') },
         }),
         '400': errorResponse(
-          'A body the schema refuses (`INVALID_BODY`), or an explicit ' +
+          'A body the schema refuses (`INVALID_BODY`), an explicit ' +
             '`key` outside the 2-6 letters-and-digits rule ' +
-            '(`PROJECT_KEY_INVALID`)',
+            '(`PROJECT_KEY_INVALID`), or a `teamIds` that repeats a team, ' +
+            'exceeds the cap or names a team that is not this ' +
+            'organization’s (`PROJECT_SHARING_INVALID`, the unknown ids in ' +
+            '`data.unknownTeamIds`)',
         ),
         '403': errorResponse(
-          'The key holder is not an org editor (`ROLE_FORBIDDEN`)',
+          'The key holder is not an org editor (`ROLE_FORBIDDEN`), or ' +
+            '`teamIds` names a team a non-admin key holder is not in ' +
+            '(`TEAM_ACCESS_DENIED`)',
         ),
         '409': errorResponse(
           'Duplicate externalItemId (`PROJECT_DUPLICATE_EXTERNAL_ID`) or ' +
@@ -2673,6 +2693,16 @@ export function buildSpec(): Json {
               'The caller-owned key, stored NFC-normalized and trimmed, ' +
               'unique per organization; `null` releases it',
           },
+          teamIds: {
+            type: 'array',
+            items: { type: 'string', minLength: 1, maxLength: 128 },
+            maxItems: PROJECT_SHARED_TEAMS_MAX + 1,
+            description:
+              'The audience, replaced whole: the teams that may see the ' +
+              'project, by id (teams of this organization); `[]` makes it ' +
+              'organization-wide. An organization admin verb, like ' +
+              '`archived` — a lesser role answers 403 `RBAC_FORBIDDEN`.',
+          },
         },
       }),
       responses: {
@@ -2684,10 +2714,13 @@ export function buildSpec(): Json {
         }),
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`): no field, an unknown ' +
-            'key, a blank `name` or `externalItemId`, a value past its cap',
+            'key, a blank `name` or `externalItemId`, a value past its cap; ' +
+            'or a `teamIds` that repeats a team or names one that is not ' +
+            'this organization’s (`PROJECT_SHARING_INVALID`)',
         ),
         '403': errorResponse(
-          '`archived` from a key holder who is not an organization admin, ' +
+          '`archived` or `teamIds` from a key holder who is not an ' +
+            'organization admin, ' +
             'or an identity edit without the editor role (`ROLE_FORBIDDEN`) ' +
             'or project edit access (`RBAC_FORBIDDEN`, `PROJECT_FORBIDDEN`), ' +
             'or on an archived project the body does not restore ' +
@@ -6760,7 +6793,21 @@ curl -H "Authorization: Bearer <api-key>" \\
             mimeType: nullable(str),
             extension: nullable(str),
             sourceProvider: nullable(str),
-            teamId: nullable(str),
+            teamIds: {
+              type: 'array',
+              items: str,
+              description:
+                'The audience: the teams that may read the document, by id; ' +
+                'empty = organization-wide. Owners and admins read every ' +
+                'team library regardless.',
+            },
+            teamId: nullable({
+              ...str,
+              deprecated: true,
+              description:
+                'The first team of `teamIds`, or null — the pre-1.17.0 ' +
+                'single-team spelling; read `teamIds`',
+            }),
             folderId: nullable(str),
             metadata: nullable(obj),
             contentHash: nullable({
@@ -6791,7 +6838,24 @@ curl -H "Authorization: Bearer <api-key>" \\
             extension: { type: 'string', maxLength: 32 },
             sourceProvider: { type: 'string', maxLength: 64 },
             metadata: freeFormObject('Free-form.'),
-            teamId: { type: 'string', maxLength: 128 },
+            teamIds: {
+              type: 'array',
+              items: { type: 'string', minLength: 1, maxLength: 128 },
+              maxItems: 64,
+              description:
+                'The audience: teams of this organization the key holder ' +
+                'may assign (their own, unless they are an admin — ' +
+                '`TEAM_ACCESS_DENIED`; an id that is not the organization’s ' +
+                'is `TEAM_NOT_IN_ORG`). Omitted or empty = organization-wide. ' +
+                'Inside a team folder the folder’s audience applies; naming ' +
+                'a team outside it is `TEAM_INHERITED_FROM_FOLDER`.',
+            },
+            teamId: {
+              type: 'string',
+              maxLength: 128,
+              description:
+                'The single-team spelling of `teamIds` (still accepted)',
+            },
             folderId: { type: 'string', maxLength: 64 },
           },
         },
@@ -6818,7 +6882,21 @@ curl -H "Authorization: Bearer <api-key>" \\
             mimeType: nullable({ type: 'string', maxLength: 255 }),
             extension: nullable({ type: 'string', maxLength: 32 }),
             sourceProvider: nullable({ type: 'string', maxLength: 64 }),
-            teamId: nullable({ type: 'string', maxLength: 128 }),
+            teamIds: {
+              type: 'array',
+              items: { type: 'string', minLength: 1, maxLength: 128 },
+              maxItems: 64,
+              description:
+                'The audience, replaced whole (`[]` = organization-wide); ' +
+                'the same rules as on create — inside a team folder the ' +
+                'folder’s audience applies (`TEAM_INHERITED_FROM_FOLDER`)',
+            },
+            teamId: nullable({
+              type: 'string',
+              maxLength: 128,
+              description:
+                'The single-team spelling of `teamIds`; `null` clears',
+            }),
             folderId: nullable({ type: 'string', maxLength: 64 }),
           },
         },
@@ -7559,7 +7637,7 @@ curl -H "Authorization: Bearer <api-key>" \\
         // ── Projects ──
         Project: {
           type: 'object',
-          required: ['id', 'name', 'createdAt', 'updatedAt'],
+          required: ['id', 'name', 'teamIds', 'createdAt', 'updatedAt'],
           properties: {
             id: { type: 'string' },
             name: { type: 'string' },
@@ -7587,6 +7665,14 @@ curl -H "Authorization: Bearer <api-key>" \\
             updatedAt: {
               ...epochMs,
               description: 'Epoch ms of the last change to the project itself',
+            },
+            teamIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'The audience: the teams that may see the project, by id; ' +
+                'empty = organization-wide (every member). Owners and admins ' +
+                'see every project regardless.',
             },
           },
         },

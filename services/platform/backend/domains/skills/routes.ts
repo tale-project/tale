@@ -19,7 +19,7 @@ import {
   saveSkillForViewer,
 } from '../../core/skills/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { skillErrorResponse } from './errors.ts';
+import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
 
@@ -56,17 +56,24 @@ export function createSkillRoutes(deps: {
       throw new Error(`organization ${c.get('orgId')} has no slug`);
     }
     const userId = c.get('sessionBundle').user.id;
+    const role = c.get('orgMember').role;
+    const teamIds = await getUserTeamIds(deps.sql, c.get('orgId'), userId);
     return {
       orgSlug,
       viewer: {
         kind: 'user' as const,
         userId,
-        teamIds: await getUserTeamIds(deps.sql, c.get('orgId'), userId),
-        isOrgAdmin: defineAbilityFor(c.get('orgMember').role).can(
-          'write',
-          'orgSettings',
-        ),
+        teamIds,
+        isOrgAdmin: defineAbilityFor(role).can('write', 'orgSettings'),
       },
+      // The audience rule for a team skill's `teams` (the org's own teams;
+      // a non-admin only their own), answered in the skill door's codes.
+      assertTeamsAssignable: (ids: string[]) =>
+        assertSkillTeamsAssignable(deps.sql, {
+          organizationId: c.get('orgId'),
+          role,
+          teamIds,
+        })(ids),
     };
   };
 

@@ -32,6 +32,7 @@ import {
   normalizeTopicKey,
   TOPIC_MAX_LENGTH,
 } from '../core/knowledge_entries/constants.ts';
+import { isAudienceAdmin } from '../core/lib/audience.ts';
 import { PRODUCT_CATEGORY_MAX } from '../core/products/field_limits.ts';
 import {
   deleteSkillForViewer,
@@ -97,7 +98,10 @@ import {
   type ProductScope,
 } from '../domains/products/service.ts';
 import { PRODUCT_STATUSES } from '../domains/products/service.ts';
-import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
+import {
+  assertSkillTeamsAssignable,
+  SKILL_ERROR_STATUS,
+} from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import {
   entityTagOf,
@@ -686,6 +690,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     mimeType: doc.mimeType,
     extension: doc.extension,
     sourceProvider: doc.sourceProvider,
+    // The audience — every team the document is scoped to; [] = org-wide.
+    // `teamId` stays as the deprecated single-team spelling (its first).
+    teamIds: doc.teamTags,
     teamId: doc.teamId,
     folderId: doc.folderId,
     metadata: doc.metadata,
@@ -806,6 +813,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           extension: z.string().max(32).optional(),
           sourceProvider: z.string().max(64).optional(),
           metadata: boundedJsonObject().optional(),
+          // The audience: team ids of this organization the key holder may
+          // assign (a non-admin's own); `teamId` is its single spelling.
+          teamIds: z.array(nonBlank(128)).max(64).optional(),
           teamId: z.string().max(128).optional(),
           folderId: z.string().max(64).optional(),
         })
@@ -897,6 +907,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           mimeType: z.string().max(255).nullable().optional(),
           extension: z.string().max(32).nullable().optional(),
           sourceProvider: z.string().max(64).nullable().optional(),
+          // The audience, replaced whole ([] = organization-wide); `teamId`
+          // is its single-team spelling (`null` clears).
+          teamIds: z.array(nonBlank(128)).max(64).optional(),
           teamId: z.string().max(128).nullable().optional(),
           folderId: z.string().max(64).nullable().optional(),
           // The contacts/products precondition: the `updatedAt` last read;
@@ -1082,9 +1095,8 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       } else {
         access = {
           userId: auth.userId,
-          teamIds: [
-            ...new Set([`org_${auth.organizationId}`, ...auth.teamIds]),
-          ],
+          teamIds: [...auth.teamIds],
+          isAdmin: isAudienceAdmin(auth.role),
           projectIds: [],
           includeHub: true,
           includeConversationScoped: false,
@@ -1339,21 +1351,30 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   // ---- skills (the file layer, reused) -------------------------------------
   /** The key acts as its user: team skills follow the user's own teams. */
-  const skillCaller = async (c: Context<RestEnv>) => ({
-    orgSlug:
-      (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
-      c.get('orgSlug'),
-    viewer: {
-      kind: 'user' as const,
-      userId: c.get('userId'),
-      teamIds: await getUserTeamIds(
-        deps.sql,
-        c.get('organizationId'),
-        c.get('userId'),
-      ),
-      isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
-    },
-  });
+  const skillCaller = async (c: Context<RestEnv>) => {
+    const teamIds = await getUserTeamIds(
+      deps.sql,
+      c.get('organizationId'),
+      c.get('userId'),
+    );
+    return {
+      orgSlug:
+        (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
+        c.get('orgSlug'),
+      viewer: {
+        kind: 'user' as const,
+        userId: c.get('userId'),
+        teamIds,
+        isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
+      },
+      // The audience rule for a team skill's `teams`, in the skill codes.
+      assertTeamsAssignable: assertSkillTeamsAssignable(deps.sql, {
+        organizationId: c.get('organizationId'),
+        role: c.get('role'),
+        teamIds,
+      }),
+    };
+  };
 
   /**
    * The conditional headers of a skill write, parsed for the file layer,

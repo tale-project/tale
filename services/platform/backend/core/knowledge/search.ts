@@ -138,6 +138,9 @@ export async function searchKnowledge(
           ? {
               access: {
                 teamIds: [...args.access.teamIds],
+                ...(args.access.isAdmin !== undefined
+                  ? { isAdmin: args.access.isAdmin }
+                  : {}),
                 projectIds: [...args.access.projectIds],
                 includeHub: args.access.includeHub,
                 ...(args.access.includeConversationScoped !== undefined

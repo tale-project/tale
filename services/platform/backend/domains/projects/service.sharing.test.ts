@@ -148,6 +148,12 @@ describe('project team scoping — only teams of the caller org', () => {
     const update = writes(statements).find((s) =>
       s.text.startsWith('UPDATE app.projects'),
     );
-    expect(update?.values.slice(0, 2)).toEqual(['team-sales', ['team-ops']]);
+    // The audience array is the truth; the legacy pair is derived from it
+    // (`audienceMirror`) for the previous image during a rollout.
+    expect(update?.values.slice(0, 3)).toEqual([
+      ['team-sales', 'team-ops'],
+      'team-sales',
+      ['team-ops'],
+    ]);
   });
 });
