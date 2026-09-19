@@ -1,0 +1,13 @@
+markdownDiagram:
+  zoomIn: Vergrössern
+markdownImage:
+  zoom: Bild vergrössern
+  close: Schliessen
+search:
+  close: Suche schliessen
+  tipClose: zum Schliessen
+docs:
+  closeMenu: Navigationsmenü schliessen
+common:
+  aria:
+    close: Schliessen
