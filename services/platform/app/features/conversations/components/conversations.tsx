@@ -85,9 +85,9 @@ interface ConversationsProps {
 }
 
 /** Queue-filter token: any of the viewer's own teams' queues. */
-export const MY_QUEUES = 'mine';
+const MY_QUEUES = 'mine';
 /** Queue-filter token: conversations with no person and no team assigned. */
-export const UNASSIGNED_QUEUE = 'unassigned';
+const UNASSIGNED_QUEUE = 'unassigned';
 
 // ---------------------------------------------------------------------------
 // Body state machine
