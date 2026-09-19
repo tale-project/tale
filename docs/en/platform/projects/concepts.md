@@ -33,7 +33,7 @@ Write instructions for recurring context: what this work covers, which sources t
 
 ## Check who can open it
 
-New projects default to **Org-wide** access. On **General**, choose an owning team to restrict access and add other teams when collaboration requires it. Organization administrators retain access. Sharing is based on teams rather than individual invitations.
+New projects default to **Org-wide** access. Choose teams under **Who can see it** when you create a project, or under **Audience** on **General** later. An empty audience means everyone in the organization; otherwise members of any listed team can open the project, and organization administrators always can. Unless you are an Owner or Admin, you can only pick teams you belong to. Removing a team later hides the project from members outside the remaining teams, and the page asks you to confirm that. Sharing is based on teams rather than individual invitations; the project list shows each project's teams in its **Sharing** column and offers a **Teams** filter.
 
 Project files follow project access. They do not appear as ordinary library documents, and a team tag on a library file does not make that file a project attachment. [Manage files](/platform/projects/manage-files) explains moving documents and how removing a file from a project can widen its audience.
 

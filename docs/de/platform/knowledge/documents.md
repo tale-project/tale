@@ -72,11 +72,11 @@ Bei **Nicht unterstützt** gibt es keine Wiederholungsaktion: Dieselben Dateiinh
 
 ## Festlegen, wer das Dokument lesen kann
 
-Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.
+Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams: Die Mitglieder eines dieser Teams können das Dokument lesen, Inhaber und Admins immer. Sofern du nicht Inhaber oder Admin bist, kannst du nur Teams wählen, denen du selbst angehörst. Ein Dokument in einem Team-Ordner übernimmt die Teams des Ordners und kann kein Team außerhalb davon nennen; wird ein Dokument in einen solchen Ordner verschoben, gelten die Teams des Ordners. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.
 
 Auf der obersten Bibliotheksebene siehst du Ordner und Dokumente, die keinem Ordner zugeordnet sind. Öffne einen Ordner, um seinen Inhalt zu sehen. Ein dort abgelegtes Dokument erscheint nicht zusätzlich als Dateizeile auf der obersten Ebene.
 
-Ordner gliedern die Bibliothek. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
+Ordner gliedern die Bibliothek. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Der Filter **Teams** grenzt die Liste auf **Organisationsweit** zugängliche Einträge, auf **Meine Teams** (alles, was eines deiner Teams sehen darf) oder auf ein Team nach Namen ein; die Auswahl steht in der Seitenadresse, sodass sich eine gefilterte Liste als Lesezeichen speichern lässt. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
 
 ## Aus Microsoft 365 oder Google Drive importieren
 

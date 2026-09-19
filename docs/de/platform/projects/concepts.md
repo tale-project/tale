@@ -33,7 +33,7 @@ Halte in den Anweisungen wiederkehrenden Kontext fest: Worum geht es, welche Que
 
 ## Prüfen, wer das Projekt öffnen kann
 
-Neue Projekte sind standardmäßig **Organisationsweit** zugänglich. Wähle unter **Allgemein** ein zuständiges Team, um den Zugriff einzugrenzen. Weitere Teams lassen sich bei Bedarf ergänzen. Organisationsadministratoren behalten Zugriff. Die Freigabe erfolgt über Teams, nicht über einzelne Einladungen.
+Neue Projekte sind standardmäßig **Organisationsweit** zugänglich. Wähle beim Erstellen unter **Wer es sehen kann** die Teams aus, oder später unter **Reichweite** auf der Seite **Allgemein**. Eine leere Reichweite bedeutet alle in der Organisation; sonst können die Mitglieder eines der genannten Teams das Projekt öffnen, Organisationsadministratoren immer. Sofern du nicht Inhaber oder Admin bist, kannst du nur Teams wählen, denen du selbst angehörst. Entfernst du später ein Team, sehen Mitglieder außerhalb der verbleibenden Teams das Projekt nicht mehr; die Seite lässt dich das bestätigen. Die Freigabe erfolgt über Teams, nicht über einzelne Einladungen. Die Projektliste zeigt die Teams jedes Projekts in der Spalte **Freigabe** und bietet einen Filter **Teams**.
 
 Projektdateien folgen dem Projektzugriff. Sie erscheinen nicht als gewöhnliche Bibliotheksdokumente; umgekehrt macht eine Team-Zuordnung ein Bibliotheksdokument nicht zum Projektanhang. [Dateien verwalten](/de/platform/projects/manage-files) erklärt das Verschieben und warum das Entfernen aus einem Projekt den Leserkreis erweitern kann.
 

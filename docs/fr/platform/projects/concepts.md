@@ -33,7 +33,7 @@ Consacre les instructions au contexte récurrent : le périmètre du travail, l
 
 ## Vérifier qui peut l’ouvrir
 
-Les nouveaux projets sont accessibles à **Toute l'organisation** par défaut. Dans **Général**, choisis une équipe propriétaire pour restreindre l’accès et ajoute d’autres équipes si la collaboration le nécessite. Les administrateurs de l’organisation conservent l’accès. Le partage repose sur les équipes, sans invitations individuelles.
+Les nouveaux projets sont accessibles à **Toute l'organisation** par défaut. Choisis des équipes sous **Qui peut le voir** à la création du projet, ou plus tard sous **Audience** dans **Général**. Une audience vide signifie toute l’organisation ; sinon, les membres de l’une des équipes listées peuvent ouvrir le projet, et les administrateurs de l’organisation le peuvent toujours. Sauf si tu es propriétaire ou admin, tu ne peux choisir que des équipes dont tu fais partie. Retirer une équipe plus tard masque le projet aux membres extérieurs aux équipes restantes, et la page te demande de le confirmer. Le partage repose sur les équipes plutôt que sur des invitations individuelles ; la liste des projets affiche les équipes de chaque projet dans la colonne **Partage** et propose un filtre **Équipes**.
 
 Les fichiers suivent l’accès au projet. Ils n’apparaissent pas comme des documents ordinaires de la bibliothèque ; affecter un document de la bibliothèque à une équipe n’en fait pas non plus une pièce jointe de projet. [Gérer les fichiers](/fr/platform/projects/manage-files) explique les déplacements et pourquoi retirer un fichier d’un projet peut élargir son public.
 

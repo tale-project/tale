@@ -3,7 +3,7 @@ title: Gérer ton compte et tes préférences
 description: Modifie ton nom, protège ta connexion, choisis une langue et comprends les réglages personnels de Tale.
 ---
 
-Les réglages du compte déterminent le nom visible par tes collègues et ta façon de te connecter. Le menu de profil permet aussi de changer d’organisation, d’équipe et de langue. Ces commandes sont accessibles sans rôle d’admin.
+Les réglages du compte déterminent le nom visible par tes collègues et ta façon de te connecter. Le menu de profil permet aussi de changer d’organisation et de langue, et affiche les équipes dont tu fais partie. Ces commandes sont accessibles sans rôle d’admin.
 
 ## Modifier le nom visible par tes collègues
 
@@ -19,9 +19,17 @@ Configure une application sous **Authentification à deux facteurs** ou ajoute u
 
 ## Changer de langue ou d’espace de travail
 
-Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. **Équipe** restreint la vue à une équipe lorsque des équipes sont disponibles.
+Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. La ligne **Équipes** nomme tes équipes et ouvre la page du compte ; elle ne bascule vers rien, car une équipe n’est pas un espace de travail.
 
-Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu. Un filtre d’équipe change la vue, sans accorder l’accès aux données d’une autre équipe.
+Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu.
+
+## Voir tes équipes {#teams}
+
+**Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit.
+
+Pour restreindre une liste à certains travaux, utilise son filtre **Équipes** : **Toute l'organisation** n’affiche que les éléments sans équipe, **Mes équipes** affiche ceux qu’une de tes équipes peut voir, et chaque équipe figure par son nom. La boîte de réception propose **Filtrer par file** sur le même principe. Un filtre change la vue, sans accorder l’accès aux données d’une autre équipe.
+
+Les propriétaires et les admins gèrent les membres dans [Équipes](/fr/platform/admin/teams) ; la section y renvoie pour eux.
 
 ## Comprendre la navigation mémorisée {#navigation-memory}
 

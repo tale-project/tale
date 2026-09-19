@@ -3,7 +3,7 @@ title: Manage your account and preferences
 description: Update your name, secure your sign-in, choose a language, and understand the personal settings available in Tale.
 ---
 
-Your account settings control how teammates recognize you and how you sign in. Your profile menu also lets you switch organization, team, and language. These controls are available without an administrator role.
+Your account settings control how teammates recognize you and how you sign in. Your profile menu also lets you switch organization and language and shows the teams you belong to. These controls are available without an administrator role.
 
 ## Update the name your teammates see
 
@@ -19,9 +19,17 @@ Set up an authenticator under **Two-factor authentication** or add a passkey und
 
 ## Switch language or workspace
 
-Open the profile menu from your avatar. **Language** changes the interface language. When you belong to several organizations, **Organization** switches the workspace; **Team** narrows the current team view when teams are available.
+Open the profile menu from your avatar. **Language** changes the interface language. When you belong to several organizations, **Organization** switches the workspace. The **Teams** row names the teams you are in and opens the account page; it switches nothing, because a team is not a workspace.
 
-Check the organization name before changing settings or adding content. A team filter changes the current view; it does not grant access to another team’s data.
+Check the organization name before changing settings or adding content.
+
+## See your teams {#teams}
+
+**Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so.
+
+To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers a **Filter by queue** control with the same idea. A filter changes the current view; it does not grant access to another team’s data.
+
+Owners and Admins manage membership under [Teams](/platform/admin/teams); the section links there for them.
 
 ## Understand remembered navigation {#navigation-memory}
 

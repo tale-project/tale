@@ -25,11 +25,19 @@ Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie
 
 ## Comprendre les plafonds applicables
 
-Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé des membres actuels de l’équipe, même si un membre a une règle personnelle plus précise : l’usage d’un nouveau membre sur la période en cours compte aussitôt, et celui d’un membre parti ne compte plus. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, dont l’usage est imputé à la clé, pas les autres actions dans l’interface.
+Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Si une personne appartient à plusieurs équipes dotées d’une règle, le plafond le plus strict s’applique à elle. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé des membres actuels de l’équipe, même si un membre a une règle personnelle plus précise : l’usage d’un nouveau membre sur la période en cours compte aussitôt, et celui d’un membre parti ne compte plus. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, dont l’usage est imputé à la clé, pas les autres actions dans l’interface.
 
 Si une requête est refusée de façon inattendue, vérifie tous les plafonds applicables et leurs périodes. Augmenter une limite personnelle ne retire pas un plafond d’organisation, d’équipe ou de clé API.
 
 Les membres consultent leur propre situation sous [Paramètres > Utilisation](/fr/platform/member/preferences#usage-limits). Chaque plafond personnel, d’équipe ou d’organisation qui les concerne y figure avec l’utilisation actuelle et la prochaine réinitialisation, sans que les règles elles-mêmes soient affichées.
+
+### Comment les règles se combinent {#how-rules-combine}
+
+Chaque politique de cette page et de [Contenu et modèles](/fr/platform/admin/governance/content-models) lit ses règles de la même façon. La portée la plus précise l’emporte : une règle individuelle avant une règle d’équipe, une règle d’équipe avant une règle de rôle, une règle de rôle avant la valeur par défaut. Lorsqu’une personne appartient à plusieurs équipes dotées d’une règle, les règles d’équipe se combinent selon leur nature :
+
+- Une limite, comme un plafond de budget ou de fenêtre de contexte, prend la valeur la plus stricte. Rejoindre une équipe généreuse n’augmente jamais le plafond de quelqu’un.
+- Une liste d’autorisations, comme l’accès aux modèles, se combine par l’union des modèles autorisés ; un blocage dans l’une des règles reste prioritaire pour ce modèle.
+- Un choix unique, comme le modèle par défaut, suit l’ordre des règles dans le tableau : la première règle d’équipe correspondante l’emporte.
 
 ## Contrôler les imports
 

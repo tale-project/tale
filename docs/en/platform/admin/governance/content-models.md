@@ -12,7 +12,7 @@ Use **Settings > Governance > Models** as an Admin or Owner to choose the models
 3. Choose a provider and model, then **Confirm**. Save the page's pending changes in the header.
 4. Start a chat as a member of the target group with its model on **Auto**, and check the resolved model.
 
-The default is used when there is no explicit model choice. A team rule takes precedence over a role rule, followed by the baseline default. A default does not prevent someone from selecting another permitted model.
+The default is used when there is no explicit model choice. A team rule takes precedence over a role rule, followed by the baseline default; when someone belongs to several teams with a rule, the first matching team rule in the table wins (see [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine)). A default does not prevent someone from selecting another permitted model.
 
 ## Restrict model access
 

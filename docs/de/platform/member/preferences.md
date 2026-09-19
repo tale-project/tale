@@ -3,7 +3,7 @@ title: Konto und persönliche Einstellungen verwalten
 description: Ändere deinen Namen, sichere die Anmeldung ab, wähle eine Sprache und lerne die persönlichen Einstellungen kennen.
 ---
 
-Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du dich anmeldest. Im Profilmenü wechselst du außerdem Organisation, Team und Sprache. Dafür brauchst du keine Admin-Rolle.
+Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du dich anmeldest. Im Profilmenü wechselst du außerdem Organisation und Sprache und siehst, zu welchen Teams du gehörst. Dafür brauchst du keine Admin-Rolle.
 
 ## Den sichtbaren Namen ändern
 
@@ -19,9 +19,17 @@ Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder e
 
 ## Sprache oder Arbeitsbereich wechseln
 
-Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. **Team** grenzt die aktuelle Teamansicht ein, sofern Teams vorhanden sind.
+Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. Die Zeile **Teams** nennt deine Teams und öffnet die Kontoseite; sie wechselt nichts, denn ein Team ist kein Arbeitsbereich.
 
-Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst. Ein Team-Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
+Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst.
+
+## Deine Teams sehen {#teams}
+
+Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das.
+
+Um eine Liste auf bestimmte Arbeit einzugrenzen, nutze ihren Filter **Teams**: **Organisationsweit** zeigt nur Einträge ohne Team, **Meine Teams** zeigt Einträge, die eines deiner Teams sehen darf, und jedes Team steht mit Namen zur Wahl. Der Posteingang bietet dafür **Nach Warteschlange filtern**. Ein Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
+
+Inhaber und Admins verwalten die Mitgliedschaften unter [Teams](/de/platform/admin/teams); der Abschnitt verlinkt für sie dorthin.
 
 ## Gemerkte Navigation verstehen {#navigation-memory}
 
