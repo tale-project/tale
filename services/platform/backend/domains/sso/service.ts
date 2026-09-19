@@ -8,7 +8,10 @@ import type {
   SsoUserInfo,
 } from '../../core/enterprise_sso/types.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
-import { retireDeletedTeamScopes } from '../teams/service.ts';
+import {
+  resyncRetiredDocumentScopes,
+  retireTeamScopes,
+} from '../teams/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 import { resolveProvisioning } from './config.ts';
 
@@ -441,17 +444,22 @@ async function reapEmptySyncedTeam(
   ) {
     return false;
   }
-  await sql`
-    DELETE FROM "team"
-    WHERE "id" = ${teamId} AND "organizationId" = ${organizationId}
-  `;
-  await sql`
-    DELETE FROM app.sso_synced_teams
-    WHERE org_id = ${organizationId} AND team_id = ${teamId}
-  `;
-  // Whatever an admin scoped to the synced team meanwhile (a project, a
-  // folder) must not stay pointed at the ghost.
-  await retireDeletedTeamScopes(sql, organizationId, teamId);
+  // One transaction: the team row, its provenance and every scope it held
+  // go together, so a failure half-way leaves no ghost for a repair to find.
+  const retirement = await sql.begin(async (tx) => {
+    await tx`
+      DELETE FROM "team"
+      WHERE "id" = ${teamId} AND "organizationId" = ${organizationId}
+    `;
+    await tx`
+      DELETE FROM app.sso_synced_teams
+      WHERE org_id = ${organizationId} AND team_id = ${teamId}
+    `;
+    // Whatever an admin scoped to the synced team meanwhile (a project, a
+    // folder) must not stay pointed at the ghost.
+    return retireTeamScopes(tx, organizationId, teamId);
+  });
+  await resyncRetiredDocumentScopes(sql, organizationId, retirement);
   return true;
 }
 

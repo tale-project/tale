@@ -61,6 +61,7 @@ function fakeSql(answer: (text: string) => object[] | undefined): {
     sql: Object.assign(tag, {
       begin,
       json: (value: unknown) => value,
+      unsafe: (text: string) => text,
     }) as unknown as Sql,
     queries,
   };
@@ -346,8 +347,8 @@ describe('deleteGroup', () => {
       ) {
         return [{ id: 't-fin', name: 'Finance', organizationId: 'org-1' }];
       }
-      if (text.startsWith('UPDATE app.projects SET team_id')) {
-        return [{ id: 'p1' }];
+      if (text.startsWith('UPDATE app.projects SET team_ids')) {
+        return [{ id: 'p1', nowOrgWide: true }];
       }
       return undefined;
     });
@@ -364,7 +365,7 @@ describe('deleteGroup', () => {
       q.text.startsWith('INSERT INTO app.audit_logs'),
     );
     expect(audit?.values).toContain('scim_delete_group');
-    expect(JSON.stringify(audit?.values)).toContain('"projectsUnscoped":1');
+    expect(JSON.stringify(audit?.values)).toContain('"projectsRetagged":1');
   });
 
   it('answers false and writes nothing for a team of another org', async () => {

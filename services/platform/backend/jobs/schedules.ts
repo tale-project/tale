@@ -102,12 +102,19 @@ export const SCHEDULES: CronSchedule[] = [
   // Rollup drift repair: the board's counters are incremental, so something
   // has to reconcile them with the rows they summarize.
   { name: 'projects.repair_rollups', cron: '40 5 * * *' },
-  // Ghost-team repair: scope columns have no FK to "team", so a team that
-  // went before its scopes were retired (or a door that failed half-way)
-  // leaves rows nobody can see — the sweep retires them the same way the
-  // doors do.
-  { name: 'teams.repair_scopes', cron: '50 5 * * *' },
 ];
+
+/**
+ * Schedules this release no longer declares. pg-boss keeps a cron row per
+ * name across restarts, so a retired schedule would keep firing into a
+ * queue nobody works — `registerSchedules` removes these on boot.
+ *
+ * - `teams.repair_scopes` — the daily ghost-team sweep, retired once team
+ *   deletion became atomic (every door retires the scopes in the
+ *   transaction that deletes the team) and every scope write validates its
+ *   team ids (0109).
+ */
+export const RETIRED_SCHEDULES: readonly string[] = ['teams.repair_scopes'];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {
   for (const schedule of SCHEDULES) {
@@ -115,5 +122,8 @@ export async function registerSchedules(boss: PgBoss): Promise<void> {
       // One schedule per queue; tz pinned so day boundaries are stable.
       tz: 'Etc/UTC',
     });
+  }
+  for (const name of RETIRED_SCHEDULES) {
+    await boss.unschedule(name);
   }
 }

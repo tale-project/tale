@@ -43,7 +43,10 @@ function fakeSql(answer: (text: string) => object[] | undefined): {
   const begin = async (cb: (tx: unknown) => Promise<unknown>) => cb(tag);
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    sql: Object.assign(tag, { begin }) as unknown as Sql,
+    sql: Object.assign(tag, {
+      begin,
+      unsafe: (text: string) => text,
+    }) as unknown as Sql,
     queries,
   };
 }
@@ -522,9 +525,11 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     // The reaped team's scopes go with it: whatever an admin pointed at the
     // synced team meanwhile must not stay pointed at a ghost.
     const retired = queries.find((q) =>
-      q.text.startsWith('UPDATE app.projects SET team_id'),
+      q.text.startsWith('UPDATE app.projects SET team_ids'),
     );
-    expect(retired?.values.slice(1)).toEqual(['org-1', 't-ops']);
+    expect(retired?.text).toContain('WHERE org_id = $? AND');
+    expect(retired?.values).toContain('org-1');
+    expect(retired?.values).toContainEqual(['t-ops']);
   });
 
   it.each([
