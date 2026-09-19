@@ -10,6 +10,10 @@ const auth = vi.hoisted(() => ({
   continue: vi.fn(),
   publicClient: vi.fn(),
 }));
+const navigateWithinApp = vi.hoisted(() => vi.fn());
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateWithinApp,
+}));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { getSession: auth.getSession, oauth2: auth },
 }));
@@ -48,7 +52,13 @@ beforeEach(() => {
     new Proxy(originalWindow, {
       get(target, key) {
         if (key === 'location')
-          return { search: `?${signedQuery}`, assign: navigate };
+          return {
+            origin: 'https://identity.example.test',
+            pathname: '/oauth/continue',
+            search: `?${signedQuery}`,
+            assign: navigate,
+            replace: navigate,
+          };
         return Reflect.get(target, key, target);
       },
     }),
@@ -57,6 +67,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('native identity consent', () => {
+  it('opens login in the current document and preserves the signed query bytes', async () => {
+    auth.getSession.mockResolvedValue({ data: null });
+    render(<OAuthAuthorization consent={false} />);
+
+    await waitFor(() =>
+      expect(navigateWithinApp).toHaveBeenCalledExactlyOnceWith({
+        to: '/log-in',
+        search: { redirectTo: `/oauth/continue?${signedQuery}` },
+        replace: true,
+      }),
+    );
+    expect(navigate).not.toHaveBeenCalled();
+    expect(auth.continue).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['Allow and continue', true],
     ['Cancel', false],

@@ -1,10 +1,10 @@
+import { TaleLogo } from '@tale/ui/logo';
+
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Image } from '@/app/components/image';
-import { getEnv } from '@/lib/env';
 
 export const TaleLogoText = () => {
   const { appName, logoUrl } = useBrandingContext();
-  const basePath = getEnv('BASE_PATH');
 
   if (logoUrl) {
     return (
@@ -27,24 +27,5 @@ export const TaleLogoText = () => {
     );
   }
 
-  return (
-    <>
-      <Image
-        priority
-        src={`${basePath}/assets/logo-text-black.svg`}
-        className="dark:hidden"
-        alt="logo"
-        width={74}
-        height={24}
-      />
-      <Image
-        priority
-        src={`${basePath}/assets/logo-text-white.svg`}
-        className="hidden dark:block"
-        alt="logo"
-        width={74}
-        height={24}
-      />
-    </>
-  );
+  return <TaleLogo className="text-foreground" />;
 };
