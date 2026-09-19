@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { hasProjectAccess } from '../../core/projects/access.ts';
 import {
   extractMentions,
@@ -141,26 +142,23 @@ async function accessibleMembers(
   // always see it — the same predicate the assignee picker and every read
   // gate use, so a mentionable set can never disagree with who can open the
   // task.
-  const projects = await sql<
-    { teamId: string | null; sharedWithTeamIds: string[] | null }[]
-  >`
-    SELECT team_id AS "teamId",
-           shared_with_team_ids AS "sharedWithTeamIds"
+  const projects = await sql<{ teamIds: string[] | null }[]>`
+    SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
     FROM app.projects
     WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
     LIMIT 1
   `;
   const project = projects[0];
   if (project === undefined) return [];
-  const accessInput = {
-    ...(project.teamId !== null ? { teamId: project.teamId } : {}),
-    ...(project.sharedWithTeamIds !== null
-      ? { sharedWithTeamIds: project.sharedWithTeamIds }
-      : {}),
-  };
+  const accessInput = { teamIds: project.teamIds ?? [] };
+  // Memberships IN THIS ORGANIZATION only — a team another tenant granted
+  // must never make a member mentionable on a project here.
   const teamRows = await sql<{ userId: string; teamId: string }[]>`
-    SELECT "userId", "teamId" FROM "teamMember"
-    WHERE "userId" = ANY(${rows.map((row) => row.userId)})
+    SELECT tm."userId", tm."teamId"
+    FROM "teamMember" tm
+    JOIN "team" t ON t."id" = tm."teamId"
+    WHERE tm."userId" = ANY(${rows.map((row) => row.userId)})
+      AND t."organizationId" = ${args.organizationId}
   `;
   const teamsByUser = new Map<string, string[]>();
   for (const row of teamRows) {

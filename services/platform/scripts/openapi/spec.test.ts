@@ -524,6 +524,7 @@ const project = {
   openTaskCount: 0,
   doneTaskCount: 0,
   projectAgentCount: 0,
+  teamIds: [],
   teamId: null,
   sharedWithTeamIds: [],
   instructions: null,

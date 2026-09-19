@@ -72,11 +72,11 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 
 ## Choose who can read it
 
-Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.
+Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams: members of any of those teams can read it, and Owners and Admins always can. Unless you are an Owner or Admin, you can only choose teams you belong to. A document inside a team folder takes the folder's teams and cannot name a team outside them, and moving a document into such a folder applies the folder's teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.
 
 The library root shows folders and documents that have not been filed in a folder. Open a folder to see its contents; a document inside it does not also appear as a file row at the root.
 
-Folders organize the library. Check the **Teams** cell for access and the **Source** column for where a file came from. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
+Folders organize the library. Check the **Teams** cell for access and the **Source** column for where a file came from. The **Teams** filter narrows the list to **Organization-wide** items, **My teams** (anything one of your teams can see), or a team by name; the selection is part of the page address, so a filtered list can be bookmarked. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
 
 ## Import from Microsoft 365 or Google Drive
 

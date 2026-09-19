@@ -369,7 +369,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Gruppiere Personen für gemeinsamen Ressourcenzugriff und zugewiesene Konversationen."
+      "description": "Gruppiere Personen und lege fest, wer Team-Dokumente, Projekte und Posteingangs-Warteschlangen sieht."
     }
   },
   "de:platform/admin/two-factor-authentication": {
@@ -1489,7 +1489,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Teams",
-      "description": "Group people for shared resource access and conversation assignment."
+      "description": "Group people to decide who can see team documents, projects, and inbox queues."
     }
   },
   "en:platform/admin/two-factor-authentication": {
@@ -2609,7 +2609,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Regroupe les personnes pour partager des ressources et attribuer les conversations."
+      "description": "Regroupe les personnes pour décider qui voit les documents, projets et files d’équipe."
     }
   },
   "fr:platform/admin/two-factor-authentication": {

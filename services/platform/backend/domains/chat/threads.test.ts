@@ -221,8 +221,11 @@ describe('moveThreadToProject', () => {
     (statement: Statement): unknown[] | undefined => {
       if (statement.text.includes('FROM app.threads t')) return [row];
       if (statement.text.includes('FROM app.projects WHERE id')) {
-        return statement.text.includes('shared_with_team_ids')
-          ? [{ orgId: 'org_1', teamId: null, sharedWithTeamIds: [] }]
+        // The access read selects the audience (`PROJECT_TEAM_IDS_SQL`,
+        // bound as a value by the stand-in's `unsafe`); the other read is
+        // the project's name.
+        return statement.text.includes('AS "teamIds"')
+          ? [{ orgId: 'org_1', teamIds: [] }]
           : [{ name: 'Project A' }];
       }
       return [];

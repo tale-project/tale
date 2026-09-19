@@ -32,6 +32,9 @@ export interface DocumentsContract {
       metadata?: Record<string, unknown>;
       projectId?: string;
       fileSize?: number;
+      /** The audience; empty or absent = organization-wide. */
+      teamIds?: string[];
+      /** @deprecated The single-team spelling of `teamIds`. */
       teamId?: string;
       contentHash?: string;
       folderId?: string;

@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { findOrganizationMember } from '../../auth/membership.ts';
+import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -101,17 +102,19 @@ function pageOf<T>(
   };
 }
 
-/** The turn user's knowledge scope — teams (+ the org pseudo-team), readable
- * projects, the hub, and the emailed attachments of the conversations they
- * may read — the 0.5 twin of `resolveKnowledgeAccessForUser`. The one
- * resolver every door a member's identity opens uses (the chat tools, the
- * MCP key's get_knowledge). */
+/** The turn user's knowledge scope — their teams (and whether they are an
+ * admin, whom the audience rule never restricts), readable projects, the
+ * hub, and the emailed attachments of the conversations they may read — the
+ * 0.5 twin of `resolveKnowledgeAccessForUser`. The one resolver every door a
+ * member's identity opens uses (the chat tools, the MCP key's
+ * get_knowledge). */
 export async function resolveAccessScope(
   sql: Sql,
   organizationId: string,
   userId: string,
 ): Promise<{
   teamIds: string[];
+  isAdmin: boolean;
   projectIds: string[];
   includeHub: boolean;
   includeConversationScoped: boolean;
@@ -121,6 +124,7 @@ export async function resolveAccessScope(
   if (member === null || member.role === 'disabled') {
     return {
       teamIds: [],
+      isAdmin: false,
       projectIds: [],
       includeHub: false,
       includeConversationScoped: false,
@@ -134,7 +138,8 @@ export async function resolveAccessScope(
   });
   const projects = await listProjects(sql, auth, { includeArchived: true });
   return {
-    teamIds: [...new Set([`org_${organizationId}`, ...auth.teamIds])],
+    teamIds: [...auth.teamIds],
+    isAdmin: isAudienceAdmin(member.role),
     projectIds: projects.map((project) => project.id),
     includeHub: true,
     // A person asks here, so conversation-scoped rows (emailed attachments)
@@ -749,6 +754,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return listDocumentsForAgent(sql, {
         organizationId: args.organizationId,
         teamIds: scope.teamIds,
+        isAdmin: scope.isAdmin,
         ...(projectReadable && args.projectId !== undefined
           ? { projectId: args.projectId }
           : {}),

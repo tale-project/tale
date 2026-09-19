@@ -7,6 +7,7 @@ import {
   getUserTeamIds,
   findOrganizationMember,
 } from '../../auth/membership.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
@@ -172,11 +173,8 @@ export async function projectChatAccess(
   sql: Sql | TransactionSql,
   args: { projectId: string; organizationId: string; userId: string },
 ): Promise<'ok' | 'not_found' | 'forbidden'> {
-  const projects = await sql<
-    { orgId: string; teamId: string | null; sharedWithTeamIds: string[] }[]
-  >`
-    SELECT org_id AS "orgId", team_id AS "teamId",
-           shared_with_team_ids AS "sharedWithTeamIds"
+  const projects = await sql<{ orgId: string; teamIds: string[] | null }[]>`
+    SELECT org_id AS "orgId", ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
     FROM app.projects WHERE id = ${args.projectId} LIMIT 1
   `;
   const project = projects[0];
@@ -189,7 +187,7 @@ export async function projectChatAccess(
   if (member === null || member.role === 'disabled') return 'forbidden';
   const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
+    { teamIds: project.teamIds ?? [] },
     teamIds,
     member.role,
   );

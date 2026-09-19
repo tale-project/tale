@@ -180,14 +180,8 @@ function fakeChatSql(
     }
     if (text.includes('FROM app.projects')) {
       if (text.includes('FOR SHARE') && options.projectArchived) return [];
-      return [
-        {
-          id: 'project_a',
-          orgId: 'org_1',
-          teamId: null,
-          sharedWithTeamIds: [],
-        },
-      ];
+      // The audience (`PROJECT_TEAM_IDS_SQL` as `teamIds`): organization-wide.
+      return [{ id: 'project_a', orgId: 'org_1', teamIds: [] }];
     }
     if (text.includes('FROM "member"')) {
       return [
@@ -231,6 +225,8 @@ function fakeChatSql(
       return Promise.resolve(answer(text));
     };
     tag.json = (value: unknown) => ({ json: value });
+    // The audience expression rides `sql.unsafe`; bound as a value here.
+    tag.unsafe = (text: string) => text;
     return tag;
   };
   const pooled = Object.assign(makeTag(pool), {

@@ -86,6 +86,9 @@ const createFromBlobUploadSchema = z.object({
   contentType: z.string().max(255).optional(),
   contentHash: z.string().max(128).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  /** The audience of a hub document; empty or absent = organization-wide. */
+  teamIds: z.array(z.string().min(1)).max(64).optional(),
+  /** @deprecated The single-team spelling of `teamIds`; still accepted. */
   teamId: z.string().optional(),
   projectId: z.string().optional(),
   folderId: z.string().optional(),

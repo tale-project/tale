@@ -244,15 +244,23 @@ export class DocumentCorpusReader implements CorpusReader {
       }
       params.push([...query.access.teamIds]);
       // A document shared to several teams is visible to a member of ANY of
-      // them (`team_ids && …`, the array-overlap twin of the listing rule in
-      // `convex/lib/team_access.ts`). The single-column leg keeps rows whose
-      // array was never stamped (written before the `team_ids` DDL, or by a
-      // not-yet-upgraded writer mid-rollout) retrievable by their one team.
+      // them (`team_ids && …`, the array-overlap twin of the audience rule in
+      // `backend/core/lib/audience.ts`). The single-column leg keeps rows
+      // whose array was never stamped (written before the `team_ids` DDL)
+      // retrievable by their one team.
       const teamsParam = `$${offset + params.length}`;
       disjuncts.push(
         `d.team_ids && ${teamsParam}::text[]`,
         `(d.team_ids IS NULL AND d.team_id = ANY(${teamsParam}))`,
       );
+      // An owner/admin sees every team library — the audience rule's admin
+      // leg. Conversation-scoped rows carry no team stamp, so they stay
+      // with the re-check above.
+      if (query.access.isAdmin === true) {
+        disjuncts.push(
+          '((d.team_ids IS NOT NULL OR d.team_id IS NOT NULL) AND d.project_id IS NULL)',
+        );
+      }
       params.push([...query.access.projectIds]);
       disjuncts.push(`d.project_id = ANY($${offset + params.length})`);
       conditions.push(`(${disjuncts.join(' OR ')})`);

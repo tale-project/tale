@@ -3,6 +3,8 @@ import type {
   FeatureFlagRule,
 } from '@tale/shared/schemas/governance';
 
+import { matchingTeamRules, strictestCap } from './rule_precedence.ts';
+
 /**
  * What the `feature_flags` policy actually controls: the context-window cap
  * for a user's chat turns. The `webSearch` / `codeExecution` / `fileUpload`
@@ -19,7 +21,8 @@ const DEFAULTS: ResolvedFeatureFlags = {};
 
 /**
  * Find the most specific feature flag rule.
- * Priority: user > team > role > default
+ * Priority: user > team > role > default. Several team rules (a member of
+ * two capped teams) combine to the STRICTEST cap (`rule_precedence.ts`).
  */
 function findApplicableRule(
   rules: FeatureFlagRule[],
@@ -32,10 +35,14 @@ function findApplicableRule(
   );
   if (userRule) return userRule;
 
-  const teamRule = rules.find(
-    (r) => r.scope === 'team' && r.scopeId && teamIds.includes(r.scopeId),
-  );
-  if (teamRule) return teamRule;
+  const teamRules = matchingTeamRules(rules, teamIds);
+  if (teamRules.length > 0) {
+    const cap = strictestCap(teamRules.map((r) => r.maxContextTokens));
+    return {
+      scope: 'team',
+      ...(cap !== undefined ? { maxContextTokens: cap } : {}),
+    };
+  }
 
   if (role) {
     const roleRule = rules.find(

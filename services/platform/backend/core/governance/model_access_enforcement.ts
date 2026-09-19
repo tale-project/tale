@@ -1,6 +1,8 @@
 import type { ModelAccessConfig } from '@tale/shared/schemas/governance';
 import { stripModelRefQualifier } from '@tale/shared/utils/model-ref';
 
+import { matchingTeamRules, unionAllowBlockWins } from './rule_precedence.ts';
+
 export interface ModelAccessCheckResult {
   allowed: boolean;
   reason?: string;
@@ -39,22 +41,11 @@ function resolveAllowedAndBlockedModels(
     };
   }
 
-  // 2. Team-scope rules (union allowed models across all matching teams)
-  const teamRules = rules.filter(
-    (r) =>
-      r.scope === 'team' && r.scopeId != null && teamIds.includes(r.scopeId),
-  );
+  // 2. Team-scope rules — a GRANT combines as the union of the matching
+  //    teams' allow-lists, and a block anywhere wins (`rule_precedence.ts`).
+  const teamRules = matchingTeamRules(rules, teamIds);
   if (teamRules.length > 0) {
-    const allowedSet = new Set<string>();
-    const blockedSet = new Set<string>();
-    for (const rule of teamRules) {
-      for (const m of rule.allowedModels) allowedSet.add(m);
-      for (const m of rule.blockedModels ?? []) blockedSet.add(m);
-    }
-    return {
-      allowedModels: [...allowedSet],
-      blockedModels: [...blockedSet],
-    };
+    return unionAllowBlockWins(teamRules);
   }
 
   // 3. Role-scope rule

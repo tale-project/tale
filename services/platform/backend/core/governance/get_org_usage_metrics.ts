@@ -329,12 +329,14 @@ export async function foldOrgUsageMetrics(
       voiceBucket.costCents += row.costEstimate;
     }
 
-    const userKey = `${row.userId}::${row.teamId ?? ''}`;
+    // One row per PERSON: the ledger's `team_id` is a retired dimension (no
+    // lane books one), so folding by it split a member's spend into rows.
+    const userKey = row.userId;
     let userBucket = userBuckets.get(userKey);
     if (!userBucket) {
       userBucket = {
         userId: row.userId,
-        teamId: row.teamId ?? null,
+        teamId: null,
         inputTokens: 0,
         outputTokens: 0,
         tokens: 0,

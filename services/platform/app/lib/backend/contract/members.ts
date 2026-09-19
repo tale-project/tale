@@ -86,6 +86,9 @@ export interface MembersContract {
       name: string;
       memberCount: number;
       createdAt: null | number;
+      /** Provisioned by an identity provider (SSO group sync / SCIM), whose
+       * roster the provider owns — the admin list says so; `/mine` does not. */
+      synced?: boolean;
     }>;
   };
   'members/queries:getUserIdByEmail': {
@@ -116,6 +119,9 @@ export interface MembersContract {
       name: string;
       memberCount: number;
       createdAt: null | number;
+      /** Provisioned by an identity provider (SSO group sync / SCIM), whose
+       * roster the provider owns — the admin list says so; `/mine` does not. */
+      synced?: boolean;
     }>;
   };
 }

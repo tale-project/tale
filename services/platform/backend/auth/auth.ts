@@ -1001,9 +1001,12 @@ export function createAuth(config: AuthConfig) {
           // The plugin deletes the team row and its memberships alone; the
           // rows the team SCOPED (projects, folders, documents, conversation
           // queues, sync configs) have no FK to it and would stay pointed at
-          // a ghost nobody can satisfy. Runs after the plugin's own commit,
-          // so a failure here logs and the daily `teams.repair_scopes`
-          // sweep finishes the job — the team is already gone either way.
+          // a ghost nobody can satisfy. The app's own door
+          // (`DELETE /api/app/teams/:teamId`) retires them in the SAME
+          // transaction and is what the UI calls; this hook covers a caller
+          // that still reaches the plugin endpoint directly. It runs after
+          // the plugin's own commit, so a failure here logs — the team is
+          // already gone either way.
           afterDeleteTeam: async (data) => {
             try {
               await retireDeletedTeamScopes(

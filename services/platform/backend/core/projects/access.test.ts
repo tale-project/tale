@@ -5,7 +5,6 @@ import {
   getProjectTeamIds,
   hasProjectAccess,
   isOrgWideProject,
-  normalizeSharing,
 } from './access';
 
 describe('getProjectTeamIds', () => {
@@ -48,6 +47,35 @@ describe('getProjectTeamIds', () => {
   it('ignores null teamId', () => {
     expect(getProjectTeamIds({ teamId: null })).toEqual([]);
   });
+
+  it('reads the audience array when the row carries one', () => {
+    expect(
+      getProjectTeamIds({
+        teamIds: ['team-2', 'team-1'],
+        teamId: 'team-9',
+        sharedWithTeamIds: ['team-8'],
+      }),
+    ).toEqual(['team-2', 'team-1']);
+  });
+
+  it('falls back to the legacy pair while the array is empty (a row the previous image wrote)', () => {
+    // Mid-rollout the old image still writes only `team_id` +
+    // `shared_with_team_ids`; reading the empty array alone would make such
+    // a project organization-wide — a widening.
+    expect(
+      getProjectTeamIds({
+        teamIds: [],
+        teamId: 'team-1',
+        sharedWithTeamIds: ['team-2'],
+      }),
+    ).toEqual(['team-1', 'team-2']);
+  });
+
+  it('normalizes the array: blanks dropped, duplicates collapsed, order kept', () => {
+    expect(
+      getProjectTeamIds({ teamIds: [' team-b ', '', 'team-a', 'team-b'] }),
+    ).toEqual(['team-b', 'team-a']);
+  });
 });
 
 describe('isOrgWideProject', () => {
@@ -61,45 +89,6 @@ describe('isOrgWideProject', () => {
   it('returns false when project has any team', () => {
     expect(isOrgWideProject({ teamId: 'team-1' })).toBe(false);
     expect(isOrgWideProject({ sharedWithTeamIds: ['team-2'] })).toBe(false);
-  });
-});
-
-describe('normalizeSharing', () => {
-  it('clears shared teams when going org-wide (no owning team)', () => {
-    // The bug: switching the owning team to "Org-wide" used to keep
-    // `sharedWithTeamIds`, leaving the project restricted to those teams while
-    // the UI showed "Org-wide".
-    expect(normalizeSharing(null, ['team-b'])).toEqual({
-      teamId: null,
-      sharedWithTeamIds: [],
-    });
-  });
-
-  it('leaves an already org-wide project org-wide', () => {
-    expect(normalizeSharing(null, [])).toEqual({
-      teamId: null,
-      sharedWithTeamIds: [],
-    });
-  });
-
-  it('preserves shared teams when an owning team is set', () => {
-    expect(normalizeSharing('team-a', ['team-b', 'team-c'])).toEqual({
-      teamId: 'team-a',
-      sharedWithTeamIds: ['team-b', 'team-c'],
-    });
-  });
-
-  it('keeps an owning team with no shares unchanged', () => {
-    expect(normalizeSharing('team-a', [])).toEqual({
-      teamId: 'team-a',
-      sharedWithTeamIds: [],
-    });
-  });
-
-  it('result is genuinely org-wide per isOrgWideProject', () => {
-    const normalized = normalizeSharing(null, ['team-b']);
-    expect(isOrgWideProject(normalized)).toBe(true);
-    expect(getProjectTeamIds(normalized)).toEqual([]);
   });
 });
 

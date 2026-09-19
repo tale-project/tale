@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { DocumentItem, RagStatus } from '@/types/documents';
 
-import { filterDocumentResults } from './filter-documents';
+import {
+  filterDocumentResults,
+  MY_TEAMS_AUDIENCE,
+  ORG_WIDE_AUDIENCE,
+} from './filter-documents';
 
 const defaultOptions = {
-  selectedTeamId: undefined,
   selectedTeamIds: [] as string[],
   selectedRagStatuses: [] as string[],
   selectedSources: [] as string[],
@@ -59,26 +62,6 @@ describe('filterDocumentResults', () => {
     expect(result).toEqual([...folders, ...documents]);
   });
 
-  describe('selectedTeamId (context team filter)', () => {
-    it('filters folders by selectedTeamId, keeping org-wide', () => {
-      const result = filterDocumentResults(documents, folders, {
-        ...defaultOptions,
-        selectedTeamId: 'team-hr',
-      });
-      const folderResults = result.filter((r) => r.type === 'folder');
-      expect(folderResults).toEqual([hrFolder, orgFolder]);
-    });
-
-    it('filters documents by selectedTeamId, keeping org-wide', () => {
-      const result = filterDocumentResults(documents, folders, {
-        ...defaultOptions,
-        selectedTeamId: 'team-hr',
-      });
-      const docResults = result.filter((r) => r.type === 'file');
-      expect(docResults).toEqual([hrDoc, orgDoc]);
-    });
-  });
-
   describe('selectedTeamIds (filter dropdown)', () => {
     it('filters folders by selectedTeamIds', () => {
       const result = filterDocumentResults(documents, folders, {
@@ -108,15 +91,39 @@ describe('filterDocumentResults', () => {
     });
   });
 
-  describe('combined team filters', () => {
-    it('applies both selectedTeamId and selectedTeamIds', () => {
+  describe('audience tokens', () => {
+    it('shows only organization-wide rows for the Organization-wide token', () => {
       const result = filterDocumentResults(documents, folders, {
         ...defaultOptions,
-        selectedTeamId: 'team-hr',
-        selectedTeamIds: ['team-hr'],
+        selectedTeamIds: [ORG_WIDE_AUDIENCE],
       });
-      const folderResults = result.filter((r) => r.type === 'folder');
-      expect(folderResults).toEqual([hrFolder]);
+      expect(result).toEqual([orgFolder, orgDoc]);
+    });
+
+    it('expands the My teams token to the viewer’s own teams', () => {
+      const result = filterDocumentResults(documents, folders, {
+        ...defaultOptions,
+        selectedTeamIds: [MY_TEAMS_AUDIENCE],
+        myTeamIds: ['team-hr'],
+      });
+      expect(result).toEqual([hrFolder, hrDoc]);
+    });
+
+    it('matches nothing team-scoped for My teams when the viewer is in no team', () => {
+      const result = filterDocumentResults(documents, folders, {
+        ...defaultOptions,
+        selectedTeamIds: [MY_TEAMS_AUDIENCE],
+        myTeamIds: [],
+      });
+      expect(result).toEqual([]);
+    });
+
+    it('combines tokens and team ids as ANY of the selected values', () => {
+      const result = filterDocumentResults(documents, folders, {
+        ...defaultOptions,
+        selectedTeamIds: [ORG_WIDE_AUDIENCE, 'team-dev'],
+      });
+      expect(result).toEqual([devFolder, orgFolder, devDoc, orgDoc]);
     });
   });
 

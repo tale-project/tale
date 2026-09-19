@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 67 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -218,19 +218,28 @@ any toggled setting after the run.
   confirm → Toast `settings.teams.teamCreated`; the row (columns
   `settings.teams.columns.name` / `…columns.members` / `…columns.created`)
   appears **without a reload** and is still there after one; the delete confirm
-  (`settings.teams.deleteConfirmation`) warns members are removed; the row
-  leaves the table **without a reload** (toast `settings.teams.teamDeleted`)
-  and stays gone after one. Repeat the delete on two rows at once through the
-  selection checkboxes and the footer's bulk **Delete** — both rows leave the
-  table without a reload too.
+  (`settings.teams.deleteConfirmation`) counts what the delete touches
+  (`settings.teams.deleteImpact.summary`: members, projects, folders,
+  documents, queued conversations) and — only when some item has no other
+  team — how many become organization-wide
+  (`settings.teams.deleteImpact.becomeOrgWide`); the row leaves the table
+  **without a reload** (toast `settings.teams.teamDeleted`) and stays gone
+  after one. Repeat the delete on two rows at once through the selection
+  checkboxes and the footer's bulk **Delete** — both rows leave the table
+  without a reload too.
 - [ ] `SET-F19` · **Team member management** — A team row → **Edit team**
   (`settings.teams.editTeam`) → **Members** (`settings.teams.manageMembers`) →
   add/remove members → **Save changes** (`settings.teams.saveChanges`) → The
   member checklist explains multi-team membership
   (`settings.teams.memberChecklistHint`); a team never drops to zero members —
-  the last one is blocked with the hint (`settings.teams.lastMemberHint`); the
-  new member count — and a name changed in the same save — show in the row
-  **without a reload** and survive one.
+  the last one is blocked with the hint (`settings.teams.lastMemberHint`), and
+  the server refuses it too (a failed save toasts
+  `settings.teams.membershipChangesFailed`); the new member count — and a name
+  changed in the same save — show in the row **without a reload** and survive
+  one. A team an identity provider provisions (needs SSO group sync or SCIM)
+  carries the **Synced** badge (`settings.teams.syncedBadge`) and opens the
+  dialog read-only with the notice (`settings.teams.syncedNotice`); its
+  **Delete** still works.
 - [ ] `SET-F20` · **Providers page** — `/dashboard/{org}/settings/providers` →
   The **Credentials** section (`settings.providers.credentialsSection.title`)
   renders the credential table (or the empty state
@@ -458,9 +467,19 @@ any toggled setting after the run.
   row, shows the NEW name, and loses the row — each within a couple of
   seconds and with no reload, because every team write emits its `team`
   invalidation hint on the backend's realtime hint stream (the dialogs only
-  refresh the tab they run in). The account menu's team picker (the **Team**
-  section, `navigation.teamFilter.allTeams`) tracks the same three changes in
-  both sessions.
+  refresh the tab they run in). In session A — whose user the create dialog
+  added to the team — the account menu's **Teams** row
+  (`navigation.myTeams.label`) and **Settings › Account › Your teams**
+  (`settings.account.teams.title`) show the created name, then the new name,
+  then drop it, without a reload.
+- [ ] `SET-F42` · **Your teams on the account page** —
+  `/dashboard/{org}/settings/account#teams` as a member of two teams, then as
+  an account in none, then as an owner → The **Your teams** section
+  (`settings.account.teams.title`, its description
+  `settings.account.teams.description`) lists each team as a badge; the
+  account in no team reads `settings.account.teams.none` instead; only an
+  admin/owner sees the **Manage teams** link
+  (`settings.account.teams.manageLink`) to `/dashboard/{org}/settings/teams`.
 
 ## Boundary & error tests
 

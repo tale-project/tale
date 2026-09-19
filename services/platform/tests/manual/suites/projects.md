@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 31 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 34 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), and the task
@@ -225,6 +225,26 @@ projects-list row ⋯ menu.
   (`tasks.agentRun.retry`) and **Cancel** (`tasks.agentRun.cancel`) render per
   state. Timeline rows label the run (`tasks.timeline.runLabel`). Deep
   coverage of the task board/run loop lives in [tasks.md](tasks.md)
+
+- [ ] `PROJ-F23` · **Audience in the list** — With an org-wide project, one
+  scoped to two teams and one scoped to three → The **Sharing** column
+  (`projects.list.columnSharing`) reads `projects.list.sharingOrgWide` with a
+  globe for the first, two team NAMES (never ids) for the second, and two
+  names plus `+1` (`projects.list.sharingMoreTeams`) for the third with every
+  name in the cell's title; the column's filter offers
+  `projects.list.sharingOrgWide`, **My teams** (`projects.list.filterMyTeams`,
+  only for a caller in ≥1 team) and each team by name, lands in the URL as
+  `?teams=…` and survives a reload.
+- [ ] `PROJ-F24` · **Audience on create and on General** — **New project** →
+  **Who can see it** (`projects.create.audienceLabel`, help
+  `projects.create.audienceHelp`) as a non-admin editor in team A and as an
+  owner; then on the project's **General** page the **Audience** field
+  (`projects.settings.audience`) → The editor's picker lists only their own
+  teams, the owner's every team of the org; a project created for A is hidden
+  from a member outside A (404 on its URL) and visible to the owner; removing
+  a team on **General** asks for confirmation that members outside the
+  remaining teams lose access before it saves; clearing every team makes the
+  row read `projects.list.sharingOrgWide`.
 
 ## Boundary & error tests
 

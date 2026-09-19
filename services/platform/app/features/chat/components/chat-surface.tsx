@@ -60,7 +60,6 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
-import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -359,14 +358,10 @@ function ChatSurfaceInner({
   // Client-side budget gate. The server enforces the budget authoritatively
   // (a refused turn), but without this the composer leaves Send enabled and
   // the user only learns they are over budget after the message lands as a
-  // failed turn (#2345). `exceeded` is team-independent (hard blocks span
-  // all teams); loading returns undefined → the gate stays open, never a
-  // false block.
-  const teamFilter = useOptionalTeamFilter();
-  const { data: budgetStatus } = useMyBudgetStatus(
-    organizationId,
-    teamFilter?.selectedTeamId,
-  );
+  // failed turn (#2345). `exceeded` is what the gate would refuse right now
+  // over every cap that binds the member; loading returns undefined → the
+  // gate stays open, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
   const budgetExceeded = budgetStatus?.exceeded === true;
 
   // The open thread answered null: deleted, foreign, or a revoked share.

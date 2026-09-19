@@ -12,7 +12,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modè
 3. Choisis un fournisseur et un modèle, puis **Confirmer**. Enregistre les changements en attente dans l’en-tête.
 4. Démarre un chat en tant que membre du groupe cible, avec le modèle sur **Auto**, puis vérifie le modèle effectivement choisi.
 
-Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi explicitement. Une règle d’équipe passe avant une règle de rôle, puis vient la valeur par défaut générale. Elle n’empêche pas de sélectionner un autre modèle autorisé.
+Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi explicitement. Une règle d’équipe passe avant une règle de rôle, puis vient la valeur par défaut générale ; si une personne appartient à plusieurs équipes dotées d’une règle, la première règle d’équipe correspondante du tableau l’emporte (voir [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine)). Elle n’empêche pas de sélectionner un autre modèle autorisé.
 
 ## Limiter l’accès aux modèles
 

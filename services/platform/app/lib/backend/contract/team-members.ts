@@ -7,7 +7,42 @@
  * actually serve them.
  */
 
+/** What deleting a team touches — the confirm dialog's numbers. */
+export interface TeamDeletionImpact {
+  teamId: string;
+  name: string;
+  memberCount: number;
+  projects: { scoped: number; becomeOrgWide: number };
+  folders: { scoped: number; becomeOrgWide: number };
+  documents: { scoped: number; becomeOrgWide: number };
+  conversations: { queued: number };
+  syncConfigs: { scoped: number };
+}
+
+/** What an atomic team delete retired, as the door answers it. */
+export interface TeamRetirementSummary {
+  projectsRetagged: number;
+  foldersRetagged: number;
+  documentsRetagged: number;
+  conversationsUnassigned: number;
+  syncConfigsUnscoped: number;
+  nowOrgWide: { projects: number; folders: number; documents: number };
+}
+
 export interface TeamMembersContract {
+  /** The atomic team delete: scopes, provenance, members and the row in
+   * one transaction (`DELETE /api/app/teams/:teamId`, admin). */
+  'teams/mutations:deleteTeam': {
+    kind: 'mutation';
+    args: { organizationId: string; teamId: string };
+    returns: TeamRetirementSummary;
+  };
+  /** The delete preview (`GET /api/app/teams/:teamId/impact`, admin). */
+  'teams/queries:deletionImpact': {
+    kind: 'query';
+    args: { organizationId: string; teamId: string };
+    returns: TeamDeletionImpact | null;
+  };
   'team_members/mutations:addMember': {
     kind: 'mutation';
     args: { organizationId: string; userId: string; teamId: string };

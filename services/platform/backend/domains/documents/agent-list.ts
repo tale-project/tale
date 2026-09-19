@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { audienceClause } from '../../core/lib/audience.ts';
 import { safePathSegment } from '../../core/lib/safe_path_segment.ts';
 import {
   indexingStateFrom,
@@ -30,9 +31,11 @@ import {
 
 export interface AgentDocumentListArgs {
   organizationId: string;
-  /** Resolved scope teams (the caller's door already included any
-   *  pseudo-team it grants — nothing is added here). */
+  /** Resolved scope teams — the caller's own, nothing is added here. */
   teamIds: string[];
+  /** Whether the caller is an owner/admin, whom the audience rule never
+   *  restricts (every team library is visible). Absent = a member. */
+  isAdmin?: boolean;
   /** An ALREADY-AUTHORIZED project: set → that project's docs; absent → the
    *  hub lane (project docs excluded). */
   projectId?: string;
@@ -157,11 +160,11 @@ export async function listDocumentsForAgent(
         OR d.extension = ${args.extension ?? ''})
       AND (
         (${projectLane} AND d.project_id = ANY(${projectIds}))
-        OR (${hubLane} AND d.project_id IS NULL AND (
-          (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
-          OR d.team_id = ANY(${args.teamIds})
-          OR d.team_tags && ${args.teamIds}
-        ))
+        OR (${hubLane} AND d.project_id IS NULL AND ${audienceClause(
+          sql,
+          'd.team_tags',
+          { isAdmin: args.isAdmin === true, teamIds: args.teamIds },
+        )})
       )
     ORDER BY (d.project_id IS NULL), d.created_at_ms DESC, d.id
     LIMIT ${limit + 1} OFFSET ${offset}

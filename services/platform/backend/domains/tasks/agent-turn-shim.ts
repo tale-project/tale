@@ -2,6 +2,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -728,8 +729,10 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'projects/internal_queries:getProjectAgentSkillScope': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { agentId: string };
-      const rows = await sql<{ teamId: string | null; shared: string[] }[]>`
-        SELECT p.team_id AS "teamId", p.shared_with_team_ids AS shared
+      // `app.project_agents` carries no team columns, so the audience
+      // expression's bare column names resolve to the project's.
+      const rows = await sql<{ teamIds: string[] | null }[]>`
+        SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
         FROM app.project_agents a
         JOIN app.projects p ON p.id = a.project_id
         WHERE a.id = ${args.agentId}
@@ -737,10 +740,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       `;
       const row = rows[0];
       if (!row) return null;
-      const teamIds = new Set<string>();
-      if (row.teamId !== null) teamIds.add(row.teamId);
-      for (const teamId of row.shared) teamIds.add(teamId);
-      return { teamIds: [...teamIds] };
+      return { teamIds: row.teamIds ?? [] };
     },
 
     // Skill bundles for staging — the reused file layer.

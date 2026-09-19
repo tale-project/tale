@@ -10,10 +10,18 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { decode } from 'he';
-import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
+import {
+  ClipboardList,
+  Inbox,
+  Loader2,
+  Mail,
+  Sparkles,
+  UsersRound,
+} from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
+import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-utils';
 
@@ -172,6 +180,8 @@ const ConversationRow = memo(function ConversationRow({
   placeholderIndex = 0,
 }: ConversationRowProps) {
   const { t: tCommon } = useT('common');
+  // One cached directory read for every row (same query key).
+  const { nameOf: teamNameOf } = useTeamNames();
 
   // Localized fallback for a name-less contact. The backend now returns an
   // undefined name (instead of a hardcoded "Unknown Contact"), so the label is
@@ -312,6 +322,17 @@ const ConversationRow = memo(function ConversationRow({
                     <div className="h-6.5 w-16 rounded-full" />
                   </SkeletonCircle>
                 )}
+
+            {/* The team queue this conversation sits in — the fact a member
+                of two teams needs at a glance (the list is already scoped to
+                what the viewer may see). Named through the directory, so a
+                queue the viewer is not in still reads as itself. */}
+            {conversation && conversation.assigneeTeamId !== undefined ? (
+              <Badge variant="outline" icon={UsersRound} className="min-w-fit">
+                {teamNameOf(conversation.assigneeTeamId) ??
+                  t?.('queue.unknownTeam')}
+              </Badge>
+            ) : null}
 
             {conversation
               ? (() => {

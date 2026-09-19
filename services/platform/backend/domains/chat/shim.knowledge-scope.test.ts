@@ -85,7 +85,8 @@ describe('the chat document listing door', () => {
       expect.anything(),
       expect.objectContaining({
         organizationId: 'org-1',
-        teamIds: ['org_org-1', 'team-a'],
+        teamIds: ['team-a'],
+        isAdmin: false,
         projectId: 'proj-1',
         includeHub: true,
         limit: 20,
@@ -108,7 +109,8 @@ describe('the chat turn knowledge scope', () => {
   it('admits conversation-scoped rows for a live member and names them', async () => {
     const scope = await resolve('u-1');
     expect(scope).toMatchObject({
-      teamIds: ['org_org-1', 'team-a'],
+      teamIds: ['team-a'],
+      isAdmin: false,
       projectIds: ['proj-1'],
       includeHub: true,
       includeConversationScoped: true,

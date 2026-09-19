@@ -204,18 +204,19 @@ describe('reconcileDocumentScopeStamps', () => {
     expect(row?.team_id).toBe('t1');
   });
 
-  it('falls back to the single column when no tags are stamped', async () => {
+  it('reads an empty tag array as organization-wide, whatever the deprecated column says', async () => {
     const { pool, sent } = fakePool(1);
     getKnowledgePoolForOrg.mockResolvedValue(pool);
-
+    // Migration 0109 folded every single-column stamp into `team_tags`, so
+    // an empty array IS the audience — a stale mirror never narrows a row.
     await reconcileDocumentScopeStamps(
       fakeSql([doc({ teamTags: [], teamId: 't9' })]),
       { organizationId: 'org-1', orgSlug: 'acme' },
     );
 
     const [row] = payloadOf(sent);
-    expect(row?.team_ids).toEqual(['t9']);
-    expect(row?.team_id).toBe('t9');
+    expect(row?.team_ids).toBeNull();
+    expect(row?.team_id).toBeNull();
   });
 
   it('takes the folder path from the tree, not the copy on the row', async () => {

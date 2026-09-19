@@ -19,13 +19,20 @@ import type { Sql, TransactionSql } from 'postgres';
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import {
+  assertTeamsAssignable,
+  audienceClause,
+  audienceMirror,
+  normalizeTeamIds,
+  PROJECT_TEAM_IDS_SQL,
+  TeamAssignmentError,
+} from '../../core/lib/audience.ts';
 import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
 import {
   ADMIN_ROLES,
   checkProjectAccess,
   EDITOR_ROLES,
   isOrgWideProject,
-  normalizeSharing,
 } from '../../core/projects/access.ts';
 import {
   PROJECT_AUDIT_ACTIONS,
@@ -147,7 +154,11 @@ export interface ProjectRow {
   openTaskCount: number;
   doneTaskCount: number;
   projectAgentCount: number;
+  /** The audience — team ids; empty = organization-wide. */
+  teamIds: string[];
+  /** @deprecated Derived: `teamIds[0]`; kept while the previous image reads it. */
   teamId: string | null;
+  /** @deprecated Derived: `teamIds.slice(1)`; kept while the previous image reads it. */
   sharedWithTeamIds: string[];
   instructions: string | null;
   knowledgeMode: string | null;
@@ -170,8 +181,10 @@ const PROJECT_COLUMNS = `
   id, org_id AS "organizationId", name, description, icon, color, key,
   external_item_id AS "externalItemId", task_counter AS "taskCounter",
   open_task_count AS "openTaskCount", done_task_count AS "doneTaskCount",
-  project_agent_count AS "projectAgentCount", team_id AS "teamId",
-  shared_with_team_ids AS "sharedWithTeamIds", instructions,
+  project_agent_count AS "projectAgentCount",
+  ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
+  (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
+  (${PROJECT_TEAM_IDS_SQL})[2:] AS "sharedWithTeamIds", instructions,
   knowledge_mode AS "knowledgeMode", agent_mode AS "agentMode",
   recommended_agent_slugs AS "recommendedAgentSlugs",
   allowed_agent_slugs AS "allowedAgentSlugs", model_mode AS "modelMode",
@@ -183,15 +196,12 @@ const PROJECT_COLUMNS = `
   pinned_at_ms::float8 AS "pinnedAt"
 `;
 
-/** Project access input in the shape the reused 0.4 matrix expects. */
-function accessInput(project: ProjectRow): {
-  teamId: string | null;
-  sharedWithTeamIds: string[];
-} {
-  return {
-    teamId: project.teamId,
-    sharedWithTeamIds: project.sharedWithTeamIds,
-  };
+/** Project access input — the audience the matrix decides on. The whole row
+ * goes in: `teamIds` decides, and a row that carries only the legacy pair (a
+ * fixture, or a mid-rollout write of the previous image read raw) still
+ * resolves through `getProjectTeamIds`' fallback rather than as org-wide. */
+function accessInput(project: ProjectRow): ProjectRow {
+  return project;
 }
 
 /** A project row stamped with the caller's access flags — the 0.4 list-item
@@ -366,55 +376,74 @@ function validateInstructions(instructions: string): string {
   return instructions;
 }
 
-function validateSharing(
-  teamId: string | null | undefined,
-  sharedWithTeamIds: string[] | undefined,
-): void {
-  if (!sharedWithTeamIds) {
-    return;
+/**
+ * The audience shape rule: at most `PROJECT_SHARED_TEAMS_MAX + 1` teams (the
+ * former owning team plus the shared list), no blanks, no duplicates.
+ */
+function validateTeamIds(teamIds: readonly string[]): string[] {
+  if (teamIds.length > PROJECT_SHARED_TEAMS_MAX + 1) {
+    throw new ProjectError('PROJECT_SHARING_INVALID', 'Too many teams');
   }
-  if (sharedWithTeamIds.length > PROJECT_SHARED_TEAMS_MAX) {
-    throw new ProjectError('PROJECT_SHARING_INVALID', 'Too many shared teams');
-  }
-  const set = new Set(sharedWithTeamIds);
-  if (set.size !== sharedWithTeamIds.length) {
-    throw new ProjectError('PROJECT_SHARING_INVALID', 'Duplicate shared teams');
-  }
-  if (teamId && set.has(teamId)) {
+  const normalized = normalizeTeamIds(teamIds);
+  if (normalized.length !== teamIds.length) {
     throw new ProjectError(
       'PROJECT_SHARING_INVALID',
-      'Owning team cannot also be a shared team',
+      'Duplicate or blank team in project audience',
     );
   }
+  return normalized;
 }
 
 /**
- * Every team a project is scoped to must be a team OF THIS ORGANIZATION.
- * The route schemas only shape the ids; a typo'd, deleted or foreign id
- * would otherwise persist a scope no member can satisfy (and the Sharing
- * select cannot render) — or, for another tenant's team, one its members
- * in this org could satisfy through a membership this org never granted.
+ * The requested audience in ONE spelling: `teamIds` when given, else the
+ * legacy pair (owning team first, then the shared teams).
  */
-async function assertTeamsInOrg(
+function requestedProjectTeamIds(args: {
+  teamIds?: readonly string[];
+  teamId?: string | null;
+  sharedWithTeamIds?: readonly string[];
+}): string[] {
+  if (args.teamIds !== undefined) return [...args.teamIds];
+  return [
+    ...(args.teamId ? [args.teamId] : []),
+    ...(args.sharedWithTeamIds ?? []),
+  ];
+}
+
+/**
+ * Every team a project is scoped to must be a team OF THIS ORGANIZATION,
+ * and a non-admin may only scope a project to teams they belong to —
+ * `assertTeamsAssignable` (`core/lib/audience.ts`) in this domain's refusal
+ * vocabulary. A typo'd, deleted or foreign id would otherwise persist a
+ * scope no member can satisfy (and the Audience picker cannot render) — or,
+ * for another tenant's team, one its members in this org could satisfy
+ * through a membership this org never granted.
+ */
+async function assignableTeams(
   tx: TransactionSql,
-  organizationId: string,
+  auth: ProjectAuthContext,
   teamIds: readonly string[],
-): Promise<void> {
-  const wanted = [...new Set(teamIds)];
-  if (wanted.length === 0) return;
-  const rows = await tx<{ id: string }[]>`
-    SELECT "id" FROM "team"
-    WHERE "organizationId" = ${organizationId} AND "id" = ANY(${wanted})
-  `;
-  if (rows.length !== wanted.length) {
-    const known = new Set(rows.map((row) => row.id));
-    const unknown = wanted.filter((id) => !known.has(id));
-    throw new ProjectError(
-      'PROJECT_SHARING_INVALID',
-      'Unknown team in project sharing',
-      400,
-      { unknownTeamIds: unknown },
-    );
+): Promise<string[]> {
+  try {
+    return await assertTeamsAssignable(tx, auth, teamIds);
+  } catch (error) {
+    if (error instanceof TeamAssignmentError) {
+      if (error.code === 'TEAM_NOT_IN_ORG') {
+        throw new ProjectError(
+          'PROJECT_SHARING_INVALID',
+          'Unknown team in project sharing',
+          400,
+          { unknownTeamIds: error.data.teamIds },
+        );
+      }
+      throw new ProjectError(
+        'TEAM_ACCESS_DENIED',
+        'Cannot scope a project to a team you do not belong to',
+        403,
+        error.data,
+      );
+    }
+    throw error;
   }
 }
 
@@ -622,7 +651,11 @@ export interface CreateProjectArgs {
   icon?: string;
   color?: string;
   externalItemId?: string;
+  /** The audience; empty or absent = organization-wide. Wins over the pair. */
+  teamIds?: string[];
+  /** @deprecated Legacy owning team — folds into `teamIds` first. */
   teamId?: string;
+  /** @deprecated Legacy shared teams — fold into `teamIds` after `teamId`. */
   sharedWithTeamIds?: string[];
   /** Machine door: resolve derived-key collisions by suffix, not error. */
   deriveKeyOnCollision?: boolean;
@@ -649,23 +682,24 @@ export async function createProject(
     args.deriveKeyOnCollision && !args.key?.trim()
       ? await resolveDuplicateProjectKey(tx, auth.organizationId, name)
       : await resolveProjectKey(tx, auth.organizationId, args.key, name);
-  const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
-  validateSharing(args.teamId, args.sharedWithTeamIds);
-  await assertTeamsInOrg(tx, auth.organizationId, [
-    ...(args.teamId ? [args.teamId] : []),
-    ...sharedWithTeamIds,
-  ]);
+  const teamIds = await assignableTeams(
+    tx,
+    auth,
+    validateTeamIds(requestedProjectTeamIds(args)),
+  );
+  const mirror = audienceMirror(teamIds);
 
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.projects (
       org_id, name, key, external_item_id, description, icon, color,
-      team_id, shared_with_team_ids, created_by, created_at_ms, updated_at_ms
+      team_ids, team_id, shared_with_team_ids, created_by, created_at_ms,
+      updated_at_ms
     ) VALUES (
       ${auth.organizationId}, ${name}, ${key ?? null},
       ${externalItemId ?? null}, ${description ?? null}, ${args.icon ?? null},
-      ${args.color ?? null}, ${args.teamId || null}, ${sharedWithTeamIds},
-      ${auth.userId}, ${now}, ${now}
+      ${args.color ?? null}, ${teamIds}, ${mirror.teamId},
+      ${mirror.sharedWithTeamIds}, ${auth.userId}, ${now}, ${now}
     )
     RETURNING id
   `;
@@ -677,8 +711,13 @@ export async function createProject(
   await createAuditLog(
     tx,
     projectAudit(auth, { id: projectId, name }, PROJECT_AUDIT_ACTIONS.created, {
-      newState: { name, teamId: args.teamId ?? null, sharedWithTeamIds },
-      metadata: { isOrgWide: !args.teamId && sharedWithTeamIds.length === 0 },
+      newState: {
+        name,
+        teamIds,
+        teamId: mirror.teamId,
+        sharedWithTeamIds: mirror.sharedWithTeamIds,
+      },
+      metadata: { isOrgWide: teamIds.length === 0 },
     }),
   );
   await emitEvent(tx, {
@@ -720,7 +759,7 @@ export async function duplicateProject(
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.projects (
-      org_id, name, key, description, icon, color, team_id,
+      org_id, name, key, description, icon, color, team_ids, team_id,
       shared_with_team_ids, instructions, knowledge_mode, agent_mode,
       recommended_agent_slugs, allowed_agent_slugs, model_mode,
       recommended_models, allowed_models, connectors_mode,
@@ -728,7 +767,9 @@ export async function duplicateProject(
     ) VALUES (
       ${auth.organizationId}, ${nextName}, ${key ?? null},
       ${source.description}, ${source.icon}, ${source.color},
-      ${source.teamId}, ${source.sharedWithTeamIds}, ${source.instructions},
+      ${source.teamIds}, ${audienceMirror(source.teamIds).teamId},
+      ${audienceMirror(source.teamIds).sharedWithTeamIds},
+      ${source.instructions},
       ${source.knowledgeMode}, ${source.agentMode},
       ${source.recommendedAgentSlugs}, ${source.allowedAgentSlugs},
       ${source.modelMode}, ${source.recommendedModels},
@@ -945,7 +986,12 @@ export async function updateProjectSharing(
   auth: ProjectAuthContext,
   args: {
     projectId: string;
+    /** The audience; empty = organization-wide. Wins over the legacy pair. */
+    teamIds?: string[];
+    /** @deprecated Legacy owning team — patches `teamIds[0]`; `null` alone
+     * clears the whole audience, the way the owning-team select did. */
     teamId?: string | null;
+    /** @deprecated Legacy shared teams — patch `teamIds.slice(1)`. */
     sharedWithTeamIds?: string[];
   },
 ): Promise<void> {
@@ -953,28 +999,41 @@ export async function updateProjectSharing(
   assertReadable(project, auth);
   assertAdmin(auth);
 
-  const nextTeamId =
-    args.teamId === undefined ? project.teamId : args.teamId || null;
-  const nextShared = args.sharedWithTeamIds ?? project.sharedWithTeamIds;
-  validateSharing(nextTeamId, nextShared);
-  const normalized = normalizeSharing(nextTeamId, nextShared);
-  await assertTeamsInOrg(tx, auth.organizationId, [
-    ...(normalized.teamId ? [normalized.teamId] : []),
-    ...normalized.sharedWithTeamIds,
-  ]);
+  let requested: string[];
+  if (args.teamIds !== undefined) {
+    requested = args.teamIds;
+  } else if (args.teamId === null && args.sharedWithTeamIds === undefined) {
+    // Dropping the owning team without naming the shared list made the
+    // project organization-wide (`normalizeSharing`'s invariant); keep it.
+    requested = [];
+  } else {
+    requested = [
+      ...(args.teamId === undefined
+        ? project.teamIds.slice(0, 1)
+        : args.teamId
+          ? [args.teamId]
+          : []),
+      ...(args.sharedWithTeamIds ?? project.teamIds.slice(1)),
+    ];
+  }
+  const teamIds = await assignableTeams(tx, auth, validateTeamIds(requested));
+  const mirror = audienceMirror(teamIds);
 
   const previousState = {
+    teamIds: project.teamIds,
     teamId: project.teamId,
     sharedWithTeamIds: project.sharedWithTeamIds,
   };
   const newState = {
-    teamId: normalized.teamId,
-    sharedWithTeamIds: normalized.sharedWithTeamIds,
+    teamIds,
+    teamId: mirror.teamId,
+    sharedWithTeamIds: mirror.sharedWithTeamIds,
   };
   await tx`
     UPDATE app.projects SET
-      team_id = ${normalized.teamId},
-      shared_with_team_ids = ${normalized.sharedWithTeamIds},
+      team_ids = ${teamIds},
+      team_id = ${mirror.teamId},
+      shared_with_team_ids = ${mirror.sharedWithTeamIds},
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.projectId}
   `;
@@ -1943,14 +2002,11 @@ export async function deleteProjectAgent(
 // Reads
 // ---------------------------------------------------------------------------
 
+/** The audience rule (`audienceClause`) over the project's teams — the
+ * array, with the legacy-pair fallback for a row the previous image wrote
+ * during a rollout (`PROJECT_TEAM_IDS_SQL`). Admins see every project. */
 function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
-  const isAdmin = ADMIN_ROLES.has(auth.role);
-  return sql`
-    (${isAdmin}
-      OR (team_id IS NULL AND cardinality(shared_with_team_ids) = 0)
-      OR team_id = ANY(${auth.teamIds})
-      OR shared_with_team_ids && ${auth.teamIds})
-  `;
+  return audienceClause(sql, 'project_team_ids', auth);
 }
 
 /** Every project visible to the caller (admins: all; else org-wide + team). */
@@ -2079,12 +2135,7 @@ export async function listAccessibleUserIds(
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
 
-  const teamIds = [
-    ...new Set([
-      ...(project.teamId ? [project.teamId] : []),
-      ...project.sharedWithTeamIds,
-    ]),
-  ];
+  const teamIds = project.teamIds;
   if (teamIds.length === 0) {
     return { orgWide: true, userIds: [] };
   }

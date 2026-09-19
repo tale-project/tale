@@ -592,7 +592,8 @@ describe('knowledge search resource scope', () => {
           corpus,
           access: expect.objectContaining({
             userId: 'user-1',
-            teamIds: includeHub ? ['org_org-1', 'team-1'] : [],
+            teamIds: includeHub ? ['team-1'] : [],
+            ...(includeHub ? { isAdmin: false } : {}),
             projectIds,
             includeHub,
             includeConversationScoped: false,

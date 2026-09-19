@@ -72,11 +72,11 @@ Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La 
 
 ## Choisir qui peut lire le document
 
-Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.
+Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies : les membres de l’une d’elles peuvent lire le document, et les propriétaires et admins le peuvent toujours. Sauf si tu es propriétaire ou admin, tu ne peux choisir que des équipes dont tu fais partie. Un document rangé dans un dossier d’équipe reprend les équipes du dossier et ne peut pas en nommer une autre ; déplacer un document dans un tel dossier lui applique les équipes du dossier. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.
 
 La racine de la bibliothèque affiche les dossiers et les documents qui ne sont rangés dans aucun dossier. Ouvre un dossier pour consulter son contenu : les documents qu’il contient n’apparaissent pas aussi comme lignes de fichiers à la racine.
 
-Les dossiers organisent la bibliothèque. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
+Les dossiers organisent la bibliothèque. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Le filtre **Équipes** restreint la liste aux éléments accessibles à **Toute l'organisation**, à **Mes équipes** (tout ce qu’une de tes équipes peut voir) ou à une équipe par son nom ; la sélection fait partie de l’adresse de la page, ce qui permet de mettre une liste filtrée en favori. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
 
 ## Importer depuis Microsoft 365 ou Google Drive
 

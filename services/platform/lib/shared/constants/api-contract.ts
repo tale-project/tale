@@ -134,5 +134,19 @@
  * `ACTOR_DISABLED` or `ACTOR_REBOUND`; naming one needs the new
  * `tale:rest.act-as` capability (or an admin seat), which `GET /api/v1/me`
  * answers as `capabilities.actAs`.
+ *
+ * 1.17.0 — the team AUDIENCE, one vocabulary for who may see a document or
+ * a project: `Project.teamIds` (always present; empty = organization-wide)
+ * joins the payload, and `teamIds` is accepted on the project create and
+ * patch bodies (`PATCH …/projects/{id}` `{teamIds}` sets the audience, an
+ * admin verb). `Document.teamIds` joins the document payload beside the
+ * now-deprecated single `teamId`, and `teamIds` is accepted on the document
+ * create and patch bodies (`teamId` stays as its single-team spelling). A
+ * document inside a team folder takes the folder's audience
+ * (`TEAM_INHERITED_FROM_FOLDER` when a request names a team outside it);
+ * an audience naming a team that is not the organization's is
+ * `TEAM_NOT_IN_ORG`; a project audience that is too long or repeats a
+ * team is `PROJECT_SHARING_INVALID`. Owners and admins now read every
+ * team-scoped hub document and folder, as they already did every project.
  */
-export const API_CONTRACT_VERSION = '1.16.0';
+export const API_CONTRACT_VERSION = '1.17.0';

@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
@@ -510,16 +511,13 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     'projects/internal_queries:getProjectSkillScope': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { projectId: string };
-      const rows = await sql<{ teamId: string | null; shared: string[] }[]>`
-        SELECT team_id AS "teamId", shared_with_team_ids AS shared
+      const rows = await sql<{ teamIds: string[] | null }[]>`
+        SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
         FROM app.projects WHERE id = ${args.projectId} LIMIT 1
       `;
       const row = rows[0];
       if (!row) return null;
-      const teamIds = new Set<string>();
-      if (row.teamId !== null) teamIds.add(row.teamId);
-      for (const teamId of row.shared) teamIds.add(teamId);
-      return { teamIds: [...teamIds] };
+      return { teamIds: row.teamIds ?? [] };
     },
 
     'sandbox/session_mutations:hibernateAutomationScopedSession': async (

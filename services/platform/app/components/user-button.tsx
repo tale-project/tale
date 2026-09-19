@@ -47,11 +47,10 @@ import {
 } from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
-import { TeamListPanel } from '@/app/features/settings/teams/components/team-list-panel';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 
@@ -163,14 +162,13 @@ export function UserButton({
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
-  // The org / team / language pickers expand inline on mobile (no room for a
-  // side flyout against the screen edge) but use Radix sub-menu popups on
-  // larger screens, where there's space to anchor them.
+  // The org / language pickers expand inline on mobile (no room for a side
+  // flyout against the screen edge) but use Radix sub-menu popups on larger
+  // screens, where there's space to anchor them.
   const isMobile = useIsMobile();
-  const teamFilter = useOptionalTeamFilter();
-  const teams = teamFilter?.teams;
-  const selectedTeamId = teamFilter?.selectedTeamId ?? null;
-  const setSelectedTeamId = teamFilter?.setSelectedTeamId;
+  // The caller's own teams — shown, never switched: a team is an audience
+  // label on the things it scopes, not a workspace to step into.
+  const { teams } = useTeams();
   // PWA install — `canInstall` is true on browsers that fired
   // `beforeinstallprompt` (Chromium/Android), where we can prompt directly.
   // iOS can't install programmatically, so `isIOS` instead opens manual
@@ -364,71 +362,38 @@ export function UserButton({
             },
       ]);
 
-      // Team filter — mirrors the org switcher: inline collapsible on mobile,
-      // Radix sub-menu popup on larger screens. Always shown once the teams
-      // query has resolved, even with zero teams: the panel then surfaces an
-      // empty state plus a "Create team" action, so the section never silently
-      // disappears for orgs that haven't set up teams yet.
+      // The caller's teams, read-only: the badge names them (two, then a
+      // count) and the row opens the account page's Teams section, which
+      // says what belonging to them means. There is deliberately no
+      // "switch": a team is an audience on documents, projects and inbox
+      // queues — each of those lists carries its own Teams filter.
       if (teams) {
-        const selectedTeamName = selectedTeamId
-          ? (teams.find((team) => team.id === selectedTeamId)?.name ??
-            tNav('teamFilter.allTeams'))
-          : tNav('teamFilter.allTeams');
-
-        const selectTeam = (teamId: string | null) => {
-          setSelectedTeamId?.(teamId);
-          if (organizationId) {
-            void navigate({
-              to: '/dashboard/$id/chat',
-              params: { id: organizationId },
-            });
-          }
-        };
-
+        const names = teams.map((team) => team.name);
+        const badge =
+          names.length === 0
+            ? tNav('myTeams.none')
+            : names.length <= 2
+              ? names.join(', ')
+              : tNav('myTeams.more', {
+                  names: names.slice(0, 2).join(', '),
+                  count: names.length - 2,
+                });
         groups.push([
-          isMobile
-            ? {
-                type: 'custom',
-                content: (
-                  <MenuRowCollapsible
-                    icon={UsersRound}
-                    label={tNav('teamFilter.label')}
-                    badge={selectedTeamName}
-                  >
-                    <TeamListPanel
-                      organizationId={organizationId}
-                      teams={teams}
-                      selectedTeamId={selectedTeamId}
-                      onSelectTeam={selectTeam}
-                      hideHeader
-                    />
-                  </MenuRowCollapsible>
-                ),
-              }
-            : {
-                type: 'sub',
-                label: tNav('teamFilter.label'),
-                icon: UsersRound,
-                trailing: <MenuRowBadge>{selectedTeamName}</MenuRowBadge>,
-                items: [
-                  [
-                    {
-                      type: 'custom',
-                      content: (
-                        <TeamListPanel
-                          organizationId={organizationId}
-                          teams={teams}
-                          selectedTeamId={selectedTeamId}
-                          onSelectTeam={selectTeam}
-                          onManageTeams={closeMenu}
-                        />
-                      ),
-                    },
-                  ],
-                ],
-                className: 'py-2.5',
-                contentClassName: 'w-72',
-              },
+          {
+            type: 'item',
+            label: tNav('myTeams.label'),
+            icon: UsersRound,
+            trailing: <MenuRowBadge>{badge}</MenuRowBadge>,
+            onClick: () => {
+              closeMenu();
+              void navigate({
+                to: '/dashboard/$id/settings/account',
+                params: { id: organizationId },
+                hash: 'teams',
+              });
+            },
+            className: 'py-2.5',
+          },
         ]);
       }
     }
@@ -583,7 +548,6 @@ export function UserButton({
     organizationId,
     currentOrg,
     teams,
-    selectedTeamId,
     isMobile,
     theme,
     locale,
@@ -593,7 +557,6 @@ export function UserButton({
     navigate,
     setTheme,
     setLocale,
-    setSelectedTeamId,
     handleSignOutClick,
     proxied,
     handleInstallApp,

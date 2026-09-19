@@ -33,6 +33,7 @@ import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
 import { ChatsSection } from './chats-section';
 import { PasskeySection } from './passkey-section';
+import { TeamsSection } from './teams-section';
 import { TwoFactorSection } from './two-factor-section';
 
 interface ProfileFormData {
@@ -78,6 +79,7 @@ function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
   return (
     <SettingsPage>
       <ProfileSection />
+      <TeamsSection />
       <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />
       <PasskeySection />

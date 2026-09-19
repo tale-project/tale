@@ -50,16 +50,6 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
         size: 220,
       },
       {
-        id: 'team',
-        header: t('usage.tables.users.team'),
-        cell: ({ row }) => (
-          <Text as="span" variant="caption">
-            {row.original.teamId ?? '\u2014'}
-          </Text>
-        ),
-        size: 160,
-      },
-      {
         id: 'inputTokens',
         header: () => (
           <div className="text-right">

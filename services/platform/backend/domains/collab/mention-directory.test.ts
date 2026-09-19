@@ -21,8 +21,10 @@ function fakeDb(answer: (text: string) => Row[]): Sql {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     return Promise.resolve(answer(text));
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-  return tag as unknown as Sql;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a stand-in for the postgres.js template function (+ `unsafe` for the column expressions)
+  return Object.assign(tag, {
+    unsafe: (text: string) => text,
+  }) as unknown as Sql;
 }
 
 const ADA = {
@@ -60,9 +62,7 @@ describe('mention directory — a leg that cannot be listed fails loudly', () =>
     vi.mocked(listAutomations).mockRejectedValueOnce(new Error('store down'));
     const db = fakeDb((text) => {
       if (text.startsWith('SELECT m."userId"')) return [ADA];
-      if (text.startsWith('SELECT team_id AS "teamId"')) {
-        return [{ teamId: null, sharedWithTeamIds: null }];
-      }
+      if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
       if (text.startsWith('SELECT allowed_agent_slugs')) {
         return [
           {

@@ -7,6 +7,7 @@ import {
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
+import { audienceMirror } from '../../core/lib/audience.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -698,6 +699,32 @@ export interface PgSyncImportDeps {
 }
 
 /**
+ * The audience an imported document lands with: inside a team folder the
+ * folder's FULL team list (a team folder owns the scope of everything in
+ * it); outside one, the single team the pipeline carries (`[teamId]`, or
+ * `[]` for an org-wide import). `undefined` = the pipeline said nothing and
+ * the landing folder owns no audience, so an update leaves the stored
+ * audience alone — a refresh must never lift a restriction an admin set by
+ * hand (a create reads `undefined` as organization-wide).
+ */
+async function importedAudience(
+  sql: Sql,
+  folderId: string | null,
+  teamId: string | undefined,
+): Promise<string[] | undefined> {
+  if (folderId !== null) {
+    const rows = await sql<{ teamTags: string[] }[]>`
+      SELECT team_tags AS "teamTags" FROM app.folders
+      WHERE id = ${folderId} LIMIT 1
+    `;
+    const inherited = rows[0]?.teamTags ?? [];
+    if (inherited.length > 0) return inherited;
+  }
+  if (teamId === undefined) return undefined;
+  return teamId ? [teamId] : [];
+}
+
+/**
  * Refresh a synced document with a freshly landed blob — the 0.4
  * `updateDocument` internal mutation. Whenever the blob actually changes,
  * the previous one joins `history_files` (an addressable, erasable history
@@ -755,6 +782,10 @@ async function updateDocumentRow(
     folderId !== null
       ? await buildHubFolderPath(sql, organizationId, folderId)
       : null;
+  // A team folder owns the audience of everything inside it, so a landing
+  // folder's FULL team list wins over the single team the pipeline carries;
+  // outside one, the pipeline's team (if it said anything) is the audience.
+  const nextTeamTags = await importedAudience(sql, folderId, updateArgs.teamId);
 
   await sql`
     UPDATE app.documents SET
@@ -765,8 +796,8 @@ async function updateDocumentRow(
       source_provider = ${updateArgs.sourceProvider},
       external_item_id = ${updateArgs.externalItemId},
       content_hash = ${updateArgs.contentHash !== undefined ? updateArgs.contentHash : sql.unsafe('content_hash')},
-      team_id = ${updateArgs.teamId !== undefined ? updateArgs.teamId : sql.unsafe('team_id')},
-      team_tags = ${updateArgs.teamId !== undefined ? [updateArgs.teamId] : sql.unsafe('team_tags')},
+      team_id = ${nextTeamTags !== undefined ? audienceMirror(nextTeamTags).teamId : sql.unsafe('team_id')},
+      team_tags = ${nextTeamTags !== undefined ? nextTeamTags : sql.unsafe('team_tags')},
       metadata = ${updateArgs.metadata !== undefined ? sql.json(toJson(updateArgs.metadata)) : sql.unsafe('metadata')},
       folder_id = ${updateArgs.folderId !== undefined ? folderId : sql.unsafe('folder_id')},
       folder_path = ${updateArgs.folderId !== undefined ? folderPath : sql.unsafe('folder_path')},
@@ -872,6 +903,9 @@ export function createSyncImportDeps(
         folderId !== null
           ? await buildHubFolderPath(sql, createArgs.organizationId, folderId)
           : null;
+      // The landing folder's full audience, else the pipeline's team.
+      const teamTags =
+        (await importedAudience(sql, folderId, createArgs.teamId)) ?? [];
       const inserted = await sql<{ id: string }[]>`
         INSERT INTO app.documents (
           org_id, title, file_ref, mime_type, extension, source_provider,
@@ -882,8 +916,8 @@ export function createSyncImportDeps(
           ${createArgs.fileId}, ${createArgs.mimeType ?? null},
           ${extractExtension(createArgs.title) ?? null},
           ${createArgs.sourceProvider}, ${createArgs.externalItemId},
-          ${createArgs.contentHash ?? null}, ${createArgs.teamId ?? null},
-          ${createArgs.teamId ? [createArgs.teamId] : []},
+          ${createArgs.contentHash ?? null}, ${audienceMirror(teamTags).teamId},
+          ${teamTags},
           ${createArgs.metadata === undefined ? null : sql.json(toJson(createArgs.metadata))},
           ${createArgs.createdBy ?? null}, ${folderId}, ${folderPath},
           ${now}, ${now}

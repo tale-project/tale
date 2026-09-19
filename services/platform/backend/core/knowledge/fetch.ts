@@ -107,6 +107,7 @@ export function retrievableFilterArgs(
   userId?: string;
   access?: {
     teamIds: string[];
+    isAdmin?: boolean;
     projectIds: string[];
     includeHub: boolean;
     includeConversationScoped?: boolean;
@@ -121,6 +122,9 @@ export function retrievableFilterArgs(
       ? {
           access: {
             teamIds: [...access.teamIds],
+            ...(access.isAdmin !== undefined
+              ? { isAdmin: access.isAdmin }
+              : {}),
             projectIds: [...access.projectIds],
             includeHub: access.includeHub,
             ...(access.includeConversationScoped !== undefined

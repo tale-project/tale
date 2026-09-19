@@ -25,11 +25,19 @@ Budgets gelten für neue kostenpflichtige Arbeit, einschließlich Chat, Sprachau
 
 ## Verstehen, welche Grenzen gelten
 
-Persönliche Limits werden für jede Größe aus der spezifischsten Regel ermittelt, die sie festlegt: zuerst Person, dann Team, Rolle und Standard. Organisationslimits gelten zusätzlich. Ein Teambudget begrenzt auch die gemeinsame Nutzung der aktuellen Teammitglieder, selbst wenn ein Mitglied eine spezifischere persönliche Regel hat: Die Nutzung eines neuen Mitglieds im laufenden Zeitraum zählt sofort, die eines ausgetretenen Mitglieds nicht mehr. API-Schlüssellimits begrenzen unabhängig die mit diesem Schlüssel authentifizierten Anfragen, deren Nutzung dem Schlüssel angerechnet wird, nicht andere Arbeit in der Oberfläche.
+Persönliche Limits werden für jede Größe aus der spezifischsten Regel ermittelt, die sie festlegt: zuerst Person, dann Team, Rolle und Standard. Gehört jemand mehreren Teams mit einer Regel an, gilt für die Person die strengste dieser Grenzen. Organisationslimits gelten zusätzlich. Ein Teambudget begrenzt auch die gemeinsame Nutzung der aktuellen Teammitglieder, selbst wenn ein Mitglied eine spezifischere persönliche Regel hat: Die Nutzung eines neuen Mitglieds im laufenden Zeitraum zählt sofort, die eines ausgetretenen Mitglieds nicht mehr. API-Schlüssellimits begrenzen unabhängig die mit diesem Schlüssel authentifizierten Anfragen, deren Nutzung dem Schlüssel angerechnet wird, nicht andere Arbeit in der Oberfläche.
 
 Wird eine Anfrage unerwartet abgelehnt, prüfe alle passenden Grenzen und Zeiträume. Ein höheres persönliches Limit hebt keine Organisations-, Team- oder API-Schlüsselgrenze auf.
 
 Mitglieder sehen ihren eigenen Stand unter [Einstellungen > Nutzung](/de/platform/member/preferences#usage-limits). Dort steht jede persönliche, Team- und Organisationsgrenze, die für sie gilt, mit aktueller Nutzung und nächstem Zurücksetzen. Die Regeln selbst sehen sie dort nicht.
+
+### So werden Regeln kombiniert {#how-rules-combine}
+
+Jede Richtlinie auf dieser Seite und unter [Inhalte & Modelle](/de/platform/admin/governance/content-models) liest ihre Regeln auf dieselbe Weise. Der spezifischste Bereich gewinnt: eine Personenregel vor einer Teamregel, eine Teamregel vor einer Rollenregel, eine Rollenregel vor dem Standard. Gehört eine Person mehreren Teams mit einer Regel an, werden die Teamregeln nach ihrer Art kombiniert:
+
+- Eine Grenze, etwa ein Budget oder eine Obergrenze für das Kontextfenster, ergibt den strengsten Wert. Der Beitritt zu einem großzügigen Team hebt niemandes Grenze an.
+- Eine Erlaubnisliste, etwa der Modellzugriff, ergibt die Vereinigung der erlaubten Modelle; eine Sperre in einer der Regeln gilt für dieses Modell weiterhin.
+- Eine einzelne Auswahl, etwa das Standardmodell, folgt der Reihenfolge der Regeln in der Tabelle: Die erste passende Teamregel gewinnt.
 
 ## Uploads steuern
 

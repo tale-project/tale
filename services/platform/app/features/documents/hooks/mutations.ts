@@ -574,55 +574,31 @@ export function useDocumentUpload(options: UploadOptions) {
           if (contentHash === undefined) {
             throw new Error('Upload hash was not calculated');
           }
-          // Create document records — one per team, or one org-wide.
-          const teamIds = uploadOptions?.teamIds;
-          if (teamIds && teamIds.length > 0) {
-            for (const teamId of teamIds) {
-              await createDocumentFromUpload({
-                organizationId: options.organizationId,
-                fileId: boundRef,
-                fileName: file.name,
-                contentType: resolvedType,
-                contentHash,
-                metadata: {
-                  size: file.size,
-                  sourceProvider: 'upload',
-                  sourceMode: 'manual',
-                  lastModified: file.lastModified,
-                },
-                teamId,
-                folderId: uploadOptions?.folderId
-                  ? uploadOptions.folderId
-                  : undefined,
-                projectId: uploadOptions?.projectId
-                  ? uploadOptions.projectId
-                  : undefined,
-                fileSize: file.size,
-              });
-            }
-          } else {
-            await createDocumentFromUpload({
-              organizationId: options.organizationId,
-              fileId: boundRef,
-              fileName: file.name,
-              contentType: resolvedType,
-              contentHash,
-              metadata: {
-                size: file.size,
-                sourceProvider: 'upload',
-                sourceMode: 'manual',
-                lastModified: file.lastModified,
-              },
-              teamId: undefined,
-              folderId: uploadOptions?.folderId
-                ? uploadOptions.folderId
-                : undefined,
-              projectId: uploadOptions?.projectId
-                ? uploadOptions.projectId
-                : undefined,
-              fileSize: file.size,
-            });
-          }
+          // ONE document record carrying every selected team — the teams
+          // are the document's audience, not a reason to file it twice
+          // (empty = organization-wide).
+          const teamIds = uploadOptions?.teamIds ?? [];
+          await createDocumentFromUpload({
+            organizationId: options.organizationId,
+            fileId: boundRef,
+            fileName: file.name,
+            contentType: resolvedType,
+            contentHash,
+            metadata: {
+              size: file.size,
+              sourceProvider: 'upload',
+              sourceMode: 'manual',
+              lastModified: file.lastModified,
+            },
+            ...(teamIds.length > 0 ? { teamIds } : {}),
+            folderId: uploadOptions?.folderId
+              ? uploadOptions.folderId
+              : undefined,
+            projectId: uploadOptions?.projectId
+              ? uploadOptions.projectId
+              : undefined,
+            fileSize: file.size,
+          });
         }
 
         updateFileStatus(fileId, {

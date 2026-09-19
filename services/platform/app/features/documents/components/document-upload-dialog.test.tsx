@@ -40,10 +40,6 @@ vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-vi.mock('@/app/hooks/use-team-filter', () => ({
-  useTeamFilter: () => ({ selectedTeamId: null }),
-}));
-
 const mockTeams = [
   { id: 'team-1', name: 'Sales' },
   { id: 'team-2', name: 'Support' },

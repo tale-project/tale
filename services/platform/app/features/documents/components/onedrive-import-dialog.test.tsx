@@ -40,10 +40,6 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-team-filter', () => ({
-  useTeamFilter: () => ({ selectedTeamId: null }),
-}));
-
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));

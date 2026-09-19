@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { forbiddenNameCharKind } from '../../../lib/shared/utils/plain-name.ts';
+import { audienceMirror, normalizeTeamIds } from '../../core/lib/audience.ts';
 
 /**
  * Hub folder-path plumbing shared by the sync engines (OneDrive today,
@@ -127,7 +128,14 @@ export async function getOrCreateHubFolderPath(
     organizationId: string;
     pathSegments: string[];
     createdBy?: string;
+    /** @deprecated The single-team spelling of `teamIds`; still accepted. */
     teamId?: string;
+    /**
+     * The audience a ROOT-level chain is created with. Under a `parentId`
+     * the parent's own audience wins: a team folder owns everything inside
+     * it, so a synced path never lands org-wide children in a team tree.
+     */
+    teamIds?: readonly string[];
     parentId?: string;
   },
 ): Promise<string | undefined> {
@@ -137,6 +145,23 @@ export async function getOrCreateHubFolderPath(
   }
   const baseDepth =
     args.parentId === undefined ? 0 : await hubFolderDepth(db, args.parentId);
+  const inherited =
+    args.parentId === undefined
+      ? []
+      : ((
+          await db<{ teamTags: string[] }[]>`
+            SELECT team_tags AS "teamTags" FROM app.folders
+            WHERE id = ${args.parentId} LIMIT 1
+          `
+        )[0]?.teamTags ?? []);
+  const audience =
+    inherited.length > 0
+      ? inherited
+      : normalizeTeamIds([
+          ...(args.teamIds ?? []),
+          ...(args.teamId ? [args.teamId] : []),
+        ]);
+  const mirror = audienceMirror(audience);
   if (baseDepth + segments.length > MAX_FOLDER_DEPTH) {
     throw new Error(
       `Folder path exceeds the depth cap (${MAX_FOLDER_DEPTH}): ${segments.join('/')}`,
@@ -171,7 +196,7 @@ export async function getOrCreateHubFolderPath(
         org_id, name, parent_id, team_id, team_tags, created_by, created_at_ms
       ) VALUES (
         ${args.organizationId}, ${validName}, ${parentId ?? null},
-        ${args.teamId ?? null}, ${args.teamId ? [args.teamId] : []},
+        ${mirror.teamId}, ${audience},
         ${args.createdBy ?? null}, ${Date.now()}
       )
       RETURNING id

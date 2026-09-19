@@ -42,6 +42,9 @@
 
 export interface AccessScopeArg {
   teamIds?: string[];
+  /** An owner/admin — the audience rule never restricts them, so every
+   * team-scoped hub document admits whatever `teamIds` lists. */
+  isAdmin?: boolean;
   projectIds?: string[];
   includeHub?: boolean;
   includeConversationScoped?: boolean;
@@ -114,6 +117,7 @@ export function decideRetrievable(
           : [];
     if (
       docTeams.length === 0 ||
+      access.isAdmin === true ||
       docTeams.some((teamId) => (access.teamIds ?? []).includes(teamId))
     ) {
       return true;

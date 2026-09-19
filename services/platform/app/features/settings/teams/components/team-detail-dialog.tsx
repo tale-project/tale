@@ -11,7 +11,6 @@ import { Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
 import { useTeamMembers, type Team } from '../hooks/queries';
 import { TeamEditDialog } from './team-edit-dialog';
@@ -135,15 +134,6 @@ function TeamDetailDialogContent({
                         </Text>
                       )}
                   </Stack>
-                  {/* Same colored role chip as the members table — one role-chip
-                      treatment across Organization and Teams. */}
-                  <span
-                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-1 text-xs font-medium capitalize ${getRoleBadgeClasses(
-                      member.role,
-                    )}`}
-                  >
-                    {member.role}
-                  </span>
                 </div>
               ))}
             </Card>

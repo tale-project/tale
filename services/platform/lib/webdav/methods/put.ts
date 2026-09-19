@@ -64,6 +64,7 @@ export async function handlePut(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
+      userId: auth.userId,
       namespace: parsed.namespace,
       segments: parsed.segments,
     },
@@ -87,7 +88,11 @@ export async function handlePut(
   ) {
     const props = await ctx.backend.query(
       anyRefs.webdav.tree_queries.getDocumentProps,
-      { organizationId: auth.organizationId, documentId: resolved.documentId },
+      {
+        organizationId: auth.organizationId,
+        userId: auth.userId,
+        documentId: resolved.documentId,
+      },
     );
     if (props) resourceEtag = computeETag(props);
   }

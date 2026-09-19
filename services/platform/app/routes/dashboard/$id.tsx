@@ -36,7 +36,6 @@ import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/com
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
@@ -67,8 +66,8 @@ export const Route = createFileRoute('/dashboard/$id')({
   // while access catches up. The component's gating logic surfaces
   // denied/not-found states, so an access error here is non-fatal.
   loader: ({ context, params }) => {
-    // The team filter (TeamFilterProvider) reads getMyTeams on every dashboard
-    // page; warm it alongside the gating member context.
+    // The account menu's Teams row reads the caller's teams on every
+    // dashboard page; warm it alongside the gating member context.
     void context.queryClient.prefetchQuery(myTeamsQuery(params.id));
     void context.queryClient
       .ensureQueryData(memberContextQuery(params.id))
@@ -281,111 +280,109 @@ function DashboardLayout() {
     <ErrorScopeProvider organizationId={organizationId}>
       <AbilityContext.Provider value={ability}>
         <AbilityLoadingContext.Provider value={isLoading}>
-          <TeamFilterProvider organizationId={organizationId}>
-            <DirtyBlockerProvider>
-              <AdaptiveHeaderProvider>
-                <SidebarProvider>
-                  {/* Learns the client↔server clock offset from getThreadMeta.serverNow
+          <DirtyBlockerProvider>
+            <AdaptiveHeaderProvider>
+              <SidebarProvider>
+                {/* Learns the client↔server clock offset from getThreadMeta.serverNow
                   so the sidebar's chat-history relative times and the chat
                   interface's timers share one clock frame on every route. */}
-                  <ClockOffsetProvider>
-                    {/* Shell alerts sit above nav + main so page headers (chat toolbar,
+                <ClockOffsetProvider>
+                  {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
-                    <div className="flex h-full w-full flex-col overflow-hidden">
-                      {hasRole && (
-                        <TwoFactorGraceBanner organizationId={organizationId} />
-                      )}
-                      {hasRole && (
-                        <TwoFactorLowBackupCodesBanner
-                          organizationId={organizationId}
-                        />
-                      )}
-                      {hasRole && (
-                        <EmbeddingSetupBanner organizationId={organizationId} />
-                      )}
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-                        {/* Safe-area inset clears the notch; the inner fixed-height row
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    {hasRole && (
+                      <TwoFactorGraceBanner organizationId={organizationId} />
+                    )}
+                    {hasRole && (
+                      <TwoFactorLowBackupCodesBanner
+                        organizationId={organizationId}
+                      />
+                    )}
+                    {hasRole && (
+                      <EmbeddingSetupBanner organizationId={organizationId} />
+                    )}
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+                      {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
-                        <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                          <Row gap={2} className="min-h-12">
-                            <div className="min-w-0 flex-1">
-                              <AdaptiveHeaderSlot />
-                            </div>
-                            <UserButton align="end" />
-                          </Row>
-                        </header>
+                      <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                        <Row gap={2} className="min-h-12">
+                          <div className="min-w-0 flex-1">
+                            <AdaptiveHeaderSlot />
+                          </div>
+                          <UserButton align="end" />
+                        </Row>
+                      </header>
 
-                        {hasRole ? (
-                          <AppSidebar organizationId={organizationId} />
-                        ) : (
-                          <AppSidebarPlaceholder />
-                        )}
+                      {hasRole ? (
+                        <AppSidebar organizationId={organizationId} />
+                      ) : (
+                        <AppSidebarPlaceholder />
+                      )}
 
-                        <Stack
-                          id="main-content"
-                          as="main"
-                          tabIndex={-1}
-                          gap={0}
-                          // outline-none: as the skip-link target this region is
-                          // focused programmatically (tabIndex -1, never in the
-                          // tab order), so the browser's focus-visible ring would
-                          // outline the whole content area without conveying
-                          // anything actionable.
-                          className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
-                        >
-                          {hasRole && <ChangelogToastTrigger />}
-                          {!hasRole && (
-                            // While access resolves, hold the chat layout's
-                            // slots (CSS-gated to chat navigations) — the
-                            // sub-panel and the composer at the message
-                            // column's foot — so the real chat slots in
-                            // without a late pop. Mirrors the boot shell's
-                            // frame exactly.
-                            <div className="flex min-h-0 flex-1 flex-row">
-                              <ChatSubPanelPlaceholder />
-                              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                                <ChatComposerPlaceholder />
-                              </div>
+                      <Stack
+                        id="main-content"
+                        as="main"
+                        tabIndex={-1}
+                        gap={0}
+                        // outline-none: as the skip-link target this region is
+                        // focused programmatically (tabIndex -1, never in the
+                        // tab order), so the browser's focus-visible ring would
+                        // outline the whole content area without conveying
+                        // anything actionable.
+                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
+                      >
+                        {hasRole && <ChangelogToastTrigger />}
+                        {!hasRole && (
+                          // While access resolves, hold the chat layout's
+                          // slots (CSS-gated to chat navigations) — the
+                          // sub-panel and the composer at the message
+                          // column's foot — so the real chat slots in
+                          // without a late pop. Mirrors the boot shell's
+                          // frame exactly.
+                          <div className="flex min-h-0 flex-1 flex-row">
+                            <ChatSubPanelPlaceholder />
+                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                              <ChatComposerPlaceholder />
                             </div>
-                          )}
-                          {hasRole ? (
-                            isSwitching ? (
-                              <FullPageCenter>
-                                <VStack gap={3} align="center">
-                                  <Spinner
-                                    size="lg"
-                                    label={tSettings(
-                                      'organization.switchingLabel',
-                                    )}
-                                  />
-                                  <Text variant="muted" className="text-sm">
-                                    {tSettings('organization.switching')}
-                                  </Text>
-                                </VStack>
-                              </FullPageCenter>
-                            ) : (
-                              <Outlet />
-                            )
-                          ) : null}
-                        </Stack>
-                        {hasRole ? (
-                          <MobileBottomNav organizationId={organizationId} />
-                        ) : (
-                          // Holds the tab bar's band while access resolves,
-                          // like the rail and chat placeholders above — without
-                          // it the content column grows to the bottom edge and
-                          // jumps back up when the live bar mounts.
-                          <MobileBottomNavPlaceholder />
+                          </div>
                         )}
-                      </div>
+                        {hasRole ? (
+                          isSwitching ? (
+                            <FullPageCenter>
+                              <VStack gap={3} align="center">
+                                <Spinner
+                                  size="lg"
+                                  label={tSettings(
+                                    'organization.switchingLabel',
+                                  )}
+                                />
+                                <Text variant="muted" className="text-sm">
+                                  {tSettings('organization.switching')}
+                                </Text>
+                              </VStack>
+                            </FullPageCenter>
+                          ) : (
+                            <Outlet />
+                          )
+                        ) : null}
+                      </Stack>
+                      {hasRole ? (
+                        <MobileBottomNav organizationId={organizationId} />
+                      ) : (
+                        // Holds the tab bar's band while access resolves,
+                        // like the rail and chat placeholders above — without
+                        // it the content column grows to the bottom edge and
+                        // jumps back up when the live bar mounts.
+                        <MobileBottomNavPlaceholder />
+                      )}
                     </div>
-                  </ClockOffsetProvider>
-                </SidebarProvider>
-              </AdaptiveHeaderProvider>
-            </DirtyBlockerProvider>
-          </TeamFilterProvider>
+                  </div>
+                </ClockOffsetProvider>
+              </SidebarProvider>
+            </AdaptiveHeaderProvider>
+          </DirtyBlockerProvider>
         </AbilityLoadingContext.Provider>
       </AbilityContext.Provider>
     </ErrorScopeProvider>

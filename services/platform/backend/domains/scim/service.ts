@@ -1115,8 +1115,7 @@ export async function deleteGroup(
       team.name,
       {
         next: {
-          projectsUnscoped: retired.projectsUnscoped,
-          projectsUnshared: retired.projectsUnshared,
+          projectsRetagged: retired.projectsRetagged,
           foldersRetagged: retired.foldersRetagged,
           documentsRetagged: retired.documentsRetagged,
           conversationsUnassigned: retired.conversationsUnassigned,

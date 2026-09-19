@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { findOrganizationMember } from '../../auth/membership.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { loadProjectSharedThread } from '../chat/threads.ts';
 import {
@@ -162,11 +163,8 @@ export function fileAccessProbes(
       // `[{fileId}]` containment matches any element carrying the ref —
       // the deliverable/attachment shape both columns hold.
       const needle = JSON.stringify([{ fileId: storageRef }]);
-      const projects = await sql<
-        { teamId: string | null; sharedWithTeamIds: string[] | null }[]
-      >`
-        SELECT p.team_id AS "teamId",
-               p.shared_with_team_ids AS "sharedWithTeamIds"
+      const projects = await sql<{ teamIds: string[] | null }[]>`
+        SELECT ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
         FROM app.tasks t
         JOIN app.projects p ON p.id = t.project_id
         WHERE t.org_id = ${viewer.organizationId}
@@ -177,10 +175,7 @@ export function fileAccessProbes(
       return projects.some(
         (project) =>
           checkProjectAccess(
-            {
-              teamId: project.teamId,
-              sharedWithTeamIds: project.sharedWithTeamIds ?? [],
-            },
+            { teamIds: project.teamIds ?? [] },
             viewer.teamIds,
             viewer.role,
           ).canRead,

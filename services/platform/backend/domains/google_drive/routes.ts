@@ -11,6 +11,10 @@ import {
 import { requireSession } from '../../auth/session.ts';
 import { importFiles } from '../../core/google_drive/import_files.ts';
 import { listFiles } from '../../core/google_drive/list_files.ts';
+import {
+  assertTeamsAssignable,
+  TeamAssignmentError,
+} from '../../core/lib/audience.ts';
 import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import {
   FolderError,
@@ -135,17 +139,17 @@ export function createGoogleDriveRoutes(deps: {
     // A destination is a write into that folder, so it answers to the same
     // gate an upload does — and a team folder owns the scope of what lands
     // inside it, so its team wins over whatever the picker had selected.
+    const auth = await getProjectAuthContext(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+        role: c.get('orgMember').role,
+      },
+      c.get('sessionBundle').user.email,
+    );
     let destination: FolderRow | null = null;
     if (body.data.destinationFolderId !== undefined) {
-      const auth = await getProjectAuthContext(
-        deps.sql,
-        {
-          organizationId: c.get('orgId'),
-          userId: c.get('sessionBundle').user.id,
-          role: c.get('orgMember').role,
-        },
-        c.get('sessionBundle').user.email,
-      );
       try {
         destination = await loadHubImportDestination(
           deps.sql,
@@ -159,7 +163,27 @@ export function createGoogleDriveRoutes(deps: {
         throw error;
       }
     }
-    const effectiveTeamId = destination?.teamId ?? body.data.teamId;
+    // The audience the import stamps. A team folder's own wins (the engine
+    // re-reads the landing folder's full team list per document); otherwise
+    // the picker's team, which must be one the caller may assign — the same
+    // rule an upload obeys (`assertTeamsAssignable`).
+    let effectiveTeamId: string | undefined;
+    if (destination !== null && destination.teamTags.length > 0) {
+      effectiveTeamId = destination.teamTags[0];
+    } else if (body.data.teamId !== undefined) {
+      try {
+        await assertTeamsAssignable(deps.sql, auth, [body.data.teamId]);
+        effectiveTeamId = body.data.teamId;
+      } catch (error) {
+        if (error instanceof TeamAssignmentError) {
+          return c.json(
+            { error: error.code, message: error.message },
+            error.status,
+          );
+        }
+        throw error;
+      }
+    }
     const result = await importFiles(
       {
         items: body.data.items,

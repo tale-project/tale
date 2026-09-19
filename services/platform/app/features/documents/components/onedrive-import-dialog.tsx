@@ -12,7 +12,6 @@ import {
 
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
@@ -72,7 +71,6 @@ export function OneDriveImportDialog({
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
-  const { selectedTeamId } = useTeamFilter();
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportOneDriveFiles();
@@ -87,9 +85,11 @@ export function OneDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
+  // The picker's team for a root-level import; a destination folder's own
+  // audience wins over it (the server re-reads the landing folder).
   const [selectedTeamId_local, setSelectedTeamId_local] = useState<
     string | undefined
-  >(() => selectedTeamId ?? undefined);
+  >(undefined);
 
   const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');
   const [selectedSite, setSelectedSite] = useState<SharePointSite | null>(null);

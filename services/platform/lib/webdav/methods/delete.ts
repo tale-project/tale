@@ -40,6 +40,7 @@ export async function handleDelete(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
+      userId: auth.userId,
       namespace: parsed.namespace,
       segments: parsed.segments,
     },
@@ -54,6 +55,7 @@ export async function handleDelete(
         anyRefs.webdav.tree_mutations.softDeleteDocument,
         {
           organizationId: auth.organizationId,
+          userId: auth.userId,
           documentId: resolved.documentId,
         },
       );
@@ -78,12 +80,22 @@ export async function handleDelete(
         anyRefs.webdav.tree_mutations.deleteFolderCascade,
         {
           organizationId: auth.organizationId,
+          userId: auth.userId,
           folderId: resolved.folderId,
         },
       );
     }
   } catch (err) {
     const code = backendErrorCode(err);
+    if (code === 'FORBIDDEN') {
+      // The tree holds a team folder or document outside the caller's
+      // audience — the whole delete is refused rather than half done.
+      return {
+        status: 403,
+        headers: {},
+        body: 'The collection holds resources you cannot delete',
+      };
+    }
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // The org or a descendant doc's author is on a legal hold — refuse.
       // 403, not 423 (a legal hold is not a client-clearable WebDAV lock).

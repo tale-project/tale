@@ -34,8 +34,8 @@ interface Statement {
 
 interface ProjectRow {
   id: string;
-  teamId: string | null;
-  shared: string[];
+  /** The audience array (`PROJECT_TEAM_IDS_SQL` folds the legacy pair in). */
+  teamIds: string[];
   archivedAt: number | null;
 }
 
@@ -84,7 +84,12 @@ function fakeSql(script: {
     }
     return Promise.resolve([]);
   };
-  return { sql: fn as unknown as Sql, statements };
+  return {
+    sql: Object.assign(fn, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql,
+    statements,
+  };
 }
 
 const ORG = 'org_1';
@@ -115,18 +120,8 @@ describe('resolveKnowledgeToolAccess — org-wide run of a multi-bound automatio
       run: { name: 'triage', projectId: null },
       bindings: ['p-alpha', 'p-beta'],
       projects: [
-        {
-          id: 'p-alpha',
-          teamId: 'team-a',
-          shared: ['team-s'],
-          archivedAt: null,
-        },
-        {
-          id: 'p-beta',
-          teamId: null,
-          shared: [],
-          archivedAt: 1_700_000_000_000,
-        },
+        { id: 'p-alpha', teamIds: ['team-a', 'team-s'], archivedAt: null },
+        { id: 'p-beta', teamIds: [], archivedAt: 1_700_000_000_000 },
       ],
     });
 
@@ -134,7 +129,7 @@ describe('resolveKnowledgeToolAccess — org-wide run of a multi-bound automatio
 
     expect(access.allowed).toBe(true);
     expect(access.scope).toEqual({
-      teamIds: [`org_${ORG}`, 'team-a', 'team-s'],
+      teamIds: ['team-a', 'team-s'],
       projectIds: ['p-alpha', 'p-beta'],
       includeHub: true,
       archivedProjectIds: ['p-beta'],
@@ -146,16 +141,14 @@ describe('resolveKnowledgeToolAccess — org-wide run of a multi-bound automatio
       session: { ownerType: 'workflow_run', ownerId: 'run-1:@workflow' },
       run: { name: 'triage', projectId: null },
       bindings: ['p-alpha', 'p-gone'],
-      projects: [
-        { id: 'p-alpha', teamId: 'team-a', shared: [], archivedAt: null },
-      ],
+      projects: [{ id: 'p-alpha', teamIds: ['team-a'], archivedAt: null }],
     });
 
     const access = await resolveScope(sql);
 
     expect(access.scope).toMatchObject({
       projectIds: ['p-alpha'],
-      teamIds: [`org_${ORG}`, 'team-a'],
+      teamIds: ['team-a'],
       includeHub: true,
     });
   });
@@ -169,8 +162,10 @@ describe('resolveKnowledgeToolAccess — org-wide run of a multi-bound automatio
 
     const access = await resolveScope(sql);
 
+    // No team at all: the hub lane admits organization-wide rows by itself
+    // (`includeHub`), so the scope names no team.
     expect(access.scope).toEqual({
-      teamIds: [`org_${ORG}`],
+      teamIds: [],
       projectIds: [],
       includeHub: true,
       archivedProjectIds: [],
@@ -182,19 +177,14 @@ describe('resolveKnowledgeToolAccess — org-wide run of a multi-bound automatio
       session: { ownerType: 'workflow_run', ownerId: 'run-1:agent' },
       run: { name: 'triage', projectId: 'p-alpha' },
       projects: [
-        {
-          id: 'p-alpha',
-          teamId: 'team-a',
-          shared: ['team-s'],
-          archivedAt: null,
-        },
+        { id: 'p-alpha', teamIds: ['team-a', 'team-s'], archivedAt: null },
       ],
     });
 
     const access = await resolveScope(sql);
 
     expect(access.scope).toEqual({
-      teamIds: [`org_${ORG}`, 'team-a', 'team-s'],
+      teamIds: ['team-a', 'team-s'],
       projectIds: ['p-alpha'],
       includeHub: true,
       archivedProjectIds: [],
@@ -212,14 +202,14 @@ describe('listDocumentsForScope — the binding door', () => {
 
     await handler?.({
       organizationId: ORG,
-      teamIds: [`org_${ORG}`],
+      teamIds: ['team-a'],
       projectIds: ['p-alpha', 'p-beta'],
       limit: 10,
     });
 
     expect(listDocumentsForAgent).toHaveBeenCalledWith(sql, {
       organizationId: ORG,
-      teamIds: [`org_${ORG}`],
+      teamIds: ['team-a'],
       projectIds: ['p-alpha', 'p-beta'],
       limit: 10,
     });

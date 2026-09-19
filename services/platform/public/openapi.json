@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.16.0",
+    "version": "1.17.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -3831,7 +3831,7 @@
             }
           },
           "400": {
-            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); `teamIds` names a team that is not this organization’s (`TEAM_NOT_IN_ORG`, the ids in `data.teamIds`); or `folderId` is a team folder and `teamIds` names a team outside its audience (`TEAM_INHERITED_FROM_FOLDER`) — inside a team folder the folder’s audience applies",
             "content": {
               "application/json": {
                 "schema": {
@@ -3870,7 +3870,7 @@
             }
           },
           "403": {
-            "description": "The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "The key holder’s role cannot write documents, `teamIds` (or `teamId`) names a team a non-admin key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4309,7 +4309,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)",
+            "description": "Invalid request (malformed body or parameters); `teamIds` names a team that is not this organization’s (`TEAM_NOT_IN_ORG`); the document sits in (or moves into) a team folder and `teamIds` names a team outside its audience (`TEAM_INHERITED_FROM_FOLDER`); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4348,7 +4348,7 @@
             }
           },
           "403": {
-            "description": "The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "The key holder’s role cannot write documents, `teamIds` (or `teamId`) names a team a non-admin key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10890,6 +10890,16 @@
                   "description": {
                     "type": "string",
                     "maxLength": 500
+                  },
+                  "teamIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 21,
+                    "description": "The audience: the teams that may see the project, by id — teams of this organization, and for a key holder who is not an admin, teams they belong to (`TEAM_ACCESS_DENIED`). Omitted or empty = organization-wide. Owners and admins see every project regardless."
                   }
                 }
               }
@@ -10925,7 +10935,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`), or an explicit `key` outside the 2-6 letters-and-digits rule (`PROJECT_KEY_INVALID`)",
+            "description": "A body the schema refuses (`INVALID_BODY`), an explicit `key` outside the 2-6 letters-and-digits rule (`PROJECT_KEY_INVALID`), or a `teamIds` that repeats a team, exceeds the cap or names a team that is not this organization’s (`PROJECT_SHARING_INVALID`, the unknown ids in `data.unknownTeamIds`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10964,7 +10974,7 @@
             }
           },
           "403": {
-            "description": "The key holder is not an org editor (`ROLE_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "The key holder is not an org editor (`ROLE_FORBIDDEN`), or `teamIds` names a team a non-admin key holder is not in (`TEAM_ACCESS_DENIED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11394,6 +11404,16 @@
                     "minLength": 1,
                     "maxLength": 256,
                     "description": "The caller-owned key, stored NFC-normalized and trimmed, unique per organization; `null` releases it"
+                  },
+                  "teamIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 21,
+                    "description": "The audience, replaced whole: the teams that may see the project, by id (teams of this organization); `[]` makes it organization-wide. An organization admin verb, like `archived` — a lesser role answers 403 `RBAC_FORBIDDEN`."
                   }
                 }
               }
@@ -11426,7 +11446,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`): no field, an unknown key, a blank `name` or `externalItemId`, a value past its cap",
+            "description": "A body the schema refuses (`INVALID_BODY`): no field, an unknown key, a blank `name` or `externalItemId`, a value past its cap; or a `teamIds` that repeats a team or names one that is not this organization’s (`PROJECT_SHARING_INVALID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11465,7 +11485,7 @@
             }
           },
           "403": {
-            "description": "`archived` from a key holder who is not an organization admin, or an identity edit without the editor role (`ROLE_FORBIDDEN`) or project edit access (`RBAC_FORBIDDEN`, `PROJECT_FORBIDDEN`), or on an archived project the body does not restore (`PROJECT_ARCHIVED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "`archived` or `teamIds` from a key holder who is not an organization admin, or an identity edit without the editor role (`ROLE_FORBIDDEN`) or project edit access (`RBAC_FORBIDDEN`, `PROJECT_FORBIDDEN`), or on an archived project the body does not restore (`PROJECT_ARCHIVED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -33948,7 +33968,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.16.0"
+          "example": "1.17.0"
         }
       },
       "Location": {
@@ -34169,6 +34189,7 @@
               "PROJECT_KEY_TAKEN",
               "PROJECT_LEGAL_HOLD",
               "PROJECT_NOT_FOUND",
+              "PROJECT_SHARING_INVALID",
               "PURGE_INCOMPLETE",
               "RATE_LIMITED",
               "RBAC_FORBIDDEN",
@@ -34191,6 +34212,8 @@
               "TASK_NOT_FOUND",
               "TASK_NOT_IN_REVIEW",
               "TEAM_ACCESS_DENIED",
+              "TEAM_INHERITED_FROM_FOLDER",
+              "TEAM_NOT_IN_ORG",
               "THREAD_NOT_FOUND",
               "UNAUTHORIZED",
               "UNSUPPORTED_FILE_TYPE",
@@ -34360,8 +34383,17 @@
             "type": "string",
             "nullable": true
           },
+          "teamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The audience: the teams that may read the document, by id; empty = organization-wide. Owners and admins read every team library regardless."
+          },
           "teamId": {
             "type": "string",
+            "deprecated": true,
+            "description": "The first team of `teamIds`, or null — the pre-1.17.0 single-team spelling; read `teamIds`",
             "nullable": true
           },
           "folderId": {
@@ -34479,9 +34511,20 @@
             "maxProperties": 500,
             "description": "Free-form. At most 64 KiB of JSON, 8 levels of nesting and 500 keys in total (every nested object counted); a larger value answers 400 `INVALID_BODY` naming the path."
           },
+          "teamIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 64,
+            "description": "The audience: teams of this organization the key holder may assign (their own, unless they are an admin — `TEAM_ACCESS_DENIED`; an id that is not the organization’s is `TEAM_NOT_IN_ORG`). Omitted or empty = organization-wide. Inside a team folder the folder’s audience applies; naming a team outside it is `TEAM_INHERITED_FROM_FOLDER`."
+          },
           "teamId": {
             "type": "string",
-            "maxLength": 128
+            "maxLength": 128,
+            "description": "The single-team spelling of `teamIds` (still accepted)"
           },
           "folderId": {
             "type": "string",
@@ -34532,9 +34575,20 @@
             "maxLength": 64,
             "nullable": true
           },
+          "teamIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 64,
+            "description": "The audience, replaced whole (`[]` = organization-wide); the same rules as on create — inside a team folder the folder’s audience applies (`TEAM_INHERITED_FROM_FOLDER`)"
+          },
           "teamId": {
             "type": "string",
             "maxLength": 128,
+            "description": "The single-team spelling of `teamIds`; `null` clears",
             "nullable": true
           },
           "folderId": {
@@ -35857,7 +35911,7 @@
       },
       "Project": {
         "type": "object",
-        "required": ["id", "name", "createdAt", "updatedAt"],
+        "required": ["id", "name", "teamIds", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -35890,6 +35944,13 @@
             "type": "integer",
             "minimum": 0,
             "description": "Epoch ms of the last change to the project itself"
+          },
+          "teamIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The audience: the teams that may see the project, by id; empty = organization-wide (every member). Owners and admins see every project regardless."
           }
         }
       },

@@ -1,22 +1,38 @@
 /**
  * Project access control helper.
  *
- * Mirrors the agent access pattern (`agents/access.ts`) for projects.
- * Decides whether a user can read, edit, or administer a project based on
- * team membership and organization role.
+ * A project's audience is its `teamIds` — the ONE rule every team-scoped
+ * resource follows (`core/lib/audience.ts`): empty = organization-wide,
+ * otherwise a member of any listed team; owners and admins always.
  *
  * Access rules:
  * - Org admins/owners always have full access.
- * - Projects with no team assignment (org-wide) are readable by all members.
- * - Owning team members get canRead + canEdit.
- * - Shared team members get canRead + canEdit.
- *   (Per the plan: editor+ in the org can write to any project they can read.)
- * - Only admins/owners can administer (sharing changes, delete, archive).
+ * - Projects with no team (org-wide) are readable by all members.
+ * - Members of any team in the audience get canRead, and canEdit when their
+ *   org role is an editor role (editor+ writes to any project they can read).
+ * - Only admins/owners can administer (audience changes, delete, archive).
+ *
+ * The legacy pair `teamId` (owning team) + `sharedWithTeamIds` is the
+ * previous spelling of the same audience; readers still accept it so a row
+ * the previous image wrote during a rollout (array still empty) keeps its
+ * restriction.
  */
 
+import {
+  ADMIN_ROLES,
+  canSeeAudience,
+  normalizeTeamIds,
+} from '../lib/audience.ts';
+
+export { ADMIN_ROLES };
+
 interface ProjectAccessInput {
+  /** The audience; empty = organization-wide. Preferred when present. */
+  teamIds?: readonly string[];
+  /** @deprecated Legacy owning team — read only while `teamIds` is empty. */
   teamId?: string | null;
-  sharedWithTeamIds?: string[];
+  /** @deprecated Legacy shared teams — read only while `teamIds` is empty. */
+  sharedWithTeamIds?: readonly string[];
 }
 
 export interface ProjectAccessResult {
@@ -25,29 +41,26 @@ export interface ProjectAccessResult {
   canAdminister: boolean;
 }
 
-export const ADMIN_ROLES = new Set(['owner', 'admin']);
 /** Org roles whose project access resolves to `canEdit` — the same set the
  * client-side pickers use to filter designation candidates (reviewer picker). */
 export const EDITOR_ROLES = new Set(['owner', 'admin', 'developer', 'editor']);
 
 /**
- * Get the effective set of team IDs for a project.
- *
- * Returns an empty array for org-wide projects (no team restriction).
+ * The effective audience of a project: the array when it carries one, else
+ * the legacy pair (owning team first, then the shared teams). Empty for an
+ * organization-wide project.
  */
 export function getProjectTeamIds(
   project: ProjectAccessInput | null,
 ): string[] {
   if (!project) return [];
-
-  const teams = new Set<string>();
-  if (project.teamId) teams.add(project.teamId);
-  if (project.sharedWithTeamIds) {
-    for (const id of project.sharedWithTeamIds) {
-      teams.add(id);
-    }
+  if (project.teamIds !== undefined && project.teamIds.length > 0) {
+    return normalizeTeamIds(project.teamIds);
   }
-  return [...teams];
+  return normalizeTeamIds([
+    ...(project.teamId ? [project.teamId] : []),
+    ...(project.sharedWithTeamIds ?? []),
+  ]);
 }
 
 /**
@@ -58,42 +71,18 @@ export function isOrgWideProject(project: ProjectAccessInput | null): boolean {
 }
 
 /**
- * Normalize a sharing target before persisting it.
- *
- * A "shared-with" team is always *additional* to an owning team, so a project
- * with no owning team cannot retain shared teams: keeping them would leave the
- * project restricted to those teams (`getProjectTeamIds` non-empty) while every
- * surface — the Sharing Select, the overview/table "Org-wide" label — reports
- * it as org-wide. Dropping the owning team therefore clears the shared list so
- * "Org-wide" genuinely means org-wide and effective access matches the UI.
- */
-export function normalizeSharing(
-  teamId: string | null,
-  sharedWithTeamIds: string[],
-): { teamId: string | null; sharedWithTeamIds: string[] } {
-  if (teamId === null) {
-    return { teamId: null, sharedWithTeamIds: [] };
-  }
-  return { teamId, sharedWithTeamIds };
-}
-
-/**
  * Check whether the user has any access to the project.
  */
 export function hasProjectAccess(
   project: ProjectAccessInput | null,
-  userTeamIds: string[] | Set<string>,
+  userTeamIds: readonly string[] | Set<string>,
   userRole: string,
 ): boolean {
   if (userRole === 'disabled') return false;
-  if (ADMIN_ROLES.has(userRole)) return true;
-
-  const projectTeams = getProjectTeamIds(project);
-  if (projectTeams.length === 0) return true; // org-wide
-
-  const teamSet =
-    userTeamIds instanceof Set ? userTeamIds : new Set(userTeamIds);
-  return projectTeams.some((id) => teamSet.has(id));
+  return canSeeAudience(
+    { teamIds: getProjectTeamIds(project) },
+    { role: userRole, teamIds: [...userTeamIds] },
+  );
 }
 
 /**
@@ -101,22 +90,18 @@ export function hasProjectAccess(
  */
 export function checkProjectAccess(
   project: ProjectAccessInput | null,
-  userTeamIds: string[],
+  userTeamIds: readonly string[],
   userRole: string,
 ): ProjectAccessResult {
   if (userRole === 'disabled') {
     return { canRead: false, canEdit: false, canAdminister: false };
   }
-  const isAdmin = ADMIN_ROLES.has(userRole);
-  if (isAdmin) {
+  if (ADMIN_ROLES.has(userRole)) {
     return { canRead: true, canEdit: true, canAdminister: true };
   }
-
-  const hasAccess = hasProjectAccess(project, userTeamIds, userRole);
-  if (!hasAccess) {
+  if (!hasProjectAccess(project, userTeamIds, userRole)) {
     return { canRead: false, canEdit: false, canAdminister: false };
   }
-
   const canEdit = EDITOR_ROLES.has(userRole);
   return { canRead: true, canEdit, canAdminister: false };
 }

@@ -9,6 +9,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { FETCH_WINDOW_CHARS, windowText } from '../../core/knowledge/fetch.ts';
+import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
@@ -81,6 +82,7 @@ export function createKnowledgeRoutes(deps: {
       access: {
         userId: auth.userId,
         teamIds: auth.teamIds,
+        isAdmin: isAudienceAdmin(auth.role),
         projectIds: projects.map((project) => project.id),
         includeHub: true,
         includeConversationScoped: false,

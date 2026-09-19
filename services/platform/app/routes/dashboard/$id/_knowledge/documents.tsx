@@ -1,8 +1,12 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { DocumentsTable } from '@/app/features/documents/components/documents-table';
+import {
+  parseAudienceFilter,
+  serializeAudienceFilter,
+} from '@/app/features/settings/teams/lib/audience-filter';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import {
   approxDocumentCountQuery,
@@ -15,6 +19,12 @@ const searchSchema = z.object({
   query: z.string().optional(),
   folderId: z.string().optional(),
   doc: z.string().optional(),
+  /**
+   * The Teams filter: comma-separated team ids and/or the audience tokens
+   * `org` (organization-wide rows) and `mine` (the viewer's own teams). In
+   * the URL so a filtered view survives a reload and can be shared.
+   */
+  teams: z.string().optional(),
   cloudImport: z.string().optional(),
   cloudImportStatus: z.string().optional(),
 });
@@ -48,10 +58,24 @@ function DocumentsPage() {
     query: searchQuery,
     folderId,
     doc,
+    teams,
     cloudImport,
     cloudImportStatus,
   } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const teamFilter = useMemo(() => parseAudienceFilter(teams), [teams]);
+  const handleTeamFilterChange = useCallback(
+    (teamIds: string[]) => {
+      void navigate({
+        search: (prev) => ({
+          ...prev,
+          teams: serializeAudienceFilter(teamIds),
+        }),
+        replace: true,
+      });
+    },
+    [navigate],
+  );
 
   // Latch open across the URL clean-up so remounting the action menu after
   // replace:true does not close the picker.
@@ -86,6 +110,8 @@ function DocumentsPage() {
       searchQuery={searchQuery?.trim()}
       currentFolderId={folderId}
       docId={doc}
+      teamFilter={teamFilter}
+      onTeamFilterChange={handleTeamFilterChange}
       oneDriveOpen={oneDriveOpen}
       onOneDriveOpenChange={setOneDriveOpen}
       googleDriveOpen={googleDriveOpen}

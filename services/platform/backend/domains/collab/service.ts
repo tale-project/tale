@@ -6,6 +6,7 @@ import {
   coalesceKeyFor,
   NOTIFICATION_EMAIL_DEBOUNCE_MS,
 } from '../../core/collab/coalesce.ts';
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -993,23 +994,15 @@ async function askAudienceUserIds(
   projectId: string | null,
 ): Promise<string[]> {
   if (projectId !== null) {
-    const projects = await db<
-      { teamId: string | null; sharedWithTeamIds: string[] }[]
-    >`
-      SELECT team_id AS "teamId",
-             shared_with_team_ids AS "sharedWithTeamIds"
+    const projects = await db<{ teamIds: string[] | null }[]>`
+      SELECT ${db.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
       FROM app.projects
       WHERE id = ${projectId} AND org_id = ${organizationId}
       LIMIT 1
     `;
     const project = projects[0];
     if (project) {
-      const teamIds = [
-        ...new Set([
-          ...(project.teamId !== null ? [project.teamId] : []),
-          ...project.sharedWithTeamIds,
-        ]),
-      ];
+      const teamIds = project.teamIds ?? [];
       if (teamIds.length === 0) {
         const rows = await db<{ userId: string }[]>`
           SELECT "userId" FROM "member"

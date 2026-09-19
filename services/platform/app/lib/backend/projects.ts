@@ -58,6 +58,8 @@ interface ProjectWire {
   projectAgentCount: number;
   teamId: string | null;
   sharedWithTeamIds: string[];
+  /** The audience — every team the project is scoped to; [] = org-wide. */
+  teamIds: string[];
   instructions: string | null;
   knowledgeMode: string | null;
   agentMode: string | null;
@@ -97,6 +99,7 @@ function projectView(row: ProjectWire): ProjectListItem {
     projectAgentCount: row.projectAgentCount,
     ...(row.teamId !== null ? { teamId: row.teamId } : {}),
     sharedWithTeamIds: row.sharedWithTeamIds,
+    teamIds: row.teamIds,
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
     ...(row.knowledgeMode !== null ? { knowledgeMode: row.knowledgeMode } : {}),
     ...(row.agentMode !== null ? { agentMode: row.agentMode } : {}),

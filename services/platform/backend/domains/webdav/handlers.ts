@@ -7,10 +7,21 @@ import {
 } from '../../../lib/shared/file-types.ts';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types.ts';
 import {
+  findOrganizationMember,
+  getUserTeamIds,
+} from '../../auth/membership.ts';
+import {
   assertGenericDocumentContentWritable,
   assertRecordTrashable,
 } from '../../core/documents/access.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
+import {
+  audienceClause,
+  audienceMirror,
+  canSeeAudience,
+  isAudienceAdmin,
+  type AudienceGrant,
+} from '../../core/lib/audience.ts';
 import { canonicalResourcePath } from '../../core/webdav/helpers.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -102,8 +113,15 @@ interface FolderRow {
   name: string;
   parentId: string | null;
   projectId: string | null;
+  /** The audience (`core/lib/audience.ts`); empty = organization-wide. */
+  teamTags: string[];
   createdAt: number;
 }
+
+const FOLDER_COLUMNS = `
+  id, name, parent_id AS "parentId", project_id AS "projectId",
+  team_tags AS "teamTags", created_at_ms::float8 AS "createdAt"
+`;
 
 interface DocRow {
   id: string;
@@ -116,6 +134,8 @@ interface DocRow {
   sourceModifiedAt: number | null;
   folderId: string | null;
   projectId: string | null;
+  /** The audience (`core/lib/audience.ts`); empty = organization-wide. */
+  teamTags: string[];
   lifecycleStatus: string | null;
   record: unknown;
   createdBy: string | null;
@@ -126,15 +146,84 @@ const DOC_COLUMNS = `
   id, title, file_ref AS "fileRef", mime_type AS "mimeType", extension,
   content_hash AS "contentHash", source_provider AS "sourceProvider",
   source_modified_at_ms::float8 AS "sourceModifiedAt",
-  folder_id AS "folderId", project_id AS "projectId",
+  folder_id AS "folderId", project_id AS "projectId", team_tags AS "teamTags",
   lifecycle_status AS "lifecycleStatus", record, created_by AS "createdBy",
   created_at_ms::float8 AS "createdAt"
 `;
 
-function isVisibleDoc(doc: DocRow): boolean {
+/**
+ * Who is asking, for the audience rule (`core/lib/audience.ts`): the app
+ * password's owner as an organization member — an owner/admin sees every
+ * team library, a member the org-wide rows plus their teams'. A call the
+ * protocol layer makes without an identity fails CLOSED to the org-wide
+ * rows, and so does a caller who is no longer a member.
+ */
+async function grantFor(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  userId: string | undefined,
+): Promise<AudienceGrant> {
+  if (userId === undefined || userId.length === 0) {
+    return { isAdmin: false, teamIds: [] };
+  }
+  const [member, teamIds] = await Promise.all([
+    findOrganizationMember(db, organizationId, userId),
+    getUserTeamIds(db, organizationId, userId),
+  ]);
+  if (member === null || member.role === 'disabled') {
+    return { isAdmin: false, teamIds: [] };
+  }
+  return { isAdmin: isAudienceAdmin(member.role), teamIds };
+}
+
+/** The physical view — every hub row, whoever asks. Collision checks and
+ * legal-hold pre-walks are about what EXISTS, not what the caller sees. */
+const ANY_VIEWER: AudienceGrant = { isAdmin: true, teamIds: [] };
+
+/** A hub row (never a project file), active, within the viewer's audience. */
+function isVisibleDoc(doc: DocRow, viewer: AudienceGrant): boolean {
   return (
-    (doc.lifecycleStatus ?? 'active') === 'active' && doc.projectId === null
+    (doc.lifecycleStatus ?? 'active') === 'active' &&
+    doc.projectId === null &&
+    canSeeAudience({ teamIds: doc.teamTags }, viewer)
   );
+}
+
+/** A hub folder within the viewer's audience. */
+function isVisibleFolder(
+  folder: Pick<FolderRow, 'projectId' | 'teamTags'>,
+  viewer: AudienceGrant,
+): boolean {
+  return (
+    folder.projectId === null &&
+    canSeeAudience({ teamIds: folder.teamTags }, viewer)
+  );
+}
+
+async function loadFolder(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  folderId: string,
+): Promise<FolderRow | null> {
+  const rows = await db<FolderRow[]>`
+    SELECT ${db.unsafe(FOLDER_COLUMNS)} FROM app.folders
+    WHERE id = ${folderId} AND org_id = ${organizationId} LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * The audience a row created under `folderId` takes — the folder's own (a
+ * team folder owns the scope of everything inside it); `[]` at the root.
+ */
+async function folderAudience(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  folderId: string | null,
+): Promise<string[]> {
+  if (folderId === null) return [];
+  const folder = await loadFolder(db, organizationId, folderId);
+  return folder?.teamTags ?? [];
 }
 
 /** The 0.4 wire shape PROPFIND consumes: absent-not-null. */
@@ -190,9 +279,7 @@ async function hubFolder(
   name: string,
 ): Promise<FolderRow | null> {
   const rows = await db<FolderRow[]>`
-    SELECT id, name, parent_id AS "parentId", project_id AS "projectId",
-           created_at_ms::float8 AS "createdAt"
-    FROM app.folders
+    SELECT ${db.unsafe(FOLDER_COLUMNS)} FROM app.folders
     WHERE org_id = ${organizationId} AND project_id IS NULL
       AND parent_id IS NOT DISTINCT FROM ${parentId} AND name = ${name}
     LIMIT 1
@@ -248,13 +335,14 @@ async function resolveLeafDocument(
   organizationId: string,
   folderId: string | null,
   leafName: string,
+  viewer: AudienceGrant,
 ): Promise<string | null> {
   const matches = await sql<DocRow[]>`
     SELECT ${sql.unsafe(DOC_COLUMNS)} FROM app.documents
     WHERE org_id = ${organizationId} AND title = ${leafName}
       AND folder_id IS NOT DISTINCT FROM ${folderId}
   `;
-  const exact = matches.find((d) => isVisibleDoc(d));
+  const exact = matches.find((d) => isVisibleDoc(d, viewer));
   if (exact) return exact.id;
 
   // `<title>_<docId>` disambiguation for same-title siblings (see
@@ -271,7 +359,7 @@ async function resolveLeafDocument(
     if (
       doc &&
       (doc.folderId ?? null) === folderId &&
-      isVisibleDoc(doc) &&
+      isVisibleDoc(doc, viewer) &&
       (doc.title ?? '') === titlePrefix
     ) {
       return doc.id;
@@ -285,18 +373,32 @@ async function findCollision(
   organizationId: string,
   parentFolderId: string | null,
   name: string,
+  viewer: AudienceGrant,
 ): Promise<
   { kind: 'document'; id: string } | { kind: 'folder'; id: string } | null
 > {
+  // The PHYSICAL name space decides whether the name is taken; a taken name
+  // the caller cannot see refuses outright — neither "exists" (which would
+  // disclose the hidden row) nor "free" (a second row under the same name).
   const folder = await hubFolder(db, organizationId, parentFolderId, name);
-  if (folder) return { kind: 'folder', id: folder.id };
+  if (folder) {
+    if (!isVisibleFolder(folder, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
+    return { kind: 'folder', id: folder.id };
+  }
   const matches = await db<DocRow[]>`
     SELECT ${db.unsafe(DOC_COLUMNS)} FROM app.documents
     WHERE org_id = ${organizationId} AND title = ${name}
       AND folder_id IS NOT DISTINCT FROM ${parentFolderId}
   `;
-  const doc = matches.find((d) => isVisibleDoc(d));
-  if (doc) return { kind: 'document', id: doc.id };
+  const doc = matches.find((d) => isVisibleDoc(d, ANY_VIEWER));
+  if (doc) {
+    if (!canSeeAudience({ teamIds: doc.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
+    return { kind: 'document', id: doc.id };
+  }
   return null;
 }
 
@@ -349,11 +451,17 @@ async function softDeleteDocumentInner(
   tx: TransactionSql,
   organizationId: string,
   documentId: string,
+  viewer: AudienceGrant,
 ): Promise<void> {
   const doc = await loadDoc(tx, organizationId, documentId);
-  // A project-scoped doc is not a WebDAV resource (#2545) — behave exactly
-  // as if the path never resolved.
-  if (!doc || doc.projectId !== null) {
+  // A project-scoped doc is not a WebDAV resource (#2545), and neither is a
+  // row outside the caller's audience — behave exactly as if the path
+  // never resolved.
+  if (
+    !doc ||
+    doc.projectId !== null ||
+    !canSeeAudience({ teamIds: doc.teamTags }, viewer)
+  ) {
     throw new AppError({ code: 'NOT_FOUND' });
   }
   if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
@@ -390,7 +498,7 @@ async function assertFolderTreeNotHeld(
     `;
     chargeReadBudget(budget, docs.length);
     for (const d of docs) {
-      if (!isVisibleDoc(d)) continue;
+      if (!isVisibleDoc(d, ANY_VIEWER)) continue;
       await translateHoldError(() =>
         assertNotHeld(
           tx,
@@ -417,6 +525,7 @@ async function cascadeDeleteFolderRecursive(
   tx: TransactionSql,
   organizationId: string,
   folderId: string,
+  viewer: AudienceGrant,
   depth = 0,
   budget: ReadBudget = newReadBudget(),
 ): Promise<void> {
@@ -425,17 +534,23 @@ async function cascadeDeleteFolderRecursive(
     await assertFolderTreeNotHeld(tx, organizationId, folderId);
   }
   if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
-  const children = await tx<{ id: string }[]>`
-    SELECT id FROM app.folders
+  const children = await tx<{ id: string; teamTags: string[] }[]>`
+    SELECT id, team_tags AS "teamTags" FROM app.folders
     WHERE org_id = ${organizationId} AND parent_id = ${folderId}
     LIMIT ${budget.remaining + 1}
   `;
   chargeReadBudget(budget, children.length);
   for (const c of children) {
+    // A team folder nested in what the caller can see refuses the WHOLE
+    // cascade rather than vanish unseen — the throw rolls it back.
+    if (!canSeeAudience({ teamIds: c.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
     await cascadeDeleteFolderRecursive(
       tx,
       organizationId,
       c.id,
+      viewer,
       depth + 1,
       budget,
     );
@@ -447,33 +562,38 @@ async function cascadeDeleteFolderRecursive(
   `;
   chargeReadBudget(budget, docs.length);
   for (const d of docs) {
-    // A WebDAV folder delete must never trash a project file (#2545).
-    if (isVisibleDoc(d)) {
-      // A frozen controlled record anywhere refuses the WHOLE cascade —
-      // the throw rolls the transaction back.
-      assertRecordTrashable(recordFields(d));
-      await tx`
-        UPDATE app.documents SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${d.id}
-      `;
-      await markEntryChainDeletedForDocument(tx, organizationId, d.id);
+    // A WebDAV folder delete must never trash a project file (#2545), and
+    // a row already out of the active lifecycle has nothing to trash.
+    if (d.projectId !== null || (d.lifecycleStatus ?? 'active') !== 'active') {
+      continue;
     }
+    // A document outside the caller's audience refuses the whole cascade.
+    if (!canSeeAudience({ teamIds: d.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
+    // A frozen controlled record anywhere refuses the WHOLE cascade —
+    // the throw rolls the transaction back.
+    assertRecordTrashable(recordFields(d));
+    await tx`
+      UPDATE app.documents SET
+        lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()},
+        updated_at_ms = ${Date.now()}
+      WHERE id = ${d.id}
+    `;
+    await markEntryChainDeletedForDocument(tx, organizationId, d.id);
   }
   await tx`DELETE FROM app.folders WHERE id = ${folderId}`;
 }
 
+/** A hub folder the caller may see, else the opaque 404. */
 async function assertVisibleFolderSrc(
   db: Sql | TransactionSql,
   organizationId: string,
   folderId: string,
+  viewer: AudienceGrant,
 ): Promise<void> {
-  const rows = await db<{ projectId: string | null }[]>`
-    SELECT project_id AS "projectId" FROM app.folders
-    WHERE id = ${folderId} AND org_id = ${organizationId} LIMIT 1
-  `;
-  if (!rows[0] || rows[0].projectId !== null) {
+  const folder = await loadFolder(db, organizationId, folderId);
+  if (folder === null || !isVisibleFolder(folder, viewer)) {
     throw new AppError({ code: 'NOT_FOUND' });
   }
 }
@@ -593,37 +713,59 @@ async function copyFolderRecursive(
   tx: TransactionSql,
   organizationId: string,
   srcFolderId: string,
+  /** The source folder's own audience — kept under an org-wide destination. */
+  srcTeamTags: string[],
   destParentId: string | null,
   destName: string,
   userId: string,
+  viewer: AudienceGrant,
+  /**
+   * The audience the copy takes when the destination is a team folder (a
+   * team folder owns the scope of everything inside it); `null` = the
+   * destination is org-wide and every row keeps its own — the MOVE rule.
+   */
+  audience: string[] | null,
   depth: number,
   budget: ReadBudget = newReadBudget(),
 ): Promise<string> {
   if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
+  const folderAudienceTags = audience ?? srcTeamTags;
+  const mirror = audienceMirror(folderAudienceTags);
   const inserted = await tx<{ id: string }[]>`
-    INSERT INTO app.folders (org_id, name, parent_id, created_by,
-                             created_at_ms)
+    INSERT INTO app.folders (org_id, name, parent_id, team_id, team_tags,
+                             created_by, created_at_ms)
     VALUES (${organizationId}, ${nfc(destName)}, ${destParentId},
-            ${userId}, ${Date.now()})
+            ${mirror.teamId}, ${folderAudienceTags}, ${userId}, ${Date.now()})
     RETURNING id
   `;
   const newFolderId = inserted[0]?.id;
   if (!newFolderId) throw new Error('folder insert failed');
 
-  const childFolders = await tx<{ id: string; name: string }[]>`
-    SELECT id, name FROM app.folders
+  const childFolders = await tx<
+    { id: string; name: string; teamTags: string[] }[]
+  >`
+    SELECT id, name, team_tags AS "teamTags" FROM app.folders
     WHERE org_id = ${organizationId} AND parent_id = ${srcFolderId}
     LIMIT ${budget.remaining + 1}
   `;
   chargeReadBudget(budget, childFolders.length);
   for (const cf of childFolders) {
+    // A team folder nested in what the caller can see refuses the WHOLE
+    // copy rather than land as a twin under a wider audience — the throw
+    // rolls it back (the delete cascade's rule).
+    if (!canSeeAudience({ teamIds: cf.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
     await copyFolderRecursive(
       tx,
       organizationId,
       cf.id,
+      cf.teamTags,
       newFolderId,
       cf.name,
       userId,
+      viewer,
+      audience,
       depth + 1,
       budget,
     );
@@ -636,18 +778,27 @@ async function copyFolderRecursive(
   chargeReadBudget(budget, childDocs.length);
   const now = Date.now();
   for (const d of childDocs) {
-    if (!isVisibleDoc(d)) continue;
-    // Same blob ref — the destination is another reference to the bytes.
+    if (!isVisibleDoc(d, ANY_VIEWER)) continue;
+    // A document outside the caller's audience refuses the whole copy.
+    if (!canSeeAudience({ teamIds: d.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
+    const docTags = audience ?? d.teamTags;
+    const docMirror = audienceMirror(docTags);
+    // Same blob ref — the destination is another reference to the bytes,
+    // filed under the audience the copy takes.
     await tx`
       INSERT INTO app.documents (
         org_id, title, file_ref, mime_type, extension, content_hash,
         source_provider, source_created_at_ms, source_modified_at_ms,
-        created_by, folder_id, created_at_ms, updated_at_ms
+        created_by, folder_id, team_id, team_tags, created_at_ms,
+        updated_at_ms
       ) VALUES (
         ${organizationId}, ${nfc(d.title ?? '(untitled)')}, ${d.fileRef},
         ${d.mimeType}, ${d.extension}, ${d.contentHash},
         ${WEBDAV_SOURCE_PROVIDER}, ${now}, ${now},
-        ${userId}, ${newFolderId}, ${now}, ${now}
+        ${userId}, ${newFolderId}, ${docMirror.teamId}, ${docTags}, ${now},
+        ${now}
       )
     `;
   }
@@ -660,9 +811,17 @@ async function fixupMovedFolderDescendants(
   folderId: string,
   depth: number,
   budget: ReadBudget,
+  /**
+   * The audience the moved tree takes when its destination is a team
+   * folder (a team folder owns the scope of everything inside it); `null`
+   * = the destination is org-wide and every row keeps its own.
+   */
+  audience: string[] | null,
+  viewer: AudienceGrant,
 ): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
   const folderPath = await buildFolderPath(tx, folderId);
+  const mirror = audience === null ? null : audienceMirror(audience);
   const docs = await tx<DocRow[]>`
     SELECT ${tx.unsafe(DOC_COLUMNS)} FROM app.documents
     WHERE org_id = ${organizationId} AND folder_id = ${folderId}
@@ -670,12 +829,19 @@ async function fixupMovedFolderDescendants(
   `;
   chargeReadBudget(budget, docs.length);
   for (const d of docs) {
-    if (!isVisibleDoc(d)) continue;
+    if (!isVisibleDoc(d, ANY_VIEWER)) continue;
+    // A document outside the caller's audience refuses the whole move —
+    // it must never be re-homed, or re-stamped, by someone who cannot see it.
+    if (!canSeeAudience({ teamIds: d.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
     const detachSync =
       d.sourceProvider !== null && SYNC_SOURCE_PROVIDERS.has(d.sourceProvider);
     await tx`
       UPDATE app.documents SET
         folder_path = ${folderPath ?? null},
+        team_id = ${mirror === null ? tx.unsafe('team_id') : mirror.teamId},
+        team_tags = ${audience === null ? tx.unsafe('team_tags') : audience},
         source_provider = ${detachSync ? null : tx.unsafe('source_provider')},
         external_item_id = ${detachSync ? null : tx.unsafe('external_item_id')},
         drive_id = ${detachSync ? null : tx.unsafe('drive_id')},
@@ -683,19 +849,32 @@ async function fixupMovedFolderDescendants(
       WHERE id = ${d.id}
     `;
   }
-  const childFolders = await tx<{ id: string }[]>`
-    SELECT id FROM app.folders
+  const childFolders = await tx<{ id: string; teamTags: string[] }[]>`
+    SELECT id, team_tags AS "teamTags" FROM app.folders
     WHERE org_id = ${organizationId} AND parent_id = ${folderId}
     LIMIT ${budget.remaining + 1}
   `;
   chargeReadBudget(budget, childFolders.length);
   for (const cf of childFolders) {
+    // A team folder nested in the moved tree that the caller cannot see
+    // refuses the whole move (the delete cascade's rule).
+    if (!canSeeAudience({ teamIds: cf.teamTags }, viewer)) {
+      throw new AppError({ code: 'FORBIDDEN' });
+    }
+    if (audience !== null && mirror !== null) {
+      await tx`
+        UPDATE app.folders SET team_id = ${mirror.teamId}, team_tags = ${audience}
+        WHERE id = ${cf.id}
+      `;
+    }
     await fixupMovedFolderDescendants(
       tx,
       organizationId,
       cf.id,
       depth + 1,
       budget,
+      audience,
+      viewer,
     );
   }
 }
@@ -780,12 +959,16 @@ export function webdavHandlers(
     'webdav/tree_queries:resolvePath': async (raw) => {
       const args = asArgs<{
         organizationId: string;
+        userId?: string;
         namespace: 'documents' | '.trash';
         segments: string[];
       }>(raw);
       if (args.segments.length === 0) {
         return { kind: 'root', exists: true, creationTime: null };
       }
+      // A path outside the caller's audience does not exist for them —
+      // the same opaque 404 a project file answers.
+      const viewer = await grantFor(sql, args.organizationId, args.userId);
       if (args.namespace === '.trash') {
         if (args.segments.length !== 1) {
           return { kind: 'not_found', exists: false };
@@ -795,7 +978,11 @@ export function webdavHandlers(
           WHERE org_id = ${args.organizationId}
             AND lifecycle_status = 'trashed' AND title = ${args.segments[0]}
         `;
-        const match = matches.find((d) => d.projectId === null);
+        const match = matches.find(
+          (d) =>
+            d.projectId === null &&
+            canSeeAudience({ teamIds: d.teamTags }, viewer),
+        );
         if (match) {
           return { kind: 'document', documentId: match.id, exists: true };
         }
@@ -813,6 +1000,14 @@ export function webdavHandlers(
         if (parentFolderId === null) {
           return { kind: 'not_found', exists: false };
         }
+        const parent = await loadFolder(
+          sql,
+          args.organizationId,
+          parentFolderId,
+        );
+        if (parent === null || !isVisibleFolder(parent, viewer)) {
+          return { kind: 'not_found', exists: false };
+        }
       }
       const childFolder = await hubFolder(
         sql,
@@ -821,6 +1016,9 @@ export function webdavHandlers(
         leafName,
       );
       if (childFolder) {
+        if (!isVisibleFolder(childFolder, viewer)) {
+          return { kind: 'not_found', exists: false };
+        }
         return {
           kind: 'folder',
           folderId: childFolder.id,
@@ -833,6 +1031,7 @@ export function webdavHandlers(
         args.organizationId,
         parentFolderId,
         leafName,
+        viewer,
       );
       if (docId) return { kind: 'document', documentId: docId, exists: true };
       return { kind: 'not_found', exists: false };
@@ -841,21 +1040,28 @@ export function webdavHandlers(
     'webdav/tree_queries:listCollection': async (raw) => {
       const args = asArgs<{
         organizationId: string;
+        userId?: string;
         namespace: 'documents' | '.trash';
         folderId: string | null;
       }>(raw);
+      const viewer = await grantFor(sql, args.organizationId, args.userId);
       if (args.namespace === '.trash') {
         const taken = await sql<DocRow[]>`
           SELECT ${sql.unsafe(DOC_COLUMNS)} FROM app.documents
           WHERE org_id = ${args.organizationId}
             AND lifecycle_status = 'trashed'
+            AND ${audienceClause(sql, 'team_tags', viewer)}
           ORDER BY created_at_ms ASC
           LIMIT ${MAX_CHILDREN_PER_PROPFIND + 1}
         `;
         const truncated = taken.length > MAX_CHILDREN_PER_PROPFIND;
         const slice = (
           truncated ? taken.slice(0, MAX_CHILDREN_PER_PROPFIND) : taken
-        ).filter((d) => d.projectId === null);
+        ).filter(
+          (d) =>
+            d.projectId === null &&
+            canSeeAudience({ teamIds: d.teamTags }, viewer),
+        );
         return {
           folders: [],
           documents: await Promise.all(
@@ -865,40 +1071,40 @@ export function webdavHandlers(
         };
       }
       const rawFolders = await sql<FolderRow[]>`
-        SELECT id, name, parent_id AS "parentId", project_id AS "projectId",
-               created_at_ms::float8 AS "createdAt"
-        FROM app.folders
+        SELECT ${sql.unsafe(FOLDER_COLUMNS)} FROM app.folders
         WHERE org_id = ${args.organizationId} AND project_id IS NULL
           AND parent_id IS NOT DISTINCT FROM ${args.folderId}
+          AND ${audienceClause(sql, 'team_tags', viewer)}
         ORDER BY name ASC
         LIMIT ${MAX_CHILDREN_PER_PROPFIND + 1}
       `;
       const foldersHitReadCap = rawFolders.length > MAX_CHILDREN_PER_PROPFIND;
+      // Only what the caller may see is listed — a team folder or document
+      // outside their audience is not a child for them.
+      const folders = rawFolders.filter((f) => isVisibleFolder(f, viewer));
       const rawDocs = await sql<DocRow[]>`
         SELECT ${sql.unsafe(DOC_COLUMNS)} FROM app.documents
         WHERE org_id = ${args.organizationId}
           AND folder_id IS NOT DISTINCT FROM ${args.folderId}
+          AND ${audienceClause(sql, 'team_tags', viewer)}
         ORDER BY created_at_ms ASC
         LIMIT ${MAX_CHILDREN_PER_PROPFIND + 1}
       `;
       const docsHitReadCap = rawDocs.length > MAX_CHILDREN_PER_PROPFIND;
-      const docs = rawDocs.filter((d) => isVisibleDoc(d));
-      const total = rawFolders.length + docs.length;
+      const docs = rawDocs.filter((d) => isVisibleDoc(d, viewer));
+      const total = folders.length + docs.length;
       const truncated =
         total > MAX_CHILDREN_PER_PROPFIND ||
         docsHitReadCap ||
         foldersHitReadCap;
-      let folderSlice: FolderRow[] = [...rawFolders];
+      let folderSlice: FolderRow[] = [...folders];
       let docSlice: DocRow[] = docs;
       if (truncated) {
-        if (rawFolders.length >= MAX_CHILDREN_PER_PROPFIND) {
+        if (folders.length >= MAX_CHILDREN_PER_PROPFIND) {
           folderSlice = folderSlice.slice(0, MAX_CHILDREN_PER_PROPFIND);
           docSlice = [];
         } else {
-          docSlice = docs.slice(
-            0,
-            MAX_CHILDREN_PER_PROPFIND - rawFolders.length,
-          );
+          docSlice = docs.slice(0, MAX_CHILDREN_PER_PROPFIND - folders.length);
         }
       }
       return {
@@ -915,9 +1121,15 @@ export function webdavHandlers(
     },
 
     'webdav/tree_queries:getDocumentProps': async (raw) => {
-      const args = asArgs<{ organizationId: string; documentId: string }>(raw);
+      const args = asArgs<{
+        organizationId: string;
+        userId?: string;
+        documentId: string;
+      }>(raw);
       const doc = await loadDoc(sql, args.organizationId, args.documentId);
       if (!doc || doc.projectId !== null) return null;
+      const viewer = await grantFor(sql, args.organizationId, args.userId);
+      if (!canSeeAudience({ teamIds: doc.teamTags }, viewer)) return null;
       return joinDocumentMetadata(sql, doc);
     },
 
@@ -1011,12 +1223,22 @@ export function webdavHandlers(
           );
           if (folderId === null) throw new AppError({ code: 'CONFLICT' });
         }
+        // The landing folder must be within the caller's audience: a PUT
+        // into a team folder one cannot see is refused like a PUT into a
+        // folder that is not there.
+        const viewer = await grantFor(tx, args.organizationId, args.userId);
+        if (folderId !== null) {
+          const landing = await loadFolder(tx, args.organizationId, folderId);
+          if (landing === null || !isVisibleFolder(landing, viewer)) {
+            throw new AppError({ code: 'CONFLICT' });
+          }
+        }
         const matches = await tx<DocRow[]>`
           SELECT ${tx.unsafe(DOC_COLUMNS)} FROM app.documents
           WHERE org_id = ${args.organizationId} AND title = ${fileName}
             AND folder_id IS NOT DISTINCT FROM ${folderId}
         `;
-        const existing = matches.find((d) => isVisibleDoc(d));
+        const existing = matches.find((d) => isVisibleDoc(d, viewer));
         if (existing) {
           await assertWebdavDocNotHeld(tx, args.organizationId, existing);
           assertGenericDocumentContentWritable(recordFields(existing));
@@ -1057,16 +1279,24 @@ export function webdavHandlers(
           return { created: false, documentId: existing.id };
         }
         const now = Date.now();
+        // A new document takes its folder's audience (org-wide at the root).
+        const audience = await folderAudience(
+          tx,
+          args.organizationId,
+          folderId,
+        );
+        const mirror = audienceMirror(audience);
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.documents (
             org_id, title, file_ref, mime_type, extension, source_provider,
             source_created_at_ms, source_modified_at_ms, created_by,
-            folder_id, created_at_ms, updated_at_ms
+            folder_id, team_id, team_tags, created_at_ms, updated_at_ms
           ) VALUES (
             ${args.organizationId}, ${fileName}, ${args.storageId},
             ${resolvedContentType}, ${extractExtension(fileName) ?? null},
             ${WEBDAV_SOURCE_PROVIDER}, ${now}, ${sourceModifiedAt},
-            ${args.userId}, ${folderId}, ${now}, ${now}
+            ${args.userId}, ${folderId}, ${mirror.teamId}, ${audience},
+            ${now}, ${now}
           )
           RETURNING id
         `;
@@ -1081,21 +1311,41 @@ export function webdavHandlers(
     },
 
     'webdav/tree_mutations:softDeleteDocument': async (raw) => {
-      const args = asArgs<{ organizationId: string; documentId: string }>(raw);
-      await sql.begin((tx) =>
-        softDeleteDocumentInner(tx, args.organizationId, args.documentId),
+      const args = asArgs<{
+        organizationId: string;
+        userId?: string;
+        documentId: string;
+      }>(raw);
+      await sql.begin(async (tx) =>
+        softDeleteDocumentInner(
+          tx,
+          args.organizationId,
+          args.documentId,
+          await grantFor(tx, args.organizationId, args.userId),
+        ),
       );
       return null;
     },
 
     'webdav/tree_mutations:deleteFolderCascade': async (raw) => {
-      const args = asArgs<{ organizationId: string; folderId: string }>(raw);
+      const args = asArgs<{
+        organizationId: string;
+        userId?: string;
+        folderId: string;
+      }>(raw);
       await sql.begin(async (tx) => {
-        await assertVisibleFolderSrc(tx, args.organizationId, args.folderId);
+        const viewer = await grantFor(tx, args.organizationId, args.userId);
+        await assertVisibleFolderSrc(
+          tx,
+          args.organizationId,
+          args.folderId,
+          viewer,
+        );
         await cascadeDeleteFolderRecursive(
           tx,
           args.organizationId,
           args.folderId,
+          viewer,
         );
       });
       return null;
@@ -1123,18 +1373,34 @@ export function webdavHandlers(
           );
           if (parentId === null) throw new AppError({ code: 'CONFLICT' });
         }
+        // The parent must be within the caller's audience; the new folder
+        // takes the parent's audience (org-wide at the root).
+        const viewer = await grantFor(tx, args.organizationId, args.userId);
+        if (parentId !== null) {
+          const parent = await loadFolder(tx, args.organizationId, parentId);
+          if (parent === null || !isVisibleFolder(parent, viewer)) {
+            throw new AppError({ code: 'CONFLICT' });
+          }
+        }
         const existing = await findCollision(
           tx,
           args.organizationId,
           parentId,
           name,
+          viewer,
         );
         if (existing) throw new AppError({ code: 'METHOD_NOT_ALLOWED' });
+        const audience = await folderAudience(
+          tx,
+          args.organizationId,
+          parentId,
+        );
+        const mirror = audienceMirror(audience);
         const inserted = await tx<{ id: string }[]>`
-          INSERT INTO app.folders (org_id, name, parent_id, created_by,
-                                   created_at_ms)
+          INSERT INTO app.folders (org_id, name, parent_id, team_id, team_tags,
+                                   created_by, created_at_ms)
           VALUES (${args.organizationId}, ${name}, ${parentId},
-                  ${args.userId}, ${Date.now()})
+                  ${mirror.teamId}, ${audience}, ${args.userId}, ${Date.now()})
           RETURNING id
         `;
         return { folderId: inserted[0]?.id };
@@ -1155,8 +1421,14 @@ export function webdavHandlers(
       const destParentSegments = args.destParentSegments.map(nfc);
       const srcSegments = args.srcSegments.map(nfc);
       const moved = await sql.begin(async (tx) => {
+        const viewer = await grantFor(tx, args.organizationId, args.userId);
         if (args.src.kind === 'folder') {
-          await assertVisibleFolderSrc(tx, args.organizationId, args.src.id);
+          await assertVisibleFolderSrc(
+            tx,
+            args.organizationId,
+            args.src.id,
+            viewer,
+          );
         }
         let destFolderId: string | null = null;
         if (destParentSegments.length > 0) {
@@ -1168,12 +1440,33 @@ export function webdavHandlers(
           if (destFolderId === null) {
             throw new AppError({ code: 'DEST_PARENT_MISSING' });
           }
+          // A destination outside the caller's audience is, for them, a
+          // collection that is not there.
+          const destParent = await loadFolder(
+            tx,
+            args.organizationId,
+            destFolderId,
+          );
+          if (destParent === null || !isVisibleFolder(destParent, viewer)) {
+            throw new AppError({ code: 'DEST_PARENT_MISSING' });
+          }
         }
+        // A team folder owns the scope of everything inside it: what lands
+        // in one takes its audience; under an org-wide destination a row
+        // keeps its own.
+        const destAudience = await folderAudience(
+          tx,
+          args.organizationId,
+          destFolderId,
+        );
+        const restamp = destAudience.length > 0;
+        const destMirror = audienceMirror(destAudience);
         const collision = await findCollision(
           tx,
           args.organizationId,
           destFolderId,
           destName,
+          viewer,
         );
         if (
           collision !== null &&
@@ -1194,18 +1487,24 @@ export function webdavHandlers(
               tx,
               args.organizationId,
               collision.id,
+              viewer,
             );
           } else {
             await cascadeDeleteFolderRecursive(
               tx,
               args.organizationId,
               collision.id,
+              viewer,
             );
           }
         }
         if (args.src.kind === 'document') {
           const existing = await loadDoc(tx, args.organizationId, args.src.id);
-          if (!existing || existing.projectId !== null) {
+          if (
+            !existing ||
+            existing.projectId !== null ||
+            !canSeeAudience({ teamIds: existing.teamTags }, viewer)
+          ) {
             throw new AppError({ code: 'NOT_FOUND' });
           }
           const newFolderPath =
@@ -1219,6 +1518,8 @@ export function webdavHandlers(
             UPDATE app.documents SET
               title = ${destName}, folder_id = ${destFolderId},
               folder_path = ${newFolderPath ?? null},
+              team_id = ${restamp ? destMirror.teamId : tx.unsafe('team_id')},
+              team_tags = ${restamp ? destAudience : tx.unsafe('team_tags')},
               source_modified_at_ms = ${Date.now()},
               source_provider = ${detachSync ? null : tx.unsafe('source_provider')},
               external_item_id = ${detachSync ? null : tx.unsafe('external_item_id')},
@@ -1229,7 +1530,9 @@ export function webdavHandlers(
         } else {
           await tx`
             UPDATE app.folders SET
-              name = ${destName}, parent_id = ${destFolderId}
+              name = ${destName}, parent_id = ${destFolderId},
+              team_id = ${restamp ? destMirror.teamId : tx.unsafe('team_id')},
+              team_tags = ${restamp ? destAudience : tx.unsafe('team_tags')}
             WHERE id = ${args.src.id}
           `;
           await fixupMovedFolderDescendants(
@@ -1238,6 +1541,8 @@ export function webdavHandlers(
             args.src.id,
             0,
             newReadBudget(),
+            restamp ? destAudience : null,
+            viewer,
           );
         }
         await purgeLocksAtAndBelow(
@@ -1270,8 +1575,14 @@ export function webdavHandlers(
       const destName = nfc(args.destName);
       const destParentSegments = args.destParentSegments.map(nfc);
       return sql.begin(async (tx) => {
+        const viewer = await grantFor(tx, args.organizationId, args.userId);
         if (args.src.kind === 'folder') {
-          await assertVisibleFolderSrc(tx, args.organizationId, args.src.id);
+          await assertVisibleFolderSrc(
+            tx,
+            args.organizationId,
+            args.src.id,
+            viewer,
+          );
         }
         let destFolderId: string | null = null;
         if (destParentSegments.length > 0) {
@@ -1283,12 +1594,28 @@ export function webdavHandlers(
           if (destFolderId === null) {
             throw new AppError({ code: 'DEST_PARENT_MISSING' });
           }
+          const destParent = await loadFolder(
+            tx,
+            args.organizationId,
+            destFolderId,
+          );
+          if (destParent === null || !isVisibleFolder(destParent, viewer)) {
+            throw new AppError({ code: 'DEST_PARENT_MISSING' });
+          }
         }
+        // The copy lands with the destination's audience (org-wide at root).
+        const destAudience = await folderAudience(
+          tx,
+          args.organizationId,
+          destFolderId,
+        );
+        const destMirror = audienceMirror(destAudience);
         const collision = await findCollision(
           tx,
           args.organizationId,
           destFolderId,
           destName,
+          viewer,
         );
         if (
           collision !== null &&
@@ -1309,18 +1636,24 @@ export function webdavHandlers(
               tx,
               args.organizationId,
               collision.id,
+              viewer,
             );
           } else {
             await cascadeDeleteFolderRecursive(
               tx,
               args.organizationId,
               collision.id,
+              viewer,
             );
           }
         }
         if (args.src.kind === 'document') {
           const src = await loadDoc(tx, args.organizationId, args.src.id);
-          if (!src || src.projectId !== null) {
+          if (
+            !src ||
+            src.projectId !== null ||
+            !canSeeAudience({ teamIds: src.teamTags }, viewer)
+          ) {
             throw new AppError({ code: 'NOT_FOUND' });
           }
           const now = Date.now();
@@ -1328,23 +1661,36 @@ export function webdavHandlers(
             INSERT INTO app.documents (
               org_id, title, file_ref, mime_type, extension, content_hash,
               source_provider, source_created_at_ms, source_modified_at_ms,
-              created_by, folder_id, created_at_ms, updated_at_ms
+              created_by, folder_id, team_id, team_tags, created_at_ms,
+              updated_at_ms
             ) VALUES (
               ${args.organizationId}, ${destName}, ${src.fileRef},
               ${src.mimeType}, ${src.extension}, ${src.contentHash},
               ${WEBDAV_SOURCE_PROVIDER}, ${now}, ${now},
-              ${args.userId}, ${destFolderId}, ${now}, ${now}
+              ${args.userId}, ${destFolderId}, ${destMirror.teamId},
+              ${destAudience}, ${now}, ${now}
             )
           `;
           return { created: collision === null };
+        }
+        const srcFolder = await loadFolder(
+          tx,
+          args.organizationId,
+          args.src.id,
+        );
+        if (srcFolder === null || !isVisibleFolder(srcFolder, viewer)) {
+          throw new AppError({ code: 'NOT_FOUND' });
         }
         await copyFolderRecursive(
           tx,
           args.organizationId,
           args.src.id,
+          srcFolder.teamTags,
           destFolderId,
           destName,
           args.userId,
+          viewer,
+          destAudience.length > 0 ? destAudience : null,
           0,
         );
         return { created: collision === null };

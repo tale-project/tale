@@ -362,6 +362,7 @@ describe('readBudgetStanding', () => {
         periodKey: '2026-W38',
         resetsAt: Date.UTC(2026, 8, 21),
         maxRequests: 400,
+        warningThresholdPercent: 75,
         usage: { totalTokens: 0, costEstimate: 0, requestCount: 260 },
       },
     ]);

@@ -26,6 +26,8 @@ vi.mock('../hooks/queries', () => ({
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({ teams: fixture.teams }),
+  // Visibility badges resolve team names through the org's directory.
+  useTeamDirectory: () => ({ teams: fixture.teams, isLoading: false }),
 }));
 vi.mock('@tale/ui/error-boundaries/error-scope', () => ({
   useErrorScope: () => ({ organizationId: 'org1' }),

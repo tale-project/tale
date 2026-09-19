@@ -33,6 +33,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+// The "Who can see it" picker lists the teams the caller may assign (their
+// own; every team for an admin) — a backend read, stubbed empty here.
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useOrgTeams: () => ({ teams: [], isLoading: false }),
+}));
+
 vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),

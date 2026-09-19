@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
@@ -158,22 +159,20 @@ async function projectsKnowledgeScope(
   const rows = await sql<
     {
       id: string;
-      teamId: string | null;
-      shared: string[] | null;
+      teamIds: string[] | null;
       archivedAt: number | null;
     }[]
   >`
-    SELECT id, team_id AS "teamId", shared_with_team_ids AS shared,
+    SELECT id, ${sql.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds",
            archived_at_ms::float8 AS "archivedAt"
     FROM app.projects
     WHERE id = ANY(${[...projectIds]}) AND org_id = ${organizationId}
     ORDER BY created_at_ms, id
   `;
-  const teamIds = new Set<string>([`org_${organizationId}`]);
+  const teamIds = new Set<string>();
   const archivedProjectIds: string[] = [];
   for (const row of rows) {
-    if (row.teamId != null) teamIds.add(row.teamId);
-    for (const teamId of row.shared ?? []) teamIds.add(teamId);
+    for (const teamId of row.teamIds ?? []) teamIds.add(teamId);
     if (row.archivedAt != null) archivedProjectIds.push(row.id);
   }
   return {
@@ -332,13 +331,12 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           };
         }
         // An automation with NO bindings is org-level: it reads the org HUB —
-        // the knowledge every member shares — not the union of every
-        // project's attached files. The pseudo-team is what makes a hub
-        // document visible at all in 0.5.
+        // the knowledge every member shares (`includeHub`) — not the union
+        // of every project's attached files, and no team library.
         return {
           allowed: true,
           scope: {
-            teamIds: [`org_${args.organizationId}`],
+            teamIds: [],
             projectIds: [],
             includeHub: true,
             archivedProjectIds: [],

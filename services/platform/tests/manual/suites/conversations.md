@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 28 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -210,6 +210,17 @@ rows lead with the subject.
   messages** opens the bulk-send dialog (`conversations.bulkSend.*`)
 
 - [ ] `CONV-F11` · **Reply through an API source** — In an isolated organization with a registered API source and no email automation, open Inbox and its synchronized customer thread, send a reply with a supported attachment, then let the source worker poll → The same reply and attachment appear once in the source app, native delivery becomes delivered, and an acknowledgement retry creates no extra message; keyboard focus remains usable after send.
+
+- [ ] `CONV-F12` · **Queue chip and filter** — With one conversation assigned
+  to team A (routing rule or assignee picker), one to a person and one
+  unassigned, as an owner, then as a member of team A only → Each row of the
+  list shows its queue as a chip (the team's NAME, or the assignee's name);
+  the toolbar's queue dropdown (`conversations.queue.filterLabel`) offers
+  **All queues** (`conversations.queue.all`), **My teams**
+  (`conversations.queue.mine`), **Unassigned** (`conversations.queue.unassigned`,
+  admins only) and each team by name; **My teams** keeps only the A row, the
+  choice lands in the URL as `?queue=…` and survives a reload; the member of
+  A sees no **Unassigned** option and no unassigned rows at all.
 
 ## Boundary & error tests
 

@@ -101,15 +101,46 @@ function listRow(over: Partial<ListRow> = {}): ListRow {
   };
 }
 
-/** The listing's one statement, recorded: the lane flags are the booleans
- * the statement binds around the project set, so a test reads which lanes
- * ran off the values. */
+const FRAGMENT = Symbol('fragment');
+interface Fragment {
+  [FRAGMENT]: true;
+  text: string;
+  values: unknown[];
+}
+const isFragment = (value: unknown): value is Fragment =>
+  typeof value === 'object' &&
+  value !== null &&
+  (value as { [FRAGMENT]?: true })[FRAGMENT] === true;
+
+/** The listing's one statement, recorded with its nested fragments (the
+ * audience clause) inlined the way postgres.js does: the lane flags are the
+ * booleans the statement binds around the project set, so a test reads
+ * which lanes ran off the values. */
 function listingSql(rows: ListRow[]): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    return Promise.resolve(rows);
+    let text = '';
+    const flat: unknown[] = [];
+    strings.forEach((part, index) => {
+      text += part;
+      if (index >= values.length) return;
+      const value = values[index];
+      if (isFragment(value)) {
+        text += value.text;
+        flat.push(...value.values);
+      } else {
+        text += '?';
+        flat.push(value);
+      }
+    });
+    text = text.replace(/\s+/g, ' ').trim();
+    // Only the statement that runs is recorded: a fragment shows up inlined
+    // in the statement that embeds it, never on its own.
+    if (text.startsWith('WITH RECURSIVE') || text.startsWith('SELECT')) {
+      statements.push({ text, values: flat });
+    }
+    const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+    return Object.assign(Promise.resolve(rows), fragment);
   };
   return { sql: sql as unknown as Sql, statements };
 }
@@ -136,7 +167,7 @@ function laneFlags(values: unknown[]): {
 }
 
 describe('listDocumentsForAgent', () => {
-  const ORG = { organizationId: 'org_1', teamIds: ['org_org_1', 'team_a'] };
+  const ORG = { organizationId: 'org_1', teamIds: ['team_a'] };
 
   it('lists the hub lane alone without a project, project lane alone with one', async () => {
     const hub = listingSql([]);

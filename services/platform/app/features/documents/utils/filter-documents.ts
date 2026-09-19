@@ -1,9 +1,23 @@
+import {
+  audienceMatcher,
+  MY_TEAMS_AUDIENCE,
+  ORG_WIDE_AUDIENCE,
+} from '@/app/features/settings/teams/lib/audience-filter';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 import type { DocumentItem, RagStatus } from '@/types/documents';
 
+export { MY_TEAMS_AUDIENCE, ORG_WIDE_AUDIENCE };
+
 export interface DocumentFilterOptions {
-  selectedTeamId?: string | null;
+  /**
+   * The Teams filter's selection: team ids, and/or the two audience tokens
+   * `ORG_WIDE_AUDIENCE` (rows with no team) and `MY_TEAMS_AUDIENCE` (rows
+   * carrying any of `myTeamIds`). A row matches when it satisfies ANY
+   * selected value.
+   */
   selectedTeamIds: string[];
+  /** The viewer's own team ids — what `MY_TEAMS_AUDIENCE` expands to. */
+  myTeamIds?: readonly string[];
   selectedRagStatuses: string[];
   selectedSources: string[];
   searchQuery: string;
@@ -17,16 +31,6 @@ export function filterDocumentResults(
 ): DocumentItem[] {
   let filtered = documents;
   let filteredFolders = folders;
-
-  if (options.selectedTeamId) {
-    const teamId = options.selectedTeamId;
-    filtered = filtered.filter(
-      (doc) => !doc.teamIds?.length || doc.teamIds.includes(teamId),
-    );
-    filteredFolders = filteredFolders.filter(
-      (folder) => !folder.teamIds?.length || folder.teamIds.includes(teamId),
-    );
-  }
 
   if (options.selectedRagStatuses.length > 0) {
     const allowedStatuses = new Set(
@@ -48,12 +52,13 @@ export function filterDocumentResults(
   }
 
   if (options.selectedTeamIds.length > 0) {
-    const teamIdSet = new Set(options.selectedTeamIds);
-    filtered = filtered.filter((doc) =>
-      doc.teamIds?.some((id) => teamIdSet.has(id)),
+    const matches = audienceMatcher(
+      options.selectedTeamIds,
+      options.myTeamIds ?? [],
     );
+    filtered = filtered.filter((doc) => matches(doc.teamIds));
     filteredFolders = filteredFolders.filter((folder) =>
-      folder.teamIds?.some((id) => teamIdSet.has(id)),
+      matches(folder.teamIds),
     );
   }
 

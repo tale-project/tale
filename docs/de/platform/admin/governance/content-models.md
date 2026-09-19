@@ -12,7 +12,7 @@ Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** 
 3. Wähle Anbieter und Modell, dann **Bestätigen**. Speichere die ausstehenden Seitenänderungen in der Kopfzeile.
 4. Starte als Mitglied der Zielgruppe einen Chat mit der Modellauswahl **Auto** und prüfe das tatsächlich verwendete Modell.
 
-Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamregel hat Vorrang vor einer Rollenregel, danach gilt der allgemeine Standard. Ein Standard verhindert nicht, dass jemand ein anderes erlaubtes Modell wählt.
+Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamregel hat Vorrang vor einer Rollenregel, danach gilt der allgemeine Standard; gehört jemand mehreren Teams mit einer Regel an, gewinnt die erste passende Teamregel in der Tabelle (siehe [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine)). Ein Standard verhindert nicht, dass jemand ein anderes erlaubtes Modell wählt.
 
 ## Den Modellzugriff begrenzen
 

@@ -25,11 +25,19 @@ Budgets apply to new billable work, including chat, voice output, and managed ag
 
 ## Understand which caps apply
 
-Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. Organization limits apply in addition. A team budget also caps the combined usage of the team's current members, even when a member has a more specific personal rule: a new member's usage in the current period counts at once, and someone who leaves no longer counts. API-key limits independently cap requests authenticated with that key, and those requests' usage counts toward the key; they do not cap unrelated in-app work.
+Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. When someone belongs to several teams with a rule, the strictest of those caps applies to them personally. Organization limits apply in addition. A team budget also caps the combined usage of the team's current members, even when a member has a more specific personal rule: a new member's usage in the current period counts at once, and someone who leaves no longer counts. API-key limits independently cap requests authenticated with that key, and those requests' usage counts toward the key; they do not cap unrelated in-app work.
 
 If a request is refused unexpectedly, check all applicable caps and their periods. Increasing one personal limit does not remove an organization, shared-team, or API-key ceiling.
 
 Members can check their own standing under [Settings > Usage](/platform/member/preferences#usage-limits). It lists each personal, team, and organization cap that applies to them with its current usage and next reset, without showing the rules themselves.
+
+### How rules combine {#how-rules-combine}
+
+Every policy here and under [Content & models](/platform/admin/governance/content-models) reads its rules the same way. The most specific scope wins: a user rule before a team rule, a team rule before a role rule, and a role rule before the default. When a person belongs to several teams that carry a rule, the team rules combine by what they are:
+
+- A limit, such as a budget cap or a context-window cap, combines to the strictest value. Joining a lenient team never raises anyone's cap.
+- A permission list, such as model access, combines as the union of the allowed models; a block in any of the rules still wins for that model.
+- A single choice, such as the default model, follows the order of the rules in the table: the first matching team rule wins.
 
 ## Control uploads
 

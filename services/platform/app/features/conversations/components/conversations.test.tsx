@@ -18,6 +18,22 @@ import { Conversations } from './conversations';
 const navigateSpy = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateSpy,
+  useParams: () => ({ id: 'org-1' }),
+}));
+
+// The Queue filter offers the caller's teams and the org's team directory,
+// and "Unassigned" to admins only; none of that is under test here.
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({ teams: [], isLoading: false }),
+  useTeamDirectory: () => ({ teams: [], isLoading: false }),
+  useTeamNames: () => ({
+    nameOf: () => undefined,
+    isLoading: false,
+    teams: [],
+  }),
+}));
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true }),
 }));
 
 // The bulk-actions hook reaches for convex mutations; stub it out so the list

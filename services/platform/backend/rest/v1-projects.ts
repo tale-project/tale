@@ -5,6 +5,7 @@ import {
   PROJECT_AGENT_NAME_MAX,
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
+  PROJECT_SHARED_TEAMS_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
 import { Hono, type Context } from 'hono';
@@ -68,6 +69,7 @@ import {
   updateProjectAgent,
   updateProjectExternalItemId,
   updateProjectIdentity,
+  updateProjectSharing,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
@@ -157,6 +159,12 @@ const projectCreateBody = z
     key: nonBlank(PROJECT_KEY_MAX).optional(),
     description: z.string().max(PROJECT_DESCRIPTION_MAX).optional(),
     externalItemId: externalKeySchema(PROJECT_EXTERNAL_ITEM_ID_MAX).optional(),
+    // The audience: team ids of THIS organization (a non-admin creator's
+    // own teams); omitted or empty = organization-wide.
+    teamIds: z
+      .array(nonBlank(128))
+      .max(PROJECT_SHARED_TEAMS_MAX + 1)
+      .optional(),
   })
   .strict();
 /** The project's mutable surface: the lifecycle toggle and the identity a
@@ -170,6 +178,11 @@ const projectPatchBody = z
     externalItemId: externalKeySchema(PROJECT_EXTERNAL_ITEM_ID_MAX)
       .nullable()
       .optional(),
+    // The audience, replaced whole (an admin verb); [] = organization-wide.
+    teamIds: z
+      .array(nonBlank(128))
+      .max(PROJECT_SHARED_TEAMS_MAX + 1)
+      .optional(),
   })
   .strict()
   .refine(
@@ -177,10 +190,11 @@ const projectPatchBody = z
       patch.archived !== undefined ||
       patch.name !== undefined ||
       patch.description !== undefined ||
-      patch.externalItemId !== undefined,
+      patch.externalItemId !== undefined ||
+      patch.teamIds !== undefined,
     {
       message:
-        'send at least one of archived, name, description or externalItemId',
+        'send at least one of archived, name, description, externalItemId or teamIds',
     },
   );
 /** How `DELETE /projects/{id}` treats the project's content — the app's
@@ -248,6 +262,8 @@ function projectPayload(project: ProjectRow): Record<string, unknown> {
     key: project.key ?? undefined,
     description: project.description ?? undefined,
     externalItemId: project.externalItemId ?? undefined,
+    // The audience: every team the project is scoped to; [] = org-wide.
+    teamIds: project.teamIds,
     archivedAt: project.archivedAt ?? undefined,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
@@ -468,7 +484,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.patch('/projects/:id', async (c) => {
     const body = await parseBody(c, projectPatchBody);
     if (body instanceof Response) return body;
-    const { archived, name, description, externalItemId } = body;
+    const { archived, name, description, externalItemId, teamIds } = body;
     const identityEdit =
       name !== undefined ||
       description !== undefined ||
@@ -477,10 +493,17 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadVisibleProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      if (archived !== undefined) requireAdmin(c);
+      if (archived !== undefined || teamIds !== undefined) requireAdmin(c);
       if (identityEdit) requireEditor(c);
       await transactSerializable(deps.sql, async (tx) => {
         if (archived === false) await restoreProject(tx, auth, project.id);
+        // The audience is the app's admin-only sharing edit, replaced whole.
+        if (teamIds !== undefined) {
+          await updateProjectSharing(tx, auth, {
+            projectId: project.id,
+            teamIds,
+          });
+        }
         if (identityEdit) {
           if (project.archivedAt !== null && archived !== false) {
             throw new RestRefusal(

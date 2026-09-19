@@ -25,6 +25,10 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
 type TeamMemberItem = ItemOf<'team_members/queries:listByTeam'>;
+type TeamDeletionImpact = NonNullable<
+  ReturnsOf<'teams/queries:deletionImpact'>
+>;
+type TeamRetirementSummary = ReturnsOf<'teams/mutations:deleteTeam'>;
 type MemberPasskeyItem = ItemOf<'two_factor/queries:listPasskeysForMember'>;
 type CreateMemberResult = ReturnsOf<'users/mutations:createMember'>;
 type MyPreferencesResult =
@@ -239,6 +243,19 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.userId),
     };
   },
+  'teams/queries:deletionImpact': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const teamId = args.teamId;
+    if (orgId === undefined || typeof teamId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, TEAM_HINT_ENTITY, 'impact', teamId),
+      queryFn: () =>
+        backendFetch<{ impact: TeamDeletionImpact }>(
+          `/teams/${encodeURIComponent(teamId)}/impact`,
+          { orgId },
+        ).then((body) => body.impact),
+    };
+  },
   'team_members/queries:listByTeam': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const teamId = args.teamId;
@@ -315,15 +332,11 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
   'governance/queries:getMyBudgetStatus': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
-    const selectedTeamId =
-      typeof args.selectedTeamId === 'string' ? args.selectedTeamId : null;
     return {
-      queryKey: backendKey(orgId, 'usage', 'my-budget-status', selectedTeamId),
+      queryKey: backendKey(orgId, 'usage', 'my-budget-status'),
       queryFn: () =>
         backendFetch<{ status: MyBudgetStatusResult }>(
-          selectedTeamId === null
-            ? '/governance/my/budget-status'
-            : `/governance/my/budget-status?selectedTeamId=${encodeURIComponent(selectedTeamId)}`,
+          '/governance/my/budget-status',
           { orgId },
         ).then((body) => body.status),
     };
@@ -1507,6 +1520,14 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/teams/members/by-id/${encodeURIComponent(stringArg(args, 'teamMemberId'))}`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
+    invalidate: invalidateTeams,
+  },
+  'teams/mutations:deleteTeam': {
+    run: (args, ctx) =>
+      backendFetch<{ deleted: true; retirement: TeamRetirementSummary }>(
+        `/teams/${encodeURIComponent(stringArg(args, 'teamId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then((body) => body.retirement),
     invalidate: invalidateTeams,
   },
   'governance/legal_hold:placeLegalHold': {
