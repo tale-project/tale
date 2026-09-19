@@ -873,6 +873,7 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
               ? { contentHash: args.contentHash }
               : {}),
             ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+            ...(Array.isArray(args.teamIds) ? { teamIds: args.teamIds } : {}),
             ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
             ...(typeof args.folderId === 'string'
               ? { folderId: args.folderId }

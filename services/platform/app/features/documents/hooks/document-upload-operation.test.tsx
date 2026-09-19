@@ -190,6 +190,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('useDocumentUpload audience', () => {
+  it('files ONE document carrying every selected team, never one per team', async () => {
+    // The teams are the document's audience: two teams used to mean two
+    // rows over the same blob, each visible to one team and neither to both.
+    const { result } = renderHook(() =>
+      useDocumentUpload({ organizationId: 'org-1' }),
+    );
+    act(() => result.current.stageFiles([makeFile('plan.pdf')]));
+    await waitFor(() => expect(result.current.trackedFiles).toHaveLength(1));
+
+    let upload!: Promise<{ success: boolean }>;
+    act(() => {
+      upload = result.current.uploadFiles({ teamIds: ['team-a', 'team-b'] });
+    });
+    await waitFor(() => expect(FakeXhr.instances).toHaveLength(1));
+    act(() => {
+      FakeXhr.instances[0].emitUploadDone();
+      FakeXhr.instances[0].emitResponse(200);
+    });
+    await act(async () => {
+      expect((await upload).success).toBe(true);
+    });
+    expect(mocks.createDocumentFromUpload).toHaveBeenCalledOnce();
+    expect(mocks.createDocumentFromUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ teamIds: ['team-a', 'team-b'] }),
+    );
+    expect(
+      mocks.createDocumentFromUpload.mock.calls[0]?.[0],
+    ).not.toHaveProperty('teamId');
+  });
+});
+
 describe('useDocumentUpload operation ownership', () => {
   it('accepts only one of two synchronous retries for the same file', async () => {
     const { result } = renderHook(() =>
