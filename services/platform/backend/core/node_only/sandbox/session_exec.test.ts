@@ -232,6 +232,12 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     expect(harvestSkipped).toHaveLength(1);
     expect(harvestSkipped[0]?.path).toBe('/agent/output/big.bin');
     expect(harvestSkipped[0]?.reason).toContain('20.0 MB');
+    expect(harvestSkipped[0]?.reasonByLocale?.de).toContain(
+      'Dateigrößengrenze',
+    );
+    expect(harvestSkipped[0]?.reasonByLocale?.fr).toContain(
+      'dépasse la limite',
+    );
     // The oversize file was never pulled across the wire.
     expect(sessionReadFile).toHaveBeenCalledTimes(1);
   });
@@ -258,6 +264,12 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     expect(harvestSkipped).toHaveLength(1);
     expect(harvestSkipped[0]?.path).toBe('/agent/output/a.txt');
     expect(harvestSkipped[0]?.reason).toContain('not saved to the workspace');
+    expect(harvestSkipped[0]?.reasonByLocale?.de).toContain(
+      'Technische Meldung: Workspace would exceed the byte cap.',
+    );
+    expect(harvestSkipped[0]?.reasonByLocale?.fr).toContain(
+      'Message technique : Workspace would exceed the byte cap.',
+    );
     // Nothing to reap: the rejected store never produced a blob, and b.txt's
     // blob stays.
     expect(deleteBlob).not.toHaveBeenCalled();

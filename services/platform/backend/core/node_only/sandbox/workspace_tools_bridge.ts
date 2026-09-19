@@ -151,7 +151,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'task_upsert_by_external_ref for anything synced from an external system.',
   task_comment:
     "Add a markdown comment to a task's discussion. " +
-    'Args: {taskId: string, body: string}.',
+    'Args: {taskId: string, body: string, bodyByLocale?: {en: string, de: string, fr: string, [locale: string]: string}}. ' +
+    'Keep body in the task language; for UI progress provide equivalent nonblank translations in bodyByLocale (at most 10,000 characters each).',
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +

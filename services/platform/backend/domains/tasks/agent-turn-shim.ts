@@ -25,6 +25,7 @@ import {
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { saveAgentFileMetadata } from './agent-file-metadata.ts';
+import { loadAgentLanguageContext } from './agent-language.ts';
 import {
   completeAgentRunInTx,
   type CompleteAgentRunArgs,
@@ -80,6 +81,12 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     ...governanceShimHandlers(sql),
 
     // ------------------------------------------------------- the run ledger
+    'tasks/agent_runs:getAgentLanguageContext': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; taskId: string };
+      return loadAgentLanguageContext(sql, args);
+    },
+
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { runId: string };

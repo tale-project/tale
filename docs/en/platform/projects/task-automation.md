@@ -20,9 +20,15 @@ A project agent works on a task and returns a result for a person to review. Cho
 
 Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working.
 
+Agents are instructed to keep task updates, reports, related tasks and questions in the language of the task's title and description. If those do not establish a language, they use the organization's default agent language. An identifier, quarter or generated title template does not choose a language. Changing your interface language does not change the task's language; an explicit request to the agent can.
+
+Workflow progress comments can carry translations for each supported interface language. The same saved comment then follows the reader's language selection. Comments without translations retain their original text.
+
 ## Read and accept the result
 
 The agent posts its report as a task comment and adds produced files as deliverables. It then moves the task to **In review**. The reviewer receives a notification and, when email delivery is configured, an email.
+
+Tale lists delivered or skipped files in a separate system comment that follows your interface language. A missing or shortened report is noted there too, so the report keeps the task's language.
 
 Read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the human decision; the agent cannot mark its own task Done.
 

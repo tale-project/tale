@@ -19,7 +19,9 @@ import { randomBytes } from 'node:crypto';
 
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
+import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
   releaseTurnKey,
@@ -62,6 +64,7 @@ import {
 } from '../node_only/sandbox/llm_gateway_admin';
 import {
   harvestSessionOutput,
+  type HarvestSkippedOutput,
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
 import {
@@ -948,6 +951,15 @@ export async function startTaskAgentTurnImpl(
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
+        agentLanguageGuidance(
+          await ctx.runQuery(
+            internal.tasks.agent_runs.getAgentLanguageContext,
+            {
+              organizationId: args.organizationId,
+              taskId: args.taskId,
+            },
+          ),
+        ),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
         `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
@@ -1400,60 +1412,84 @@ async function continueOrSettle(
   });
 }
 
-/** The tail a cut report ends with — the full text stays on the run row. */
-export const SETTLE_REPORT_TRUNCATED_TAIL =
-  '\n\n… (report truncated — the full text is on the run)';
-
-/**
- * The settle comment's body: the agent's report, then the deliverables and
- * what the harvest could not bring back. Capped at `TASK_COMMENT_MAX`, the
- * limit the comment door enforces: a substantial coding-harness report
- * routinely runs past 10k characters, and the door's refusal used to be
- * caught and logged while the task still parked at in_review — a review
- * bell for a card whose discussion had no report, and a next kick whose
- * brief (built from the discussion) had no memory of what was done. The
- * lists stay whole (the reviewer must see WHAT was delivered and what is
- * missing); the report is cut to fit and says so.
- */
-export function buildSettleCommentBody(args: {
+/** Keep the agent report in its own language. Runtime delivery facts are a
+ * separate, translated system comment, never English appended to that report. */
+export function buildSettleComments(args: {
   resultText: string;
   fileNames: readonly string[];
-  skippedNotes: readonly string[];
-}): string {
-  const sections = [
-    ...(args.fileNames.length > 0
-      ? [
-          ['Deliverables:', ...args.fileNames.map((name) => `- ${name}`)].join(
-            '\n',
-          ),
-        ]
-      : []),
-    ...(args.skippedNotes.length > 0
-      ? [
-          [
-            'Not delivered (the harvest skipped these outputs):',
-            ...args.skippedNotes.map((note) => `- ${note}`),
-          ].join('\n'),
-        ]
-      : []),
-  ];
-  const compose = (report: string): string =>
-    [report, ...sections].join('\n\n');
-  const full = compose(args.resultText);
-  if (full.length <= TASK_COMMENT_MAX) return full;
-  const reportBudget =
-    TASK_COMMENT_MAX -
-    (full.length - args.resultText.length) -
-    SETTLE_REPORT_TRUNCATED_TAIL.length;
-  if (reportBudget > 0) {
-    return compose(
-      `${args.resultText.slice(0, reportBudget)}${SETTLE_REPORT_TRUNCATED_TAIL}`,
-    );
-  }
-  // The lists alone overflow the cap (thousands of deliverables): cut the
-  // whole body rather than post nothing — the outputs list on the task row
-  // stays complete.
-  return `${full.slice(0, TASK_COMMENT_MAX - SETTLE_REPORT_TRUNCATED_TAIL.length)}${SETTLE_REPORT_TRUNCATED_TAIL}`;
+  skipped: readonly HarvestSkippedOutput[];
+}): { body?: string; noticeByLocale?: TaskCommentBodies } {
+  const report = args.resultText.trim();
+  const reportTruncated = report.length > TASK_COMMENT_MAX;
+  const body = reportTruncated
+    ? `${report.slice(0, TASK_COMMENT_MAX - 1)}…`
+    : report;
+  const labels = {
+    en: {
+      delivered: 'Deliverables:',
+      skipped: 'Not delivered:',
+      noReport: 'The agent finished without a report.',
+      truncated: 'The report was shortened. The full text is on the run.',
+      listTruncated:
+        'The file list was shortened. The task keeps the full list of delivered files.',
+    },
+    de: {
+      delivered: 'Ergebnisse:',
+      skipped: 'Nicht bereitgestellt:',
+      noReport: 'Der Agent hat den Lauf ohne Bericht beendet.',
+      truncated:
+        'Der Bericht wurde gekürzt. Der vollständige Text ist beim Lauf verfügbar.',
+      listTruncated:
+        'Die Dateiliste wurde gekürzt. Die vollständige Liste der bereitgestellten Dateien bleibt an der Aufgabe erhalten.',
+    },
+    fr: {
+      delivered: 'Livrables :',
+      skipped: 'Fichiers non remis :',
+      noReport: 'L’agent a terminé sans compte rendu.',
+      truncated:
+        'Le compte rendu a été abrégé. Le texte intégral reste disponible dans l’exécution.',
+      listTruncated:
+        'La liste des fichiers a été abrégée. La tâche conserve la liste complète des fichiers remis.',
+    },
+  };
+  const render = (locale: keyof typeof labels): string => {
+    const text = labels[locale];
+    const parts = [
+      ...(report === '' ? [text.noReport] : []),
+      ...(reportTruncated ? [text.truncated] : []),
+      ...(args.fileNames.length > 0
+        ? [
+            [text.delivered, ...args.fileNames.map((name) => `- ${name}`)].join(
+              '\n',
+            ),
+          ]
+        : []),
+      ...(args.skipped.length > 0
+        ? [
+            [
+              text.skipped,
+              ...args.skipped.map(
+                (skip) =>
+                  `- ${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reasonByLocale?.[locale] ?? skip.reason}`,
+              ),
+            ].join('\n'),
+          ]
+        : []),
+    ];
+    const full = parts.join('\n\n');
+    if (full.length <= TASK_COMMENT_MAX) return full;
+    const tail = `\n\n… ${text.listTruncated}`;
+    return `${full.slice(0, TASK_COMMENT_MAX - tail.length)}${tail}`;
+  };
+  const noticeByLocale = {
+    en: render('en'),
+    de: render('de'),
+    fr: render('fr'),
+  };
+  return {
+    ...(body !== '' ? { body } : {}),
+    ...(noticeByLocale.en !== '' ? { noticeByLocale } : {}),
+  };
 }
 
 /**
@@ -1574,7 +1610,7 @@ async function settleTaskAgentTurn(
     fileSize: number;
   }> = [];
   let fileNames: string[] = [];
-  let skippedNotes: string[] = [];
+  let skipped: HarvestSkippedOutput[] = [];
   try {
     const harvested = await harvestSessionOutput(ctx, {
       organizationId: args.organizationId,
@@ -1585,9 +1621,7 @@ async function settleTaskAgentTurn(
     // Outputs the harvest could not bring back (caps, unreadable, storage
     // rejection) go into the settle comment — the reviewer must see WHAT is
     // missing, not a deliverables list that reads as complete.
-    skippedNotes = harvested.harvestSkipped.map(
-      (skip) => `${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reason}`,
-    );
+    skipped = harvested.harvestSkipped;
     files = harvested.files.map((file) => ({
       fileId: file.storageId,
       fileName: file.path.split('/').at(-1) ?? file.path,
@@ -1614,11 +1648,8 @@ async function settleTaskAgentTurn(
     return;
   }
 
-  const resultText =
-    result.text.trim() !== ''
-      ? result.text.trim()
-      : 'The agent finished without a report.';
-  const body = buildSettleCommentBody({ resultText, fileNames, skippedNotes });
+  const resultText = result.text.trim();
+  const comments = buildSettleComments({ resultText, fileNames, skipped });
 
   await ctx.runMutation(internal.tasks.agent_runs.completeTaskAgentRun, {
     organizationId: args.organizationId,
@@ -1626,7 +1657,7 @@ async function settleTaskAgentTurn(
     agentId: args.agentId,
     runId: args.runId,
     files,
-    body,
+    ...comments,
     resultText,
     // Exec-guarded, same reason as the failed mark above.
     execId: args.execId,
@@ -2006,6 +2037,12 @@ export async function steerTaskAgentTurnImpl(
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),
+      agentLanguageGuidance(
+        await ctx.runQuery(internal.tasks.agent_runs.getAgentLanguageContext, {
+          organizationId: args.organizationId,
+          taskId: args.taskId,
+        }),
+      ),
       ...(skillsAddendum !== '' ? [skillsAddendum] : []),
       `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
       `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,

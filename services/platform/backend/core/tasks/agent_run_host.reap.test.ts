@@ -140,6 +140,12 @@ function makeCtx(run: RunState) {
       if (name === 'projects/internal_queries:getProjectAgentSkillScope') {
         return null;
       }
+      if (name === 'tasks/agent_runs:getAgentLanguageContext') {
+        return {
+          defaultLocale: 'fr',
+          task: { id: 'task-1', title: 'Unterlagen prüfen', description: null },
+        };
+      }
       if (name === 'tasks/agent_runs:getTaskBriefForAgentRun') {
         return {
           title: 'Continue draft',

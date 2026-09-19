@@ -86,6 +86,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               : ('agent' as const),
           authorId: comment.authorId,
           body: comment.body,
+          ...(comment.bodyByLocale != null
+            ? { bodyByLocale: comment.bodyByLocale }
+            : {}),
           createdAt: comment.createdAt,
         })),
         truncated: page.hasMore,

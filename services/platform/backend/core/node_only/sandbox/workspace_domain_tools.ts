@@ -19,6 +19,7 @@
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../../lib/shared/model-timestamp';
+import { taskCommentBodiesSchema } from '../../../../lib/shared/schemas/task-comment';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
@@ -501,6 +502,16 @@ export async function runTaskTool(
           message: 'task_comment needs {taskId, body}.',
         };
       }
+      const localized = taskCommentBodiesSchema
+        .optional()
+        .safeParse(callArgs.bodyByLocale);
+      if (!localized.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_comment bodyByLocale needs nonblank en/de/fr translations (at most 10,000 characters each), with optional additional language or language-region keys.',
+        };
+      }
       const scoped = await loadTaskInScope(
         ctx,
         organizationId,
@@ -510,7 +521,15 @@ export async function runTaskTool(
       if ('refusal' in scoped) return scoped.refusal;
       const posted = await ctx.runMutation(
         internal.tasks.internal_mutations.agentAddComment,
-        { organizationId, actorId, taskId: asTaskId(taskId), body },
+        {
+          organizationId,
+          actorId,
+          taskId: asTaskId(taskId),
+          body,
+          ...(localized.data !== undefined
+            ? { bodyByLocale: localized.data }
+            : {}),
+        },
       );
       return { status: 'ok', output: { messageId: posted.messageId } };
     }

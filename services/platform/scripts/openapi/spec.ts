@@ -3814,6 +3814,12 @@ export function buildSpec(): Json {
                   authorType: { type: 'string', enum: ['user', 'agent'] },
                   authorId: str,
                   body: str,
+                  bodyByLocale: {
+                    type: 'object',
+                    additionalProperties: { type: 'string' },
+                    description:
+                      'Equivalent localized bodies when supplied by the workflow. Select the reader’s exact locale, then base language, then en, then body. Absent for comments without translations.',
+                  },
                   createdAt: epochMs,
                   editedAt: epochMs,
                 },
@@ -3838,7 +3844,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Comment on a project task as the key holder',
       description:
-        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior.',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior. A later plain-text edit clears the old translations.',
       operationId: 'addTaskComment',
       security: sec,
       parameters: taskParameters,
@@ -3852,6 +3858,23 @@ export function buildSpec(): Json {
             minLength: 1,
             maxLength: 10000,
             description: 'Trimmed; whitespace alone is refused',
+          },
+          bodyByLocale: {
+            type: 'object',
+            maxProperties: 16,
+            required: ['en', 'de', 'fr'],
+            additionalProperties: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 10000,
+            },
+            properties: {
+              en: { type: 'string', minLength: 1, maxLength: 10000 },
+              de: { type: 'string', minLength: 1, maxLength: 10000 },
+              fr: { type: 'string', minLength: 1, maxLength: 10000 },
+            },
+            description:
+              'Equivalent trimmed translations; en/de/fr required. At most 16 locale keys matching ^[a-z]{2}(-[A-Z]{2})?$ are allowed. Each value has the same 10,000-character limit as body.',
           },
         },
       }),

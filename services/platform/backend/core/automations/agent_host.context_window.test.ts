@@ -17,6 +17,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 
 const io = vi.hoisted(() => ({
+  instructions: [] as string[],
   starts: [] as Array<{ execId: string; env: Record<string, string> }>,
 }));
 
@@ -25,6 +26,12 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     await importActual<typeof import('../chat/external_turn_shared')>();
   return {
     ...actual,
+    buildExternalTurnExec: (
+      args: Parameters<typeof actual.buildExternalTurnExec>[0],
+    ) => {
+      io.instructions.push(args.instructions);
+      return actual.buildExternalTurnExec(args);
+    },
     drainHarnessWindow: async (args: {
       execId: string;
       start?: { env: Record<string, string> };
@@ -124,6 +131,11 @@ function makeCtx(cursor: unknown) {
       switch (name) {
         case 'automations/queries:readAgentCursor':
           return cursor;
+        case 'automations/queries:getRunLanguageContext':
+          return {
+            defaultLocale: 'de',
+            task: { id: 'task-1', title: '2026 Q1', description: null },
+          };
         case 'automations/queries:getRunProjectId':
           return null;
         case 'automations/human_asks:listAnsweredAsksForNode':
@@ -163,6 +175,7 @@ function makeCtx(cursor: unknown) {
 
 beforeEach(() => {
   io.starts = [];
+  io.instructions = [];
   vi.mocked(resolveModel).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -190,6 +203,11 @@ describe('an automation agent turn', () => {
 
     expect(console.error).not.toHaveBeenCalled();
     expect(io.starts).toHaveLength(1);
+    expect(io.instructions[0]).toContain(
+      'default agent language is German (de)',
+    );
+    expect(io.instructions[0]).toContain('including ask_human');
+    expect(io.instructions[0]).toContain('2026 Q1');
     expect(io.starts[0]?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('32768');
     // The serving connector's entry, and the starter's limit through this
     // exec's op.
@@ -227,6 +245,11 @@ describe('an automation agent turn', () => {
 
     expect(console.error).not.toHaveBeenCalled();
     expect(io.starts).toHaveLength(1);
+    expect(io.instructions[0]).toContain(
+      'default agent language is German (de)',
+    );
+    expect(io.instructions[0]).toContain('including ask_human');
+    expect(io.instructions[0]).toContain('2026 Q1');
     const resumed = io.starts[0];
     expect(resumed?.execId).not.toBe('exec-asking');
     expect(resumed?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('65536');

@@ -1189,6 +1189,10 @@ curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>
 
 ### Kommentare und Arbeitsergebnisse lesen
 
+Beim Schreiben eines Kommentars kannst du neben dem ursprünglichen `body` optional `bodyByLocale` mitsenden. Beim Lesen wird es zurückgegeben, sofern vorhanden. Liefere inhaltlich gleichwertige, nicht leere Übersetzungen für `en`, `de` und `fr`; weitere Sprach- oder Sprachregionsschlüssel wie `nl`, `it` und `de-CH` sind erlaubt. Jeder Wert wird außen von Leerraum bereinigt und darf höchstens 10.000 Zeichen enthalten; pro Kommentar sind bis zu 16 Sprachvarianten erlaubt. Zeige zuerst die genaue Spracheinstellung des Lesers, danach die Grundsprache, dann `en` und zuletzt `body` an. Als Autor bleibt der Schlüsselinhaber eingetragen. Eine reine Textbearbeitung in Tale entfernt die alten Übersetzungen, damit sie die Änderung nicht verdecken.
+
+Aufgaben- und Workflow-Agenten erhalten die Anweisung, die Sprache aus Titel und Beschreibung der Aufgabe beizubehalten. Ist keine erkennbar, gilt die Standardsprache der Organisation für Agenten. Vorgegebene Wörter einer Titelvorlage, Quartalskennungen, die Sprache der Quelldokumente und die Oberflächensprache der startenden Person legen die Aufgabensprache nicht fest. Das gilt auch für Rückfragen, fortgesetzte Läufe und neue zugehörige Aufgaben. Dies sind Anweisungen an das Modell; gespeicherte Übersetzungen von Fortschrittsmeldungen erlauben Clients, die angezeigte Sprache unabhängig davon zu wählen.
+
 Lies die Lauf-Ausgabe und die Kommentare, um die Ergebnisse der Automatisierung abzurufen. Ob sie zusätzlich Dateien erstellt und in welchem Ordner diese liegen, bestimmt der Workflow; aus dem Aufgabenstart allein folgt keine Ablage im Beispielordner.
 
 Kommentare werden seitenweise geliefert: zuerst die neueste Seite, innerhalb jeder Seite chronologisch. `limit` ist standardmäßig 200 und höchstens 500. Solange `isDone` `false` ist, übergib `continueCursor` unverändert als `cursor`, um ältere Kommentare zu lesen. Das Token ist signiert und keine Seitennummer.

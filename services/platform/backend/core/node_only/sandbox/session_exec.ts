@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type { TaskCommentBodies } from '../../../../lib/shared/schemas/task-comment';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
@@ -28,6 +29,19 @@ import {
  * then read as "produced nothing". Over-cap files are reported in
  * `harvestSkipped`; consumers surface them, never drop them silently. */
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 64;
+
+export interface HarvestSkippedOutput {
+  path: string;
+  reason: string;
+  reasonByLocale?: TaskCommentBodies;
+}
+
+function skippedOutput(
+  path: string,
+  reasonByLocale: TaskCommentBodies,
+): HarvestSkippedOutput {
+  return { path, reason: reasonByLocale.en, reasonByLocale };
+}
 /** The session's delivery box — harvested (top-level files only) when a work
  * turn settles. Exported so lanes on a STANDING session can sweep leftovers
  * before a new turn (a per-run session dies with its files; a standing one
@@ -259,7 +273,7 @@ export async function harvestSessionOutput(
   },
 ): Promise<{
   files: HarvestedOutputFile[];
-  harvestSkipped: Array<{ path: string; reason: string }>;
+  harvestSkipped: HarvestSkippedOutput[];
 }> {
   const { sessionId, organizationId, execId } = args;
   const outputDir = args.outputDir ?? OUTPUT_DIR;
@@ -276,7 +290,7 @@ export async function harvestSessionOutput(
   }
 
   const files: HarvestedOutputFile[] = [];
-  const harvestSkipped: Array<{ path: string; reason: string }> = [];
+  const harvestSkipped: HarvestSkippedOutput[] = [];
   let entries = await sessionListFiles(sessionId, outputDir);
   if (entries === null) {
     // A 404 is ambiguous for a per-turn SUBDIR: the daemon answers it both
@@ -327,19 +341,25 @@ export async function harvestSessionOutput(
     if (e.type !== 'file') continue;
     const absPath = `${outputDir}/${e.name}`;
     if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
-      harvestSkipped.push({
-        path: absPath,
-        reason: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
-      });
+      harvestSkipped.push(
+        skippedOutput(absPath, {
+          en: `over the ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN}-file per-run harvest cap`,
+          de: `Die Grenze von ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} Dateien pro Lauf ist erreicht.`,
+          fr: `La limite de ${SANDBOX_MAX_OUTPUT_FILES_PER_RUN} fichiers par exécution est atteinte.`,
+        }),
+      );
       continue;
     }
     if (e.size > HARVEST_READ_MAX_BYTES) {
-      harvestSkipped.push({
-        path: absPath,
-        reason: `${formatMb(e.size)} exceeds the ${formatMb(
-          HARVEST_READ_MAX_BYTES,
-        )} per-file harvest cap — split the output or have the user download it another way`,
-      });
+      harvestSkipped.push(
+        skippedOutput(absPath, {
+          en: `${formatMb(e.size)} exceeds the ${formatMb(
+            HARVEST_READ_MAX_BYTES,
+          )} per-file harvest cap — split the output or have the user download it another way`,
+          de: `${formatMb(e.size)} überschreitet die Dateigrößengrenze von ${formatMb(HARVEST_READ_MAX_BYTES)}. Teile die Datei auf oder stelle sie auf anderem Weg bereit.`,
+          fr: `${formatMb(e.size)} dépasse la limite de ${formatMb(HARVEST_READ_MAX_BYTES)} par fichier. Divise le fichier ou propose un autre moyen de le télécharger.`,
+        }),
+      );
       continue;
     }
     if (execId !== undefined) {
@@ -360,10 +380,13 @@ export async function harvestSessionOutput(
     }
     const read = await sessionReadFile(sessionId, absPath);
     if (read === null) {
-      harvestSkipped.push({
-        path: absPath,
-        reason: 'read from sandbox failed',
-      });
+      harvestSkipped.push(
+        skippedOutput(absPath, {
+          en: 'read from sandbox failed',
+          de: 'Die Datei konnte nicht aus der Sandbox gelesen werden.',
+          fr: 'Impossible de lire le fichier depuis la sandbox.',
+        }),
+      );
       continue;
     }
     const buf = Buffer.from(read.bytes);
@@ -392,10 +415,13 @@ export async function harvestSessionOutput(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);
-      harvestSkipped.push({
-        path: absPath,
-        reason: `not saved to the workspace: ${message}`,
-      });
+      harvestSkipped.push(
+        skippedOutput(absPath, {
+          en: `not saved to the workspace: ${message}`,
+          de: `Die Datei konnte nicht im Arbeitsbereich gespeichert werden. Technische Meldung: ${message}`,
+          fr: `Le fichier n’a pas pu être enregistré dans l’espace de travail. Message technique : ${message}`,
+        }),
+      );
       continue;
     }
     // A fileMetadata row per harvested blob (was a documented follow-up): a

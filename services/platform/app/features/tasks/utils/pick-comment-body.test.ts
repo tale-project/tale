@@ -22,6 +22,16 @@ describe('pickCommentBody', () => {
     expect(pickCommentBody(snapshot.en, snapshot, 'de-CH')).toBe(snapshot.de);
   });
 
+  it('keeps an authored regional or additional language translation', () => {
+    const bodies = {
+      ...snapshot,
+      'de-CH': 'Abgleich abgeschlossen',
+      nl: 'Controle afgerond',
+    };
+    expect(pickCommentBody('fallback', bodies, 'de-CH')).toBe(bodies['de-CH']);
+    expect(pickCommentBody('fallback', bodies, 'nl')).toBe(bodies.nl);
+  });
+
   it('falls back to en then canonical body', () => {
     expect(pickCommentBody(snapshot.en, snapshot, 'ja')).toBe(snapshot.en);
     expect(pickCommentBody('canonical', { ...snapshot, en: '' }, 'ja')).toBe(

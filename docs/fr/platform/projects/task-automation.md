@@ -20,9 +20,15 @@ Un agent de projet travaille sur une tâche et remet son résultat à une person
 
 L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille.
 
+Les agents reçoivent la consigne de rédiger les mises à jour, les comptes rendus, les tâches associées et les questions dans la langue du titre et de la description de la tâche. Si ces éléments ne permettent pas de déterminer une langue, ils utilisent la langue par défaut de l’organisation pour les agents. Un identifiant, un trimestre ou un titre issu d’un modèle ne détermine pas cette langue. Changer la langue de ton interface ne change pas celle de la tâche ; tu peux demander explicitement à l’agent d’en changer.
+
+Les commentaires de progression d’un workflow peuvent contenir des traductions pour chaque langue d’interface prise en charge. Le même commentaire enregistré s’affiche alors dans la langue choisie par chaque lecteur. Les commentaires sans traduction conservent leur texte d’origine.
+
 ## Lire et accepter le résultat
 
 L’agent publie son compte rendu dans un commentaire et joint les fichiers produits comme livrables. Il passe ensuite la tâche à **En revue**. Le relecteur reçoit une notification et, si l’envoi d’e-mails est configuré, un e-mail.
+
+Tale liste les fichiers livrés ou ignorés dans un commentaire système distinct, affiché dans la langue de ton interface. Ce commentaire signale aussi un compte rendu absent ou raccourci. Le compte rendu conserve ainsi la langue de la tâche.
 
 Lis le compte rendu, ouvre les livrables et compare-les aux critères de fin. Passe la tâche à **Terminé** seulement lorsque tu acceptes le travail. Tale enregistre la décision humaine ; un agent ne peut pas marquer sa propre tâche comme terminée.
 

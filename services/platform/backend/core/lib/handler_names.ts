@@ -67,6 +67,7 @@ interface HandlerNames {
       suspendRun: FunctionRef;
     };
     queries: FunctionRef & {
+      getRunLanguageContext: FunctionRef;
       getRunProjectContext: FunctionRef;
       getRunProjectId: FunctionRef;
       loadAutomationDocument: FunctionRef;
@@ -322,6 +323,7 @@ interface HandlerNames {
     };
     agent_runs: FunctionRef & {
       completeTaskAgentRun: FunctionRef;
+      getAgentLanguageContext: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;
