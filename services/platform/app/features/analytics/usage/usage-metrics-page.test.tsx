@@ -106,6 +106,9 @@ describe('UsageMetricsPage', () => {
     expect(screen.getByText('invoices/monthly')).toBeInTheDocument();
     expect(screen.getByText('Ada')).toBeInTheDocument();
     expect(screen.getByText('Automations (triggers)')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Each row is the member who sent the chat/),
+    ).toBeInTheDocument();
     expect(screen.queryByText('__automation__')).not.toBeInTheDocument();
     expect(screen.queryByText('agent-1')).not.toBeInTheDocument();
   });

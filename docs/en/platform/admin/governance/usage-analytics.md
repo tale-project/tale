@@ -14,7 +14,7 @@ Open **Settings > Metrics > Usage** as an Admin or Owner to understand which wor
 
 Assistant names can include supporting work such as chat-title generation. A request count therefore does not always equal the number of messages members sent. Voice synthesis has its own **Top voice models** table.
 
-**Per-user usage** attributes every request to a person: the member who sent the chat message or started the agent run, including runs started through the REST API or the MCP endpoint. Runs that a schedule, a webhook, or an event started have no person behind them. Their usage appears as one row named **Automations (triggers)**, which does not count as an active user. In **Top assistants**, a project agent and an automation each appear under their name.
+**Per-user usage** attributes every request to a person: the member who sent the chat message or started the agent run, including runs started through the REST API or the MCP endpoint. Runs that a schedule, a webhook, or an event started have no person behind them. Their usage appears as one row named **Automations (triggers)**, which does not count as an active user. In **Top assistants**, a project agent and an automation each appear under their name. [How usage is counted](/platform/admin/governance/usage-attribution) explains the rule for every kind of work.
 
 ## Read cost alongside tokens
 

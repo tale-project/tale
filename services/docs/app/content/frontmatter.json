@@ -332,6 +332,14 @@
       "description": "Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach Modell, Assistent und Person."
     }
   },
+  "de:platform/admin/governance/usage-attribution": {
+    "slug": "platform/admin/governance/usage-attribution",
+    "locale": "de",
+    "frontmatter": {
+      "title": "So wird die Nutzung gezählt",
+      "description": "Wem ein Chat, ein Agentenlauf oder eine Sprachanfrage angerechnet wird, welche Limits gelten und wo sie in der Nutzungsanalyse erscheinen."
+    }
+  },
   "de:platform/admin/members-and-roles": {
     "slug": "platform/admin/members-and-roles",
     "locale": "de",
@@ -1452,6 +1460,14 @@
       "description": "Investigate token consumption, request volume, and recorded cost by model, assistant, and user."
     }
   },
+  "en:platform/admin/governance/usage-attribution": {
+    "slug": "platform/admin/governance/usage-attribution",
+    "locale": "en",
+    "frontmatter": {
+      "title": "How usage is counted",
+      "description": "Who each chat reply, agent run, or voice request counts against, which limits apply, and where it appears in Usage analytics."
+    }
+  },
   "en:platform/admin/members-and-roles": {
     "slug": "platform/admin/members-and-roles",
     "locale": "en",
@@ -2570,6 +2586,14 @@
     "frontmatter": {
       "title": "Analyse de l’usage",
       "description": "Examine la consommation de tokens, les requêtes et les coûts enregistrés par modèle, assistant et personne."
+    }
+  },
+  "fr:platform/admin/governance/usage-attribution": {
+    "slug": "platform/admin/governance/usage-attribution",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Comment l’usage est compté",
+      "description": "À qui chaque réponse de chat, exécution d’agent ou requête vocale est imputée, quelles limites s’appliquent et où elle apparaît dans l’analyse de l’usage."
     }
   },
   "fr:platform/admin/members-and-roles": {

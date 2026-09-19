@@ -65,7 +65,7 @@ Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des l
 
 </Frame>
 
-- **Tes limites** comptent tes propres chats, sorties vocales et exécutions d’agents. Quand l’une d’elles est atteinte, tu ne peux plus lancer ce type d’activité avant sa réinitialisation : un message envoyé à ce moment-là est refusé avec un avis qui nomme la limite, et il reste dans la zone de saisie.
+- **Tes limites** comptent tes propres chats, sorties vocales et exécutions d’agents, quelle que soit la façon de les lancer ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique à qui une exécution est imputée. Quand l’une d’elles est atteinte, tu ne peux plus lancer ce type d’activité avant sa réinitialisation : un message envoyé à ce moment-là est refusé avec un avis qui nomme la limite, et il reste dans la zone de saisie.
 - **Limites partagées** comptent l’utilisation de toutes les personnes qu’elles couvrent, par exemple une équipe dont tu fais partie ou l’organisation entière. Elles peuvent donc être atteintes avant tes propres limites.
 - **Stockage** compare les fichiers que tu as téléversés avec ta limite de stockage. Une fois celle-ci atteinte, les nouveaux téléversements de documents sont refusés.
 

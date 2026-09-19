@@ -126,6 +126,9 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           description: t('usage.empty.description'),
         }}
       />
+      <Text as="p" variant="muted">
+        {t('usage.tables.users.note')}
+      </Text>
     </MetricsSection>
   );
 }
