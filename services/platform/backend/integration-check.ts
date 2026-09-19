@@ -9767,8 +9767,10 @@ async function checkChat(
       : undefined;
     const assistantRaw = JSON.stringify(assistantRow ?? {});
     const usageRows = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app.usage_events
+      SELECT coalesce(sum(request_count), 0)::text AS count
+      FROM app.usage_ledger
       WHERE org_id = ${orgId} AND model = 'itest-chat'
+        AND granularity = 'daily'
     `;
     const settledGen = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.generations
@@ -9863,9 +9865,10 @@ async function checkChat(
       .object({ status: z.string(), reason: z.string().optional() })
       .safeParse(deployTurnJson);
     const deployUsage = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app.usage_events
+      SELECT coalesce(sum(request_count), 0)::text AS count
+      FROM app.usage_ledger
       WHERE org_id = ${orgId} AND model = 'itest-deploy-prod'
-        AND provider = 'itestdeploy'
+        AND provider = 'itestdeploy' AND granularity = 'daily'
     `;
     record(
       'catalog-less provider serves its credential allowlist',
@@ -10043,8 +10046,10 @@ async function checkChat(
     });
     const titleBooked = await waitFor(async () => {
       const rows = await sql<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM app.usage_events
+        SELECT coalesce(sum(request_count), 0)::text AS count
+        FROM app.usage_ledger
         WHERE org_id = ${orgId} AND agent_slug = 'thread-title'
+          AND granularity = 'daily'
       `;
       return Number(rows[0]?.count ?? '0') > 0;
     }, 20_000);
@@ -10060,11 +10065,12 @@ async function checkChat(
     const titleUsage = await sql<
       { inputTokens: number; outputTokens: number; model: string }[]
     >`
-      SELECT input_tokens AS "inputTokens", output_tokens AS "outputTokens",
-             model
-      FROM app.usage_events
+      SELECT input_tokens::float8 AS "inputTokens",
+             output_tokens::float8 AS "outputTokens", model
+      FROM app.usage_ledger
       WHERE org_id = ${orgId} AND agent_slug = 'thread-title'
-      ORDER BY created_at_ms DESC LIMIT 1
+        AND granularity = 'daily'
+      ORDER BY updated_at_ms DESC LIMIT 1
     `;
     record(
       'thread-title model call is booked to the usage ledger',
@@ -12262,17 +12268,24 @@ async function checkMcp(
     })
     .safeParse(oneShot.value);
   const oneShotRows = oneShotShape.success
-    ? await sql<{ status: string; mode: string; startedBy: string }[]>`
-        SELECT status, mode, started_by AS "startedBy"
-        FROM app.automation_runs WHERE id = ${oneShotShape.data.runId}
+    ? await sql<
+        { status: string; mode: string; startedBy: string; keyRows: number }[]
+      >`
+        SELECT r.status, r.mode, r.started_by AS "startedBy",
+               (SELECT count(*) FROM "apikey" k WHERE k."id" = r.api_key_id)::int
+                 AS "keyRows"
+        FROM app.automation_runs r WHERE r.id = ${oneShotShape.data.runId}
       `
     : [];
   const oneShotRow = oneShotRows[0];
+  // A keyed start names its door AND records the key itself, so the run's
+  // spend books to the key beside the caller's own usage.
   const oneShotRecorded =
     oneShotRow !== undefined &&
     oneShotRow.status === 'success' &&
     oneShotRow.mode === 'live' &&
-    oneShotRow.startedBy.startsWith('api-key:');
+    oneShotRow.startedBy.startsWith('api-key:') &&
+    oneShotRow.keyRows === 1;
 
   // The developer gate: a member-role key gets the refusal as DATA (flagged
   // isError) on the persisting tools while every read tool keeps answering.
@@ -35341,7 +35354,8 @@ async function checkSandboxGatewayKeyReclaim(
         deadline_at_ms, updated_at_ms
       ) VALUES (
         ${orgId}, ${projectId}, ${taskId}, 'gk-agent', 'exec-gk-overdue',
-        'pa-gk-agent', 'running', 'claude-code', 'itest-model', 'itest:gk',
+        'pa-gk-agent', 'running', 'claude-code', 'itest-model',
+        'itest-gk-starter',
         ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
         ${now}
       )
@@ -35364,7 +35378,8 @@ async function checkSandboxGatewayKeyReclaim(
     const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
     await taskWatchdogs.runTaskAgentWatchdog(sql);
     // The deadline teardown settles the run's key: its spend is read and
-    // booked (op row + the starter's usage ledger) BEFORE the delete.
+    // booked (op row + the starter's usage ledger, under the starter's bare
+    // id and the agent's id) BEFORE the delete.
     const overdueOp = await sql<
       {
         spentCents: number | null;
@@ -35383,7 +35398,8 @@ async function checkSandboxGatewayKeyReclaim(
       const rows = await sql<{ cents: number }[]>`
         SELECT coalesce(sum(cost_estimate_cents), 0)::float8 AS cents
         FROM app.usage_ledger
-        WHERE org_id = ${orgId} AND user_id = 'itest:gk'
+        WHERE org_id = ${orgId} AND user_id = 'itest-gk-starter'
+          AND agent_slug = 'gk-agent'
           AND granularity = 'monthly' AND period_key = ${monthlyKey}
       `;
       return rows[0]?.cents ?? 0;
@@ -35453,7 +35469,8 @@ async function checkSandboxGatewayKeyReclaim(
           deadline_at_ms, updated_at_ms
         ) VALUES (
           ${orgId}, ${projectId}, ${taskId}, 'gk-agent', ${execId},
-          'pa-gk-agent', 'settled', 'claude-code', 'itest-model', 'itest:gk',
+          'pa-gk-agent', 'settled', 'claude-code', 'itest-model',
+          'itest-gk-starter',
           ${now}, ${now}, ${now + 3_600_000}, ${now}
         )
       `;
@@ -35520,6 +35537,99 @@ async function checkSandboxGatewayKeyReclaim(
         sweep.settled >= 1 &&
         (secondFreed[0]?.settled ?? false),
       `first=${JSON.stringify(firstReservation)} second=${JSON.stringify(secondReservation)} third=${JSON.stringify(thirdReservation)} settle=${firstSettled}/${firstReplayed} fourth=${JSON.stringify(fourthReservation)} (want 470) ledger=+${bookedByTurns} (want 30) sweep=${JSON.stringify(sweep)} secondFreed=${secondFreed[0]?.settled}`,
+    );
+
+    // --- attribution: a workflow op books under its billing subject -------
+    // A run a trigger started names nobody: its spend books under the
+    // automation sentinel, never a person; a keyed start books to the person
+    // the starter names AND the key (`domains/governance/README.md`). The
+    // door string itself never reaches the ledger.
+    const attribRuns = [
+      {
+        id: 'itest-wf-attrib-trigger',
+        startedBy: 'trigger:itest-trigger',
+        apiKeyId: null,
+        cents: 7,
+      },
+      {
+        id: 'itest-wf-attrib-keyed',
+        startedBy: 'api-key:itest-gk-starter',
+        apiKeyId: 'itest-key-gk',
+        cents: 5,
+      },
+    ];
+    const attribSettled: string[] = [];
+    for (const run of attribRuns) {
+      await sql`
+        INSERT INTO app.automation_runs (
+          id, org_id, name, version, status, mode, started_by, api_key_id,
+          checkpoints, started_at_ms, finished_at_ms
+        ) VALUES (
+          ${run.id}, ${orgId}, 'itest-wf-attrib', 1, 'success', 'live',
+          ${run.startedBy}, ${run.apiKeyId},
+          ${sql.json({ nodes: {}, executions: 0 })}, ${now}, ${now}
+        )
+      `;
+      await seedSession(run.id, {
+        expiresAt: now + 3_600_000,
+        ownerType: 'workflow_run',
+      });
+      await sql`
+        INSERT INTO app.sandbox_session_ops (
+          org_id, session_id, exec_id, kind, status, model_ref,
+          heartbeat_at_ms, started_at_ms
+        ) VALUES (
+          ${orgId}, ${run.id}, 'exec-attrib', 'workflow-agent', 'running',
+          'itestchat/itestchat/itest-model', ${now}, ${now}
+        )
+      `;
+      attribSettled.push(
+        await settlement.settleSessionOpSpend(sql, {
+          sessionId: run.id,
+          execId: 'exec-attrib',
+          spentCents: run.cents,
+          usage: { inputTokens: 10, outputTokens: 5 },
+        }),
+      );
+    }
+    const attribRows = await sql<
+      { userId: string; apiKeyId: string | null; cents: number }[]
+    >`
+      SELECT user_id AS "userId", api_key_id AS "apiKeyId",
+             cost_estimate_cents AS cents
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'itest-wf-attrib'
+        AND granularity = 'monthly' AND period_key = ${monthlyKey}
+    `;
+    const triggerRow = attribRows.find(
+      (row) => row.userId === '__automation__',
+    );
+    const keyedRow = attribRows.find(
+      (row) => row.userId === 'itest-gk-starter',
+    );
+    // Hand the seeded rows back: terminal ops, destroyed sessions.
+    await sql`
+      UPDATE app.sandbox_session_ops SET
+        status = 'completed', finished_at_ms = ${Date.now()},
+        finalized_at_ms = ${Date.now()}
+      WHERE org_id = ${orgId}
+        AND session_id IN ('itest-wf-attrib-trigger', 'itest-wf-attrib-keyed')
+    `;
+    await sql`
+      UPDATE app.sandbox_sessions SET status = 'destroyed'
+      WHERE org_id = ${orgId}
+        AND session_id IN ('itest-wf-attrib-trigger', 'itest-wf-attrib-keyed')
+    `;
+    record(
+      'workflow op spend books under its billing subject (trigger → automation bucket, key → person + key)',
+      attribSettled.every((outcome) => outcome === 'settled') &&
+        attribRows.length === 2 &&
+        triggerRow?.apiKeyId === null &&
+        Math.abs((triggerRow?.cents ?? 0) - 7) < 0.001 &&
+        keyedRow?.apiKeyId === 'itest-key-gk' &&
+        Math.abs((keyedRow?.cents ?? 0) - 5) < 0.001 &&
+        !attribRows.some((row) => row.userId.includes(':')),
+      `settled=${attribSettled.join('/')} rows=${JSON.stringify(attribRows)}`,
     );
 
     // --- posture: a failing gateway must not wedge the teardown ----------

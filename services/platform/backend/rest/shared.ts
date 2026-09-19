@@ -88,6 +88,15 @@ export interface RestVars {
 
 export type RestEnv = { Variables: RestVars };
 
+/** The API key row the bearer verified as, or `undefined` when the session
+ * carried none — the empty string the door stores is not an id. The lanes
+ * that book spend (a chat send, a run start) hand it on so the key's budget
+ * caps see what its requests cost. */
+export function restApiKeyId(c: Context<RestEnv>): string | undefined {
+  const apiKeyId = c.get('apiKeyId');
+  return apiKeyId === '' ? undefined : apiKeyId;
+}
+
 /**
  * The REST door's 429: the shared producer, with `error` a sentence rather
  * than a second copy of the code — the envelope this door promises on every

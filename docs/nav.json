@@ -204,6 +204,7 @@
                 "platform/admin/governance/guardrails",
                 "platform/admin/governance/content-models",
                 "platform/admin/governance/usage-analytics",
+                "platform/admin/governance/usage-attribution",
                 "platform/admin/governance/feedback-analytics",
                 "platform/admin/governance/data-subject-requests",
                 "platform/admin/governance/legal-hold",

@@ -126,6 +126,11 @@ analytics:
       users:
         title: Nutzung pro Benutzer
         user: Benutzer
+        automations: Automatisierungen (Trigger)
+        note: Jede Zeile steht für das Mitglied, das den Chat gesendet oder den
+          Agentenlauf gestartet hat. Läufe, die ein Zeitplan, ein Webhook oder
+          ein Ereignis gestartet hat, teilen sich die Zeile „Automatisierungen
+          (Trigger)“.
         inputTokens: Eingabe-Tokens
         outputTokens: Ausgabe-Tokens
         requests: Anfragen
@@ -5022,9 +5027,11 @@ settings:
         KI-Nutzung begrenzen.
     personal:
       title: Deine Limits
-      description: Deine Chats, Sprachausgaben und Agenten-Läufe zählen zu diesen
-        Limits. Sobald ein Limit erreicht ist, kannst du erst nach dem
-        Zurücksetzen wieder etwas davon starten.
+      description: Die Chats, die du sendest, die Sprachausgaben, die du
+        anforderst, und die Agenten-Läufe, die du startest, zählen zu diesen
+        Limits, egal auf welchem Weg du sie gestartet hast. Sobald ein Limit
+        erreicht ist, kannst du erst nach dem Zurücksetzen wieder etwas davon
+        starten.
     shared:
       title: Geteilte Limits
       description: Ein geteiltes Limit zählt die Nutzung aller, für die es gilt.

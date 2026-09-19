@@ -120,11 +120,10 @@ describe('createPgUsageLedger', () => {
   it('writes the priced cost into the period buckets, not 0', async () => {
     const { sql, calls } = capturingSql();
     await createPgUsageLedger(sql).record(ENTRY);
-    // One usage_events insert + three period-bucket upserts, every bucket
-    // carrying the priced cost among its bound values.
-    expect(calls.length).toBe(4);
-    const buckets = calls.slice(1);
-    for (const values of buckets) {
+    // Three period-bucket upserts and nothing else (the per-turn event row
+    // is retired), every bucket carrying the priced cost among its values.
+    expect(calls.length).toBe(3);
+    for (const values of calls) {
       expect(values).toContain(200);
     }
   });
@@ -134,8 +133,8 @@ describe('createPgUsageLedger', () => {
     await createPgUsageLedger(sql).record({ ...ENTRY, apiKeyId: 'key_1' });
     // Every period bucket carries the key, so the key's own caps see the
     // spend.
-    expect(calls.length).toBe(4);
-    for (const values of calls.slice(1)) {
+    expect(calls.length).toBe(3);
+    for (const values of calls) {
       expect(values).toContain('key_1');
     }
   });

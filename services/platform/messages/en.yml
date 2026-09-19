@@ -116,6 +116,10 @@ analytics:
       users:
         title: Per-user usage
         user: User
+        automations: Automations (triggers)
+        note: Each row is the member who sent the chat or started the agent
+          run. Runs that a schedule, a webhook, or an event started share the
+          Automations (triggers) row.
         inputTokens: Input tokens
         outputTokens: Output tokens
         requests: Requests
@@ -5158,9 +5162,10 @@ settings:
         your AI usage.
     personal:
       title: Your limits
-      description: Your chats, voice output, and agent runs count toward these
-        limits. When a limit is reached, you can't start more of that work
-        until it resets.
+      description: The chats you send, the voice output you request, and the
+        agent runs you start count toward these limits, whichever way you
+        started them. When a limit is reached, you can't start more of that
+        work until it resets.
     shared:
       title: Shared limits
       description: A shared limit counts the usage of everyone it covers, so it

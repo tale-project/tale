@@ -668,6 +668,7 @@ export interface GovernanceContract {
       }>;
       topAgents: Array<{
         agentSlug: string;
+        displayName?: string;
         requests: number;
         tokens: number;
         costCents: number;

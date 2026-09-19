@@ -12,6 +12,18 @@ export const TTS_SLUG = '__tts__';
 // reducers and the analytics pages share this one declaration.
 export const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
+// The ledger's `user_id` for spend that no PERSON is responsible for: a
+// managed agent turn of an automation run that a trigger (schedule, webhook,
+// event) started. Every other row names a member by bare user id. The read
+// sides treat this subject as a bucket, never as a user: the usage page
+// labels its row, the active-user count skips it, and the budget gate binds
+// only the organization's caps (and a key's, were one involved) to it.
+export const AUTOMATION_SUBJECT_ID = '__automation__';
+
+export function isAutomationSubject(userId: string): boolean {
+  return userId === AUTOMATION_SUBJECT_ID;
+}
+
 type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';
 
 // Subset of usageLedger fields needed to classify a row by kind. Kept

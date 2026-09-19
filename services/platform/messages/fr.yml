@@ -126,6 +126,11 @@ analytics:
       users:
         title: Utilisation par utilisateur
         user: Utilisateur
+        automations: Automatisations (déclencheurs)
+        note: Chaque ligne correspond au membre qui a envoyé le chat ou lancé
+          l’exécution d’agent. Les exécutions démarrées par une planification,
+          un webhook ou un événement partagent la ligne « Automatisations
+          (déclencheurs) ».
         inputTokens: Tokens d'entrée
         outputTokens: Tokens de sortie
         requests: Requêtes
@@ -5096,9 +5101,11 @@ settings:
         requêtes de ton utilisation de l'IA.
     personal:
       title: Tes limites
-      description: Tes chats, sorties vocales et exécutions d'agents comptent dans
-        ces limites. Une fois une limite atteinte, tu ne peux plus lancer ce type
-        d'activité avant sa réinitialisation.
+      description: Les chats que tu envoies, les sorties vocales que tu demandes
+        et les exécutions d'agents que tu lances comptent dans ces limites,
+        quelle que soit la façon dont tu les as lancées. Une fois une limite
+        atteinte, tu ne peux plus lancer ce type d'activité avant sa
+        réinitialisation.
     shared:
       title: Limites partagées
       description: "Une limite partagée compte l'utilisation de toutes les

@@ -422,6 +422,7 @@ async function handleMessage(
           {
             organizationId: rc.org.organizationId,
             actor: `api-key:${rc.user.userId}`,
+            ...(rc.apiKeyId !== undefined ? { apiKeyId: rc.apiKeyId } : {}),
             method: name,
             params: args,
           },

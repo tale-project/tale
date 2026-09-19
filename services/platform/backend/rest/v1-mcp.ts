@@ -13,7 +13,12 @@ import {
   RateLimitExceededError,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
+import {
+  DEFAULT_BODY_BYTES,
+  restApiKeyId,
+  restBodyLimit,
+  type RestEnv,
+} from './shared.ts';
 
 /**
  * POST /api/v1/mcp — the platform MCP endpoint. The 0.4 protocol layer
@@ -40,6 +45,8 @@ export async function dispatchEngineMethod(
   args: {
     organizationId: string;
     actor: string;
+    /** The key behind an `api-key:` actor — the runs it starts book to it. */
+    apiKeyId?: string;
     method: string;
     params?: unknown;
   },
@@ -48,6 +55,7 @@ export async function dispatchEngineMethod(
   const store = pgAutomationStore(sql, {
     organizationId: args.organizationId,
     actor: args.actor,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
   });
   return dispatch(args.method, args.params ?? {}, { store, allowLive: true });
 }
@@ -80,6 +88,7 @@ function mcpShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         organizationId: string;
         actor: string;
+        apiKeyId?: string;
         method: string;
         params?: unknown;
       };
@@ -118,6 +127,7 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
+    const keyId = restApiKeyId(c);
     const rc = {
       ctx: createCtxShim(mcpShimHandlers(deps.sql)),
       org: {
@@ -125,6 +135,8 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         orgSlug: c.get('orgSlug'),
       },
       user: { userId: c.get('userId') },
+      // The engine records the key on the runs it starts for this caller.
+      ...(keyId !== undefined ? { apiKeyId: keyId } : {}),
     };
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused protocol layer touches exactly the rc surface built above
     return handleMcpRequest(rc as never, c.req.raw, {

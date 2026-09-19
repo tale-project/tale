@@ -76,7 +76,7 @@ describe('reserveTurnBudget', () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'user-1', agentName: 'Alice' }],
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
       },
     ]);
 
@@ -125,7 +125,7 @@ describe('reserveTurnBudget', () => {
         'exec-1',
         'task-agent',
         'user-1',
-        'Alice',
+        'agent-alice',
         300,
       ]),
     );
@@ -139,7 +139,7 @@ describe('reserveTurnBudget', () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'user-1', agentName: 'Alice' }],
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
       },
     ]);
 
@@ -168,12 +168,95 @@ describe('reserveTurnBudget', () => {
     expect(result).toEqual({ allowed: true, budgetCents: 500 });
     expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ userId: '', userTeamIds: [] }),
+      expect.objectContaining({
+        userId: '',
+        userTeamIds: [],
+        impersonal: true,
+      }),
     );
     // No membership lookups for an unknown starter.
     expect(gate.loadBudgetSubject).not.toHaveBeenCalled();
     expect(statements.some((s) => s.text.includes('FROM "member"'))).toBe(
       false,
+    );
+  });
+
+  it('measures a keyed workflow start as the person AND the key, and stamps both', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 500,
+    });
+    const { sql, statements } = fakeSql([
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'api-key:user-7',
+            name: 'invoices/monthly',
+            apiKeyId: 'key-1',
+          },
+        ],
+      },
+    ]);
+
+    await reserveTurnBudget(sql, {
+      ...ARGS,
+      sessionId: 'wf-run-1',
+      kind: 'workflow-agent',
+    });
+
+    expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      userId: 'user-7',
+      apiKeyId: 'key-1',
+    });
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.text).toContain('api_key_id');
+    expect(upsert?.values).toEqual(
+      expect.arrayContaining(['user-7', 'invoices/monthly', 'key-1']),
+    );
+  });
+
+  it('evaluates a trigger-started run as nobody: org caps only, booked under the automation sentinel', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 500,
+    });
+    const { sql, statements } = fakeSql([
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'trigger:t-1',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+          },
+        ],
+      },
+    ]);
+
+    await reserveTurnBudget(sql, {
+      ...ARGS,
+      sessionId: 'wf-run-2',
+      kind: 'workflow-agent',
+    });
+
+    expect(gate.loadBudgetSubject).not.toHaveBeenCalled();
+    expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: '__automation__',
+        userTeamIds: [],
+        impersonal: true,
+      }),
+    );
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.values).toEqual(
+      expect.arrayContaining(['__automation__', 'invoices/monthly']),
     );
   });
 });

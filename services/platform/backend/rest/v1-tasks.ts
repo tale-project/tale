@@ -58,6 +58,7 @@ import {
   readIntegerCursor,
   readPageLimit,
   readQuery,
+  restApiKeyId,
   type RestEnv,
   restProjectAuth,
   RestRefusal,
@@ -326,6 +327,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     projectId: string,
     taskId: string,
     workflowSlug: string,
+    /** The key that authenticated the start — the run's spend books to it. */
+    apiKeyId?: string,
   ): Promise<Awaited<ReturnType<typeof startWorkflowForTaskInTx>>> => {
     // postgres.js's begin result conditionally unwraps arrays; hold the
     // nullable result outside that conditional return type.
@@ -340,6 +343,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         workflowSlug,
         startedByUserId: auth.userId,
         startedVia: 'api-key',
+        ...(apiKeyId !== undefined ? { apiKeyId } : {}),
       });
     });
     return outcome;
@@ -421,6 +425,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           projectId,
           taskId,
           body.runWorkflowSlug,
+          restApiKeyId(c),
         ).then(
           (started) => started?.runId ?? null,
           (error: unknown) => {
@@ -568,6 +573,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         projectId,
         taskId,
         body.workflowSlug,
+        restApiKeyId(c),
       );
       if (started === null)
         return c.json({
@@ -688,12 +694,14 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           body: body.comment ?? '',
         });
         await updateTaskStatus(tx, actorAuth, task.id, 'in_progress');
+        const keyId = restApiKeyId(c);
         const started = await startWorkflowForTaskInTx(tx, {
           organizationId: auth.organizationId,
           task: { ...task, status: 'in_progress' },
           workflowSlug: workflowSlug ?? '',
           startedByUserId: actor.userId,
           startedVia: 'api-key',
+          ...(keyId !== undefined ? { apiKeyId: keyId } : {}),
         });
         return {
           status: 'in_progress' as const,

@@ -132,6 +132,11 @@ export interface OrgBudgetSubject {
   /** The API key that authenticated the request. Only a keyed request is
    * measured against `apiKey`-scoped caps. */
   apiKeyId?: string;
+  /** A subject that is nobody: a managed turn of a run a trigger started
+   * (booked under `__automation__`), or an op without a run to attribute.
+   * No personal, team or role cap binds it — there is no person to bind —
+   * only the organization's and, when a key was involved, the key's. */
+  impersonal?: boolean;
 }
 
 /**
@@ -224,17 +229,21 @@ async function bucketsFor(
   const periodKey = buildPeriodKeyFromTimestamp(period, now);
   const org = subject.organizationId;
   const buckets: BudgetBucket[] = [];
-  buckets.push({
-    scope: 'user',
-    rule: { scope: 'default', period, ...limitsTriple(limits) },
-    usage: withReserved(
-      await periodUsage(sql, org, periodKey, {
-        kind: 'user',
-        userId: subject.userId,
-      }),
-      reservations.user,
-    ),
-  });
+  // The personal triple binds a person; an impersonal subject has none
+  // (its team list is empty too, so no team bucket follows).
+  if (subject.impersonal !== true) {
+    buckets.push({
+      scope: 'user',
+      rule: { scope: 'default', period, ...limitsTriple(limits) },
+      usage: withReserved(
+        await periodUsage(sql, org, periodKey, {
+          kind: 'user',
+          userId: subject.userId,
+        }),
+        reservations.user,
+      ),
+    });
+  }
   // Each team's SHARED cap against that team's aggregate — the team rule's
   // own values, never the personal triple (see `EffectiveLimits.teamLimits`).
   for (const teamLimit of limits.teamLimits) {

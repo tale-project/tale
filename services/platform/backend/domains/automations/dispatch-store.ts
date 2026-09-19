@@ -9,6 +9,7 @@ import type {
 } from '../../../lib/engine/api/dispatch.ts';
 import type { Automation } from '../../../lib/engine/core/types.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
 import {
   boundRunTrace,
   truncateRunDetail,
@@ -71,10 +72,12 @@ export class ActorAuthError extends Error {
   }
 }
 
-/** The user an actor string names (`api-key:<userId>` → `<userId>`). */
+/** The user an actor string names (`api-key:<userId>` → `<userId>`, a bare
+ * id as itself) — read through the one parser of the starter format, so a
+ * value that names nobody (a `trigger:` or an unknown door) is refused
+ * as unauthenticated rather than mistaken for a user id. */
 function actorUserId(actor: string): string {
-  const separator = actor.indexOf(':');
-  return separator === -1 ? actor : actor.slice(separator + 1);
+  return runStarterUserId(actor) ?? '';
 }
 
 /** What a run this store starts records as its starter. An actor that
@@ -167,6 +170,9 @@ export interface PgStoreScope {
   organizationId: string;
   /** Who saves/runs are attributed to (`api-key:<userId>` or a user id). */
   actor: string;
+  /** The API key an `api-key:` actor authenticated with — recorded on the
+   * runs this store starts so their spend books to the key as well. */
+  apiKeyId?: string;
   projectId?: string;
 }
 
@@ -311,12 +317,14 @@ export function pgAutomationStore(
         const projectId = await authorizeInlineRun(tx, name, mode);
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.automation_runs (
-            org_id, name, version, project_id, status, mode, started_by, input, output,
+            org_id, name, version, project_id, status, mode, started_by,
+            api_key_id, input, output,
             checkpoints, trace, effects, detail, claim_epoch, started_at_ms,
             finished_at_ms
           ) VALUES (
             ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
-            ${runStarter(actor)}, ${tx.json(toJson(JSON.stringify(null)))},
+            ${runStarter(actor)}, ${scope.apiKeyId ?? null},
+            ${tx.json(toJson(JSON.stringify(null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
             ${tx.json(toJson(boundRunTrace(result.trace)))},
@@ -367,6 +375,7 @@ export function pgAutomationStore(
         input: input === undefined ? {} : input,
         mode,
         startedBy: runStarter(actor),
+        ...(scope.apiKeyId !== undefined ? { apiKeyId: scope.apiKeyId } : {}),
         ...(version !== undefined ? { version } : {}),
       };
       // The caller's idempotency key rides the REST door's own ledger —

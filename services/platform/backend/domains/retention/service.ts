@@ -305,6 +305,19 @@ async function sweepOrg(
         RETURNING org_id AS id
       `;
       stats.usageLedger = rows.length;
+      // The retired per-turn rows the chat lane wrote beside the ledger (no
+      // reader; the table goes in a later release) age out on the same clock.
+      await sql`
+        DELETE FROM app.usage_events
+        WHERE ctid IN (
+          SELECT ctid FROM app.usage_events
+          WHERE org_id = ${org.organizationId}
+            AND created_at_ms < ${cutoff}
+            AND (${protectedIds.length === 0}
+                 OR user_id <> ALL(${protectedIds}))
+          LIMIT ${BATCH_LIMIT}
+        )
+      `;
     }
   }
 

@@ -65,7 +65,7 @@ Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbrauc
 
 </Frame>
 
-- **Deine Limits** zählen deine eigenen Chats, Sprachausgaben und Agenten-Läufe. Ist eines erreicht, kannst du bis zum Zurücksetzen nichts davon neu starten: Eine Nachricht, die du dann sendest, wird mit einem Hinweis auf das Limit abgelehnt und bleibt im Eingabefeld.
+- **Deine Limits** zählen deine eigenen Chats, Sprachausgaben und Agenten-Läufe, egal auf welchem Weg du sie gestartet hast; [So wird die Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt, wem ein Lauf angerechnet wird. Ist eines erreicht, kannst du bis zum Zurücksetzen nichts davon neu starten: Eine Nachricht, die du dann sendest, wird mit einem Hinweis auf das Limit abgelehnt und bleibt im Eingabefeld.
 - **Geteilte Limits** zählen die Nutzung aller, für die sie gelten, etwa eines Teams, zu dem du gehörst, oder der gesamten Organisation. Sie können deshalb vor deinen eigenen Limits erreicht sein.
 - **Speicherplatz** vergleicht die Dateien, die du hochgeladen hast, mit deinem Speicherlimit. Ist es erreicht, werden neue Dokument-Uploads abgelehnt.
 

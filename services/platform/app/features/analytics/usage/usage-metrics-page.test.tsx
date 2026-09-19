@@ -27,10 +27,48 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
         capped: false,
       },
       series: [],
-      topAgents: [],
+      // A project agent books under its id and arrives with the name the
+      // backend resolved; an automation books under its name.
+      topAgents: [
+        {
+          agentSlug: 'agent-1',
+          displayName: 'Alice the agent',
+          requests: 3,
+          tokens: 300,
+          costCents: 30,
+        },
+        {
+          agentSlug: 'invoices/monthly',
+          requests: 2,
+          tokens: 200,
+          costCents: 20,
+        },
+      ],
       topModels: [],
       topVoiceModels: [],
-      users: [],
+      // A person, and the bucket trigger-started runs book under.
+      users: [
+        {
+          userId: 'user-1',
+          displayName: 'Ada',
+          teamId: null,
+          inputTokens: 10,
+          outputTokens: 5,
+          tokens: 15,
+          costCents: 3,
+          requests: 2,
+        },
+        {
+          userId: '__automation__',
+          displayName: '__automation__',
+          teamId: null,
+          inputTokens: 20,
+          outputTokens: 10,
+          tokens: 30,
+          costCents: 7,
+          requests: 1,
+        },
+      ],
     },
     isLoading: false,
   }),
@@ -59,6 +97,20 @@ describe('UsageMetricsPage', () => {
     // Static summary-card labels asserted by the E2E.
     expect(screen.getByText('Total requests')).toBeInTheDocument();
     expect(screen.getByText('Active users')).toBeInTheDocument();
+  });
+
+  it('names a project agent and labels the automation bucket, never an id', () => {
+    render(<UsageMetricsPage organizationId="org-1" />);
+
+    expect(screen.getByText('Alice the agent')).toBeInTheDocument();
+    expect(screen.getByText('invoices/monthly')).toBeInTheDocument();
+    expect(screen.getByText('Ada')).toBeInTheDocument();
+    expect(screen.getByText('Automations (triggers)')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Each row is the member who sent the chat/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('__automation__')).not.toBeInTheDocument();
+    expect(screen.queryByText('agent-1')).not.toBeInTheDocument();
   });
 
   it('passes axe audit in its loaded state', async () => {

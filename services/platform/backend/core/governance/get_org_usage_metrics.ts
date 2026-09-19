@@ -1,6 +1,7 @@
 import {
   bucketAgentSlug,
   classifyUsageRow,
+  isAutomationSubject,
 } from '../../../lib/shared/constants/usage';
 import { buildPeriodKeyFromTimestamp } from './helpers';
 
@@ -35,6 +36,10 @@ export interface UsageTopAgent {
   // Never null — every ledger row resolves to exactly one bucket via
   // bucketAgentSlug() so the UI can render a precise label.
   agentSlug: string;
+  /** The name behind a slug that is an id the read side resolved — a
+   * project agent books under its id (`governance/README.md`). Absent for a
+   * chat assistant's slug, an automation's name and the sentinels. */
+  displayName?: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -161,6 +166,7 @@ export async function foldOrgUsageMetrics(
   args: GetOrgUsageMetricsArgs,
   now: number,
   resolveUserNames: (userIds: string[]) => Promise<Map<string, string>>,
+  resolveAgentNames?: (agentSlugs: string[]) => Promise<Map<string, string>>,
 ): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
 
@@ -241,7 +247,9 @@ export async function foldOrgUsageMetrics(
         prevTotalRequests += row.requestCount;
         prevTotalTokens += row.totalTokens;
         prevTotalCostCents += row.costEstimate;
-        if (row.requestCount > 0) prevActiveUserIds.add(row.userId);
+        if (row.requestCount > 0 && !isAutomationSubject(row.userId)) {
+          prevActiveUserIds.add(row.userId);
+        }
       }
       continue;
     }
@@ -257,7 +265,11 @@ export async function foldOrgUsageMetrics(
     totalOutputTokens += row.outputTokens;
     totalTokens += row.totalTokens;
     totalCostCents += row.costEstimate;
-    if (row.requestCount > 0) activeUserIds.add(row.userId);
+    // The automation sentinel is a bucket, not a member — it holds the spend
+    // of trigger-started runs and never counts as an active user.
+    if (row.requestCount > 0 && !isAutomationSubject(row.userId)) {
+      activeUserIds.add(row.userId);
+    }
 
     // Classify by schema discriminator (connectorName / audioDurationSec /
     // model) so connector and transcription rows route to their own buckets
@@ -358,7 +370,7 @@ export async function foldOrgUsageMetrics(
   // prompt-token counts that are tiny relative to per-image cost. Cost-desc
   // matches what admins actually care about ($$ ranking). Tokens and slug
   // serve as deterministic tiebreakers so Top-N stays stable across calls.
-  const topAgents: UsageTopAgent[] = [...agentBuckets.values()]
+  const rankedAgents = [...agentBuckets.values()]
     .sort(
       (a, b) =>
         b.costCents - a.costCents ||
@@ -366,6 +378,17 @@ export async function foldOrgUsageMetrics(
         a.agentSlug.localeCompare(b.agentSlug),
     )
     .slice(0, TOP_N);
+  // A project agent books under its id; the table shows its name. The
+  // buckets are this fold's own objects, so the name lands on them in place.
+  const agentNameMap =
+    resolveAgentNames === undefined
+      ? new Map<string, string>()
+      : await resolveAgentNames(rankedAgents.map((a) => a.agentSlug));
+  for (const agent of rankedAgents) {
+    const displayName = agentNameMap.get(agent.agentSlug);
+    if (displayName !== undefined) agent.displayName = displayName;
+  }
+  const topAgents: UsageTopAgent[] = rankedAgents;
 
   const topModels: UsageTopModel[] = [...modelBuckets.values()]
     .sort(

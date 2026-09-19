@@ -14,6 +14,8 @@ description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach 
 
 Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chattiteln stehen. Die Zahl der Anfragen entspricht daher nicht immer der Zahl gesendeter Nachrichten. Für die Sprachausgabe gibt es eine eigene Tabelle der Sprachmodelle.
 
+**Nutzung pro Benutzer** ordnet jede Anfrage einer Person zu: dem Mitglied, das die Chatnachricht gesendet oder den Agentenlauf gestartet hat, auch über die REST-API oder den MCP-Endpoint. Läufe, die ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat, haben keine Person dahinter. Ihre Nutzung erscheint als eine Zeile mit dem Namen **Automatisierungen (Trigger)**, die nicht als aktiver Benutzer zählt. In der Assistententabelle stehen ein Projekt-Agent und eine Automatisierung jeweils unter ihrem Namen. [So wird die Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt die Regel für jede Art von Arbeit.
+
 ## Kosten zusammen mit Tokens lesen
 
 Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie Sprach- oder Bilderzeugung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.

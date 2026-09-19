@@ -42,6 +42,9 @@ export interface RestContext {
   ctx: HttpCtx;
   user: AuthUser;
   org: OrgInfo;
+  /** The API key row the bearer verified as, when the door knows it — the
+   * MCP door hands it to the engine so a keyed start books to its key. */
+  apiKeyId?: string;
 }
 
 // ---------------------------------------------------------------------------

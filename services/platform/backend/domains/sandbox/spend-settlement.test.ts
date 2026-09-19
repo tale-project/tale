@@ -1,10 +1,12 @@
 /**
  * The PG side of the settlement: booking a spend stamps the op row and
- * increments the org usage ledger ONCE, under the run's starter and agent
- * (task runs) or the automation run's starter (workflow ops); a replay
- * finds the fact closed and books nothing; the reconcile sweep selects only
- * finalized ops whose settlement is still open past the grace. The gateway
- * client is replaced; the SQL shapes are asserted on a scripted `sql`.
+ * increments the org usage ledger ONCE, under the run's billing subject —
+ * the person the starter names by bare id and the agent's id (task runs),
+ * the person or the automation sentinel plus the key (workflow ops); a
+ * replay finds the fact closed and books nothing; the reconcile sweep
+ * selects only finalized ops whose settlement is still open past the grace.
+ * The gateway client is replaced; the SQL shapes are asserted on a scripted
+ * `sql`.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -67,7 +69,7 @@ describe('settleSessionOpSpend', () => {
       },
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'user-1', agentName: 'Alice' }],
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
       },
     ]);
 
@@ -88,7 +90,7 @@ describe('settleSessionOpSpend', () => {
     expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
       organizationId: 'org-1',
       userId: 'user-1',
-      agentSlug: 'Alice',
+      agentSlug: 'agent-alice',
       costEstimateCents: 25,
       inputTokens: 1_200,
       outputTokens: 300,
@@ -111,7 +113,13 @@ describe('settleSessionOpSpend', () => {
       },
       {
         match: 'JOIN app.automation_runs ar',
-        rows: [{ startedBy: 'user-2', name: 'invoices/monthly' }],
+        rows: [
+          {
+            startedBy: 'user:user-2',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+          },
+        ],
       },
     ]);
 
@@ -121,12 +129,83 @@ describe('settleSessionOpSpend', () => {
       spentCents: 4.5,
     });
 
+    // The door prefix never reaches the ledger — the person does.
     expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
       userId: 'user-2',
       agentSlug: 'invoices/monthly',
       costEstimateCents: 4.5,
       provider: 'deepseek',
       model: 'deepseek-v4',
+    });
+    expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).not.toHaveProperty(
+      'apiKeyId',
+    );
+  });
+
+  it('books a keyed start to the person and the key', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          { organizationId: 'org-1', kind: 'workflow-agent', modelRef: null },
+        ],
+      },
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'api-key:user-3',
+            name: 'invoices/monthly',
+            apiKeyId: 'key-1',
+          },
+        ],
+      },
+    ]);
+
+    await settleSessionOpSpend(sql, {
+      sessionId: 'wf-run-2',
+      execId: 'exec-3',
+      spentCents: 2,
+    });
+
+    expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
+      userId: 'user-3',
+      apiKeyId: 'key-1',
+      agentSlug: 'invoices/monthly',
+      costEstimateCents: 2,
+    });
+  });
+
+  it('books a trigger-started run under the automation sentinel', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          { organizationId: 'org-1', kind: 'workflow-agent', modelRef: null },
+        ],
+      },
+      {
+        match: 'JOIN app.automation_runs ar',
+        rows: [
+          {
+            startedBy: 'trigger:t-1',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+          },
+        ],
+      },
+    ]);
+
+    await settleSessionOpSpend(sql, {
+      sessionId: 'wf-run-3',
+      execId: 'exec-4',
+      spentCents: 3,
+    });
+
+    expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
+      userId: '__automation__',
+      agentSlug: 'invoices/monthly',
+      costEstimateCents: 3,
     });
   });
 

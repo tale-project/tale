@@ -579,8 +579,11 @@ export async function estimateTurnCostCents(
   }
 }
 
-/** The usage ledger: the fine-grained event row plus the governance
- * period-bucket aggregates (both best-effort together — one write). */
+/** The usage ledger: the governance period-bucket aggregates
+ * (`app.usage_ledger`) — the ONE ledger every read side folds, under the
+ * person the turn spends for (`domains/governance/README.md`). The per-turn
+ * `app.usage_events` row this used to write beside it had no reader; it is
+ * retired here and dropped in a later release. */
 export function createPgUsageLedger(sql: Sql): UsageLedger {
   return {
     async record(entry) {
@@ -589,16 +592,6 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
       // budgets, the budget-status gate) sums THIS column — nothing joins a
       // price in later, so a 0 here is model spend that never existed.
       const costEstimateCents = await estimateTurnCostCents(sql, entry);
-      await sql`
-        INSERT INTO app.usage_events (
-          org_id, user_id, agent_slug, model, provider, input_tokens,
-          output_tokens, total_tokens, created_at_ms
-        ) VALUES (
-          ${entry.organizationId}, ${entry.userId}, ${entry.agentSlug ?? null},
-          ${entry.model}, ${entry.provider}, ${entry.inputTokens},
-          ${entry.outputTokens}, ${entry.totalTokens}, ${now}
-        )
-      `;
       await incrementUsageLedger(sql, {
         organizationId: entry.organizationId,
         userId: entry.userId,
