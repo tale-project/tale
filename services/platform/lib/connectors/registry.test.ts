@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(17);
+    expect(loaded.connectors).toHaveLength(18);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,
@@ -39,6 +39,9 @@ describe('connector registry', () => {
     // Platform capabilities are connectors too — the mail packs call this one.
     expect(loaded.nodeTypes).toContain('conversation.sync_mailbox');
     expect(loaded.nodeTypes).toContain('conversation.list_mailbox_messages');
+    // A drafted reply is a platform capability too, and a decision is one call.
+    expect(loaded.nodeTypes).toContain('conversation.draft_reply');
+    expect(loaded.nodeTypes).toContain('jev.decide');
   });
 
   it('exposes each action to the engine with its schema and signature', () => {

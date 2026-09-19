@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 29 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -221,6 +221,16 @@ rows lead with the subject.
   admins only) and each team by name; **My teams** keeps only the A row, the
   choice lands in the URL as `?queue=…` and survives a reload; the member of
   A sees no **Unassigned** option and no unassigned rows at all.
+
+- [ ] `CONV-F13` · **A drafted reply waits for a person** — With a populated
+  thread, have an automation call `conversation.draft_reply` on it (or seed one
+  pending `conversations` approval carrying `metadata.emailBody`), then open the
+  thread → The draft renders in the reading pane as a **pending message** below
+  the thread; nothing has been sent and the customer's mailbox is untouched.
+  Send from the composer → the pending message resolves into the sent reply and
+  the draft does not reappear on reload. Draft twice on one conversation → the
+  pane still shows exactly one pending message (migration 0108's partial unique
+  index), and the second call reports the first card rather than minting a twin.
 
 ## Boundary & error tests
 

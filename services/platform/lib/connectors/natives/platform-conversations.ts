@@ -66,6 +66,15 @@ const listMailboxInput = z
   })
   .strict();
 
+const draftReplyInput = z
+  .object({
+    conversationId: z.string().min(1),
+    body: z.string().min(1),
+    guidelineVersion: z.string().min(1).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+
 const cursorInput = z
   .object({
     connectorSlug: z.string().min(1),
@@ -94,6 +103,12 @@ export interface ConversationSyncCursor {
 
 export interface ConversationListMailboxResult {
   messages: Array<Record<string, unknown>>;
+}
+
+export interface ConversationDraftReplyResult {
+  approvalId: string;
+  /** False when the conversation already carried a pending draft. */
+  created: boolean;
 }
 
 /** What the rim needs from the conversation domain. */
@@ -130,6 +145,15 @@ export interface WorkflowConversationStore {
     limit: number;
     mode: 'mock' | 'live';
   }): Promise<ConversationListMailboxResult>;
+  draftReply(args: {
+    organizationId: string;
+    conversationId: string;
+    body: string;
+    guidelineVersion?: string;
+    confidence?: number;
+    runId?: string;
+    nodeId?: string;
+  }): Promise<ConversationDraftReplyResult>;
 }
 
 function refuse(action: string, issues: z.ZodError): never {
@@ -222,7 +246,24 @@ export function platformConversationNatives(
     });
   };
 
+  const draft_reply: NativeConnectorImpl = async (
+    raw: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = draftReplyInput.safeParse(raw);
+    if (!parsed.success) refuse('draft_reply', parsed.error);
+    const { conversationId, body, guidelineVersion, confidence } = parsed.data;
+    return await store.draftReply({
+      organizationId: ctx.organizationId,
+      conversationId,
+      body,
+      ...(guidelineVersion !== undefined && { guidelineVersion }),
+      ...(confidence !== undefined && { confidence }),
+    });
+  };
+
   return {
+    'conversation.draft_reply': draft_reply,
     'conversation.ingest_emails': ingest_emails,
     'conversation.ingest_sent_emails': ingest_sent_emails,
     'conversation.query_sync_cursor': query_sync_cursor,
