@@ -50,6 +50,7 @@ export async function handleProppatch(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
+      userId: auth.userId,
       namespace: parsed.namespace,
       segments: parsed.segments,
     },

@@ -155,6 +155,7 @@ async function doMoveOrCopy(
 
   const src = await ctx.backend.query(anyRefs.webdav.tree_queries.resolvePath, {
     organizationId: auth.organizationId,
+    userId: auth.userId,
     namespace: parsed.namespace,
     segments: parsed.segments,
   });
@@ -284,6 +285,15 @@ async function doMoveOrCopy(
     }
     if (code === 'NOT_FOUND') {
       return { status: 404, headers: {}, body: 'Not found' };
+    }
+    if (code === 'FORBIDDEN') {
+      // An overwrite would delete a tree holding resources outside the
+      // caller's audience — refused whole.
+      return {
+        status: 403,
+        headers: {},
+        body: 'The destination holds resources you cannot replace',
+      };
     }
     if (code === 'SUBTREE_TOO_LARGE') {
       // The source subtree exceeds what one transaction can copy/move-fixup

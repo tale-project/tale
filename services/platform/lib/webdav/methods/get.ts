@@ -124,6 +124,7 @@ export async function handleGet(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
+      userId: auth.userId,
       namespace: parsed.namespace,
       segments: parsed.segments,
     },
@@ -146,6 +147,7 @@ export async function handleGet(
     anyRefs.webdav.tree_queries.getDocumentProps,
     {
       organizationId: auth.organizationId,
+      userId: auth.userId,
       documentId: resolved.documentId,
     },
   );

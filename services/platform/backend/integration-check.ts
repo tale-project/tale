@@ -6237,7 +6237,15 @@ async function checkDocumentWriteGuards(
     RETURNING "id"
   `;
   const teamId = teamRows[0]?.id ?? '';
+  // The owner is an admin: an admin files into ANY team of the organization
+  // (`assertTeamsAssignable`), a writer only into their own — the editor is
+  // not in this team.
   const foreignRest = await v1(ownerKey, 'POST', '/documents', {
+    title: 'team-scoped.txt',
+    teamId,
+  });
+  const editorKey = await mintKey(editorCookie, 'itest-doc-guards-editor');
+  const foreignEditor = await v1(editorKey, 'POST', '/documents', {
     title: 'team-scoped.txt',
     teamId,
   });
@@ -6270,19 +6278,22 @@ async function checkDocumentWriteGuards(
   });
   const bogusRestCode = await codeIn(bogusRest);
   const bogusAppCode = await codeIn(bogusApp);
+  const foreignEditorCode = await codeIn(foreignEditor);
   record(
-    'hub teamId is validated on create + patch (never file into the void)',
-    bogusRest.status === 403 &&
-      bogusRestCode === 'TEAM_ACCESS_DENIED' &&
-      foreignRest.status === 403 &&
-      bogusApp.status === 403 &&
-      bogusAppCode === 'TEAM_ACCESS_DENIED' &&
+    'hub teamId is validated on create + patch (never file into the void, a writer only into their own teams)',
+    bogusRest.status === 400 &&
+      bogusRestCode === 'TEAM_NOT_IN_ORG' &&
+      foreignRest.status === 201 &&
+      foreignEditor.status === 403 &&
+      foreignEditorCode === 'TEAM_ACCESS_DENIED' &&
+      bogusApp.status === 400 &&
+      bogusAppCode === 'TEAM_NOT_IN_ORG' &&
       memberOfTeam.success &&
       teamStamp[0]?.teamId === teamId &&
       (teamStamp[0]?.teamTags ?? []).join(',') === teamId &&
       patchTeam.status === 200 &&
       clearTeam.status === 200,
-    `bogusRest → ${bogusRest.status}/${bogusRestCode} (want 403/TEAM_ACCESS_DENIED), foreignTeam → ${foreignRest.status} (want 403), bogusApp → ${bogusApp.status}/${bogusAppCode}, joined+create → ${memberOfTeam.success ? 'ok' : 'ERR'}, stamp=${teamStamp[0]?.teamId === teamId ? 'ok' : 'MISS'}, patch → ${patchTeam.status}, clear → ${clearTeam.status}`,
+    `bogusRest → ${bogusRest.status}/${bogusRestCode} (want 400/TEAM_NOT_IN_ORG), admin into a team not theirs → ${foreignRest.status} (want 201), editor into a team not theirs → ${foreignEditor.status}/${foreignEditorCode} (want 403/TEAM_ACCESS_DENIED), bogusApp → ${bogusApp.status}/${bogusAppCode} (want 400/TEAM_NOT_IN_ORG), joined+create → ${memberOfTeam.success ? 'ok' : 'ERR'}, stamp=${teamStamp[0]?.teamId === teamId ? 'ok' : 'MISS'}, patch → ${patchTeam.status}, clear → ${clearTeam.status}`,
   );
 }
 
@@ -38766,6 +38777,26 @@ async function checkBrandingAndTeams(
     SELECT count(*)::text AS count FROM app_realtime.outbox
     WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
   `;
+  // The caller is the team's ONLY member now: the admin door keeps a team
+  // from dropping to zero members (409 `TEAM_LAST_MEMBER`), so the removal
+  // waits for a second member.
+  const lastMember = await fetch(
+    `${base}/api/app/teams/${teamId}/members/${userId}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const lastMemberCode = z
+    .looseObject({ error: z.string().optional() })
+    .safeParse(await lastMember.json().catch(() => null));
+  const second = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'team-second',
+    'member',
+  );
+  await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+    userId: second.userId,
+  });
   const removed = z
     .object({ removed: z.boolean() })
     .safeParse(
@@ -38781,7 +38812,7 @@ async function checkBrandingAndTeams(
     WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
   `;
   record(
-    'teams: add/dedupe/list/remove membership, outsiders refused',
+    'teams: add/dedupe/list/remove membership, outsiders refused, never the last member',
     added.success &&
       !added.data.alreadyMember &&
       dup.success &&
@@ -38791,17 +38822,21 @@ async function checkBrandingAndTeams(
       listed.data.members.length === 1 &&
       listed.data.members[0]?.userId === userId &&
       typeof listed.data.members[0]?.email === 'string' &&
+      lastMember.status === 409 &&
+      lastMemberCode.success &&
+      lastMemberCode.data.error === 'TEAM_LAST_MEMBER' &&
       removed.success &&
       removed.data.removed &&
       mineHit &&
-      // caller add (1) + hint member add (2) + cascade (3) → direct remove (4)
+      // caller add (1) + hint member add (2) + cascade (3) → the refused
+      // removal hints nothing; second member add (4) → direct remove (5)
       hintsAfterAdd[0]?.count === '3' &&
-      hintsAfterRemove[0]?.count === '4' &&
+      hintsAfterRemove[0]?.count === '5' &&
       memberAdded.success &&
       memberHints[0]?.count === '3' &&
       cascadeHint === 1 &&
       cascadeLeftTeam[0]?.count === '0',
-    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 3→4), memberHints=${memberHints[0]?.count} (want 3), cascadeTeamHint=${cascadeHint} (want 1) cascadeLeftTeam=${cascadeLeftTeam[0]?.count} (want 0), removed=${removed.success ? removed.data.removed : 'ERR'}`,
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, last member → ${lastMember.status}/${lastMemberCode.success ? lastMemberCode.data.error : 'ERR'} (want 409/TEAM_LAST_MEMBER), hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 3→5), memberHints=${memberHints[0]?.count} (want 3), cascadeTeamHint=${cascadeHint} (want 1) cascadeLeftTeam=${cascadeLeftTeam[0]?.count} (want 0), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
 
   // --- Org/Teams settings tail (inc 87) ------------------------------------
@@ -49172,13 +49207,14 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
- * Team scope retirement: the columns a team scopes (projects' owner/shared
- * teams, folder + document tags, conversation queues, sync configs) have no
- * FK to `"team"`, and every team-deletion door used to delete the team row
- * alone — a project scoped to the gone team was locked to admins with no way
- * out. Every door now retires the scopes: SCIM `deleteGroup` in its own
- * transaction, Better Auth's `remove-team` (the settings UI's door) through
- * `afterDeleteTeam`, and the daily sweep for ghosts that predate the doors.
+ * Team audience on real Postgres: the ONE rule (`core/lib/audience.ts`)
+ * behind documents, folders and projects, the assignment rule every write
+ * door runs, the rollout fallback for a project row the previous image
+ * wrote, and team deletion as ONE transaction — through the app door
+ * (`DELETE /api/app/teams/:id`, with its impact preview), SCIM `deleteGroup`
+ * and Better Auth's own `remove-team` — so no ghost scope can outlive a
+ * team. Closes with migration 0109 applied twice more on live rows: the
+ * backfill lands once, a further run changes nothing.
  */
 async function checkTeamScopeRetirement(
   sql: Sql,
@@ -49200,28 +49236,104 @@ async function checkTeamScopeRetirement(
   const teamA = await mkTeam('Scope A');
   const teamB = await mkTeam('Scope B');
   const teamC = await mkTeam('Scope C');
+  const teamD = await mkTeam('Scope D');
+  const teamE = await mkTeam('Scope E');
+  // A reader in no team, a writer (team E later), a developer (WebDAV
+  // credentials, no team). The suite's owner is the admin of every lane.
   const member = await signUpOrgMember(sql, base, orgId, 'teamscope', 'member');
+  const editor = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'teamscope-editor',
+    'editor',
+  );
+  const developer = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'teamscope-dev',
+    'developer',
+  );
+  const sendAs = (
+    asCookie: string,
+    method: 'GET' | 'POST' | 'DELETE',
+    route: string,
+    payload?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    });
+  const errorCodeOf = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({
+        error: z.string().optional(),
+        code: z.string().optional(),
+      })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.code ?? parsed.data.error ?? '') : '';
+  };
+  const teams = (route: string): string =>
+    `/api/app/teams${route}?orgId=${orgId}`;
+  const folders = (route = ''): string =>
+    `/api/app/folders${route}?orgId=${orgId}`;
+
   let projectSeq = 0;
-  const mkProject = async (
+  const projectKey = (): string => {
+    projectSeq += 1;
+    return `TS${now.toString(36).slice(-4)}${projectSeq}`;
+  };
+  /** A project row as the PREVIOUS image writes it during a rollout: the
+   * legacy pair only, `team_ids` left at its default. */
+  const mkLegacyProject = async (
     name: string,
     teamId: string | null,
     shared: string[],
+    updatedAt = now,
   ): Promise<string> => {
-    projectSeq += 1;
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.projects (
         org_id, name, key, team_id, shared_with_team_ids,
         created_by, created_at_ms, updated_at_ms
       ) VALUES (
-        ${orgId}, ${name}, ${`TS${now.toString(36).slice(-4)}${projectSeq}`},
-        ${teamId}, ${shared}, ${ctx.userId}, ${now}, ${now}
+        ${orgId}, ${name}, ${projectKey()}, ${teamId}, ${shared},
+        ${ctx.userId}, ${now}, ${updatedAt}
       )
       RETURNING id
     `;
     return rows[0]?.id ?? '';
   };
-  const ownedByA = await mkProject('Owned by A, shared B', teamA, [teamB]);
-  const sharedWithA = await mkProject('Owned by B, shared A', teamB, [teamA]);
+  /** A project row as THIS image writes it: the audience array with its
+   * two derived mirrors. */
+  const mkProject = async (
+    name: string,
+    teamIds: string[],
+    updatedAt = now,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (
+        org_id, name, key, team_ids, team_id, shared_with_team_ids,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, ${projectKey()}, ${teamIds}, ${teamIds[0] ?? null},
+        ${teamIds.slice(1)}, ${ctx.userId}, ${now}, ${updatedAt}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const legacyProject = await mkLegacyProject(
+    'Legacy: owned by A, shared B',
+    teamA,
+    [teamB],
+  );
+  const arrayProject = await mkProject('Audience B then A', [teamB, teamA]);
   const folderRows = await sql<{ id: string }[]>`
     INSERT INTO app.folders (org_id, name, team_id, team_tags, created_by,
                              created_at_ms)
@@ -49273,45 +49385,119 @@ async function checkTeamScopeRetirement(
       return false;
     }
   };
-  const lockedBefore = !(await memberCanRead(ownedByA));
+  const readsLegacyBefore = await memberCanRead(legacyProject);
+  const readsArrayBefore = await memberCanRead(arrayProject);
+  record(
+    'teams: a project the previous image wrote (legacy pair, empty array) stays team-scoped for the new readers',
+    !readsLegacyBefore && !readsArrayBefore,
+    `member of no team reads legacy-shape project=${readsLegacyBefore} array-shape project=${readsArrayBefore} (want false/false)`,
+  );
 
-  // Door 1 — SCIM deleteGroup retires the scopes in its own transaction.
-  const { deleteGroup } = await import('./domains/scim/service.ts');
-  const scimDeleted = await deleteGroup(sql, orgId, teamA);
-  const scope = async (): Promise<{
-    ownedTeam: string | null;
-    ownedShared: string[];
-    sharedTeam: string | null;
-    sharedShared: string[];
+  // ---- the delete preview, and the doors a non-admin cannot open
+  const impactSchema = z.object({
+    impact: z.object({
+      teamId: z.string(),
+      name: z.string(),
+      memberCount: z.number(),
+      projects: z.object({ scoped: z.number(), becomeOrgWide: z.number() }),
+      folders: z.object({ scoped: z.number(), becomeOrgWide: z.number() }),
+      documents: z.object({ scoped: z.number(), becomeOrgWide: z.number() }),
+      conversations: z.object({ queued: z.number() }),
+      syncConfigs: z.object({ scoped: z.number() }),
+    }),
+  });
+  const readImpact = async (
+    asCookie: string,
+    teamId: string,
+  ): Promise<{
+    status: number;
+    impact: z.infer<typeof impactSchema> | null;
+  }> => {
+    const res = await sendAs(asCookie, 'GET', teams(`/${teamId}/impact`));
+    const parsed = impactSchema.safeParse(await res.json().catch(() => null));
+    return { status: res.status, impact: parsed.success ? parsed.data : null };
+  };
+  const impactA = await readImpact(cookie, teamA);
+  const iA = impactA.impact?.impact;
+  record(
+    'teams: the delete preview counts every scope the team carries and what would become organization-wide',
+    impactA.status === 200 &&
+      iA !== undefined &&
+      iA.name === 'Scope A' &&
+      iA.memberCount === 0 &&
+      iA.projects.scoped === 2 &&
+      iA.projects.becomeOrgWide === 0 &&
+      iA.folders.scoped === 1 &&
+      iA.folders.becomeOrgWide === 0 &&
+      iA.documents.scoped === 1 &&
+      iA.documents.becomeOrgWide === 0 &&
+      iA.conversations.queued === 1 &&
+      iA.syncConfigs.scoped === 1,
+    `impact → ${impactA.status} (want 200): ${JSON.stringify(iA)} (want projects 2/0, folders 1/0, documents 1/0, conversations 1, syncConfigs 1, members 0)`,
+  );
+
+  const memberImpact = await sendAs(
+    member.cookie,
+    'GET',
+    teams(`/${teamA}/impact`),
+  );
+  const memberDelete = await sendAs(
+    member.cookie,
+    'DELETE',
+    teams(`/${teamA}`),
+  );
+  const memberDeleteCode = await errorCodeOf(memberDelete);
+  const directoryRes = await sendAs(member.cookie, 'GET', teams('/directory'));
+  const directory = z
+    .object({ teams: z.array(z.object({ id: z.string(), name: z.string() })) })
+    .safeParse(await directoryRes.json().catch(() => null));
+  const directoryIds = new Set(
+    directory.success ? directory.data.teams.map((team) => team.id) : [],
+  );
+  const teamARows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "team" WHERE "id" = ${teamA}
+  `;
+  record(
+    'teams: delete and its preview are admin doors; the directory names every team to any member',
+    memberImpact.status === 403 &&
+      memberDelete.status === 403 &&
+      memberDeleteCode === 'TEAM_FORBIDDEN' &&
+      teamARows[0]?.count === '1' &&
+      directoryRes.status === 200 &&
+      [teamA, teamB, teamC, teamD, teamE].every((id) => directoryIds.has(id)),
+    `member: impact → ${memberImpact.status}, delete → ${memberDelete.status}/${memberDeleteCode} (want 403/TEAM_FORBIDDEN), team still there=${teamARows[0]?.count}, directory → ${directoryRes.status} with ${directoryIds.size} teams (want all 5 although the member is in none)`,
+  );
+
+  // ---- Door 1 — SCIM deleteGroup retires the scopes in its own transaction.
+  interface ScopeRow {
+    legacyIds: string[];
+    legacyTeam: string | null;
+    legacyShared: string[];
+    arrayIds: string[];
+    arrayTeam: string | null;
+    arrayShared: string[];
     folderTeam: string | null;
     folderTags: string[];
     docTeam: string | null;
     docTags: string[];
     convTeam: string | null;
     syncTeam: string | null;
-  }> => {
-    const rows = await sql<
-      {
-        ownedTeam: string | null;
-        ownedShared: string[];
-        sharedTeam: string | null;
-        sharedShared: string[];
-        folderTeam: string | null;
-        folderTags: string[];
-        docTeam: string | null;
-        docTags: string[];
-        convTeam: string | null;
-        syncTeam: string | null;
-      }[]
-    >`
+  }
+  const scope = async (): Promise<ScopeRow> => {
+    const rows = await sql<ScopeRow[]>`
       SELECT
-        (SELECT team_id FROM app.projects WHERE id = ${ownedByA}) AS "ownedTeam",
-        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${ownedByA})
-          AS "ownedShared",
-        (SELECT team_id FROM app.projects WHERE id = ${sharedWithA})
-          AS "sharedTeam",
-        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${sharedWithA})
-          AS "sharedShared",
+        (SELECT team_ids FROM app.projects WHERE id = ${legacyProject})
+          AS "legacyIds",
+        (SELECT team_id FROM app.projects WHERE id = ${legacyProject})
+          AS "legacyTeam",
+        (SELECT shared_with_team_ids FROM app.projects
+          WHERE id = ${legacyProject}) AS "legacyShared",
+        (SELECT team_ids FROM app.projects WHERE id = ${arrayProject})
+          AS "arrayIds",
+        (SELECT team_id FROM app.projects WHERE id = ${arrayProject})
+          AS "arrayTeam",
+        (SELECT shared_with_team_ids FROM app.projects
+          WHERE id = ${arrayProject}) AS "arrayShared",
         (SELECT team_id FROM app.folders WHERE id = ${folderId}) AS "folderTeam",
         (SELECT team_tags FROM app.folders WHERE id = ${folderId}) AS "folderTags",
         (SELECT team_id FROM app.documents WHERE id = ${documentId}) AS "docTeam",
@@ -49324,10 +49510,12 @@ async function checkTeamScopeRetirement(
     `;
     return (
       rows[0] ?? {
-        ownedTeam: 'missing',
-        ownedShared: [],
-        sharedTeam: 'missing',
-        sharedShared: [],
+        legacyIds: ['missing'],
+        legacyTeam: 'missing',
+        legacyShared: [],
+        arrayIds: ['missing'],
+        arrayTeam: 'missing',
+        arrayShared: [],
         folderTeam: 'missing',
         folderTags: [],
         docTeam: 'missing',
@@ -49337,6 +49525,10 @@ async function checkTeamScopeRetirement(
       }
     );
   };
+  const only = (ids: string[], teamId: string): boolean =>
+    ids.length === 1 && ids[0] === teamId;
+  const { deleteGroup } = await import('./domains/scim/service.ts');
+  const scimDeleted = await deleteGroup(sql, orgId, teamA);
   const afterScim = await scope();
   const scimAudit = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
@@ -49344,82 +49536,638 @@ async function checkTeamScopeRetirement(
       AND resource_id = ${teamA}
   `;
   record(
-    'teams: SCIM group delete re-homes every scope the team carried',
-    lockedBefore &&
-      scimDeleted &&
-      afterScim.ownedTeam === teamB &&
-      afterScim.ownedShared.length === 0 &&
-      afterScim.sharedTeam === teamB &&
-      afterScim.sharedShared.length === 0 &&
+    'teams: SCIM group delete drops the team from every audience and re-derives the mirrors',
+    scimDeleted &&
+      only(afterScim.legacyIds, teamB) &&
+      afterScim.legacyTeam === teamB &&
+      afterScim.legacyShared.length === 0 &&
+      only(afterScim.arrayIds, teamB) &&
+      afterScim.arrayTeam === teamB &&
+      afterScim.arrayShared.length === 0 &&
+      only(afterScim.folderTags, teamB) &&
       afterScim.folderTeam === teamB &&
-      afterScim.folderTags.join(',') === teamB &&
+      only(afterScim.docTags, teamB) &&
       afterScim.docTeam === teamB &&
-      afterScim.docTags.join(',') === teamB &&
       afterScim.convTeam === null &&
       afterScim.syncTeam === null &&
       scimAudit[0]?.count === '1',
-    `member locked out before=${lockedBefore} (want true), deleted=${scimDeleted}, ` +
-      `owned project team=${afterScim.ownedTeam === teamB ? 'B' : String(afterScim.ownedTeam)}/shared=${afterScim.ownedShared.length} (want B/0), ` +
-      `shared project team=${afterScim.sharedTeam === teamB ? 'B' : String(afterScim.sharedTeam)}/shared=${afterScim.sharedShared.length} (want B/0), ` +
-      `folder=${afterScim.folderTeam === teamB ? 'B' : String(afterScim.folderTeam)}[${afterScim.folderTags.length}] doc=${afterScim.docTeam === teamB ? 'B' : String(afterScim.docTeam)}[${afterScim.docTags.length}] (want B[1]), ` +
-      `conversation=${String(afterScim.convTeam)} sync=${String(afterScim.syncTeam)} (want null), audit=${scimAudit[0]?.count}`,
+    `deleted=${scimDeleted}, legacy project ids=[${afterScim.legacyIds.length}] mirror=${afterScim.legacyTeam === teamB ? 'B' : String(afterScim.legacyTeam)}/${afterScim.legacyShared.length} (want [B] B/0), array project ids=[${afterScim.arrayIds.length}] mirror=${afterScim.arrayTeam === teamB ? 'B' : String(afterScim.arrayTeam)}/${afterScim.arrayShared.length} (want [B] B/0), folder=[${afterScim.folderTags.length}]/${afterScim.folderTeam === teamB ? 'B' : String(afterScim.folderTeam)} doc=[${afterScim.docTags.length}]/${afterScim.docTeam === teamB ? 'B' : String(afterScim.docTeam)} (want [1]/B), conversation=${String(afterScim.convTeam)} sync=${String(afterScim.syncTeam)} (want null), audit=${scimAudit[0]?.count}`,
   );
 
-  // Door 2 — the Better Auth endpoint the settings UI calls; its
-  // afterDeleteTeam hook retires the scopes, so the project the member
-  // could not see becomes organization-wide and readable.
+  // ---- Door 2 — the app door: one transaction, audited, with the preview
+  // saying what becomes organization-wide.
+  const impactB = await readImpact(cookie, teamB);
+  const iB = impactB.impact?.impact;
+  const deleteB = await sendAs(cookie, 'DELETE', teams(`/${teamB}`));
+  const deleteBody = z
+    .object({
+      deleted: z.literal(true),
+      retirement: z
+        .object({
+          projectsRetagged: z.number(),
+          foldersRetagged: z.number(),
+          documentsRetagged: z.number(),
+          conversationsUnassigned: z.number(),
+          syncConfigsUnscoped: z.number(),
+          nowOrgWide: z.object({
+            projects: z.number(),
+            folders: z.number(),
+            documents: z.number(),
+          }),
+        })
+        .strict(),
+    })
+    .safeParse(await deleteB.json().catch(() => null));
+  const afterApp = await scope();
+  const teamBRows = await sql<{ teams: string; members: string }[]>`
+    SELECT (SELECT count(*) FROM "team" WHERE "id" = ${teamB})::text AS teams,
+           (SELECT count(*) FROM "teamMember" WHERE "teamId" = ${teamB})::text
+             AS members
+  `;
+  const appAudit = await sql<{ metadata: Record<string, unknown> | null }[]>`
+    SELECT metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'team.deleted'
+      AND resource_id = ${teamB}
+  `;
+  const readsLegacyAfter = await memberCanRead(legacyProject);
+  const readsArrayAfter = await memberCanRead(arrayProject);
+  const deleteBAgain = await sendAs(cookie, 'DELETE', teams(`/${teamB}`));
+  const retirement = deleteBody.success ? deleteBody.data.retirement : null;
+  record(
+    'teams: the app door deletes a team atomically — scopes, memberships, row, audit — and reports what became organization-wide',
+    impactB.status === 200 &&
+      iB?.projects.scoped === 2 &&
+      iB.projects.becomeOrgWide === 2 &&
+      iB.folders.scoped === 1 &&
+      iB.folders.becomeOrgWide === 1 &&
+      iB.documents.scoped === 1 &&
+      iB.documents.becomeOrgWide === 1 &&
+      deleteB.status === 200 &&
+      retirement !== null &&
+      retirement.projectsRetagged === 2 &&
+      retirement.foldersRetagged === 1 &&
+      retirement.documentsRetagged === 1 &&
+      retirement.conversationsUnassigned === 0 &&
+      retirement.syncConfigsUnscoped === 0 &&
+      retirement.nowOrgWide.projects === 2 &&
+      retirement.nowOrgWide.folders === 1 &&
+      retirement.nowOrgWide.documents === 1 &&
+      afterApp.legacyIds.length === 0 &&
+      afterApp.legacyTeam === null &&
+      afterApp.legacyShared.length === 0 &&
+      afterApp.arrayIds.length === 0 &&
+      afterApp.arrayTeam === null &&
+      afterApp.folderTags.length === 0 &&
+      afterApp.folderTeam === null &&
+      afterApp.docTags.length === 0 &&
+      afterApp.docTeam === null &&
+      teamBRows[0]?.teams === '0' &&
+      teamBRows[0]?.members === '0' &&
+      appAudit.length === 1 &&
+      appAudit[0]?.metadata?.projectsRetagged === 2 &&
+      readsLegacyAfter &&
+      readsArrayAfter &&
+      deleteBAgain.status === 404,
+    `preview → ${impactB.status}: ${JSON.stringify(iB)} (want projects 2/2, folders 1/1, documents 1/1); delete → ${deleteB.status} ${JSON.stringify(retirement)} (want 2/1/1/0/0, org-wide 2/1/1, no touchedFileDocumentIds); after: project ids=[${afterApp.legacyIds.length}]/[${afterApp.arrayIds.length}] mirrors=${String(afterApp.legacyTeam)}/${String(afterApp.arrayTeam)} folder=[${afterApp.folderTags.length}] doc=[${afterApp.docTags.length}] (want all empty/null); team rows=${teamBRows[0]?.teams} members=${teamBRows[0]?.members} (want 0/0); audit rows=${appAudit.length} projectsRetagged=${String(appAudit[0]?.metadata?.projectsRetagged)}; member now reads legacy=${readsLegacyAfter} array=${readsArrayAfter} (want true); second delete → ${deleteBAgain.status} (want 404)`,
+  );
+
+  // ---- Door 3 — Better Auth's own remove-team: the plugin's hook still
+  // retires the scopes for a caller that reaches the endpoint directly.
+  const projectC = await mkProject('Audience C', [teamC]);
   const removeTeam = await fetch(`${base}/api/auth/organization/remove-team`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie, origin: base },
-    body: JSON.stringify({ teamId: teamB, organizationId: orgId }),
+    body: JSON.stringify({ teamId: teamC, organizationId: orgId }),
   });
-  const afterAuth = await scope();
-  const readableAfter = await memberCanRead(ownedByA);
+  const rowsC = await sql<
+    { teamIds: string[]; teamId: string | null; shared: string[] }[]
+  >`
+    SELECT team_ids AS "teamIds", team_id AS "teamId",
+           shared_with_team_ids AS shared
+    FROM app.projects WHERE id = ${projectC}
+  `;
   record(
-    'teams: the settings door (Better Auth remove-team) frees the scoped project',
+    'teams: Better Auth’s own remove-team still retires the scopes through its hook',
     removeTeam.status === 200 &&
-      afterAuth.ownedTeam === null &&
-      afterAuth.ownedShared.length === 0 &&
-      afterAuth.folderTeam === null &&
-      afterAuth.folderTags.length === 0 &&
-      afterAuth.docTeam === null &&
-      afterAuth.docTags.length === 0 &&
-      readableAfter,
-    `remove-team → ${removeTeam.status} (want 200), project team=${String(afterAuth.ownedTeam)}/shared=${afterAuth.ownedShared.length} (want null/0), folder tags=${afterAuth.folderTags.length} doc tags=${afterAuth.docTags.length} (want 0), member reads project=${readableAfter} (want true)`,
+      rowsC[0]?.teamIds.length === 0 &&
+      rowsC[0]?.teamId === null &&
+      rowsC[0]?.shared.length === 0,
+    `remove-team → ${removeTeam.status} (want 200), project ids=[${rowsC[0]?.teamIds.length}] mirror=${String(rowsC[0]?.teamId)}/${rowsC[0]?.shared.length} (want [0] null/0)`,
   );
 
-  // The sweep — a ghost from before the doors retired scopes (or a door
-  // that failed after its delete): retired the same way, once.
-  const ghostId = `ghost-${now}`;
-  const preExisting = await mkProject('Ghost owned, shared C', ghostId, [
-    teamC,
-  ]);
-  const { repairTeamScopes } = await import('./domains/teams/service.ts');
-  const firstSweep = await repairTeamScopes(sql);
-  const ghostRow = await sql<
-    { teamId: string | null; shared: string[]; updatedAt: number }[]
-  >`
-    SELECT team_id AS "teamId", shared_with_team_ids AS shared,
-           updated_at_ms::float8 AS "updatedAt"
-    FROM app.projects WHERE id = ${preExisting}
-  `;
-  const secondSweep = await repairTeamScopes(sql);
-  const ghostRowAfter = await sql<{ updatedAt: number }[]>`
-    SELECT updated_at_ms::float8 AS "updatedAt"
-    FROM app.projects WHERE id = ${preExisting}
-  `;
-  const sweptOurs = firstSweep.ghosts.some(
-    (g) => g.orgId === orgId && g.teamId === ghostId,
+  // ---- the last-member rule (team D: the member, then the owner)
+  const addMember = await sendAs(cookie, 'POST', teams(`/${teamD}/members`), {
+    userId: member.userId,
+  });
+  const removeLast = await sendAs(
+    cookie,
+    'DELETE',
+    teams(`/${teamD}/members/${member.userId}`),
   );
-  const sweptAgain = secondSweep.ghosts.some((g) => g.orgId === orgId);
+  const removeLastCode = await errorCodeOf(removeLast);
+  const countD = async (): Promise<string> =>
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM "teamMember"
+        WHERE "teamId" = ${teamD}
+      `
+    )[0]?.count ?? '';
+  const afterRefusal = await countD();
+  const addOwner = await sendAs(cookie, 'POST', teams(`/${teamD}/members`), {
+    userId: ctx.userId,
+  });
+  const removeOne = await sendAs(
+    cookie,
+    'DELETE',
+    teams(`/${teamD}/members/${member.userId}`),
+  );
+  const removeOneBody = z
+    .object({ removed: z.boolean() })
+    .safeParse(await removeOne.json().catch(() => null));
+  const afterRemoval = await countD();
   record(
-    'teams: the daily sweep retires a pre-existing ghost team once',
-    sweptOurs &&
-      ghostRow[0]?.teamId === teamC &&
-      ghostRow[0]?.shared.length === 0 &&
-      !sweptAgain &&
-      ghostRowAfter[0]?.updatedAt === ghostRow[0]?.updatedAt,
-    `first sweep found ours=${sweptOurs} (ghosts=${firstSweep.ghosts.length}), project team=${ghostRow[0]?.teamId === teamC ? 'C' : String(ghostRow[0]?.teamId)}/shared=${ghostRow[0]?.shared.length} (want C/0), second sweep touches this org=${sweptAgain} (want false)`,
+    'teams: the admin doors never take a team’s last member (409 TEAM_LAST_MEMBER)',
+    addMember.status === 201 &&
+      removeLast.status === 409 &&
+      removeLastCode === 'TEAM_LAST_MEMBER' &&
+      afterRefusal === '1' &&
+      addOwner.status === 201 &&
+      removeOne.status === 200 &&
+      removeOneBody.success &&
+      removeOneBody.data.removed &&
+      afterRemoval === '1',
+    `add → ${addMember.status} (want 201), remove the only member → ${removeLast.status}/${removeLastCode} (want 409/TEAM_LAST_MEMBER) leaving ${afterRefusal} (want 1), add a second → ${addOwner.status}, remove one of two → ${removeOne.status} removed=${removeOneBody.success ? removeOneBody.data.removed : 'ERR'} leaving ${afterRemoval} (want 1)`,
+  );
+
+  // ---- the assignment rule (the editor joins team E; nobody else is in E)
+  const addEditor = await sendAs(cookie, 'POST', teams(`/${teamE}/members`), {
+    userId: editor.userId,
+  });
+  const foreignFolder = await sendAs(editor.cookie, 'POST', folders(), {
+    name: `Scope D folder ${now}`,
+    teamIds: [teamD],
+  });
+  const foreignCode = await errorCodeOf(foreignFolder);
+  const ghostFolder = await sendAs(editor.cookie, 'POST', folders(), {
+    name: `Ghost folder ${now}`,
+    teamIds: [`ghost-${now}`],
+  });
+  const ghostCode = await errorCodeOf(ghostFolder);
+  const eFolderName = `Scope E folder ${now}`;
+  const ownFolder = await sendAs(editor.cookie, 'POST', folders(), {
+    name: eFolderName,
+    teamIds: [teamE],
+  });
+  const ownFolderBody = z
+    .object({ folderId: z.string() })
+    .safeParse(await ownFolder.json().catch(() => null));
+  const eFolderId = ownFolderBody.success ? ownFolderBody.data.folderId : '';
+  const adminFolder = await sendAs(cookie, 'POST', folders(), {
+    name: `Admin files into E ${now}`,
+    teamIds: [teamE],
+  });
+  const adminFolderBody = z
+    .object({ folderId: z.string() })
+    .safeParse(await adminFolder.json().catch(() => null));
+  const adminFolderId = adminFolderBody.success
+    ? adminFolderBody.data.folderId
+    : '';
+  const folderTags = async (
+    id: string,
+  ): Promise<{ tags: string[]; team: string | null }> => {
+    const rows = await sql<{ tags: string[]; team: string | null }[]>`
+      SELECT team_tags AS tags, team_id AS team FROM app.folders
+      WHERE id = ${id}
+    `;
+    return rows[0] ?? { tags: ['missing'], team: 'missing' };
+  };
+  const eFolder = await folderTags(eFolderId);
+  const aFolder = await folderTags(adminFolderId);
+  record(
+    'teams: a writer files only into their own teams, an admin into any team of the organization, nobody into a team that is not the organization’s',
+    addEditor.status === 201 &&
+      foreignFolder.status === 403 &&
+      foreignCode === 'FOLDER_TEAM_FORBIDDEN' &&
+      ghostFolder.status === 400 &&
+      ghostCode === 'TEAM_NOT_IN_ORG' &&
+      ownFolder.status === 200 &&
+      only(eFolder.tags, teamE) &&
+      eFolder.team === teamE &&
+      adminFolder.status === 200 &&
+      only(aFolder.tags, teamE) &&
+      aFolder.team === teamE,
+    `editor (in E only): folder for D → ${foreignFolder.status}/${foreignCode} (want 403/FOLDER_TEAM_FORBIDDEN), unknown team → ${ghostFolder.status}/${ghostCode} (want 400/TEAM_NOT_IN_ORG), own team → ${ownFolder.status} tags=[${eFolder.tags.length}] mirror=${eFolder.team === teamE ? 'E' : String(eFolder.team)} (want 200 [1] E); owner (not in E) → ${adminFolder.status} tags=[${aFolder.tags.length}] (want 200 [1])`,
+  );
+
+  // ---- folder inheritance through the REST create door, then who sees it
+  const mintKey = async (asCookie: string, name: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: asCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const editorKey = await mintKey(editor.cookie, 'itest-teamscope-editor');
+  const v1 = (
+    key: string,
+    method: 'GET' | 'POST',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const createdId = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({ id: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data.id : '';
+  };
+  // The editor is in E and D by now? No — only E. Naming D on a document
+  // inside the E folder fails on INHERITANCE first (the folder's audience is
+  // the document's), which is the refusal a client must see regardless of
+  // the caller's own teams.
+  const escapes = await v1(editorKey, 'POST', '/documents', {
+    title: `Escapes the folder ${now}`,
+    content: 'body',
+    folderId: eFolderId,
+    teamIds: [teamD],
+  });
+  const escapesCode = await errorCodeOf(escapes);
+  const inherits = await v1(editorKey, 'POST', '/documents', {
+    title: `Inherits E ${now}`,
+    content: 'body',
+    folderId: eFolderId,
+  });
+  const inheritsId = await createdId(inherits);
+  const rootTitle = `Root E ${now}`;
+  const rootDoc = await v1(editorKey, 'POST', '/documents', {
+    title: rootTitle,
+    content: 'body',
+    teamIds: [teamE],
+  });
+  const rootDocId = await createdId(rootDoc);
+  const docTags = async (
+    id: string,
+  ): Promise<{ tags: string[]; team: string | null }> => {
+    const rows = await sql<{ tags: string[]; team: string | null }[]>`
+      SELECT team_tags AS tags, team_id AS team FROM app.documents
+      WHERE id = ${id}
+    `;
+    return rows[0] ?? { tags: ['missing'], team: 'missing' };
+  };
+  const inheritedTags = await docTags(inheritsId);
+  const rootTags = await docTags(rootDocId);
+  record(
+    'teams: a document takes its folder’s audience and cannot name a team outside it',
+    escapes.status === 400 &&
+      escapesCode === 'TEAM_INHERITED_FROM_FOLDER' &&
+      inherits.status === 201 &&
+      only(inheritedTags.tags, teamE) &&
+      inheritedTags.team === teamE &&
+      rootDoc.status === 201 &&
+      only(rootTags.tags, teamE),
+    `naming D inside the E folder → ${escapes.status}/${escapesCode} (want 400/TEAM_INHERITED_FROM_FOLDER); no audience given → ${inherits.status} tags=[${inheritedTags.tags.length}] mirror=${inheritedTags.team === teamE ? 'E' : String(inheritedTags.team)} (want 201 [1] E); root document with E → ${rootDoc.status} tags=[${rootTags.tags.length}]`,
+  );
+
+  const pageTitles = async (asCookie: string): Promise<Set<string>> => {
+    const res = await sendAs(
+      asCookie,
+      'GET',
+      `/api/app/documents/paginated?orgId=${orgId}&numItems=200`,
+    );
+    // A page item carries the document's title as `name` (`toDocumentItems`).
+    const parsed = z
+      .object({ page: z.array(z.looseObject({ name: z.string().optional() })) })
+      .safeParse(await res.json().catch(() => null));
+    return new Set(
+      parsed.success
+        ? parsed.data.page.flatMap((item) =>
+            item.name === undefined ? [] : [item.name],
+          )
+        : [],
+    );
+  };
+  const folderIds = async (asCookie: string): Promise<Set<string>> => {
+    const res = await sendAs(asCookie, 'GET', folders());
+    const parsed = z
+      .object({ folders: z.array(z.looseObject({ id: z.string() })) })
+      .safeParse(await res.json().catch(() => null));
+    return new Set(parsed.success ? parsed.data.folders.map((f) => f.id) : []);
+  };
+  const ownerTitles = await pageTitles(cookie);
+  const memberTitles = await pageTitles(member.cookie);
+  const editorTitles = await pageTitles(editor.cookie);
+  const ownerFolders = await folderIds(cookie);
+  const memberFolders = await folderIds(member.cookie);
+  const editorFolders = await folderIds(editor.cookie);
+  const ownerDirect = await sendAs(
+    cookie,
+    'GET',
+    `/api/app/documents/${rootDocId}?orgId=${orgId}`,
+  );
+  const memberDirect = await sendAs(
+    member.cookie,
+    'GET',
+    `/api/app/documents/${rootDocId}?orgId=${orgId}`,
+  );
+  record(
+    'teams: owners and admins see every audience; a member outside the team sees neither the folder nor the document',
+    ownerTitles.has(rootTitle) &&
+      editorTitles.has(rootTitle) &&
+      !memberTitles.has(rootTitle) &&
+      ownerFolders.has(eFolderId) &&
+      editorFolders.has(eFolderId) &&
+      !memberFolders.has(eFolderId) &&
+      ownerDirect.status === 200 &&
+      memberDirect.status !== 200,
+    `hub page lists the E document: owner=${ownerTitles.has(rootTitle)} editor=${editorTitles.has(rootTitle)} member=${memberTitles.has(rootTitle)} (want true/true/false); folder list has the E folder: owner=${ownerFolders.has(eFolderId)} editor=${editorFolders.has(eFolderId)} member=${memberFolders.has(eFolderId)} (want true/true/false); direct read owner → ${ownerDirect.status} (want 200) member → ${memberDirect.status} (want not 200)`,
+  );
+
+  // ---- WebDAV: the same rule, for a credential holder outside the team
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const orgSlug = slugRows[0]?.slug ?? '';
+  const mintDav = async (asCookie: string): Promise<string> => {
+    const minted = z
+      .object({ password: z.string() })
+      .safeParse(
+        await (
+          await sendAs(
+            asCookie,
+            'POST',
+            `/api/app/webdav/app-passwords?orgId=${orgId}`,
+            { label: 'teamscope device' },
+          )
+        )
+          .json()
+          .catch(() => null),
+      );
+    return minted.success ? minted.data.password : '';
+  };
+  const dav = async (
+    password: string,
+    davPath: string,
+  ): Promise<{ status: number; body: string }> => {
+    const res = await fetch(`${base}/dav/${orgSlug}${davPath}`, {
+      method: 'PROPFIND',
+      headers: {
+        authorization: `Basic ${Buffer.from(`teamscope:${password}`).toString('base64')}`,
+        depth: '1',
+      },
+    });
+    return { status: res.status, body: await res.text() };
+  };
+  const developerPassword = await mintDav(developer.cookie);
+  const ownerPassword = await mintDav(cookie);
+  const encodedFolder = encodeURIComponent(eFolderName);
+  const devRoot = await dav(developerPassword, '/documents/');
+  const devFolder = await dav(
+    developerPassword,
+    `/documents/${encodedFolder}/`,
+  );
+  const ownerFolder = await dav(ownerPassword, `/documents/${encodedFolder}/`);
+  record(
+    'teams: WebDAV hides a team folder from a credential holder outside the team and shows it to an admin',
+    developerPassword.length > 0 &&
+      devRoot.status === 207 &&
+      !devRoot.body.includes(eFolderName) &&
+      !devRoot.body.includes(encodedFolder) &&
+      devFolder.status === 404 &&
+      ownerFolder.status === 207 &&
+      ownerFolder.body.includes(`Inherits E ${now}`),
+    `developer (no team): root PROPFIND → ${devRoot.status} lists the E folder=${devRoot.body.includes(eFolderName) || devRoot.body.includes(encodedFolder)} (want 207/false), folder PROPFIND → ${devFolder.status} (want 404); owner: folder PROPFIND → ${ownerFolder.status} lists the inherited document=${ownerFolder.body.includes(`Inherits E ${now}`)} (want 207/true)`,
+  );
+
+  // ---- WebDAV COPY/MOVE never re-home what the caller cannot see: a team
+  // folder nested under an org-wide one refuses the whole operation for a
+  // caller outside the team; an admin's copy keeps each row's own audience.
+  const deptName = `Departments ${now}`;
+  const deptRes = await sendAs(cookie, 'POST', folders(), { name: deptName });
+  const deptBody = z
+    .object({ folderId: z.string() })
+    .safeParse(await deptRes.json().catch(() => null));
+  const deptId = deptBody.success ? deptBody.data.folderId : '';
+  const financeName = `Finance E ${now}`;
+  const financeRes = await sendAs(cookie, 'POST', folders(), {
+    name: financeName,
+    parentId: deptId,
+    teamIds: [teamE],
+  });
+  const davWrite = async (
+    password: string,
+    method: 'COPY' | 'MOVE',
+    from: string,
+    to: string,
+  ): Promise<number> => {
+    const res = await fetch(`${base}/dav/${orgSlug}${from}`, {
+      method,
+      headers: {
+        authorization: `Basic ${Buffer.from(`teamscope:${password}`).toString('base64')}`,
+        destination: `${base}/dav/${orgSlug}${to}`,
+        overwrite: 'F',
+      },
+    });
+    return res.status;
+  };
+  const encodedDept = encodeURIComponent(deptName);
+  const devCopy = await davWrite(
+    developerPassword,
+    'COPY',
+    `/documents/${encodedDept}/`,
+    `/documents/${encodeURIComponent(`${deptName} dev copy`)}/`,
+  );
+  const devMove = await davWrite(
+    developerPassword,
+    'MOVE',
+    `/documents/${encodedDept}/`,
+    `/documents/${encodeURIComponent(`${deptName} dev moved`)}/`,
+  );
+  const ownerCopy = await davWrite(
+    ownerPassword,
+    'COPY',
+    `/documents/${encodedDept}/`,
+    `/documents/${encodeURIComponent(`${deptName} copy`)}/`,
+  );
+  const financeRows = await sql<{ name: string; tags: string[] }[]>`
+    SELECT f.name, f.team_tags AS tags FROM app.folders f
+    WHERE f.org_id = ${orgId} AND f.name = ${financeName}
+  `;
+  const deptRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.folders
+    WHERE org_id = ${orgId} AND name LIKE ${`${deptName}%`}
+  `;
+  record(
+    'teams: WebDAV COPY and MOVE refuse a tree holding a team folder the caller cannot see; an admin’s copy keeps each row’s own audience',
+    deptRes.status === 200 &&
+      financeRes.status === 200 &&
+      devCopy === 403 &&
+      devMove === 403 &&
+      ownerCopy === 201 &&
+      financeRows.length === 2 &&
+      financeRows.every((row) => only(row.tags, teamE)) &&
+      deptRows[0]?.count === '2',
+    `seed → ${deptRes.status}/${financeRes.status} (want 200/200); developer (no team): COPY → ${devCopy}, MOVE → ${devMove} (want 403/403, nothing copied or moved: ${deptRows[0]?.count} Departments folders, want 2 after the owner's copy); owner: COPY → ${ownerCopy} (want 201), the copied team child keeps its audience: ${financeRows.length} rows tagged E=${financeRows.every((row) => only(row.tags, teamE))} (want 2/true)`,
+  );
+
+  // ---- migration 0109, applied twice more on live rows
+  const ddl = await readFile(
+    new URL('./db/migrations/0109_team_audience.sql', import.meta.url),
+    'utf8',
+  );
+  const t0 = now - 1_000;
+  const ghost = `ghost-${now}`;
+  // The shapes the backfill exists for: a legacy-pair project (with a
+  // duplicate to collapse), a document stamped through the single column,
+  // a project and a queue naming a team that is not the organization's.
+  const legacyAgain = await mkLegacyProject(
+    'Legacy again: E, shared E and D',
+    teamE,
+    [teamE, teamD],
+    t0,
+  );
+  const legacyDocRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (org_id, title, content, team_id, team_tags,
+                               created_by, created_at_ms, updated_at_ms)
+    VALUES (${orgId}, 'Single-column stamp', 'body', ${teamE}, '{}',
+            ${ctx.userId}, ${now}, ${t0})
+    RETURNING id
+  `;
+  const legacyDoc = legacyDocRows[0]?.id ?? '';
+  const ghostProject = await mkProject('Ghost then E', [ghost, teamE], t0);
+  const ghostConvRows = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (org_id, assignee_team_id, status,
+                                   created_at_ms)
+    VALUES (${orgId}, ${ghost}, 'open', ${now})
+    RETURNING id
+  `;
+  const ghostConv = ghostConvRows[0]?.id ?? '';
+  const projectIds = [
+    legacyProject,
+    arrayProject,
+    projectC,
+    legacyAgain,
+    ghostProject,
+  ];
+  const documentIds = [documentId, inheritsId, rootDocId, legacyDoc];
+  const folderIdList = [folderId, eFolderId, adminFolderId];
+  const conversationIds = [conversationId, ghostConv];
+  const snapshot = async (): Promise<string> => {
+    const projects = await sql`
+      SELECT id, team_ids, team_id, shared_with_team_ids, updated_at_ms::text
+      FROM app.projects WHERE id = ANY(${projectIds}) ORDER BY id
+    `;
+    const documents = await sql`
+      SELECT id, team_tags, team_id, updated_at_ms::text
+      FROM app.documents WHERE id = ANY(${documentIds}) ORDER BY id
+    `;
+    const folderRows2 = await sql`
+      SELECT id, team_tags, team_id
+      FROM app.folders WHERE id = ANY(${folderIdList}) ORDER BY id
+    `;
+    const conversations = await sql`
+      SELECT id, assignee_team_id
+      FROM app.conversations WHERE id = ANY(${conversationIds}) ORDER BY id
+    `;
+    const indexes = await sql`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'app' AND indexname IN (
+        'documents_team_tags_gin', 'folders_team_tags_gin',
+        'projects_team_ids_gin'
+      ) ORDER BY indexname
+    `;
+    return JSON.stringify({
+      projects,
+      documents,
+      folders: folderRows2,
+      conversations,
+      indexes,
+    });
+  };
+  await sql.unsafe(ddl);
+  const firstPass = await snapshot();
+  const backfilled = await sql<
+    {
+      legacyIds: string[];
+      legacyTeam: string | null;
+      legacyShared: string[];
+      legacyUpdated: string;
+      docTags: string[];
+      docTeam: string | null;
+      docUpdated: string;
+      ghostIds: string[];
+      ghostTeam: string | null;
+      ghostShared: string[];
+      ghostUpdated: string;
+      convTeam: string | null;
+      indexes: string;
+    }[]
+  >`
+    SELECT
+      (SELECT team_ids FROM app.projects WHERE id = ${legacyAgain})
+        AS "legacyIds",
+      (SELECT team_id FROM app.projects WHERE id = ${legacyAgain})
+        AS "legacyTeam",
+      (SELECT shared_with_team_ids FROM app.projects WHERE id = ${legacyAgain})
+        AS "legacyShared",
+      (SELECT updated_at_ms::text FROM app.projects WHERE id = ${legacyAgain})
+        AS "legacyUpdated",
+      (SELECT team_tags FROM app.documents WHERE id = ${legacyDoc})
+        AS "docTags",
+      (SELECT team_id FROM app.documents WHERE id = ${legacyDoc}) AS "docTeam",
+      (SELECT updated_at_ms::text FROM app.documents WHERE id = ${legacyDoc})
+        AS "docUpdated",
+      (SELECT team_ids FROM app.projects WHERE id = ${ghostProject})
+        AS "ghostIds",
+      (SELECT team_id FROM app.projects WHERE id = ${ghostProject})
+        AS "ghostTeam",
+      (SELECT shared_with_team_ids FROM app.projects WHERE id = ${ghostProject})
+        AS "ghostShared",
+      (SELECT updated_at_ms::text FROM app.projects WHERE id = ${ghostProject})
+        AS "ghostUpdated",
+      (SELECT assignee_team_id FROM app.conversations WHERE id = ${ghostConv})
+        AS "convTeam",
+      (SELECT count(*)::text FROM pg_indexes
+        WHERE schemaname = 'app' AND indexname IN (
+          'documents_team_tags_gin', 'folders_team_tags_gin',
+          'projects_team_ids_gin')) AS indexes
+  `;
+  const b = backfilled[0];
+  await sql.unsafe(ddl);
+  const secondPass = await snapshot();
+  record(
+    'migrations: 0109 is idempotent — the backfill lands once, a further run changes nothing, no updated_at_ms moves',
+    b !== undefined &&
+      b.legacyIds.join(',') === `${teamE},${teamD}` &&
+      b.legacyTeam === teamE &&
+      b.legacyShared.join(',') === teamD &&
+      b.legacyUpdated === String(t0) &&
+      only(b.docTags, teamE) &&
+      b.docTeam === teamE &&
+      b.docUpdated === String(t0) &&
+      only(b.ghostIds, teamE) &&
+      b.ghostTeam === teamE &&
+      b.ghostShared.length === 0 &&
+      b.ghostUpdated === String(t0) &&
+      b.convTeam === null &&
+      b.indexes === '3' &&
+      firstPass === secondPass,
+    `after the second application: legacy project ids=${b?.legacyIds.map((id) => (id === teamE ? 'E' : id === teamD ? 'D' : id)).join(',')} mirror=${b?.legacyTeam === teamE ? 'E' : String(b?.legacyTeam)}/${b?.legacyShared.length} updated=${b?.legacyUpdated === String(t0) ? 'kept' : 'MOVED'} (want E,D E/1 kept); single-column document tags=[${b?.docTags.length}] mirror=${b?.docTeam === teamE ? 'E' : String(b?.docTeam)} updated=${b?.docUpdated === String(t0) ? 'kept' : 'MOVED'} (want [1] E kept); ghost project ids=[${b?.ghostIds.length}] mirror=${b?.ghostTeam === teamE ? 'E' : String(b?.ghostTeam)}/${b?.ghostShared.length} updated=${b?.ghostUpdated === String(t0) ? 'kept' : 'MOVED'} (want [1] E/0 kept); ghost queue=${String(b?.convTeam)} (want null); gin indexes=${b?.indexes} (want 3); third application identical=${firstPass === secondPass}`,
   );
 }
 
