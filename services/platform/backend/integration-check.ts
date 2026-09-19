@@ -24217,6 +24217,8 @@ async function checkOutboundSendLane(
   const { cookie, orgId, userId } = ctx;
   const { createConversation, addMessageToConversation } =
     await import('./domains/conversations/service.ts');
+  const { draftReplyToConversation } =
+    await import('./domains/conversations/draft.ts');
   await drainNotificationEmails(sql);
 
   const api = (
@@ -24327,14 +24329,33 @@ async function checkOutboundSendLane(
       }),
     );
     // A pending approval on the conversation (an agent-drafted reply): the
-    // human send must complete it.
-    const approvalRows = await sql<{ id: string }[]>`
-      INSERT INTO app.approvals (org_id, resource_type, resource_id, status,
-                                 created_at_ms)
-      VALUES (${orgId}, 'conversations', ${conversationId}, 'pending',
-              ${Date.now()})
-      RETURNING id
+    // producer mints it, and the human send below must complete it.
+    const firstDraft = await draftReplyToConversation(sql, {
+      organizationId: orgId,
+      conversationId,
+      emailBody: 'We can quote 7 units by Friday.',
+      source: 'automation',
+      guidelineVersion: 'v1',
+      confidence: 0.91,
+    });
+    // Migration 0108: at most one pending draft per conversation. A second
+    // producer racing the same inbound message reads the winner's card back
+    // rather than minting a twin the reader never sees.
+    const secondDraft = await draftReplyToConversation(sql, {
+      organizationId: orgId,
+      conversationId,
+      emailBody: 'A racing draft that must not mint a second card.',
+    });
+    const pendingDraftCount = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.approvals
+      WHERE org_id = ${orgId} AND resource_type = 'conversations'
+        AND resource_id = ${conversationId} AND status = 'pending'
     `;
+    const draftBody = await sql<{ emailBody: string | null }[]>`
+      SELECT metadata->>'emailBody' AS "emailBody" FROM app.approvals
+      WHERE id = ${firstDraft.approvalId}
+    `;
+    const approvalRows = [{ id: firstDraft.approvalId }];
 
     // 1. Reply → 201, row queued with the undo stamps, approval completed.
     const replyRes = await api(`/${conversationId}/reply`, {
@@ -24601,6 +24622,11 @@ async function checkOutboundSendLane(
         queuedRow?.deliveryState === 'queued' &&
         typeof queuedRow?.metadata?.scheduledSendAt === 'number' &&
         queuedRow?.metadata?.sendContentType === 'HTML' &&
+        firstDraft.created &&
+        !secondDraft.created &&
+        secondDraft.approvalId === firstDraft.approvalId &&
+        pendingDraftCount[0]?.count === '1' &&
+        draftBody[0]?.emailBody === 'We can quote 7 units by Friday.' &&
         approvalAfterSend[0]?.status === 'completed' &&
         approvalAfterSend[0]?.approvedBy === userId &&
         sentOk &&
@@ -24635,7 +24661,7 @@ async function checkOutboundSendLane(
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 5,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, lateUndo=${lateUndo.status}/${lateUndoBody.success ? lateUndoBody.data.error : 'ERR'} claimed=${claimedOk} stillQueued=${rowStillQueued} sentAfterRelease=${lateSentOk} (want 409/undo_window_closed, one mail), discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 5)`,
+      `draft=${firstDraft.created}/${secondDraft.created}/pending=${pendingDraftCount[0]?.count} (want true/false/1), reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, lateUndo=${lateUndo.status}/${lateUndoBody.success ? lateUndoBody.data.error : 'ERR'} claimed=${claimedOk} stillQueued=${rowStillQueued} sentAfterRelease=${lateSentOk} (want 409/undo_window_closed, one mail), discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 5)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);

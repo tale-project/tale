@@ -340,6 +340,7 @@ const conversationStore: WorkflowConversationStore = {
       skippedCount: 0,
       conversationIds: ['conv_mock'],
     }),
+  draftReply: () => Promise.resolve({ approvalId: 'apr_1', created: true }),
   querySyncCursor: () => Promise.resolve({ since: null, messageId: null }),
   syncMailbox: () =>
     Promise.resolve({

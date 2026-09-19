@@ -171,6 +171,42 @@ actions:
             },
           ],
       }
+  - name: draft_reply
+    description: >-
+      Propose a reply on a conversation and leave it for a person. The draft
+      appears in the Inbox as a pending message; sending it is a human act, and
+      that send is what delivers it. Nothing reaches the customer from here.
+    effects: write
+    input:
+      type: object
+      required: [conversationId, body]
+      additionalProperties: false
+      properties:
+        conversationId:
+          type: string
+          description: The conversation to draft on.
+        body:
+          type: string
+          description: The proposed reply.
+        guidelineVersion:
+          type: string
+          description: >-
+            Which communication guidelines produced it. Analytics cannot
+            attribute a later edit to a rule without knowing which were in force.
+        confidence:
+          type: number
+          description: Model confidence in the draft, 0 to 1, when there is one.
+    output: '{ approvalId: string, created: boolean }'
+    mock: |
+      return { approvalId: 'apr_mock_' + String(input.conversationId), created: true };
+    backend:
+      kind: native
+      impl: conversation.draft_reply
+    exampleInput:
+      {
+        conversationId: 'conv_123',
+        body: 'Yes, we still have it in stock. Would you like us to hold one?',
+      }
   - name: query_sync_cursor
     description: The latest synced message timestamp for a mailbox direction.
     effects: read

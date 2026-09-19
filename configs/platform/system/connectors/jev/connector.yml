@@ -1,0 +1,119 @@
+# Connector — Jev, TypeSafe's decision model, served by OpenRouter.
+#
+# Jev is not a chat model and cannot be reached as one: the `openrouter`
+# provider is pinned to `apiFormat: openai` on `/api/v1`, while decisions
+# answer at `/api/alpha/decisions` with a `{model, state, questions}` body.
+# Posting a decisions model to chat/completions answers 400 and says so. Hence
+# a connector rather than a provider entry — a workflow reaches it as an
+# action, the way it reaches any other service.
+#
+# The credential is an OpenRouter API key. Input tokens are billed and output
+# tokens are free, so a decision costs a fraction of the chat call it replaces.
+name: jev
+displayName: Jev decisions
+description: >-
+  Ask typed questions about a piece of state and get back calibrated answers —
+  a choice from a fixed set, a score against ordered levels, or the probability
+  a yes/no statement is true. Every answer carries its distribution, so a
+  workflow can act on confidence rather than on a sentence.
+tags:
+  - AI
+  - Decisions
+allowedHosts:
+  - openrouter.ai
+auth:
+  - method: api-key
+actions:
+  - name: decide
+    description: >-
+      Judge one piece of state against named questions, all answered in a
+      single pass. Use it to gate an action — whether to send, escalate, or
+      write — where a probability matters more than prose. It returns no text
+      and cannot draft: pair it with an llm node when words are needed.
+    effects: read
+    input:
+      type: object
+      required: [state, questions]
+      additionalProperties: false
+      properties:
+        state:
+          description: >-
+            The content to judge — a string, or an object of named fields.
+        questions:
+          type: object
+          description: >-
+            Named questions. Each is {type, instructions, criteria}; type is
+            "choice" (criteria is a map of option to description), "score"
+            (criteria is an array of ordered levels) or "noul" (criteria is
+            {true, false}).
+        model:
+          type: string
+          description: Model id; defaults to typesafe/jev-latest.
+    output: '{ answers: Record<string, Record<string, unknown>>, usage?: { input_tokens: number, output_tokens?: number } }'
+    # Deterministic: every question resolves from its own declared shape, so
+    # the same workflow input always produces the same answers.
+    mock: |
+      const questions = input.questions || {};
+      const answers = {};
+      for (const name of Object.keys(questions).sort()) {
+        const question = questions[name] || {};
+        if (question.type === 'noul') {
+          answers[name] = { type: 'noul', noul: 0.9 };
+        } else if (question.type === 'score') {
+          const levels = Array.isArray(question.criteria) ? question.criteria : [];
+          const top = Math.max(0, levels.length - 1);
+          const probabilities = {};
+          for (let i = 0; i < levels.length; i++) probabilities[String(i)] = i === top ? 0.9 : 0.1 / Math.max(1, levels.length - 1);
+          answers[name] = { type: 'score', score: top, probabilities, confidence: 0.9 };
+        } else {
+          const keys = Object.keys(question.criteria || {}).sort();
+          const chosen = keys[0] ?? 'unknown';
+          const probabilities = {};
+          for (const key of keys) probabilities[key] = key === chosen ? 0.9 : 0.1 / Math.max(1, keys.length - 1);
+          answers[name] = { type: 'choice', choice: chosen, probabilities, confidence: 0.9 };
+        }
+      }
+      return { answers, usage: { input_tokens: 0, output_tokens: 0 } };
+    backend:
+      kind: yaml-js
+      live: |
+        const apiKey = ctx.secrets.get('apiKey');
+        if (!apiKey) throw new Error('Jev decide failed: the credential is missing its OpenRouter API key.');
+        const body = {
+          model: input.model || 'typesafe/jev-latest',
+          state: input.state,
+          questions: input.questions,
+        };
+        const r = await ctx.http.post('https://openrouter.ai/api/alpha/decisions', {
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+          body: JSON.stringify(body),
+        });
+        if (!r.status || r.status >= 400) {
+          throw new Error('Jev decide failed (' + r.status + '): ' + (r.status === 401 ? 'authentication rejected — verify the OpenRouter API key' : r.status === 402 ? 'the OpenRouter account has no credit' : r.status === 429 ? 'rate limited by OpenRouter — retry later' : r.text()));
+        }
+        const j = r.json();
+        if (!j || typeof j !== 'object' || !j.answers) throw new Error('Jev decide failed: the response carried no answers.');
+        return { answers: j.answers, usage: j.usage };
+    exampleInput:
+      {
+        state: 'I paid since Monday and nobody has sent my money back.',
+        questions:
+          {
+            handling:
+              {
+                type: 'choice',
+                instructions: 'How should this be handled?',
+                criteria:
+                  {
+                    auto_reply: 'an ordinary question the guidelines cover',
+                    escalate: 'a refund dispute, a complaint, or distress',
+                  },
+              },
+            urgency:
+              {
+                type: 'score',
+                instructions: 'How urgent is this?',
+                criteria: ['routine', 'today', 'immediate'],
+              },
+          },
+      }

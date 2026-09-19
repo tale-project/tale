@@ -38,6 +38,7 @@ const EXPECTED_SLUGS = [
   'gmail',
   'google-drive',
   'imap-smtp',
+  'jev',
   'outlook',
   'sandbox',
   'shopify',

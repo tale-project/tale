@@ -37,6 +37,7 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
+import { draftReplyToConversation } from '../conversations/draft.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
@@ -124,6 +125,21 @@ function pgConversationStore(sql: Sql): WorkflowConversationStore {
     querySyncCursor: (args) => querySyncCursor(shim(), args),
     syncMailbox: (args) => syncMailbox(shim(), args),
     listMailboxMessages: (args) => listMailboxMessages(shim(), args),
+    // Goes straight to the domain rather than through the shim: a draft is one
+    // insert on app.approvals and touches none of the reused 0.4 mail modules.
+    draftReply: (args) =>
+      draftReplyToConversation(sql, {
+        organizationId: args.organizationId,
+        conversationId: args.conversationId,
+        emailBody: args.body,
+        source: 'automation',
+        ...(args.guidelineVersion !== undefined && {
+          guidelineVersion: args.guidelineVersion,
+        }),
+        ...(args.confidence !== undefined && { confidence: args.confidence }),
+        ...(args.runId !== undefined && { runId: args.runId }),
+        ...(args.nodeId !== undefined && { nodeId: args.nodeId }),
+      }),
   };
 }
 
