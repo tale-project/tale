@@ -31,7 +31,7 @@ bun run dev
 
 The root development script creates missing secrets in the gitignored root `.env` and keeps existing values. Keep that file private and retain it between restarts: the backend and sandbox must share the same secrets.
 
-The orchestrator starts Docker dependencies, starts the Node backend, waits for its API and authentication routes, then starts Vite. The backend applies database migrations during startup. Wait for the `READY` banner before opening `http://localhost:3000`; image downloads and first-time provisioning can make a cold boot slower.
+The orchestrator starts Docker dependencies, starts the Node backend, waits for its API and authentication routes, then starts Vite. If the sandbox runtime image is missing, for example on a first run or after you removed local images, the orchestrator builds it from source before the backend starts. That single step can take several minutes, and agent sessions and code execution stay unavailable until it finishes. The backend applies database migrations during startup. Wait for the `READY` banner before opening `http://localhost:3000`; image downloads and first-time provisioning can make a cold boot slower.
 
 <Check>
 
