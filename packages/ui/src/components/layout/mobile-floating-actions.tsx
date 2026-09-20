@@ -19,10 +19,15 @@ interface MobileFloatingActionsProps {
 export const MOBILE_FLOATING_ACTIONS_PAD_VAR = '--mobile-floating-actions-pad';
 
 /**
- * Clears the floating dock (≈3rem) plus a gap so page content can scroll
- * past it. Applied only while a dock with real actions is visible.
+ * Clears the floating dock (≈3rem) plus the gap above it, so page content can
+ * scroll past it. Applied only while a dock with real actions is visible.
+ *
+ * The whole clearance lives here rather than half here and half in whatever
+ * bottom inset the page happens to carry: `ContentArea` insets every frame by
+ * the same `--content-area-pb`, and that number answers "how far is content
+ * from the edge of the page", not "how tall is the dock".
  */
-export const MOBILE_FLOATING_ACTIONS_PAD = '4.5rem';
+export const MOBILE_FLOATING_ACTIONS_PAD = '5rem';
 
 const PAD_COUNT_ATTR = 'data-floating-actions-pad-count';
 

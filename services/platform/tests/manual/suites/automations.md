@@ -380,25 +380,35 @@ output:
       same `?version=` opens the same picture; `?version=abc` opens the latest
       instead of erroring; after **Save version** the URL loses `?version=` and
       the canvas shows the new latest.
-- [ ] `AUTO-F37` · **The workbench sits in the page inset** — On the
+- [ ] `AUTO-F37` · **The workbench sits in one even inset** — On the
       **Editor** tab at a desktop width, measure the frame around the canvas
-      (DevTools, or the console one-liner below) → The canvas starts **16px**
-      below the tab strip and **16px** from the left edge, the inspector ends
-      **16px** from the right edge, and the gap between canvas and inspector
-      is the same **16px**. Switch to **Versions** and back: the content does
-      not shift up or down. The same inset holds on the Automations list and
-      on a run's page.
+      (DevTools, or the console one-liner below) → Every gap reads **16px**:
+      above the canvas, left of it, between canvas and inspector, right of the
+      inspector, and below them both. Switch to **Versions** and back: the
+      content does not shift up or down. The same even inset holds on the
+      Automations list and on a run's page.
 
       ```js
       const canvas = document.querySelector('main .grid > :first-child');
       const panel = document.querySelector('main .grid > :last-child');
       const strip = document.querySelector('main nav[aria-label]:last-of-type');
+      const c = canvas.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
       [
-        canvas.getBoundingClientRect().top - strip.getBoundingClientRect().bottom,
-        panel.getBoundingClientRect().left - canvas.getBoundingClientRect().right,
-        innerWidth - panel.getBoundingClientRect().right,
+        c.top - strip.getBoundingClientRect().bottom,
+        p.left - c.right,
+        innerWidth - p.right,
+        innerHeight - c.bottom,
+        innerHeight - p.bottom,
       ];
       ```
+
+- [ ] `AUTO-F38` · **The mobile dock still clears the last control** — At
+      phone width on the **Editor** tab, scroll the page to its end → The
+      inspector's last control (**Save settings**) sits clear ABOVE the
+      floating action dock, not under it; the dock's own row is fully
+      readable. Repeat on **Settings > Account** and on a project's Tasks
+      board, which reserve the same clearance.
 
 ## Boundary & error tests
 

@@ -10,21 +10,25 @@ import { forwardRef, type HTMLAttributes } from 'react';
  * clearance (agent tabs pass `className="… py-4"` which would otherwise
  * replace the variant bottom padding and hide `--mobile-floating-actions-pad`).
  *
- * Base size comes from `--content-area-pb` set per variant.
+ * Base size is `--content-area-pb`, declared once on the shared class.
  */
 const FLOATING_DOCK_END_PAD =
   'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px))]';
 
+/**
+ * The inset every content frame keeps, on all four sides: `pt-4` / `px-4` /
+ * this token. ONE number, not one per variant — a bounded frame (the
+ * automation workbench, an overview table) shows its bottom edge and its top
+ * edge at the same time, so an inset that differs by side reads as a mistake;
+ * a scrolling frame ends on the same measure it started with. `panel` widens
+ * the sides to `px-6` for its own chrome; nothing else varies.
+ */
 const contentAreaVariants = cva(
-  'flex w-full min-w-0 flex-col [--content-area-pb:1.5rem]',
+  'flex w-full min-w-0 flex-col [--content-area-pb:1rem]',
   {
     variants: {
       variant: {
-        // One inset for every content frame: `pt-4` is the same distance from
-        // the chrome that `list`, `narrow` and `panel` keep, so switching
-        // between a page and a list — or between an automation's Editor tab
-        // and its Versions tab — never nudges the content down a notch.
-        page: 'px-4 pt-4 [--content-area-pb:1.5rem]',
+        page: 'px-4 pt-4',
         // The overview-list measure: ONE frame for every collection screen
         // (Automations, Projects, the Knowledge tables). `min-h-0 flex-1`
         // bounds the height against the page shell, which is what a
@@ -34,13 +38,13 @@ const contentAreaVariants = cva(
         // the PAGE scrolls instead, which is the drift this variant exists to
         // prevent. Anything else the page stacks above the table (a folder
         // breadcrumb, a load-failure alert) is a sibling inside this frame.
-        list: 'min-h-0 flex-1 px-4 pt-4 [--content-area-pb:1.5rem]',
+        list: 'min-h-0 flex-1 px-4 pt-4',
         // `max-w-3xl` is the settings measure (`SettingsPage`, #2567): every
         // configuration surface — org settings, project tabs, automation
         // settings — shares one content width so switching between them
         // doesn't reflow the reading column.
-        narrow: 'mx-auto max-w-3xl px-4 pt-4 [--content-area-pb:1rem]',
-        panel: 'px-6 pt-4 [--content-area-pb:1rem]',
+        narrow: 'mx-auto max-w-3xl px-4 pt-4',
+        panel: 'px-6 pt-4',
       },
       gap: {
         3: 'gap-3',

@@ -38,23 +38,21 @@ describe('ContentArea', () => {
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
 
-  it('sets the page variant content-area pb token', () => {
+  it('carries the dock clearance on the page variant', () => {
     const { container } = render(
       <ContentArea>
         <p>Page content</p>
       </ContentArea>,
     );
-    expect(container.firstElementChild).toHaveClass(
-      '[--content-area-pb:1.5rem]',
-    );
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
 
-  it('starts every variant the same distance below the chrome', () => {
-    // The inset is one decision, not four. `page` used to sit 8px lower than
-    // the rest, which showed up as content jumping between an automation's
-    // Editor tab and its Versions tab, and between a page and the list it was
-    // opened from.
+  it('insets every variant by the same amount on all four sides', () => {
+    // The inset is ONE decision. `page` used to start 8px lower than the rest
+    // and `page`/`list` used to end 8px further from the bottom than they
+    // started, which showed as content jumping between an automation's Editor
+    // tab and its Versions tab, and as a workbench whose canvas sat closer to
+    // the tab strip than to the window's bottom edge.
     for (const variant of ['page', 'list', 'narrow', 'panel'] as const) {
       const { container } = render(
         <ContentArea variant={variant}>
@@ -62,6 +60,10 @@ describe('ContentArea', () => {
         </ContentArea>,
       );
       expect(container.firstElementChild).toHaveClass('pt-4');
+      expect(container.firstElementChild).toHaveClass(
+        '[--content-area-pb:1rem]',
+      );
+      expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
     }
   });
 
@@ -81,12 +83,12 @@ describe('ContentArea', () => {
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
 
-  it('sets the narrow variant content-area pb token', () => {
+  it('keeps the narrow variant on the settings width', () => {
     const { container } = render(
       <ContentArea variant="narrow">
         <p>Narrow content</p>
       </ContentArea>,
     );
-    expect(container.firstElementChild).toHaveClass('[--content-area-pb:1rem]');
+    expect(container.firstElementChild).toHaveClass('max-w-3xl');
   });
 });
