@@ -59,4 +59,6 @@ Removing a file from the project makes it visible to everyone in the organizatio
 
 To remove a file entirely, use **Delete** in its row menu and read the deletion confirmation. Folder deletion removes its contained files and subfolders as well as their search entries. These actions cannot be undone through the file tree. Legal holds and protected controlled records can block deletion.
 
+**Delete** is offered for files uploaded here and for files an agent wrote into the project, such as readings or generated reports. A file synced from a connector offers no Delete in the project, because the next sync would restore it; remove it at its source instead.
+
 If a file serves several unrelated projects, consider keeping an appropriately scoped copy in the [Knowledge library](/platform/knowledge/documents). Avoid maintaining several conflicting copies of the same policy.

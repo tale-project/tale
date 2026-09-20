@@ -59,4 +59,6 @@ Durch das Entfernen aus dem Projekt wird die Datei für alle Personen der Organi
 
 Soll die Datei vollständig entfernt werden, nutze **Löschen** im Zeilenmenü und lies die Bestätigung. Das Löschen eines Ordners entfernt auch seine Dateien, Unterordner und Sucheinträge. Über den Dateibaum lassen sich diese Aktionen nicht rückgängig machen. Ein Legal Hold oder geschützte gelenkte Dokumente können das Löschen verhindern.
 
+**Löschen** steht für hochgeladene Dateien und für Dateien bereit, die ein Agent im Projekt angelegt hat, etwa Lesungen oder erzeugte Berichte. Eine über einen Connector synchronisierte Datei bietet im Projekt kein Löschen an, weil die nächste Synchronisierung sie wiederherstellen würde; entferne sie stattdessen an ihrer Quelle.
+
 Wird eine Datei in mehreren unabhängigen Projekten gebraucht, eignet sich möglicherweise eine passend freigegebene Kopie in der [Wissensbibliothek](/de/platform/knowledge/documents). Vermeide mehrere widersprüchliche Fassungen derselben Richtlinie.

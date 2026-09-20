@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isAuthoredSourceProvider } from '../../../lib/shared/document-source-providers.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
@@ -32,13 +33,6 @@ import {
 
 export const DOCUMENT_RECORD_MAX_APPROVED_VERSIONS = 200;
 export const DOCUMENT_RECORD_FEEDBACK_MAX = 4000;
-
-/** Only user- and agent-authored documents can become controlled records —
- * a connector/sync-owned row is rewritten by its external loop. */
-const CONTROLLABLE_SOURCE_PROVIDERS: ReadonlySet<string> = new Set([
-  'upload',
-  'agent',
-]);
 
 const RECORD_AUDIT_ACTIONS = {
   controlled: 'document.record_controlled',
@@ -542,8 +536,10 @@ export async function markControlled(
       'This document is already a controlled record.',
     );
   }
+  // Only a document authored here can become a controlled record — a
+  // connector/sync-owned row is rewritten by its external loop.
   const sourceProvider = doc.sourceProvider ?? 'upload';
-  if (!CONTROLLABLE_SOURCE_PROVIDERS.has(sourceProvider)) {
+  if (!isAuthoredSourceProvider(sourceProvider)) {
     throw new DocumentError(
       'DOCUMENT_RECORD_SOURCE_UNSUPPORTED',
       `A "${sourceProvider}" document is owned by its external sync and cannot become a controlled record.`,
