@@ -158,15 +158,35 @@ export function robotsPolicyFromStored(value: unknown): RobotsPolicy {
   };
 }
 
-/** The stored form of a policy — what `robotsPolicyFromStored` reads back. */
+/** The stored form of a policy — what `robotsPolicyFromStored` reads back.
+ * With `sitemaps`, the whole robots.txt verdict is on the row, so a scan
+ * that follows a fresh read (the registration probe's) reuses it instead
+ * of dialing `/robots.txt` a second time (2026-09-19 evaluation, K6-2). */
 export function robotsPolicyToStored(
   policy: RobotsPolicy,
+  sitemaps?: readonly string[],
 ): Record<string, unknown> {
   return {
     disallow: [...policy.disallow],
     allow: [...policy.allow],
     crawlDelayMs: policy.crawlDelayMs,
+    ...(sitemaps !== undefined ? { sitemaps: [...sitemaps] } : {}),
   };
+}
+
+/** The sitemaps a stored robots verdict advertised, or null when the row
+ * predates their storage (a legacy bare array, or an object without the
+ * key) — null says "read robots.txt again", never "no sitemaps". */
+export function robotsSitemapsFromStored(value: unknown): string[] | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to a non-null, non-array object above
+  const stored = value as Record<string, unknown>;
+  if (!Array.isArray(stored.sitemaps)) return null;
+  return stored.sitemaps.filter(
+    (sitemap): sitemap is string => typeof sitemap === 'string',
+  );
 }
 
 /** RFC 9309 §2.2.3: `*` matches any run of characters, a trailing `$`

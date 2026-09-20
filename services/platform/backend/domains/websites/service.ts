@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  EMPTY_ROBOTS_POLICY,
   isUrlDisallowed,
   metaDescription,
   normalizeListedUrl,
@@ -31,6 +32,7 @@ import {
 import {
   scanDueWebsitesImpl,
   scanWebsiteImpl,
+  persistRobotsRules,
 } from '../../core/knowledge/crawl_action.ts';
 import {
   CRAWLER_PRODUCT_TOKEN,
@@ -729,9 +731,10 @@ const REGISTER_FOLLOWUP_SYNC_MS = 600_000;
  * block the one best-effort homepage GET.
  */
 async function homepageAllowsCrawler(
+  pool: Sql,
   domain: string,
   hosts: readonly string[],
-): Promise<boolean> {
+): Promise<{ allowed: boolean; crawlDelayMs: number }> {
   try {
     const robots = await safeFetch(`https://${domain}/robots.txt`, {
       method: 'GET',
@@ -742,15 +745,44 @@ async function homepageAllowsCrawler(
       httpsOnly: true,
       headers: crawlerRequestHeaders(),
     });
-    if (robots.status < 200 || robots.status >= 300) return true;
+    if (robots.status >= 400 && robots.status < 500 && robots.status !== 429) {
+      // A 4xx is an answer — the site publishes no rules (RFC 9309
+      // §2.3.1.3) — and the scan reuses that verdict too.
+      await persistRobotsRules(pool, domain, {
+        ...EMPTY_ROBOTS_POLICY,
+        sitemaps: [],
+      }).catch((error: unknown) => {
+        console.warn(
+          `[websites] robots.txt verdict not persisted for ${domain}:`,
+          error instanceof Error ? error.message : error,
+        );
+      });
+      return { allowed: true, crawlDelayMs: 0 };
+    }
+    if (robots.status < 200 || robots.status >= 300) {
+      return { allowed: true, crawlDelayMs: 0 };
+    }
     const policy = parseRobots(robots.body, CRAWLER_PRODUCT_TOKEN);
-    return !isUrlDisallowed(`https://${domain}/`, policy);
+    // The verdict is persisted on the corpus row, so the scan that follows
+    // reuses this read instead of dialing `/robots.txt` again within
+    // milliseconds (2026-09-19 evaluation, K6-2); the row exists — the
+    // domain was registered above.
+    await persistRobotsRules(pool, domain, policy).catch((error: unknown) => {
+      console.warn(
+        `[websites] robots.txt verdict not persisted for ${domain}:`,
+        error instanceof Error ? error.message : error,
+      );
+    });
+    return {
+      allowed: !isUrlDisallowed(`https://${domain}/`, policy),
+      crawlDelayMs: policy.crawlDelayMs,
+    };
   } catch (error) {
     console.warn(
       `[websites] robots.txt probe failed for ${domain} (allowing the homepage metadata probe):`,
       error instanceof Error ? error.message : error,
     );
-    return true;
+    return { allowed: true, crawlDelayMs: 0 };
   }
 }
 
@@ -902,9 +934,10 @@ export async function runWebsiteRegister(
 ): Promise<void> {
   const isList = args.urls !== undefined && args.urls.length > 0;
   let orgSlug: string;
+  let pool: Sql;
   try {
     orgSlug = await requireSlug(sql, args.organizationId);
-    const pool = await getKnowledgePoolForOrg(orgSlug);
+    pool = await getKnowledgePoolForOrg(orgSlug);
     if (isList && args.urls) {
       await registerUrlList(
         pool,
@@ -935,17 +968,14 @@ export async function runWebsiteRegister(
     return;
   }
 
-  await addJobInTx(sql, 'websites.scan', {
-    domain: args.domain,
-    orgSlug,
-    organizationId: args.organizationId,
-  });
-
   if (!isList) {
     // Homepage title/description, best-effort (not for lists — their
     // homepage is not part of the list). They FILL blanks only: a title or
     // description the author set on the row is theirs, never overwritten by
-    // what the homepage happens to say.
+    // what the homepage happens to say. The probe runs BEFORE the first
+    // scan is queued: the two used to start together and read robots.txt
+    // twice within milliseconds, and the probe's homepage read went out
+    // unpaced (2026-09-19 evaluation, K6-2).
     try {
       const refusal = crawlHostRefusal(args.domain);
       if (refusal !== null) {
@@ -959,7 +989,15 @@ export async function runWebsiteRegister(
       // TaleBot group disallows (2026-09-18 evaluation, J6-2). It is a
       // best-effort metadata fill; a disallowed homepage simply leaves the
       // title and description for the operator to set.
-      if (await homepageAllowsCrawler(args.domain, hosts)) {
+      const verdict = await homepageAllowsCrawler(pool, args.domain, hosts);
+      if (verdict.allowed) {
+        // The site's own `Crawl-delay` paces the homepage read after the
+        // robots.txt read, as it paces every fetch of the scan.
+        if (verdict.crawlDelayMs > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, verdict.crawlDelayMs),
+          );
+        }
         const response = await safeFetch(homepage, {
           method: 'GET',
           headers: { ...crawlerRequestHeaders(), accept: 'text/html' },
@@ -996,6 +1034,12 @@ export async function runWebsiteRegister(
       );
     }
   }
+
+  await addJobInTx(sql, 'websites.scan', {
+    domain: args.domain,
+    orgSlug,
+    organizationId: args.organizationId,
+  });
 
   await addJobInTx(
     sql,

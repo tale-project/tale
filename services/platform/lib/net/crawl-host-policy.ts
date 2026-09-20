@@ -208,6 +208,18 @@ export function parseCrawlTarget(
   if (refusal !== null) {
     throw new CrawlTargetError('WEBSITE_DOMAIN_NOT_CRAWLABLE', refusal);
   }
+  // A bare IP address is not a site: the crawler dials by host name and
+  // verifies the certificate against it, which no IP literal can present,
+  // so a public IP used to register (201) and scan into a `tls_error`
+  // (2026-09-19 evaluation, K6-1). Judged after the host policy, so a
+  // loopback, private or metadata address keeps its clearer
+  // `NOT_CRAWLABLE`; a listed URL's own host passes through here too.
+  if (isIpLiteral(hostname) || parsed.hostname.startsWith('[')) {
+    throw new CrawlTargetError(
+      'WEBSITE_DOMAIN_INVALID',
+      `The crawler dials by host name and verifies the certificate; an IP address (${hostname}) cannot be crawled — register the site's hostname`,
+    );
+  }
   // A non-default port is refused, not silently dropped: the crawler dials
   // https on 443, so `host:8443` used to register and then crawl the wrong
   // origin on 443, against the documentation's promise that a non-default

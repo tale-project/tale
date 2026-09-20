@@ -114,6 +114,14 @@ describe('parseCrawlTarget', () => {
     // An empty label names nothing.
     'example..com',
     '.',
+    // A bare IP address is not a site: the crawler dials by host name and
+    // verifies the certificate against it, which no IP literal can present
+    // (2026-09-19 evaluation, K6-1). Private and loopback literals keep
+    // their clearer NOT_CRAWLABLE below.
+    '93.184.216.34',
+    'https://93.184.216.34/docs',
+    '[2606:2800:220:1:248:1893:25c8:1946]',
+    'https://[2606:2800:220:1:248:1893:25c8:1946]/',
   ])('refuses %j as no https host at all', (input) => {
     expect(() => parseCrawlTarget(input, opts)).toThrow(CrawlTargetError);
     try {
