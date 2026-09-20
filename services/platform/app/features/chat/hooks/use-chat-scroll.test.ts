@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveTopInset, TOP_INSET } from '../scroll-constants';
 import {
+  isEscapingTouchMove,
+  isEscapingWheel,
+  resolveContentTickAction,
   resolveSnapTargetTop,
   resolveStickToBottom,
   resolveThreadOpenTarget,
   shouldAnimateScrollToBottom,
+  type ScrollHold,
 } from './use-chat-scroll';
 
 /**
@@ -344,5 +348,105 @@ describe('resolveTopInset', () => {
     // `md:pt-19` (~76px) so slack and snap stay below the blur.
     expect(resolveTopInset(76)).toBe(76);
     expect(resolveTopInset(76)).toBeGreaterThan(TOP_INSET);
+  });
+});
+
+/**
+ * Locks the two halves of "I sent a message and nothing scrolled": a user
+ * takeover is only ever an UPWARD gesture (a trackpad's momentum tail after
+ * scrolling to the bottom kept cancelling the send-snap), and a send outranks
+ * whatever hold is live (a thread-open restore used to swallow it).
+ */
+describe('isEscapingWheel', () => {
+  it('escapes only on an upward turn', () => {
+    expect(isEscapingWheel(-3)).toBe(true);
+  });
+
+  it('ignores a downward turn (the momentum tail after scrolling to the bottom)', () => {
+    expect(isEscapingWheel(4.44)).toBe(false);
+  });
+
+  it('ignores a sideways swipe over a code block (deltaY 0)', () => {
+    expect(isEscapingWheel(0)).toBe(false);
+  });
+});
+
+describe('isEscapingTouchMove', () => {
+  it('escapes when the finger travels down the screen (the content scrolls up)', () => {
+    expect(isEscapingTouchMove(100, 120)).toBe(true);
+  });
+
+  it('ignores the finger travelling up (the content scrolls down)', () => {
+    expect(isEscapingTouchMove(100, 80)).toBe(false);
+  });
+
+  it('ignores sub-threshold jitter', () => {
+    expect(isEscapingTouchMove(100, 103)).toBe(false);
+  });
+});
+
+describe('resolveContentTickAction', () => {
+  const now = 10_000;
+  const positionHold: ScrollHold = {
+    kind: 'position',
+    top: 501,
+    until: now + 1500,
+  };
+  const idle = { hold: null, now, gliding: false, following: false } as const;
+
+  it('a pending send wins over a live position hold (send right after opening a thread)', () => {
+    expect(
+      resolveContentTickAction({
+        ...idle,
+        intent: 'smooth',
+        hold: positionHold,
+      }),
+    ).toBe('snap');
+    expect(
+      resolveContentTickAction({ ...idle, intent: true, hold: positionHold }),
+    ).toBe('snap');
+  });
+
+  it('a send outranks the follow latch too', () => {
+    expect(
+      resolveContentTickAction({ ...idle, intent: 'smooth', following: true }),
+    ).toBe('snap');
+  });
+
+  it('a live hold re-pins when nothing is pending', () => {
+    expect(
+      resolveContentTickAction({ ...idle, intent: false, hold: positionHold }),
+    ).toBe('hold');
+  });
+
+  it('an expired settle hold is dropped — content growth never scrolls', () => {
+    expect(
+      resolveContentTickAction({
+        ...idle,
+        intent: false,
+        hold: { kind: 'last-user-top', until: now - 1 },
+      }),
+    ).toBe('none');
+  });
+
+  it('a hold stays live while the send glide is still in flight, whatever the clock says', () => {
+    expect(
+      resolveContentTickAction({
+        ...idle,
+        intent: false,
+        hold: { kind: 'last-user-top', until: now - 1 },
+        gliding: true,
+      }),
+    ).toBe('hold');
+  });
+
+  it('the follow latch keeps the live bottom once no hold is live', () => {
+    expect(
+      resolveContentTickAction({ ...idle, intent: false, following: true }),
+    ).toBe('follow');
+  });
+
+  it('with nothing engaged, a content tick moves nothing', () => {
+    expect(resolveContentTickAction({ ...idle, intent: false })).toBe('none');
   });
 });

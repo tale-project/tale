@@ -122,6 +122,71 @@ describe('normalizeCatalogModel', () => {
     expect(entry?.reasoning).toBeUndefined();
   });
 
+  it('reads the prompt-cache prices both dialects publish', () => {
+    // OpenRouter: `input_cache_read` / `input_cache_write` in dollars per
+    // token beside `prompt` / `completion` — the vendor's hit and write
+    // rates, which the gateway otherwise replaces with the input rate.
+    const openrouter = normalizeCatalogModel(
+      {
+        ...OPENROUTER_CLAUDE,
+        pricing: {
+          prompt: '0.000002',
+          completion: '0.00001',
+          input_cache_read: '0.0000002',
+          input_cache_write: '0.0000025',
+        },
+      },
+      'openrouter',
+    );
+    expect(openrouter?.pricing).toEqual({
+      inputCentsPerMillion: 200,
+      outputCentsPerMillion: 1000,
+      cacheReadCentsPerMillion: 20,
+      cacheWriteCentsPerMillion: 250,
+    });
+    // The Vercel dialect spells the pair the same way beside input/output.
+    const vercel = normalizeCatalogModel(
+      {
+        ...VERCEL_QWEN,
+        pricing: {
+          input: '0.00000012',
+          output: '0.00000024',
+          input_cache_read: '0.000000024',
+        },
+      },
+      'vercel-ai-gateway',
+    );
+    expect(vercel?.pricing).toEqual({
+      inputCentsPerMillion: 12,
+      outputCentsPerMillion: 24,
+      cacheReadCentsPerMillion: 2.4,
+    });
+  });
+
+  it('drops a cache-hit price above the input price, keeping the write price', () => {
+    // A hit that costs more than a miss is a listing glitch, not a rate:
+    // without the field the gateway bills the hit at the input rate, which
+    // is the ceiling a hit can honestly cost. A write above input is real
+    // (Anthropic-style cache creation).
+    const entry = normalizeCatalogModel(
+      {
+        ...OPENROUTER_CLAUDE,
+        pricing: {
+          prompt: '0.000002',
+          completion: '0.00001',
+          input_cache_read: '0.000003',
+          input_cache_write: '0.0000025',
+        },
+      },
+      'openrouter',
+    );
+    expect(entry?.pricing).toEqual({
+      inputCentsPerMillion: 200,
+      outputCentsPerMillion: 1000,
+      cacheWriteCentsPerMillion: 250,
+    });
+  });
+
   it('omits pricing unless both sides are reported', () => {
     const entry = normalizeCatalogModel(
       { id: 'm', context_length: 4096, pricing: { input: '0.000001' } },

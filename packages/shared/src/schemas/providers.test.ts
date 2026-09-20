@@ -467,6 +467,36 @@ describe('modelCatalogEntrySchema', () => {
         .success,
     ).toBe(false);
   });
+
+  it('carries the optional prompt-cache pair and rejects a negative one', () => {
+    // The vendor's cache HIT and cache WRITE prices ride beside the input
+    // and output pair; a catalog without them still validates.
+    const priced = modelCatalogEntrySchema.parse({
+      ...VALID_MODEL,
+      pricing: {
+        inputCentsPerMillion: 30,
+        outputCentsPerMillion: 120,
+        cacheReadCentsPerMillion: 0.6,
+        cacheWriteCentsPerMillion: 30,
+      },
+    });
+    expect(priced.pricing).toEqual({
+      inputCentsPerMillion: 30,
+      outputCentsPerMillion: 120,
+      cacheReadCentsPerMillion: 0.6,
+      cacheWriteCentsPerMillion: 30,
+    });
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        pricing: {
+          inputCentsPerMillion: 30,
+          outputCentsPerMillion: 120,
+          cacheReadCentsPerMillion: -1,
+        },
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe('modelCatalogFileSchema', () => {

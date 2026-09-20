@@ -63,10 +63,24 @@ import { ThinkingDots } from './thinking-dots';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
-/** Lazy rasterization for history rows; the intrinsic size keeps the
- * scrollbar honest while off-screen items stay unrendered. */
-const HISTORY_CONTENT_VISIBILITY =
-  '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
+/** The row's region relative to the last user message (see message-thread):
+ * history rows rasterize lazily, the response rows opt out of scroll
+ * anchoring. */
+export type MessageRegion = 'history' | 'last-user' | 'response';
+
+/** Lazy rasterization for history rows. */
+const HISTORY_CONTENT_VISIBILITY = '[content-visibility:auto]';
+/** Every row carries the intrinsic-size hint, always: `auto` remembers the
+ * row's last rendered height, so a row that later becomes history (a send
+ * demotes the previous turn) is skipped at its real size, and the 200px
+ * placeholder only stands in for rows that were never rendered — it keeps
+ * the scrollbar honest while off-screen items stay unrendered. Measured: a
+ * box that gains both properties at once spends its first frames at 200px;
+ * one that already carried the hint does not. */
+const ROW_INTRINSIC_SIZE = '[contain-intrinsic-size:auto_200px]';
+/** The reply rows grow under the anchored user message; scroll anchoring must
+ * never react to that growth. */
+const RESPONSE_NO_ANCHOR = '[overflow-anchor:none]';
 
 /** Breathing room between the last revealed segment and the toolbar's
  * arrival, so the chrome never lands inside the settling text. */
@@ -84,9 +98,10 @@ export interface MessageForkGroupView {
 interface MessageItemProps {
   message: ChatMessageItem;
   isLast: boolean;
-  /** The row sits in the history region (above the last user message) —
-   * rasterized lazily; the anchored/response rows always render fully. */
-  isHistory?: boolean;
+  /** Where the row sits relative to the last user message: history rows
+   * (above it) rasterize lazily, the anchored row and the response rows
+   * always render fully. Absent on surfaces without regions. */
+  region?: MessageRegion;
   /** The scroll anchor ref — set on the LAST USER row only; the send-snap
    * scrolls this element to the viewport top. */
   rootRef?: Ref<HTMLLIElement>;
@@ -118,7 +133,7 @@ interface MessageItemProps {
 function MessageItemComponent({
   message,
   isLast,
-  isHistory,
+  region,
   rootRef,
   organizationId,
   threadId,
@@ -157,7 +172,9 @@ function MessageItemComponent({
       className={cn(
         'group/message flex min-w-0 flex-col',
         isUser ? 'items-end' : 'items-start',
-        isHistory === true && HISTORY_CONTENT_VISIBILITY,
+        ROW_INTRINSIC_SIZE,
+        region === 'history' && HISTORY_CONTENT_VISIBILITY,
+        region === 'response' && RESPONSE_NO_ANCHOR,
         rootRef !== undefined && 'scroll-mt-6',
       )}
     >
@@ -223,7 +240,7 @@ export const MessageItem = memo(
   (prevProps, nextProps) =>
     prevProps.message === nextProps.message &&
     prevProps.isLast === nextProps.isLast &&
-    prevProps.isHistory === nextProps.isHistory &&
+    prevProps.region === nextProps.region &&
     prevProps.rootRef === nextProps.rootRef &&
     prevProps.organizationId === nextProps.organizationId &&
     prevProps.threadId === nextProps.threadId &&

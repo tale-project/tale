@@ -2270,6 +2270,29 @@ describe('estimateCostCents — the one cost formula', () => {
     // No price: an honest zero, never a guessed rate.
     expect(estimateCostCents(1000, 1000, undefined)).toBe(0);
   });
+
+  it('bills the cached share of the input at the cache-hit price', () => {
+    const cached = modelCatalogEntrySchema.parse({
+      ...MODEL,
+      pricing: {
+        inputCentsPerMillion: 30,
+        outputCentsPerMillion: 120,
+        cacheReadCentsPerMillion: 0.6,
+      },
+    }).pricing;
+    // 1M input of which 900k hits: 100k × 30 + 900k × 0.6 + 10k × 120 =
+    // 3 + 0.54 + 1.2 cents — the hits are 2% of a miss, not 100%.
+    expect(estimateCostCents(1_000_000, 10_000, cached, 900_000)).toBe(4.74);
+    // Absent the cache price, a hit bills at the input rate (what the
+    // gateway does too) — the formula does not invent a discount.
+    expect(
+      estimateCostCents(1_000_000, 10_000, pricing(30, 120), 900_000),
+    ).toBe(31.2);
+    // More hits than input tokens (a malformed payload) never bills negative
+    // input; a negative count is ignored.
+    expect(estimateCostCents(1000, 0, cached, 5000)).toBe(0.0006);
+    expect(estimateCostCents(1000, 0, cached, -5)).toBe(0.03);
+  });
 });
 
 /**

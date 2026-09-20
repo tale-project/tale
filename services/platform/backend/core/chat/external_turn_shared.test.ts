@@ -52,8 +52,12 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   },
 }));
 
-const { drainHarnessWindow, classifyHarnessEnd } =
-  await import('./external_turn_shared');
+const {
+  drainHarnessWindow,
+  classifyHarnessEnd,
+  isSpendRefusal,
+  spendRefusalReason,
+} = await import('./external_turn_shared');
 
 /** One NDJSON stream from event objects. */
 function ndjson(lines: Array<Record<string, unknown>>): string {
@@ -494,5 +498,40 @@ describe('classifyHarnessEnd', () => {
         execResult: { ...crashed.execResult, errorMessage: 'OOM killed' },
       }).reason,
     ).toBe('The harness stopped: OOM killed');
+  });
+});
+
+describe('spend refusal (402) classification', () => {
+  it('reads a 402 as the turn’s money being gone, and nothing else', () => {
+    // The gateway's virtual-key budget refusal and a vendor's own payment
+    // refusal both answer 402; a retry meets the same answer, so the hosts
+    // settle it as `budget_exceeded` instead of re-kicking a resume that
+    // dies on its second call.
+    expect(isSpendRefusal({ apiErrorStatus: 402 })).toBe(true);
+    expect(isSpendRefusal({ apiErrorStatus: 429 })).toBe(false);
+    expect(isSpendRefusal({ apiErrorStatus: 401 })).toBe(false);
+    expect(isSpendRefusal({})).toBe(false);
+    expect(isSpendRefusal(undefined)).toBe(false);
+  });
+
+  it('names the exhausted allowance and keeps the harness’s own line as the detail', () => {
+    expect(
+      spendRefusalReason(
+        'API Error: 402 Model-level budget exceeded (virtual key scope): budget exceeded: 1.5618 >= 1.5100 dollars',
+      ),
+    ).toBe(
+      "the turn's spend allowance was exhausted (API status 402): API Error: 402 Model-level budget exceeded (virtual key scope): budget exceeded: 1.5618 >= 1.5100 dollars",
+    );
+    expect(spendRefusalReason('')).toBe(
+      "the turn's spend allowance was exhausted (API status 402)",
+    );
+    expect(spendRefusalReason(undefined)).toBe(
+      "the turn's spend allowance was exhausted (API status 402)",
+    );
+    // A long transcript keeps only its tail — the run row is a status row.
+    const long = `${'x'.repeat(400)}API Error: 402 tail`;
+    const reason = spendRefusalReason(long);
+    expect(reason.endsWith('API Error: 402 tail')).toBe(true);
+    expect(reason.length).toBeLessThan(400);
   });
 });

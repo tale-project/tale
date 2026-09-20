@@ -556,7 +556,12 @@ export async function estimateTurnCostCents(
   sql: Sql,
   entry: Pick<
     UsageLedgerEntry,
-    'organizationId' | 'provider' | 'model' | 'inputTokens' | 'outputTokens'
+    | 'organizationId'
+    | 'provider'
+    | 'model'
+    | 'inputTokens'
+    | 'outputTokens'
+    | 'cachedInputTokens'
   >,
 ): Promise<number> {
   try {
@@ -569,7 +574,12 @@ export async function estimateTurnCostCents(
     const pricing = (await getProviderCatalog(connector)).find(
       (candidate) => candidate.id === entry.model,
     )?.pricing;
-    return estimateCostCents(entry.inputTokens, entry.outputTokens, pricing);
+    return estimateCostCents(
+      entry.inputTokens,
+      entry.outputTokens,
+      pricing,
+      entry.cachedInputTokens,
+    );
   } catch (error) {
     console.warn(
       `[usage-ledger] could not price ${entry.provider}/${entry.model} (booking 0):`,

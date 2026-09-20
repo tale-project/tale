@@ -206,6 +206,35 @@ describe('provisionSessionGatewayKey', () => {
     });
   });
 
+  it('pushes the catalog cache-hit and cache-write prices beside the pair', async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    mockedCatalog.mockResolvedValue([
+      {
+        id: 'anthropic/claude-sonnet-5',
+        pricing: {
+          inputCentsPerMillion: 200,
+          outputCentsPerMillion: 1000,
+          cacheReadCentsPerMillion: 20,
+          cacheWriteCentsPerMillion: 250,
+        },
+      },
+    ] as never);
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-1',
+      allowedModels: MODELS,
+      budgetCents: 500,
+    });
+    expect(ensureModelPricingOverride).toHaveBeenCalledWith({
+      gatewayProvider: 'openrouter',
+      modelId: 'anthropic/claude-sonnet-5',
+      inputCentsPerMillion: 200,
+      outputCentsPerMillion: 1000,
+      cacheReadCentsPerMillion: 20,
+      cacheWriteCentsPerMillion: 250,
+    });
+  });
+
   it('still mints when a STANDARD provider’s pricing push fails (the datasheet prices it)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedResolve.mockResolvedValue(apiKeyResolution());

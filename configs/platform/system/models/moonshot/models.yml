@@ -2,6 +2,11 @@
 # the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
 # vendor publishes no usable public listing endpoint). Pricing is
 # cents per million tokens where the source published it.
+# Refreshed 2026-09-20 from platform.moonshot.ai/docs/pricing/chat: kimi-k3
+# $3/$15 with cache hits $0.30 and 5-minute cache writes $3; the K2 series is
+# $0.95/$4 with cache hits $0.19 (k2.7-code) / $0.16 (k2.6). kimi-k2.5 keeps the
+# OpenRouter figures (the vendor page no longer lists it; hit price from the
+# 2026-09-20 listing).
 - id: kimi-k3
   provider: moonshot
   tags:
@@ -15,6 +20,8 @@
   pricing:
     inputCentsPerMillion: 300
     outputCentsPerMillion: 1500
+    cacheReadCentsPerMillion: 30
+    cacheWriteCentsPerMillion: 300
 - id: kimi-k2.7-code
   provider: moonshot
   tags:
@@ -26,8 +33,9 @@
     knob: effort
   contextWindow: 262144
   pricing:
-    inputCentsPerMillion: 82
-    outputCentsPerMillion: 375
+    inputCentsPerMillion: 95
+    outputCentsPerMillion: 400
+    cacheReadCentsPerMillion: 19
 - id: kimi-k2.6
   provider: moonshot
   tags:
@@ -39,8 +47,9 @@
     knob: effort
   contextWindow: 262144
   pricing:
-    inputCentsPerMillion: 68.4
-    outputCentsPerMillion: 342
+    inputCentsPerMillion: 95
+    outputCentsPerMillion: 400
+    cacheReadCentsPerMillion: 16
 - id: kimi-k2.5
   provider: moonshot
   tags:
@@ -54,3 +63,4 @@
   pricing:
     inputCentsPerMillion: 57
     outputCentsPerMillion: 285
+    cacheReadCentsPerMillion: 7

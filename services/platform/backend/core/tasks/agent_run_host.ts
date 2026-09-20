@@ -31,6 +31,8 @@ import {
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  isSpendRefusal,
+  spendRefusalReason,
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
   resolveHarnessTurnContextWindow,
@@ -1391,8 +1393,14 @@ async function continueOrSettle(
   // The harness's own last words ARE the reason when it reported the error
   // itself (classify yields none there) — never bury a "401 token revoked"
   // behind a generic line.
+  const spendRefused = errored && isSpendRefusal(ended);
   const reason =
-    endReason ?? (errored ? failureReasonFromFinalText(text) : undefined);
+    endReason ??
+    (spendRefused
+      ? spendRefusalReason(text)
+      : errored
+        ? failureReasonFromFinalText(text)
+        : undefined);
   await settleTaskAgentTurn(ctx, args, {
     errored,
     ...(reason !== undefined ? { reason } : {}),
@@ -1400,7 +1408,16 @@ async function continueOrSettle(
     ...(window.agentSessionId !== undefined && !launchFailed
       ? { agentSessionId: window.agentSessionId }
       : {}),
-    ...(errored ? { failureCode: 'harness_error' as const } : {}),
+    // A spend refusal (402) is named as such: the auto-retry must not
+    // re-kick it (the key is sized from the same exhausted balance), and
+    // the run row should say why.
+    ...(errored
+      ? {
+          failureCode: spendRefused
+            ? ('budget_exceeded' as const)
+            : ('harness_error' as const),
+        }
+      : {}),
     // The harness-reported provider status (429/401/…) — absent for
     // mid-stream deaths and non-claude harnesses; stamped for observability.
     ...(errored && ended?.apiErrorStatus !== undefined

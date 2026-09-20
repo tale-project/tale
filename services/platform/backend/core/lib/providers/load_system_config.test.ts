@@ -138,6 +138,44 @@ describe('shipped static model catalogs', () => {
     }
   });
 
+  it('prices a prompt-cache hit at or below the input rate wherever it prices one', () => {
+    // A hit that costs more than a miss is a typo, and it would bill every
+    // cached token of every turn above the vendor's own invoice.
+    const catalogs = loadStaticCatalogs();
+    let priced = 0;
+    for (const [provider, entries] of catalogs) {
+      for (const entry of entries) {
+        const pricing = entry.pricing;
+        if (pricing?.cacheReadCentsPerMillion === undefined) continue;
+        priced++;
+        expect(
+          { provider, id: entry.id, hit: pricing.cacheReadCentsPerMillion },
+          `${provider}/${entry.id} prices a cache hit above its input rate`,
+        ).toEqual({
+          provider,
+          id: entry.id,
+          hit: expect.any(Number),
+        });
+        expect(pricing.cacheReadCentsPerMillion).toBeLessThanOrEqual(
+          pricing.inputCentsPerMillion,
+        );
+      }
+    }
+    // Every vendor connector with a static catalog discounts cache hits —
+    // a catalog that lost them would silently overbill again.
+    expect(priced).toBeGreaterThan(30);
+  });
+
+  it('prices the deepseek cache hit at the vendor peak rate ($0.006/M flash, $0.044/M pro)', () => {
+    const deepseek = loadStaticCatalogs().get('deepseek');
+    expect(
+      deepseek?.map((m) => [m.id, m.pricing?.cacheReadCentsPerMillion]),
+    ).toEqual([
+      ['deepseek-flash', 0.6],
+      ['deepseek-v4-pro', 4.4],
+    ]);
+  });
+
   it('ships the current deepseek lineup, not the retired aliases', () => {
     const deepseek = loadStaticCatalogs().get('deepseek');
     expect(deepseek?.map((m) => m.id)).toEqual([

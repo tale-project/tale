@@ -352,6 +352,9 @@ export interface UsageLedgerEntry {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly totalTokens: number;
+  /** The prompt-cache hits among `inputTokens`, when the provider reported
+   * them — priced at the catalog's cache-hit rate by the ledger. */
+  readonly cachedInputTokens?: number;
 }
 
 export interface UsageLedger {
@@ -950,15 +953,26 @@ export const CAP_WITHHELD_CALL_OUTPUT = {
  * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
  * rather than guessing a rate — an under-count is honest where a fabricated
  * one is not. The ONE cost formula: the usage ledger and the per-message
- * stamp both call it, so the two figures can never drift. */
+ * stamp both call it, so the two figures can never drift. The cached share
+ * of the input (`cachedInputTokens`, what the provider reported as
+ * prompt-cache hits) bills at the catalog's cache-hit price when it has one
+ * — every vendor that reports hits discounts them, some a hundredfold —
+ * and at the input rate otherwise. */
 export function estimateCostCents(
   inputTokens: number,
   outputTokens: number,
   pricing: ModelCatalogEntry['pricing'] | undefined,
+  cachedInputTokens = 0,
 ): number {
   if (!pricing) return 0;
+  // Clamped: a provider payload that reports more hits than input tokens
+  // must not bill negative input.
+  const cached = Math.min(Math.max(cachedInputTokens, 0), inputTokens);
+  const cacheReadCentsPerMillion =
+    pricing.cacheReadCentsPerMillion ?? pricing.inputCentsPerMillion;
   const cents =
-    (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
+    ((inputTokens - cached) / 1_000_000) * pricing.inputCentsPerMillion +
+    (cached / 1_000_000) * cacheReadCentsPerMillion +
     (outputTokens / 1_000_000) * pricing.outputCentsPerMillion;
   // Rounded to a millionth of a cent: the doubles the rates produce carry
   // binary noise (`0.042601999999999994`) that reached the wire and the
@@ -1055,6 +1069,9 @@ async function recordUsage(
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
+    ...(usage.cachedInputTokens !== undefined
+      ? { cachedInputTokens: usage.cachedInputTokens }
+      : {}),
   });
 }
 
@@ -1572,6 +1589,7 @@ export async function runTurn(
               summed.input,
               summed.output,
               request.model.pricing,
+              summed.cached,
             ),
           }
         : {}),

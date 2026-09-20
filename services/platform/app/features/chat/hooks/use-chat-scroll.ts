@@ -1,9 +1,10 @@
 /**
  * Chat scroll state machine — see {@link useChatScroll} for the behavioral
- * doctrine (only user actions scroll; generation growth never does).
+ * doctrine (only user actions scroll; generation growth never does, except
+ * behind the follow latch the scroll-to-bottom button engages mid-stream).
  *
- * Min-height coordination with `use-response-slack` (two writers, two
- * elements, one geometry):
+ * Geometry coordination with `use-response-slack` (two writers, two elements,
+ * one geometry):
  *  - THIS hook is the only writer of the content wrapper's (`contentRef`)
  *    `style.minHeight`: a branch switch freezes the wrapper at its pre-switch
  *    height — set in the render body, pre-paint, so the list can't visibly
@@ -11,8 +12,8 @@
  *    hold `releaseMinHeight`; `cancelHold` clears the freeze
  *    (`style.minHeight = ''`) when that hold ends (timer release, user
  *    takeover, or a replacing hold).
- *  - `useResponseSlack` is the only writer of the response area's
- *    `style.minHeight` (a child INSIDE the wrapper): the slack that keeps the
+ *  - `useResponseSlack` is the only writer of the slack spacer's (`slackRef`)
+ *    `style.height` — the empty block after the message list that keeps the
  *    last user message anchorable at the viewport top. Neither side ever
  *    touches the other's element.
  *  - They coordinate through geometry, not callbacks: both derive the top
@@ -20,8 +21,8 @@
  *    so the slack height and the snap target always agree; slack writes reach
  *    this hook only as content RESIZES (the ResizeObserver re-pins the active
  *    hold through the settle window), while the MutationObserver deliberately
- *    ignores pure `style` attribute mutations so a min-height write alone
- *    never counts as a content change.
+ *    ignores pure `style` attribute mutations so a slack write alone never
+ *    counts as a content change.
  */
 
 import {
@@ -76,6 +77,12 @@ export interface UseChatScrollParams {
    * The caller owns the ref (it writes the intent right before arming each
    * send/edit); this hook only consumes it — reset to `false` when the snap
    * arms, when the user takes over, and when streaming ends.
+   *
+   * The snap OUTRANKS any live hold: a thread-open restore or a branch-switch
+   * preservation still re-pinning when the user sends is replaced by the
+   * snap on the very next content tick. (A position hold used to swallow
+   * the intent for its whole 2 s window — a send right after opening a
+   * thread then never scrolled at all when the reply settled inside it.)
    */
   scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
 }
@@ -96,6 +103,21 @@ const SCROLL_UP_ESCAPE_THRESHOLD_PX = 4;
  * scrolls.
  */
 const SNAP_SETTLE_MS = 700;
+
+/**
+ * Fresh settle window granted when the send glide LANDS. The glide re-reads
+ * its anchor every frame, so on a slow frame rate it can outlive
+ * SNAP_SETTLE_MS; the slack corrections that follow the landing still need a
+ * hold to re-pin through. (While the glide is in flight the hold never
+ * expires — see resolveContentTickAction.)
+ */
+const SNAP_LANDING_SETTLE_MS = 250;
+
+/**
+ * Minimum downward finger travel (px) on a touch screen that counts as
+ * scrolling the content UP — the touch twin of the wheel direction rule.
+ */
+const TOUCH_ESCAPE_THRESHOLD_PX = 4;
 
 /**
  * How long a POSITION hold (branch switch, thread-open restore) keeps
@@ -309,6 +331,59 @@ export function resolveStickToBottom(opts: {
   return opts.sticking;
 }
 
+/**
+ * Whether a wheel event is a user takeover. Only an UPWARD turn is — the
+ * direction that reads earlier content. A downward or sideways delta (the
+ * momentum tail a trackpad keeps emitting after the user scrolled to the
+ * bottom, a horizontal swipe over a code block) never cancels a snap; the
+ * pointer merely rests over the transcript while the user types and sends.
+ * The same `deltaY < 0` rule as use-stick-to-bottom. Exported for unit
+ * testing.
+ */
+export function isEscapingWheel(deltaY: number): boolean {
+  return deltaY < 0;
+}
+
+/**
+ * The touch twin of {@link isEscapingWheel}: a finger travelling DOWN the
+ * screen scrolls the content up. Exported for unit testing.
+ */
+export function isEscapingTouchMove(
+  previousY: number,
+  currentY: number,
+): boolean {
+  return currentY - previousY > TOUCH_ESCAPE_THRESHOLD_PX;
+}
+
+/** What a content tick does, in precedence order — see resolveContentTickAction. */
+export type ContentTickAction = 'snap' | 'hold' | 'follow' | 'none';
+
+/**
+ * Pure precedence decision for one content-change tick (a mutation or a
+ * resize of the message list):
+ *  - a pending send/edit intent always wins and becomes the snap hold, even
+ *    over a live position hold (the send is the stronger user action);
+ *  - otherwise a live hold re-pins — a hold counts as live while its window
+ *    is open OR the send glide is still in flight (the glide must never lose
+ *    its anchor to the clock);
+ *  - otherwise the follow latch (scroll-to-bottom pressed mid-stream) keeps
+ *    the live bottom;
+ *  - otherwise nothing scrolls: generation growth streams below the fold.
+ * Exported for unit testing — the hook wires it to the observers.
+ */
+export function resolveContentTickAction(opts: {
+  intent: boolean | 'smooth';
+  hold: ScrollHold | null;
+  now: number;
+  gliding: boolean;
+  following: boolean;
+}): ContentTickAction {
+  if (opts.intent) return 'snap';
+  if (opts.hold && (opts.gliding || opts.now < opts.hold.until)) return 'hold';
+  if (opts.following) return 'follow';
+  return 'none';
+}
+
 export interface ChatScroll {
   containerRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
@@ -324,16 +399,21 @@ export interface ChatScroll {
  * viewport top: instant for the first message of a chat, a smooth glide for
  * follow-ups), opening a thread (restore its remembered position, or the
  * bottom on first open), switching branches, or pressing the
- * scroll-to-bottom button. AI text generation NEVER scrolls the view; the
- * response streams into the slack below the user message and past the fold
- * when it outgrows the viewport.
+ * scroll-to-bottom button. AI text generation NEVER scrolls the view on its
+ * own; the response streams into the slack below the user message and past
+ * the fold when it outgrows the viewport. The one exception is the follow
+ * latch: pressing scroll-to-bottom WHILE a reply streams says "keep me at
+ * the bottom", and the view follows the growth until the user scrolls up or
+ * the stream ends (ChatGPT's behavior; a one-shot jump would leave the
+ * button back on screen a second later).
  *
  * Every programmatic movement is a ScrollHold (see type above): one
  * mechanism for the send-snap settle window, branch-switch preservation,
  * and thread-open restore. Holds re-pin through content-churn layout ticks
- * until they expire; any user scroll intent (wheel, touch, an upward
- * scroll) cancels the hold, the glide, and any pending snap — the user
- * always wins.
+ * until they expire; a send/edit intent replaces whatever hold is live; an
+ * upward user scroll intent (wheel up, finger down, an upward scroll)
+ * cancels the hold, the glide, the follow latch and any pending snap — the
+ * user always wins.
  *
  * Plus: per-thread scroll position memory (session-only) and streaming-end
  * intent clear.
@@ -361,6 +441,10 @@ export function useChatScroll({
   // active hold. NOTE: this no longer drives any auto-follow; generation
   // growth never scrolls.
   const pinnedRef = useRef(true);
+  // The follow latch: scroll-to-bottom pressed while a reply streams. While
+  // set, each content tick re-lands the live bottom. Cleared by any user
+  // escape, by a send/edit snap, by a thread change, and when the stream ends.
+  const followBottomRef = useRef(false);
   // The single active hold (or none). See ScrollHold.
   const holdRef = useRef<ScrollHold | null>(null);
   // Timed release for POSITION holds (branch switch / thread restore):
@@ -473,6 +557,14 @@ export function useChatScroll({
     // streaming growth is followed rather than raced (a one-shot smooth
     // scroll stalls part-way). Cancels itself if the user escapes the pin.
     let smoothSnapRafId: number | null = null;
+
+    const updateButton = () => {
+      // The button never flickers over a glide in flight: the view is on
+      // its way, and the landing re-evaluates it.
+      if (smoothSnapRafId !== null) return;
+      setShowScrollButton(!isAtBottom());
+    };
+
     const smoothSnapToTarget = () => {
       if (prefersReducedMotion) {
         if (holdRef.current) applyHold(holdRef.current);
@@ -489,6 +581,16 @@ export function useChatScroll({
         const remaining = target - container.scrollTop;
         if (Math.abs(remaining) <= 1) {
           if (remaining !== 0) container.scrollTop = target;
+          // Landed. A late landing (slow frames) may have outlived the
+          // settle window; the slack corrections that follow still need a
+          // hold to re-pin through, so grant a short fresh one.
+          if (hold !== null && hold.kind === 'last-user-top') {
+            hold.until = Math.max(
+              hold.until,
+              Date.now() + SNAP_LANDING_SETTLE_MS,
+            );
+          }
+          updateButton();
           return;
         }
         // Exponential ease-out toward the (possibly moving) target.
@@ -499,34 +601,25 @@ export function useChatScroll({
       smoothSnapRafId = requestAnimationFrame(step);
     };
 
-    const updateButton = () => {
-      setShowScrollButton(!isAtBottom());
-    };
-
     const onContentChange = () => {
-      // Active hold: keep the viewport pinned to its (re-resolved) target
-      // through this layout tick — instantly, unless the smooth glide is
-      // still in flight (it retargets on its own).
       const hold = holdRef.current;
-      if (hold) {
-        if (Date.now() < hold.until) {
-          if (smoothSnapRafId === null) applyHold(hold);
-          updateButton();
-          return;
-        }
-        // Expired settle hold (position holds release via their timer) —
-        // drop it and fall through. OUTSIDE any hold, content growth never
-        // scrolls: AI generation streams below the fold and only explicit
-        // user actions move the view.
-        cancelHold();
-      }
-      // Forced snap (user action: send / edit-branch): anchor the last user
-      // message at the viewport top even if the user had scrolled away.
-      // Sends ('smooth') glide via the retargeting animation; the first
-      // message of a chat (true) jumps instantly. Consumed once; the settle
-      // hold carries the slack-correction ticks that follow.
-      if (scrollIntentRef.current) {
+      const action = resolveContentTickAction({
+        intent: scrollIntentRef.current,
+        hold,
+        now: Date.now(),
+        gliding: smoothSnapRafId !== null,
+        following: followBottomRef.current,
+      });
+      if (action === 'snap') {
+        // Forced snap (user action: send / edit-branch): anchor the last
+        // user message at the viewport top even if the user had scrolled
+        // away — and even if a position hold (thread-open restore, branch
+        // switch) is still live: the send replaces it. Sends ('smooth')
+        // glide via the retargeting animation; the first message of a chat
+        // (true) jumps instantly. Consumed once; the settle hold carries the
+        // slack-correction ticks that follow.
         pinnedRef.current = true;
+        followBottomRef.current = false;
         const smooth = scrollIntentRef.current === 'smooth';
         scrollIntentRef.current = false;
         const snapHold: ScrollHold = {
@@ -534,10 +627,35 @@ export function useChatScroll({
           until: Date.now() + SNAP_SETTLE_MS,
         };
         beginHold(snapHold);
-        if (smooth) smoothSnapToTarget();
-        else applyHold(snapHold);
+        if (smooth) {
+          // The view is on its way down to the new message: a button that
+          // offers the same trip is noise until the glide lands.
+          smoothSnapToTarget();
+          setShowScrollButton(false);
+        } else {
+          applyHold(snapHold);
+          updateButton();
+        }
+        return;
+      }
+      if (action === 'hold' && hold) {
+        // Live hold: keep the viewport pinned to its (re-resolved) target
+        // through this layout tick — instantly, unless the smooth glide is
+        // still in flight (it retargets on its own).
+        if (smoothSnapRafId === null) applyHold(hold);
         updateButton();
         return;
+      }
+      // Expired settle hold (position holds release via their timer) — drop
+      // it. OUTSIDE any hold, content growth never scrolls on its own: AI
+      // generation streams below the fold and only explicit user actions
+      // move the view — the follow latch being one of them.
+      if (hold) cancelHold();
+      if (action === 'follow') {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
       }
       updateButton();
     };
@@ -562,20 +680,30 @@ export function useChatScroll({
       });
       pinnedRef.current = nextPinned;
 
-      // Just escaped → cancel any pending forced snap and the active hold so
-      // we don't yank the user back after they deliberately scrolled away.
+      // Just escaped → cancel any pending forced snap, the follow latch and
+      // the active hold so we don't yank the user back after they
+      // deliberately scrolled away.
       if (!nextPinned && wasPinned) {
         scrollIntentRef.current = false;
+        followBottomRef.current = false;
         cancelHold();
       }
-      setShowScrollButton(!atBottom);
+      // The glide's own frames fire scroll events too; the button waits for
+      // the landing (see updateButton).
+      if (smoothSnapRafId === null) setShowScrollButton(!atBottom);
     };
 
-    // Direct user scroll intent (wheel / touch) interrupts everything: the
-    // smooth glide, the active hold, and any pending snap. These events
-    // only ever come from the user (our programmatic scrolls don't fire
-    // them), so they're an unambiguous "I'm taking over".
+    // Direct user scroll intent (wheel up / finger down) interrupts
+    // everything: the smooth glide, the active hold, the follow latch, and
+    // any pending snap. These events only ever come from the user (our
+    // programmatic scrolls don't fire them), so they're an unambiguous "I'm
+    // taking over" — but only in the UPWARD direction: a trackpad's momentum
+    // tail after the user scrolled to the bottom, or a sideways swipe over a
+    // code block, keeps firing wheel events with the pointer resting over the
+    // transcript while they type and send, and must not cancel the send-snap
+    // (that was the other half of "sent, nothing scrolled").
     const onUserScrollIntent = () => {
+      followBottomRef.current = false;
       if (
         smoothSnapRafId !== null ||
         holdRef.current !== null ||
@@ -589,6 +717,21 @@ export function useChatScroll({
           smoothSnapRafId = null;
         }
       }
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (isEscapingWheel(event.deltaY)) onUserScrollIntent();
+    };
+    let lastTouchY: number | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY;
+      if (y === undefined) return;
+      if (lastTouchY !== null && isEscapingTouchMove(lastTouchY, y)) {
+        onUserScrollIntent();
+      }
+      lastTouchY = y;
     };
 
     const resizeObserver = new ResizeObserver(onContentChange);
@@ -607,10 +750,9 @@ export function useChatScroll({
     });
 
     container.addEventListener('scroll', onScroll, { passive: true });
-    container.addEventListener('wheel', onUserScrollIntent, { passive: true });
-    container.addEventListener('touchmove', onUserScrollIntent, {
-      passive: true,
-    });
+    container.addEventListener('wheel', onWheel, { passive: true });
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: true });
     // Seed scroll tracking so the first real scroll event compares against the
     // current position/height, not 0 (which would spuriously read as growth).
     lastScrollTopRef.current = container.scrollTop;
@@ -621,8 +763,9 @@ export function useChatScroll({
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
-      container.removeEventListener('wheel', onUserScrollIntent);
-      container.removeEventListener('touchmove', onUserScrollIntent);
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
       if (smoothSnapRafId !== null) cancelAnimationFrame(smoothSnapRafId);
     };
   }, [
@@ -637,7 +780,10 @@ export function useChatScroll({
   ]);
 
   // Clear the force-snap intent when streaming ends — covers the case where
-  // the ref stayed set throughout the entire streaming session.
+  // the ref stayed set throughout the entire streaming session. The follow
+  // latch deliberately survives this edge: the reveal keeps growing the reply
+  // after the generation row is gone, and the user asked to stay at the
+  // bottom of it.
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
@@ -724,9 +870,11 @@ export function useChatScroll({
         : { kind: 'last-user-top', until: Date.now() + POSITION_HOLD_MS },
       POSITION_HOLD_MS,
     );
-    // The timed release reconciles the follow latch to where the view
-    // actually settled (isAtBottom); until then the open is hold-controlled.
+    // The timed release reconciles the pin latch to where the view actually
+    // settled (isAtBottom); until then the open is hold-controlled. A follow
+    // latch belongs to the previous thread's stream, never to this open.
     pinnedRef.current = false;
+    followBottomRef.current = false;
     c.scrollTo({ top: decision.top, behavior: 'instant' });
     reseedScrollTrackers();
   }, [
@@ -847,17 +995,22 @@ export function useChatScroll({
   // Scroll-to-bottom button: re-engage the pin and land at the bottom. Motion
   // is chosen by shouldAnimateScrollToBottom — smooth only on a settled
   // conversation with motion allowed; while streaming we instant-snap so the
-  // view catches up to the live bottom and the pin follows subsequent growth
-  // (a smooth animation would lag behind it). Either way the pin is
-  // re-engaged, so from here resolveStickToBottom drives follow/escape on the
-  // next scroll/content event — no separate "animation in progress" state is
-  // needed. Any active hold is dropped: the button is an explicit override.
+  // view catches up to the live bottom, and the FOLLOW LATCH keeps it there
+  // through subsequent growth (each content tick re-lands the bottom) until
+  // the user scrolls up or the stream ends. Any active hold is dropped: the
+  // button is an explicit override.
   const scrollToBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     pinnedRef.current = true;
     scrollIntentRef.current = false;
     cancelHold();
+    // Engaged regardless of `isLoading`: the visible stream outlives the
+    // generation row — the client-side reveal keeps draining text for
+    // seconds after the server settled — so the latch stays until the user
+    // scrolls up, sends, or opens another thread. On a settled reply it is
+    // simply inert.
+    followBottomRef.current = true;
     const animate = shouldAnimateScrollToBottom({
       isStreaming: isLoading,
       prefersReducedMotion,

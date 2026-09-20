@@ -436,3 +436,39 @@ describe('MessageThread accessibility', () => {
     await waitFor(() => checkAccessibility(container));
   });
 });
+
+describe('MessageThread row identity across a send', () => {
+  it('keeps the previous turn mounted when a new user message demotes it to history', () => {
+    // ONE list on purpose: the rows above the new message change region, not
+    // parent. A remount would flash the history row at its placeholder size
+    // and clamp the scroll position out from under the send glide.
+    const before = toSettledItems(CONVERSATION);
+    const { rerender } = render(
+      <MessageThread messages={before} threadId="t1" threadRootId="t1" />,
+    );
+    const rows = screen.getAllByTestId('chat-message');
+    const previousUser = rows[0]!;
+    const previousReply = rows[rows.length - 1]!;
+
+    const after = toSettledItems([
+      ...CONVERSATION,
+      {
+        id: 'm3',
+        role: 'user',
+        sequence: 3,
+        createdAt: 3,
+        parts: [{ type: 'text', text: 'And the totals?' }],
+      },
+    ]);
+    rerender(
+      <MessageThread messages={after} threadId="t1" threadRootId="t1" />,
+    );
+
+    expect(previousUser.isConnected).toBe(true);
+    expect(previousReply.isConnected).toBe(true);
+    const rowsAfter = screen.getAllByTestId('chat-message');
+    expect(rowsAfter).toHaveLength(3);
+    expect(rowsAfter[0]).toBe(previousUser);
+    expect(rowsAfter[1]).toBe(previousReply);
+  });
+});

@@ -15,6 +15,9 @@
 # included — takes `reasoning_effort`. A `budget-tokens` knob would name a
 # parameter an OpenAI-compatible body cannot spell, and the pick would reach
 # the endpoint as nothing at all.
+# Prompt-cache prices (`cacheRead` = `pricing.input_cache_read`, `cacheWrite` =
+# `pricing.input_cache_write`) captured from the live listing on 2026-09-20; the
+# live fetch refreshes them the same way it refreshes the input/output pair.
 - id: anthropic/claude-sonnet-5
   provider: openrouter
   tags:
@@ -29,6 +32,8 @@
   pricing:
     inputCentsPerMillion: 200
     outputCentsPerMillion: 1000
+    cacheReadCentsPerMillion: 20
+    cacheWriteCentsPerMillion: 250
 - id: anthropic/claude-fable-5
   provider: openrouter
   tags:
@@ -43,6 +48,8 @@
   pricing:
     inputCentsPerMillion: 1000
     outputCentsPerMillion: 5000
+    cacheReadCentsPerMillion: 100
+    cacheWriteCentsPerMillion: 1250
 - id: openai/gpt-5.6-luna-pro
   provider: openrouter
   tags:
@@ -58,6 +65,8 @@
   pricing:
     inputCentsPerMillion: 100
     outputCentsPerMillion: 600
+    cacheReadCentsPerMillion: 2
+    cacheWriteCentsPerMillion: 25
 - id: openai/gpt-5.6-luna
   provider: openrouter
   tags:
@@ -73,6 +82,8 @@
   pricing:
     inputCentsPerMillion: 100
     outputCentsPerMillion: 600
+    cacheReadCentsPerMillion: 2
+    cacheWriteCentsPerMillion: 25
 - id: google/gemini-3.6-flash
   provider: openrouter
   tags:
@@ -88,6 +99,8 @@
   pricing:
     inputCentsPerMillion: 150
     outputCentsPerMillion: 750
+    cacheReadCentsPerMillion: 7.5
+    cacheWriteCentsPerMillion: 4.1667
 - id: google/gemini-3.5-flash-lite
   provider: openrouter
   tags:
@@ -103,6 +116,8 @@
   pricing:
     inputCentsPerMillion: 30
     outputCentsPerMillion: 250
+    cacheReadCentsPerMillion: 3
+    cacheWriteCentsPerMillion: 8.3333
 - id: x-ai/grok-4.5
   provider: openrouter
   tags:
@@ -117,6 +132,7 @@
   pricing:
     inputCentsPerMillion: 200
     outputCentsPerMillion: 600
+    cacheReadCentsPerMillion: 30
 - id: x-ai/grok-build-0.1
   provider: openrouter
   tags:
@@ -131,6 +147,7 @@
   pricing:
     inputCentsPerMillion: 100
     outputCentsPerMillion: 200
+    cacheReadCentsPerMillion: 20
 - id: deepseek/deepseek-v4-pro
   provider: openrouter
   tags:
@@ -145,6 +162,7 @@
   pricing:
     inputCentsPerMillion: 43.5
     outputCentsPerMillion: 87
+    cacheReadCentsPerMillion: 3.5192
 # DeepSeek-V4.1-Flash (2026-09-10), the aggregator's spelling of the vendor's
 # `deepseek-flash`: native image input, 1M context, 384K output. `off` is
 # carried over from the `deepseek/deepseek-v4-flash` probe of 2026-08-13 —
@@ -164,6 +182,7 @@
   pricing:
     inputCentsPerMillion: 15
     outputCentsPerMillion: 60
+    cacheReadCentsPerMillion: 0.3
 - id: deepseek/deepseek-v4-flash
   provider: openrouter
   tags:
@@ -177,6 +196,7 @@
   pricing:
     inputCentsPerMillion: 9.38
     outputCentsPerMillion: 18.76
+    cacheReadCentsPerMillion: 0.728
 - id: qwen/qwen3.7-plus
   provider: openrouter
   tags:
@@ -192,6 +212,8 @@
   pricing:
     inputCentsPerMillion: 32
     outputCentsPerMillion: 128
+    cacheReadCentsPerMillion: 6.4
+    cacheWriteCentsPerMillion: 40
 - id: qwen/qwen3.7-max
   provider: openrouter
   tags:
@@ -206,6 +228,8 @@
   pricing:
     inputCentsPerMillion: 147.5
     outputCentsPerMillion: 442.5
+    cacheReadCentsPerMillion: 29.5
+    cacheWriteCentsPerMillion: 184.375
 - id: moonshotai/kimi-k3
   provider: openrouter
   tags:
@@ -220,6 +244,7 @@
   pricing:
     inputCentsPerMillion: 300
     outputCentsPerMillion: 1500
+    cacheReadCentsPerMillion: 17
 - id: moonshotai/kimi-k2.7-code
   provider: openrouter
   tags:
@@ -234,6 +259,7 @@
   pricing:
     inputCentsPerMillion: 82
     outputCentsPerMillion: 375
+    cacheReadCentsPerMillion: 18
 - id: z-ai/glm-5.2
   provider: openrouter
   tags:
@@ -248,6 +274,7 @@
   pricing:
     inputCentsPerMillion: 77.7
     outputCentsPerMillion: 244.2
+    cacheReadCentsPerMillion: 12.064
 - id: z-ai/glm-5.1
   provider: openrouter
   tags:
@@ -262,6 +289,7 @@
   pricing:
     inputCentsPerMillion: 96.6
     outputCentsPerMillion: 303.6
+    cacheReadCentsPerMillion: 17.94
 - id: mistralai/mistral-medium-3-5
   provider: openrouter
   tags:
@@ -290,6 +318,7 @@
   pricing:
     inputCentsPerMillion: 15
     outputCentsPerMillion: 60
+    cacheReadCentsPerMillion: 1.5
 - id: meta-llama/llama-4-maverick
   provider: openrouter
   tags:

@@ -1012,6 +1012,83 @@ describe('getVirtualKeySpendCents', () => {
     await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(2);
   });
 
+  it('reads the LIVE figure (from_memory) — the stored row lags the gateway by a dump interval', async () => {
+    // The gateway meters in memory and dumps to its store every ~10 s; a
+    // settle seconds after the turn's last call read the stale row and
+    // booked 150 cents of a 156-cent turn. The live index is what the
+    // gateway's own 402 gate reads.
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const u = String(url);
+        urls.push(u);
+        const live = u.includes('from_memory=true');
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              virtual_key: {
+                budgets: [{ current_usage: live ? 1.5618 : 1.5012 }],
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }),
+    );
+    const mod = await loadModule();
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(
+      156.18,
+    );
+    expect(urls).toEqual([
+      expect.stringMatching(
+        /\/api\/governance\/virtual-keys\/vk-1\?from_memory=true$/,
+      ),
+    ]);
+  });
+
+  it('falls back to the stored row when the live index does not hold the key, and reads gone only when both 404', async () => {
+    const urls: string[] = [];
+    const respond = (memoryStatus: number, storedStatus: number) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string | URL) => {
+          const u = String(url);
+          urls.push(u);
+          const live = u.includes('from_memory=true');
+          const status = live ? memoryStatus : storedStatus;
+          return Promise.resolve(
+            new Response(
+              status === 200
+                ? JSON.stringify({
+                    virtual_key: { budgets: [{ current_usage: 0.0391 }] },
+                  })
+                : 'not found',
+              { status },
+            ),
+          );
+        }),
+      );
+    // A gateway restarted mid-turn reloads its index from the store: the
+    // stored row still answers.
+    respond(404, 200);
+    let mod = await loadModule();
+    await expect(mod.readVirtualKeySpend('vk-1')).resolves.toEqual({
+      status: 'ok',
+      cents: expect.closeTo(3.91, 5),
+    });
+    expect(urls).toHaveLength(2);
+    expect(urls[1]).toMatch(/\/api\/governance\/virtual-keys\/vk-1$/);
+    // Neither knows the key: it is gone, and nothing is booked.
+    urls.length = 0;
+    respond(404, 404);
+    mod = await loadModule();
+    await expect(mod.readVirtualKeySpend('vk-1')).resolves.toEqual({
+      status: 'gone',
+    });
+    expect(urls).toHaveLength(2);
+  });
+
   it('returns null (with a warning) for a key the gateway holds without a budget', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     spendResponse({ id: 'vk-1', budgets: [] });
@@ -1249,6 +1326,66 @@ describe('ensureModelPricingOverride', () => {
         pattern: 'glm-5.3-flash',
         request_types: ['chat_completion', 'responses', 'text_completion'],
         patch: PATCH,
+      },
+    });
+    expect(pricingCalls(calls)).toHaveLength(2);
+  });
+
+  it('carries the catalog cache-hit and cache-write prices in the patch', async () => {
+    // Without them the gateway bills a cached token at the input rate —
+    // a Claude Code turn is mostly cache hits, so a DeepSeek turn billed
+    // ~7× the vendor's invoice. Only the fields the catalog prices ride
+    // along: an absent one leaves the gateway's own figure (or fallback).
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride({
+      ...OVERRIDE,
+      gatewayProvider: 'org_1__deepseek__deepseek-flash__anthropic',
+      modelId: 'deepseek-flash',
+      inputCentsPerMillion: 30,
+      outputCentsPerMillion: 120,
+      cacheReadCentsPerMillion: 0.6,
+      cacheWriteCentsPerMillion: 30,
+    });
+    const [, create] = pricingCalls(calls);
+    expect(create?.body).toMatchObject({
+      pattern: 'deepseek-flash',
+      patch: {
+        input_cost_per_token: 3e-7,
+        output_cost_per_token: 1.2e-6,
+        cache_read_input_token_cost: 6e-9,
+        cache_creation_input_token_cost: 3e-7,
+      },
+    });
+  });
+
+  it('updates an override whose stored patch prices the pair right but lacks the cache-hit price', async () => {
+    // The pre-cache-price override is exactly this shape on every existing
+    // deployment: input/output right, cache absent — it must be rewritten,
+    // not memoized as matching.
+    const calls = stubGateway({
+      pricingOverrides: [
+        {
+          id: 'po-1',
+          name: NAME,
+          pattern: 'glm-5.3-flash',
+          match_type: 'exact',
+          request_types: ['chat_completion', 'responses', 'text_completion'],
+          pricing_patch: JSON.stringify(PATCH),
+        },
+      ],
+    });
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride({
+      ...OVERRIDE,
+      cacheReadCentsPerMillion: 3,
+    });
+    const [, update] = pricingCalls(calls);
+    expect(update).toMatchObject({
+      method: 'PUT',
+      url: expect.stringMatching(/\/api\/governance\/pricing-overrides\/po-1$/),
+      body: {
+        patch: { ...PATCH, cache_read_input_token_cost: 3e-8 },
       },
     });
     expect(pricingCalls(calls)).toHaveLength(2);

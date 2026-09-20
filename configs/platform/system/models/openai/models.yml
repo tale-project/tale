@@ -1,6 +1,11 @@
 # Static model catalog for the openai connector — flagship reasoning models
 # plus the everyday chat workhorse, in the vendor's own model ids. Pricing is
 # cents per million tokens.
+# Prompt-cache prices (`cacheRead` = cached input, `cacheWrite` = cache writes)
+# and the gpt-5.6-sol pair ($4/$20) read from developers.openai.com/api/docs/pricing
+# on 2026-09-20 (Standard, short context). gpt-5.5's cached-input figure is the
+# OpenRouter listing's (the vendor page no longer lists the model);
+# gpt-5.5-pro and gpt-5.3-chat-latest publish no cache price.
 - id: gpt-5.5
   provider: openai
   tags:
@@ -22,6 +27,7 @@
   pricing:
     inputCentsPerMillion: 500
     outputCentsPerMillion: 3000
+    cacheReadCentsPerMillion: 50
 - id: gpt-5.5-pro
   provider: openai
   tags:
@@ -75,8 +81,10 @@
   contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
-    inputCentsPerMillion: 500
-    outputCentsPerMillion: 3000
+    inputCentsPerMillion: 400
+    outputCentsPerMillion: 2000
+    cacheReadCentsPerMillion: 40
+    cacheWriteCentsPerMillion: 500
 - id: gpt-5.6-terra
   provider: openai
   tags:
@@ -92,6 +100,8 @@
   pricing:
     inputCentsPerMillion: 200
     outputCentsPerMillion: 1200
+    cacheReadCentsPerMillion: 20
+    cacheWriteCentsPerMillion: 250
 - id: gpt-5.6-luna
   provider: openai
   tags:
@@ -107,6 +117,8 @@
   pricing:
     inputCentsPerMillion: 20
     outputCentsPerMillion: 120
+    cacheReadCentsPerMillion: 2
+    cacheWriteCentsPerMillion: 25
 # Text-to-speech: powers "Read replies aloud" / "Speak out loud". The context
 # window is nominal — synthesis takes character-capped requests, not context.
 - id: gpt-4o-mini-tts
