@@ -30,6 +30,8 @@ import type { SkillViewer } from '../../../lib/skills/visibility';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  isSpendRefusal,
+  spendRefusalReason,
   drainHarnessWindow,
   type ExternalTurnServing,
   type HarnessTimelinePart,
@@ -2165,22 +2167,31 @@ async function continueOrSettle(
   // The conversation the failed turn leaves behind: the retry resumes it
   // when the harness announced a handle (init line or end stamp).
   const agentSessionId = ended?.sessionId ?? window.agentSessionId;
+  const spendRefused = errored && isSpendRefusal(ended);
+  const settleReason =
+    reason ?? (spendRefused ? spendRefusalReason(text) : undefined);
   await settleWorkflowAgentTurn(
     ctx,
     args,
     {
       errored,
-      ...(reason !== undefined ? { reason } : {}),
+      ...(settleReason !== undefined ? { reason: settleReason } : {}),
       ...(errored && agentSessionId !== undefined ? { agentSessionId } : {}),
       // Classification for the retry gate: a harness-reported error, a
       // crashed-no-result window and an empty answer all read
       // `harness_error`, so the stepper re-kicks them in place, except a
-      // death at the deadline — retrying a burned 12h window is waste. The
-      // API status rides along for display only.
+      // death at the deadline — retrying a burned 12h window is waste — and
+      // a spend refusal (402), which a re-kick would only meet again on a
+      // key sized from the same exhausted balance. The API status rides
+      // along for display.
       ...(errored
         ? {
             failureCode:
-              Date.now() > args.deadlineAt ? 'deadline' : 'harness_error',
+              Date.now() > args.deadlineAt
+                ? 'deadline'
+                : spendRefused
+                  ? 'budget_exceeded'
+                  : 'harness_error',
           }
         : {}),
       ...(errored && ended?.apiErrorStatus !== undefined

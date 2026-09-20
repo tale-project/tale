@@ -731,6 +731,34 @@ function isEmptyAnswer(
   return !answered && !spentTokens;
 }
 
+/**
+ * A turn-terminating API error that means the turn's money is gone, not
+ * that the provider hiccuped: the gateway's virtual-key budget refusal
+ * (`402 budget_exceeded` — the key was minted at what the org's spend cap
+ * had left) or a vendor's own payment refusal (OpenRouter answers 402 on
+ * exhausted credits). A retry is refused the same way — and a RESUMED retry
+ * replays the whole transcript into a key sized from the same balance, so
+ * every re-kick died on its second call — hence both lanes settle it as
+ * `budget_exceeded`, which their retry gates never re-kick.
+ */
+export function isSpendRefusal(
+  ended: { apiErrorStatus?: number } | undefined,
+): boolean {
+  return ended?.apiErrorStatus === 402;
+}
+
+/** The settle reason for a spend refusal: names the cause (the harness's
+ * own last words only quote the gateway's 402 line) and keeps that line as
+ * the detail. */
+export function spendRefusalReason(finalText: string | undefined): string {
+  const detail = finalText?.trim() ?? '';
+  const MAX = 300;
+  const tail = detail.length <= MAX ? detail : `… ${detail.slice(-MAX)}`;
+  return `the turn's spend allowance was exhausted (API status 402)${
+    tail === '' ? '' : `: ${tail}`
+  }`;
+}
+
 /** How a terminal window classifies: the agent's own `turn-ended.isError`
  * wins when it exists; an exit without `turn-ended` is a crash by
  * definition, with the exec's own error carried as the reason; and a turn

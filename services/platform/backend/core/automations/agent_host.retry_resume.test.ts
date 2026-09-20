@@ -162,6 +162,41 @@ describe('an errored automation agent turn', () => {
     });
   });
 
+  it('settles a 402 as budget_exceeded — the retry gate must not resume it', async () => {
+    // Observed live: the turn's key was minted at what the org cap had
+    // left; the gateway refused the 43rd call with 402, and three resumed
+    // re-kicks each got a 1-cent key and died on their second call. A spend
+    // refusal is money, not weather: name it, and the stepper stops.
+    io.stdout = ndjson([
+      INIT,
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: true,
+        api_error_status: 402,
+        result:
+          'API Error: 402 Model-level budget exceeded (virtual key scope): budget exceeded: 1.5618 >= 1.5100 dollars',
+        session_id: 'conv-1',
+        total_cost_usd: 1.56,
+        usage: { input_tokens: 4_800_000, output_tokens: 97_000 },
+      },
+    ]);
+    const { ctx, mutations } = makeCtx();
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+    const settled = settledOf(mutations);
+    expect(settled).toHaveLength(1);
+    expect(settled[0]?.args).toMatchObject({
+      result: {
+        errored: true,
+        failureCode: 'budget_exceeded',
+        apiErrorStatus: 402,
+        reason: expect.stringMatching(
+          /^the turn's spend allowance was exhausted \(API status 402\): API Error: 402/,
+        ),
+      },
+    });
+  });
+
   it('leaves the handle off a clean settle — nothing to resume', async () => {
     io.stdout = ndjson([
       INIT,
