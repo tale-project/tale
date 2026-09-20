@@ -63,6 +63,19 @@ browser bundles at build time. See the script headers for the split rationale.
 docker build -f services/sandbox-runtime/Dockerfile .
 ```
 
+### Vision lane environment
+
+Every managed gateway turn that resolved a vision model runs with
+`TALE_GATEWAY_URL`, `TALE_GATEWAY_TOKEN` and `TALE_VISION_MODEL` in the agent's
+environment, so the in-image tools — the `tale-vision` batch CLI and
+`tale-vision-transcribe` — can call that model through the gateway with the
+session key, whether or not the serving model reads images itself. The Read
+polyfill (`tale-vision-read-hook`: transcribing the agent's own image reads and
+denying native PDF reads) is a separate decision: it acts only when the platform
+also sets `TALE_VISION_READ_POLYFILL=1`, which it does for a text-only serving
+model alone. A vision-capable agent keeps its native image reads and inline
+browser screenshots and still has the batch lane for its scripts.
+
 ### Per-request vision thinking
 
 `tale-vision --thinking disabled` requests the standard Anthropic disabled-thinking mode for that batch only. The default (`--thinking provider`, or omission) leaves provider behavior unchanged. Choose the override only for a compatible vision model; it does not change provider defaults, output-token limits, image processing, per-image deadlines or the ordinary Read-hook fallback. The batch cache distinguishes the override from the provider default, while the default retains historical cache entries. Runtime tests cover both request forms, cache isolation, exact original image bytes and invalid-value refusal.

@@ -169,11 +169,18 @@ export interface HarnessRunSpec {
   /** MCP servers to mount (see {@link HarnessMcpConfig}). */
   readonly mcp?: HarnessMcpConfig;
   /**
-   * Managed only: arm the in-image vision polyfill for a text-only model.
-   * `model` is the gateway model id the `tale-vision-read-hook` transcribes
-   * images with. Only Claude Code wires it; the rest ignore it.
+   * Managed only: the sandbox's vision lane. `model` is the gateway model id
+   * the in-image tools (`tale-vision`, `tale-vision-transcribe`) call, armed
+   * for every managed gateway turn that resolved one. `polyfillReads` is
+   * true for a TEXT-ONLY serving model: the `tale-vision-read-hook` then
+   * transcribes the model's own image reads and denies native PDF reads,
+   * and browser tools save screenshots to disk. Only Claude Code wires it;
+   * the rest ignore it.
    */
-  readonly vision?: { readonly model: string };
+  readonly vision?: {
+    readonly model: string;
+    readonly polyfillReads: boolean;
+  };
   /**
    * Platform exec id of this turn. Harnesses that support mid-turn steering
    * key their per-exec queue dir on it, and per-exec staged files use it so

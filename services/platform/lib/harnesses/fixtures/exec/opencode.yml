@@ -8,8 +8,7 @@ managed-baseline:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -26,8 +25,7 @@ managed-model-opus:
     - tale/claude-opus-4-6
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"claude-opus-4-6":{"name":"claude-opus-4-6"}}}},"model":"tale/claude-opus-4-6","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -44,8 +42,7 @@ managed-model-gateway-ref:
     - tale/openrouter/anthropic/claude-sonnet-4.6
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"openrouter/anthropic/claude-sonnet-4.6":{"name":"openrouter/anthropic/claude-sonnet-4.6"}}}},"model":"tale/openrouter/anthropic/claude-sonnet-4.6","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -62,8 +59,7 @@ managed-model-default:
     - tale/default
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -80,8 +76,7 @@ managed-model-context-window:
     - tale/golden-local/golden-small-model
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"golden-local/golden-small-model":{"name":"golden-local/golden-small-model"}}}},"model":"tale/golden-local/golden-small-model","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -96,8 +91,7 @@ managed-plan:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -112,8 +106,7 @@ managed-act:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -130,8 +123,7 @@ managed-resume:
     - golden-resume-handle
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -146,8 +138,7 @@ managed-instructions:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"instructions":["/agent/.runtime/tale/instructions/default.md"]}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -165,8 +156,7 @@ managed-dirs:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -181,8 +171,7 @@ managed-mcp-headless-bridge:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -197,8 +186,7 @@ managed-mcp-bridge-only:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -213,8 +201,22 @@ managed-vision:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true}}}'
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdinMode: close
+managed-vision-lane:
+  argv:
+    - opencode
+    - run
+    - --format
+    - json
+    - --dir
+    - /agent/workspace
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -229,8 +231,7 @@ managed-steer:
     - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
@@ -249,8 +250,7 @@ managed-kitchen-sink:
     - tale/claude-opus-4-6
     - 'Golden battery prompt: fix the flaky login test'
   env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
+    OPENCODE_CONFIG_CONTENT: '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
       Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"claude-opus-4-6":{"name":"claude-opus-4-6"}}}},"model":"tale/claude-opus-4-6","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"instructions":["/agent/.runtime/tale/instructions/exec-golden-42.md"],"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"enabled":true},"connectors":{"type":"local","command":["tale-connectors-mcp"],"environment":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"{env:TALE_GATEWAY_TOKEN}"},"enabled":true}}}'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace

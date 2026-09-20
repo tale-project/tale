@@ -99,6 +99,7 @@ describe('automation agent vision admission', () => {
         runId: 'synthetic-run',
         visionProviderSlug: 'local-inference',
         visionModelId: 'exact-vision-model',
+        visionPolyfillReads: true,
         providerSlug: 'local-inference',
         modelId: 'text-model',
       }),

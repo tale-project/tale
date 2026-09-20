@@ -1,6 +1,9 @@
 #!/bin/bash
 # tale-vision-read-hook — PreToolUse(Read) hook for TEXT-ONLY managed agents
-# (armed when TALE_VISION_MODEL is set on the exec env).
+# (armed when TALE_VISION_READ_POLYFILL=1 is set on the exec env, next to the
+# TALE_VISION_MODEL the transcriber calls). A vision-capable agent gets the
+# vision model too — for the in-image tale-vision tools alone — and reads its
+# own images natively: the flag, not the model, decides whether this hook acts.
 #
 # Goals:
 #   1. Images (png/jpg/…) never reach the text-only model — transcribe via the
@@ -23,7 +26,10 @@
 trap 'exit 0' ERR
 export LC_ALL=C.UTF-8
 
-# Fast no-op for every non-text-only agent (this hook fires on ALL Reads).
+# Fast no-op for every non-text-only agent (this hook fires on ALL Reads):
+# the polyfill flag says the serving model cannot see images, and the
+# transcriber still needs a vision model to call.
+[ "$TALE_VISION_READ_POLYFILL" = "1" ] || exit 0
 [ -n "$TALE_VISION_MODEL" ] || exit 0
 
 payload=$(cat)

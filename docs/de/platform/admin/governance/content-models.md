@@ -33,7 +33,7 @@ Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktioniere
 
 ## Das Modell zum Lesen von Bildern wählen
 
-Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
+Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, liest es sie selbst; das Vision-Modell bedient weiterhin die Bildwerkzeuge, die Skripte und Coding-Agenten in ihrer Sandbox aufrufen, etwa die Stapeltranskription gescannter Seiten. Jeder verwaltete Agent erhält deshalb eines, sobald ein erreichbares Modell existiert.
 
 Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkatalog zu folgen. Tale bevorzugt ein empfohlenes Vision-Modell und wählt sonst eine erreichbare günstige Option. Der Text unter der Auswahl nennt das aktuelle Modell und den Grund.
 

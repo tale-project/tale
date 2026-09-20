@@ -178,15 +178,20 @@ exec:
   # CLAUDE_CODE_AUTO_COMPACT_WINDOW above).
   contextWindow:
     below: 200000
-  # Vision polyfill (managed, text-only model): the tale-vision-read-hook
-  # PreToolUse hook (registered globally in managed-settings.json) fires on
-  # every Read but self-gates on TALE_VISION_MODEL — set only for a
-  # text-only agent. Env, not MCP: the hook subprocess inherits it.
+  # Vision lane (managed): the in-image tools (`tale-vision` batch CLI,
+  # `tale-vision-transcribe`) call the org's vision model through the gateway
+  # with the session key — for every agent, whether or not its own model
+  # reads images. TALE_VISION_READ_POLYFILL is '1' only for a text-only
+  # agent: the tale-vision-read-hook PreToolUse hook (registered globally in
+  # managed-settings.json) fires on every Read but self-gates on it,
+  # transcribing image reads and denying native PDF reads. Env, not MCP: the
+  # hook and the tools inherit it.
   vision:
     env:
       TALE_GATEWAY_URL: '${gateway.baseUrl}'
       TALE_GATEWAY_TOKEN: '${gateway.token}'
       TALE_VISION_MODEL: '${vision.model}'
+      TALE_VISION_READ_POLYFILL: '${vision.polyfill}'
   # Mid-turn steering: the in-image tale-steer-hook reads this per-exec dir
   # and injects any platform-staged user messages at the next boundary —
   # execId-keyed so concurrent turns from other threads sharing the

@@ -72,9 +72,24 @@ interface DefaultCredentialFacts {
 export interface VisionModelPick {
   providerSlug: string;
   modelId: string;
-  /** Which of the three sources produced this pick — the only honest way for
-   * a settings surface or a log line to explain itself. */
-  source: 'pinned' | 'preferred' | 'cheapest';
+  /** Which source produced this pick — the only honest way for a settings
+   * surface or a log line to explain itself. `serving` is the turn's own
+   * serving model, standing in for the sandbox's vision lane when it reads
+   * images itself and no org vision model is reachable. */
+  source: 'pinned' | 'preferred' | 'cheapest' | 'serving';
+}
+
+/**
+ * What one managed gateway turn gets for images: the model the sandbox's
+ * vision lane (`tale-vision`, `tale-vision-transcribe`) calls through the
+ * session key, and whether the harness must also route the serving model's
+ * OWN image and PDF reads through it — the polyfill only a text-only serving
+ * model needs. A vision-capable serving model reads its own images natively
+ * and keeps the lane for in-sandbox tools (batch transcription from scripts).
+ */
+export interface TurnVision {
+  readonly model: VisionModelPick;
+  readonly polyfillReads: boolean;
 }
 
 type VisionModelPolicyCode =
@@ -106,17 +121,33 @@ function pinnedResolutionFailure(error: unknown): VisionModelPolicyError {
 }
 
 /**
- * The vision-polyfill pick for one MANAGED turn: `null` when the serving
- * model itself reads images (arming the polyfill would needlessly downgrade
- * them to text descriptions), else the org's auto-selected vision model.
- * Auto remains best-effort. When native vision cannot be established, an
- * explicit policy must resolve its required polyfill before inference.
+ * The per-turn resolution for a MANAGED gateway turn. Every such turn gets a
+ * vision lane model when one is reachable — the in-sandbox `tale-vision`
+ * batch CLI and `tale-vision-transcribe` call it whether or not the serving
+ * model reads images itself (a batch transcription from a script is the
+ * lane's job, not the serving model's) — so a pack that reads invoice pages
+ * through the lane works under a vision-capable serving model too.
+ *
+ * `polyfillReads` says whether the serving model's OWN image reads must go
+ * through that lane: only a text-only serving model (per its catalog entry;
+ * an unknown entry counts as text-only) — arming the polyfill for a model
+ * that sees images would route them through a second (worse) model for no
+ * reason.
+ *
+ * Failure semantics follow the serving model: a text-only serving keeps the
+ * strict rules (a pinned model that cannot be served, or an unreadable pin,
+ * refuses the turn; nothing reachable leaves the turn text-only with a
+ * warning). A vision-capable serving model never loses its turn over the
+ * lane: when nothing else resolves — or the pin cannot be read or served —
+ * the lane falls back to the serving model itself (`source: 'serving'`),
+ * which the operator already selected for this very turn.
  */
 export async function resolveTurnVisionModel(
   ctx: ActionCtx,
   organizationId: string,
   target: { providerSlug: string; modelId: string },
-): Promise<VisionModelPick | null> {
+): Promise<TurnVision | null> {
+  let servingSeesImages = false;
   let discovery:
     | { providers: Awaited<ReturnType<typeof resolveProvidersForOrgId>> }
     | { error: unknown };
@@ -129,25 +160,53 @@ export async function resolveTurnVisionModel(
       const entry = (await getProviderCatalog(provider)).find(
         (candidate) => candidate.id === target.modelId,
       );
-      if (entry?.supportsVision) return null;
+      servingSeesImages = entry?.supportsVision === true;
     }
     discovery = { providers };
   } catch (error) {
     discovery = { error };
   }
+  const polyfillReads = !servingSeesImages;
+  const servingLane: TurnVision | null = servingSeesImages
+    ? {
+        model: {
+          providerSlug: target.providerSlug,
+          modelId: target.modelId,
+          source: 'serving',
+        },
+        polyfillReads,
+      }
+    : null;
 
-  // A failed target lookup must not bypass an explicit routing policy.
-  // Only the proven native-vision return above can avoid this fresh read.
-  const pinned = await readPinnedVisionModel(ctx, organizationId);
+  let pinned: VisionModelPin;
+  try {
+    pinned = await readPinnedVisionModel(ctx, organizationId);
+  } catch (err) {
+    if (servingLane === null) throw err;
+    console.warn(
+      '[vision-model] vision policy unreadable — the vision lane uses the serving model:',
+      err,
+    );
+    return servingLane;
+  }
   try {
     if ('error' in discovery) throw discovery.error;
-    return await resolveVisionModel(
+    const model = await resolveVisionModel(
       ctx,
       organizationId,
       discovery.providers,
       pinned,
     );
+    if (model !== null) return { model, polyfillReads };
+    return servingLane;
   } catch (err) {
+    if (servingLane !== null) {
+      console.warn(
+        '[vision-model] turn vision resolution failed — the vision lane uses the serving model:',
+        err,
+      );
+      return servingLane;
+    }
     if (pinned !== null) throw pinnedResolutionFailure(err);
     console.warn(
       '[vision-model] turn vision resolution failed (turn proceeds text-only):',

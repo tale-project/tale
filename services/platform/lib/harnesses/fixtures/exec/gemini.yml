@@ -182,6 +182,19 @@ managed-vision:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
   stdinMode: close
+managed-vision-lane:
+  argv:
+    - tale-gemini-run
+    - --workdir
+    - /agent/workspace
+  env:
+    GEMINI_API_KEY: golden-session-virtual-key
+    GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
+  stdinMode: close
 managed-steer:
   argv:
     - tale-gemini-run
