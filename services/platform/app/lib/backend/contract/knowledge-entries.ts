@@ -56,7 +56,7 @@ export interface KnowledgeEntriesContract {
         createdBy: string;
         createdAt: number;
         content: string;
-        source: 'chat' | 'manual';
+        source: 'chat' | 'manual' | 'api';
         topic: string;
         topicKey: string;
       };
@@ -74,7 +74,7 @@ export interface KnowledgeEntriesContract {
         createdBy: string;
         createdAt: number;
         content: string;
-        source: 'chat' | 'manual';
+        source: 'chat' | 'manual' | 'api';
         topic: string;
         topicKey: string;
       }>;
@@ -119,7 +119,7 @@ export interface KnowledgeEntriesContract {
         createdBy: string;
         createdAt: number;
         content: string;
-        source: 'chat' | 'manual';
+        source: 'chat' | 'manual' | 'api';
         topic: string;
         topicKey: string;
       }>;

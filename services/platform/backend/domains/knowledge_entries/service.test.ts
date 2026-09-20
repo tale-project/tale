@@ -82,6 +82,8 @@ interface Script {
   currentInTx?: ScriptedRow;
   /** The blob ref the file row carried before a rotation. */
   previousRef?: string;
+  /** The topic's ACTIVE row, when the superseded refusal looks for it. */
+  activeId?: string;
 }
 
 /** A transaction double answering the writes the entry path issues, in
@@ -112,6 +114,14 @@ function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
         script.previousRef !== undefined
           ? [{ storageRef: script.previousRef }]
           : [],
+      );
+    }
+    if (
+      text.includes("status = 'active'") &&
+      text.includes('SELECT id FROM app.knowledge_entries')
+    ) {
+      return Promise.resolve(
+        script.activeId === undefined ? [] : [{ id: script.activeId }],
       );
     }
     if (text.includes('LEFT JOIN app.documents')) {
@@ -329,6 +339,29 @@ describe('a write that repeats the active row', () => {
     expect(markRagQueued).toHaveBeenCalledWith(expect.anything(), 'file-1');
   });
 
+  // The direct successor may itself be superseded, so naming it sent a
+  // client down the chain one 409 at a time (2026-09-19 evaluation, K5-2):
+  // the refusal names the topic's ACTIVE row and carries it as data.
+  it('names the topic’s active row on a superseded write, beside the direct successor', async () => {
+    const { sql } = fakeSql({
+      current: { ...active, status: 'superseded', supersededBy: 'entry-mid' },
+      activeId: 'entry-head',
+    });
+    await expect(
+      updateKnowledgeEntry(sql, {
+        ...WRITER,
+        entryId: 'entry-old',
+        topic: 'Store hours',
+        content: 'Open 9-7',
+      }),
+    ).rejects.toMatchObject({
+      code: 'KNOWLEDGE_ENTRY_SUPERSEDED',
+      status: 409,
+      message: expect.stringContaining('entry-head'),
+      data: { activeId: 'entry-head', supersededBy: 'entry-mid' },
+    });
+  });
+
   it('still refuses an identical write onto a superseded row with the documented 409', async () => {
     const { sql } = fakeSql({
       current: { ...active, status: 'superseded', supersededBy: 'entry-new' },
@@ -472,7 +505,7 @@ describe('a superseded entry', () => {
     expect(caught).toMatchObject({
       code: 'KNOWLEDGE_ENTRY_SUPERSEDED',
       status: 409,
-      message: expect.stringContaining('entry-new'),
+      data: { supersededBy: 'entry-new' },
     });
     expect(
       statements.some((s) =>

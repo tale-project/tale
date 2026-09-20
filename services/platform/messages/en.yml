@@ -3936,6 +3936,7 @@ knowledgeEntries:
     source: Source
     updated: Updated
   source:
+    api: API
     chat: Chat
     manual: Manual
   validation:

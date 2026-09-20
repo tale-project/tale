@@ -16,6 +16,7 @@ import { BookOpen } from 'lucide-react';
 import { type RefObject, useMemo } from 'react';
 
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
+import { sourceLabelKey } from '@/app/features/knowledge-entries/lib/source-label';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -54,11 +55,7 @@ export function KnowledgeEntryViewDialog({
     () => [
       {
         label: t('headers.source'),
-        value: (
-          <Text>
-            {entry.source === 'chat' ? t('source.chat') : t('source.manual')}
-          </Text>
-        ),
+        value: <Text>{t(`source.${sourceLabelKey(entry.source)}`)}</Text>,
       },
       {
         label: t('viewDialog.updated'),
