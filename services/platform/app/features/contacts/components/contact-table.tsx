@@ -138,9 +138,10 @@ export function ContactsTable({
   } = useViewedRecord(paginatedResult.results, paginatedResult.status);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [createOpen, setCreateOpen] = useState(false);
-  // Client-side sort over the eagerly-loaded page buffer (pagination mode
-  // loads all backend pages up front — see useListPage) — Name/Email/Added
-  // are sortable (#2639), everything else keeps its fixed column order.
+  // Name/Email/Added are sortable (#2639); everything else keeps its fixed
+  // column order. The state rides into `useListPage` as well as the table so
+  // the sort runs over every contact, not the page in view — see its
+  // `sorting` option.
   const [sorting, setSorting] = useState<SortingState>([]);
   const deleteContact = useDeleteContact();
 
@@ -173,7 +174,7 @@ export function ContactsTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
-    displayMode: 'pagination',
+    sorting,
     search: {
       fields: ['name', 'email', 'externalId'],
       placeholder: searchPlaceholder,

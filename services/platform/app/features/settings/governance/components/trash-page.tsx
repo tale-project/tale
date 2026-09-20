@@ -12,6 +12,7 @@ import { Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
@@ -329,49 +330,61 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('trash.title', 'Trash')}
-        description={t(
-          'trash.description',
-          'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
-        )}
-      >
-        <DataTable<TrashRow>
-          columns={columns}
-          data={visibleRows}
-          isLoading={isFirstPageLoading}
-          // `undefined` while the first page (or a filter change) is in
-          // flight — DataTable shows its standard skeleton instead of
-          // flashing the empty state before the count is known.
-          approxRowCount={
-            trash.data === undefined ? undefined : visibleRows.length
-          }
-          getRowId={(row) => `${row.resourceType}:${row.id}`}
-          filters={filterConfigs}
-          onClearFilters={handleClearFilters}
-          infiniteScroll={{
-            // Keep the affordance up while a page fetch is in flight so the
-            // footer doesn't flash "showing all" between pages.
-            hasMore: hasMore || isLoadingMore,
-            onLoadMore: handleLoadMore,
-            isLoadingMore,
-            isInitialLoading: isFirstPageLoading,
-            entityLabel: {
-              one: t('trash.entityLabelOne', 'record'),
-              other: t('trash.entityLabel', 'records'),
-            },
-          }}
-          emptyState={{
-            icon: Trash2,
-            title: t('trash.emptyTitle', 'Trash is empty'),
-            description: t(
-              'trash.empty',
-              'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
-            ),
-          }}
-          caption={t('trash.title', 'Trash')}
-        />
-      </SettingsSection>
+      {/* `fullWidth`: the trash columns declare a ~890px size floor
+          (type/name/owner/status/trashed + the labelled Restore button) —
+          wider than the `max-w-3xl` other settings pages standardized on
+          (#2567), and clipping it hides the one control the page exists for.
+          `fitToContainer`, with the section's `min-h-0 flex-1`, bounds the
+          height the `stickyLayout` table needs to own its own scrollport: the
+          rows scroll under a pinned header and footer instead of growing the
+          page — the same fixed frame the Logs table renders in. */}
+      <SettingsPage fitToContainer fullWidth>
+        <SettingsSection
+          title={t('trash.title', 'Trash')}
+          description={t(
+            'trash.description',
+            'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
+          )}
+          className="min-h-0 flex-1"
+        >
+          <DataTable<TrashRow>
+            columns={columns}
+            stickyLayout
+            data={visibleRows}
+            isLoading={isFirstPageLoading}
+            // `undefined` while the first page (or a filter change) is in
+            // flight — DataTable shows its standard skeleton instead of
+            // flashing the empty state before the count is known.
+            approxRowCount={
+              trash.data === undefined ? undefined : visibleRows.length
+            }
+            getRowId={(row) => `${row.resourceType}:${row.id}`}
+            filters={filterConfigs}
+            onClearFilters={handleClearFilters}
+            infiniteScroll={{
+              // Keep the affordance up while a page fetch is in flight so the
+              // footer doesn't flash "showing all" between pages.
+              hasMore: hasMore || isLoadingMore,
+              onLoadMore: handleLoadMore,
+              isLoadingMore,
+              isInitialLoading: isFirstPageLoading,
+              entityLabel: {
+                one: t('trash.entityLabelOne', 'record'),
+                other: t('trash.entityLabel', 'records'),
+              },
+            }}
+            emptyState={{
+              icon: Trash2,
+              title: t('trash.emptyTitle', 'Trash is empty'),
+              description: t(
+                'trash.empty',
+                'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
+              ),
+            }}
+            caption={t('trash.title', 'Trash')}
+          />
+        </SettingsSection>
+      </SettingsPage>
 
       <ConfirmDialog
         open={restoreTarget !== null}

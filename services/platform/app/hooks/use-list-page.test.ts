@@ -168,66 +168,43 @@ describe('useListPage — infiniteScroll mode (default)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests — pagination mode
+// Tests — active sort
 // ---------------------------------------------------------------------------
 
-describe('useListPage — pagination mode', () => {
-  it('returns all processed data for client-side pagination', () => {
-    const { result } = renderListPage({ displayMode: 'pagination' });
-
-    expect(result.current.tableProps.data).toHaveLength(50);
-    expect('pagination' in result.current.tableProps).toBe(true);
-  });
-
-  it('includes correct pagination config', () => {
+describe('useListPage — active sort', () => {
+  it('hands the table every processed row instead of the page window', () => {
     const { result } = renderListPage({
-      displayMode: 'pagination',
-      pageSize: 25,
+      sorting: [{ id: 'name', desc: false }],
     });
 
-    const props = result.current.tableProps;
-    if ('pagination' in props) {
-      expect(props.pagination.clientSide).toBe(true);
-      expect(props.pagination.pageSize).toBe(25);
-      expect(props.pagination.total).toBe(50);
-    }
+    // Without a sort this would be the 10-row `pageSize` slice; a sort that
+    // only saw the first page would reshuffle rows as later pages arrived.
+    expect(result.current.tableProps.data).toHaveLength(50);
   });
 
-  it('applies search filter and updates pagination total', () => {
+  it('reports no more rows once the backend is drained', () => {
     const { result } = renderListPage({
-      displayMode: 'pagination',
-      search: {
-        fields: ['name'],
-        placeholder: 'Search...',
+      sorting: [{ id: 'name', desc: true }],
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(50),
+        status: 'Exhausted',
+        loadMore: vi.fn(),
+        isLoading: false,
       },
     });
 
-    // Initially all items
-    expect(result.current.tableProps.data).toHaveLength(50);
-
-    // Trigger search via the search config
     const props = result.current.tableProps;
-    if (props.search) {
-      act(() => {
-        props.search?.onChange('Item 1');
-      });
-    }
-
-    // Should filter to items matching "Item 1" (Item 1, Item 10-19)
-    const filtered = result.current.tableProps.data;
-    expect(filtered.length).toBeLessThan(50);
-    expect(filtered.length).toBeGreaterThan(0);
-
-    if ('pagination' in result.current.tableProps) {
-      expect(result.current.tableProps.pagination.total).toBe(filtered.length);
+    if ('infiniteScroll' in props) {
+      expect(props.infiniteScroll.hasMore).toBe(false);
     }
   });
 
-  it('eagerly loads more from paginated backend source', () => {
+  it('eagerly drains backend pages while a sort is active', () => {
     const loadMore = vi.fn();
 
     renderListPage({
-      displayMode: 'pagination',
+      sorting: [{ id: 'name', desc: false }],
       dataSource: {
         type: 'paginated',
         results: makeItems(10),
@@ -240,20 +217,30 @@ describe('useListPage — pagination mode', () => {
     expect(loadMore).toHaveBeenCalled();
   });
 
-  it('does not eagerly load when backend is exhausted', () => {
+  it('keeps the page window when no column is sorted', () => {
     const loadMore = vi.fn();
 
-    renderListPage({
-      displayMode: 'pagination',
+    const { result } = renderListPage({
+      sorting: [],
       dataSource: {
         type: 'paginated',
-        results: makeItems(10),
-        status: 'Exhausted',
+        results: makeItems(50),
+        status: 'CanLoadMore',
         loadMore,
         isLoading: false,
       },
     });
 
+    expect(result.current.tableProps.data).toHaveLength(10);
     expect(loadMore).not.toHaveBeenCalled();
+  });
+
+  it('never renders a client paginator — every list shares one footer', () => {
+    const { result } = renderListPage({
+      sorting: [{ id: 'name', desc: false }],
+    });
+
+    expect('pagination' in result.current.tableProps).toBe(false);
+    expect('infiniteScroll' in result.current.tableProps).toBe(true);
   });
 });

@@ -14,8 +14,8 @@ type Contact = ContactDoc;
 // Mutable fixtures driven per-test. The component reads the paginated rows
 // through `useListContactsPaginated`; we hand it a deterministic array so the
 // SAME client-side DataTable behaviours the e2e exercised (managed search
-// filtering, `displayMode: 'pagination'` page navigation, the filtered-empty
-// no-results copy) are reproduced without a backend or a CSV import.
+// filtering, column sorting, the filtered-empty no-results copy) are
+// reproduced without a backend or a CSV import.
 // ---------------------------------------------------------------------------
 let mockContacts: Contact[] = [];
 
@@ -68,10 +68,16 @@ vi.mock('../hooks/queries', () => ({
 // cell text — mirrors the real config's name/email columns. The managed search
 // in `useListPage` matches on the `name`/`email`/`externalId` row fields (not
 // the columns), so this stays faithful to the production filtering contract.
+// Name keeps a clickable header on TanStack's own toggle handler, the way the
+// real config's `sortableHeader` does, so the sort can be driven from the UI.
 const columns: ColumnDef<Contact>[] = [
   {
     accessorKey: 'name',
-    header: 'Name',
+    header: ({ column }) => (
+      <button type="button" onClick={column.getToggleSortingHandler()}>
+        Name
+      </button>
+    ),
     size: 200,
     cell: ({ row }) => (
       <Text as="span" variant="label">
@@ -181,62 +187,14 @@ describe('ContactsTable', () => {
     });
   });
 
-  describe('client-side pagination', () => {
-    it('paginates a filtered contacts list across pages', async () => {
-      // pageSize is 20, so 21 rows guarantee a second page. All 21 share one
-      // token; searching by it filters to EXACTLY these rows so the per-page
-      // counts are deterministic.
-      const PAGE_SIZE = 20;
-      const TOTAL = PAGE_SIZE + 1;
-      const token = 'pagetok';
-      mockContacts = Array.from({ length: TOTAL }, (_, i) => {
-        const n = i.toString().padStart(2, '0');
-        return makeContact(
-          `Page ${token} ${n}`,
-          `page-${token}-${n}@example.test`,
-        );
-      });
-
-      const { user } = render(<ContactsTable organizationId="test-org-id" />);
-
-      // Scope to just this run's rows so counts ignore the header row.
-      await user.type(searchBox(), token);
-
-      const tokenRowCount = () =>
-        screen.getAllByRole('row').filter((row) =>
-          within(row)
-            .queryAllByRole('cell')
-            .some((cell) => cell.textContent?.includes(token)),
-        ).length;
-
-      const prev = () => screen.getByRole('button', { name: 'Previous page' });
-      const next = () => screen.getByRole('button', { name: 'Next page' });
-
-      // Page 1: a full page; previous is the boundary, next isn't.
-      expect(tokenRowCount()).toBe(PAGE_SIZE);
-      expect(prev()).toBeDisabled();
-      expect(next()).toBeEnabled();
-
-      // Advance: the last page holds only the remaining row; next is now boundary.
-      await user.click(next());
-      expect(tokenRowCount()).toBe(TOTAL - PAGE_SIZE);
-      expect(prev()).toBeEnabled();
-      expect(next()).toBeDisabled();
-
-      // Back to the first full page.
-      await user.click(prev());
-      expect(tokenRowCount()).toBe(PAGE_SIZE);
-      expect(prev()).toBeDisabled();
-    });
-  });
-
-  // #2646: the pagination footer must read the correct singular noun
-  // ("contact", not "contacts") when exactly one row is shown.
-  describe('entity count footer (#2646)', () => {
+  // Contacts used to render a client paginator of its own (#1108). Every
+  // other overview list ends on the shared sticky "Showing all N {entity}"
+  // footer, so this one does too — and #2646's singular noun still holds.
+  describe('entity count footer', () => {
     it('reads the singular noun for exactly one contact', () => {
       mockContacts = [makeContact('Solo Contact', 'solo@example.test')];
       render(<ContactsTable organizationId="test-org-id" />);
-      expect(screen.getByText('Showing 1-1 of 1 contact')).toBeInTheDocument();
+      expect(screen.getByText('Showing all 1 contact')).toBeInTheDocument();
     });
 
     it('reads the plural noun for more than one contact', () => {
@@ -246,7 +204,47 @@ describe('ContactsTable', () => {
         makeContact('Gamma', 'gamma@example.test'),
       ];
       render(<ContactsTable organizationId="test-org-id" />);
-      expect(screen.getByText('Showing 1-3 of 3 contacts')).toBeInTheDocument();
+      expect(screen.getByText('Showing all 3 contacts')).toBeInTheDocument();
+    });
+
+    it('renders no page navigation', () => {
+      mockContacts = Array.from({ length: 30 }, (_, i) =>
+        makeContact(`Contact ${i}`, `contact-${i}@example.test`),
+      );
+      render(<ContactsTable organizationId="test-org-id" />);
+      expect(
+        screen.queryByRole('button', { name: 'Previous page' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Next page' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  // A sort has to order every contact, not the page window the user happens to
+  // be looking at — otherwise rows reshuffle as later pages arrive (#2639).
+  describe('sorting', () => {
+    it('sorts across the whole list, past the page window', async () => {
+      const PAGE_SIZE = 20;
+      // Reverse-ordered names: the alphabetically first row lives beyond the
+      // first page, so it can only surface if the sort saw every row.
+      mockContacts = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => {
+        const n = (PAGE_SIZE + 4 - i).toString().padStart(2, '0');
+        return makeContact(`Contact ${n}`, `contact-${n}@example.test`);
+      });
+
+      const { user } = render(<ContactsTable organizationId="test-org-id" />);
+
+      const firstBodyRowName = () => {
+        const [, firstBodyRow] = screen.getAllByRole('row');
+        return within(firstBodyRow!).getAllByRole('cell')[0]?.textContent;
+      };
+
+      expect(firstBodyRowName()).toBe('Contact 24');
+
+      await user.click(screen.getByRole('button', { name: 'Name' }));
+
+      expect(firstBodyRowName()).toBe('Contact 00');
     });
   });
 });

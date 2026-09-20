@@ -158,4 +158,34 @@ describe('ProductsTable', () => {
       );
     });
   });
+
+  // Products used to render a client paginator of its own (#1108). Every other
+  // overview list ends on the shared sticky "Showing all N {entity}" footer,
+  // so this one does too.
+  describe('entity count footer', () => {
+    it('reads the singular noun for exactly one product', () => {
+      mockProducts = [makeProduct('Solo gadget')];
+      render(<ProductsTable organizationId="test-org-id" />);
+      expect(screen.getByText('Showing all 1 product')).toBeInTheDocument();
+    });
+
+    it('reads the plural noun for more than one product', () => {
+      mockProducts = [makeProduct('One'), makeProduct('Two')];
+      render(<ProductsTable organizationId="test-org-id" />);
+      expect(screen.getByText('Showing all 2 products')).toBeInTheDocument();
+    });
+
+    it('renders no page navigation', () => {
+      mockProducts = Array.from({ length: 30 }, (_, i) =>
+        makeProduct(`Gadget ${i}`),
+      );
+      render(<ProductsTable organizationId="test-org-id" />);
+      expect(
+        screen.queryByRole('button', { name: 'Previous page' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Next page' }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

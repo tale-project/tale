@@ -142,6 +142,36 @@ describe('TrashPage', () => {
     expect(screen.getByRole('button', { name: FILTER_BUTTON })).toBeEnabled();
   });
 
+  it('renders the fixed frame the Logs table uses', () => {
+    // The trash table scrolls its own rows, the way the Logs table does: the
+    // section header, the column headers and the count footer stay put while
+    // the rows move. Without the scrollport the settings pane scrolls instead
+    // and the 890px column set — Restore included — hides behind a horizontal
+    // scrollbar.
+    mockListTrashedRows.mockReturnValue({
+      data: {
+        rows: [
+          {
+            resourceType: 'document' as const,
+            id: 'row-1',
+            status: 'trashed' as const,
+            statusChangedAt: Date.now(),
+            createdAt: Date.now(),
+            displayName: 'Quarterly report',
+            ownerId: 'user-1',
+            ownerName: 'Ada Lovelace',
+          },
+        ],
+        nextCursor: null,
+      },
+      isLoading: false,
+    });
+
+    render(<TrashPage organizationId="org-1" />);
+
+    expect(screen.getByTestId('data-table-scrollport')).toBeInTheDocument();
+  });
+
   // Regression for #2052 [110]: the "Trashed" column used a local
   // hardcoded-English `formatRelative()` helper. It now renders through the
   // shared, locale-aware <TableDateCell preset="relative" />.
