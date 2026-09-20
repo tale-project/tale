@@ -145,6 +145,25 @@
   pricing:
     inputCentsPerMillion: 43.5
     outputCentsPerMillion: 87
+# DeepSeek-V4.1-Flash (2026-09-10), the aggregator's spelling of the vendor's
+# `deepseek-flash`: native image input, 1M context, 384K output. `off` is
+# carried over from the `deepseek/deepseek-v4-flash` probe of 2026-08-13 —
+# the same DeepSeek endpoint and control surface — not re-probed.
+- id: deepseek/deepseek-v4.1-flash
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+  contextWindow: 1048576
+  maxOutputTokens: 384000
+  pricing:
+    inputCentsPerMillion: 15
+    outputCentsPerMillion: 60
 - id: deepseek/deepseek-v4-flash
   provider: openrouter
   tags:

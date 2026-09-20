@@ -116,16 +116,18 @@ describe('shipped static model catalogs', () => {
     }
   });
 
-  it('ships the deepseek V4 lineup, not the retired chat/reasoner aliases', () => {
+  it('ships the current deepseek lineup, not the retired aliases', () => {
     const deepseek = loadStaticCatalogs().get('deepseek');
     expect(deepseek?.map((m) => m.id)).toEqual([
-      'deepseek-v4-flash',
+      'deepseek-flash',
       'deepseek-v4-pro',
     ]);
     for (const model of deepseek ?? []) {
       expect(model.supportsTools).toBe(true);
       expect(model.reasoning).toEqual({ knob: 'effort', off: 'none' });
     }
+    // V4.1 Flash reads images natively; Pro is text-only.
+    expect(deepseek?.map((m) => m.supportsVision)).toEqual([true, false]);
   });
 
   it('ships the anthropic flagship lineup', () => {

@@ -14,6 +14,7 @@ import { collectComposerOptions, humaniseModelId } from './composer';
 
 describe('humaniseModelId', () => {
   it.each([
+    ['deepseek-flash', 'DeepSeek Flash'],
     ['deepseek-v4-flash', 'DeepSeek V4 Flash'],
     ['deepseek-v4-pro', 'DeepSeek V4 Pro'],
     ['glm-5.3-flash', 'GLM 5.3 Flash'],
