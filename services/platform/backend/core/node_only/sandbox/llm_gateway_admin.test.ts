@@ -1012,6 +1012,83 @@ describe('getVirtualKeySpendCents', () => {
     await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(2);
   });
 
+  it('reads the LIVE figure (from_memory) — the stored row lags the gateway by a dump interval', async () => {
+    // The gateway meters in memory and dumps to its store every ~10 s; a
+    // settle seconds after the turn's last call read the stale row and
+    // booked 150 cents of a 156-cent turn. The live index is what the
+    // gateway's own 402 gate reads.
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const u = String(url);
+        urls.push(u);
+        const live = u.includes('from_memory=true');
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              virtual_key: {
+                budgets: [{ current_usage: live ? 1.5618 : 1.5012 }],
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }),
+    );
+    const mod = await loadModule();
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(
+      156.18,
+    );
+    expect(urls).toEqual([
+      expect.stringMatching(
+        /\/api\/governance\/virtual-keys\/vk-1\?from_memory=true$/,
+      ),
+    ]);
+  });
+
+  it('falls back to the stored row when the live index does not hold the key, and reads gone only when both 404', async () => {
+    const urls: string[] = [];
+    const respond = (memoryStatus: number, storedStatus: number) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string | URL) => {
+          const u = String(url);
+          urls.push(u);
+          const live = u.includes('from_memory=true');
+          const status = live ? memoryStatus : storedStatus;
+          return Promise.resolve(
+            new Response(
+              status === 200
+                ? JSON.stringify({
+                    virtual_key: { budgets: [{ current_usage: 0.0391 }] },
+                  })
+                : 'not found',
+              { status },
+            ),
+          );
+        }),
+      );
+    // A gateway restarted mid-turn reloads its index from the store: the
+    // stored row still answers.
+    respond(404, 200);
+    let mod = await loadModule();
+    await expect(mod.readVirtualKeySpend('vk-1')).resolves.toEqual({
+      status: 'ok',
+      cents: expect.closeTo(3.91, 5),
+    });
+    expect(urls).toHaveLength(2);
+    expect(urls[1]).toMatch(/\/api\/governance\/virtual-keys\/vk-1$/);
+    // Neither knows the key: it is gone, and nothing is booked.
+    urls.length = 0;
+    respond(404, 404);
+    mod = await loadModule();
+    await expect(mod.readVirtualKeySpend('vk-1')).resolves.toEqual({
+      status: 'gone',
+    });
+    expect(urls).toHaveLength(2);
+  });
+
   it('returns null (with a warning) for a key the gateway holds without a budget', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     spendResponse({ id: 'vk-1', budgets: [] });

@@ -452,18 +452,27 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
  * (its figure is gone — book nothing and move on), or a gateway that could
  * not answer (try again later; never delete the key before its spend is
  * read). A key held without any budget answers 0, flagged `unmetered`.
+ *
+ * Read LIVE (`from_memory=true`): the gateway meters in memory and dumps the
+ * counters to its store only every ~10 s, and the plain read serves the
+ * store — a settle seconds after the turn's last call was missing that call
+ * (a 156-cent turn booked 150; a one-call retry booked 0). The live index is
+ * what the gateway's own budget gate reads. A key the live index does not
+ * hold (a gateway restarted mid-turn reloads from the store) falls back to
+ * the stored row before it is declared gone.
  */
 export async function readVirtualKeySpend(
   keyId: string,
 ): Promise<GatewaySpendReading> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    {
+  const url = `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  const read = (fromMemory: boolean) =>
+    fetch(fromMemory ? `${url}?from_memory=true` : url, {
       method: 'GET',
       headers: managementHeaders(),
       signal: AbortSignal.timeout(15_000),
-    },
-  );
+    });
+  let res = await read(true);
+  if (res.status === 404) res = await read(false);
   if (res.status === 404) return { status: 'gone' };
   if (!res.ok) {
     // A down gateway is not "key not found" — say so, and let the caller
