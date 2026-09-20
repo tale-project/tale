@@ -12,6 +12,7 @@
 import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
   createProject,
   ProjectError,
@@ -34,6 +35,7 @@ const PROJECT = {
   name: 'Q2 Sales',
   teamId: null,
   sharedWithTeamIds: [] as string[],
+  teamIds: [] as string[],
   instructions: null,
   createdBy: 'user-1',
 };
@@ -155,5 +157,48 @@ describe('project team scoping — only teams of the caller org', () => {
       'team-sales',
       ['team-ops'],
     ]);
+  });
+});
+
+/**
+ * The audience write after the 2026-09-19 round-K evaluation: naming the
+ * audience the project already carries is a no-op (no write, no audit,
+ * `updatedAt` kept — K4-3), and a repeated team collapses to one the way
+ * documents and skills collapse it, instead of the 400 projects alone
+ * answered (K4-4).
+ */
+describe('updateProjectSharing — no-op and repeats', () => {
+  it('writes nothing when the body names the stored audience', async () => {
+    const { tx, statements } = fakeTx();
+    await updateProjectSharing(tx, auth, {
+      projectId: 'project-1',
+      teamIds: [],
+    });
+    expect(writes(statements)).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('collapses a repeated team id and writes the collapsed list once', async () => {
+    const { tx, statements } = fakeTx();
+    await updateProjectSharing(tx, auth, {
+      projectId: 'project-1',
+      teamIds: ['team-sales', 'team-sales', 'team-ops'],
+    });
+    const update = writes(statements).find((s) =>
+      s.text.startsWith('UPDATE app.projects SET team_ids'),
+    );
+    expect(update?.values[0]).toEqual(['team-sales', 'team-ops']);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses a blank team id', async () => {
+    const { tx, statements } = fakeTx();
+    await expect(
+      updateProjectSharing(tx, auth, {
+        projectId: 'project-1',
+        teamIds: ['team-sales', '  '],
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_SHARING_INVALID' });
+    expect(writes(statements)).toEqual([]);
   });
 });

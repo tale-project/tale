@@ -18,6 +18,7 @@ import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 
 import { KnowledgeEntryRowActions } from '../components/knowledge-entry-row-actions';
+import { sourceLabelKey } from '../lib/source-label';
 import type { KnowledgeEntryItem } from './queries';
 
 interface KnowledgeEntriesTableConfig {
@@ -85,9 +86,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => (
           <Badge variant="outline">
-            {row.original.source === 'chat'
-              ? tEntity('source.chat')
-              : tEntity('source.manual')}
+            {tEntity(`source.${sourceLabelKey(row.original.source)}`)}
           </Badge>
         ),
       },

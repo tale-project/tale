@@ -237,7 +237,8 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Exécutions | `/api/v1/runs/...` ou `/api/v1/projects/{id}/runs/...`<br>Lister les exécutions ; lire leur statut, sortie, trace et effets ; annuler avec `POST .../{runId}/cancel` ou supprimer une exécution terminée avec `DELETE .../{runId}` ; lire la question d’une exécution en attente avec `GET .../ask` et y répondre avec `POST .../asks/{askId}`. |
 | Fils de conversation | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...`<br>Gérer les chats du détenteur de la clé, dans un projet ou sans projet : lister, créer, lire, archiver, restaurer et supprimer ; envoyer un message, suivre ou annuler son tour. |
 | Modèles | `GET /api/v1/models`<br>Consulter les modèles de chat configurés et accessibles au détenteur de la clé dans l’organisation, leurs capacités et leurs tarifs ; `harnesses` liste les harness de code sur lesquels un agent de projet peut tourner. |
-| Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. |
+| Équipes | `GET /api/v1/teams`<br>Chaque équipe de l’organisation — `id`, `name` et `member`, qui dit si le détenteur de la clé en fait partie — en une liste complète : ce sont les identifiants qu’attend une audience d’équipes (`teamIds` sur un projet ou un document du Hub, `teams` sur un skill). Les équipes se créent et se composent dans l’application (Paramètres > Équipes) ou par un fournisseur d’identité ; rien sur cette surface n’en écrit une. |
+| Agents | `/api/v1/projects/{id}/agents/...`<br>Lister, lire, créer, modifier ou supprimer les agents du projet ; protéger une modification avec `expectedUpdatedAt`. Un `PUT` qui reprend exactement la configuration enregistrée n’écrit rien et laisse `updatedAt` intact. |
 | Skills | `/api/v1/skills/...`<br>Lister, lire, créer, modifier ou supprimer les bundles de l’organisation ; lire leurs fichiers — une lecture validée (`ETag` et `Last-Modified` sur les octets ; `If-None-Match` / `If-Modified-Since` répondent **304**) ; protéger une écriture avec `If-Match`. Un skill n’a pas d’historique de versions sur cette surface : la lecture répond le bundle courant, rien d’autre. |
 | Entrées de connaissances | `/api/v1/knowledge-entries/...`<br>Lister avec `?topic=` et `?status=`, créer, remplacer ou supprimer une entrée ; lire l’historique d’un sujet avec `GET .../{id}/versions`. |
 | Recherche de connaissances | `POST /api/v1/projects/{id}/knowledge/search` ou `POST /api/v1/knowledge/search`<br>Rechercher dans les fichiers indexés d’un projet, ou dans les documents visibles de la base de connaissances hors projet et les sites web. |
@@ -330,7 +331,7 @@ Chaque skill expose `etag`, le SHA-256 de son `SKILL.md` entre guillemets, et `u
 
 `GET /api/v1/skills` inclut un tableau `failures`, normalement vide. Chaque bundle illisible y figure avec `slug`, `path` et `message` ; un bundle défectueux ne fait pas échouer la liste entière.
 
-Protège une modification ou une suppression avec `If-Match` et le dernier `etag` lu. Si le document a changé ou n’existe plus, la réponse est **412**, `SKILL_STALE`, avec le tag courant dans `data.etag` lorsqu’il existe. Rien n’est écrit. Recharge le skill et fusionne les modifications avant de réessayer. Pour une écriture, un tag faible (`W/"…"`) ne correspond jamais, et le corps est validé avant la précondition.
+Protège une modification ou une suppression avec `If-Match` et le dernier `etag` lu. Si le document a changé, la réponse est **412**, `SKILL_STALE`, avec le tag courant dans `data.etag`. Rien n’est écrit. Un `PUT` protégé sur un skill qui n’existe pas donne le même **412** avec `data.etag: null` ; un `DELETE` protégé sur un tel skill donne simplement **404**, `SKILL_NOT_FOUND` — ce qui est déjà parti est fait. Recharge le skill et fusionne les modifications avant de réessayer. Pour une écriture, un tag faible (`W/"…"`) ne correspond jamais, et le corps est validé avant la précondition.
 
 Pour créer uniquement, envoie `If-None-Match: *`. Si le bundle existe déjà, la réponse est **412**, `SKILL_EXISTS`, sans écriture.
 
@@ -386,7 +387,7 @@ Un instantané de contenu plus récent destiné au contact supprimé donne `409 
 
 Pour envoyer du texte dans le corpus de recherche depuis REST, utilise plutôt `POST /api/v1/knowledge-entries`. Cette opération crée une entrée active par sujet et son document associé à un fichier (`sourceProvider: knowledge`, contenu limité à 8 000 caractères). La réponse **201** contient `{ "id", "documentId" }`. Interroge ensuite `GET /api/v1/documents/{documentId}` pour suivre `indexing` ; aucune lecture intermédiaire de l’entrée n’est nécessaire.
 
-Un `PATCH` d’entrée crée une nouvelle version, renvoie ses IDs et relance l’indexation sous le même `documentId`. Si `topic` et `content` sont identiques après suppression des espaces en début et fin de chaîne, aucune version n’est créée et l’ID actif est conservé. Supprimer l’entrée met son document à la corbeille.
+Un `PATCH` d’entrée crée une nouvelle version, renvoie ses IDs et relance l’indexation sous le même `documentId`. Si `topic` et `content` sont identiques après suppression des espaces en début et fin de chaîne, aucune version n’est créée et l’ID actif est conservé. Un `PATCH` sur une ligne remplacée donne **409**, `KNOWLEDGE_ENTRY_SUPERSEDED`, avec la ligne active du sujet dans `data.activeId` (et sa remplaçante directe dans `data.supersededBy`) : modifie cette ligne-là, sans remonter la chaîne. Une entrée créée ou remplacée par cette porte porte `source: "api"` (le formulaire de l’application écrit `manual`, la capture de l’assistant `chat`), ce qui permet au tableau des entrées de connaissances de distinguer les trois. Supprimer l’entrée met son document à la corbeille.
 
 Ces écritures nécessitent le droit de modifier les connaissances. Un Membre en lecture seule reçoit **403**, `KNOWLEDGE_ENTRY_FORBIDDEN`. Si le stockage objet n’accepte pas le contenu en 30 secondes, la réponse est **503**, `KNOWLEDGE_ENTRY_STORE_TIMEOUT`, sans écriture.
 
@@ -422,7 +423,7 @@ Le champ `contentHash` contient le SHA-256 calculé par Tale pour les octets, pa
 
 Un `PATCH` de document sans changement, qu’il soit vide ou qu’il répète les valeurs enregistrées, ne modifie pas `updatedAt`. Il ne rend donc pas périmée la précondition `expectedUpdatedAt` d’un autre client.
 
-Pour un document soumis au contrôle des enregistrements, modifier le contenu, le type MIME, l’extension ou le fournisseur source donne **400**, `DOCUMENT_RECORD_FROZEN`, s’il est en revue ou approuvé. S’il est en brouillon, la réponse est **400**, `DOCUMENT_RECORD_REPLACEMENT_REQUIRED` : utilise le parcours de remplacement. Un `teamId` d’une équipe dont le détenteur de la clé n’est pas membre donne **403**, `TEAM_ACCESS_DENIED`.
+Pour un document soumis au contrôle des enregistrements, modifier le contenu, le type MIME, l’extension ou le fournisseur source donne **400**, `DOCUMENT_RECORD_FROZEN`, s’il est en revue ou approuvé. S’il est en brouillon, la réponse est **400**, `DOCUMENT_RECORD_REPLACEMENT_REQUIRED` : utilise le parcours de remplacement. Une entrée de `teamIds` désignant une équipe dont le détenteur de la clé n’est pas membre donne **403**, `TEAM_ACCESS_DENIED` ; une équipe qui n’appartient pas à l’organisation donne **400**, `TEAM_NOT_IN_ORG`, et un identifiant répété est réduit à un seul.
 
 Un document associé à un fichier expose `indexing.status` : `pending`, `queued`, `running`, `completed`, `failed`, `unsupported` ou `skipped`. `indexedAt`, `error` et `errorCode` sont présents lorsqu’ils sont disponibles. Après une création ou une relance, interroge cet état pour constater le résultat.
 
@@ -610,7 +611,7 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 - `inputs` contient le schéma d’entrée de la version déployée ou, à défaut, de la dernière version enregistrée.
 - `trigger` contient le type de déclencheur, son activation et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
 
-`GET /api/v1/automations/{name}` lit par défaut la dernière version enregistrée, qui peut être un brouillon. Utilise `?version=deployed` pour lire celle qu’une exécution réelle utilisera, ou un numéro pour lire une version précise. Une version absente, y compris `deployed` si rien n’est déployé, donne **404**, `AUTOMATION_VERSION_UNKNOWN`. Une automatisation inconnue donne `AUTOMATION_NOT_FOUND`.
+`GET /api/v1/automations/{name}` lit par défaut la dernière version enregistrée (`?version=latest` explicite ce défaut), qui peut être un brouillon. Utilise `?version=deployed` pour lire celle qu’une exécution réelle utilisera, ou un numéro pour lire une version précise. Une version absente, y compris `deployed` si rien n’est déployé, donne **404**, `AUTOMATION_VERSION_UNKNOWN`. Une automatisation inconnue donne `AUTOMATION_NOT_FOUND`.
 
 `GET /api/v1/automations/{name}/versions` expose `deployedVersion` et marque chaque ligne avec `deployed`. Il indique aussi le résultat des tests de chaque version :
 
@@ -620,7 +621,7 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 
 `DELETE /api/v1/automations/{name}` exige la capacité développeur. Il supprime la définition, ses versions, ses déclencheurs et ses associations aux projets. Une exécution active bloque la suppression avec **409**, `AUTOMATION_HAS_ACTIVE_RUNS`.
 
-Les anciennes exécutions sont conservées. `GET /api/v1/runs` continue de les lister et elles restent lisibles par ID, sous le nom utilisé à leur lancement. En revanche, lire la définition supprimée donne **404**.
+Les anciennes exécutions sont conservées. `GET /api/v1/runs` continue de les lister, elles restent lisibles par ID, et `GET /api/v1/automations/{name}/runs` (comme son jumeau de projet) les renvoie toujours sous le nom utilisé à leur lancement. En revanche, lire la définition supprimée, ses versions ou ses déclencheurs donne **404**.
 
 REST permet de consulter les automatisations, de les installer, de les exécuter et de configurer leurs déclencheurs. Pour créer, enregistrer ou déployer une définition, utilise `save_automation` et `deploy_automation` sur [MCP](/fr/develop/mcp-endpoint), l’éditeur visuel de l’application ou une release de configuration via `tale deploy`.
 
@@ -1058,6 +1059,8 @@ Un compte dédié à l’intégration, membre d’une seule organisation, évite
 
 ### Trouver ou créer le projet
 
+Un projet porte son audience dans `teamIds` : les équipes qui peuvent le voir ; une liste vide désigne toute l’organisation. Lis les identifiants dans `GET /api/v1/teams` (chaque équipe avec son nom, et `member: true` sur celles dont le détenteur de la clé fait partie — sans le rôle d’administrateur de l’organisation, il ne peut nommer que celles-là), envoie-les avec `POST /api/v1/projects` ou remplace tout l’ensemble avec `PATCH /api/v1/projects/{id} { "teamIds": [...] }` (un verbe d’administrateur). Un identifiant répété est réduit à un seul, réaffirmer l’audience que le projet porte déjà ne change rien et laisse `updatedAt` intact, et un projet archivé refuse la modification comme toute autre écriture (**403**, `PROJECT_ARCHIVED`), sauf si le même corps le restaure.
+
 `externalItemId` contient l’identifiant du projet dans ton système externe, par exemple celui de la fiche CRM. Tale traite cette chaîne comme une valeur opaque, unique dans l’organisation.
 
 Avant de stocker ou comparer la valeur, Tale retire les espaces de début et de fin et applique la normalisation Unicode NFC. Un identifiant transmis en NFD par macOS retrouve donc celui enregistré en NFC depuis un CSV. Un saut de ligne final provenant d’une variable shell ne crée pas de doublon.
@@ -1303,7 +1306,7 @@ Si « ACME Ltd » devient « ACME Group » dans le CRM, envoie `{ "name": "A
 - Par défaut, la suppression en cascade fait expirer les documents dans le traitement de rétention, place tes propres chats dans la corbeille et retire les tâches en annulant leurs exécutions en cours.
 - Avec `{ "mode": "detach" }`, les documents et chats sont détachés du projet et conservés dans l’organisation.
 
-Dans les deux cas, les agents et dossiers du projet sont supprimés. La cascade partage avec la suppression dans l’application un plafond de 5 opérations par personne et par minute :
+Dans les deux cas, les agents et dossiers du projet sont supprimés, et son historique d’exécutions part avec lui, exécutions terminées comprises — à la différence de la suppression d’une automatisation, qui conserve ses exécutions. La cascade partage avec la suppression dans l’application un plafond de 5 opérations par personne et par minute :
 
 ```bash
 curl -sS --compressed -X DELETE "https://your-host.example.com/api/v1/projects/<projectId>" \
@@ -1339,7 +1342,7 @@ Pour désinstaller une automatisation, utilise `DELETE /api/v1/projects/{id}/aut
 
 ### Créer ou actualiser la tâche reflétée
 
-La combinaison `(projectId, externalSystem, externalId)` identifie la tâche de façon unique. Le premier appel la crée avec **201** et `created: true`. Un nouvel appel retrouve la même tâche avec **200** et `created: false`.
+La combinaison `(projectId, externalSystem, externalId)` identifie la tâche de façon unique. Le premier appel la crée avec **201** et `created: true`, dans `backlog` — la colonne d’entrée du miroir, alors que l’application place une tâche créée à la main dans « À faire ». Un nouvel appel retrouve la même tâche avec **200** et `created: false`.
 
 Tale retire les espaces de début et de fin des deux identifiants externes et les normalise en NFC, comme l’`externalItemId` d’un projet. Des différences de normalisation ou d’espacement ne créent donc pas de doublon. Un identifiant devenu vide provoque **400**.
 
@@ -1498,7 +1501,7 @@ Les principaux statuts sont décrits ci-dessous. Utilise le `code` pour distingu
   - Un octet NUL dans l’URL, comme `%00` dans le chemin ou la chaîne de requête, donne `INVALID_URL` avant le routage et la vérification de la clé.
   - En HTTP/2, un corps terminé avant la longueur annoncée dans `Content-Length` donne `BODY_LENGTH_MISMATCH`. Cette réponse vient du serveur frontal, avec un nouveau `requestId` et sans `X-Tale-Api-Version`.
 - **401** — la clé API est absente ou invalide : `UNAUTHORIZED`, avec `WWW-Authenticate: Bearer`.
-- **403** — l’action dépasse les droits du compte : rôle insuffisant (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`), accès en édition manquant ou `teamId` désignant une équipe dont la personne n’est pas membre (`TEAM_ACCESS_DENIED`). Ce statut couvre aussi les écritures sur un projet ou une tâche archivé (`PROJECT_ARCHIVED`, `TASK_ARCHIVED`), une automatisation interdite dans le projet et un `X-Organization-Slug` désignant une organisation inaccessible (`ORG_FORBIDDEN`).
+- **403** — l’action dépasse les droits du compte : rôle insuffisant (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`), accès en édition manquant ou `teamIds` d’un document ou d’un projet désignant une équipe dont la personne n’est pas membre (`TEAM_ACCESS_DENIED`). Ce statut couvre aussi les écritures sur un projet ou une tâche archivé (`PROJECT_ARCHIVED`, `TASK_ARCHIVED`), y compris les `teamIds` d’un projet, une automatisation interdite dans le projet et un `X-Organization-Slug` désignant une organisation inaccessible (`ORG_FORBIDDEN`).
 - **404** — la ressource est absente, inaccessible ou rattachée à un autre fil ou projet. Chaque famille utilise son code, par exemple `PROJECT_NOT_FOUND`, `DOCUMENT_NOT_FOUND` ou `THREAD_NOT_FOUND`. Un `X-Organization-Slug` inconnu donne `ORG_SLUG_INVALID`.
 
   Une route inconnue donne `NOT_FOUND` après vérification de la clé. Sans clé, **401** reste prioritaire : `/api/v1/openapi.json`, qui n’existe pas, répond **401** sans clé et **404** avec une clé valide. Le document public est disponible à `/openapi.json`, sans clé.
@@ -1529,7 +1532,7 @@ Un `If-Match` de document qui ne correspond plus à sa représentation lue donne
 
 Retirer le déclencheur d’une automatisation existante avec `DELETE .../triggers` renvoie **204**, même si aucun déclencheur n’était configuré. Une automatisation inconnue renvoie **404**.
 
-Supprimer une ressource absente renvoie aussi **404**, y compris un contact déjà dans la corbeille ou une entrée de connaissances déjà supprimée. Supprimer une entrée active retire toutes les versions de son sujet, place son document dans la corbeille et retire immédiatement les passages correspondants du corpus de recherche. La suppression directe de ce document est refusée.
+Supprimer une ressource absente renvoie aussi **404**, y compris un contact déjà dans la corbeille, un produit déjà supprimé ou une entrée de connaissances déjà supprimée. Le `DELETE` d’un contact le déplace dans la corbeille (`POST /api/v1/contacts/{id}/restore` le rétablit) ; celui d’un produit est définitif — les produits n’ont ni corbeille ni restauration, et le nom comme l’`externalId` redeviennent disponibles aussitôt pour un nouveau produit, qui est une nouvelle ligne avec un nouvel id. Supprimer une entrée active retire toutes les versions de son sujet, place son document dans la corbeille et retire immédiatement les passages correspondants du corpus de recherche. La suppression directe de ce document est refusée.
 
 Annuler une exécution inconnue renvoie **404**. Une réponse `{cancelled: false}` indique qu’elle existe mais est déjà terminée.
 

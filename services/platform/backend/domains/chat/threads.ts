@@ -692,6 +692,17 @@ export async function setThreadArchived(
   auth: { organizationId: string; userId: string; email?: string },
   threadId: string,
   archived: boolean,
+  options: {
+    /** Refuse the archive while a turn runs or an accepted send is still
+     * queued (`CHAT_TURN_IN_PROGRESS`, 409) — the REST door's fence. It is
+     * the archive UPDATE's own predicate, on the columns the send's claim
+     * and the worker's open write in their transactions, so the row lock
+     * serialises the two and a send committing between a door's read and
+     * its write is seen (2026-09-19 evaluation, K2-1). The app's own
+     * archive keeps its unfenced behaviour: a turn that lands in an
+     * archived thread is settled by the worker. */
+    refuseWhenTurnPending?: boolean;
+  } = {},
 ): Promise<{ archived: boolean; archivedAt: number | null } | null> {
   const thread = await loadOwnedThread(
     sql,
@@ -712,27 +723,90 @@ export async function setThreadArchived(
     thread.userId,
   );
   const archivedAt = archived ? Date.now() : null;
-  await sql.begin(async (tx) => {
-    await tx`
-      UPDATE app.thread_metadata SET archived = ${archived},
-        archived_at_ms = ${archivedAt}
-      WHERE thread_id = ${thread.id}
-    `;
-    await createAuditLog(tx, {
-      organizationId: auth.organizationId,
-      actorId: auth.userId,
-      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: archived ? 'chat_thread.archived' : 'chat_thread.unarchived',
-      category: 'data',
-      resourceType: 'thread',
-      resourceId: thread.id,
-      ...(thread.title !== null ? { resourceName: thread.title } : {}),
-      status: 'success',
+  const fenced = archived && options.refuseWhenTurnPending === true;
+  const settled = await sql
+    .begin(async (tx) => {
+      const written = fenced
+        ? await tx<{ threadId: string }[]>`
+          UPDATE app.thread_metadata SET archived = ${archived},
+            archived_at_ms = ${archivedAt}
+          WHERE thread_id = ${thread.id}
+            AND status = 'active' AND archived = false
+            AND generation_queued_since_ms IS NULL
+            AND generation_status IS DISTINCT FROM 'generating'
+            AND NOT EXISTS (
+              SELECT 1 FROM app.generations WHERE thread_id = ${thread.id}
+            )
+          RETURNING thread_id AS "threadId"
+        `
+        : await tx<{ threadId: string }[]>`
+          UPDATE app.thread_metadata SET archived = ${archived},
+            archived_at_ms = ${archivedAt}
+          WHERE thread_id = ${thread.id}
+          RETURNING thread_id AS "threadId"
+        `;
+      if (written.length === 0) {
+        // The predicate held the write back: a fresh read (a new statement,
+        // a new snapshot) says whether a turn claimed the row or the thread
+        // itself moved under the caller.
+        const now = await tx<{ status: string; archived: boolean }[]>`
+        SELECT status, archived FROM app.thread_metadata
+        WHERE thread_id = ${thread.id} LIMIT 1
+      `;
+        const row = now[0];
+        if (row === undefined || row.status !== 'active') {
+          throw new ThreadGone();
+        }
+        if (row.archived) {
+          throw new ThreadAlreadyArchived();
+        }
+        throw new ChatThreadError(
+          'CHAT_TURN_IN_PROGRESS',
+          'This conversation is generating a response; cancel the turn before archiving it.',
+          409,
+        );
+      }
+      await createAuditLog(tx, {
+        organizationId: auth.organizationId,
+        actorId: auth.userId,
+        ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
+        actorType: 'user',
+        action: archived ? 'chat_thread.archived' : 'chat_thread.unarchived',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: thread.id,
+        ...(thread.title !== null ? { resourceName: thread.title } : {}),
+        status: 'success',
+      });
+      return 'written' as const;
+    })
+    .catch((error: unknown) => {
+      // Settled by another writer between the read and the write: gone is
+      // the same null the read answers, and already archived the same no-op
+      // — neither is a refusal of the caller's request.
+      if (error instanceof ThreadGone) return 'gone' as const;
+      if (error instanceof ThreadAlreadyArchived) return 'archived' as const;
+      throw error;
     });
-  });
+  if (settled === 'gone') return null;
+  if (settled === 'archived') {
+    const again = await loadOwnedThread(
+      sql,
+      auth.organizationId,
+      auth.userId,
+      threadId,
+    );
+    return again === null
+      ? null
+      : { archived: true, archivedAt: again.archivedAt };
+  }
   return { archived, archivedAt };
 }
+
+/** The archive predicate's own two verdicts, thrown to unwind the
+ * transaction and answered outside it (never past this module). */
+class ThreadGone extends Error {}
+class ThreadAlreadyArchived extends Error {}
 
 /** The owner's opt-in to make the conversation readable by everyone with
  * access to its project. Audited on the project. */
@@ -1026,11 +1100,6 @@ export async function trashThread(
   if (!thread) return false;
   if (thread.status === 'trashed') return true;
   if (thread.status !== 'active') return false;
-  const generating = await sql<{ threadId: string }[]>`
-    SELECT thread_id AS "threadId" FROM app.generations
-    WHERE thread_id = ${thread.id} LIMIT 1
-  `;
-  if (generating.length > 0) return false;
   // Throws LEGAL_HOLD_ACTIVE when the org — or this owner, as a custodian —
   // is under an active hold.
   await assertNotHeld(
@@ -1042,32 +1111,65 @@ export async function trashThread(
     thread.userId,
   );
   const now = Date.now();
-  await sql.begin(async (tx) => {
-    await tx`
+  await sql
+    .begin(async (tx) => {
+      // The refusal is the trash UPDATE's own predicate, on the columns the
+      // send's claim (`generation_queued_since_ms`) and the worker's open
+      // (`generation_status`) write in their transactions: the row lock
+      // serialises them, so a send accepted between a read and this write is
+      // seen — a separate existence read used to let it through, and the
+      // accepted turn's job then opened on a trashed thread and vanished
+      // (2026-09-19 evaluation, K2-1). A queued send counts as mid-turn too.
+      const trashed = await tx<{ threadId: string }[]>`
       UPDATE app.thread_metadata SET
         status = 'trashed', status_changed_at_ms = ${now}
-      WHERE thread_id = ${thread.id}
+      WHERE thread_id = ${thread.id} AND status = 'active'
+        AND generation_queued_since_ms IS NULL
+        AND generation_status IS DISTINCT FROM 'generating'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.generations WHERE thread_id = ${thread.id}
+        )
+      RETURNING thread_id AS "threadId"
     `;
-    await tx`
+      if (trashed.length === 0) {
+        const again = await tx<{ status: string }[]>`
+        SELECT status FROM app.thread_metadata
+        WHERE thread_id = ${thread.id} LIMIT 1
+      `;
+        // Trashed by another writer meanwhile: the same idempotent true.
+        if (again[0]?.status === 'trashed') throw new ThreadAlreadyTrashed();
+        throw new ChatThreadError(
+          'CHAT_TURN_IN_PROGRESS',
+          'This conversation is generating a response; cancel the turn before deleting it.',
+          409,
+        );
+      }
+      await tx`
       UPDATE app.thread_metadata SET
         status = 'trashed', status_changed_at_ms = ${now}
       WHERE branch_root_id = ${thread.id} AND status = 'active'
     `;
-    await createAuditLog(tx, {
-      organizationId: auth.organizationId,
-      actorId: auth.userId,
-      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: 'chat_thread.trashed',
-      category: 'data',
-      resourceType: 'thread',
-      resourceId: thread.id,
-      ...(thread.title !== null ? { resourceName: thread.title } : {}),
-      status: 'success',
+      await createAuditLog(tx, {
+        organizationId: auth.organizationId,
+        actorId: auth.userId,
+        ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
+        actorType: 'user',
+        action: 'chat_thread.trashed',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: thread.id,
+        ...(thread.title !== null ? { resourceName: thread.title } : {}),
+        status: 'success',
+      });
+    })
+    .catch((error: unknown) => {
+      if (error instanceof ThreadAlreadyTrashed) return;
+      throw error;
     });
-  });
   return true;
 }
+
+class ThreadAlreadyTrashed extends Error {}
 
 /** The owner's self-restore for a thread still in the grace window — only a
  * 'trashed' thread restores here (an 'expired' one was aged out). */

@@ -2018,6 +2018,68 @@ describe('the shapes the 2026-09-14 round-h evaluation found generated clients t
     expect(seen).toBeGreaterThan(5);
   });
 
+  // A Reference Object cannot be extended (OAS 3.0.3 §4.7.23): `nullable`
+  // or `description` beside `$ref` is ignored by every reader, so the three
+  // 1.16.0 read doors typed their documented `null` as non-null in every
+  // generated client (2026-09-19 evaluation, K9-1). Redocly's
+  // `spec-ref-siblings` and Spectral's `no-$ref-siblings` refuse the same.
+  it('gives no Reference Object a sibling keyword', () => {
+    const siblings: string[] = [];
+    let references = 0;
+    walk(spec, (value, at) => {
+      if (typeof value.$ref !== 'string') return;
+      references += 1;
+      if (Object.keys(value).length > 1) siblings.push(at);
+    });
+    expect(references).toBeGreaterThan(1000);
+    expect(siblings).toEqual([]);
+  });
+
+  // `nullable` applies only where `type` is defined in the same Schema
+  // Object (§4.7.24); a reference is widened through an `allOf` wrapper and
+  // a typeless `oneOf` carries the keyword on each branch — the two shapes
+  // Redocly's lint failed the 1.17.0 document on (K9-1, K9-2).
+  it('puts every nullable beside a type or an allOf-wrapped reference', () => {
+    const typeless: string[] = [];
+    let seen = 0;
+    walk(spec, (value, at) => {
+      if (value.nullable !== true) return;
+      seen += 1;
+      const typed = typeof value.type === 'string';
+      const wrapped =
+        Array.isArray(value.allOf) &&
+        value.allOf.length === 1 &&
+        typeof (value.allOf[0] as Json).$ref === 'string';
+      if (!typed && !wrapped) typeless.push(at);
+    });
+    expect(seen).toBeGreaterThan(20);
+    expect(typeless).toEqual([]);
+  });
+
+  it('declares the idle answer of the ask and review doors as a nullable reference', () => {
+    const doors = [
+      ['/api/v1/runs/{runId}/ask', 'ask', 'PendingAsk'],
+      ['/api/v1/projects/{id}/runs/{runId}/ask', 'ask', 'PendingAsk'],
+      ['/api/v1/projects/{id}/tasks/{taskId}/review', 'review', 'TaskReview'],
+    ] as const;
+    for (const [path, property, schema] of doors) {
+      const op = paths[path]?.get as Json | undefined;
+      expect(op, path).toBeDefined();
+      if (op === undefined) continue;
+      const body = (
+        (
+          ((op.responses as Record<string, Json>)['200'] as Json)
+            .content as Record<string, Json>
+        )['application/json'] as Json
+      ).schema as Json;
+      const declared = (body.properties as Record<string, Json>)[property];
+      expect(declared, path).toEqual({
+        allOf: [{ $ref: `#/components/schemas/${schema}` }],
+        nullable: true,
+      });
+    }
+  });
+
   it('names the created resource in Location on every 201 that creates one addressable resource', () => {
     const located: string[] = [];
     const unlocated: string[] = [];

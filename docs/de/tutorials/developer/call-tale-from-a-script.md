@@ -118,6 +118,7 @@ Bewahre für eine weiterführende Integration die Thread-ID auf. Sende spätere 
 | --- | --- |
 | `401` | Prüfe, ob der Schlüssel abgelaufen, widerrufen oder falsch kopiert ist. |
 | `400` mit `ORG_SLUG_REQUIRED` | Gib den Slug der gewünschten Organisation an. |
+| `404` mit `ORG_SLUG_INVALID` | Der Slug benennt keine Organisation, in der der Schlüsselbesitzer Mitglied ist — prüfe auf einen Tippfehler, und setze nie die Organisations-ID aus der Dashboard-URL ein. |
 | `403` | Prüfe Mitgliedschaft und Rechte des Schlüsselinhabers. |
 | Kein passendes Modell | Lies `/models` erneut und wähle das genaue Paar aus Modell-ID und Anbieter. |
 | `429` | Beachte `Retry-After`; siehe [Ratenlimits](/de/develop/rate-limits). |

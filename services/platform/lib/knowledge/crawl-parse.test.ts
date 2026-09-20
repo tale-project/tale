@@ -25,6 +25,7 @@ import {
   robotsHeaderForbidsIndexing,
   siteHosts,
   stripBoilerplate,
+  robotsSitemapsFromStored,
 } from './crawl-parse';
 
 /**
@@ -653,5 +654,36 @@ describe('classifyRenderReason', () => {
       kind: 'render_failed',
       message: 'blocked host',
     });
+  });
+});
+
+/**
+ * The stored robots verdict carries the advertised sitemaps, so a scan
+ * that follows a fresh read (the registration probe's) reuses it instead
+ * of dialing `/robots.txt` again (2026-09-19 evaluation, K6-2); a row from
+ * before they were stored reads null — "read again", never "none".
+ */
+describe('the stored robots verdict and its sitemaps', () => {
+  const verdict = { allow: ['/a'], disallow: ['/b'], crawlDelayMs: 5_000 };
+
+  it('round-trips the sitemaps beside the policy', () => {
+    const stored = robotsPolicyToStored(verdict, ['https://x.test/sm.xml']);
+    expect(stored).toEqual({
+      disallow: ['/b'],
+      allow: ['/a'],
+      crawlDelayMs: 5_000,
+      sitemaps: ['https://x.test/sm.xml'],
+    });
+    expect(robotsSitemapsFromStored(stored)).toEqual(['https://x.test/sm.xml']);
+    expect(robotsSitemapsFromStored(robotsPolicyToStored(verdict, []))).toEqual(
+      [],
+    );
+  });
+
+  it('reads null for a verdict stored without sitemaps, a legacy array or nothing', () => {
+    expect(robotsSitemapsFromStored(robotsPolicyToStored(verdict))).toBeNull();
+    expect(robotsSitemapsFromStored(['/b'])).toBeNull();
+    expect(robotsSitemapsFromStored(null)).toBeNull();
+    expect(robotsSitemapsFromStored(undefined)).toBeNull();
   });
 });

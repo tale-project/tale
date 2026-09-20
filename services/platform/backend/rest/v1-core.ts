@@ -103,6 +103,7 @@ import {
   SKILL_ERROR_STATUS,
 } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
+import { listTeamDirectory } from '../domains/teams/service.ts';
 import {
   entityTagOf,
   ifNoneMatchMatches,
@@ -331,6 +332,33 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ),
       },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
+    });
+  });
+
+  /**
+   * GET /teams — every team of the organization, by name, for any key
+   * holder: the ids `teamIds` (projects, documents) and `teams` (skills)
+   * take, which no operation used to answer — a caller could set an
+   * audience only with an id a person copied out of the app (2026-09-19
+   * evaluation, K4-1). A team's name is what every audience badge shows,
+   * so the list is the app's own directory read, not the holder's
+   * memberships; `member` says which teams the key holder belongs to, the
+   * pre-flight for the audience a non-admin may assign
+   * (`TEAM_ACCESS_DENIED`). A complete set: teams are few.
+   */
+  app.get('/teams', noQuery, async (c) => {
+    const organizationId = c.get('organizationId');
+    const [teams, mine] = await Promise.all([
+      listTeamDirectory(deps.sql, organizationId),
+      getUserTeamIds(deps.sql, organizationId, c.get('userId')),
+    ]);
+    const memberOf = new Set(mine);
+    return c.json({
+      teams: teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        member: memberOf.has(team.id),
+      })),
     });
   });
 
@@ -1276,7 +1304,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         role: c.get('role'),
         topic: body.topic,
         content: body.content,
-        source: 'manual',
+        // The lane the fact came through: an operator reading the table's
+        // Source column used to see API-imported facts as hand-typed ones
+        // (2026-09-19 evaluation, K5-3).
+        source: 'api',
       });
       return c.json(written, 201, {
         location: `/api/v1/knowledge-entries/${written.id}`,
@@ -1327,6 +1358,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         entryId: c.req.param('id'),
         topic: body.topic,
         content: body.content,
+        source: 'api',
       });
       return c.json(written);
     } catch (error) {

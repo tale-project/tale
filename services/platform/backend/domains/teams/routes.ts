@@ -15,6 +15,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   deleteTeamInTx,
+  listTeamDirectory,
   resyncRetiredDocumentScopes,
   teamDeletionImpact,
 } from './service.ts';
@@ -107,20 +108,11 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     });
   });
 
-  /**
-   * Every team's id and name, for any member. A team's NAME is not a
-   * secret — it is what every audience badge, project row, inbox queue and
-   * skill label shows — so this is the one read every surface resolves
-   * names through, instead of the caller's own teams (which left a member
-   * looking at blanks and raw ids for teams they are not in).
-   */
+  /** Every team's id and name, for any member (`listTeamDirectory`). */
   app.get('/directory', async (c) => {
-    const rows = await deps.sql<{ id: string; name: string }[]>`
-      SELECT "id", "name" FROM "team"
-      WHERE "organizationId" = ${c.get('orgId')}
-      ORDER BY "name" ASC
-    `;
-    return c.json({ teams: rows });
+    return c.json({
+      teams: await listTeamDirectory(deps.sql, c.get('orgId')),
+    });
   });
 
   // Org teams listing (0.4 `listOrgTeams`): admins see EVERY team, other

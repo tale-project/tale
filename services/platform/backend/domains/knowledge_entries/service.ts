@@ -50,18 +50,28 @@ import { markRagQueued } from '../knowledge/service.ts';
  * through the app or REST lanes.
  */
 
+/** The lanes a fact arrives through — the column's CHECK (`0027`, widened
+ * by `0111`): the assistant's capture, the form, the REST door. */
+export const KNOWLEDGE_ENTRY_SOURCES = ['chat', 'manual', 'api'] as const;
+export type KnowledgeEntrySource = (typeof KNOWLEDGE_ENTRY_SOURCES)[number];
+
 export class KnowledgeEntryError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409 | 503;
+  /** Structured detail the door forwards as `data` (the active row a
+   * superseded one points at). */
+  readonly data?: Record<string, unknown>;
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 | 503 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'KnowledgeEntryError';
     this.code = code;
     this.status = status;
+    if (data !== undefined) this.data = data;
   }
 }
 
@@ -176,12 +186,35 @@ async function loadUpdateTarget(
     );
   }
   if (current.status !== 'active') {
+    // The direct successor may itself be superseded, so naming it sent a
+    // client down the chain one 409 at a time (2026-09-19 evaluation,
+    // K5-2): the ACTIVE row of the topic is named instead — the chain is
+    // the document (the versions read), the topic key its legacy fallback.
+    const active = await db<{ id: string }[]>`
+      SELECT id FROM app.knowledge_entries
+      WHERE org_id = ${organizationId} AND status = 'active'
+        AND deleted_at_ms IS NULL
+        AND (
+          (${current.documentId}::text IS NOT NULL
+            AND document_id = ${current.documentId})
+          OR (${current.documentId}::text IS NULL
+            AND document_id IS NULL AND topic_key = ${current.topicKey})
+        )
+      LIMIT 1
+    `;
+    const activeId = active[0]?.id ?? null;
     throw new KnowledgeEntryError(
       'KNOWLEDGE_ENTRY_SUPERSEDED',
-      current.supersededBy === null
-        ? 'Entry is not active; update the active version of this topic'
-        : `Entry was superseded by ${current.supersededBy}; update that version instead`,
+      activeId === null
+        ? 'Entry is not active, and this topic has no active version left; create the topic again'
+        : `Entry was superseded; the active version of this topic is ${activeId} — update that row instead`,
       409,
+      {
+        ...(activeId !== null ? { activeId } : {}),
+        ...(current.supersededBy !== null
+          ? { supersededBy: current.supersededBy }
+          : {}),
+      },
     );
   }
   return current;
@@ -391,7 +424,9 @@ export async function createKnowledgeEntry(
     role: string;
     topic: string;
     content: string;
-    source?: 'chat' | 'manual';
+    /** Where the fact came from — the assistant's capture (`chat`), the
+     * form (`manual`, the default) or the REST door (`api`). */
+    source?: KnowledgeEntrySource;
     sourceThreadId?: string;
     sourceMessageId?: string;
   },
@@ -458,6 +493,9 @@ export async function updateKnowledgeEntry(
     entryId: string;
     topic: string;
     content: string;
+    /** The lane the new version comes through — `manual` (the form, the
+     * default) or `api` (the REST door). */
+    source?: Exclude<KnowledgeEntrySource, 'chat'>;
   },
 ): Promise<KnowledgeEntryWritten> {
   assertCanWriteEntries(args.role);
@@ -514,7 +552,7 @@ export async function updateKnowledgeEntry(
         created_by, created_at_ms
       ) VALUES (
         ${args.organizationId}, ${topic}, ${topicKey}, ${content}, 'active',
-        ${current.documentId}, 'manual', ${args.userId}, ${now}
+        ${current.documentId}, ${args.source ?? 'manual'}, ${args.userId}, ${now}
       ) RETURNING id
     `;
     const entryId = rows[0]?.id;

@@ -39,7 +39,7 @@ Vermeide relative Zeitangaben wie „nächsten Freitag“ und Verweise wie „di
 
 <Step title="Speichern und die Indexierung prüfen">
 
-Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle, Indexierungsstatus und Änderungszeit in der Tabelle. Öffne ihn, um den gesamten Inhalt zu lesen. Die Indexierung läuft im Hintergrund: Ein gespeicherter Eintrag ist nicht sofort für die Suche bereit.
+Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Manuell** für das Formular, **Chat** für eine Information, die der Assistent festgehalten hat, **API** für eine, die eine Integration über REST geschrieben hat), Indexierungsstatus und Änderungszeit in der Tabelle. Öffne ihn, um den gesamten Inhalt zu lesen. Die Indexierung läuft im Hintergrund: Ein gespeicherter Eintrag ist nicht sofort für die Suche bereit.
 
 </Step>
 

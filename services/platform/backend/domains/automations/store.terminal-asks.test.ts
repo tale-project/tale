@@ -11,7 +11,16 @@
  */
 
 import type { TransactionSql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The retraction card rides the task comment writer; here only that it is
+// asked for, and with which words, is under test.
+const { addTaskComment } = vi.hoisted(() => ({
+  addTaskComment: vi.fn(() =>
+    Promise.resolve({ messageId: 'c_1', threadId: 't_1' }),
+  ),
+}));
+vi.mock('../tasks/comments.ts', () => ({ addTaskComment }));
 
 import { cancelRunInTx, finishRun } from './store.ts';
 
@@ -68,7 +77,7 @@ function fakeTx(runStatus: string): {
       );
     }
     if (text.includes('UPDATE app.automation_human_asks SET')) {
-      return Promise.resolve([{ id: 'ask_1' }]);
+      return Promise.resolve([{ id: 'ask_1', taskId: 'task_1' }]);
     }
     if (text.includes('UPDATE app.user_notifications SET')) {
       return Promise.resolve([{ id: 'n_1', userId: 'user_2' }]);
@@ -95,6 +104,10 @@ function askClosure(statements: Statement[]): {
 }
 
 describe('terminal doors close pending asks', () => {
+  beforeEach(() => {
+    addTaskComment.mockClear();
+  });
+
   it('cancelRunInTx cancels the pending asks and reads their bells', async () => {
     const fake = fakeTx('waiting');
     await expect(cancelRunInTx(fake.tx, 'org_1', 'run_1')).resolves.toEqual({
@@ -108,6 +121,25 @@ describe('terminal doors close pending asks', () => {
     expect(closed?.values).toEqual(['run_1', 'org_1']);
     expect(dismissed?.text).toContain("type = 'agent_escalation'");
     expect(dismissed?.values).toContain('ask_1');
+  });
+
+  // The "Question for you" card stayed the newest comment after the run
+  // was cancelled, inviting an answer the door now refuses (2026-09-19
+  // evaluation, K3-5): the closure retracts it on the task, as the
+  // workflow actor, in the same automated voice.
+  it('retracts the question card on the task timeline when a cancel closes the ask', async () => {
+    const fake = fakeTx('waiting');
+    await cancelRunInTx(fake.tx, 'org_1', 'run_1');
+    expect(addTaskComment).toHaveBeenCalledTimes(1);
+    expect(addTaskComment).toHaveBeenCalledWith(
+      fake.tx,
+      expect.objectContaining({ organizationId: 'org_1', role: 'admin' }),
+      expect.objectContaining({
+        taskId: 'task_1',
+        body: expect.stringContaining('The run was cancelled'),
+        author: { actorType: 'agent', actorId: 'workflow' },
+      }),
+    );
   });
 
   it('finishRun closes them too', async () => {

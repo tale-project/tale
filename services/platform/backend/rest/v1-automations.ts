@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
+import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
@@ -12,6 +13,7 @@ import {
   answerAsk,
   AutomationError,
   automationExists,
+  automationRunsExist,
   beginRun,
   beginRunIdempotent,
   beginRunIdempotentInTx,
@@ -624,7 +626,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const auth = await restProjectAuth(deps.sql, c);
         await loadRestProject(deps.sql, auth, projectId);
       }
-      if (!(await exists(c, name))) return automationNotFound(c);
+      // A deleted automation keeps its runs: the by-name history stays
+      // readable here as it does on `/runs` and by id; only a name neither
+      // an automation nor a run ever bore is the 404 (K8-5).
+      if (
+        !(await exists(c, name)) &&
+        !(await automationRunsExist(deps.sql, c.get('organizationId'), name))
+      ) {
+        return automationNotFound(c);
+      }
       return answerRunPage(c, list, query, {
         name,
         projectId: projectId ?? null,
@@ -993,9 +1003,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/runs/:runId/ask', readAsk);
   app.get('/projects/:id/runs/:runId/ask', readAsk);
 
+  // A blank answer is the door's own refusal, `EMPTY_ANSWER`, not the
+  // schema's `INVALID_BODY`: the reference and the code registry promised
+  // the code, and the schema's `min(1)` spoke first, so no client ever saw
+  // it (2026-09-19 evaluation, K3-1). Trimmed here, as the store trims it.
   const askAnswerBody = z
     .object({
-      answer: z.string().trim().min(1).max(ASK_ANSWER_MAX),
+      answer: z.string().trim().max(ASK_ANSWER_MAX),
       actor: actorBodySchema.optional(),
     })
     .strict();
@@ -1013,6 +1027,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const answerRunAsk = async (c: Context<RestEnv>) => {
     const body = await parseBody(c, askAnswerBody);
     if (body instanceof Response) return body;
+    if (!hasVisibleText(body.answer)) {
+      return c.json(
+        {
+          error: 'The answer is blank — send the text the run should resume on',
+          code: 'EMPTY_ANSWER',
+        },
+        400,
+      );
+    }
     try {
       const runId = c.req.param('runId') ?? '';
       const askId = c.req.param('askId') ?? '';

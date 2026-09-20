@@ -488,6 +488,21 @@ describe('/api/v1 door — organization resolution statuses', () => {
     expect(body.code).toBe('ORG_SLUG_INVALID');
     expect(body.error.length).toBeLessThan(120);
   });
+
+  it('echoes a non-ASCII slug as the UTF-8 the caller sent, not byte by byte (2026-09-19, K1-6)', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    // `tälé` as the byte string a header value arrives as: one code unit
+    // per UTF-8 byte — which the message used to quote as `tã¤lã©`.
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 't\u00c3\u00a4l\u00c3\u00a9' }),
+    );
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string; code: string };
+    expect(body.code).toBe('ORG_SLUG_INVALID');
+    expect(body.error).toBe('Organization not found: tälé');
+  });
 });
 
 /**

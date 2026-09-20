@@ -72,6 +72,26 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  */
 
 /**
+ * A header value as the UTF-8 text the caller sent: the Fetch API hands a
+ * header over as a byte string, one code unit per byte, so any non-ASCII
+ * byte sequence is read back through a strict UTF-8 decoder — and a value
+ * that is not UTF-8 (or already carries characters above U+00FF, so was
+ * decoded upstream) is kept as it arrived.
+ */
+function headerAsUtf8(value: string): string {
+  if (!/[\u0080-\u00ff]/.test(value) || /[\u0100-\uffff]/.test(value)) {
+    return value;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(
+      Buffer.from(value, 'latin1'),
+    );
+  } catch {
+    return value;
+  }
+}
+
+/**
  * The door's 401: the flat envelope plus the `WWW-Authenticate` challenge
  * RFC 9110 §11.6.1 requires of every 401 — naming the Bearer scheme, with
  * RFC 6750 §3's `error="invalid_token"` when a key was presented and
@@ -232,18 +252,21 @@ export function createRestV1Routes(deps: {
     // Slugs are stored lowercase, so folding the header is lossless — an
     // integrator that sends the organization's display case (`TALE`) is
     // routed rather than told the organization does not exist.
-    const orgSlugHeader = c.req
-      .header('x-organization-slug')
-      ?.trim()
-      .toLowerCase();
+    const orgSlugRaw = c.req.header('x-organization-slug')?.trim();
+    const orgSlugHeader = orgSlugRaw?.toLowerCase();
     // A header that cannot be a slug at all names no organization: the
     // domain's own 404, answered here without a lookup and without echoing
     // an unbounded value back (the message used to quote whatever arrived).
-    if (orgSlugHeader && !isValidOrgSlug(orgSlugHeader)) {
+    if (orgSlugRaw && orgSlugHeader && !isValidOrgSlug(orgSlugHeader)) {
+      // A header value reaches the handler as a byte string (one code unit
+      // per byte), so a UTF-8 `tälé` echoed as `tã¤lã©`; the bytes are
+      // read back as the UTF-8 the caller sent before they are quoted
+      // (2026-09-19 evaluation, K1-6).
+      const echoed = headerAsUtf8(orgSlugRaw).toLowerCase();
       const shown =
-        orgSlugHeader.length > MAX_ORG_SLUG_LENGTH
-          ? `${orgSlugHeader.slice(0, MAX_ORG_SLUG_LENGTH)}…`
-          : orgSlugHeader;
+        echoed.length > MAX_ORG_SLUG_LENGTH
+          ? `${echoed.slice(0, MAX_ORG_SLUG_LENGTH)}…`
+          : echoed;
       return c.json(
         {
           error: `Organization not found: ${shown}`,

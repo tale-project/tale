@@ -39,6 +39,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
+import { retractAskOnTask } from './ask-retraction.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -323,6 +324,23 @@ export async function automationExists(
 ): Promise<boolean> {
   const rows = await sql<{ present: number }[]>`
     SELECT 1 AS present FROM app.automations
+    WHERE org_id = ${organizationId} AND name = ${name}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+/** Whether any run in the org bears the name — the history a deleted
+ * automation leaves behind: the delete keeps it, readable by id and on the
+ * org-wide list, so the by-name run door answers it too instead of saying
+ * the automation never existed (2026-09-19 evaluation, K8-5). */
+export async function automationRunsExist(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<boolean> {
+  const rows = await sql<{ present: number }[]>`
+    SELECT 1 AS present FROM app.automation_runs
     WHERE org_id = ${organizationId} AND name = ${name}
     LIMIT 1
   `;
@@ -1228,18 +1246,27 @@ async function closePendingAsksForRun(
   tx: TransactionSql,
   organizationId: string,
   runId: string,
+  /** Why the run ended, for the retraction on the task timeline. */
+  reason: string,
 ): Promise<number> {
-  const closed = await tx<{ id: string }[]>`
+  const closed = await tx<{ id: string; taskId: string | null }[]>`
     UPDATE app.automation_human_asks SET status = 'cancelled'
     WHERE run_id = ${runId} AND org_id = ${organizationId}
       AND status = 'pending'
-    RETURNING id
+    RETURNING id, task_id AS "taskId"
   `;
   for (const ask of closed) {
     await dismissAgentQuestionNotifications(tx, {
       organizationId,
       askId: ask.id,
     });
+    if (typeof ask.taskId === 'string') {
+      await retractAskOnTask(tx, {
+        organizationId,
+        taskId: ask.taskId,
+        reason,
+      });
+    }
   }
   return closed.length;
 }
@@ -1643,7 +1670,12 @@ export async function cancelRunInTx(
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
     await closeRunApprovals(tx, organizationId, runId);
-    await closePendingAsksForRun(tx, organizationId, runId);
+    await closePendingAsksForRun(
+      tx,
+      organizationId,
+      runId,
+      'The run was cancelled',
+    );
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true, status: 'cancelled' };
   }
@@ -2195,7 +2227,12 @@ export async function finishRun(
     // shared with cancelRun).
     await stopRunSandboxSessions(tx, args.organizationId, args.runId);
     await closeRunApprovals(tx, args.organizationId, args.runId);
-    await closePendingAsksForRun(tx, args.organizationId, args.runId);
+    await closePendingAsksForRun(
+      tx,
+      args.organizationId,
+      args.runId,
+      `The run ended (${args.status})`,
+    );
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
   });

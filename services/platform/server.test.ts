@@ -778,6 +778,48 @@ describe('OPTIONS on the status doors', () => {
 });
 
 /**
+ * The API-shaped JSON 404 this tier answers (`/api`, `/.well-known/…` —
+ * the lanes the proxy does not route) carries what every API refusal
+ * carries: the request id a caller quotes (an inbound id in the documented
+ * alphabet echoed, anything else replaced) and `no-store`; the mistyped
+ * base URL `$TALE_URL/api` is the commonest newcomer error, and a support
+ * thread could not correlate it (2026-09-19 round-K evaluation, K9-4).
+ */
+describe('the API-shaped JSON 404 on the web tier', () => {
+  test.each(['/api', '/.well-known/security.txt', '//api/v2/me'])(
+    '%s answers the envelope with a request id and no-store',
+    async (path) => {
+      const app = createApp(baseEnv);
+      const res = await app.fetch(new Request(`http://localhost${path}`));
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: 'Not found',
+        code: 'NOT_FOUND',
+      });
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('x-request-id')).toMatch(/^[A-Za-z0-9_-]+$/);
+    },
+  );
+
+  test('echoes a sane inbound request id and replaces a malformed one', async () => {
+    const app = createApp(baseEnv);
+    const echoed = await app.fetch(
+      new Request('http://localhost/api', {
+        headers: { 'x-request-id': 'k11-k9-req_=-01'.replace('=', '') },
+      }),
+    );
+    expect(echoed.headers.get('x-request-id')).toBe('k11-k9-req_-01');
+    const replaced = await app.fetch(
+      new Request('http://localhost/api', {
+        headers: { 'x-request-id': 'bad id!' },
+      }),
+    );
+    expect(replaced.headers.get('x-request-id')).not.toBe('bad id!');
+    expect(replaced.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+/**
  * The web tier's own doors answer HEAD with the GET's headers, the docs
  * say — and all four answered `content-length: 0`, the adapter's stamp for
  * the body Hono drops (2026-09-13 round-e evaluation, E1-03). The REST

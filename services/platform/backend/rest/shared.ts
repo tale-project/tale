@@ -9,6 +9,10 @@ import { z, type ZodError } from 'zod';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
+import {
+  INEXACT_NUMBER_MESSAGE,
+  parseJsonExact,
+} from '../../lib/utils/json-exact.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import {
@@ -427,92 +431,21 @@ class InexactNumberError extends Error {
   }
 }
 
-/** The dotted path of `target` (an object or array) inside `root` by
- * identity, or null when it is not in the tree. Iterative, so a deep body
- * cannot exhaust the stack. */
-function identityPath(root: unknown, target: unknown): string | null {
-  const stack: { value: unknown; path: string }[] = [{ value: root, path: '' }];
-  while (stack.length > 0) {
-    const item = stack.pop();
-    if (item === undefined) break;
-    const current = item.value;
-    if (current === target) return item.path;
-    if (Array.isArray(current)) {
-      for (let index = current.length - 1; index >= 0; index -= 1) {
-        stack.push({
-          value: current[index],
-          path: item.path === '' ? String(index) : `${item.path}.${index}`,
-        });
-      }
-    } else if (current !== null && typeof current === 'object') {
-      for (const [key, child] of Object.entries(current)) {
-        stack.push({
-          value: child,
-          path: item.path === '' ? key : `${item.path}.${key}`,
-        });
-      }
-    }
-  }
-  return null;
-}
-
 /**
  * `JSON.parse` that refuses what it cannot carry: a whole number beyond
  * ±(2^53 − 1) is rounded by the parser before any schema sees it, so a
  * source system's 64-bit id arrived silently altered and was stored that
- * way. The reviver reads the literal's own source text (Node 22) and records
- * the holder of the first such literal; the tree is then walked to name the
- * FULL path (`messages.0.createdAt`, not the bare `createdAt`) so a client
- * mapping `issues[].path` back to a row can find it (2026-09-14 evaluation,
- * g7-7b). The issue is recorded for `invalidBodyResponse`.
+ * way. `parseJsonExact` (lib/utils/json-exact.ts — the MCP door reads its
+ * body through the same parser) names the FULL path of the first such
+ * literal (`messages.0.createdAt`, not the bare `createdAt`) so a client
+ * mapping `issues[].path` back to a row can find it (2026-09-14
+ * evaluation, g7-7b). The issue is recorded for `invalidBodyResponse`.
  */
 function parseJsonExactly(c: Context<RestEnv>, raw: string): unknown {
-  let inexact: { holder: unknown; key: string } | null = null;
-  const reviver = function (
-    this: unknown,
-    key: string,
-    value: unknown,
-    context?: { source?: string },
-  ): unknown {
-    if (
-      inexact === null &&
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      !Number.isSafeInteger(value) &&
-      typeof context?.source === 'string' &&
-      /^-?\d+$/.test(context.source)
-    ) {
-      inexact = { holder: this, key };
-    }
-    return value;
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the lib typing predates the reviver's source-text context
-  const parsed: unknown = JSON.parse(
-    raw,
-    reviver as Parameters<typeof JSON.parse>[1],
-  );
-  if (inexact !== null) {
-    // The root literal's holder is JSON.parse's ephemeral `{ "": value }`
-    // wrapper (key ""), so that case is the empty path; otherwise the holder
-    // is a real node of the parsed tree.
-    const found: { holder: unknown; key: string } = inexact;
-    const base = found.key === '' ? '' : identityPath(parsed, found.holder);
-    const path =
-      found.key === ''
-        ? ''
-        : base === null
-          ? found.key
-          : base === ''
-            ? found.key
-            : `${base}.${found.key}`;
-    c.set('bodyIssue', {
-      path,
-      message:
-        'is a whole number beyond 2^53 − 1, which cannot be carried exactly; send it as a string',
-    });
-    throw new InexactNumberError(path);
-  }
-  return parsed;
+  const parsed = parseJsonExact(raw);
+  if (parsed.exact) return parsed.value;
+  c.set('bodyIssue', { path: parsed.path, message: INEXACT_NUMBER_MESSAGE });
+  throw new InexactNumberError(parsed.path);
 }
 
 /**
@@ -1031,13 +964,22 @@ export function invalidQueryFromSchema(
  * pass as content — on the chat send, a billed turn answering an empty
  * prompt (2026-09-14 evaluation, h2). The refusal never rewrites the value.
  */
-export function nonBlank(max = 256) {
+export function nonBlank(max = 256, options: { unit?: string } = {}) {
   return (
     z
       .string()
       .trim()
       .min(1, 'must not be blank')
-      .max(max)
+      // A field whose cap is a count of something other than characters
+      // names its unit: the chat `content` cap counts UTF-16 code units,
+      // which "characters" misstated for an emoji (2026-09-18 evaluation,
+      // J2-1) — the formatter's default sentence stays for every other.
+      .max(
+        max,
+        options.unit === undefined
+          ? undefined
+          : `must be at most ${max} ${options.unit}`,
+      )
       // `''` is the length check's issue already — one sentence, not two.
       .refine(
         (value) => value === '' || hasVisibleText(value),

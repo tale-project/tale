@@ -784,3 +784,20 @@ describe('readJsonBody — numbers the parser cannot carry', () => {
     }
   });
 });
+
+/**
+ * A cap counted in something other than characters names its unit: the
+ * chat `content` cap counts UTF-16 code units, which "characters"
+ * misstated for an emoji (2026-09-18 evaluation, J2-1).
+ */
+describe('nonBlank with a unit', () => {
+  it('names the unit in the too-long sentence and keeps the default otherwise', () => {
+    const units = nonBlank(3, { unit: 'UTF-16 code units' }).safeParse('abcd');
+    expect(units.success).toBe(false);
+    expect(units.error?.issues[0]?.message).toBe(
+      'must be at most 3 UTF-16 code units',
+    );
+    const plain = nonBlank(3).safeParse('abcd');
+    expect(plain.error?.issues[0]?.message).not.toContain('UTF-16');
+  });
+});

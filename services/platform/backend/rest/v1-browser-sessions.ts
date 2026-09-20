@@ -86,7 +86,11 @@ export function createRestBrowserSessionRoutes(deps: {
     }
   });
 
-  app.delete('/browser-sessions/:id', async (c) => {
+  // `import` is the pool's own verb, never a session id: the `{id}` pattern
+  // used to claim it too, so `OPTIONS …/import` advertised `DELETE` and a
+  // `DELETE …/import` reached the pool gate as a delete of a session
+  // called "import" (2026-09-19 evaluation, K1-7).
+  app.delete('/browser-sessions/:id{(?!import$)[^/]+}', async (c) => {
     const refused = await importerRefusal(c);
     if (refused) return refused;
     const deleted = await deleteBrowserSession(deps.sql, {

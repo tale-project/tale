@@ -16,6 +16,7 @@ import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { scheduleGatewayKeyReconcile } from '../sandbox/spend-settlement.ts';
 import { loadAgentLanguageContext } from '../tasks/agent-language.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
+import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
   claimRun,
@@ -612,18 +613,32 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         askId: string;
         status: 'expired' | 'cancelled' | 'answered';
       };
-      const closed = await sql<{ orgId: string }[]>`
+      const closed = await sql<{ orgId: string; taskId: string | null }[]>`
         UPDATE app.automation_human_asks SET status = ${args.status}
         WHERE id = ${args.askId} AND status = 'pending'
-        RETURNING org_id AS "orgId"
+        RETURNING org_id AS "orgId", task_id AS "taskId"
       `;
-      if (closed[0]) {
+      const row = closed[0];
+      if (row) {
         await dismissAgentQuestionNotifications(sql, {
-          organizationId: closed[0].orgId,
+          organizationId: row.orgId,
           askId: args.askId,
         }).catch((error: unknown) => {
           console.warn('[asks] bell dismissal failed:', error);
         });
+        // A question that ran out of time is retracted on the task's
+        // timeline like one a cancel closed (K3-5); an answered one carries
+        // its answer there already.
+        if (args.status === 'expired' && typeof row.taskId === 'string') {
+          const taskId = row.taskId;
+          await sql.begin((tx) =>
+            retractAskOnTask(tx, {
+              organizationId: row.orgId,
+              taskId,
+              reason: 'The question expired before it was answered',
+            }),
+          );
+        }
       }
       return null;
     },

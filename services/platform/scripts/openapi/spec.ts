@@ -340,8 +340,27 @@ function listOf(name: string, item: Json, extra: Json = {}): Json {
 
 /** OAS 3.0: `nullable` widens the type, never the enum — a nullable enum
  * lists `null` itself, or a strict generated client rejects the `null` the
- * wire sends (a successful run's `failureCode`; 2026-09-14 evaluation, h1). */
+ * wire sends (a successful run's `failureCode`; 2026-09-14 evaluation, h1).
+ * A Reference Object takes no siblings (§4.7.23 — `nullable` beside `$ref`
+ * is ignored, so every generator typed the documented `{"ask": null}` as
+ * non-null; 2026-09-19 evaluation, K9-1): the reference is wrapped in an
+ * `allOf` the keyword can sit beside. And `nullable` needs a `type` in the
+ * same Schema Object (§4.7.24): a typeless `oneOf`/`anyOf` carries it on
+ * every branch instead (K9-2). `spec.test.ts` holds the document to both. */
 const nullable = (schema: Json): Json => {
+  if (typeof schema.$ref === 'string') {
+    return { allOf: [schema], nullable: true };
+  }
+  const branches = Array.isArray(schema.oneOf)
+    ? 'oneOf'
+    : Array.isArray(schema.anyOf)
+      ? 'anyOf'
+      : null;
+  if (schema.type === undefined && branches !== null) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the array test above
+    const alternatives = schema[branches] as Json[];
+    return { ...schema, [branches]: alternatives.map(nullable) };
+  }
   const values = schema.enum;
   return {
     ...schema,
@@ -1100,6 +1119,34 @@ export function buildSpec(): Json {
       parameters: [orgSlugHeaderParam],
       responses: {
         '200': jsonResponse('The caller and its organizations', ref('Me')),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/teams'] = {
+    get: {
+      tags: ['Organization'],
+      summary: 'List the organization’s teams',
+      description:
+        'Every team of the organization, by name, as a complete set (not ' +
+        'paginated) — the ids a team audience takes: `teamIds` on a project ' +
+        'or a document, `teams` on a skill. Any key holder may read it (a ' +
+        'team’s name is what every audience badge shows); `member` says ' +
+        'whether the key holder belongs to the team — the teams a holder ' +
+        'who is not an organization admin may put a project or document ' +
+        'in, so a caller pre-flights `TEAM_ACCESS_DENIED` instead of ' +
+        'learning it from a 403. Teams are created, renamed and staffed in ' +
+        'the app (Settings > Teams) or by an identity provider; no ' +
+        'operation on this surface writes one.',
+      operationId: 'listTeams',
+      security: sec,
+      parameters: [orgSlugHeaderParam],
+      responses: {
+        '200': jsonResponse(
+          'The organization’s teams',
+          listOf('teams', ref('Team')),
+        ),
         ...standardErrors,
       },
     },
@@ -1885,8 +1932,9 @@ export function buildSpec(): Json {
         ...standardErrors,
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`), a `domain` that names ' +
-            'no https host (`WEBSITE_DOMAIN_INVALID` — `http://` is refused: ' +
-            'the crawler dials https only), a domain the crawl ' +
+            'no https host (`WEBSITE_DOMAIN_INVALID` — `http://`, a ' +
+            'non-default port and a bare IP address are refused: the ' +
+            'crawler dials https on 443, by host name), a domain the crawl ' +
             'policy refuses — loopback, link-local, private-network or cloud ' +
             'metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL ' +
             'off the domain (`WEBSITE_INVALID_LIST_URL`)',
@@ -2218,7 +2266,7 @@ export function buildSpec(): Json {
       summary: 'Get product',
       operationId: 'getProduct',
       description:
-        'One product by id; a product in the trash or in another organization answers 404 `PRODUCT_NOT_FOUND`.',
+        'One product by id; a deleted product or one in another organization answers 404 `PRODUCT_NOT_FOUND`.',
       security: sec,
       parameters: [pathParam('id', 'Product ID')],
       responses: {
@@ -2252,7 +2300,7 @@ export function buildSpec(): Json {
       summary: 'Delete product',
       operationId: 'deleteProduct',
       description:
-        'Move the product to the trash; a product already there answers 404 `PRODUCT_NOT_FOUND`.',
+        'Deletes the product permanently — products have no trash and no restore, unlike contacts: its `name` and `externalId` are free for a new product at once (a re-created product is a new row with a new id, so a catalog sync must re-key anything it holds on the old one). A product already deleted answers 404 `PRODUCT_NOT_FOUND`.',
       security: sec,
       parameters: [pathParam('id', 'Product ID')],
       responses: {
@@ -2577,10 +2625,13 @@ export function buildSpec(): Json {
             maxItems: PROJECT_SHARED_TEAMS_MAX + 1,
             description:
               'The audience: the teams that may see the project, by id — ' +
-              'teams of this organization, and for a key holder who is not ' +
-              'an admin, teams they belong to (`TEAM_ACCESS_DENIED`). ' +
-              'Omitted or empty = organization-wide. Owners and admins see ' +
-              'every project regardless.',
+              'teams of this organization (`GET /api/v1/teams` lists them), ' +
+              'and for a key holder who is not an admin, teams they belong ' +
+              'to (`TEAM_ACCESS_DENIED`). Omitted or empty = ' +
+              'organization-wide. A repeated id collapses to one, first-seen ' +
+              'order kept — the stored list is what the response echoes, as ' +
+              'on documents and skills. Owners and admins see every project ' +
+              'regardless.',
           },
         },
       }),
@@ -2592,12 +2643,12 @@ export function buildSpec(): Json {
           properties: { project: ref('Project') },
         }),
         '400': errorResponse(
-          'A body the schema refuses (`INVALID_BODY`), an explicit ' +
-            '`key` outside the 2-6 letters-and-digits rule ' +
-            '(`PROJECT_KEY_INVALID`), or a `teamIds` that repeats a team, ' +
-            'exceeds the cap or names a team that is not this ' +
-            'organization’s (`PROJECT_SHARING_INVALID`, the unknown ids in ' +
-            '`data.unknownTeamIds`)',
+          'A body the schema refuses (`INVALID_BODY` — a `teamIds` past its ' +
+            '`maxItems` included), an explicit `key` outside the 2-6 ' +
+            'letters-and-digits rule (`PROJECT_KEY_INVALID`), or a ' +
+            '`teamIds` that names a team that is not this organization’s ' +
+            '(`PROJECT_SHARING_INVALID`, the unknown ids in ' +
+            '`data.unknownTeamIds`); a repeated team id collapses to one',
         ),
         '403': errorResponse(
           'The key holder is not an org editor (`ROLE_FORBIDDEN`), or ' +
@@ -2699,9 +2750,14 @@ export function buildSpec(): Json {
             maxItems: PROJECT_SHARED_TEAMS_MAX + 1,
             description:
               'The audience, replaced whole: the teams that may see the ' +
-              'project, by id (teams of this organization); `[]` makes it ' +
-              'organization-wide. An organization admin verb, like ' +
-              '`archived` — a lesser role answers 403 `RBAC_FORBIDDEN`.',
+              'project, by id (teams of this organization — `GET ' +
+              '/api/v1/teams` lists them); `[]` makes it organization-wide, ' +
+              'a repeated id collapses to one, and the audience the project ' +
+              'already carries is a no-op that leaves `updatedAt` alone. An ' +
+              'organization admin verb, like `archived` — a lesser role ' +
+              'answers 403 `RBAC_FORBIDDEN` — and, like every other write, ' +
+              'refused on an archived project the body does not restore ' +
+              '(403 `PROJECT_ARCHIVED`).',
           },
         },
       }),
@@ -2714,9 +2770,11 @@ export function buildSpec(): Json {
         }),
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`): no field, an unknown ' +
-            'key, a blank `name` or `externalItemId`, a value past its cap; ' +
-            'or a `teamIds` that repeats a team or names one that is not ' +
-            'this organization’s (`PROJECT_SHARING_INVALID`)',
+            'key, a blank `name` or `externalItemId`, a value past its cap ' +
+            '(`teamIds` past its `maxItems` included); or a `teamIds` that ' +
+            'names a team that is not this organization’s ' +
+            '(`PROJECT_SHARING_INVALID`, the unknown ids in ' +
+            '`data.unknownTeamIds`)',
         ),
         '403': errorResponse(
           '`archived` or `teamIds` from a key holder who is not an ' +
@@ -2745,8 +2803,10 @@ export function buildSpec(): Json {
         '(purged after the organization’s grace window), the key holder’s ' +
         'own chats are trashed, every task is retired and its live runs ' +
         'cancelled; `mode: "detach"` releases the documents and chats into ' +
-        'the organization instead. Agents and folders go with the project ' +
-        'either way, and its `externalItemId` becomes free again. The ' +
+        'the organization instead. Agents, folders and the project’s run ' +
+        'history — finished runs included, unlike an automation delete, ' +
+        'which keeps its runs — go with the project either way, and its ' +
+        '`externalItemId` becomes free again. The ' +
         'app’s confirmation phrase (the project name) is supplied by the ' +
         'door. A cascade is charged against the per-user ' +
         '`project:delete-cascade` budget the app charges too (5/min). ' +
@@ -2901,7 +2961,10 @@ export function buildSpec(): Json {
       description:
         'Saves the complete configuration of an existing agent in this ' +
         'project. Omitted optional fields reset to their empty values, so ' +
-        'send the whole configuration you mean to keep. Pass the ' +
+        'send the whole configuration you mean to keep. A body that names ' +
+        'the configuration already stored writes nothing and leaves ' +
+        '`updatedAt` alone (the document rule), so two declarative writers ' +
+        're-asserting one configuration never 409 each other. Pass the ' +
         '`updatedAt` you last read as `expectedUpdatedAt` to make the save ' +
         'conditional: an agent that changed since answers 409 ' +
         '`PROJECT_AGENT_STALE` (`data.updatedAt` is the current stamp) and ' +
@@ -4253,9 +4316,11 @@ export function buildSpec(): Json {
       summary: 'Delete an automation',
       description:
         'Retires the automation: every version, its trigger and its project ' +
-        'installations. Run history is kept. Requires the developer ' +
-        'capability. A run still in flight refuses the delete — cancel or ' +
-        'wait for it first.',
+        'installations. Run history is kept — listed by `GET /api/v1/runs`, ' +
+        'readable by id, and still answered by name at ' +
+        '`GET /api/v1/automations/{name}/runs` (the project twin included). ' +
+        'Requires the developer capability. A run still in flight refuses ' +
+        'the delete — cancel or wait for it first.',
       operationId: 'deleteAutomation',
       security: sec,
       parameters: [automationNameParam],
@@ -4409,8 +4474,8 @@ export function buildSpec(): Json {
           '200': jsonResponse('Newest runs first', runsPage),
           '404': errorResponse(
             scope.project
-              ? 'Project missing or invisible (`PROJECT_NOT_FOUND`), or automation not found (`AUTOMATION_NOT_FOUND`)'
-              : 'Automation not found (`AUTOMATION_NOT_FOUND`)',
+              ? 'Project missing or invisible (`PROJECT_NOT_FOUND`), or a name no saved automation and no run of the organization bears (`AUTOMATION_NOT_FOUND`) — a deleted automation’s kept runs still answer'
+              : 'A name no saved automation and no run of the organization bears (`AUTOMATION_NOT_FOUND`) — a deleted automation’s kept runs still answer',
           ),
           ...standardErrors,
         },
@@ -5804,7 +5869,10 @@ export function buildSpec(): Json {
         'rule), so a retry or a replaying sync job never inflates the ' +
         'history; a case-only change of the topic is a change. Only the ' +
         'ACTIVE row of a topic takes an update — a superseded row answers ' +
-        '409 naming the row that replaced it, an identical body included. ' +
+        '409 naming the topic’s ACTIVE row (`data.activeId`, beside ' +
+        '`data.supersededBy`, its direct successor), an identical body ' +
+        'included, so a stale id costs one round trip, never a chase down ' +
+        'the chain. ' +
         'Requires the knowledge write grant (editor and up).',
       operationId: 'updateKnowledgeEntry',
       security: sec,
@@ -5820,7 +5888,8 @@ export function buildSpec(): Json {
         ),
         '404': errorResponse('Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)'),
         '409': errorResponse(
-          'Entry is not active — it was superseded (`KNOWLEDGE_ENTRY_SUPERSEDED`), ' +
+          'Entry is not active — it was superseded (`KNOWLEDGE_ENTRY_SUPERSEDED`; ' +
+            '`data.activeId` names the row to update, when the topic still has one), ' +
             'or the new topic collides with another active entry ' +
             '(`KNOWLEDGE_ENTRY_DUPLICATE`)',
         ),
@@ -6506,7 +6575,7 @@ loop from the document rather than from this prose:
   the operation names), never a cursor walk — no \`isDone\`, no cursor, no
   \`cursor\` or \`limit\` parameter: \`{automations}\`, \`{agents}\`,
   \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\`,
-  \`{triggers}\`; search answers \`{hits, diagnostics}\`.
+  \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`.
 
 Every cursor is an opaque signed token: one this list never answered is
 refused with 400 \`INVALID_CURSOR\`, never read as the first page — and a
@@ -6993,8 +7062,12 @@ curl -H "Authorization: Bearer <api-key>" \\
                 '(registering the sibling of a registered domain is the ' +
                 '409). Loopback, ' +
                 'link-local, private-network and cloud metadata hosts are ' +
-                'refused — the crawler dials the target from inside the ' +
-                'deployment’s network.',
+                'refused (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — the crawler ' +
+                'dials the target from inside the deployment’s network — ' +
+                'and so is a bare IP address of any kind ' +
+                '(`WEBSITE_DOMAIN_INVALID`): the crawler dials by host ' +
+                'name and verifies the certificate against it, which no ' +
+                'IP literal can present.',
             },
             title: { ...str, maxLength: 200 },
             description: { ...str, maxLength: 2000 },
@@ -7424,6 +7497,25 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
 
         // ── The key holder ──
+        Team: {
+          type: 'object',
+          required: ['id', 'name', 'member'],
+          description:
+            'One team of the organization: the `id` an audience names, ' +
+            'the `name` the app shows for it, and whether the key holder ' +
+            'is a member.',
+          properties: {
+            id: { ...str, description: 'The id `teamIds` and `teams` take' },
+            name: { ...str, description: 'The team’s display name' },
+            member: {
+              ...bool,
+              description:
+                'Whether the key holder belongs to the team — an ' +
+                'organization admin may assign any team, another role only ' +
+                'the teams it is a member of',
+            },
+          },
+        },
         Me: {
           type: 'object',
           required: [
@@ -7953,7 +8045,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'The question as one sentence — always present, and the whole question when `questions` is absent',
             },
             questions: {
-              ...ref('QuestionSet'),
+              allOf: [ref('QuestionSet')],
               description:
                 'Present when the agent asked a structured set; `question` then summarises it',
             },
@@ -8499,7 +8591,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               minimum: 0,
               maximum: 1,
               description:
-                'The rank-fusion order key the hits are sorted by: Σ 1/(60+rank) over the legs that ranked the passage, divided by the best possible for that many legs. A RANK — 1.0 for the best candidate of a one-leg search however weak that leg found it — comparable only within one response, never a confidence, and not stable across searches. Threshold on `similarity` instead',
+                'The rank-fusion order key the hits are sorted by: Σ 1/(60+rank) over the legs that ranked the passage, divided by the best score possible given the legs that contributed candidates to THIS response (`diagnostics.legs`) — so the same passage reads 1.0 when both document legs ranked it first in a two-leg search and 0.667 when a third leg (a web neighbour) contributed too. A RANK — comparable only within one response, never a confidence, and not stable across searches. Threshold on `similarity` instead',
             },
             legs: {
               ...int,
@@ -9024,7 +9116,12 @@ curl -H "Authorization: Bearer <api-key>" \\
             topic: str,
             content: str,
             status: { type: 'string', enum: ['active', 'superseded'] },
-            source: str,
+            source: {
+              type: 'string',
+              enum: ['chat', 'manual', 'api'],
+              description:
+                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form) or `api` (this door — a create or supersede over REST)',
+            },
             documentId: {
               ...str,
               description:

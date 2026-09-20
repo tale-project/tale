@@ -61,6 +61,7 @@ Utilise l’`id` du modèle dans les requêtes de chat et son `providerSlug` si 
 | --- | --- |
 | `401` | Vérifie la clé bearer, son expiration et sa révocation éventuelle. |
 | `400` avec `ORG_SLUG_REQUIRED` | Choisis un slug dans `data.organizations` de cette erreur et envoie `X-Organization-Slug`. |
+| `404` avec `ORG_SLUG_INVALID` | L’en-tête ne désigne aucune organisation dont le détenteur de la clé est membre : une faute de frappe, ou l’identifiant d’organisation de l’URL du tableau de bord collé à la place du slug. Envoie le slug donné dans `data.organizations`. |
 | `403` | Vérifie l’appartenance et le droit nécessaire à l’opération. |
 | `429` | Attends selon `Retry-After` ; consulte les [limites de débit](/fr/develop/rate-limits). |
 

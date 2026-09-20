@@ -748,6 +748,47 @@ describe('protocol errors', () => {
     expect(await response.text()).toBe('');
   });
 
+  // `JSON.parse` rounds a whole number beyond 2^53 − 1, so an id of
+  // 9007199254740993 was echoed as …992 and a client keying replies on
+  // 64-bit ids never matched one (2026-09-19 evaluation, K8-2): the literal
+  // is refused as an invalid request naming it, the way the REST door does.
+  it('refuses a whole number beyond 2^53 − 1 instead of rounding it (-32600)', async () => {
+    const { rc } = context();
+    const response = await handleMcpRequest(
+      rc,
+      new Request('http://localhost/api/v1/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"jsonrpc":"2.0","id":9007199254740993,"method":"ping"}',
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32600,
+        message:
+          'Invalid request: "id" is a whole number beyond 2^53 − 1, which cannot be carried exactly; send it as a string',
+      },
+    });
+    const nested = await handleMcpRequest(
+      rc,
+      new Request('http://localhost/api/v1/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"jsonrpc":"2.0","id":"a","method":"tools/call","params":{"name":"get_run","arguments":{"runId":18446744073709551615}}}',
+      }),
+    );
+    expect(nested.status).toBe(400);
+    expect(await nested.json()).toMatchObject({
+      error: {
+        code: -32600,
+        message: expect.stringContaining('"params.arguments.runId"'),
+      },
+    });
+  });
+
   it('refuses a jsonrpc version other than 2.0 (-32600)', async () => {
     const { status, payload } = await call({
       jsonrpc: '1.0',

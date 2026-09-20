@@ -130,13 +130,20 @@ const runSummary = {
   finishedAt: 1_700_000_000_500,
 };
 
+/** The name of an automation that was deleted but left runs behind — the
+ * one name the runs-existence probe answers (K8-5). */
+const RETIRED = 'retired';
+
 function fakeSql(): { sql: Sql; queries: string[] } {
   const queries: string[] = [];
-  const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push(text);
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve([{ value: '1' }]);
+    }
+    if (text.includes('SELECT 1 AS present FROM app.automation_runs')) {
+      return Promise.resolve(values.includes(RETIRED) ? [{ present: 1 }] : []);
     }
     if (text.includes('FROM app.projects')) {
       return Promise.resolve([visibleProject]);
@@ -1083,6 +1090,28 @@ describe('run listings', () => {
   };
   const list = (path: string) =>
     mount().app.request(`http://localhost/api/v1${path}`);
+
+  // A deleted automation keeps its runs: the by-name door answers them
+  // while any exist and 404s only a name nothing ever bore — it used to
+  // say the automation never existed (2026-09-19 evaluation, K8-5).
+  it('answers a deleted automation’s kept runs by name, and 404s a name nothing bore', async () => {
+    vi.mocked(listRunsPage).mockResolvedValue({
+      runs: [runRow],
+      isDone: true,
+      next: null,
+    });
+    const kept = await list(`/automations/${RETIRED}/runs`);
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toMatchObject({ runs: [runSummary] });
+    expect(listRunsPage).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({ name: RETIRED }),
+    );
+    const never = await list('/automations/never-ran/runs');
+    expect(never.status).toBe(404);
+    expect(await never.json()).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
 
   it('answers summaries and a cursor for the older runs', async () => {
     vi.mocked(listRunsPage).mockResolvedValue(page);

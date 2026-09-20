@@ -240,6 +240,16 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     expect(updates(statements)).toEqual([]);
   });
 
+  it('writes nothing for a replace that names the stored configuration (2026-09-19, K4-5)', async () => {
+    const { tx, statements } = fakeTx();
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+      expectedUpdatedAt: 20,
+    });
+    expect(updates(statements)).toEqual([]);
+  });
+
   it('saves when the precondition matches, and unconditionally when it is absent', async () => {
     const matching = fakeTx();
     await updateProjectAgent(matching.tx, auth, {
@@ -258,6 +268,9 @@ describe('updateProjectAgent — unknown secret names', () => {
     const { tx, statements } = fakeTx();
     await updateProjectAgent(tx, auth, {
       ...config,
+      // A field that differs from the stored row: the pruned grant alone
+      // repeats the stored configuration, which writes nothing (K4-5).
+      instructions: 'Review the numbers twice.',
       secrets: ['REVIEW_TOKEN', 'NO_SUCH_SECRET'],
     });
     const update = updates(statements)[0];
@@ -284,6 +297,9 @@ describe('updateProjectAgent — unknown secret names', () => {
     const { tx, statements } = fakeTx();
     await updateProjectAgent(tx, auth, {
       ...config,
+      // A field that differs from the stored row: the grant alone repeats
+      // the stored configuration, which writes nothing (K4-5).
+      instructions: 'Review the numbers twice.',
       secrets: ['REVIEW_TOKEN'],
       unknownSecrets: 'refuse',
     });

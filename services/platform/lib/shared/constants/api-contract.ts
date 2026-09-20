@@ -153,5 +153,22 @@
  * `bodyByLocale` snapshots so clients render workflow progress in the reader's
  * selected language. Writes require en/de/fr and accept additional locale keys;
  * plain-text edits clear stale translations.
+ *
+ * 1.19.0 — the 2026-09-19 round-K evaluation's contract corrections.
+ * `GET /api/v1/teams` lists the organization's teams (`Team`: `id`, `name`,
+ * `member`) — the ids `teamIds` and `teams` take, which no operation used
+ * to answer. The three 1.16.0 read doors declare their idle `null` as a
+ * nullable reference (`allOf` + `nullable`, never a keyword beside `$ref`),
+ * and `ContactInput`/`ContactPatch.externalId` carry `nullable` on each
+ * branch of their `oneOf`. `POST …/asks/{askId}` answers the documented
+ * `EMPTY_ANSWER` for a blank answer. `KnowledgeEntry.source` is the enum
+ * `chat` | `manual` | `api` (this door writes `api`); the superseded 409
+ * names the topic's active row (`data.activeId`). A project `teamIds` that
+ * repeats a team collapses (documents and skills already did), a no-op
+ * audience leaves `updatedAt` alone, and an archived project refuses it
+ * with `PROJECT_ARCHIVED`; a byte-identical agent `PUT` writes nothing.
+ * `GET …/automations/{name}/runs` answers a deleted automation's kept runs.
+ * A website `domain` that is a bare IP address is `WEBSITE_DOMAIN_INVALID`.
+ * Products are documented as deleted outright (no trash, no restore).
  */
-export const API_CONTRACT_VERSION = '1.18.0';
+export const API_CONTRACT_VERSION = '1.19.0';

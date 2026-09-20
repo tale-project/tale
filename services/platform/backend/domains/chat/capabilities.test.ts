@@ -84,6 +84,75 @@ describe('get_knowledge on the capability surface', () => {
     });
   });
 
+  // The REST search's citation fields ride the MCP passage too: an MCP
+  // client could not follow a hit to `GET /api/v1/documents/{id}` without a
+  // second search over REST (2026-09-19 evaluation, K8-1).
+  it('carries documentId, corpus, chunkIndex and projectId on each passage', async () => {
+    searchKnowledgeForOrg.mockResolvedValue({
+      hits: [
+        {
+          id: 'row-1',
+          corpus: 'documents',
+          text: 'Returns within 30 days.',
+          source: {
+            ref: 's3:acme/blob-1',
+            title: 'Returns policy',
+            documentId: 'doc-1',
+            projectId: null,
+          },
+          chunkIndex: 2,
+          score: 9.1,
+          fusedScore: 0.5,
+          similarity: 0.71,
+        },
+        {
+          id: 'row-2',
+          corpus: 'web',
+          text: 'Shipping takes two days.',
+          source: {
+            ref: 'https://shop.example/shipping',
+            title: 'Shipping',
+            url: 'https://shop.example/shipping',
+          },
+          chunkIndex: 0,
+          score: 0.6,
+          fusedScore: 0.25,
+        },
+      ],
+    });
+    const surface = await buildCapabilitySurface(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+    const result = await surface.dispatch('get_knowledge', {
+      query: 'returns',
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      passages: [
+        {
+          text: 'Returns within 30 days.',
+          source: 'Returns policy',
+          ref: 's3:acme/blob-1',
+          corpus: 'documents',
+          chunkIndex: 2,
+          documentId: 'doc-1',
+          score: 0.5,
+          similarity: 0.71,
+        },
+        {
+          text: 'Shipping takes two days.',
+          source: 'Shipping',
+          ref: 'https://shop.example/shipping',
+          corpus: 'web',
+          chunkIndex: 0,
+          score: 0.25,
+          url: 'https://shop.example/shipping',
+        },
+      ],
+    });
+  });
+
   it('resolves the scope per search, so a membership change is honoured on the next call', async () => {
     const surface = await buildCapabilitySurface(sql, {
       organizationId: 'org_1',

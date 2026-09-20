@@ -61,6 +61,7 @@ import {
   robotsPolicyToStored,
   siteHosts,
   stripBoilerplate,
+  robotsSitemapsFromStored,
 } from '../../../lib/knowledge/crawl-parse';
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
@@ -289,7 +290,10 @@ export async function scanWebsiteImpl(
         // frontier, and robots.txt does not govern explicitly requested
         // pages (the same stance web_fetch takes).
         if (kind === 'site') {
-          const robots = await loadRobotsRules(sql, args.domain, facts.policy);
+          const robots = await loadRobotsRules(sql, args.domain, facts.policy, {
+            fetchedAt: facts.robotsFetchedAt,
+            sitemaps: facts.sitemaps,
+          });
           policy = robots;
           await discoverAndRecordUrls(
             sql,
@@ -665,24 +669,67 @@ interface DomainFacts {
    * link judges by; no rules for a list row (its rows are the operator's
    * instruction) or before the first scan of this release. */
   readonly policy: RobotsPolicy;
+  /** When `policy` was read from the site (epoch ms), null when never. */
+  readonly robotsFetchedAt: number | null;
+  /** The sitemaps that read advertised; null when the row holds a policy
+   * from before they were stored — a scan then reads robots.txt again. */
+  readonly sitemaps: readonly string[] | null;
 }
 
 /** What this domain row is, and the rules it is crawled under. */
 async function domainFacts(sql: Sql, domain: string): Promise<DomainFacts> {
-  const rows = await sql.unsafe<{ kind: string; robots_disallow: unknown }[]>(
-    `SELECT kind, robots_disallow FROM ${PUBLIC_WEB_SCHEMA}.websites
+  const rows = await sql.unsafe<
+    { kind: string; robots_disallow: unknown; robots_fetched_at_ms: unknown }[]
+  >(
+    `SELECT kind, robots_disallow,
+            (EXTRACT(EPOCH FROM robots_fetched_at) * 1000)::float8
+              AS robots_fetched_at_ms
+       FROM ${PUBLIC_WEB_SCHEMA}.websites
       WHERE domain = $1`,
     [domain],
   );
   const row = rows[0];
   const kind = row?.kind === 'list' ? 'list' : 'site';
+  const fetchedAt = row?.robots_fetched_at_ms;
   return {
     kind,
     policy:
       kind === 'list'
         ? EMPTY_ROBOTS_POLICY
         : robotsPolicyFromStored(row?.robots_disallow),
+    robotsFetchedAt:
+      typeof fetchedAt === 'number' && Number.isFinite(fetchedAt)
+        ? fetchedAt
+        : null,
+    sitemaps:
+      kind === 'list' ? null : robotsSitemapsFromStored(row?.robots_disallow),
   };
+}
+
+/** A robots.txt verdict this young is reused rather than read again: the
+ * registration probe reads the file seconds before the first scan, which
+ * used to read it a second time within milliseconds (2026-09-19
+ * evaluation, K6-2). RFC 9309 §2.4 lets a crawler cache it for up to a day;
+ * a minute keeps a scan's rules its own. */
+const ROBOTS_REUSE_MS = 60_000;
+
+/** Write the rules a fetch of `/robots.txt` yielded onto the corpus row —
+ * the scan's own persistence, and the registration probe's, so the two
+ * share one read. */
+export async function persistRobotsRules(
+  sql: Sql,
+  domain: string,
+  rules: RobotsRules,
+): Promise<void> {
+  // The `::jsonb` cast types the parameter, so the driver serializes the
+  // value itself — a pre-stringified object would be stored as a JSON string.
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
+        SET robots_disallow = $2::jsonb, robots_fetched_at = NOW()
+      WHERE domain = $1`,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON-shaped policy object for the `::jsonb` param
+    [domain, robotsPolicyToStored(rules, rules.sitemaps) as JSONValue],
+  );
 }
 
 /**
@@ -699,7 +746,18 @@ async function loadRobotsRules(
   sql: Sql,
   domain: string,
   persisted: RobotsPolicy,
+  fresh: { fetchedAt: number | null; sitemaps: readonly string[] | null } = {
+    fetchedAt: null,
+    sitemaps: null,
+  },
 ): Promise<RobotsRules> {
+  if (
+    fresh.fetchedAt !== null &&
+    fresh.sitemaps !== null &&
+    Date.now() - fresh.fetchedAt < ROBOTS_REUSE_MS
+  ) {
+    return { ...persisted, sitemaps: [...fresh.sitemaps] };
+  }
   const hosts = siteHosts(domain);
   const url = `https://${domain}/robots.txt`;
   let rules: RobotsRules;
@@ -734,15 +792,7 @@ async function loadRobotsRules(
     );
     return { ...persisted, sitemaps: [] };
   }
-  // The `::jsonb` cast types the parameter, so the driver serializes the
-  // value itself — a pre-stringified object would be stored as a JSON string.
-  await sql.unsafe(
-    `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
-        SET robots_disallow = $2::jsonb, robots_fetched_at = NOW()
-      WHERE domain = $1`,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON-shaped policy object for the `::jsonb` param
-    [domain, robotsPolicyToStored(rules) as JSONValue],
-  );
+  await persistRobotsRules(sql, domain, rules);
   return rules;
 }
 
@@ -815,6 +865,18 @@ async function discoverAndRecordUrls(
   };
   admit(baseUrl);
 
+  // Every discovery request is paced like a content fetch — the site's
+  // `Crawl-delay` on a sitemap read, the fetch floor or the delay on a
+  // link-walk read — measured from the previous request, robots.txt
+  // included: the first sitemap and the first homepage read used to go
+  // out unpaced (2026-09-19 evaluation, K6-2).
+  let lastRequestAt = Date.now();
+  const pace = async (delayMs: number): Promise<void> => {
+    const wait = delayMs - (Date.now() - lastRequestAt);
+    if (wait > 0) await sleep(wait);
+    lastRequestAt = Date.now();
+  };
+
   // Sitemaps: breadth-first over at most MAX_SITEMAP_FETCHES documents,
   // following one level of <sitemapindex> nesting.
   const sitemapQueue = sitemapCandidates.map((url) => ({ url, depth: 0 }));
@@ -830,6 +892,7 @@ async function discoverAndRecordUrls(
     let xml: string;
     try {
       assertCrawlableUrl(next.url);
+      await pace(robots.crawlDelayMs);
       const response = await safeFetch(next.url, {
         timeoutMs: PAGE_TIMEOUT_MS,
         maxResponseBytes: SITEMAP_MAX_BYTES,
@@ -868,8 +931,6 @@ async function discoverAndRecordUrls(
       if (capped) break;
     }
     if (capped) break;
-    // The site's `Crawl-delay` paces sitemap reads too.
-    if (robots.crawlDelayMs > 0) await sleep(robots.crawlDelayMs);
   }
 
   // Link-walk fallback for sites without a useful sitemap. A URL the rules
@@ -892,6 +953,7 @@ async function discoverAndRecordUrls(
       fetches += 1;
       try {
         assertCrawlableUrl(next.url);
+        await pace(fetchDelayMs(robots));
         const response = await safeFetch(next.url, {
           timeoutMs: PAGE_TIMEOUT_MS,
           maxResponseBytes: PAGE_MAX_BYTES,
@@ -918,7 +980,6 @@ async function discoverAndRecordUrls(
         );
         continue;
       }
-      await sleep(fetchDelayMs(robots));
     }
   }
 

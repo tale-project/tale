@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -278,6 +278,15 @@ function platformArtifactsServer(): Promise<ArtifactsServer> {
 function getBasePath(): string {
   const basePath = process.env.BASE_PATH ?? '';
   return basePath.replace(/\/$/, '');
+}
+
+/** The request id an API-shaped refusal on this tier answers: the caller's
+ * own when it is a sane token (the alphabet and length `hono/request-id`
+ * accepts on the API tier), else a fresh one — the same rule as the API's. */
+function apiRequestId(inbound: string | undefined): string {
+  return inbound !== undefined && /^[A-Za-z0-9_-]{1,255}$/.test(inbound)
+    ? inbound
+    : randomUUID();
 }
 
 /**
@@ -795,11 +804,17 @@ export function createApp(
   // the docs promise it, and the adapter stamped `content-length: 0` on
   // all four (2026-09-13 round-e evaluation, E1-03). The REST door
   // measures its own answers behind `restDoorHeaders()`.
+  // The three precompiled text artifacts and the SPA shell answered HEAD
+  // with `content-length: 0` too — a mirror sizing `/llms-full.txt` read
+  // it as empty (2026-09-19 evaluation, K9-3).
   for (const door of [
     '/api/health',
     '/status',
     '/status.json',
     '/openapi.json',
+    '/llms.txt',
+    '/llms-full.txt',
+    '/robots.txt',
   ]) {
     app.use(door, headContentLength());
   }
@@ -1035,7 +1050,10 @@ export function createApp(
     async (c) => (await analytics.handle(c.req.raw)) ?? c.notFound(),
   );
 
-  // Static files + index.html fallback (TanStack Router SPA).
+  // Static files + index.html fallback (TanStack Router SPA). A HEAD on
+  // the shell (`/docs`, any app route) carries the GET's length, like the
+  // web tier's own doors above.
+  app.use('*', headContentLength());
   app.get('*', async (c) => {
     const pathname = new URL(c.req.url).pathname;
 
@@ -1055,7 +1073,17 @@ export function createApp(
       asked.startsWith('/api/') ||
       asked.startsWith('/.well-known/')
     ) {
-      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+      // The envelope is the API's, so it carries what every API refusal
+      // carries: the request id a caller quotes (the API's own rule — an
+      // inbound id in the documented alphabet is echoed, anything else is
+      // replaced) and `no-store`; the mistyped base URL `$TALE_URL/api` is
+      // the commonest newcomer error, and a support thread could not
+      // correlate it (2026-09-19 evaluation, K9-4). No contract version:
+      // this tier answers no version of the contract.
+      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404, {
+        'cache-control': 'no-store',
+        'x-request-id': apiRequestId(c.req.header('x-request-id')),
+      });
     }
 
     if (pathname !== '/') {

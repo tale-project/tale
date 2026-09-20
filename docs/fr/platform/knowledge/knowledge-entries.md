@@ -39,7 +39,7 @@ de réponse, pas d’un délai de résolution. Responsable : Support Operations.
 
 <Step title="Enregistrer et vérifier l’indexation">
 
-Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source, le statut d’indexation et la date de mise à jour. Ouvre-la pour lire le texte intégral. L’indexation s’effectue en arrière-plan : une entrée enregistrée n’est pas immédiatement disponible dans la recherche.
+Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source (**Manuel** pour le formulaire, **Chat** pour une information captée par l’assistant, **API** pour une information écrite par une intégration via REST), le statut d’indexation et la date de mise à jour. Ouvre-la pour lire le texte intégral. L’indexation s’effectue en arrière-plan : une entrée enregistrée n’est pas immédiatement disponible dans la recherche.
 
 </Step>
 

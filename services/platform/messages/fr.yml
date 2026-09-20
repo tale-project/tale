@@ -4161,6 +4161,7 @@ knowledgeEntries:
     source: Source
     updated: Mis à jour
   source:
+    api: API
     chat: Chat
     manual: Manuel
   validation:

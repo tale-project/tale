@@ -11,6 +11,7 @@ import {
 import { listComposerModels } from '../domains/chat/composer.ts';
 import { sendIdempotencyRequestHash } from '../domains/chat/send-idempotency.ts';
 import {
+  ChatThreadError,
   renameThread,
   setThreadArchived,
   trashThread,
@@ -144,6 +145,9 @@ function fakeSql(
     /** A live ledger row an earlier keyed send committed — the claim finds
      * it and reads it back. */
     remembered?: { requestHash: string; response: Record<string, unknown> };
+    /** Another writer moved the thread between the door's read and the
+     * claim: the claim finds no row, and the re-read says which. */
+    settledMeanwhile?: 'archived' | 'trashed';
   } = {},
 ): { sql: Sql; queries: Captured[] } {
   const queries: Captured[] = [];
@@ -196,8 +200,21 @@ function fakeSql(
       )
     ) {
       return Promise.resolve(
-        options.generating || options.queued ? [] : [{ threadId: 't-1' }],
+        options.generating || options.queued || options.settledMeanwhile
+          ? []
+          : [{ threadId: 't-1' }],
       );
+    }
+    // The claim's re-read after it found no row: which writer won.
+    if (text.startsWith('SELECT status, archived FROM app.thread_metadata')) {
+      return Promise.resolve([
+        options.settledMeanwhile === 'trashed'
+          ? { status: 'trashed', archived: false }
+          : {
+              status: 'active',
+              archived: options.settledMeanwhile === 'archived',
+            },
+      ]);
     }
     if (text.includes('FROM app.generations WHERE thread_id')) {
       return Promise.resolve(
@@ -818,6 +835,7 @@ describe('thread lifecycle', () => {
       { organizationId: 'org-1', userId: 'user-1', email: 'user@example.com' },
       't-1',
       true,
+      { refuseWhenTurnPending: true },
     );
     const restored = await mount(fakeSql({ archived: true }).sql).request(
       'http://localhost/threads/t-1',
@@ -868,6 +886,7 @@ describe('thread lifecycle', () => {
         expect.anything(),
         't-1',
         false,
+        { refuseWhenTurnPending: true },
       );
       expect(renameThread).toHaveBeenCalled();
     },
@@ -895,6 +914,63 @@ describe('thread lifecycle', () => {
       code: 'CHAT_TURN_IN_PROGRESS',
     });
     expect(trashThread).toHaveBeenCalledTimes(1);
+  });
+
+  it('DELETE answers the domain’s own verdicts: the row-lock 409 and the vanished thread’s 404', async () => {
+    // The domain's trash UPDATE carries the fence as its predicate (K2-1):
+    // a send that claimed the row between the door's read and the write is
+    // its 409; a thread that stopped being the caller's active one is a 404.
+    vi.mocked(trashThread).mockRejectedValueOnce(
+      new ChatThreadError(
+        'CHAT_TURN_IN_PROGRESS',
+        'This conversation is generating a response; cancel the turn before deleting it.',
+        409,
+      ),
+    );
+    const raced = await mount(fakeSql().sql).request(
+      'http://localhost/threads/t-1',
+      { method: 'DELETE' },
+    );
+    expect(raced.status).toBe(409);
+    expect(await raced.json()).toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS' });
+
+    vi.mocked(trashThread).mockResolvedValueOnce(false);
+    const gone = await mount(fakeSql().sql).request(
+      'http://localhost/threads/t-1',
+      { method: 'DELETE' },
+    );
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toMatchObject({ code: 'THREAD_NOT_FOUND' });
+  });
+
+  it('PATCH hands the domain the fence option, and answers its row-lock 409', async () => {
+    const { sql } = fakeSql();
+    await mount(sql).request('http://localhost/threads/t-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(setThreadArchived).toHaveBeenCalledWith(
+      sql,
+      expect.anything(),
+      't-1',
+      true,
+      { refuseWhenTurnPending: true },
+    );
+    vi.mocked(setThreadArchived).mockRejectedValueOnce(
+      new ChatThreadError(
+        'CHAT_TURN_IN_PROGRESS',
+        'This conversation is generating a response; cancel the turn before archiving it.',
+        409,
+      ),
+    );
+    const raced = await mount(sql).request('http://localhost/threads/t-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(raced.status).toBe(409);
+    expect(await raced.json()).toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS' });
   });
 
   it('DELETE refuses a thread whose accepted send is still queued', async () => {
@@ -1120,6 +1196,40 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
     });
     expect(addJobInTx).not.toHaveBeenCalled();
   });
+
+  /**
+   * The claim lands only on the caller's ACTIVE, un-archived thread: an
+   * archive or a trash that committed between the door's read and the
+   * claim is seen at the row lock, and the send answers what the thread now
+   * is — the accepted turn used to open on a thread that was gone
+   * (2026-09-19 evaluation, K2-1).
+   */
+  it.each([
+    ['archived', 409, 'CHAT_THREAD_ARCHIVED'],
+    ['trashed', 404, 'THREAD_NOT_FOUND'],
+  ] as const)(
+    'answers a send whose thread was %s meanwhile with %s %s, and queues nothing',
+    async (settledMeanwhile, status, code) => {
+      const { sql, queries } = fakeSql({ settledMeanwhile });
+      const res = await mount(sql).request(
+        'http://localhost/threads/t-1/messages',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+        },
+      );
+      expect(res.status).toBe(status);
+      expect(await res.json()).toMatchObject({ code });
+      expect(addJobInTx).not.toHaveBeenCalled();
+      const claim = queries.find((q) =>
+        q.text.startsWith(
+          'UPDATE app.thread_metadata SET generation_queued_since_ms',
+        ),
+      );
+      expect(claim?.text).toContain("status = 'active' AND archived = false");
+    },
+  );
 
   it('refuses a send while a turn streams — the claim finds no row, no pre-read needed', async () => {
     const { sql, queries } = fakeSql({ generating: true });

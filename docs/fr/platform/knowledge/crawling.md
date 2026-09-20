@@ -40,7 +40,7 @@ Le crawler visite en lecteur anonyme. Ajouter une URL ne rend pas accessible un 
 
 Le crawler applique les règles `Disallow` de `robots.txt` destinées à l’agent `*` sur chaque chemin par lequel une URL peut entrer — les sitemaps, le parcours de liens et les liens qu’une page JavaScript révèle après rendu — et de nouveau avant chaque récupération : une page qu’une règle couvre n’est jamais récupérée, et une page qu’une règle ajoutée plus tard couvre quitte l’index au scan suivant. Les règles ne filtrent pas une liste d’URL explicite : une adresse listée est ta consigne. À chaque récupération, un en-tête HTTP `X-Robots-Tag: noindex` ou `none`, ou une balise HTML `<meta name="robots" content="noindex">`, empêche l’indexation, y compris pour une URL de liste, et retire ce qu’un scan antérieur avait stocké de la page. Ces règles sont une courtoisie, pas un contrôle d’accès : si tu administres le site source, ne compte pas sur le crawler comme mécanisme de contrôle d’accès.
 
-Utilise HTTPS sur le port standard. Une adresse qui indique un autre port, comme `:8001`, est refusée. Les adresses privées et les redirections vers un réseau privé sont bloquées, sauf si l’exploitant a autorisé ces sources internes pour son installation.
+Utilise HTTPS sur le port standard et enregistre un nom d’hôte : une adresse qui indique un autre port, comme `:8001`, ou une adresse IP nue est refusée — le robot se connecte par le nom d’hôte et vérifie le certificat avec lui. Les adresses privées et les redirections vers un réseau privé sont bloquées, sauf si l’exploitant a autorisé ces sources internes pour son installation.
 
 ## Tenir compte des limites du crawler
 
