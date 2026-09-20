@@ -20,7 +20,11 @@ import { useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { resolveSandboxAffordance } from '../lib/composer-execution';
-import type { ComposerModelOption, ComposerSelection } from '../types';
+import type {
+  ChatModelPick,
+  ComposerModelOption,
+  ComposerSelection,
+} from '../types';
 
 interface ComposerModelPickerProps {
   models: readonly ComposerModelOption[];
@@ -62,13 +66,25 @@ export function autoAvailable(models: readonly ComposerModelOption[]): boolean {
 export function withDefaultModel(
   selection: ComposerSelection,
   models: readonly ComposerModelOption[],
-  preferredId?: string,
+  preferredPick?: ChatModelPick,
 ): ComposerSelection {
   if (selection.modelId !== undefined) return selection;
   if (selection.modelSelection === 'auto') return selection;
   const affordanceOf = (model: ComposerModelOption) =>
     resolveSandboxAffordance(asCatalogEntry(model), model.credential);
-  const preferred = models.find((model) => model.id === preferredId);
+  // The saved pick's own (provider, id) copy: two providers listing one id
+  // are different wires with different keys, and the copy the user picked
+  // is the one whose credential they meant. A pick saved before providers
+  // were part of it — or whose provider no longer lists the id — falls back
+  // to whichever provider serves the id.
+  const preferred =
+    preferredPick === undefined
+      ? undefined
+      : (models.find(
+          (model) =>
+            model.id === preferredPick.modelId &&
+            model.providerSlug === preferredPick.providerSlug,
+        ) ?? models.find((model) => model.id === preferredPick.modelId));
   if (preferred !== undefined) {
     return {
       ...selection,
@@ -124,6 +140,18 @@ export function ComposerModelPicker({
   const items = useMemo<DropdownMenuGroup[]>(() => {
     if (models.length === 0) return [];
     const providers = [...new Set(models.map((model) => model.providerSlug))];
+    // The section header is the provider's display name — an org-defined
+    // provider reads by the name its admin gave it — with the slug standing
+    // in for a catalog stored before the name rode the wire.
+    const providerLabels = new Map<string, string>();
+    for (const model of models) {
+      if (!providerLabels.has(model.providerSlug)) {
+        providerLabels.set(
+          model.providerSlug,
+          model.providerLabel ?? model.providerSlug,
+        );
+      }
+    }
     const itemOf = (model: ComposerModelOption) => ({
       type: 'item' as const,
       label: model.label,
@@ -146,7 +174,10 @@ export function ComposerModelPicker({
     // and PICKABLE — under each provider that serves it.
     return providers.map((provider) => {
       const group: DropdownMenuGroup = [
-        { type: 'label' as const, content: provider },
+        {
+          type: 'label' as const,
+          content: providerLabels.get(provider) ?? provider,
+        },
       ];
       for (const model of models) {
         if (model.providerSlug === provider) group.push(itemOf(model));

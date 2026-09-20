@@ -23,7 +23,11 @@ const customInstructionsSchema = z.object({
 
 const enabledSchema = z.object({ enabled: z.boolean() });
 const completedSchema = z.object({ completed: z.boolean() });
-const chatModelSchema = z.object({ modelId: z.string().max(200).optional() });
+const chatModelSchema = z.object({
+  modelId: z.string().max(200).optional(),
+  // The connector that served the pick; meaningless without a model id.
+  providerSlug: z.string().max(120).optional(),
+});
 
 function scopeOf(c: Context<OrgEnv>): { userId: string; orgId: string } {
   return { userId: c.get('sessionBundle').user.id, orgId: c.get('orgId') };
@@ -107,8 +111,18 @@ export function createUserPreferenceRoutes(deps: {
     }
     const scope = scopeOf(c);
     try {
+      const { modelId, providerSlug } = body.data;
       await transactSerializable(deps.sql, (tx) =>
-        setChatModel(tx, scope, body.data.modelId),
+        setChatModel(
+          tx,
+          scope,
+          modelId === undefined
+            ? undefined
+            : {
+                modelId,
+                ...(providerSlug !== undefined ? { providerSlug } : {}),
+              },
+        ),
       );
     } catch (error) {
       if (error instanceof PreferencesError) {

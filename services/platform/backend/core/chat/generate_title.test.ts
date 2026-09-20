@@ -51,20 +51,31 @@ function chatEntry(id: string) {
   return { id, tags: ['chat'] };
 }
 
-/** A ctx serving the two internal reads (the owner's sticky pick, keyed by
- * `userId`; the provider's default credential row, keyed by `providerSlug`)
- * and capturing the title write. */
+/** A ctx serving the two internal reads (the owner's sticky pick — the
+ * model id and, when the pick named one, its provider — keyed by `userId`;
+ * the provider's default credential row, keyed by `providerSlug`) and
+ * capturing the title write. */
 function fakeCtx(args: {
   preferredModelId: string | null;
+  preferredProviderSlug?: string;
   rows: Record<string, unknown>;
 }) {
+  const preferred =
+    args.preferredModelId === null
+      ? null
+      : {
+          modelId: args.preferredModelId,
+          ...(args.preferredProviderSlug !== undefined
+            ? { providerSlug: args.preferredProviderSlug }
+            : {}),
+        };
   const runQuery = vi.fn(
     async (
       _ref: unknown,
       queryArgs: { userId?: string; providerSlug?: string },
     ) =>
       queryArgs.userId !== undefined
-        ? args.preferredModelId
+        ? preferred
         : (args.rows[queryArgs.providerSlug ?? ''] ?? null),
   );
   const runMutation = vi.fn(async () => null);
@@ -195,6 +206,73 @@ describe('generateThreadTitleImpl — model choice', () => {
       ctx,
       expect.objectContaining({
         target: { providerSlug: 'openai', modelId: 'glm-5.2' },
+      }),
+    );
+  });
+
+  it('names the thread on the connector the pick names when two connectors serve the id', async () => {
+    // A shipped provider and an org-defined one on another endpoint list the
+    // same id: the pick's own connector is the wire whose key the owner
+    // meant; a pick saved without a provider takes the first serving one.
+    resolveProvidersMock.mockResolvedValue([
+      provider('openai'),
+      provider('openai-cn'),
+    ]);
+    catalogMock.mockResolvedValue([chatEntry('gpt-4o-mini')]);
+    const rows = {
+      openai: { authMethod: 'api-key', status: 'active' },
+      'openai-cn': { authMethod: 'api-key', status: 'active' },
+    };
+
+    const named = fakeCtx({
+      preferredModelId: 'gpt-4o-mini',
+      preferredProviderSlug: 'openai-cn',
+      rows,
+    });
+    await generateThreadTitleImpl(named.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    expect(createBuilderModelMock).toHaveBeenLastCalledWith(
+      named.ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai-cn', modelId: 'gpt-4o-mini' },
+      }),
+    );
+
+    const idOnly = fakeCtx({ preferredModelId: 'gpt-4o-mini', rows });
+    await generateThreadTitleImpl(idOnly.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    expect(createBuilderModelMock).toHaveBeenLastCalledWith(
+      idOnly.ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
+      }),
+    );
+
+    // The named connector no longer lists the id: fall back to one that does
+    // rather than refusing the title.
+    const stale = fakeCtx({
+      preferredModelId: 'gpt-4o-mini',
+      preferredProviderSlug: 'gone',
+      rows,
+    });
+    await generateThreadTitleImpl(stale.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    expect(createBuilderModelMock).toHaveBeenLastCalledWith(
+      stale.ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
       }),
     );
   });

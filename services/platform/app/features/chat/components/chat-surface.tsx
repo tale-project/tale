@@ -776,7 +776,7 @@ function ChatSurfaceInner({
   const preference = modelPreference.preference;
   useEffect(() => {
     if (models.length === 0 || preference.status === 'loading') return;
-    const preferredId =
+    const preferred =
       preference.status === 'ready' ? preference.data : undefined;
     setSelection((previous) => {
       // A pick the listing no longer serves (policy tightened, credential
@@ -790,17 +790,28 @@ function ChatSurfaceInner({
         const { modelId: _stale, providerSlug: _staleSlug, ...rest } = previous;
         current = rest;
       }
-      return withDefaultModel(current, models, preferredId);
+      return withDefaultModel(current, models, preferred);
     });
   }, [models, preference]);
 
-  // An explicit model pick becomes the user's sticky default; the seeding
-  // effect above writes nothing, so only real choices persist. Picking Auto
-  // is just as explicit: it CLEARS the stored id (absent preference = Auto),
-  // so the old pin cannot resurface in the next session.
+  // An explicit model pick — the id AND the provider serving it, so two
+  // providers listing one id stay tellable apart — becomes the user's sticky
+  // default; the seeding effect above writes nothing, so only real choices
+  // persist. Picking Auto is just as explicit: it CLEARS the stored pick
+  // (absent preference = Auto), so the old pin cannot resurface in the next
+  // session.
   const handleSelectionChange = (next: ComposerSelection) => {
-    if (next.modelId !== undefined && next.modelId !== selection.modelId) {
-      modelPreference.save(next.modelId);
+    if (
+      next.modelId !== undefined &&
+      (next.modelId !== selection.modelId ||
+        next.providerSlug !== selection.providerSlug)
+    ) {
+      modelPreference.save({
+        modelId: next.modelId,
+        ...(next.providerSlug !== undefined
+          ? { providerSlug: next.providerSlug }
+          : {}),
+      });
     } else if (
       next.modelSelection === 'auto' &&
       selection.modelSelection !== 'auto'

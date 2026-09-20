@@ -25,7 +25,7 @@ Pendant la génération, la commande d’envoi devient une commande d’arrêt. 
 
 Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont disponibles. Auto choisit un modèle pour chaque message parmi ceux de ton organisation. Les règles de l’organisation peuvent définir un choix par défaut ou restreindre les modèles autorisés. Les détails sous la réponse indiquent celui qui a effectivement répondu.
 
-Choisis un modèle précis pour comparer des réponses dans les mêmes conditions ou lorsque tu sais lequel convient au travail. Il reste sélectionné jusqu’à ce que tu changes ce choix. S’il permet de régler l’effort de raisonnement, le sélecteur propose aussi ce réglage. Un effort plus élevé peut prendre plus de temps ; il ne remplace pas la vérification du résultat.
+Choisis un modèle précis pour comparer des réponses dans les mêmes conditions ou lorsque tu sais lequel convient au travail. Il reste sélectionné jusqu’à ce que tu changes ce choix, y compris le fournisseur qui sert le modèle lorsque deux fournisseurs proposent le même. S’il permet de régler l’effort de raisonnement, le sélecteur propose aussi ce réglage. Un effort plus élevé peut prendre plus de temps ; il ne remplace pas la vérification du résultat.
 
 <Frame caption="Le sélecteur de modèle se trouve à côté du menu des pièces jointes et des commandes vocales.">
 

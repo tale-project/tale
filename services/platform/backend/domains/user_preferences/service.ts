@@ -15,8 +15,19 @@ export interface UserPreferences {
   memoriesEnabled?: boolean;
   voiceOutput?: boolean;
   chatModelId?: string;
+  /** The connector that served `chatModelId` when it was picked. Absent on a
+   * pick saved before providers were part of it — such a pick resolves by id
+   * alone, the first connector listing it. */
+  chatModelProviderSlug?: string;
   onboardingCompleted?: boolean;
   updatedAt: number;
+}
+
+/** The sticky chat model pick: the model id and, when the pick carried one,
+ * the provider serving it. */
+export interface ChatModelPick {
+  modelId: string;
+  providerSlug?: string;
 }
 
 interface PreferencesRow {
@@ -25,6 +36,7 @@ interface PreferencesRow {
   memoriesEnabled: boolean | null;
   voiceOutput: boolean | null;
   chatModelId: string | null;
+  chatModelProviderSlug: string | null;
   onboardingCompleted: boolean | null;
   updatedAt: number;
 }
@@ -49,6 +61,7 @@ export async function getMyPreferences(
            memories_enabled AS "memoriesEnabled",
            voice_output AS "voiceOutput",
            chat_model_id AS "chatModelId",
+           chat_model_provider_slug AS "chatModelProviderSlug",
            onboarding_completed AS "onboardingCompleted",
            updated_at::float8 AS "updatedAt"
     FROM app.user_preferences
@@ -70,6 +83,11 @@ export async function getMyPreferences(
       : {}),
     ...(row.voiceOutput !== null ? { voiceOutput: row.voiceOutput } : {}),
     ...(row.chatModelId !== null ? { chatModelId: row.chatModelId } : {}),
+    // The provider only means something next to a model id: a slug left
+    // behind by a cleared pick is never surfaced on its own.
+    ...(row.chatModelId !== null && row.chatModelProviderSlug !== null
+      ? { chatModelProviderSlug: row.chatModelProviderSlug }
+      : {}),
     ...(row.onboardingCompleted !== null
       ? { onboardingCompleted: row.onboardingCompleted }
       : {}),
@@ -81,12 +99,32 @@ export async function getMyPreferences(
 export async function getChatModel(
   sql: Sql | TransactionSql,
   scope: { userId: string; orgId: string },
-): Promise<string | null> {
-  const rows = await sql<{ chatModelId: string | null }[]>`
-    SELECT chat_model_id AS "chatModelId" FROM app.user_preferences
+): Promise<ChatModelPick | null> {
+  const rows = await sql<
+    { chatModelId: string | null; chatModelProviderSlug: string | null }[]
+  >`
+    SELECT chat_model_id AS "chatModelId",
+           chat_model_provider_slug AS "chatModelProviderSlug"
+    FROM app.user_preferences
     WHERE user_id = ${scope.userId} AND org_id = ${scope.orgId}
   `;
-  return rows[0]?.chatModelId ?? null;
+  return chatModelPickOf(rows[0]);
+}
+
+/** The pick a preferences row carries, or null when the user never pinned a
+ * model (or cleared the pin by choosing Auto). */
+export function chatModelPickOf(
+  row:
+    | { chatModelId: string | null; chatModelProviderSlug: string | null }
+    | undefined,
+): ChatModelPick | null {
+  if (row === undefined || row.chatModelId === null) return null;
+  return {
+    modelId: row.chatModelId,
+    ...(row.chatModelProviderSlug !== null
+      ? { providerSlug: row.chatModelProviderSlug }
+      : {}),
+  };
 }
 
 // Soft length guard on a settings field (flat chars/4 approximation of the
@@ -199,29 +237,50 @@ export function setOnboardingCompleted(
 
 // Provider-namespaced printable identifier, never free prose.
 const CHAT_MODEL_ID_RE = /^[\x21-\x7e]{1,200}$/;
+// A connector slug as the provider definition schema spells it.
+const CHAT_MODEL_PROVIDER_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const CHAT_MODEL_PROVIDER_SLUG_MAX = 120;
 
 /**
- * Remember the composer's EXPLICIT model pick; an absent `modelId` is the
- * explicit pick of Auto and clears the stored id.
+ * Remember the composer's EXPLICIT model pick — the model id and the
+ * provider that served it, so a later seed lands on the same copy when two
+ * connectors list the id; an absent pick is the explicit choice of Auto and
+ * clears both.
  */
 export async function setChatModel(
   tx: TransactionSql,
   scope: { userId: string; orgId: string },
-  modelId: string | undefined,
+  pick: ChatModelPick | undefined,
 ): Promise<void> {
-  if (modelId !== undefined && !CHAT_MODEL_ID_RE.test(modelId)) {
+  if (pick !== undefined && !CHAT_MODEL_ID_RE.test(pick.modelId)) {
     throw new PreferencesError(
       'invalid_model_id',
       'Model ids are short printable identifiers.',
     );
   }
+  if (
+    pick?.providerSlug !== undefined &&
+    (pick.providerSlug.length > CHAT_MODEL_PROVIDER_SLUG_MAX ||
+      !CHAT_MODEL_PROVIDER_SLUG_RE.test(pick.providerSlug))
+  ) {
+    throw new PreferencesError(
+      'invalid_provider_slug',
+      'Provider slugs are lowercase letters, digits and single hyphens.',
+    );
+  }
+  const modelId = pick?.modelId ?? null;
+  const providerSlug = pick?.providerSlug ?? null;
   await tx`
     INSERT INTO app.user_preferences (
-      user_id, org_id, custom_instructions, chat_model_id, updated_at
+      user_id, org_id, custom_instructions, chat_model_id,
+      chat_model_provider_slug, updated_at
     ) VALUES (
-      ${scope.userId}, ${scope.orgId}, '', ${modelId ?? null}, ${Date.now()}
+      ${scope.userId}, ${scope.orgId}, '', ${modelId}, ${providerSlug},
+      ${Date.now()}
     )
     ON CONFLICT (user_id, org_id) DO UPDATE SET
-      chat_model_id = ${modelId ?? null}, updated_at = ${Date.now()}
+      chat_model_id = ${modelId},
+      chat_model_provider_slug = ${providerSlug},
+      updated_at = ${Date.now()}
   `;
 }

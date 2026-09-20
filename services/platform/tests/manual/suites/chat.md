@@ -286,6 +286,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   the thread; the archived thread, whose banner replaces the composer, shows
   no note; after the switch turns off, an open chat drops the note without a
   reload.
+- [ ] `CHAT-F38` · **Sticky pick keeps its provider** — With two providers
+  listing the same model id (a shipped provider plus a custom provider on
+  another endpoint of the same vendor, settings.md `SET-F43`), open the picker
+  → each provider is its own section headed by its display name; pick the id
+  under the custom provider, send, then reload `/dashboard/{org}/chat` → The
+  trigger seeds the same model and the next turn runs on the custom provider
+  (CHAT-F13's info dialog names it), never on the shipped copy of the id.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

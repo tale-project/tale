@@ -77,8 +77,10 @@ export function ComposerSelectionPicker({
    * resolver sends the catalog's off value regardless). */
   const effortLocked = selectedModel?.reasoning?.toolsRequireOff === true;
 
-  /** Model rows — provider-qualified so the same id under two providers is
-   * distinguishable, and searchable by either. Auto leads the list when the
+  /** Model rows — provider-qualified (the provider's display name, so an
+   * org-defined provider reads by the name its admin gave it) so the same id
+   * under two providers is distinguishable, and searchable by the model, the
+   * provider's name or its slug. Auto leads the list when the
    * catalog offers a real choice; picking it clears the pinned model AND the
    * effort (the pick that paired with the old model must not silently steer
    * whatever Auto resolves). Picking a model drops the Auto mode likewise —
@@ -86,12 +88,12 @@ export function ComposerSelectionPicker({
   const modelChoices = useMemo<PickerSearchOption[]>(() => {
     const rows: PickerSearchOption[] = models.map((model) => ({
       key: `${model.providerSlug}:${model.id}`,
-      search: `${model.label} ${model.providerSlug}`,
+      search: `${model.label} ${model.providerSlug} ${model.providerLabel ?? ''}`,
       label: (
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate">{model.label}</span>
           <span className="text-muted-foreground/70 shrink-0 text-xs">
-            {model.providerSlug}
+            {model.providerLabel ?? model.providerSlug}
           </span>
         </span>
       ),
