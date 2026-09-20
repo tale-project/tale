@@ -20,7 +20,11 @@ const contentAreaVariants = cva(
   {
     variants: {
       variant: {
-        page: 'px-4 pt-6 [--content-area-pb:1.5rem]',
+        // One inset for every content frame: `pt-4` is the same distance from
+        // the chrome that `list`, `narrow` and `panel` keep, so switching
+        // between a page and a list — or between an automation's Editor tab
+        // and its Versions tab — never nudges the content down a notch.
+        page: 'px-4 pt-4 [--content-area-pb:1.5rem]',
         // The overview-list measure: ONE frame for every collection screen
         // (Automations, Projects, the Knowledge tables). `min-h-0 flex-1`
         // bounds the height against the page shell, which is what a

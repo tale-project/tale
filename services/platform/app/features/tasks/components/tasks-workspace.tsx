@@ -328,7 +328,7 @@ export function TasksWorkspace({
     canEdit || (!allProjects && project?.canEdit === true);
 
   return (
-    <ContentArea gap={4} className="flex h-full flex-col py-4">
+    <ContentArea gap={4} className="flex h-full flex-col">
       <Row gap={3} justify="between" wrap>
         <Row gap={2} wrap>
           <Tabs

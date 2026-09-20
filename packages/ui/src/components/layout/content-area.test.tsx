@@ -50,6 +50,21 @@ describe('ContentArea', () => {
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
 
+  it('starts every variant the same distance below the chrome', () => {
+    // The inset is one decision, not four. `page` used to sit 8px lower than
+    // the rest, which showed up as content jumping between an automation's
+    // Editor tab and its Versions tab, and between a page and the list it was
+    // opened from.
+    for (const variant of ['page', 'list', 'narrow', 'panel'] as const) {
+      const { container } = render(
+        <ContentArea variant={variant}>
+          <p>Content</p>
+        </ContentArea>,
+      );
+      expect(container.firstElementChild).toHaveClass('pt-4');
+    }
+  });
+
   it('bounds the list variant so the table scrollport takes the overflow', () => {
     // The overview lists (Automations, Projects, Knowledge) all mount their
     // DataTable in this frame. `min-h-0 flex-1` is what makes the table's

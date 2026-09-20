@@ -380,6 +380,25 @@ output:
       same `?version=` opens the same picture; `?version=abc` opens the latest
       instead of erroring; after **Save version** the URL loses `?version=` and
       the canvas shows the new latest.
+- [ ] `AUTO-F37` · **The workbench sits in the page inset** — On the
+      **Editor** tab at a desktop width, measure the frame around the canvas
+      (DevTools, or the console one-liner below) → The canvas starts **16px**
+      below the tab strip and **16px** from the left edge, the inspector ends
+      **16px** from the right edge, and the gap between canvas and inspector
+      is the same **16px**. Switch to **Versions** and back: the content does
+      not shift up or down. The same inset holds on the Automations list and
+      on a run's page.
+
+      ```js
+      const canvas = document.querySelector('main .grid > :first-child');
+      const panel = document.querySelector('main .grid > :last-child');
+      const strip = document.querySelector('main nav[aria-label]:last-of-type');
+      [
+        canvas.getBoundingClientRect().top - strip.getBoundingClientRect().bottom,
+        panel.getBoundingClientRect().left - canvas.getBoundingClientRect().right,
+        innerWidth - panel.getBoundingClientRect().right,
+      ];
+      ```
 
 ## Boundary & error tests
 
