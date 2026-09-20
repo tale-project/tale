@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
@@ -28,6 +28,11 @@ import {
   type RuntimeFixture,
 } from './runtime-test-helper';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
+
+// Tests here build the git runtime fixture (four git spawns per build);
+// Windows CI runners stall on git for seconds at a time, and the 5 s
+// default killed a passing test mid-commit.
+setDefaultTimeout(30_000);
 
 const describePosix = describe.skipIf(process.platform === 'win32');
 
