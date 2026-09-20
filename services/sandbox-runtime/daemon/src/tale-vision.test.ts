@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -26,6 +27,10 @@ interface StubRequest {
   anthropicVersion: string | null;
   model: unknown;
   imageBytes: number;
+  imageSha256: string;
+  thinking: unknown;
+  maxTokens: unknown;
+  content: unknown;
   mediaType: unknown;
 }
 
@@ -59,6 +64,12 @@ const startStub = (opts: { failFirst?: boolean } = {}) => {
         imageBytes: Buffer.from(typeof data === 'string' ? data : '', 'base64')
           .length,
         mediaType: pick(source, 'media_type'),
+        imageSha256: createHash('sha256')
+          .update(Buffer.from(typeof data === 'string' ? data : '', 'base64'))
+          .digest('hex'),
+        thinking: pick(body, 'thinking'),
+        maxTokens: pick(body, 'max_tokens'),
+        content: pick(head(pick(body, 'messages')), 'content'),
       });
       if (opts.failFirst && requests.length === 1) {
         return new Response('rate limited', { status: 429 });
@@ -210,6 +221,110 @@ describe('tale-vision', () => {
           cached: true,
         });
         expect(requests).toHaveLength(1);
+      } finally {
+        void server.stop(true);
+      }
+    },
+  );
+
+  pyTest(
+    'thinking override: isolated cache and unchanged default request',
+    async () => {
+      const { server, requests, url } = startStub();
+      try {
+        const png = join(workDir, 'a.png');
+        writeFileSync(png, TINY_PNG);
+        const first = await runCli([png], gatewayEnv(url));
+        expect(first.status).toBe(0);
+        expect(requests[0]?.thinking).toBeUndefined();
+        const disabled = await runCli(
+          [png, '--thinking', 'disabled'],
+          gatewayEnv(url),
+        );
+        expect(disabled.status).toBe(0);
+        expect(ndjson(disabled.stdout)[0]).toMatchObject({
+          cached: false,
+          text: 'STUB ANALYSIS #2',
+        });
+        expect(requests[1]?.thinking).toEqual({ type: 'disabled' });
+        expect(requests[1]?.maxTokens).toBe(requests[0]?.maxTokens);
+        expect(requests[1]?.content).toEqual(requests[0]?.content);
+        expect(requests[1]?.model).toBe(requests[0]?.model);
+        expect(requests[1]?.authorization).toBe(requests[0]?.authorization);
+        const again = await runCli(
+          [png, '--thinking', 'disabled'],
+          gatewayEnv(url),
+        );
+        expect(again.status).toBe(0);
+        expect(ndjson(again.stdout)[0]).toMatchObject({
+          cached: true,
+          text: 'STUB ANALYSIS #2',
+        });
+        const provider = await runCli(
+          [png, '--thinking', 'provider'],
+          gatewayEnv(url),
+        );
+        expect(provider.status).toBe(0);
+        expect(ndjson(provider.stdout)[0]).toMatchObject({
+          cached: true,
+          text: 'STUB ANALYSIS #1',
+        });
+        expect(requests).toHaveLength(2);
+      } finally {
+        void server.stop(true);
+      }
+    },
+  );
+
+  pilTest(
+    'thinking override preserves every original page and output limit',
+    async () => {
+      const { server, requests, url } = startStub();
+      try {
+        const first = join(workDir, 'first.png');
+        const second = join(workDir, 'second.png');
+        writeFileSync(first, TINY_PNG);
+        const result = spawnSync('python3', [
+          '-c',
+          'from PIL import Image; import sys; Image.new("RGB", (9, 11), "blue").save(sys.argv[1])',
+          second,
+        ]);
+        expect(result.status).toBe(0);
+        const page = await Bun.file(second).arrayBuffer();
+        const expected = [TINY_PNG, Buffer.from(page)]
+          .map((bytes) => createHash('sha256').update(bytes).digest('hex'))
+          .sort();
+        const run = await runCli(
+          [first, second, '--thinking', 'disabled', '--max-edge', '2147483647'],
+          gatewayEnv(url),
+        );
+        expect(run.status).toBe(0);
+        expect(ndjson(run.stdout)).toHaveLength(2);
+        expect(requests).toHaveLength(2);
+        expect(requests.map((request) => request.imageSha256).sort()).toEqual(
+          expected,
+        );
+        for (const request of requests) {
+          expect(request.thinking).toEqual({ type: 'disabled' });
+          expect(request.maxTokens).toBe(1024);
+        }
+      } finally {
+        void server.stop(true);
+      }
+    },
+  );
+
+  pyTest(
+    'thinking rejects unsupported values before any gateway request',
+    async () => {
+      const { server, requests, url } = startStub();
+      try {
+        const png = join(workDir, 'a.png');
+        writeFileSync(png, TINY_PNG);
+        const run = await runCli([png, '--thinking', 'low'], gatewayEnv(url));
+        expect(run.status).toBe(2);
+        expect(run.stderr).toContain('invalid choice');
+        expect(requests).toHaveLength(0);
       } finally {
         void server.stop(true);
       }

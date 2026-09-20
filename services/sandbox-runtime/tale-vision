@@ -20,7 +20,7 @@ Behaviour:
     vision models downsample anyway, so this is model-lossless and cuts the
     payload by orders of magnitude for screenshots. Re-encoding is
     deterministic (fixed params, no timestamps) so cache keys are stable.
-  * Caches results per (processed bytes, question, model) under
+  * Caches results per (processed bytes, question, model, thinking override) under
     /user/.cache/tale-vision — re-running after a run_code timeout is free
     for already-analyzed images within the turn.
   * Bounded concurrency, per-image timeout, retry with backoff on 429/5xx,
@@ -153,7 +153,10 @@ def prepare_image(data, max_edge):
         and len(data) <= PASSTHROUGH_MAX_BYTES
         and original_format in ("PNG", "JPEG", "WEBP", "GIF")
     ):
-        return data, f"image/{'jpeg' if original_format == 'JPEG' else original_format.lower()}"
+        return (
+            data,
+            f"image/{'jpeg' if original_format == 'JPEG' else original_format.lower()}",
+        )
 
     if needs_resize:
         scale = max_edge / max(img.size)
@@ -206,13 +209,18 @@ def cache_dir():
     return None
 
 
-def cache_key(payload, question, model):
+def cache_key(payload, question, model, thinking="provider"):
     h = hashlib.sha256()
     h.update(payload)
     h.update(b"\x00")
     h.update(question.encode("utf-8"))
     h.update(b"\x00")
     h.update(model.encode("utf-8"))
+    # Preserve historical keys for default/provider behavior; explicit overrides
+    # cannot reuse results produced under a different reasoning policy.
+    if thinking != "provider":
+        h.update(b"\x00thinking:")
+        h.update(thinking.encode("utf-8"))
     return h.hexdigest()
 
 
@@ -248,6 +256,11 @@ def call_gateway(cfg, payload, media_type, question, deadline):
         {
             "model": cfg["model"],
             "max_tokens": MAX_TOKENS,
+            **(
+                {"thinking": {"type": "disabled"}}
+                if cfg["thinking"] == "disabled"
+                else {}
+            ),
             "messages": [
                 {
                     "role": "user",
@@ -288,11 +301,15 @@ def call_gateway(cfg, payload, media_type, question, deadline):
                 raw = res.read().decode("utf-8", "replace")
             parsed = json.loads(raw)
             blocks = parsed.get("content")
-            text = "\n".join(
-                b.get("text", "")
-                for b in blocks
-                if isinstance(b, dict) and b.get("type") == "text"
-            ).strip() if isinstance(blocks, list) else ""
+            text = (
+                "\n".join(
+                    b.get("text", "")
+                    for b in blocks
+                    if isinstance(b, dict) and b.get("type") == "text"
+                ).strip()
+                if isinstance(blocks, list)
+                else ""
+            )
             return text or "(vision model returned no text)"
         except urllib.error.HTTPError as err:
             detail = err.read().decode("utf-8", "replace")[:500]
@@ -313,7 +330,7 @@ def call_gateway(cfg, payload, media_type, question, deadline):
 
 def analyze_one(cfg, label, data):
     payload, media_type = prepare_image(data, cfg["max_edge"])
-    key = cache_key(payload, cfg["question"], cfg["model"])
+    key = cache_key(payload, cfg["question"], cfg["model"], cfg["thinking"])
     cached = cache_get(cfg["cache_dir"], key)
     if cached is not None:
         return {"path": label, "ok": True, "text": cached, "cached": True}
@@ -360,6 +377,12 @@ def parse_args(argv):
         help="per-image seconds incl. retries (default 60)",
     )
     parser.add_argument(
+        "--thinking",
+        choices=("provider", "disabled"),
+        default="provider",
+        help="use the provider default or explicitly disable thinking (default provider)",
+    )
+    parser.add_argument(
         "--model",
         default=None,
         help="override TALE_VISION_MODEL",
@@ -394,6 +417,7 @@ def main(argv):
         "url": url,
         "token": token,
         "model": model,
+        "thinking": args.thinking,
         "question": args.question,
         "max_edge": args.max_edge,
         "timeout": args.timeout,
@@ -426,7 +450,13 @@ def main(argv):
                 emit({"path": label, "ok": False, "error": str(err)})
             except OSError as err:
                 any_failed = True
-                emit({"path": label, "ok": False, "error": f"could not read input: {err}"})
+                emit(
+                    {
+                        "path": label,
+                        "ok": False,
+                        "error": f"could not read input: {err}",
+                    }
+                )
 
     return 1 if any_failed else 0
 

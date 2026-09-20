@@ -62,3 +62,7 @@ browser bundles at build time. See the script headers for the split rationale.
 # from repo root
 docker build -f services/sandbox-runtime/Dockerfile .
 ```
+
+### Per-request vision thinking
+
+`tale-vision --thinking disabled` requests the standard Anthropic disabled-thinking mode for that batch only. The default (`--thinking provider`, or omission) leaves provider behavior unchanged. Choose the override only for a compatible vision model; it does not change provider defaults, output-token limits, image processing, per-image deadlines or the ordinary Read-hook fallback. The batch cache distinguishes the override from the provider default, while the default retains historical cache entries. Runtime tests cover both request forms, cache isolation, exact original image bytes and invalid-value refusal.
