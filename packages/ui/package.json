@@ -54,6 +54,7 @@
     "./data-table/data-table-pagination": "./src/components/data-table/data-table-pagination.tsx",
     "./data-table/data-table-skeleton-cell": "./src/components/data-table/data-table-skeleton-cell.tsx",
     "./data-table/data-table-types": "./src/components/data-table/data-table-types.ts",
+    "./data-table/table-icon-cell": "./src/components/data-table/table-icon-cell.tsx",
     "./date": "./src/lib/date/format.ts",
     "./date-picker": "./src/components/forms/date-picker.tsx",
     "./date-picker-popper": "./src/components/forms/date-picker-popper.tsx",

@@ -20,6 +20,16 @@ Pass a descriptive `caption`, such as **Agents in this workspace**. It becomes a
 
 The builders exported from `@tale/ui/data-table/column-builders` include text, date, creation-time, selection, and action columns. Reuse them for those common shapes; use custom cells when the content requires them.
 
+## Lead the row with a name and a glyph
+
+<Demo name="data-table/icon-cell" />
+
+`TableIconCell` from `@tale/ui/data-table/table-icon-cell` is the first column of an entity list: a glyph in a muted tile, then the name. Pass the icon bare — a Lucide icon, an Iconify `<Icon>`, a `ConfigIcon`. The tile sets its size and colour, so one collection screen cannot drift from the next, and a row keeps the same height whatever glyph it carries.
+
+`badges` places chips beside the name; they hold their width while the label truncates. `caption` adds a second line for an address the reader needs next to the name, such as an automation's slug. Leave it off for a single-line row.
+
+Pair the column with `tableIconCellSkeleton()` — `{ lines: 2 }` when the cell renders a caption. It reserves the tile's footprint rather than the skeleton's bare-icon default, so rows do not jump when the data arrives.
+
 ## Wire search to the rows
 
 <Demo name="data-table/with-search" />
