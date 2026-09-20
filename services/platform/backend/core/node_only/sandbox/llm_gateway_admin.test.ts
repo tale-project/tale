@@ -1159,13 +1159,43 @@ describe('resolveGatewayRouting', () => {
     );
   });
 
-  it('ignores the anthropic-harness lane for a standard connector (it owns its wire)', async () => {
+  it('routes a standard connector on the Claude Code lane to an org-scoped `__anthropic` record', async () => {
+    // OpenRouter is a gateway-standard connector whose built-in
+    // implementation speaks OpenAI only; its Anthropic Messages door needs a
+    // custom record of its own, kept apart from the shared record every
+    // other harness keeps using. The lane flag is only ever set by serving,
+    // for a connector that declares a harness endpoint.
     const mod = await loadModule();
+    const shared = mod.resolveGatewayRouting(
+      ORG,
+      'openrouter',
+      'anthropic/claude-sonnet-5',
+    );
+    const lane = mod.resolveGatewayRouting(
+      ORG,
+      'openrouter',
+      'anthropic/claude-sonnet-5',
+      { anthropicHarnessLane: true },
+    );
+    expect(shared).toEqual({
+      gatewayProvider: 'openrouter',
+      gatewayModel: 'openrouter/anthropic/claude-sonnet-5',
+    });
+    expect(lane).toEqual({
+      gatewayProvider:
+        'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
+      gatewayModel:
+        'org_1__openrouter__anthropic_claude-sonnet-5__anthropic/anthropic/claude-sonnet-5',
+    });
+    // Org-scoped: two orgs' keys never share the door's record.
     expect(
-      mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5', {
-        anthropicHarnessLane: true,
-      }),
-    ).toEqual(mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'));
+      mod.resolveGatewayRouting(
+        'org_2',
+        'openrouter',
+        'anthropic/claude-sonnet-5',
+        { anthropicHarnessLane: true },
+      ).gatewayProvider,
+    ).not.toBe(lane.gatewayProvider);
   });
 
   it('gives two orgs sharing a custom connector name two distinct records', async () => {

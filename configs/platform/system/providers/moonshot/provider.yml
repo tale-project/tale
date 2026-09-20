@@ -9,6 +9,17 @@ name: moonshot
 displayName: Moonshot AI (Kimi)
 apiFormat: openai
 baseUrl: https://api.moonshot.ai/v1
+# Sandbox coding harnesses that speak the Anthropic wire to the gateway
+# (Claude Code) ride Moonshot's native Anthropic-compatible endpoint on the
+# direct (api-key/env) lane as well, so the gateway passes Anthropic through
+# instead of down-converting Anthropic→OpenAI. Documented for standard
+# platform API keys at https://platform.kimi.ai/docs/guide/claude-code-kimi
+# (`ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`) — the same base the
+# coding-plan subscription below rides. Declared from the vendor docs; not
+# live-probed from this platform yet.
+harnessEndpoint:
+  baseUrl: https://api.moonshot.ai/anthropic
+  apiFormat: anthropic
 catalog:
   source: static
 embedding: unknown

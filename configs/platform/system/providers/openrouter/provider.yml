@@ -5,6 +5,21 @@ name: openrouter
 displayName: OpenRouter
 apiFormat: openai
 baseUrl: https://openrouter.ai/api/v1
+# Sandbox coding harnesses that speak the Anthropic wire to the gateway
+# (Claude Code) ride OpenRouter's native Anthropic Messages endpoint
+# (`https://openrouter.ai/api/v1/messages`, the "Anthropic skin" its Claude
+# Code guide documents — https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration).
+# Claude models then pass through natively in both directions (thinking
+# blocks, cache_control) instead of being down-converted to OpenAI by our
+# gateway and converted back by OpenRouter; for non-Anthropic models the
+# translation moves to OpenRouter, which guarantees the door only for the
+# Anthropic first-party provider. The gateway's built-in OpenRouter
+# implementation speaks OpenAI only, so this lane rides an org-scoped record
+# of its own (see resolveGatewayRouting). Declared from the vendor docs; not
+# live-probed from this platform yet.
+harnessEndpoint:
+  baseUrl: https://openrouter.ai/api
+  apiFormat: anthropic
 catalog:
   source: openrouter-api
 embedding: supported

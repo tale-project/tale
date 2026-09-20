@@ -152,6 +152,12 @@ async function pushModelPricing(
   const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
   const catalogs = new Map<string, readonly ModelCatalogEntry[]>();
   for (const ref of args.allowedModels) {
+    // The record the session routes to: custom for a custom connector, and
+    // for a standard connector's Claude Code lane (`…__anthropic`) — neither
+    // has a price on the gateway's own datasheet.
+    const customRecord =
+      !isStandardGatewayProvider(ref.providerSlug) ||
+      ref.anthropicHarnessLane === true;
     try {
       const connector = connectors.find(
         (entry) => entry.name === ref.providerSlug,
@@ -182,7 +188,7 @@ async function pushModelPricing(
         outputCentsPerMillion: pricing.outputCentsPerMillion,
       });
     } catch (err) {
-      if (!isStandardGatewayProvider(ref.providerSlug)) {
+      if (customRecord) {
         // A custom upstream has NO price on the gateway's own datasheet:
         // without the override every request bills at 0, the key's cap
         // never trips, and the org's spend ledger stays empty for the whole
@@ -305,26 +311,32 @@ export async function provisionSessionGatewayKey(
     // instead of down-converting Anthropic→OpenAI (which DeepSeek mishandles
     // for multi-turn reasoning replay). Kept apart from the OpenAI record other
     // harnesses use for the same model, so the two never overwrite each other.
-    const anthropicLane =
-      ref.anthropicHarnessLane === true && base.harnessEndpoint !== undefined;
-    const provision = isStandardGatewayProvider(ref.providerSlug)
-      ? base
-      : {
-          ...base,
-          name: resolveGatewayRouting(
-            args.organizationId,
-            ref.providerSlug,
-            ref.modelId,
-            { anthropicHarnessLane: anthropicLane },
-          ).gatewayProvider,
-          models: [ref.modelId],
-          ...(anthropicLane && base.harnessEndpoint
-            ? {
-                baseUrl: base.harnessEndpoint.baseUrl,
-                apiFormat: base.harnessEndpoint.apiFormat,
-              }
-            : {}),
-        };
+    // A STANDARD connector takes the same custom record on this lane
+    // (OpenRouter): the gateway's built-in implementation only speaks the
+    // OpenAI wire to the vendor, so its shared record cannot ride the door.
+    // The lane flag alone names the record — the same input the routing
+    // reads — and the connector's endpoint supplies the upstream.
+    const anthropicLane = ref.anthropicHarnessLane === true;
+    const nativeEndpoint = anthropicLane ? base.harnessEndpoint : undefined;
+    const provision =
+      isStandardGatewayProvider(ref.providerSlug) && !anthropicLane
+        ? base
+        : {
+            ...base,
+            name: resolveGatewayRouting(
+              args.organizationId,
+              ref.providerSlug,
+              ref.modelId,
+              { anthropicHarnessLane: anthropicLane },
+            ).gatewayProvider,
+            models: [ref.modelId],
+            ...(nativeEndpoint !== undefined
+              ? {
+                  baseUrl: nativeEndpoint.baseUrl,
+                  apiFormat: nativeEndpoint.apiFormat,
+                }
+              : {}),
+          };
     if (slugByRecord.has(provision.name)) continue;
     slugByRecord.set(provision.name, ref.providerSlug);
     provisions.push(provision);

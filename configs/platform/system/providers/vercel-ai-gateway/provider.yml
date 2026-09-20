@@ -5,6 +5,16 @@ name: vercel-ai-gateway
 displayName: Vercel AI Gateway
 apiFormat: openai
 baseUrl: https://ai-gateway.vercel.sh/v1
+# Claude Code (an Anthropic-wire harness) rides the gateway's native Anthropic
+# Messages endpoint — `https://ai-gateway.vercel.sh/v1/messages`, any catalog
+# model, `x-api-key` or bearer auth, Claude Code documented at
+# https://vercel.com/docs/ai-gateway/sdks-and-apis/anthropic-messages-api —
+# so our gateway passes Anthropic through and Vercel, not us, translates for
+# non-Anthropic models. Declared from the vendor docs; not live-probed from
+# this platform yet.
+harnessEndpoint:
+  baseUrl: https://ai-gateway.vercel.sh
+  apiFormat: anthropic
 catalog:
   source: models-endpoint
 embedding: unknown

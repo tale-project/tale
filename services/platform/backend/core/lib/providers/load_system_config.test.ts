@@ -53,6 +53,28 @@ describe('shipped providers', () => {
     });
   });
 
+  it('declares a native Anthropic harness endpoint only where the vendor serves one', () => {
+    // Claude Code rides these instead of the gateway's Anthropic→OpenAI
+    // down-conversion. Vendors that also serve one but are NOT listed here
+    // do so on purpose — see the comment in each provider.yml (zai drops
+    // images on that door, qwen's host is workspace-specific; xAI's door is
+    // deprecated, Gemini has none).
+    const lanes = loadProviderDefinitions()
+      .filter((c) => c.harnessEndpoint !== undefined)
+      .map((c) => [c.name, c.harnessEndpoint?.baseUrl]);
+    expect(lanes).toEqual([
+      ['deepseek', 'https://api.deepseek.com/anthropic'],
+      ['moonshot', 'https://api.moonshot.ai/anthropic'],
+      ['openrouter', 'https://openrouter.ai/api'],
+      ['vercel-ai-gateway', 'https://ai-gateway.vercel.sh'],
+    ]);
+    for (const provider of loadProviderDefinitions()) {
+      if (provider.harnessEndpoint !== undefined) {
+        expect(provider.harnessEndpoint.apiFormat).toBe('anthropic');
+      }
+    }
+  });
+
   it('every subscription constraint names a shipped, byo-capable harness', () => {
     const harnesses = buildHarnessTable(loadHarnesses());
     for (const provider of loadProviderDefinitions()) {

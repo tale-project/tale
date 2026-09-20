@@ -238,8 +238,11 @@ export interface GatewayRoutingOpts {
   /** The requesting harness speaks the Anthropic wire to the gateway AND the
    * connector declares a native Anthropic harness endpoint, so this session
    * rides a distinct per-model record (`…__anthropic`) whose upstream is that
-   * endpoint. Ignored for standard connectors (they own their record + wire
-   * format and declare no harness endpoint). */
+   * endpoint. A STANDARD connector that declares one (OpenRouter's Anthropic
+   * Messages door) takes the same org-scoped record: the gateway's built-in
+   * implementation of the vendor only speaks the OpenAI wire to it, so the
+   * native pass-through needs a custom record of its own. Only serving sets
+   * this flag, and only for a connector that declares the endpoint. */
   anthropicHarnessLane?: boolean;
 }
 
@@ -248,7 +251,9 @@ export interface GatewayRoutingOpts {
  * standard connector name routes to the shared native provider record
  * (`<name>/<modelId>`); any other connector routes to the org's own
  * per-model upstream record (`<orgId>__<name>__<modelId>/<modelId>`), or its
- * anthropic-harness sibling (`…__anthropic/<modelId>`) when opts say so. Single
+ * anthropic-harness sibling (`…__anthropic/<modelId>`) when opts say so — a
+ * standard connector on that lane takes the sibling too (its built-in
+ * gateway implementation cannot ride the vendor's Anthropic door). Single
  * source of truth shared by the harness glue (model env), the mint (VK
  * binding), and the provisioner (record names) so they can never drift — pass
  * the SAME opts at every call site for one session's model.
@@ -259,7 +264,10 @@ export function resolveGatewayRouting(
   modelId: string,
   opts: GatewayRoutingOpts = {},
 ): GatewayRouting {
-  if (isStandardGatewayProvider(providerSlug)) {
+  if (
+    isStandardGatewayProvider(providerSlug) &&
+    opts.anthropicHarnessLane !== true
+  ) {
     return {
       gatewayProvider: providerSlug,
       gatewayModel: `${providerSlug}/${modelId}`,
