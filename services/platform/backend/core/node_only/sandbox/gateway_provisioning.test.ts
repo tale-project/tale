@@ -94,6 +94,11 @@ describe('buildProviderProvision', () => {
       apiFormat: 'openai',
       apiKey: 'sk-live',
       models: ['anthropic/claude-sonnet-5', 'openai/gpt-5.5'],
+      // Platform-side metadata for the Claude Code lane, never pushed as-is.
+      harnessEndpoint: {
+        baseUrl: 'https://openrouter.ai/api',
+        apiFormat: 'anthropic',
+      },
     });
   });
 
@@ -337,6 +342,83 @@ describe('provisionSessionGatewayKey', () => {
       inputCentsPerMillion: 14,
       outputCentsPerMillion: 28,
     });
+  });
+
+  it("routes a STANDARD connector's Claude Code lane to its Anthropic door under an org-scoped record", async () => {
+    // openrouter is a gateway-standard connector (the gateway implements it,
+    // OpenAI wire only) that declares a harnessEndpoint (openrouter.ai/api,
+    // the Anthropic Messages door). Claude Code rides that door on a custom
+    // `__anthropic` record of its own — the shared `openrouter` record every
+    // other harness uses is untouched — priced like any custom record.
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      {
+        id: 'anthropic/claude-sonnet-5',
+        pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+      },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-or',
+      allowedModels: [
+        {
+          providerSlug: 'openrouter',
+          modelId: 'anthropic/claude-sonnet-5',
+          anthropicHarnessLane: true,
+        },
+      ],
+      budgetCents: 500,
+    });
+    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
+      expect.objectContaining({
+        name: 'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
+        baseUrl: 'https://openrouter.ai/api',
+        apiFormat: 'anthropic',
+        models: ['anthropic/claude-sonnet-5'],
+        apiKey: 'sk-live',
+      }),
+    ]);
+    expect(ensureModelPricingOverride).toHaveBeenCalledWith({
+      gatewayProvider:
+        'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
+      modelId: 'anthropic/claude-sonnet-5',
+      inputCentsPerMillion: 300,
+      outputCentsPerMillion: 1500,
+    });
+  });
+
+  it("refuses the session when a STANDARD connector's Claude Code lane cannot be priced (its record is custom)", async () => {
+    // The `__anthropic` record is not on the gateway's datasheet, so the
+    // standard connector's warn-and-continue posture does not apply here.
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      {
+        id: 'anthropic/claude-sonnet-5',
+        pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+      },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    vi.mocked(ensureModelPricingOverride).mockRejectedValueOnce(
+      new Error('llm-gateway create pricing override failed (503)'),
+    );
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-or',
+        allowedModels: [
+          {
+            providerSlug: 'openrouter',
+            modelId: 'anthropic/claude-sonnet-5',
+            anthropicHarnessLane: true,
+          },
+        ],
+        budgetCents: 500,
+      }),
+    ).rejects.toThrow(
+      'Provider "openrouter" cannot serve this session: the price of anthropic/claude-sonnet-5 could not be pushed',
+    );
+    expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 
   it('keeps two orgs sharing a custom connector name on separate gateway records', async () => {

@@ -295,6 +295,9 @@ export const providerDefinitionSchema = z
      * multi-turn `reasoning_content` replay. Consulted only when the requesting
      * harness's gateway wire matches this `apiFormat`; other harnesses keep the
      * provider's `baseUrl`/`apiFormat`. Realistically `apiFormat: anthropic`.
+     * A connector the gateway implements natively (OpenRouter) may declare one
+     * as well: that lane then rides an org-scoped custom record instead of the
+     * gateway's shared one, whose built-in implementation speaks OpenAI only.
      */
     harnessEndpoint: z
       .object({ baseUrl: providerBaseUrlSchema, apiFormat: apiFormatSchema })
