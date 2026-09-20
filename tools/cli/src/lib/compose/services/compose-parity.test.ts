@@ -582,11 +582,101 @@ describe('release artifact identity', () => {
     ) as { jobs: Record<string, { steps: Step[] }> };
   const release = workflow('release');
   const cli = workflow('cli');
+  const build = workflow('build');
   const shell = (script: string, env: Record<string, string> = {}) =>
     spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
       encoding: 'utf8',
       env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
     });
+
+  const prepareImages = (step: Step, services: string[]) => {
+    const script = step
+      .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
+      .replaceAll('${{ needs.changes.outputs.image_tag }}', 'ci-proof')
+      .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
+      .replaceAll('${{ github.repository }}', 'tale-project/tale');
+    // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
+    const jqMode =
+      process.platform === 'win32'
+        ? 'jq() { command jq --binary "$@"; };\n'
+        : '';
+    const result = shell(
+      jqMode +
+        'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+        script,
+      { SERVICE_NAMES: JSON.stringify(services) },
+    );
+    expect(result.status).toBe(0);
+    const images = new Map<string, string>();
+    for (const line of result.stdout.split('\n')) {
+      if (!line.startsWith('DOCKER\t')) continue;
+      const [, command, source, target] = line.split('\t');
+      expect(source).toBeDefined();
+      if (command === 'pull') {
+        images.set(source!, source!);
+      } else {
+        expect(command).toBe('tag');
+        expect(images.has(source!)).toBe(true);
+        expect(target).toBeDefined();
+        images.set(target!, images.get(source!)!);
+      }
+    }
+    return images;
+  };
+  const releasePull = release.jobs['container-test']!.steps.find(
+    (step) => step.name === 'Pull release images',
+  )!;
+  const releaseMatrix = (sitesOnly: boolean) =>
+    resolveRelease(
+      readFileSync(resolve(repoRoot, '.github/workflows/release.yml'), 'utf8'),
+      sitesOnly,
+    ).services;
+
+  test.each(['smoke-test', 'image-validate'])(
+    'release prepares every image alias used by the green Build %s lane',
+    (job) => {
+      const services = releaseMatrix(false);
+      const released = prepareImages(releasePull, services);
+      const tested = prepareImages(
+        build.jobs[job]!.steps.find(
+          (step) => step.name === 'Pull images from GHCR',
+        )!,
+        services,
+      );
+      for (const [alias, source] of tested) {
+        if (alias.endsWith(':ci-proof')) continue;
+        expect(released.get(alias)).toBe(
+          source.replace(':ci-proof', ':0.5.43-amd64'),
+        );
+      }
+    },
+  );
+
+  test.each(['SANDBOX_RUNTIME_IMAGE', 'SANDBOX_BUILDKITD_IMAGE'])(
+    'release prepares the pulled image at the spawner default %s',
+    (key) => {
+      const alias =
+        compose.services.sandbox!.environment![key]!.match(
+          /^\$\{[^:]+:-(.+)\}$/,
+        )?.[1];
+      expect(alias).toBeDefined();
+      expect(prepareImages(releasePull, releaseMatrix(false)).get(alias!)).toBe(
+        `ghcr.io/tale-project/tale/${alias!.replace(':latest', ':0.5.43-amd64')}`,
+      );
+    },
+  );
+
+  test('a site-only release prepares only its selected image aliases', () => {
+    const services = releaseMatrix(true);
+    expect([...prepareImages(releasePull, services).keys()].sort()).toEqual(
+      services
+        .flatMap((service) => [
+          `ghcr.io/tale-project/tale/tale-${service}:0.5.43-amd64`,
+          `ghcr.io/tale-project/tale/tale-${service}:latest`,
+        ])
+        .sort(),
+    );
+  });
 
   test('every release container check inspects pulled images without rebuilding', () => {
     const steps = release.jobs['container-test']!.steps.filter((step) =>

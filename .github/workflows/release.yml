@@ -186,6 +186,13 @@ jobs:
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
             docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+            # The spawner uses unscoped local defaults for its child images.
+            # Keep those aliases on the same pulled release bytes, too.
+            case "$svc" in
+              sandbox-runtime|sandbox-buildkitd)
+                docker tag "${IMAGE}" "tale-${svc}:latest"
+                ;;
+            esac
           done < <(jq -r '.[]' <<< "$SERVICE_NAMES")
 
       - name: Setup Bun
