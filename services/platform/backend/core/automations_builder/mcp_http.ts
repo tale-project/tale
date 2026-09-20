@@ -53,6 +53,10 @@ import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import {
+  INEXACT_NUMBER_MESSAGE,
+  parseJsonExact,
+} from '../../../lib/utils/json-exact';
 import { internal } from '../lib/handler_names';
 import { requireRestDeveloper, type RestContext } from '../lib/rest/helpers';
 
@@ -462,7 +466,25 @@ export async function handleMcpRequest(
 ): Promise<Response> {
   let message: unknown;
   try {
-    message = await request.json();
+    // The REST body's own parser: a whole number beyond ±(2^53 − 1) is
+    // rounded by `JSON.parse` before anything reads it, so an `id` of
+    // 9007199254740993 was echoed as …992 and a client keying replies on
+    // 64-bit ids never matched one (2026-09-19 evaluation, K8-2). Such a
+    // literal is a request this transport cannot answer faithfully —
+    // refused as an invalid request naming the literal, the way the REST
+    // door names it, never rounded and echoed.
+    const parsed = parseJsonExact(await request.text());
+    if (!parsed.exact) {
+      return respond(
+        rpcError(
+          null,
+          -32600,
+          `Invalid request: ${parsed.path === '' ? 'the body' : `"${parsed.path}"`} ${INEXACT_NUMBER_MESSAGE}`,
+          400,
+        ),
+      );
+    }
+    message = parsed.value;
   } catch {
     return respond(
       rpcError(null, -32700, 'Parse error: the body is not JSON', 400),

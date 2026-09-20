@@ -185,6 +185,22 @@ export interface KnowledgePassage {
    */
   readonly ref?: string;
   readonly url?: string;
+  /**
+   * The document a passage came from, as `GET /api/v1/documents/{id}`
+   * takes it for a Hub document — or, for a project file, the file id the
+   * project routes take; absent for a web page, a thread upload or an
+   * emailed attachment. The REST search answered it and the MCP tool did
+   * not, so an MCP client could not follow a hit to its document without
+   * a second search over REST (2026-09-19 evaluation, K8-1).
+   */
+  readonly documentId?: string;
+  /** Which corpus produced the passage. */
+  readonly corpus?: 'documents' | 'web';
+  /** Position of the passage inside its document. */
+  readonly chunkIndex?: number;
+  /** The project the document is filed under; absent for a Hub document
+   * and for a web page. */
+  readonly projectId?: string;
   /** The retrieval ORDER key (rank fusion): comparable within one answer
    * only, never a confidence. */
   readonly score?: number;

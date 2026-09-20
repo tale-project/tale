@@ -264,6 +264,19 @@ export interface DispatchStore extends StoreAdapter {
  * orphan binding or report an unbind that unbound nothing — both read as
  * success to the caller.
  */
+/** The sentence that sends a caller naming a core node kind (`transform`,
+ * `llm`, `agent`, `subautomation`) to get_docs, or undefined for any other
+ * word — shared by get_catalog and search_catalog. */
+function coreKindHint(word: string): string | undefined {
+  const wanted = word.trim().toLowerCase();
+  const coreKind = [...nodeTypes().values()].find(
+    (def) => def.kind !== 'connector' && def.type === wanted,
+  );
+  return coreKind === undefined
+    ? undefined
+    : `"${coreKind.type}" is a core node kind, not a catalog capability — get_docs describes it`;
+}
+
 async function missingAutomation(
   store: DispatchStore,
   name: string,
@@ -513,6 +526,13 @@ export async function dispatch(
       // schemas, so a client can discover without reading it all.
       const kind = asString(p.kind);
       const compact = p.compact === true;
+      // The four core kinds the enum offers (transform, llm, agent,
+      // subautomation) are the grammar get_docs teaches, not catalog
+      // entries: narrowing to one answered an empty list with no word of
+      // why (2026-09-19 evaluation, K8-4) — now the same hint search_catalog
+      // gives.
+      const core = kind === '' ? undefined : coreKindHint(kind);
+      if (core !== undefined) return { node_types: [], hint: core };
       const node_types = [];
       for (const t of nodeTypes().values()) {
         if (kind !== '' && t.kind !== kind) continue;
@@ -554,14 +574,11 @@ export async function dispatch(
       // The catalog is the CONNECTOR surface; the core node kinds (transform,
       // llm, agent, subautomation) are the grammar get_docs teaches, so a
       // search for one of them must point there instead of answering "nothing".
-      const coreKind = [...nodeTypes().values()].find(
-        (def) => def.kind !== 'connector' && def.type === query.toLowerCase(),
-      );
       return {
         matches,
-        hint: coreKind
-          ? `"${coreKind.type}" is a core node kind, not a catalog capability — get_docs describes it`
-          : 'no matches — try different capability keywords (verbs + objects)',
+        hint:
+          coreKindHint(query) ??
+          'no matches — try different capability keywords (verbs + objects)',
       };
     }
 
@@ -949,26 +966,39 @@ export async function dispatch(
           hint: 'use run_deployed instead when you want the finished result in a single call',
         };
       } catch (e) {
-        return refusalFrom(e);
+        const refusal = refusalFrom(e);
+        // The store's sentence is the REST door's ("use mock mode"): this
+        // tool has no mode — the mock path is run_automation (2026-09-19
+        // evaluation, K8-4).
+        if (refusal.code === 'AUTOMATION_VERSION_NOT_DEPLOYED') {
+          return {
+            ...refusal,
+            error: `"${name}@${String(version)}" is not the deployed version, and a live start runs only that one`,
+            hint: 'omit version to run the deployed version, deploy_automation {name, version} first, or run_automation {automation, mode: "mock"} to try the document',
+          };
+        }
+        return refusal;
       }
     }
 
     case 'list_runs': {
       if (!store.listRuns) return notSupported('run history is');
       const name = asString(p.name);
-      if (name !== '') {
+      const limit = p.limit === undefined ? undefined : Number(p.limit);
+      const runs = await store.listRuns({
+        ...(name !== '' && { name }),
+        ...(limit !== undefined && Number.isFinite(limit) && { limit }),
+      });
+      if (name !== '' && runs.length === 0) {
         // A name that exists with no runs and a name that does not exist
-        // used to read the same ({runs: []}); the second is a refusal.
+        // used to read the same ({runs: []}); the second is a refusal —
+        // unless runs bear the name: a deleted automation keeps its run
+        // history, and this door used to say it never existed
+        // (2026-09-19 evaluation, K8-5).
         const missing = await missingAutomation(store, name);
         if (missing) return missing;
       }
-      const limit = p.limit === undefined ? undefined : Number(p.limit);
-      return {
-        runs: await store.listRuns({
-          ...(name !== '' && { name }),
-          ...(limit !== undefined && Number.isFinite(limit) && { limit }),
-        }),
-      };
+      return { runs };
     }
 
     case 'get_run': {

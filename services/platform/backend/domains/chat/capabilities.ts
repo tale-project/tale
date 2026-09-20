@@ -98,6 +98,16 @@ function buildKnowledgeBackend(
             text: hit.text,
             source: hit.source.title ?? hit.source.ref,
             ref: hit.source.ref,
+            corpus: hit.corpus,
+            chunkIndex: hit.chunkIndex,
+            // The REST search's citation fields, so an MCP client follows
+            // a passage to its document the way a REST client does (K8-1).
+            ...(typeof hit.source.documentId === 'string'
+              ? { documentId: hit.source.documentId }
+              : {}),
+            ...(typeof hit.source.projectId === 'string'
+              ? { projectId: hit.source.projectId }
+              : {}),
             // The rank key orders; the cosine says how close — both go to
             // the model, so it can tell a weak best-available from a match.
             score: hit.fusedScore,

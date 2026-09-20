@@ -368,6 +368,77 @@ describe('the name-scoped lists refuse an unknown automation', () => {
       triggers: [],
     });
   });
+
+  // A deleted automation keeps its run history, and the by-name list used
+  // to say the automation never existed (2026-09-19 evaluation, K8-5).
+  it('list_runs answers the kept runs of a deleted automation by name', async () => {
+    const kept = {
+      id: 'run-9',
+      runId: 'run-9',
+      name: 'retired',
+      version: 1,
+      status: 'success',
+    };
+    const store = fullStore({
+      get: async () => null,
+      listRuns: async (args?: { name?: string }) =>
+        args?.name === 'retired' ? [kept as never] : [],
+    });
+    expect(await dispatch('list_runs', { name: 'retired' }, { store })).toEqual(
+      { runs: [kept] },
+    );
+    const unknown = await dispatch('list_runs', { name: 'never' }, { store });
+    expect(unknown).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
+});
+
+/**
+ * The MCP door's own words after the 2026-09-19 round-K evaluation (K8-4):
+ * a live start of an undeployed version names the tool's own remedies
+ * (there is no `mode` on start_run — the mock path is run_automation), and
+ * get_catalog narrowed to a core kind says why the list is empty.
+ */
+describe('the MCP door’s hints name its own tools', () => {
+  it('start_run on an undeployed version points at run_automation, not a mode', async () => {
+    const store = fullStore({
+      startRun: async () => {
+        throw Object.assign(
+          new Error(
+            'Live runs must use the deployed version. Deploy this version or use mock mode.',
+          ),
+          { code: 'AUTOMATION_VERSION_NOT_DEPLOYED' },
+        );
+      },
+    });
+    const result = await dispatch(
+      'start_run',
+      { name: SAVED, version: 2 },
+      { store, allowLive: true },
+    );
+    expect(result).toMatchObject({
+      code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
+      error: expect.stringContaining(`${SAVED}@2`),
+      hint: expect.stringContaining('run_automation'),
+    });
+    expect(String(Reflect.get(result as object, 'error'))).not.toContain(
+      'mock mode',
+    );
+  });
+
+  it.each(['transform', 'llm', 'agent', 'subautomation'])(
+    'get_catalog {kind: %j} answers the core-kind hint beside its empty list',
+    async (kind) => {
+      const result = await dispatch(
+        'get_catalog',
+        { kind, compact: true },
+        { store: fullStore() },
+      );
+      expect(result).toEqual({
+        node_types: [],
+        hint: `"${kind}" is a core node kind, not a catalog capability — get_docs describes it`,
+      });
+    },
+  );
 });
 
 /**
