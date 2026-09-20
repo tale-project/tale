@@ -136,6 +136,32 @@ describe('/api/v1 door — unknown paths', () => {
     },
   );
 
+  /**
+   * `/browser-sessions/import` is the pool's import verb, never a session
+   * id: the `{id}` DELETE pattern used to claim it too, so OPTIONS
+   * advertised `DELETE` and a DELETE reached the pool gate as a delete of a
+   * session called "import" (2026-09-19 evaluation, K1-7).
+   */
+  it('keeps DELETE out of the verbs /api/v1/browser-sessions/import takes', async () => {
+    const options = await root().request(
+      'http://localhost/api/v1/browser-sessions/import',
+      { method: 'OPTIONS', ...bearer },
+    );
+    expect(options.status).toBe(204);
+    expect(options.headers.get('allow')).toBe('POST, OPTIONS');
+    const del = await root().request(
+      'http://localhost/api/v1/browser-sessions/import',
+      { method: 'DELETE', ...bearer },
+    );
+    expect(del.status).toBe(405);
+    expect(del.headers.get('allow')).toBe('POST, OPTIONS');
+    const item = await root().request(
+      'http://localhost/api/v1/browser-sessions/session-1',
+      { method: 'OPTIONS', ...bearer },
+    );
+    expect(item.headers.get('allow')).toBe('DELETE, OPTIONS');
+  });
+
   it('answers OPTIONS /api/v1/mcp with the same one-verb Allow list', async () => {
     const res = await root().request('http://localhost/api/v1/mcp', {
       method: 'OPTIONS',
