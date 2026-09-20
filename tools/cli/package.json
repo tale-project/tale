@@ -20,17 +20,17 @@
     "test": "bun test --timeout 30000"
   },
   "dependencies": {
-    "@inquirer/prompts": "8.4.1",
+    "@inquirer/prompts": "8.5.2",
     "@noble/curves": "1.9.7",
-    "@scure/base": "2.0.0",
+    "@scure/base": "2.2.0",
     "@tale/shared": "workspace:*",
     "ajv": "8.20.0",
     "commander": "14.0.3",
     "crc-32": "1.2.2",
     "jszip": "3.10.1",
-    "yaml": "2.8.3",
+    "yaml": "2.9.0",
     "yauzl": "3.4.0",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@better-auth/core": "1.6.30",
