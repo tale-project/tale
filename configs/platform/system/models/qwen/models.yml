@@ -2,6 +2,9 @@
 # the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
 # vendor publishes no usable public listing endpoint). Pricing is
 # cents per million tokens where the source published it.
+# Prompt-cache HIT prices (`cacheReadCentsPerMillion`) are 20% of the input rate:
+# Model Studio's implicit cache bills a hit at 20% of the standard input price
+# (alibabacloud.com/help/en/model-studio/context-cache, read 2026-09-20).
 - id: qwen3.7-plus
   provider: qwen
   tags:
@@ -16,6 +19,7 @@
   pricing:
     inputCentsPerMillion: 32
     outputCentsPerMillion: 128
+    cacheReadCentsPerMillion: 6.4
 - id: qwen3.7-max
   provider: qwen
   tags:
@@ -29,6 +33,7 @@
   pricing:
     inputCentsPerMillion: 147.5
     outputCentsPerMillion: 442.5
+    cacheReadCentsPerMillion: 29.5
 - id: qwen3.5-plus-20260420
   provider: qwen
   tags:
@@ -43,6 +48,7 @@
   pricing:
     inputCentsPerMillion: 30
     outputCentsPerMillion: 180
+    cacheReadCentsPerMillion: 6
 - id: qwen3.6-flash
   provider: qwen
   tags:
@@ -57,3 +63,4 @@
   pricing:
     inputCentsPerMillion: 18.75
     outputCentsPerMillion: 112.5
+    cacheReadCentsPerMillion: 3.75

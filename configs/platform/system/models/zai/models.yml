@@ -7,6 +7,10 @@
 # prices are the vendor's list rates, not the launch promo running
 # until 2026-09-09. embedding-3 added from the vendor's API reference on
 # 2026-09-06 (see its entry for the facts that shaped it).
+# Refreshed 2026-09-20 from docs.z.ai/guides/overview/pricing: cached-input
+# prices (`cacheReadCentsPerMillion`) for every listed model, and glm-5.2 /
+# glm-5.1 at the list rate $1.4/$4.4. The turbo pair is not on the vendor page;
+# their hit price is the 2026-09-20 OpenRouter listing's.
 - id: glm-5.3
   provider: zai
   tags:
@@ -20,6 +24,7 @@
   pricing:
     inputCentsPerMillion: 140
     outputCentsPerMillion: 440
+    cacheReadCentsPerMillion: 26
 - id: glm-5.3-flash
   provider: zai
   tags:
@@ -34,6 +39,7 @@
   pricing:
     inputCentsPerMillion: 15
     outputCentsPerMillion: 50
+    cacheReadCentsPerMillion: 3
 - id: glm-5.2
   provider: zai
   tags:
@@ -45,8 +51,9 @@
   contextWindow: 1048576
   maxOutputTokens: 131072
   pricing:
-    inputCentsPerMillion: 119
-    outputCentsPerMillion: 374
+    inputCentsPerMillion: 140
+    outputCentsPerMillion: 440
+    cacheReadCentsPerMillion: 26
 - id: glm-5.1
   provider: zai
   tags:
@@ -58,8 +65,9 @@
   contextWindow: 204800
   maxOutputTokens: 128000
   pricing:
-    inputCentsPerMillion: 126
-    outputCentsPerMillion: 396
+    inputCentsPerMillion: 140
+    outputCentsPerMillion: 440
+    cacheReadCentsPerMillion: 26
 - id: glm-5v-turbo
   provider: zai
   tags:
@@ -74,6 +82,7 @@
   pricing:
     inputCentsPerMillion: 120
     outputCentsPerMillion: 400
+    cacheReadCentsPerMillion: 24
 - id: glm-5-turbo
   provider: zai
   tags:
@@ -87,6 +96,7 @@
   pricing:
     inputCentsPerMillion: 120
     outputCentsPerMillion: 400
+    cacheReadCentsPerMillion: 24
 - id: glm-4.6v
   provider: zai
   tags:
@@ -101,6 +111,7 @@
   pricing:
     inputCentsPerMillion: 30
     outputCentsPerMillion: 90
+    cacheReadCentsPerMillion: 5
 # Embedding model — the vendor's current one (embedding-2 is a fixed-1024
 # legacy tag). The vendor's API reference lists `dimensions` 256, 512, 1024
 # or 2048 (default 2048), 3072 tokens per input and at most 64 inputs per

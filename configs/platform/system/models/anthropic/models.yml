@@ -10,6 +10,10 @@
 # backend/core/lib/providers/load_system_config.test.ts holds this file to
 # that list: a model with no parameter for the knob refuses the whole
 # request, not just the pick.
+# Prompt-cache prices (`cacheRead` = hits and refreshes, `cacheWrite` = 5-minute
+# writes; cents per million) and the Sonnet 5 pair ($2/$10, "now the standard
+# price") read from platform.claude.com/docs/en/about-claude/pricing on
+# 2026-09-20. The 1-hour write tier is not carried.
 - id: claude-fable-5
   provider: anthropic
   tags:
@@ -23,6 +27,8 @@
   pricing:
     inputCentsPerMillion: 1000
     outputCentsPerMillion: 5000
+    cacheReadCentsPerMillion: 100
+    cacheWriteCentsPerMillion: 1250
 - id: claude-opus-4-8
   provider: anthropic
   tags:
@@ -36,6 +42,8 @@
   pricing:
     inputCentsPerMillion: 500
     outputCentsPerMillion: 2500
+    cacheReadCentsPerMillion: 50
+    cacheWriteCentsPerMillion: 625
 - id: claude-sonnet-5
   provider: anthropic
   tags:
@@ -46,6 +54,11 @@
     knob: effort
   contextWindow: 200000
   maxOutputTokens: 64000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1000
+    cacheReadCentsPerMillion: 20
+    cacheWriteCentsPerMillion: 250
 # Haiku 4.5 takes no effort parameter and reasons only through a manual
 # `thinking.budget_tokens` budget, whose tool-use turns must replay the
 # signed thinking blocks — a replay the chat lane does not do yet. Until it
@@ -62,3 +75,5 @@
   pricing:
     inputCentsPerMillion: 100
     outputCentsPerMillion: 500
+    cacheReadCentsPerMillion: 10
+    cacheWriteCentsPerMillion: 125

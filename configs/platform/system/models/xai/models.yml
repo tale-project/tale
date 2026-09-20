@@ -2,6 +2,9 @@
 # the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
 # vendor publishes no usable public listing endpoint). Pricing is
 # cents per million tokens where the source published it.
+# Prompt-cache HIT prices (`cacheReadCentsPerMillion`, <200k prompts) read from
+# docs.x.ai/docs/models on 2026-09-20; the ≥200k long-context tier (2×) is not
+# carried by this schema.
 - id: grok-4.5
   provider: xai
   tags:
@@ -15,6 +18,7 @@
   pricing:
     inputCentsPerMillion: 200
     outputCentsPerMillion: 600
+    cacheReadCentsPerMillion: 30
 - id: grok-build-0.1
   provider: xai
   tags:
@@ -28,6 +32,7 @@
   pricing:
     inputCentsPerMillion: 100
     outputCentsPerMillion: 200
+    cacheReadCentsPerMillion: 20
 - id: grok-4.3
   provider: xai
   tags:
@@ -41,6 +46,7 @@
   pricing:
     inputCentsPerMillion: 125
     outputCentsPerMillion: 250
+    cacheReadCentsPerMillion: 20
 - id: grok-4.20-multi-agent
   provider: xai
   tags:
@@ -54,3 +60,4 @@
   pricing:
     inputCentsPerMillion: 125
     outputCentsPerMillion: 250
+    cacheReadCentsPerMillion: 20

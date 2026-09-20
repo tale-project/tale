@@ -2,6 +2,9 @@
 # fast workhorse, in the vendor's own model ids (the connector rides Google's
 # OpenAI-compatibility endpoint, which takes the same ids). Pricing is cents
 # per million tokens.
+# Prompt-cache HIT prices (`cacheReadCentsPerMillion`) are the "context caching"
+# rates (≤200k prompts) from ai.google.dev/gemini-api/docs/pricing on 2026-09-20;
+# the per-hour storage fee is not a token price and is not carried.
 - id: gemini-3.1-pro-preview
   provider: gemini
   tags:
@@ -15,6 +18,7 @@
   pricing:
     inputCentsPerMillion: 200
     outputCentsPerMillion: 1200
+    cacheReadCentsPerMillion: 20
 - id: gemini-3-flash-preview
   provider: gemini
   tags:
@@ -28,3 +32,4 @@
   pricing:
     inputCentsPerMillion: 50
     outputCentsPerMillion: 300
+    cacheReadCentsPerMillion: 5

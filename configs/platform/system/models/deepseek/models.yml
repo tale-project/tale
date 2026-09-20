@@ -11,9 +11,13 @@
 # pricing (cents per million tokens) match the official API listing as of
 # 2026-09-20. DeepSeek bills by time of day: the figures below are the PEAK
 # rates (01:00–04:00 and 06:00–10:00 UTC, Monday–Friday, Chinese public
-# holidays excluded); every other hour is billed at half of them, and a
-# cache-hit input token at a few percent of the cache-miss rate — neither
-# discount fits the one input/output pair this schema carries.
+# holidays excluded); every other hour is billed at half of them — a
+# time-of-day discount the gateway cannot express, so the peak figure is
+# the conservative one.
+# Prompt-cache HIT prices (`cacheReadCentsPerMillion`) added 2026-09-20 from the
+# same listing — peak rates again (flash $0.006/M, pro $0.044/M); DeepSeek bills
+# no cache write. A Claude Code turn is mostly cache hits, so without this
+# figure the gateway billed such a turn ~7× the vendor's own invoice.
 - id: deepseek-flash
   provider: deepseek
   tags:
@@ -29,6 +33,7 @@
   pricing:
     inputCentsPerMillion: 30
     outputCentsPerMillion: 120
+    cacheReadCentsPerMillion: 0.6
 - id: deepseek-v4-pro
   provider: deepseek
   tags:
@@ -43,3 +48,4 @@
   pricing:
     inputCentsPerMillion: 132
     outputCentsPerMillion: 396
+    cacheReadCentsPerMillion: 4.4
