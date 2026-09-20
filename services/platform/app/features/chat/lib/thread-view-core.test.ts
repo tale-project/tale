@@ -218,6 +218,87 @@ describe('reduceThreadView', () => {
     });
   });
 
+  it('settles a row that failed before any text — the failure stamp ends the streaming presentation', () => {
+    const state = createThreadViewState();
+    reduceThreadView(
+      state,
+      inputs({
+        messages: thread(),
+        generation: STREAMING,
+        generationText: { messageId: 'a2', text: '' },
+      }),
+    );
+
+    // Generation row deleted, failure stamp not yet visible: still thinking.
+    const gap = reduceThreadView(
+      state,
+      inputs({ messages: thread(), generation: null, generationText: null }),
+    );
+    expect(gap.items.at(-1)?.isStreaming).toBe(true);
+
+    // The failure lands — an error and a terminal status, still no text.
+    const failed = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          textRow('a2', '', { sequence: 2, error: 'boom', status: 'failed' }),
+        ],
+        generation: null,
+        generationText: null,
+      }),
+    );
+    expect(failed.items.at(-1)).toMatchObject({
+      text: '',
+      error: 'boom',
+      isStreaming: false,
+    });
+  });
+
+  it('never presents a terminal row as streaming, even under a generation that outlived its settle', () => {
+    const state = createThreadViewState();
+    const view = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          textRow('a2', 'Hello', {
+            sequence: 2,
+            error: 'boom',
+            status: 'failed',
+          }),
+        ],
+        generation: STREAMING,
+        generationText: {
+          messageId: 'a2',
+          text: 'Hello world, a tail the settle refused',
+        },
+      }),
+    );
+
+    expect(view.items.at(-1)).toMatchObject({
+      text: 'Hello',
+      isStreaming: false,
+    });
+  });
+
+  it('treats a stop before the first token as settled', () => {
+    const state = createThreadViewState();
+    const view = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          textRow('a2', '', { sequence: 2, status: 'cancelled' }),
+        ],
+        generation: null,
+        generationText: null,
+      }),
+    );
+
+    expect(view.items.at(-1)?.isStreaming).toBe(false);
+  });
+
   it('presents an unsettled trailing placeholder as streaming before the generation resolves', () => {
     const state = createThreadViewState();
     const view = reduceThreadView(state, inputs({ messages: thread() }));

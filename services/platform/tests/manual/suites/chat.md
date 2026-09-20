@@ -434,6 +434,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   In a browser without SpeechRecognition, activate the microphone with Enter
   → A recovery dialog opens without starting a MediaRecorder recording.
   Escape closes it and returns focus to the microphone.
+- [ ] `CHAT-B14` · **Failed turn settles the thinking shell** — Send on a
+  credential whose key the provider refuses (a wrong key saved under
+  settings.md `SET-F20`), and separately **Stop generating**
+  (`chat.stopGenerating`) before the first token → The reply row shows the
+  **Couldn't generate a reply** notice (`chat.errorGenerating`) with the
+  classified hint, or **Generation stopped** (`chat.generationStopped`); the
+  dots and the ticking
+  `Thinking · Ns` shell are gone the moment the notice lands and the count
+  does not keep running under it; a reload shows the same settled row.
 
 ## Accessibility (WCAG 2.1 AA)
 
