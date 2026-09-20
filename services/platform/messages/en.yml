@@ -6458,6 +6458,24 @@ settings:
         the provider's default credential.
       model: Model
       modelHint: The model tag exactly as the provider spells it.
+      modelCatalogHint: Embedding models the provider's catalog lists.
+      modelCatalogCustomHint:
+        Embedding models this provider's listing carries; pick Other model to
+        type a tag it does not list.
+      modelUnlistedHint:
+        No listing can tell whether this provider serves embeddings, so enter
+        the tag exactly as the provider spells it.
+      modelNoneHint:
+        The {provider} catalog lists no embedding model. Choose a provider
+        that serves one.
+      modelNone: No embedding model
+      modelCatalogUnavailableHint:
+        The {provider} catalog could not be loaded. Refresh the catalogs under
+        Settings → AI providers and try again.
+      modelUnavailable: Catalog unavailable
+      modelPlaceholder: Choose a model
+      modelCustom: Other model…
+      modelTag: Model tag
       dimensions: Vector width
       dimensionsHint:
         'Stated, never guessed: the exact dimension count this model produces.

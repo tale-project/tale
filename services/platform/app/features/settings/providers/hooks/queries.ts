@@ -39,12 +39,18 @@ export function useProviderCredentials(organizationId: string) {
 }
 
 /** Every shipped provider with its model catalog (may carry a per-provider
- * `catalogError` when a live source is unreachable). */
-export function useProviderCatalogs(organizationId: string) {
+ * `catalogError` when a live source is unreachable). A reader that only
+ * needs the catalogs in some states (the embedding form, editable only)
+ * passes `enabled` — the key stays shared, so one fetch serves every page. */
+export function useProviderCatalogs(
+  organizationId: string,
+  options?: { enabled?: boolean },
+) {
   return useActionQuery(
     providerCatalogsQueryKey(organizationId),
     'lib/providers/catalog_actions:listProviderCatalogs',
     { organizationId },
+    options,
   );
 }
 

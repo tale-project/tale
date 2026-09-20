@@ -7,7 +7,7 @@ import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Tooltip } from '@tale/ui/tooltip';
 import { cva } from 'class-variance-authority';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, XCircle } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 import { forwardRef, useId } from 'react';
 
@@ -85,6 +85,13 @@ interface SelectProps extends Omit<
   required?: boolean;
   /** Whether the field has an error */
   error?: boolean;
+  /**
+   * The error text, rendered under the control (the frame's error slot, where
+   * `Input` puts its own) and announced with the trigger; implies `error`.
+   * Never route an error through `description` — that slot sits under the
+   * LABEL, which in a row layout is the other column.
+   */
+  errorMessage?: string;
   /** Description text displayed below the select */
   description?: ReactNode;
   /** A note rendered below the control (above any error) — for context that makes sense after seeing the field. */
@@ -124,6 +131,7 @@ const SelectBase = forwardRef<
       placeholder,
       required,
       error,
+      errorMessage,
       description,
       hint,
       emptyHint,
@@ -151,6 +159,9 @@ const SelectBase = forwardRef<
     const descriptionId = `${id}-description`;
     const hintId = `${id}-hint`;
     const labelId = `${id}-label`;
+    const errorId = `${id}-error`;
+    const hasMessage = errorMessage !== undefined;
+    const hasError = error === true || hasMessage;
     // A Radix trigger is a <button>, so a `<label htmlFor>` does NOT name it.
     // Point the trigger at the rendered label via aria-labelledby (unless the
     // caller supplied an explicit name), so labelled selects have a name.
@@ -175,12 +186,17 @@ const SelectBase = forwardRef<
           <SelectPrimitive.Trigger
             ref={ref}
             id={id}
-            className={cn(selectTriggerClasses({ error }), className)}
-            aria-invalid={error}
+            className={cn(selectTriggerClasses({ error: hasError }), className)}
+            aria-invalid={hasError}
+            aria-errormessage={hasMessage ? errorId : undefined}
             aria-label={ariaLabel}
             aria-labelledby={resolvedLabelledBy}
             aria-describedby={
-              [description && descriptionId, hint && hintId]
+              [
+                description && descriptionId,
+                hint && hintId,
+                hasMessage && errorId,
+              ]
                 .filter(Boolean)
                 .join(' ') || undefined
             }
@@ -263,7 +279,7 @@ const SelectBase = forwardRef<
                 emptyHintId,
               )}
               className={cn(
-                selectTriggerClasses({ error }),
+                selectTriggerClasses({ error: hasError }),
                 'cursor-not-allowed opacity-50',
                 className,
               )}
@@ -283,7 +299,7 @@ const SelectBase = forwardRef<
       selectRoot
     );
 
-    if (!label && !description && !hint) {
+    if (!label && !description && !hint && !hasMessage) {
       return wrapperClassName ? (
         <div className={wrapperClassName}>{trigger}</div>
       ) : (
@@ -300,7 +316,7 @@ const SelectBase = forwardRef<
                   id={labelId}
                   htmlFor={id}
                   required={required}
-                  error={error}
+                  error={hasError}
                 >
                   {label}
                 </Label>
@@ -317,6 +333,21 @@ const SelectBase = forwardRef<
         {...(hint
           ? {
               hint: <Description id={hintId}>{hint}</Description>,
+            }
+          : {})}
+        {...(hasMessage
+          ? {
+              error: (
+                <p
+                  id={errorId}
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive flex items-center gap-1.5 text-sm"
+                >
+                  <XCircle className="size-4" aria-hidden="true" />
+                  {errorMessage}
+                </p>
+              ),
             }
           : {})}
         {...(wrapperClassName !== undefined

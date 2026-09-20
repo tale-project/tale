@@ -6370,6 +6370,24 @@ settings:
         der Standard sind die Standard-Zugangsdaten des Anbieters.
       model: Modell
       modelHint: Das Modell-Tag exakt so, wie der Anbieter es schreibt.
+      modelCatalogHint: Embedding-Modelle aus dem Katalog des Anbieters.
+      modelCatalogCustomHint:
+        Embedding-Modelle aus der Modellliste dieses Anbieters; wähle „Anderes
+        Modell“, um ein Tag einzugeben, das dort nicht steht.
+      modelUnlistedHint:
+        Keine Modellliste kann sagen, ob dieser Anbieter Embeddings bedient —
+        gib das Modell-Tag exakt so ein, wie der Anbieter es schreibt.
+      modelNoneHint:
+        Der Katalog von {provider} führt kein Embedding-Modell. Wähle einen
+        Anbieter, der eines bedient.
+      modelNone: Kein Embedding-Modell
+      modelCatalogUnavailableHint:
+        Der Katalog von {provider} konnte nicht geladen werden. Aktualisiere
+        die Kataloge unter Einstellungen → KI-Anbieter und versuche es erneut.
+      modelUnavailable: Katalog nicht verfügbar
+      modelPlaceholder: Modell wählen
+      modelCustom: Anderes Modell…
+      modelTag: Modell-Tag
       dimensions: Vektorbreite
       dimensionsHint:
         'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell

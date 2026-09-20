@@ -6472,6 +6472,24 @@ settings:
         défaut, ceux du fournisseur.
       model: Modèle
       modelHint: Le tag du modèle exactement comme le fournisseur l'écrit.
+      modelCatalogHint: Modèles d’embedding du catalogue du fournisseur.
+      modelCatalogCustomHint:
+        Modèles d’embedding de la liste de ce fournisseur ; choisis « Autre modèle »
+        pour saisir un tag qui n’y figure pas.
+      modelUnlistedHint:
+        "Aucune liste ne permet de savoir si ce fournisseur sert des embeddings :
+        saisis le tag exactement comme le fournisseur l’écrit."
+      modelNoneHint:
+        Le catalogue de {provider} ne liste aucun modèle d’embedding. Choisis un
+        fournisseur qui en sert un.
+      modelNone: Aucun modèle d’embedding
+      modelCatalogUnavailableHint:
+        Le catalogue de {provider} n’a pas pu être chargé. Actualise les
+        catalogues sous Paramètres → Fournisseurs IA, puis réessaie.
+      modelUnavailable: Catalogue indisponible
+      modelPlaceholder: Choisis un modèle
+      modelCustom: Autre modèle…
+      modelTag: Tag du modèle
       dimensions: Largeur des vecteurs
       dimensionsHint:
         "Déclarée, jamais devinée : le nombre exact de dimensions que produit

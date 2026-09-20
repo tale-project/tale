@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 18 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 19 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -87,8 +87,10 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   **Embedding model** on, then pick a provider you hold a credential for (with
   no stored credentials the provider dropdown is disabled and explains itself
   in a tooltip) (add one under **Settings > AI providers** first if none — the
-  section says so), model `text-embedding-3-small` (or your provider's tag),
-  vector width `1536`, → **Save** in the header. Then remove it via the
+  section says so), then the model from the **Model** dropdown — the vector
+  width fills itself from the catalog (a provider whose catalog lists no
+  embedding model is refused instead; only an org-defined provider or Azure
+  takes a typed tag — see `DATA-F2c`) → **Save** in the header. Then remove it via the
   section's **Remove** button and re-add it. → Badge flips to **Configured**
   and the warning disappears;
   `$TALE_CONFIG_DIR/{orgSlug}/knowledge/embedding.json` exists with exactly
@@ -96,6 +98,27 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   configured" (on a stack whose indexing is live, a searchable corpus returns
   hits). Remove asks for confirmation, toasts (`…orgEmbedding.removed`), and
   the warning returns.
+- [ ] `DATA-F2c` · **Embedding model: the catalog decides** — With
+  credentials for a shipped provider whose catalog lists embedding models
+  (OpenAI, OpenRouter or Z.ai), one whose catalog lists none (DeepSeek,
+  Anthropic) and an org-defined provider (Settings > AI providers > custom
+  definition, `models-endpoint` or no catalog), toggle **Embedding model** on
+  → Shipped-with-models: **Model** is a closed dropdown listing only that
+  provider's embedding models (no chat model, no **Other model…**), hint
+  `settings.dataResidency.orgEmbedding.modelCatalogHint`; picking one fills
+  **Vector width** with the catalog's width (`1536` for every shipped pick),
+  which stays editable. Shipped-without-models: no field at all — the row
+  says `…orgEmbedding.modelNone` with the hint `…orgEmbedding.modelNoneHint`,
+  nothing appears under the **Provider** select, and the header **Save**
+  stays disabled. Org-defined:
+  when its listing tags embedding models the dropdown adds **Other model…**
+  (`…orgEmbedding.modelCustom`, hint `…orgEmbedding.modelCatalogCustomHint`)
+  which reveals an empty **Model tag** field (`…orgEmbedding.modelTag`, hint
+  `…orgEmbedding.modelHint`; Save with it empty pins
+  `…orgEmbedding.errors.modelRequired` there); when its listing carries none
+  the plain **Model** field shows with `…orgEmbedding.modelUnlistedHint`, and
+  a typed tag saves as entered. Switching the provider empties the model
+  (placeholder `…orgEmbedding.modelPlaceholder`) while the width stays.
 - [ ] `DATA-F3` · **BYO object storage: save + test** — Enable **Object
   storage** → region `us-east-1`, endpoint `http://127.0.0.1:9100`, path-style
   on, bucket `org-blobs`, both keys → **Save** in the settings header → **Test

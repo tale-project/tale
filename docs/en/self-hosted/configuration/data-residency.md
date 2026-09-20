@@ -44,7 +44,7 @@ The files live under `$TALE_CONFIG_DIR/<orgSlug>/knowledge/`: `connection.json`,
 
 ### Match the embedding model to the corpus {#the-organizations-embedding-model}
 
-In **Embedding model**, choose the provider and stored credential, enter the exact model tag, and state its vector width. An optional base URL selects an OpenAI-compatible endpoint. Without a configured embedding model, knowledge indexing and search cannot operate normally.
+In **Embedding model**, choose the provider and stored credential, then the model. **Model** lists the embedding models the provider's catalog carries and fills the vector width the catalog states. A provider whose catalog lists no embedding model cannot be chosen: the form says so, and you pick another. Only a provider with no listing to consult takes a hand-typed tag — one your organization defined itself, whose model listing cannot tell whether it serves embeddings, or Azure OpenAI, whose deployments carry your own names; state the vector width yourself then. An optional base URL selects an OpenAI-compatible endpoint. Without a configured embedding model, knowledge indexing and search cannot operate normally.
 
 Vector width is pinned per database on first use. Organizations sharing a database must use that width; a different width needs a separate compatible database. Changing the model can also make existing vectors incompatible even when the width stays the same. Plan reindexing with the chosen model instead of mixing embeddings blindly.
 

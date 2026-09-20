@@ -44,7 +44,7 @@ Les fichiers se trouvent sous `$TALE_CONFIG_DIR/<orgSlug>/knowledge/` : `connec
 
 ### Adapter le modèle d’embedding au corpus {#le-modele-dembedding-de-lorganisation}
 
-Dans **Modèle d’embedding**, choisis fournisseur et identifiants enregistrés, saisis le tag exact du modèle et indique la largeur des vecteurs. Une URL de base facultative sélectionne un point d’accès compatible OpenAI. Sans modèle configuré, l’indexation et la recherche de connaissances ne peuvent pas fonctionner normalement.
+Dans **Modèle d’embedding**, choisis fournisseur et identifiants enregistrés, puis le modèle. **Modèle** liste les modèles d’embedding que porte le catalogue du fournisseur et remplit la largeur des vecteurs indiquée par le catalogue. Un fournisseur dont le catalogue ne liste aucun modèle d’embedding ne peut pas être retenu : le formulaire le dit, et tu en choisis un autre. Seul un fournisseur sans liste à consulter accepte un tag saisi à la main — un fournisseur défini par ton organisation, dont la liste de modèles ne permet pas de savoir s’il sert des embeddings, ou Azure OpenAI, dont les déploiements portent tes propres noms ; dans ce cas, indique toi-même la largeur des vecteurs. Une URL de base facultative sélectionne un point d’accès compatible OpenAI. Sans modèle configuré, l’indexation et la recherche de connaissances ne peuvent pas fonctionner normalement.
 
 La largeur est fixée par base à la première utilisation. Les organisations qui partagent cette base doivent utiliser la même largeur ; une autre largeur demande une base compatible séparée. Changer de modèle peut aussi rendre les anciens vecteurs incompatibles à largeur identique. Prévois une réindexation avec le modèle choisi au lieu de mélanger des embeddings sans vérification.
 
