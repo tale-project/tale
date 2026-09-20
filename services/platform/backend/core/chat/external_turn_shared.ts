@@ -225,11 +225,12 @@ export function buildExternalTurnExec(args: {
   /** When set, mount the in-image connectors MCP bridge pointed here —
    * only for turns whose agent is equipped with at least one connector. */
   bridgeUrl?: string;
-  /** Arm the vision polyfill: images the harness reads route to this gateway
-   * model instead of the (text-only) serving model. The turn's own gateway
-   * key authenticates the vision calls, so the caller must have included
-   * this model in the key's allowed set. */
-  vision?: { model: string };
+  /** The sandbox's vision lane: the gateway model the in-image vision tools
+   * call, and — with `polyfillReads` — the one image reads route through
+   * instead of the (text-only) serving model. The turn's own gateway key
+   * authenticates the vision calls, so the caller must have included this
+   * model in the key's allowed set. */
+  vision?: { model: string; polyfillReads: boolean };
   /** Extra per-exec env under the harness's own (the Tier-2 broker's git
    * credential + author identity) — the harness env wins on collision, so a
    * connector token can never shadow a credential/config key the harness

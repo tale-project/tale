@@ -355,9 +355,9 @@ managed-mcp-headless-bridge:
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
@@ -392,13 +392,48 @@ managed-mcp-bridge-only:
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-vision:
+  argv:
+    - codex
+    - exec
+    - --json
+    - --skip-git-repo-check
+    - -c
+    - approval_policy="never"
+    - -c
+    - sandbox_mode="danger-full-access"
+    - -c
+    - web_search="disabled"
+    - -c
+    - model_provider="tale"
+    - -c
+    - model_providers.tale.name="Tale Gateway"
+    - -c
+    - model_providers.tale.base_url="http://golden-gw:8080/openai/v1"
+    - -c
+    - model_providers.tale.env_key="TALE_GATEWAY_TOKEN"
+    - -c
+    - model_providers.tale.wire_api="responses"
+    - -c
+    - model_providers.tale.stream_idle_timeout_ms=900000
+    - -c
+    - mcp_servers.playwright.command="tale-playwright-mcp"
+    - -c
+    - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
+    - '-'
+  env:
+    CODEX_HOME: /agent/.runtime/home/.codex
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: 'Golden battery prompt: fix the flaky login test'
+  stdinMode: close
+managed-vision-lane:
   argv:
     - codex
     - exec
@@ -505,9 +540,9 @@ managed-kitchen-sink:
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close

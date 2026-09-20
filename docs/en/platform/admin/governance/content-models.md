@@ -33,7 +33,7 @@ Test both cases after changing access: an allowed model should work and a denied
 
 ## Choose the image-reading model
 
-A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images does not use this fallback.
+A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images reads them itself; the vision model still serves the image tools that scripts and coding agents call inside their sandbox, such as batch transcription of scanned pages, so every managed agent gets one when a reachable model exists.
 
 Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 

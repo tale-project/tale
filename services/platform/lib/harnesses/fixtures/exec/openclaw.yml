@@ -165,6 +165,18 @@ managed-vision:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","config":{"agents":{"defaults":{"workspace":"/agent/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}}'
   stdinMode: close
+managed-vision-lane:
+  argv:
+    - tale-openclaw-run
+    - --workdir
+    - /agent/workspace
+  env:
+    OPENCLAW_STATE_DIR: /agent/.runtime/home/.openclaw
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","config":{"agents":{"defaults":{"workspace":"/agent/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}}'
+  stdinMode: close
 managed-steer:
   argv:
     - tale-openclaw-run

@@ -73,16 +73,61 @@ const denyReason = (stdout: string): string => {
 };
 
 describe('tale-vision-read-hook', () => {
-  test('no-op without TALE_VISION_MODEL (PDF and image)', () => {
+  test('no-op without the polyfill flag (PDF and image)', () => {
     const pdf = join(workDir, 'doc.pdf');
     writeFileSync(pdf, '%PDF-1.4');
-    const { status, stdout } = runHook(pdf, { TALE_VISION_MODEL: undefined });
+    const { status, stdout } = runHook(pdf, {
+      TALE_VISION_READ_POLYFILL: undefined,
+      TALE_VISION_MODEL: undefined,
+    });
     expect(status).toBe(0);
     expect(stdout.trim()).toBe('');
 
     const png = join(workDir, 'x.png');
     writeFileSync(png, 'not-a-real-png');
-    const img = runHook(png, { TALE_VISION_MODEL: '' });
+    const img = runHook(png, {
+      TALE_VISION_READ_POLYFILL: '',
+      TALE_VISION_MODEL: '',
+    });
+    expect(img.status).toBe(0);
+    expect(img.stdout.trim()).toBe('');
+  });
+
+  test('no-op for a vision-capable agent: lane model armed, polyfill flag off', () => {
+    // The tale-vision tools get the model; the agent reads its own images.
+    writeFake(
+      'tale-vision-transcribe',
+      `#!/bin/bash
+echo "must not be called" >&2
+exit 1
+`,
+    );
+    const png = join(workDir, 'x.png');
+    writeFileSync(png, 'not-a-real-png');
+    const img = runHook(png, {
+      TALE_VISION_READ_POLYFILL: '',
+      TALE_VISION_MODEL: 'openai/gpt-4o',
+    });
+    expect(img.status).toBe(0);
+    expect(img.stdout.trim()).toBe('');
+
+    const pdf = join(workDir, 'doc.pdf');
+    writeFileSync(pdf, '%PDF-1.4');
+    const doc = runHook(pdf, {
+      TALE_VISION_READ_POLYFILL: undefined,
+      TALE_VISION_MODEL: 'openai/gpt-4o',
+    });
+    expect(doc.status).toBe(0);
+    expect(doc.stdout.trim()).toBe('');
+  });
+
+  test('no-op when the polyfill flag is set without a vision model', () => {
+    const png = join(workDir, 'x.png');
+    writeFileSync(png, 'not-a-real-png');
+    const img = runHook(png, {
+      TALE_VISION_READ_POLYFILL: '1',
+      TALE_VISION_MODEL: '',
+    });
     expect(img.status).toBe(0);
     expect(img.stdout.trim()).toBe('');
   });
@@ -104,6 +149,7 @@ EOF
     writeFileSync(pdf, '%PDF-fake');
 
     const { status, stdout } = runHook(pdf, {
+      TALE_VISION_READ_POLYFILL: '1',
       TALE_VISION_MODEL: 'openai/gpt-4o',
     });
     expect(status).toBe(0);
@@ -126,6 +172,7 @@ printf '\\f\\n  \\n'
     writeFileSync(pdf, '%PDF-fake');
 
     const { status, stdout } = runHook(pdf, {
+      TALE_VISION_READ_POLYFILL: '1',
       TALE_VISION_MODEL: 'openai/gpt-4o',
     });
     expect(status).toBe(0);
@@ -143,6 +190,7 @@ printf '\\f\\n  \\n'
       input: readPayload(pdf),
       env: {
         ...process.env,
+        TALE_VISION_READ_POLYFILL: '1',
         TALE_VISION_MODEL: 'openai/gpt-4o',
         // Run the hook with only the tools it needs on PATH (jq plus coreutils
         // like cat) and WITHOUT pdftotext, to exercise the "no extractable
@@ -181,6 +229,7 @@ exit 0
     writeFileSync(png, 'fake');
 
     const { status, stdout } = runHook(png, {
+      TALE_VISION_READ_POLYFILL: '1',
       TALE_VISION_MODEL: 'openai/gpt-4o',
     });
     expect(status).toBe(0);
@@ -201,6 +250,7 @@ exit 1
     writeFileSync(jpg, 'fake');
 
     const { status, stdout } = runHook(jpg, {
+      TALE_VISION_READ_POLYFILL: '1',
       TALE_VISION_MODEL: 'openai/gpt-4o',
     });
     expect(status).toBe(0);
@@ -213,6 +263,7 @@ exit 1
     const md = join(workDir, 'notes.md');
     writeFileSync(md, '# hi');
     const { status, stdout } = runHook(md, {
+      TALE_VISION_READ_POLYFILL: '1',
       TALE_VISION_MODEL: 'openai/gpt-4o',
     });
     expect(status).toBe(0);

@@ -198,7 +198,18 @@ export function goldenBattery(): readonly GoldenCase[] {
       name: 'managed-vision',
       mode: 'managed',
       spec: managedSpec({
-        vision: { model: GOLDEN_VISION_MODEL },
+        vision: { model: GOLDEN_VISION_MODEL, polyfillReads: true },
+        mcp: { browser: 'headless' },
+      }),
+    },
+    {
+      // A vision-capable serving model: the lane env is armed for the
+      // in-sandbox tools, but the Read hook stays off and browser tools keep
+      // returning images inline.
+      name: 'managed-vision-lane',
+      mode: 'managed',
+      spec: managedSpec({
+        vision: { model: GOLDEN_VISION_MODEL, polyfillReads: false },
         mcp: { browser: 'headless' },
       }),
     },
@@ -217,7 +228,7 @@ export function goldenBattery(): readonly GoldenCase[] {
         additionalDirs: [...GOLDEN_DIRS],
         mcp: { browser: 'headless', bridgeUrl: GOLDEN_BRIDGE_URL },
         execId: GOLDEN_EXEC_ID,
-        vision: { model: GOLDEN_VISION_MODEL },
+        vision: { model: GOLDEN_VISION_MODEL, polyfillReads: true },
       }),
     },
     { name: 'byo-baseline', mode: 'byo', spec: byoSpec() },
@@ -245,7 +256,7 @@ export function goldenBattery(): readonly GoldenCase[] {
         // env, which is gateway-scoped).
         mcp: { browser: 'headless', bridgeUrl: GOLDEN_BRIDGE_URL },
         execId: GOLDEN_EXEC_ID,
-        vision: { model: GOLDEN_VISION_MODEL },
+        vision: { model: GOLDEN_VISION_MODEL, polyfillReads: true },
       }),
     },
   ];

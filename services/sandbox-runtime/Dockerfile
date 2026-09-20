@@ -438,19 +438,23 @@ COPY services/sandbox-runtime/tale-connectors-mcp /usr/local/bin/tale-connectors
 
 # Vision polyfill for a TEXT-ONLY managed agent. `tale-vision-read-hook` is a
 # PreToolUse(Read) hook (registered in managed-settings.json, self-gated on
-# TALE_VISION_MODEL) that (1) transcribes raster Reads via the transcriber and
-# (2) denies native PDF Reads — pdftotext when the PDF has text, else guide
-# pdftoppm → Read PNG (image path). Native PDF/`file` blocks 400 on text-only
-# models (DeepSeek). `tale-vision-transcribe` relays images to the platform LLM
-# gateway's vision model using the session virtual key (no provider key enters
-# the container). See services/platform/lib/agent-adapters/claude-code/adapter.ts.
+# TALE_VISION_READ_POLYFILL=1 — the platform sets it only for a text-only
+# serving model, next to TALE_VISION_MODEL) that (1) transcribes raster Reads
+# via the transcriber and (2) denies native PDF Reads — pdftotext when the PDF
+# has text, else guide pdftoppm → Read PNG (image path). Native PDF/`file`
+# blocks 400 on text-only models (DeepSeek). `tale-vision-transcribe` relays
+# images to the platform LLM gateway's vision model using the session virtual
+# key (no provider key enters the container). See
+# services/platform/lib/harnesses/exec-builder.ts (`vision.env`).
 COPY services/sandbox-runtime/tale-vision-transcribe /usr/local/bin/tale-vision-transcribe
 COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-read-hook
 
 # Batch vision CLI for in-sandbox code (`run_code` scripts and coding agents):
 # analyzes images via the platform LLM gateway with the session virtual key —
 # same no-provider-key-in-container lane as tale-vision-transcribe (which stays
-# the single-image Read-hook polyfill). Pillow lives in a dedicated venv and
+# the single-image Read-hook polyfill). Armed (TALE_VISION_MODEL) for every
+# managed gateway turn that resolved a vision model, vision-capable serving
+# models included — a script's batch transcription is the lane's job. Pillow lives in a dedicated venv and
 # the shim runs `python -E -s` so the per-session user deps that entrypoint.sh
 # prepends onto PYTHONPATH (/agent/.runtime/deps/python) can never shadow PIL.
 RUN python3 -m venv /opt/tale-vision \

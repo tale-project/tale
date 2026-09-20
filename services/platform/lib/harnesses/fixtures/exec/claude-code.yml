@@ -778,6 +778,70 @@ managed-vision:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_GATEWAY_URL: http://golden-gw:8080
     TALE_VISION_MODEL: golden-vision-model
+    TALE_VISION_READ_POLYFILL: '1'
+  cwd: /agent/workspace
+  stdin: |
+    {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
+  stdinMode: hold
+managed-vision-lane:
+  argv:
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --input-format
+    - stream-json
+    - --verbose
+    - --include-partial-messages
+    - --permission-mode
+    - bypassPermissions
+    - --max-turns
+    - '200'
+    - --append-system-prompt
+    - >-
+      ## Notes
+
+
+      - If the repository you are working in contains an AGENTS.md file, read it
+      and follow its instructions.
+
+      - Respect hooks that change formatting; don't hand-format or re-run a
+      formatter.
+
+
+      ## Git
+
+
+      - **Never** add `Co-Authored-By` to commit messages.
+
+      - **Never** add "Generated with Claude Code" or any similar attribution to
+      commits or PR descriptions.
+
+
+      ## Other
+
+
+      - **Never** use an empty catch block — log
+      (`console.warn`/`console.error`) or re-throw.
+    - --mcp-config
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}'
+    - --strict-mcp-config
+    - --disallowedTools
+    - AskUserQuestion,WebSearch,WebFetch
+  env:
+    ANTHROPIC_API_KEY: ''
+    ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
+    ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
+    API_FORCE_IDLE_TIMEOUT: '0'
+    API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+    CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+    TALE_GATEWAY_URL: http://golden-gw:8080
+    TALE_VISION_MODEL: golden-vision-model
+    TALE_VISION_READ_POLYFILL: ''
   cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
@@ -915,6 +979,7 @@ managed-kitchen-sink:
     TALE_GATEWAY_URL: http://golden-gw:8080
     TALE_STEER_DIR: /agent/.runtime/tale/steer/exec-golden-42
     TALE_VISION_MODEL: golden-vision-model
+    TALE_VISION_READ_POLYFILL: '1'
   cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}

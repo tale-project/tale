@@ -376,11 +376,12 @@ export function automationAgentHost(
               { anthropicHarnessLane },
             ).gatewayModel
           : serving.modelId;
-      // A text-only serving model still meets image inputs (scanned PDFs,
-      // screenshots) — arm the harness vision polyfill with the org's vision
-      // model so those route through the gateway instead of 404ing the turn.
-      // Gateway lane only: the subscription lane mints no gateway key for a
-      // polyfill call to ride on.
+      // Every gateway turn gets the org's vision model for the sandbox's
+      // vision lane (`tale-vision`, `tale-vision-transcribe`); a text-only
+      // serving model additionally gets its own image and PDF reads routed
+      // through it — the polyfill — so those never 404 the turn. Gateway
+      // lane only: the subscription lane mints no gateway key for a vision
+      // call to ride on.
       const vision =
         serving.lane === 'gateway'
           ? await resolveTurnVisionModel(ctx, organizationId, {
@@ -430,8 +431,9 @@ export function automationAgentHost(
             : {}),
           ...(vision !== null
             ? {
-                visionProviderSlug: vision.providerSlug,
-                visionModelId: vision.modelId,
+                visionProviderSlug: vision.model.providerSlug,
+                visionModelId: vision.model.modelId,
+                visionPolyfillReads: vision.polyfillReads,
               }
             : {}),
           // A subscription serving that cannot see images: the start refuses
@@ -1044,6 +1046,10 @@ export interface StartWorkflowAgentTurnArgs {
   apiBaseUrl?: string;
   visionProviderSlug?: string;
   visionModelId?: string;
+  /** The serving model cannot see images: the harness polyfills its own
+   * image and PDF reads through the vision model above (text-only serving).
+   * Absent or false, the vision model serves the in-sandbox tools alone. */
+  visionPolyfillReads?: boolean;
   /** Set when the (subscription) serving cannot see images — the reason the
    * start refuses image inputs with, or briefs the agent about. */
   visionUnreadableReason?: string;
@@ -1130,9 +1136,10 @@ export async function startWorkflowAgentTurnImpl(
               modelId: args.visionModelId,
             }
           : null;
-      // Resolved once: the harness needs it to route image reads, and the op
-      // row records it so the run's viewers can see which model did the
-      // reading after the fact.
+      // Resolved once: the harness needs it for the sandbox's vision lane,
+      // and — when it polyfills the serving model's own reads — the op row
+      // records it so the run's viewers can see which model did the reading
+      // after the fact.
       const visionModelRef =
         visionRef !== null
           ? resolveGatewayRouting(
@@ -1326,7 +1333,12 @@ export async function startWorkflowAgentTurnImpl(
           ? { resume: args.resume.agentSessionId }
           : {}),
         ...(visionModelRef !== undefined
-          ? { vision: { model: visionModelRef } }
+          ? {
+              vision: {
+                model: visionModelRef,
+                polyfillReads: args.visionPolyfillReads === true,
+              },
+            }
           : {}),
       });
 
@@ -1346,7 +1358,7 @@ export async function startWorkflowAgentTurnImpl(
         ctx,
         args,
         'workflow-agent',
-        visionModelRef,
+        args.visionPolyfillReads === true ? visionModelRef : undefined,
       );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
@@ -1673,7 +1685,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       keys.providerSlug = serving.providerSlug;
       keys.gatewayModel = execModel;
       // Gateway lane only — the subscription lane mints no gateway key for a
-      // vision-polyfill call to ride on.
+      // vision call to ride on.
       const vision =
         serving.lane === 'gateway'
           ? await resolveTurnVisionModel(ctx, args.organizationId, {
@@ -1681,14 +1693,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
               modelId: serving.modelId,
             })
           : null;
-      // Resolved once, for the harness and for the op row's record of which
-      // model read this turn's images.
+      // Resolved once, for the harness's vision lane and — when it polyfills
+      // the serving model's reads — for the op row's record of which model
+      // read this turn's images.
       const visionModelRef =
         vision !== null
           ? resolveGatewayRouting(
               args.organizationId,
-              vision.providerSlug,
-              vision.modelId,
+              vision.model.providerSlug,
+              vision.model.modelId,
             ).gatewayModel
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
@@ -1703,7 +1716,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         ...(serving.lane === 'subscription'
           ? { apiBaseUrl: serving.apiBaseUrl }
           : {}),
-        vision,
+        vision: vision === null ? null : vision.model,
         // The resumed turn rotates like a re-kick would — re-minting on an
         // account prior attempts already burned wastes the answer.
         ...(agent.burnedBrokerTokenHashes !== undefined &&
@@ -1880,7 +1893,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           ? { resume: ask.agentSessionId }
           : {}),
         ...(visionModelRef !== undefined
-          ? { vision: { model: visionModelRef } }
+          ? {
+              vision: {
+                model: visionModelRef,
+                polyfillReads: vision?.polyfillReads === true,
+              },
+            }
           : {}),
       });
       if (ask.agentSessionId === undefined) {
@@ -1897,7 +1915,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         ctx,
         keys,
         'workflow-agent',
-        visionModelRef,
+        vision?.polyfillReads === true ? visionModelRef : undefined,
       );
       const window = await drainHarnessWindow({
         sessionId,
@@ -1997,10 +2015,12 @@ export function liveProgressSink(
   ctx: ActionCtx,
   args: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId'>,
   kind: 'workflow-agent' | 'task-agent',
-  /** The gateway model armed as this turn's vision polyfill, if any. Recorded
-   * on every write (it is constant for the turn) so the run's viewers can see
-   * WHICH model read their images — resolution happens per turn against a live
-   * catalog, so asking again later can answer differently than what ran. */
+  /** The gateway model that read this turn's images for a text-only serving
+   * model (the polyfill), if any. Recorded on every write (it is constant for
+   * the turn) so the run's viewers can see WHICH model read their images —
+   * resolution happens per turn against a live catalog, so asking again later
+   * can answer differently than what ran. A vision-capable serving model
+   * reads its own images, so its lane model is not recorded here. */
   visionModelRef?: string,
 ): {
   onText: (text: string) => void;

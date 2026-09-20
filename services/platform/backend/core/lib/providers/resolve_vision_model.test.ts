@@ -494,8 +494,11 @@ describe('explicit vision policy boundaries', () => {
   });
 
   it.each(['invalid', 'unreadable'])(
-    'bypasses an unrelated %s polyfill policy when the serving model already reads images',
+    'survives an %s vision policy when the serving model already reads images',
     async (policy) => {
+      // The policy is consulted for the lane model, but a broken one never
+      // costs a vision-capable serving model its turn: the lane falls back to
+      // the serving model itself.
       mockProviders([provider('local')]);
       mockedCatalog.mockResolvedValue([entry({ id: 'omni' })]);
       const ctx = fakeCtx({}, { providerSlug: 'incomplete-pin' });
@@ -507,8 +510,10 @@ describe('explicit vision policy boundaries', () => {
           providerSlug: 'local',
           modelId: 'omni',
         }),
-      ).resolves.toBeNull();
-      expect(query).not.toHaveBeenCalled();
+      ).resolves.toEqual({
+        model: { providerSlug: 'local', modelId: 'omni', source: 'serving' },
+        polyfillReads: false,
+      });
       expect(mockedCatalog).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ name: 'local' }),
       );
@@ -555,12 +560,18 @@ describe('explicit vision policy boundaries', () => {
       { local: { authMethod: 'api-key', status: 'active' } },
       { providerSlug: 'local', modelId: 'chosen-polyfill' },
     );
+    // The pin names a model the catalog does not serve: a text-only serving
+    // would refuse the turn, a vision-capable one keeps its turn and reads
+    // its own images — the lane falls back to the serving model.
     await expect(
       resolveTurnVisionModel(ctx, 'org_1', {
         providerSlug: 'local',
         modelId: 'omni',
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      model: { providerSlug: 'local', modelId: 'omni', source: 'serving' },
+      polyfillReads: false,
+    });
   });
 
   it('keeps explicit empty Auto policy selection unchanged', async () => {
@@ -577,13 +588,15 @@ describe('explicit vision policy boundaries', () => {
   });
 });
 
-// The per-turn wrapper decides whether a MANAGED turn needs the polyfill at
-// all: a vision-capable serving model reads images itself, and arming the
-// polyfill would route them through a second (worse) model for no reason.
-// Everything else must resolve a vision model — a text-only harness that meets
-// a scanned PDF 404s the whole turn without one.
+// The per-turn wrapper arms the sandbox's vision lane for every MANAGED
+// gateway turn that can have one — the in-image tools transcribe images
+// through it whether or not the serving model sees images — and decides
+// separately whether the turn needs the READ polyfill: only a text-only
+// serving model does, since arming it for a model that reads images would
+// route them through a second (worse) model for no reason. A text-only
+// harness that meets a scanned PDF 404s the whole turn without a lane.
 describe('resolveTurnVisionModel', () => {
-  it('returns null when the serving model reads images itself', async () => {
+  it('arms the org vision model for the lane, without the polyfill, when the serving model reads images itself', async () => {
     mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'omni-vl', inputPrice: 900 }),
@@ -595,10 +608,53 @@ describe('resolveTurnVisionModel', () => {
         providerSlug: 'alpha',
         modelId: 'omni-vl',
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      model: { providerSlug: 'alpha', modelId: 'cheap-vl', source: 'cheapest' },
+      polyfillReads: false,
+    });
   });
 
-  it('picks the org vision model for a TEXT-ONLY serving model', async () => {
+  it('falls back to the serving model for the lane when nothing else is reachable and it reads images', async () => {
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'omni-vl', inputPrice: 900 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'omni-vl',
+      }),
+    ).resolves.toEqual({
+      model: { providerSlug: 'alpha', modelId: 'omni-vl', source: 'cheapest' },
+      polyfillReads: false,
+    });
+  });
+
+  it('keeps a vision-capable serving model on its own lane when discovery throws', async () => {
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'omni-vl', inputPrice: 900 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    // The serving entry resolves (catalog answers once), then the credential
+    // read behind the org resolution fails.
+    vi.spyOn(ctx, 'runQuery').mockImplementation(async (_ref, args) => {
+      if (args.policyType) return null;
+      throw new Error('private credential path');
+    });
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'alpha',
+        modelId: 'omni-vl',
+      }),
+    ).resolves.toEqual({
+      model: { providerSlug: 'alpha', modelId: 'omni-vl', source: 'serving' },
+      polyfillReads: false,
+    });
+  });
+
+  it('picks the org vision model and the polyfill for a TEXT-ONLY serving model', async () => {
     mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'text-only', vision: false, inputPrice: 1 }),
@@ -611,13 +667,12 @@ describe('resolveTurnVisionModel', () => {
         modelId: 'text-only',
       }),
     ).resolves.toEqual({
-      providerSlug: 'alpha',
-      modelId: 'cheap-vl',
-      source: 'cheapest',
+      model: { providerSlug: 'alpha', modelId: 'cheap-vl', source: 'cheapest' },
+      polyfillReads: true,
     });
   });
 
-  it('resolves a vision model when the serving model is not in the catalog', async () => {
+  it('resolves a vision model with the polyfill when the serving model is not in the catalog', async () => {
     // A model served by a credential allowlist but absent from the fetched
     // catalog must not be assumed vision-capable.
     mockProviders([provider('alpha')]);
@@ -629,13 +684,12 @@ describe('resolveTurnVisionModel', () => {
         modelId: 'mystery-model',
       }),
     ).resolves.toEqual({
-      providerSlug: 'alpha',
-      modelId: 'cheap-vl',
-      source: 'cheapest',
+      model: { providerSlug: 'alpha', modelId: 'cheap-vl', source: 'cheapest' },
+      polyfillReads: true,
     });
   });
 
-  it('degrades to null (turn runs text-only) when resolution throws', async () => {
+  it('degrades to null (turn runs text-only) when resolution throws for a text-only serving model', async () => {
     mockedResolveProviders.mockRejectedValue(new Error('catalog down'));
     const ctx = fakeCtx({});
     await expect(

@@ -453,7 +453,12 @@ interface PreparedServing {
   allowedModels: string[];
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
+  /** The gateway model of the sandbox's vision lane (`tale-vision`,
+   * `tale-vision-transcribe`), when one resolved. */
   visionModelRef?: string;
+  /** The serving model cannot see images: the harness polyfills its own
+   * image and PDF reads through `visionModelRef` (text-only serving). */
+  visionPolyfillReads?: boolean;
   /** sha256 of the vended broker pool token (subscription-broker only) —
    * stamped on the run row so a retry's vend can exclude it. */
   brokerTokenHash?: string;
@@ -500,11 +505,12 @@ async function mintTurnServing(
       target.modelId,
       { anthropicHarnessLane },
     );
-    // A text-only serving model still meets image inputs (task attachments,
-    // scanned PDFs) — arm the vision polyfill so those route through the
-    // gateway instead of 404ing the turn. Resolved once: the harness needs
-    // it to route image reads, and the op row records it so the run's
-    // viewers can see which model did the reading after the fact.
+    // Every gateway turn gets the org's vision model for the sandbox's vision
+    // lane; a text-only serving model additionally has its own image reads
+    // (task attachments, scanned PDFs) polyfilled through it instead of
+    // 404ing the turn. Resolved once: the harness needs it, and — when it
+    // polyfills — the op row records it so the run's viewers can see which
+    // model did the reading after the fact.
     const vision = await resolveTurnVisionModel(
       ctx,
       args.organizationId,
@@ -514,8 +520,8 @@ async function mintTurnServing(
       vision !== null
         ? resolveGatewayRouting(
             args.organizationId,
-            vision.providerSlug,
-            vision.modelId,
+            vision.model.providerSlug,
+            vision.model.modelId,
           ).gatewayModel
         : undefined;
     // The org's spend cap sizes the key: the deployment default, capped by
@@ -542,7 +548,7 @@ async function mintTurnServing(
     const key = await provisionSessionGatewayKey(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
-      allowedModels: [target, ...(vision !== null ? [vision] : [])],
+      allowedModels: [target, ...(vision !== null ? [vision.model] : [])],
       budgetCents,
     });
     return {
@@ -554,6 +560,7 @@ async function mintTurnServing(
       allowedModels: [routing.gatewayModel],
       budgetCents,
       ...(visionModelRef !== undefined ? { visionModelRef } : {}),
+      ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
     };
   }
   const credential = await resolveProviderCredential(ctx, {
@@ -1008,7 +1015,12 @@ export async function startTaskAgentTurnImpl(
         bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
         ...(prepared.visionModelRef !== undefined
-          ? { vision: { model: prepared.visionModelRef } }
+          ? {
+              vision: {
+                model: prepared.visionModelRef,
+                polyfillReads: prepared.visionPolyfillReads === true,
+              },
+            }
           : {}),
       };
       const freshPrompt = (): string => {
@@ -1044,7 +1056,9 @@ export async function startTaskAgentTurnImpl(
         ctx,
         args,
         'task-agent',
-        prepared.visionModelRef,
+        prepared.visionPolyfillReads === true
+          ? prepared.visionModelRef
+          : undefined,
       );
       let window = await drainHarnessWindow({
         sessionId: args.sessionId,
@@ -2099,7 +2113,12 @@ export async function steerTaskAgentTurnImpl(
       bridgeUrl: connectorsBridgeUrlForSessions(),
       ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       ...(prepared.visionModelRef !== undefined
-        ? { vision: { model: prepared.visionModelRef } }
+        ? {
+            vision: {
+              model: prepared.visionModelRef,
+              polyfillReads: prepared.visionPolyfillReads === true,
+            },
+          }
         : {}),
     });
 

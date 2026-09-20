@@ -774,7 +774,10 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //   ${workdir}          the session working directory
 //   ${execId}           the platform exec id of the turn
 //   ${prompt}           the turn prompt
-//   ${vision.model}     the vision-polyfill transcription model
+//   ${vision.model}     the vision lane's gateway model (the in-image
+//                       tale-vision tools call it)
+//   ${vision.polyfill}  '1' when the harness must polyfill the serving
+//                       model's own image reads (text-only), else ''
 //   ${bridgeUrl}        the capability-dispatch bridge base URL
 //
 // Substitution is SINGLE-PASS and closed over that set: replacement values
@@ -1092,7 +1095,7 @@ const execStdinSchema = z.discriminatedUnion('mode', [
  * `envDocs` assembles config documents into env variables (opencode);
  * `stagedInstructions` stages the composed addendum as a per-exec file
  * (`${execId}` falls back to `default` in its path); `vision.env` applies
- * on managed runs with the vision polyfill armed; `steering.env` applies
+ * on managed runs that resolved a vision lane model; `steering.env` applies
  * when the turn has an exec id (the per-exec steer queue dir);
  * `contextWindow.below` gates `${model.contextWindow}` to windows below the
  * one the CLI assumes on its own, so a larger known window leaves the CLI's

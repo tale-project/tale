@@ -33,7 +33,7 @@ Après un changement, teste les deux cas pour le membre concerné : un modèle a
 
 ## Choisir le modèle qui lit les images
 
-Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images n’utilise pas ce recours.
+Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images les lit lui-même ; le modèle de vision sert encore les outils d’image que les scripts et agents de code appellent dans leur bac à sable, comme la transcription par lots de pages scannées. Chaque agent géré en reçoit donc un dès qu’un modèle accessible existe.
 
 Laisse la sélection du modèle de lecture sur automatique pour suivre le catalogue disponible. Tale préfère un modèle de vision recommandé, puis une option accessible peu coûteuse. Le texte sous la sélection indique le choix actuel et sa raison.
 

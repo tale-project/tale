@@ -207,7 +207,7 @@ interface Substitutions {
  * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
  * `$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
 
 /** `${model.contextWindow}`: the spec's window as a whole, positive token
  * count — below the exec's declared gate, when it declares one — else ''. */
@@ -367,6 +367,15 @@ export function buildHarnessExec(
     execId: spec.execId,
     prompt: spec.prompt,
     'vision.model': spec.vision?.model,
+    // '1' when the harness must polyfill the serving model's own image
+    // reads, '' when the lane serves the in-sandbox tools alone — never
+    // absent once a vision lane exists, so `vision.env` may reference it.
+    'vision.polyfill':
+      spec.vision === undefined
+        ? undefined
+        : spec.vision.polyfillReads
+          ? '1'
+          : '',
     bridgeUrl: spec.mcp?.bridgeUrl,
   };
 
@@ -396,7 +405,9 @@ export function buildHarnessExec(
     if (spec.mcp?.browser) {
       const args = [
         ...PLAYWRIGHT_MCP_ARGS,
-        ...(visionOmitsImages && spec.vision ? PLAYWRIGHT_VISION_ARGS : []),
+        ...(visionOmitsImages && spec.vision?.polyfillReads === true
+          ? PLAYWRIGHT_VISION_ARGS
+          : []),
       ];
       servers.playwright =
         serverShape === 'command-args'

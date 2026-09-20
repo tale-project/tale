@@ -230,6 +230,23 @@ managed-vision:
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
   stdinMode: close
+managed-vision-lane:
+  argv:
+    - tale-hermes-run
+    - --workdir
+    - /agent/workspace
+    - --max-turns
+    - '200'
+  env:
+    HERMES_ACCEPT_HOOKS: '1'
+    HERMES_HOME: /agent/.runtime/home/.hermes
+    HERMES_YOLO_MODE: '1'
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /agent/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login test"}'
+  stdinMode: close
 managed-steer:
   argv:
     - tale-hermes-run

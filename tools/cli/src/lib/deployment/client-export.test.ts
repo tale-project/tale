@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import {
   chmodSync,
   cpSync,
@@ -41,6 +41,11 @@ import {
   runtimeFixture,
   type RuntimeFixture,
 } from './runtime-test-helper';
+
+// Tests here build the git runtime fixture (four git spawns per build);
+// Windows CI runners stall on git for seconds at a time, and the 5 s
+// default killed a passing test mid-commit.
+setDefaultTimeout(30_000);
 
 const fixtures: RuntimeFixture[] = [];
 afterEach(() => {
