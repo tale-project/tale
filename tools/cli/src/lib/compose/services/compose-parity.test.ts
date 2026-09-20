@@ -571,15 +571,29 @@ describe('release artifact identity', () => {
   type Step = {
     name?: string;
     id?: string;
+    if?: string;
     run?: string;
     uses?: string;
     env?: Record<string, string>;
-    with?: Record<string, string>;
+    with?: Record<string, string | boolean>;
   };
   const workflow = (name: string) =>
     parse(
       readFileSync(resolve(repoRoot, `.github/workflows/${name}.yml`), 'utf8'),
-    ) as { jobs: Record<string, { steps: Step[] }> };
+    ) as {
+      jobs: Record<
+        string,
+        {
+          steps: Step[];
+          needs?: string[];
+          strategy?: {
+            matrix: {
+              arch: { name: string; platform: string; runner: string }[];
+            };
+          };
+        }
+      >;
+    };
   const release = workflow('release');
   const cli = workflow('cli');
   const build = workflow('build');
@@ -696,6 +710,138 @@ describe('release artifact identity', () => {
         expect.stringMatching(/^services\/platform\/tests\/integration\//),
       ]);
     }
+  });
+
+  const documentStep = () => {
+    const step = release.jobs.build!.steps.find(
+      (entry) => entry.name === 'Verify native document tools',
+    );
+    if (!step?.run) throw new Error('Native document release gate is missing');
+    return step;
+  };
+  const documentDigest = `sha256:${'a'.repeat(64)}`;
+  const documentImage = (arch: string) =>
+    `ghcr.io/synthetic/tale/tale-sandbox-runtime:0.5.44-${arch}@${documentDigest}`;
+  const runDocumentGate = (
+    arch: string,
+    overrides: Record<string, string> = {},
+  ) =>
+    shell(
+      String.raw`
+        docker() {
+          case "$1 $2" in
+            'pull --platform')
+              test "$3" = "$DOCUMENT_PLATFORM"
+              test "$4" = "$DOCUMENT_IMAGE"
+              printf 'PULL %s %s\n' "$3" "$4"
+              return "$PULL_EXIT"
+              ;;
+            'image inspect')
+              test "$5" = "$DOCUMENT_IMAGE"
+              case "$4" in
+                *image.revision*) printf '%s\n' "$ACTUAL_REVISION" ;;
+                *image.version*) printf '%s\n' "$ACTUAL_VERSION" ;;
+                *image.source*) printf '%s\n' "$ACTUAL_SOURCE" ;;
+                *) return 90 ;;
+              esac
+              ;;
+            *) return 91 ;;
+          esac
+        }
+        bun() {
+          test "$1" = '-e'
+          printf 'CHECK %s %s %s\n' "$DOCUMENT_UID" "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
+          if test "$DOCUMENT_UID" = "$FAIL_UID"; then return 92; fi
+        }
+      ` + documentStep().run,
+      {
+        DOCUMENT_IMAGE: documentImage(arch),
+        DOCUMENT_PLATFORM: `linux/${arch}`,
+        DOCUMENT_REVISION: 'b'.repeat(40),
+        DOCUMENT_VERSION: '0.5.44',
+        DOCUMENT_SOURCE: 'https://github.com/synthetic/tale',
+        ACTUAL_REVISION: 'b'.repeat(40),
+        ACTUAL_VERSION: '0.5.44',
+        ACTUAL_SOURCE: 'https://github.com/synthetic/tale',
+        PULL_EXIT: '0',
+        FAIL_UID: '',
+        ...overrides,
+      },
+    );
+
+  test('native document conformance gates both release manifests on built bytes', () => {
+    const job = release.jobs.build!;
+    const step = documentStep();
+    const image = job.steps.find((entry) => entry.name === 'Build and push')!;
+    const setup = job.steps.find(
+      (entry) => entry.name === 'Setup Bun for document checks',
+    )!;
+    expect(job.strategy?.matrix.arch).toEqual([
+      { name: 'amd64', runner: 'ubuntu-latest', platform: 'linux/amd64' },
+      { name: 'arm64', runner: 'ubuntu-24.04-arm', platform: 'linux/arm64' },
+    ]);
+    expect(image.id).toBe('image');
+    expect(image.with?.push).toBe(true);
+    expect(step.env).toEqual({
+      DOCUMENT_IMAGE:
+        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}',
+      DOCUMENT_PLATFORM: '${{ matrix.arch.platform }}',
+      DOCUMENT_REVISION: '${{ steps.meta.outputs.revision }}',
+      DOCUMENT_VERSION: '${{ needs.prepare.outputs.version_number }}',
+      DOCUMENT_SOURCE: '${{ github.server_url }}/${{ github.repository }}',
+    });
+    expect(setup.uses).toBe(
+      'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6',
+    );
+    expect(setup.with?.['bun-version']).toBe('1.4.2');
+    expect(step.if).toBe("matrix.service.name == 'sandbox-runtime'");
+    expect(setup.if).toBe(step.if);
+    expect(job.steps.indexOf(image)).toBeLessThan(job.steps.indexOf(setup));
+    expect(job.steps.indexOf(setup)).toBeLessThan(job.steps.indexOf(step));
+    expect(release.jobs.manifest!.needs).toContain('build');
+    expect(releaseMatrix(true)).not.toContain('sandbox-runtime');
+    expect(step.run).toContain(
+      'import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts"',
+    );
+    expect(step.run).toContain('checkDocumentTools(image, uid, platform)');
+    expect(step.run).toContain('if (result.exitCode !== 0)');
+    expect(step.run).toContain('throw new Error(result.combined)');
+  });
+
+  test.each(['amd64', 'arm64'])(
+    'native %s document gate executes both session users against the immutable image',
+    (arch) => {
+      const result = runDocumentGate(arch);
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim().split('\n')).toEqual([
+        `PULL linux/${arch} ${documentImage(arch)}`,
+        `CHECK 65534 linux/${arch} ${documentImage(arch)}`,
+        `CHECK 10001 linux/${arch} ${documentImage(arch)}`,
+      ]);
+    },
+  );
+
+  test.each(['65534', '10001'])(
+    'native document gate fails if session user %s fails',
+    (uid) => {
+      const result = runDocumentGate('arm64', { FAIL_UID: uid });
+      expect(result.status).toBe(92);
+      expect(result.stdout).toContain(`CHECK ${uid} `);
+      if (uid === '65534') expect(result.stdout).not.toContain('CHECK 10001 ');
+    },
+  );
+
+  test.each([
+    ['DOCUMENT_IMAGE', 'ghcr.io/synthetic/tale/tale-sandbox-runtime:latest'],
+    ['DOCUMENT_PLATFORM', 'linux/unknown'],
+    ['PULL_EXIT', '93'],
+    ['ACTUAL_REVISION', 'c'.repeat(40)],
+    ['ACTUAL_VERSION', '0.5.43'],
+    ['ACTUAL_SOURCE', 'https://github.com/another/tale'],
+  ])('native document gate refuses unverified %s=%s', (key, value) => {
+    const result = runDocumentGate('amd64', { [key]: value });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).not.toContain('CHECK ');
   });
 
   test('release dispatch pins the CLI workflow to the same release tag', () => {

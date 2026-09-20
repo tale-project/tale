@@ -33,8 +33,11 @@ packages during a run. Existing per-session dependencies remain on the Python
 path, and application-specific bootstrap checks can stay as a fallback.
 `container-image-test.ts` verifies the baked lock bytes, exact versions and
 installed file hashes, then exercises synthetic PDF/XLSX/XLS/YAML/XML documents
-as both session users with networking disabled and a read-only root. This gate
-runs on both architectures' published release images before their manifests.
+as both session users with networking disabled and a read-only root. The release's
+shared container gate runs on amd64. Each native amd64/arm64 runtime build also
+runs this document check for both users against its pushed image digest, after
+verifying the source, revision and version labels. Both builds must pass before
+the release manifests are published.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
