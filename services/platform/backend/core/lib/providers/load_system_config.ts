@@ -233,6 +233,10 @@ const catalogDirCache = new Map<
 
 const harnessParseCache = new Map<string, CachedParse<HarnessDefinition>>();
 const harnessDirCache = new Map<string, CachedDir<HarnessDefinition>>();
+const harnessVariantCache = new WeakMap<
+  readonly HarnessDefinition[],
+  readonly HarnessDefinition[]
+>();
 
 /** Load the shipped providers (`providers/<name>/provider.yml`). */
 export function loadProviderDefinitions(
@@ -291,11 +295,13 @@ export function loadStaticCatalogs(
   );
 }
 
-/** Load the shipped harness providers (`harnesses/<slug>/harness.yml`). */
+/** Load base harness files and their explicit env-only variants. Expansion
+ * is cached by the loader's stable source-array identity; a changed base
+ * file invalidates its variants too. Every returned identity is unique. */
 export function loadHarnesses(
   options: LoadSystemConfigOptions = {},
 ): readonly HarnessDefinition[] {
-  return loadDir(
+  const definitions = loadDir(
     resolveRoot(options),
     'harnesses',
     'harness.yml',
@@ -312,6 +318,39 @@ export function loadHarnesses(
       return harness;
     },
   );
+  const cached = harnessVariantCache.get(definitions);
+  if (cached) return cached;
+  const facts: HarnessDefinition[] = [];
+  const slugs = new Set<string>();
+  const add = (fact: HarnessDefinition) => {
+    if (slugs.has(fact.slug)) {
+      throw new Error(`[providers] duplicate harness slug "${fact.slug}"`);
+    }
+    slugs.add(fact.slug);
+    facts.push(fact);
+  };
+  for (const definition of definitions) {
+    const { variants, ...base } = definition;
+    add(base);
+    for (const variant of variants ?? []) {
+      add(
+        harnessDefinitionSchema.parse({
+          ...base,
+          slug: variant.slug,
+          displayName: variant.displayName,
+          exec: {
+            ...base.exec,
+            env: {
+              ...base.exec.env,
+              base: { ...base.exec.env?.base, ...variant.env.base },
+            },
+          },
+        }),
+      );
+    }
+  }
+  harnessVariantCache.set(definitions, facts);
+  return facts;
 }
 
 /**

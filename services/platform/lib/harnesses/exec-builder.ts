@@ -658,7 +658,9 @@ export function buildHarnessExec(
   // tool definitions its template renders first — at any context size). An
   // explicit '0' drops the line (2.1.173); Claude models keep it, and the
   // subscription lane only ever serves Claude.
-  if (fact.slug === 'claude-code' && !isClaudeModelRef(spec.model)) {
+  // Env-only variants run the same CLI and need the same adaptations.
+  // The parser family alone is not enough: Qwen shares its JSON dialect.
+  if (exec.bin === 'claude' && !isClaudeModelRef(spec.model)) {
     env.CLAUDE_CODE_DISABLE_THINKING = '1';
     env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';
     env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';

@@ -1165,6 +1165,25 @@ function argvSlotKind(slot: Record<string, unknown>): string {
   return Object.keys(slot)[0] ?? '';
 }
 
+/** A named opt-in to different base env values on the SAME executable.
+ * Nested under its owning fact: no cross-file inheritance, chains, command,
+ * parser, credential-policy or tool overrides. The loader shallowly merges
+ * env.base and validates the resulting full definition again. */
+const harnessVariantSchema = z
+  .object({
+    slug: slugSchema,
+    displayName: displayNameSchema,
+    env: z
+      .object({
+        base: envTemplateMapSchema.refine(
+          (values) => Object.keys(values).length > 0,
+          { message: 'a harness variant needs at least one env.base override' },
+        ),
+      })
+      .strict(),
+  })
+  .strict();
+
 /** The shape of one `configs/platform/system/harnesses/<slug>/harness.yml`. */
 export const harnessDefinitionSchema = z
   .object({
@@ -1210,6 +1229,8 @@ export const harnessDefinitionSchema = z
     /** Subscription-key delivery, for harnesses a subscription credential
      * can force (absent = no subscription path). */
     subscription: harnessSubscriptionSchema.optional(),
+    /** Additional explicit harness choices inheriting this complete fact. */
+    variants: z.array(harnessVariantSchema).min(1).max(16).optional(),
   })
   .strict()
   .superRefine((provider, ctx) => {
@@ -1218,6 +1239,13 @@ export const harnessDefinitionSchema = z
     // behavior-probing registry validator.
     const issue = (message: string) =>
       ctx.addIssue({ code: 'custom', message });
+    const slugs = new Set([provider.slug]);
+    for (const variant of provider.variants ?? []) {
+      if (slugs.has(variant.slug)) {
+        issue(`duplicate harness slug "${variant.slug}" in variants`);
+      }
+      slugs.add(variant.slug);
+    }
     const slots = provider.exec.argv;
     const counts = new Map<string, number>();
     for (const slot of slots) {

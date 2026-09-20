@@ -1,5 +1,6 @@
-// The harness registry, config-first: a harness IS its fact file
-// (`configs/platform/system/harnesses/<slug>/harness.yml`). `composeHarnessGlue`
+// The harness registry, config-first: a harness is a resolved base fact or
+// its explicit env-only variant from configs/platform/system/harnesses/.
+// `composeHarnessGlue`
 // turns one validated fact into the `HarnessGlue` surface — `buildExec` is
 // the generic interpreter (`exec-builder.ts`) bound to the fact's `exec`
 // section, `createParser` the slug-bound parser family named by its `parser`
@@ -10,7 +11,7 @@
 //    capabilities/transport must match the exec facts — the schema's
 //    superRefine replaced the old behavior-probing validator);
 //  - `validateHarnessFacts` holds the SET coherent with `HARNESS_SLUGS`
-//    (every shipped slug has exactly one fact and vice versa);
+//    (every shipped slug has exactly one resolved fact and vice versa);
 //  - the golden exec fixtures + interpreter tests pin what the composed
 //    glue actually builds.
 //
@@ -57,7 +58,7 @@ export function composeHarnessGlue(fact: HarnessDefinition): HarnessGlue {
 /**
  * The glue for a shipped harness slug, composed from the loaded YAML facts.
  * The caller passes the facts in (the registry stays pure); a slug without a
- * fact is a packaging defect and throws.
+ * resolved fact is a packaging defect and throws.
  */
 export function getHarnessGlue(
   slug: HarnessSlug,

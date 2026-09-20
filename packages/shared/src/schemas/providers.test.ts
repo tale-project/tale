@@ -825,3 +825,53 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 });
+
+describe('harness environment variants', () => {
+  const variant = {
+    slug: 'claude-code-compact',
+    displayName: 'Claude Code (compact prompt)',
+    env: { base: { CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1' } },
+  };
+  const parse = (variants: unknown) =>
+    harnessDefinitionSchema.safeParse({ ...VALID_HARNESS, variants });
+
+  it('accepts a named variant with only a base environment override', () => {
+    expect(parse([variant]).success).toBe(true);
+  });
+
+  it.each([
+    { base: 'missing-harness' },
+    { extends: 'missing-harness' },
+    { command: 'other-binary' },
+    { parser: 'codex-jsonl' },
+    { tools: [] },
+    { exec: { bin: 'other-binary' } },
+    { capabilities: { mcp: false } },
+    { credentialPolicy: { managed: false, byo: true } },
+    { variants: [] },
+  ])('rejects undeclared variant override fields %j', (extra) => {
+    expect(parse([{ ...variant, ...extra }]).success).toBe(false);
+  });
+
+  it.each([
+    {},
+    { base: {} },
+    { base: { 'invalid-name': '1' } },
+    { base: { TEST_FLAG: true } },
+    { base: { TEST_FLAG: { nested: 'value' } } },
+    { base: { TEST_FLAG: '1' }, managed: { TEST_FLAG: '0' } },
+    { base: { TEST_FLAG: '1' }, extra: 'value' },
+  ])('rejects invalid or non-base environment overlays %j', (env) => {
+    expect(parse([{ ...variant, env }]).success).toBe(false);
+  });
+
+  it('rejects empty, duplicate and self-shadowing variant identities', () => {
+    expect(parse([]).success).toBe(false);
+    expect(parse([{ ...variant, slug: '' }]).success).toBe(false);
+    expect(parse([{ ...variant, displayName: '' }]).success).toBe(false);
+    expect(parse([variant, variant]).success).toBe(false);
+    expect(parse([{ ...variant, slug: VALID_HARNESS.slug }]).success).toBe(
+      false,
+    );
+  });
+});
