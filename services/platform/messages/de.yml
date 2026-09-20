@@ -332,6 +332,8 @@ analytics:
       tool_failure: Tool-Fehler
       provider_unreachable: Anbieter nicht erreichbar
       provider_error: Anbieterfehler
+      thread_busy: Chat belegt
+      budget_exceeded: Nutzungslimit erreicht
       generic: Sonstige
     errorBreakdown:
       title: Fehler

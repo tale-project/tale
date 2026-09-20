@@ -12,21 +12,25 @@ const fixtures = vi.hoisted(() => ({
   health: {
     summary: {
       totalTurns: 25,
-      errorCount: 2,
-      errorRate: 0.08,
+      errorCount: 4,
+      errorRate: 0.16,
       blockedCount: 1,
       blockedRate: 0.04,
       tokens: { input: 1000, output: 400, total: 1400 },
       capped: false,
       hasAnyData: true,
     },
-    series: [{ dateKey: '2026-07-23', turns: 25, errors: 2, blocked: 1 }],
+    series: [{ dateKey: '2026-07-23', turns: 25, errors: 4, blocked: 1 }],
     byModel: [{ provider: 'openai', model: 'gpt-4o', count: 20 }],
     byAgent: [
       { agentSlug: 'helper', count: 15 },
       { agentSlug: '__unattributed__', count: 10 },
     ],
-    errorsByType: [{ key: 'rate_limited', count: 2 }],
+    errorsByType: [
+      { key: 'rate_limited', count: 2 },
+      { key: 'budget_exceeded', count: 1 },
+      { key: 'thread_busy', count: 1 },
+    ],
     recentErrors: [
       {
         at: Date.now(),
@@ -79,15 +83,21 @@ describe('ChatHealthMetricsPage', () => {
     expect(screen.getByText('Assistant turns')).toBeInTheDocument();
     expect(screen.getByText('Error rate')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
-    expect(screen.getByText('8%')).toBeInTheDocument();
+    expect(screen.getByText('16%')).toBeInTheDocument();
 
     // Model/agent breakdown rows (both also appear in the recent-errors list).
     expect(screen.getAllByText('gpt-4o').length).toBeGreaterThan(0);
     expect(screen.getAllByText('helper').length).toBeGreaterThan(0);
     expect(screen.getByText('Unattributed')).toBeInTheDocument();
 
-    // Errors section: classified type label + the recent-errors list.
+    // Errors section: classified type labels + the recent-errors list.
+    // Every `CHAT_ERROR_CODES` entry needs its own
+    // `chatHealth.errorType.<code>` label; the platform's own buckets
+    // (`budget_exceeded`, `thread_busy`) shipped without one and printed
+    // the raw key here.
     expect(screen.getAllByText('Rate limited').length).toBeGreaterThan(0);
+    expect(screen.getByText('Usage limit reached')).toBeInTheDocument();
+    expect(screen.getByText('Chat busy')).toBeInTheDocument();
     expect(screen.getByText('Recent errors')).toBeInTheDocument();
 
     // Guardrails section: kind/filter labels reuse the guardrails-overview

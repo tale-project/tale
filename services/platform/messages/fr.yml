@@ -334,6 +334,8 @@ analytics:
       tool_failure: Échec d'outil
       provider_unreachable: Fournisseur injoignable
       provider_error: Erreur du fournisseur
+      thread_busy: Chat occupé
+      budget_exceeded: Limite d'utilisation atteinte
       generic: Autre
     errorBreakdown:
       title: Erreurs

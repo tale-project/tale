@@ -318,6 +318,8 @@ analytics:
       tool_failure: Tool failure
       provider_unreachable: Provider unreachable
       provider_error: Provider error
+      thread_busy: Chat busy
+      budget_exceeded: Usage limit reached
       generic: Other
     errorBreakdown:
       title: Errors
