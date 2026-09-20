@@ -13,7 +13,7 @@
  * An absent or empty provider reads as 'upload', matching the document view
  * (`backend/domains/documents/view.ts` defaults `sourceProvider` to 'upload').
  */
-export const AUTHORED_SOURCE_PROVIDERS: ReadonlySet<string> = new Set([
+const AUTHORED_SOURCE_PROVIDERS: ReadonlySet<string> = new Set([
   'upload',
   'agent',
 ]);
