@@ -291,6 +291,15 @@ RUN set -eux; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
 
+# Generic document libraries are ready in both session profiles without a
+# first-run download. Hashes cover the complete Python 3.12 dependency graph
+# and both supported Linux architectures; binary-only refuses source builds.
+# Install before Hermes, whose PyYAML pin is the same, so these bytes are
+# checked on their first install. The vision tool keeps its isolated venv.
+COPY services/sandbox-runtime/document-python-requirements.txt /opt/tale/document-python-requirements.txt
+RUN python3 -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
+      -r /opt/tale/document-python-requirements.txt
+
 # Hermes Agent (pinned PyPI wheel) + Tale NDJSON wrapper for sandbox runs.
 RUN pip install --no-cache-dir "hermes-agent==${HERMES_AGENT_VERSION}" \
     && hermes --version

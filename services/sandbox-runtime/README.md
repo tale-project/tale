@@ -18,6 +18,24 @@ browser or viewing tunnel. Configured transparent egress redirects external
 network access through `@tale/sandbox-egress`; Playwright MCP also receives
 the proxy settings through its launcher.
 
+Python document libraries are baked into the shared Python 3.12 environment:
+openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML
+parsing, and xmlschema for XSD validation. defusedxml enables openpyxl's XML
+entity protection. The complete version and wheel-hash lock is
+[`document-python-requirements.txt`](document-python-requirements.txt), including
+the transitive libraries and Linux amd64/arm64 wheels. Image builds require
+those hashes and refuse source distributions. Keep PyYAML compatible with the
+Hermes pin when updating the lock; the vision tool's isolated Pillow environment
+is separate.
+
+Both default and agent sessions can import these libraries without installing
+packages during a run. Existing per-session dependencies remain on the Python
+path, and application-specific bootstrap checks can stay as a fallback.
+`container-image-test.ts` verifies the baked lock bytes, exact versions and
+installed file hashes, then exercises synthetic PDF/XLSX/XLS/YAML/XML documents
+as both session users with networking disabled and a read-only root. This gate
+runs on both architectures' published release images before their manifests.
+
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
 proxy/gateway addresses configured at container startup, and any planned Docker

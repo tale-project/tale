@@ -3,7 +3,7 @@
 // Tale — Container Image Validation Tests
 // =============================================================================
 // Validates built Docker images for security, compliance, and size budgets.
-// Does NOT require running containers — inspects images only.
+// Inspects images and exercises baked document tools in isolated offline containers.
 //
 // Usage:
 //   bun tests/container-image-test.ts
@@ -20,6 +20,7 @@ import {
   imageExists,
   imageSizeMb,
 } from './lib/docker';
+import { checkDocumentTools } from './lib/document-tools';
 import { capture, projectRoot, stream } from './lib/exec';
 import { BOLD, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
 
@@ -191,6 +192,25 @@ async function main(): Promise<number> {
         else r.fail(`${svc}: runtime image must not run as root`);
         break;
     }
+  }
+
+  header('Checking offline document tools');
+  const runtimeImage = images.get('sandbox-runtime');
+  if (runtimeImage) {
+    for (const uid of [65534, 10001] as const) {
+      const result = await checkDocumentTools(runtimeImage, uid);
+      if (result.exitCode === 0) {
+        r.pass(
+          `sandbox-runtime: pinned document tools work offline as uid ${uid}`,
+        );
+      } else {
+        r.fail(
+          `sandbox-runtime: document tools failed as uid ${uid}: ${result.combined.slice(-1200)}`,
+        );
+      }
+    }
+  } else {
+    r.fail('sandbox-runtime: image missing for document tool checks');
   }
 
   // 3. No secrets baked in
