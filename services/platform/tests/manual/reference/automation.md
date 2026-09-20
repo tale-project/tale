@@ -415,6 +415,9 @@ terminator.
   leaves the stack in its end state.
 - **The vitest lanes (`test`, `test:ui`, `test:browser`) boot and tear down
   their own stack**, so they are safe beside a round.
+| [automations](../suites/automations.md) / [tasks](../suites/tasks.md) | A managed agent turn that the gateway refuses mid-turn with 402 (its key's budget, sized from the org spend cap, is spent) settles as `budget_exceeded` with a reason naming the exhausted allowance, and neither lane's auto-retry resumes it. | ✅ automated | `backend/core/automations/agent_host.retry_resume.test.ts`, `backend/core/tasks/agent_run_host.budget_exceeded.test.ts`, `backend/core/chat/external_turn_shared.test.ts` |
+| [settings](../suites/settings.md) / [governance](../suites/governance.md) | Model pricing pushed to the sandbox LLM gateway carries the catalog's prompt-cache hit and write prices, so a cached token bills at the vendor's hit rate (DeepSeek 2%, Anthropic/OpenAI/Kimi 10%…) instead of the input rate; the chat lane's own estimate prices reported cache hits the same way; every static catalog prices a hit at or below its input rate. | ✅ automated | `packages/shared/src/schemas/providers.test.ts`, `lib/shared/providers/catalog_normalize.test.ts`, `backend/core/node_only/sandbox/llm_gateway_admin.test.ts`, `backend/core/node_only/sandbox/gateway_provisioning.test.ts`, `lib/chat/turn.test.ts`, `backend/domains/chat/store.test.ts`, `backend/core/lib/providers/load_system_config.test.ts` |
+| [settings](../suites/settings.md) | Turn settlement reads the virtual key's LIVE spend (`from_memory=true`, what the gateway's own budget gate meters) and falls back to the stored row only when the live index lacks the key, so the last calls of a turn are booked instead of lost to the gateway's dump interval. | ✅ automated | `backend/core/node_only/sandbox/llm_gateway_admin.test.ts` |
 
 ## Moving a box here
 
