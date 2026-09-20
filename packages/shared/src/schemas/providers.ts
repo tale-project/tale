@@ -514,11 +514,19 @@ export const modelCatalogEntrySchema = z
      * kinds still require a positive window (validated below). */
     contextWindow: z.number().int().nonnegative().default(0),
     maxOutputTokens: z.number().int().positive().optional(),
-    /** Omitted when the source publishes no reliable price. */
+    /** Omitted when the source publishes no reliable price. The cache pair
+     * is what the vendor charges a prompt-cache HIT (`cacheRead`) and a
+     * cache WRITE (`cacheWrite`) per million tokens — absent, a cached token
+     * bills at the plain input rate, which overstates every vendor that
+     * discounts hits (DeepSeek 2%, Anthropic 10%, OpenAI 10%, Kimi 10%…).
+     * No cross-field refine: a live listing's odd cache figure must never
+     * drop the model from the catalog. */
     pricing: z
       .object({
         inputCentsPerMillion: z.number().nonnegative().finite(),
         outputCentsPerMillion: z.number().nonnegative().finite(),
+        cacheReadCentsPerMillion: z.number().nonnegative().finite().optional(),
+        cacheWriteCentsPerMillion: z.number().nonnegative().finite().optional(),
       })
       .strict()
       .optional(),

@@ -1331,6 +1331,66 @@ describe('ensureModelPricingOverride', () => {
     expect(pricingCalls(calls)).toHaveLength(2);
   });
 
+  it('carries the catalog cache-hit and cache-write prices in the patch', async () => {
+    // Without them the gateway bills a cached token at the input rate —
+    // a Claude Code turn is mostly cache hits, so a DeepSeek turn billed
+    // ~7× the vendor's invoice. Only the fields the catalog prices ride
+    // along: an absent one leaves the gateway's own figure (or fallback).
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride({
+      ...OVERRIDE,
+      gatewayProvider: 'org_1__deepseek__deepseek-flash__anthropic',
+      modelId: 'deepseek-flash',
+      inputCentsPerMillion: 30,
+      outputCentsPerMillion: 120,
+      cacheReadCentsPerMillion: 0.6,
+      cacheWriteCentsPerMillion: 30,
+    });
+    const [, create] = pricingCalls(calls);
+    expect(create?.body).toMatchObject({
+      pattern: 'deepseek-flash',
+      patch: {
+        input_cost_per_token: 3e-7,
+        output_cost_per_token: 1.2e-6,
+        cache_read_input_token_cost: 6e-9,
+        cache_creation_input_token_cost: 3e-7,
+      },
+    });
+  });
+
+  it('updates an override whose stored patch prices the pair right but lacks the cache-hit price', async () => {
+    // The pre-cache-price override is exactly this shape on every existing
+    // deployment: input/output right, cache absent — it must be rewritten,
+    // not memoized as matching.
+    const calls = stubGateway({
+      pricingOverrides: [
+        {
+          id: 'po-1',
+          name: NAME,
+          pattern: 'glm-5.3-flash',
+          match_type: 'exact',
+          request_types: ['chat_completion', 'responses', 'text_completion'],
+          pricing_patch: JSON.stringify(PATCH),
+        },
+      ],
+    });
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride({
+      ...OVERRIDE,
+      cacheReadCentsPerMillion: 3,
+    });
+    const [, update] = pricingCalls(calls);
+    expect(update).toMatchObject({
+      method: 'PUT',
+      url: expect.stringMatching(/\/api\/governance\/pricing-overrides\/po-1$/),
+      body: {
+        patch: { ...PATCH, cache_read_input_token_cost: 3e-8 },
+      },
+    });
+    expect(pricingCalls(calls)).toHaveLength(2);
+  });
+
   it('updates a stale override in place when the catalog price moved', async () => {
     const calls = stubGateway({
       pricingOverrides: [

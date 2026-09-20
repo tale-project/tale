@@ -378,7 +378,14 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           if (model.maxOutputTokens !== undefined) {
             view.maxOutputTokens = model.maxOutputTokens;
           }
-          if (model.pricing !== undefined) view.pricing = model.pricing;
+          if (model.pricing !== undefined) {
+            // The documented pair only — the catalog's cache prices are
+            // billing inputs, not part of this contract.
+            view.pricing = {
+              inputCentsPerMillion: model.pricing.inputCentsPerMillion,
+              outputCentsPerMillion: model.pricing.outputCentsPerMillion,
+            };
+          }
           if (
             preferred !== undefined &&
             preferred.providerName === model.providerSlug &&

@@ -13,6 +13,10 @@
  *    Vercel AI Gateway): `context_window`, `max_tokens`,
  *    `modalities.{input,output}`, `pricing.{input,output}`, `type`,
  *    `supported_parameters`.
+ *  - Both spell the prompt-cache prices `pricing.input_cache_read` /
+ *    `pricing.input_cache_write` (dollars per token) — read into the entry's
+ *    `cacheRead` / `cacheWrite` cents so the gateway bills a cache hit at
+ *    the vendor's hit price instead of the plain input rate.
  *
  * The capability facts come from the source. The only local inference is the
  * reasoning KNOB — sources report reasoning yes/no but not which wire
@@ -227,6 +231,21 @@ export function normalizeCatalogModel(
   const outputCentsPerMillion = priceToCentsPerMillion(
     pricing?.completion ?? pricing?.output,
   );
+  // Both dialects spell the prompt-cache prices the same way. A hit price
+  // above the plain input price is a listing glitch, not a rate — dropped so
+  // the gateway bills the hit at the input rate rather than above it; the
+  // write price is kept as published (Anthropic-style writes cost MORE than
+  // input by design).
+  const cacheRead = priceToCentsPerMillion(pricing?.input_cache_read);
+  const cacheReadCentsPerMillion =
+    cacheRead !== undefined &&
+    inputCentsPerMillion !== undefined &&
+    cacheRead <= inputCentsPerMillion
+      ? cacheRead
+      : undefined;
+  const cacheWriteCentsPerMillion = priceToCentsPerMillion(
+    pricing?.input_cache_write,
+  );
 
   const candidate: ModelCatalogEntry = {
     id: m.id,
@@ -247,7 +266,16 @@ export function normalizeCatalogModel(
     ...(maxOutputTokens !== undefined && { maxOutputTokens }),
     ...(inputCentsPerMillion !== undefined &&
       outputCentsPerMillion !== undefined && {
-        pricing: { inputCentsPerMillion, outputCentsPerMillion },
+        pricing: {
+          inputCentsPerMillion,
+          outputCentsPerMillion,
+          ...(cacheReadCentsPerMillion !== undefined && {
+            cacheReadCentsPerMillion,
+          }),
+          ...(cacheWriteCentsPerMillion !== undefined && {
+            cacheWriteCentsPerMillion,
+          }),
+        },
       }),
   };
   const parsed = modelCatalogEntrySchema.safeParse(candidate);

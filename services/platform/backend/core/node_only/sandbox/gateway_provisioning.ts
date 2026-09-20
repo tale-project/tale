@@ -186,6 +186,16 @@ async function pushModelPricing(
         modelId: ref.modelId,
         inputCentsPerMillion: pricing.inputCentsPerMillion,
         outputCentsPerMillion: pricing.outputCentsPerMillion,
+        // The cache pair rides along where the catalog prices it: without
+        // it the gateway bills every cache HIT at the input rate — a
+        // Claude Code turn is mostly cache hits, so that overstated a
+        // DeepSeek turn ~7× against the vendor's own invoice.
+        ...(pricing.cacheReadCentsPerMillion !== undefined
+          ? { cacheReadCentsPerMillion: pricing.cacheReadCentsPerMillion }
+          : {}),
+        ...(pricing.cacheWriteCentsPerMillion !== undefined
+          ? { cacheWriteCentsPerMillion: pricing.cacheWriteCentsPerMillion }
+          : {}),
       });
     } catch (err) {
       if (customRecord) {

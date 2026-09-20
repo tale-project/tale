@@ -56,6 +56,14 @@ const PRICED_CATALOG = [
     id: 'z-ai/glm-5.1',
     pricing: { inputCentsPerMillion: 100, outputCentsPerMillion: 200 },
   },
+  {
+    id: 'deepseek/deepseek-flash',
+    pricing: {
+      inputCentsPerMillion: 30,
+      outputCentsPerMillion: 120,
+      cacheReadCentsPerMillion: 0.6,
+    },
+  },
   { id: 'free/model' },
 ];
 
@@ -94,6 +102,22 @@ describe('estimateTurnCostCents', () => {
     await expect(estimateTurnCostCents(sql, ENTRY)).resolves.toBe(200);
     expect(resolveProvidersForOrg).toHaveBeenCalledWith('acme');
     expect(getProviderCatalog).toHaveBeenCalledWith(OPENROUTER);
+  });
+
+  it('prices the reported cache hits at the catalog cache-hit rate', async () => {
+    const { sql } = capturingSql();
+    // 1M input of which 900k were prompt-cache hits, 10k output:
+    // 100k × 30 + 900k × 0.6 + 10k × 120 per million = 4.74 cents — not the
+    // 31.2 the plain pair would book.
+    await expect(
+      estimateTurnCostCents(sql, {
+        ...ENTRY,
+        model: 'deepseek/deepseek-flash',
+        inputTokens: 1_000_000,
+        outputTokens: 10_000,
+        cachedInputTokens: 900_000,
+      }),
+    ).resolves.toBe(4.74);
   });
 
   it('books 0 for a model the catalog does not price, and for an unknown one', async () => {

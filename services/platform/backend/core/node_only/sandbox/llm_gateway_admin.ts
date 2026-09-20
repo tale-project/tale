@@ -534,6 +534,13 @@ export interface ModelPricingOverride {
   modelId: string;
   inputCentsPerMillion: number;
   outputCentsPerMillion: number;
+  /** The vendor's prompt-cache HIT price. Absent ⇒ the gateway bills a
+   * cached token at the input rate (its documented fallback) — right only
+   * for a vendor with no cache discount. */
+  cacheReadCentsPerMillion?: number;
+  /** The vendor's prompt-cache WRITE price (Anthropic-style cache creation).
+   * Absent ⇒ the input rate, which is what most vendors charge a write. */
+  cacheWriteCentsPerMillion?: number;
 }
 
 /** Request kinds a sandbox harness turn bills under (stream variants ride
@@ -574,11 +581,52 @@ interface GatewayPricingOverride {
   pricing_patch?: unknown;
 }
 
-/** Whether the gateway's stored patch already prices at `patch` (its JSON
- * round-trips the floats, so an exact compare is enough). */
+/** The gateway's pricing patch for one model: dollars per token, and only
+ * the fields the catalog prices — the gateway applies a patch field by field
+ * over its datasheet row, so an absent cache price leaves the row's own (or
+ * its input-rate fallback), never a zero. */
+interface GatewayPricingPatch {
+  input_cost_per_token: number;
+  output_cost_per_token: number;
+  cache_read_input_token_cost?: number;
+  cache_creation_input_token_cost?: number;
+}
+
+const PRICING_PATCH_FIELDS = [
+  'input_cost_per_token',
+  'output_cost_per_token',
+  'cache_read_input_token_cost',
+  'cache_creation_input_token_cost',
+] as const satisfies readonly (keyof GatewayPricingPatch)[];
+
+function pricingPatchOf(override: ModelPricingOverride): GatewayPricingPatch {
+  return {
+    input_cost_per_token: dollarsPerToken(override.inputCentsPerMillion),
+    output_cost_per_token: dollarsPerToken(override.outputCentsPerMillion),
+    ...(override.cacheReadCentsPerMillion !== undefined
+      ? {
+          cache_read_input_token_cost: dollarsPerToken(
+            override.cacheReadCentsPerMillion,
+          ),
+        }
+      : {}),
+    ...(override.cacheWriteCentsPerMillion !== undefined
+      ? {
+          cache_creation_input_token_cost: dollarsPerToken(
+            override.cacheWriteCentsPerMillion,
+          ),
+        }
+      : {}),
+  };
+}
+
+/** Whether the gateway's stored patch already prices at `patch` — every
+ * field the catalog prices, and NO cache field the catalog no longer prices
+ * (a stale cache figure would keep billing after the catalog dropped it).
+ * The gateway's JSON round-trips the floats, so an exact compare is enough. */
 function samePricingPatch(
   stored: unknown,
-  patch: { input_cost_per_token: number; output_cost_per_token: number },
+  patch: GatewayPricingPatch,
 ): boolean {
   let parsed: unknown = stored;
   if (typeof stored === 'string') {
@@ -592,8 +640,7 @@ function samePricingPatch(
   }
   return (
     isRecord(parsed) &&
-    parsed.input_cost_per_token === patch.input_cost_per_token &&
-    parsed.output_cost_per_token === patch.output_cost_per_token
+    PRICING_PATCH_FIELDS.every((field) => parsed[field] === patch[field])
   );
 }
 
@@ -656,10 +703,7 @@ export async function ensureModelPricingOverride(
     return;
   }
   const name = pricingOverrideName(override);
-  const patch = {
-    input_cost_per_token: dollarsPerToken(override.inputCentsPerMillion),
-    output_cost_per_token: dollarsPerToken(override.outputCentsPerMillion),
-  };
+  const patch = pricingPatchOf(override);
   const fingerprint = JSON.stringify(patch);
   if (pushedPricingFingerprints.get(name) === fingerprint) return;
 
