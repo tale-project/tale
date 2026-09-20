@@ -7,7 +7,10 @@ import {
   createActionsColumn,
   createSelectColumn,
 } from '@tale/ui/data-table/column-builders';
-import { HStack, Row } from '@tale/ui/layout';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
@@ -38,26 +41,13 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         accessorKey: 'topic',
         header: tEntity('headers.topic'),
         size: 240,
-        meta: {
-          flex: true,
-          skeleton: {
-            type: 'icon-text',
-            icon: <BookOpen className="size-5" />,
-          },
-        },
+        meta: { flex: true, skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
-          <HStack gap={2}>
-            <Row
-              gap={0}
-              justify="center"
-              className="bg-muted size-5 shrink-0 rounded"
-            >
-              <BookOpen className="text-muted-foreground size-3" />
-            </Row>
-            <Text as="span" variant="label" truncate>
-              {row.original.topic}
-            </Text>
-          </HStack>
+          <TableIconCell
+            icon={<BookOpen />}
+            label={row.original.topic}
+            title={row.original.topic}
+          />
         ),
       },
       {
