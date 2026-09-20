@@ -197,6 +197,7 @@ jobs:
         if: needs.prepare.outputs.sites_only != 'true'
         run: |
           export PULL_POLICY=never
+          export SKIP_BUILD=true
           bun services/platform/tests/integration/container-image-test.ts
 
       - name: Run smoke tests
@@ -337,10 +338,13 @@ jobs:
       - name: Dispatch CLI workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
           gh workflow run cli.yml \
-            --repo ${{ github.repository }} \
-            --field release_tag=${{ needs.prepare.outputs.version }}
+            --repo "$REPO" \
+            --ref "$RELEASE_TAG" \
+            --field "release_tag=$RELEASE_TAG"
 
   # ---------------------------------------------------------------------------
   # Final summary for the release.

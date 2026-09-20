@@ -567,6 +567,112 @@ function resolveRelease(source: string, sitesOnly: boolean) {
   }
 }
 
+describe('release artifact identity', () => {
+  type Step = {
+    name?: string;
+    id?: string;
+    run?: string;
+    uses?: string;
+    env?: Record<string, string>;
+    with?: Record<string, string>;
+  };
+  const workflow = (name: string) =>
+    parse(
+      readFileSync(resolve(repoRoot, `.github/workflows/${name}.yml`), 'utf8'),
+    ) as { jobs: Record<string, { steps: Step[] }> };
+  const release = workflow('release');
+  const cli = workflow('cli');
+  const shell = (script: string, env: Record<string, string> = {}) =>
+    spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
+    });
+
+  test('every release container check inspects pulled images without rebuilding', () => {
+    const steps = release.jobs['container-test']!.steps.filter((step) =>
+      step.run?.includes('bun services/platform/tests/integration/'),
+    );
+    expect(steps).toHaveLength(5);
+    for (const step of steps) {
+      const result = shell(
+        'bun() { printf "%s\\n" "$SKIP_BUILD" "$PULL_POLICY" "$*"; };\n' +
+          step.run,
+        step.env,
+      );
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim().split('\n')).toEqual([
+        'true',
+        'never',
+        expect.stringMatching(/^services\/platform\/tests\/integration\//),
+      ]);
+    }
+  });
+
+  test('release dispatch pins the CLI workflow to the same release tag', () => {
+    const step = release.jobs['trigger-cli']!.steps.find(
+      (entry) => entry.name === 'Dispatch CLI workflow',
+    )!;
+    const result = shell('gh() { printf "%s\\n" "$@"; };\n' + step.run, {
+      REPO: 'synthetic/tale',
+      RELEASE_TAG: 'v0.5.42',
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().split('\n')).toEqual([
+      'workflow',
+      'run',
+      'cli.yml',
+      '--repo',
+      'synthetic/tale',
+      '--ref',
+      'v0.5.42',
+      '--field',
+      'release_tag=v0.5.42',
+    ]);
+    expect(step.env?.RELEASE_TAG).toBe('${{ needs.prepare.outputs.version }}');
+    expect(step.env?.REPO).toBe('${{ github.repository }}');
+  });
+
+  test('manual CLI release builds check out the supplied tag, never moving main', () => {
+    const checkout = cli.jobs.build!.steps.find((step) =>
+      step.uses?.startsWith('actions/checkout@'),
+    )!;
+    expect(checkout.with?.ref).toBe(
+      "${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}",
+    );
+  });
+
+  test.each([
+    ['v0.5.42', 0, '0.5.42'],
+    ['0.5.42', 0, '0.5.42'],
+    ['v0.5.42-rc.1', 0, '0.5.42-rc.1'],
+    ['', 1, ''],
+    ['main', 1, ''],
+    ['v0.5.42; false', 1, ''],
+  ])(
+    'CLI release tag %j is validated before the build',
+    (tag, status, version) => {
+      const step = cli.jobs.prepare!.steps.find(
+        (entry) => entry.id === 'version',
+      )!;
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-cli-release-'));
+      const output = resolve(directory, 'output');
+      try {
+        const result = shell(step.run!, {
+          EVENT_NAME: 'workflow_dispatch',
+          RELEASE_TAG: String(tag),
+          GITHUB_OUTPUT: output,
+        });
+        expect(result.status).toBe(status);
+        if (status === 0) {
+          expect(readFileSync(output, 'utf8')).toBe(`version=${version}\n`);
+        }
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe('database fast-shutdown parity (SIGINT)', () => {
   // The tale-db runtime stage is `FROM scratch`, which drops the upstream
   // postgres image's STOPSIGNAL; without it Docker's SIGTERM is Postgres'
