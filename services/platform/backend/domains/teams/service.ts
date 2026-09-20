@@ -35,6 +35,27 @@ import { syncRagDocumentScope } from '../knowledge/service.ts';
  * used to carry is gone (migration 0109 swept the last ones).
  */
 
+/**
+ * Every team's id and name of one organization, by name — the directory
+ * every member may read. A team's NAME is not a secret: it is what every
+ * audience badge, project row, inbox queue and skill label shows, so this
+ * is the one read every surface resolves names through (the app's
+ * `GET /api/app/teams/directory` and the REST `GET /api/v1/teams`), instead
+ * of the caller's own teams, which left a member looking at blanks and raw
+ * ids for teams they are not in — and left a machine caller with no way to
+ * learn the id an audience takes (2026-09-19 evaluation, K4-1).
+ */
+export async function listTeamDirectory(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<{ id: string; name: string }[]> {
+  return sql<{ id: string; name: string }[]>`
+    SELECT "id", "name" FROM "team"
+    WHERE "organizationId" = ${organizationId}
+    ORDER BY "name" ASC
+  `;
+}
+
 export interface TeamScopeRetirement {
   /** Projects that carried the team in their audience. */
   projectsRetagged: number;

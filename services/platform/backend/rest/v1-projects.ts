@@ -497,6 +497,16 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (identityEdit) requireEditor(c);
       await transactSerializable(deps.sql, async (tx) => {
         if (archived === false) await restoreProject(tx, auth, project.id);
+        // An archived project refuses every write the body does not undo —
+        // the audience included: the one field that stayed writable on a
+        // frozen project (2026-09-19 evaluation, K4-6).
+        if (
+          project.archivedAt !== null &&
+          archived !== false &&
+          (identityEdit || teamIds !== undefined)
+        ) {
+          throw new RestRefusal('Project is archived', 403, 'PROJECT_ARCHIVED');
+        }
         // The audience is the app's admin-only sharing edit, replaced whole.
         if (teamIds !== undefined) {
           await updateProjectSharing(tx, auth, {
@@ -505,13 +515,6 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           });
         }
         if (identityEdit) {
-          if (project.archivedAt !== null && archived !== false) {
-            throw new RestRefusal(
-              'Project is archived',
-              403,
-              'PROJECT_ARCHIVED',
-            );
-          }
           if (name !== undefined || description !== undefined) {
             await updateProjectIdentity(tx, auth, {
               projectId: project.id,

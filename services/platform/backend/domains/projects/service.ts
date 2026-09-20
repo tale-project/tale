@@ -378,20 +378,22 @@ function validateInstructions(instructions: string): string {
 
 /**
  * The audience shape rule: at most `PROJECT_SHARED_TEAMS_MAX + 1` teams (the
- * former owning team plus the shared list), no blanks, no duplicates.
+ * former owning team plus the shared list), no blanks; a repeated team
+ * collapses to one, first-seen order kept — the one rule documents, folders
+ * and skills already apply (`normalizeTeamIds`), which projects alone
+ * refused with a 400 (2026-09-19 evaluation, K4-4).
  */
 function validateTeamIds(teamIds: readonly string[]): string[] {
   if (teamIds.length > PROJECT_SHARED_TEAMS_MAX + 1) {
     throw new ProjectError('PROJECT_SHARING_INVALID', 'Too many teams');
   }
-  const normalized = normalizeTeamIds(teamIds);
-  if (normalized.length !== teamIds.length) {
+  if (teamIds.some((teamId) => teamId.trim().length === 0)) {
     throw new ProjectError(
       'PROJECT_SHARING_INVALID',
-      'Duplicate or blank team in project audience',
+      'Blank team in project audience',
     );
   }
-  return normalized;
+  return normalizeTeamIds(teamIds);
 }
 
 /**
@@ -1017,6 +1019,17 @@ export async function updateProjectSharing(
     ];
   }
   const teamIds = await assignableTeams(tx, auth, validateTeamIds(requested));
+  // Naming the audience the project already carries is not a change (the
+  // identity door's rule): no write, no audit row, `updatedAt` kept — a
+  // sync that re-asserts the audience on every pass used to move it every
+  // time (2026-09-19 evaluation, K4-3). Order counts: `teamIds[0]` is the
+  // mirrored owning team, so a reordered list is a stored change.
+  if (
+    teamIds.length === project.teamIds.length &&
+    teamIds.every((teamId, index) => teamId === project.teamIds[index])
+  ) {
+    return;
+  }
   const mirror = audienceMirror(teamIds);
 
   const previousState = {
@@ -1913,6 +1926,28 @@ export async function updateProjectAgent(
     args.unknownSecrets ?? 'prune',
   );
   assertMaySetSecrets(auth, fields.secrets, agent.secrets);
+
+  // A replace that names the configuration already stored is not a change:
+  // no write, no audit row, and `updatedAt` — the precondition every other
+  // writer holds — stays, so two declarative writers re-asserting one
+  // configuration no longer 409 each other (2026-09-19 evaluation, K4-5).
+  // The stored lists passed the same normaliser on their way in, so an
+  // element-wise compare is exact.
+  const sameList = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
+  if (
+    fields.name === agent.name &&
+    fields.harness === agent.harness &&
+    fields.model === agent.model &&
+    (fields.modelProvider ?? null) === (agent.modelProvider ?? null) &&
+    sameList(fields.skills, agent.skills) &&
+    sameList(fields.connectors, agent.connectors) &&
+    sameList(fields.tools, agent.tools) &&
+    sameList(fields.secrets, agent.secrets) &&
+    (fields.instructions ?? null) === (agent.instructions ?? null)
+  ) {
+    return;
+  }
 
   const nameClash = await tx<{ id: string }[]>`
     SELECT id FROM app.project_agents

@@ -209,6 +209,48 @@ const answerKeyRow =
  * allowlist — computed from the memberships the route already loads, so
  * no client has to learn it from a 403.
  */
+/**
+ * `GET /teams` after the 2026-09-19 round-K evaluation (K4-1): the ids a
+ * team audience takes, which no operation used to answer — a caller could
+ * set `teamIds` only with an id a person copied out of the app. The app's
+ * own directory read (every team, by name, for any member) plus `member`
+ * from the holder's memberships, the pre-flight for `TEAM_ACCESS_DENIED`.
+ */
+describe('GET /teams', () => {
+  it('lists every team of the organization with the key holder’s membership', async () => {
+    const { sql, queries } = fakeSql([], (text) => {
+      if (text.includes('FROM "team" WHERE "organizationId"')) {
+        return [
+          { id: 't-fin', name: 'Finance' },
+          { id: 't-ops', name: 'Ops' },
+        ];
+      }
+      if (text.includes('FROM "teamMember" tm')) return [{ teamId: 't-ops' }];
+      return undefined;
+    });
+    const res = await mount(sql, 'key-1', 'member').request(
+      'http://localhost/teams',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      teams: [
+        { id: 't-fin', name: 'Finance', member: false },
+        { id: 't-ops', name: 'Ops', member: true },
+      ],
+    });
+    // The directory is the organization's, never the holder's memberships.
+    const directory = queries.find((q) => q.text.includes('FROM "team" WHERE'));
+    expect(directory?.values).toEqual(['org-1']);
+  });
+
+  it('takes no query parameter', async () => {
+    const { sql } = fakeSql([]);
+    const res = await mount(sql).request('http://localhost/teams?limit=5');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+});
+
 describe('GET /me capabilities', () => {
   const membership = {
     organizationId: 'org-1',

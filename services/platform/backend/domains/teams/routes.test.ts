@@ -31,7 +31,11 @@ const {
   teamDeletionImpact: vi.fn(),
 }));
 
-vi.mock('./service.ts', () => ({
+vi.mock('./service.ts', async (importOriginal) => ({
+  // The directory read runs for real against the fake `sql` — the test
+  // asserts the statement it issues.
+  listTeamDirectory: (await importOriginal<typeof import('./service.ts')>())
+    .listTeamDirectory,
   deleteTeamInTx,
   resyncRetiredDocumentScopes,
   teamDeletionImpact,

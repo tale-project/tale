@@ -30,6 +30,7 @@ import {
   restoreProject,
   updateProjectExternalItemId,
   updateProjectIdentity,
+  updateProjectSharing,
 } from '../domains/projects/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
@@ -86,6 +87,7 @@ vi.mock('../domains/projects/service.ts', async (importOriginal) => ({
   restoreProject: vi.fn(() => Promise.resolve()),
   updateProjectIdentity: vi.fn(() => Promise.resolve()),
   updateProjectExternalItemId: vi.fn(() => Promise.resolve()),
+  updateProjectSharing: vi.fn(() => Promise.resolve()),
   deleteProject: vi.fn(() =>
     Promise.resolve({
       detachedDocCount: 0,
@@ -813,6 +815,43 @@ describe('PATCH /projects/{id}', () => {
     });
     expect(restoredAndRenamed.status).toBe(200);
     expect(order).toEqual(['restore', 'identity']);
+  });
+
+  /**
+   * The audience is a write like every other: an archived project refuses
+   * it (403 `PROJECT_ARCHIVED`) unless the same body restores it — it was
+   * the one field that stayed writable on a frozen project (2026-09-19
+   * evaluation, K4-6).
+   */
+  it('refuses teamIds on an archived project the body does not restore, and orders restore → audience', async () => {
+    const archivedProject = fakeSql({
+      project: () => ({ archivedAt: 1_700_000_000_500 }),
+    });
+    const refused = await patch(archivedProject.sql, { teamIds: ['t-1'] });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: 'PROJECT_ARCHIVED' });
+    expect(vi.mocked(updateProjectSharing)).not.toHaveBeenCalled();
+
+    const order: string[] = [];
+    vi.mocked(restoreProject).mockImplementationOnce(() => {
+      order.push('restore');
+      return Promise.resolve();
+    });
+    vi.mocked(updateProjectSharing).mockImplementationOnce(() => {
+      order.push('sharing');
+      return Promise.resolve();
+    });
+    const restoredAndScoped = await patch(archivedProject.sql, {
+      archived: false,
+      teamIds: ['t-1'],
+    });
+    expect(restoredAndScoped.status).toBe(200);
+    expect(order).toEqual(['restore', 'sharing']);
+    expect(vi.mocked(updateProjectSharing)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { projectId: 'p-1', teamIds: ['t-1'] },
+    );
 
     order.length = 0;
     vi.mocked(updateProjectIdentity).mockImplementationOnce(() => {
