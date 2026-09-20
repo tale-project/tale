@@ -89,24 +89,6 @@ function useProviderDefinitionWrite<
   });
 }
 
-/** Create or update one custom provider definition (compare-and-set on the
- * hash it was loaded with; `null` creates). */
-export function useSaveProviderDefinition(organizationId: string) {
-  return useProviderDefinitionWrite(
-    'lib/providers/definition_actions:saveProviderDefinition',
-    organizationId,
-  );
-}
-
-/** Delete one custom provider definition. Refused by the server while any
- * credential still names it. */
-export function useDeleteProviderDefinition(organizationId: string) {
-  return useProviderDefinitionWrite(
-    'lib/providers/definition_actions:deleteProviderDefinition',
-    organizationId,
-  );
-}
-
 /** Fetch one custom provider's live model listing anew — the reachability
  * check for a freshly defined endpoint. */
 export function useCheckProviderDefinitionCatalog(organizationId: string) {
