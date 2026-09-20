@@ -10,12 +10,16 @@
  * technology hears new entries without losing its place; the explicit status
  * region below it narrates the queued/streaming/waiting states.
  *
- * Geometry: the list splits into three regions around the LAST USER message —
- * history above it, the anchored user message, and the response area below.
- * The response area carries a slack min-height that fills the viewport, so
- * the send-snap can place the user's message at the top and the reply streams
- * into the space beneath it. Scrolling follows the Gemini doctrine (see
- * use-chat-scroll): generation growth NEVER scrolls; only user actions do.
+ * Geometry: ONE list, with each row told its region relative to the LAST USER
+ * message — history above it (rasterized lazily), the anchored user message,
+ * and the response rows below — followed by the slack spacer that fills the
+ * viewport, so the send-snap can place the user's message at the top and the
+ * reply streams into the space beneath it. One list on purpose: a send
+ * demotes the previous turn's rows to history, and rows that changed parents
+ * would be remounted (a placeholder flash and a scroll clamp under the send
+ * glide — see use-response-slack). Scrolling follows the Gemini doctrine (see
+ * use-chat-scroll): generation growth NEVER scrolls on its own; only user
+ * actions do.
  */
 
 import { Button } from '@tale/ui/button';
@@ -39,7 +43,11 @@ import type {
   ChatMessageItem,
   ChatMessageView,
 } from '../types';
-import { MessageItem, type MessageForkGroupView } from './message-item';
+import {
+  MessageItem,
+  type MessageForkGroupView,
+  type MessageRegion,
+} from './message-item';
 
 /** The catalog key describing each generation status, in one place. */
 const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
@@ -126,7 +134,11 @@ export const MessageThread = memo(function MessageThread({
   const localIntentRef = useRef<boolean | 'smooth'>(false);
   const intentRef = scrollIntentRef ?? localIntentRef;
   const lastUserMessageRef = useRef<HTMLLIElement | null>(null);
-  const responseAreaRef = useRef<HTMLDivElement | null>(null);
+  // The single message list and the slack spacer after it (see the module
+  // doc). `Stack as="ol"` forwards a div-typed ref; the geometry reads only
+  // element rects, so the element type never matters.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const slackRef = useRef<HTMLDivElement | null>(null);
 
   const { containerRef, contentRef, scrollToBottom, showScrollButton } =
     useChatScroll({
@@ -140,10 +152,13 @@ export const MessageThread = memo(function MessageThread({
     });
 
   const lastUserIdx = findLastUserIndex(messages);
-  const beforeItems =
-    lastUserIdx >= 0 ? messages.slice(0, lastUserIdx) : messages;
   const lastUserItem = lastUserIdx >= 0 ? messages[lastUserIdx] : undefined;
-  const afterItems = lastUserIdx >= 0 ? messages.slice(lastUserIdx + 1) : [];
+  const regionOf = (index: number): MessageRegion =>
+    lastUserIdx < 0 || index < lastUserIdx
+      ? 'history'
+      : index === lastUserIdx
+        ? 'last-user'
+        : 'response';
 
   // The slack session: active from send until the stream settles, per
   // thread. While active, the response area's min-height fills the viewport
@@ -164,7 +179,8 @@ export const MessageThread = memo(function MessageThread({
   useResponseSlack({
     containerRef,
     contentRef,
-    responseAreaRef,
+    listRef,
+    slackRef,
     lastUserMessageRef,
     slackEnabled,
   });
@@ -192,13 +208,13 @@ export const MessageThread = memo(function MessageThread({
   const renderItem = (
     message: ChatMessageItem,
     index: number,
-    region: 'history' | 'last-user' | 'response',
+    region: MessageRegion,
   ) => (
     <MessageItem
       key={message.key}
       message={message}
       isLast={index === messages.length - 1}
-      isHistory={region === 'history'}
+      region={region}
       {...(region === 'last-user' ? { rootRef: lastUserMessageRef } : {})}
       organizationId={organizationId}
       threadId={threadId}
@@ -233,58 +249,45 @@ export const MessageThread = memo(function MessageThread({
           ref={contentRef}
           className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}
         >
-          <Stack gap={3}>
-            {beforeItems.length > 0 && (
-              <Stack as="ol" gap={3}>
-                {beforeItems.map((message, index) =>
-                  renderItem(message, index, 'history'),
-                )}
-              </Stack>
-            )}
-
-            {lastUserItem !== undefined && (
-              <ol className="flex flex-col">
-                {renderItem(lastUserItem, lastUserIdx, 'last-user')}
-              </ol>
-            )}
-
-            {/* The response area: the live reply streams into the slack
-                beneath the anchored user message. overflow-anchor is off so
-                the browser never fights the scroll machine. */}
-            <div
-              ref={responseAreaRef}
-              className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
-            >
-              {afterItems.length > 0 && (
-                <Stack as="ol" gap={3}>
-                  {afterItems.map((message, index) =>
-                    renderItem(message, lastUserIdx + 1 + index, 'response'),
-                  )}
-                </Stack>
+          {messages.length > 0 && (
+            <Stack as="ol" gap={3} ref={listRef}>
+              {messages.map((message, index) =>
+                renderItem(message, index, regionOf(index)),
               )}
+            </Stack>
+          )}
 
-              {/* The turn's status — for assistive technology ONLY. Always
-                  in the DOM so there is something to watch before the first
-                  turn starts, but visually hidden: the sighted reader gets
-                  the thinking dots and the ticking timer (the 0.3 shell),
-                  never a bare status sentence in the transcript. */}
-              <div
-                role="status"
-                aria-live="polite"
-                aria-label={t('generation.regionLabel')}
-                className="sr-only"
-              >
-                {generation && (
-                  <Text variant="muted" className="text-sm">
-                    {t(GENERATION_STATUS_KEY[generation.status])}
-                    {generation.waitingOn
-                      ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
-                      : ''}
-                  </Text>
-                )}
-              </div>
-            </div>
-          </Stack>
+          {/* The turn's status — for assistive technology ONLY. Always in
+              the DOM so there is something to watch before the first turn
+              starts, but visually hidden: the sighted reader gets the
+              thinking dots and the ticking timer (the 0.3 shell), never a
+              bare status sentence in the transcript. */}
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label={t('generation.regionLabel')}
+            className="sr-only"
+          >
+            {generation && (
+              <Text variant="muted" className="text-sm">
+                {t(GENERATION_STATUS_KEY[generation.status])}
+                {generation.waitingOn
+                  ? ` ${t('generation.waitingOn', { detail: generation.waitingOn })}`
+                  : ''}
+              </Text>
+            )}
+          </div>
+
+          {/* The response slack: an empty spacer after the list, sized by
+              use-response-slack so a scroll to the bottom lands the last
+              user message at the top inset; the reply grows into it.
+              overflow-anchor is off so the browser never fights the scroll
+              machine over its resizes. */}
+          <div
+            ref={slackRef}
+            aria-hidden="true"
+            className="shrink-0 [overflow-anchor:none]"
+          />
 
           {messages.length === 0 && !generation && (
             <EmptyState

@@ -78,16 +78,24 @@ describe('resolveResponseSlackEnabled', () => {
 });
 
 describe('computeSlackPx', () => {
-  it('fills the viewport below a short user message (minus gap, padding, inset)', () => {
+  it('fills the viewport below a short user message (minus the rows after it, padding, inset)', () => {
+    // 52 = the list gap before the pending shell row plus the shell itself.
     expect(
       computeSlackPx({
         viewportH: 800,
         userMsgH: 60,
-        gap: 12,
+        afterRowsH: 52,
         padBottom: 24,
         topInset: 16,
       }),
-    ).toBe(800 - 60 - 12 - 24 - 16);
+    ).toBe(800 - 16 - 60 - 52 - 24);
+  });
+
+  it('gives back exactly what the reply takes (the total below the user message stays put)', () => {
+    const base = { viewportH: 800, userMsgH: 60, padBottom: 24, topInset: 16 };
+    const before = computeSlackPx({ ...base, afterRowsH: 52 });
+    const after = computeSlackPx({ ...base, afterRowsH: 252 });
+    expect(before - after).toBe(200);
   });
 
   it('still grants slack for a tall user message (top-anchor stays reachable)', () => {
@@ -97,11 +105,23 @@ describe('computeSlackPx', () => {
       computeSlackPx({
         viewportH: 800,
         userMsgH: 300,
-        gap: 12,
+        afterRowsH: 52,
         padBottom: 24,
         topInset: 16,
       }),
-    ).toBe(800 - 300 - 12 - 24 - 16);
+    ).toBe(800 - 16 - 300 - 52 - 24);
+  });
+
+  it('degrades to 0 once the reply fills the viewport', () => {
+    expect(
+      computeSlackPx({
+        viewportH: 800,
+        userMsgH: 60,
+        afterRowsH: 900,
+        padBottom: 24,
+        topInset: 16,
+      }),
+    ).toBe(0);
   });
 
   it('degrades to 0 when the user message exceeds the viewport', () => {
@@ -109,7 +129,7 @@ describe('computeSlackPx', () => {
       computeSlackPx({
         viewportH: 800,
         userMsgH: 900,
-        gap: 12,
+        afterRowsH: 0,
         padBottom: 24,
         topInset: 16,
       }),

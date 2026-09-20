@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 70 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 75 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -293,6 +293,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   under the custom provider, send, then reload `/dashboard/{org}/chat` → The
   trigger seeds the same model and the next turn runs on the custom provider
   (CHAT-F13's info dialog names it), never on the shipped copy of the id.
+- [ ] `CHAT-F39` · **Send always snaps the new message to the top** — Open a
+  thread you visited before and send within a second of it appearing; then
+  scroll to the bottom with a trackpad and send again while the momentum tail
+  is still running, pointer resting over the messages → Both sends glide the
+  new message to just under the header and the reply streams beneath it; no
+  **Scroll to bottom** button flashes during the glide.
+- [ ] `CHAT-F40` · **Scroll to bottom follows a streaming reply** — Ask for a
+  long reply, scroll up while it streams, then press **Scroll to bottom**
+  (`chat.scrollToBottom`) → The view lands at the bottom and keeps following
+  the growing reply; a wheel or trackpad scroll up stops the follow and the
+  button returns.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
