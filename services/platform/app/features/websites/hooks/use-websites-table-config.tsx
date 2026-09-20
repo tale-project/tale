@@ -2,7 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
-import { HStack, Row } from '@tale/ui/layout';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Globe, Loader } from 'lucide-react';
 
@@ -33,28 +37,20 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       accessorKey: 'domain',
       header: tTables('headers.website'),
       size: 256,
-      meta: {
-        flex: true,
-        skeleton: { type: 'icon-text', icon: <Globe className="size-5" /> },
-      },
+      meta: { flex: true, skeleton: tableIconCellSkeleton() },
       cell: ({ row }) => (
-        <HStack gap={2}>
-          <Row
-            gap={0}
-            justify="center"
-            className="bg-muted size-5 shrink-0 rounded"
-          >
-            <Globe className="text-muted-foreground size-3" />
-          </Row>
-          <Text as="span" variant="label" truncate>
-            {row.original.domain}
-          </Text>
-          {row.original.kind === 'list' && (
-            <Badge variant="outline" className="shrink-0">
-              {tEntity('kindList')}
-            </Badge>
-          )}
-        </HStack>
+        <TableIconCell
+          icon={<Globe />}
+          label={row.original.domain}
+          title={row.original.domain}
+          badges={
+            row.original.kind === 'list' && (
+              <Badge variant="outline" className="shrink-0">
+                {tEntity('kindList')}
+              </Badge>
+            )
+          }
+        />
       ),
     },
     {

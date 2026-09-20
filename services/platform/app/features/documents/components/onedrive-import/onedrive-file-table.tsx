@@ -2,8 +2,11 @@
 
 import { Checkbox } from '@tale/ui/checkbox';
 import { DataTable } from '@tale/ui/data-table/data-table';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { DocumentIcon } from '@tale/ui/document-icon';
-import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -79,34 +82,43 @@ export function OneDriveFileTable({
         id: 'name',
         header: tTables('headers.name'),
         meta: {
-          skeleton: { type: 'icon-text', icon: <DocumentIcon fileName="" /> },
+          skeleton: tableIconCellSkeleton(),
         },
         cell: ({ row }) => {
           const item = row.original;
           return (
-            <HStack gap={2} className="min-w-0">
-              <DocumentIcon fileName={item.name} isFolder={isFolder(item)} />
-              {isFolder(item) ? (
-                <button
-                  type="button"
-                  title={item.name}
-                  className="text-foreground min-w-0 flex-1 cursor-pointer truncate text-left text-base font-medium hover:text-blue-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleFolderClick(item);
-                  }}
-                >
-                  {item.name}
-                </button>
-              ) : (
-                <span
-                  title={item.name}
-                  className="text-foreground min-w-0 flex-1 truncate text-base font-medium"
-                >
-                  {item.name}
-                </span>
-              )}
-            </HStack>
+            <TableIconCell
+              variant="plain"
+              icon={
+                <DocumentIcon
+                  className="size-5"
+                  fileName={item.name}
+                  isFolder={isFolder(item)}
+                />
+              }
+              label={
+                isFolder(item) ? (
+                  <button
+                    type="button"
+                    title={item.name}
+                    className="text-foreground min-w-0 flex-1 cursor-pointer truncate text-left text-base font-medium hover:text-blue-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFolderClick(item);
+                    }}
+                  >
+                    {item.name}
+                  </button>
+                ) : (
+                  <span
+                    title={item.name}
+                    className="text-foreground min-w-0 flex-1 truncate text-base font-medium"
+                  >
+                    {item.name}
+                  </span>
+                )
+              }
+            />
           );
         },
       },

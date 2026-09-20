@@ -7,7 +7,10 @@ import { CatalogLabels } from '@tale/ui/catalog/catalog-labels';
 import { ConfigIcon as SkillIcon } from '@tale/ui/catalog/config-icon';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
-import { HStack } from '@tale/ui/layout';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -150,26 +153,28 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'slug',
         accessorKey: 'slug',
         header: t('columns.name'),
-        meta: { skeleton: { type: 'icon-text' } },
+        meta: { skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
-          <HStack align="center" gap={2} className="min-w-0">
-            <SkillIcon icon={row.original.icon} className="size-4 shrink-0" />
-            <Button
-              ref={(button) => {
-                if (button) rowButtons.current.set(row.original.slug, button);
-                else rowButtons.current.delete(row.original.slug);
-              }}
-              variant="link"
-              className="text-foreground min-w-0 justify-start p-0 text-sm font-medium"
-              onClick={(event) => {
-                event.stopPropagation();
-                detailTrigger.current = event.currentTarget;
-                setPane({ view: 'detail', slug: row.original.slug });
-              }}
-            >
-              <span className="truncate">{row.original.slug}</span>
-            </Button>
-          </HStack>
+          <TableIconCell
+            icon={<SkillIcon icon={row.original.icon} />}
+            label={
+              <Button
+                ref={(button) => {
+                  if (button) rowButtons.current.set(row.original.slug, button);
+                  else rowButtons.current.delete(row.original.slug);
+                }}
+                variant="link"
+                className="text-foreground min-w-0 justify-start p-0 text-sm font-medium"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  detailTrigger.current = event.currentTarget;
+                  setPane({ view: 'detail', slug: row.original.slug });
+                }}
+              >
+                <span className="truncate">{row.original.slug}</span>
+              </Button>
+            }
+          />
         ),
       },
       {

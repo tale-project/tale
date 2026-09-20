@@ -5,6 +5,10 @@ import { Badge } from '@tale/ui/badge';
 import { ConfigIcon } from '@tale/ui/catalog/config-icon';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
@@ -132,36 +136,29 @@ export function AutomationsList({
         accessorKey: 'displayName',
         header: t('list.columnName'),
         size: 280,
-        meta: { skeleton: { type: 'icon-text', lines: 2 } },
+        meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => (
-          <HStack align="center" gap={2} className="min-w-0">
-            {/* The pack's declared glyph, like a skill's on its list; a
-                canvas-authored automation gets the same neutral fallback. */}
-            <ConfigIcon icon={row.original.icon} className="size-4 shrink-0" />
-            <span className="flex min-w-0 flex-col">
-              <HStack align="center" gap={1} className="min-w-0">
-                <span className="truncate text-sm font-medium">
-                  {row.original.displayName}
-                </span>
-                {/* Catalog chips the pack declared — proper nouns, so they
-                    read the same in every locale. */}
-                {row.original.labels.map((label) => (
-                  <Badge
-                    key={label}
-                    variant="slate"
-                    className="hidden px-1.5 py-px text-[10px] md:inline-flex"
-                  >
-                    {label}
-                  </Badge>
-                ))}
-              </HStack>
-              {/* The slug stays visible on the admin surface: it is what the
-                  store, the CLI and the run log address. */}
-              <span className="text-muted-foreground truncate text-xs">
-                {row.original.name}
-              </span>
-            </span>
-          </HStack>
+          <TableIconCell
+            // The pack's declared glyph in the tile every entity list leads
+            // with; a canvas-authored automation gets the neutral fallback.
+            icon={<ConfigIcon icon={row.original.icon} />}
+            label={row.original.displayName}
+            title={row.original.displayName}
+            // Catalog chips the pack declared — proper nouns, so they read the
+            // same in every locale.
+            badges={row.original.labels.map((label) => (
+              <Badge
+                key={label}
+                variant="slate"
+                className="hidden shrink-0 px-1.5 py-px text-[10px] md:inline-flex"
+              >
+                {label}
+              </Badge>
+            ))}
+            // The slug stays visible on the admin surface: it is what the
+            // store, the CLI and the run log address.
+            caption={row.original.name}
+          />
         ),
       },
     ];

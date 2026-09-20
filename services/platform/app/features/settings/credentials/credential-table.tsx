@@ -5,6 +5,10 @@ import { Badge } from '@tale/ui/badge';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -240,27 +244,38 @@ export function CredentialTable<
         accessorKey: 'vendorName',
         header: labels.vendorColumn,
         size: 200,
-        meta: { skeleton: { type: 'icon-text' } },
+        meta: { skeleton: tableIconCellSkeleton() },
+        // The vendor's own mark takes the slot plain — a brand logo does not
+        // belong in the muted tile a monochrome glyph needs — but the slot and
+        // the 8px beside it are the ones every list uses.
         cell: ({ row }) => {
           const tag =
             row.original.vendor === null
               ? null
               : (adapter.vendorTag?.(t, row.original.vendor) ?? null);
           return (
-            <HStack align="center" gap={2} className="min-w-0">
-              <VendorIcon
-                iconUrl={row.original.vendor?.iconUrl}
-                className="size-4"
-              />
-              <span className="truncate text-sm">
-                {row.original.vendorName}
-              </span>
-              {tag !== null && (
-                <Badge variant="slate" className="shrink-0">
-                  {tag}
-                </Badge>
-              )}
-            </HStack>
+            <TableIconCell
+              variant="plain"
+              icon={<VendorIcon iconUrl={row.original.vendor?.iconUrl} />}
+              // The row's own name leads in the first column; keeping the
+              // vendor at body weight leaves that hierarchy intact, so only the
+              // slot and the gap are shared here.
+              label={
+                <span
+                  title={row.original.vendorName}
+                  className="min-w-0 truncate text-sm"
+                >
+                  {row.original.vendorName}
+                </span>
+              }
+              badges={
+                tag === null ? null : (
+                  <Badge variant="slate" className="shrink-0">
+                    {tag}
+                  </Badge>
+                )
+              }
+            />
           );
         },
       },

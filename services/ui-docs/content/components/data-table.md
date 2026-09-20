@@ -20,6 +20,20 @@ Pass a descriptive `caption`, such as **Agents in this workspace**. It becomes a
 
 The builders exported from `@tale/ui/data-table/column-builders` include text, date, creation-time, selection, and action columns. Reuse them for those common shapes; use custom cells when the content requires them.
 
+## Lead the row with a name and a glyph
+
+<Demo name="data-table/icon-cell" />
+
+`TableIconCell` from `@tale/ui/data-table/table-icon-cell` is a list's icon-and-name cell: a 20px mark, 8px, then the name. The slot and the gap are the contract — a list that sets its own leaves its labels a few pixels off every other list's.
+
+Pass the icon bare. The default `tile` variant frames a monochrome glyph — a Lucide icon, an Iconify `<Icon>`, a `ConfigIcon` — in a muted square and sets its size and colour for you. Use `variant="plain"` for a mark that carries its own shape and colour: a file-type icon, a vendor logo, an avatar. It keeps the same slot, so the labels still line up.
+
+`badges` places chips beside the name; they hold their width while the label truncates. `caption` adds a second line for an address the reader needs next to the name, such as an automation's slug. Leave it off for a single-line row.
+
+A string `label` gets the shared label style and truncation. Pass a node instead when the name has to be a link or a button — the cell renders it untouched, and that label owns its own truncation and `title`.
+
+Pair the column with `tableIconCellSkeleton()` — `{ lines: 2 }` when the cell renders a caption. It reserves the tile's footprint rather than the skeleton's bare-icon default, so rows do not jump when the data arrives.
+
 ## Wire search to the rows
 
 <Demo name="data-table/with-search" />
