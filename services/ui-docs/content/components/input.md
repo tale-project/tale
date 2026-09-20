@@ -21,7 +21,7 @@ The component generates an ID unless you pass one. It associates the label, desc
 
 <Demo name="input/states" />
 
-`errorMessage` displays an inline alert and sets the invalid state automatically. `isInvalid` can also set the state without an error string, for example when a separately rendered error summary explains the problem. The component displays validation supplied by the host; it does not decide whether an email, URL, or identifier is valid for your application.
+`errorMessage` displays an inline alert and sets the invalid state automatically; `Select` takes the same `errorMessage` and renders it the same way, under the control. `isInvalid` can also set the state without an error string, for example when a separately rendered error summary explains the problem. The component displays validation supplied by the host; it does not decide whether an email, URL, or identifier is valid for your application.
 
 For a controlled field, pass `value` and update it from `event.target.value` in `onChange`. For an uncontrolled example, use `defaultValue`. Keep the user's draft after a failed submission and explain how to repair the value.
 

@@ -145,6 +145,31 @@ describe('Select', () => {
       const trigger = screen.getByRole('combobox');
       expect(trigger.className).toContain('border-destructive');
     });
+
+    it('renders an error message under the control and ties it to the trigger', async () => {
+      const { container } = render(
+        <Select
+          options={options}
+          aria-label="Fruit"
+          placeholder="Select"
+          errorMessage="Choose a fruit."
+        />,
+      );
+      const trigger = screen.getByRole('combobox', { name: 'Fruit' });
+      const message = screen.getByRole('alert');
+      expect(message).toHaveTextContent('Choose a fruit.');
+      // The message implies the invalid state and is what the trigger names
+      // as its error — a screen reader hears it with the control.
+      expect(trigger).toHaveAttribute('aria-invalid', 'true');
+      expect(trigger).toHaveAttribute('aria-errormessage', message.id);
+      expect(trigger.getAttribute('aria-describedby')).toContain(message.id);
+      // The error follows the control in reading order, never the label.
+      expect(
+        trigger.compareDocumentPosition(message) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      await checkAccessibility(container);
+    });
   });
 
   describe('default value', () => {

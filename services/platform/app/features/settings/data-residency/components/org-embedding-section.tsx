@@ -22,6 +22,7 @@ import { Input } from '@tale/ui/input';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
+import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
@@ -32,7 +33,10 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useProviderCredentials } from '@/app/features/settings/providers/hooks/queries';
+import {
+  useProviderCatalogs,
+  useProviderCredentials,
+} from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -56,13 +60,79 @@ export interface KnowledgeEmbeddingView {
   baseUrl?: string;
 }
 
+/**
+ * Where the model tag comes from: a pick from the provider's catalog, or a
+ * tag typed by hand behind the "Other model…" choice. Carried in the form
+ * values rather than component state so Discard, a remote update and the
+ * dirty flag treat it like any other field.
+ */
+type ModelSource = 'catalog' | 'custom';
+
 type EmbeddingForm = {
   providerSlug: string;
   credentialId: string; // DEFAULT_CREDENTIAL = the org's default for the provider
   model: string;
+  modelSource: ModelSource;
   dimensions: string; // free numeric input; parsed on save (never guessed)
   baseUrl: string;
 };
+
+/** One embedding-tagged catalog entry, with the width when the catalog states one. */
+interface EmbeddingCatalogModel {
+  id: string;
+  dimensions?: number;
+}
+
+/** What the org's catalog listing says about one provider's embedding models. */
+interface ProviderEmbeddingCatalog {
+  /** Shipped with the platform, or defined by this organization. */
+  origin: 'shipped' | 'organization';
+  catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
+  models: EmbeddingCatalogModel[];
+  /** The listing could not be resolved — its emptiness proves nothing. */
+  catalogError?: string;
+}
+
+const EMPTY_CATALOG_MODELS: EmbeddingCatalogModel[] = [];
+
+/**
+ * The shape the Model row takes for the chosen provider — decided by what its
+ * catalog can vouch for:
+ *
+ *  - `pick` — the catalog lists embedding models: a select over them. A
+ *    shipped catalog is authoritative, so the select is closed; a listing the
+ *    organization defined itself may be incomplete (a bare `/models` answer
+ *    tags nothing as an embedding model), so it keeps an "Other model…"
+ *    escape into the free tag field.
+ *  - `free` — no listing can tell: a provider the organization defined
+ *    without any embedding entry, a shipped provider without a catalog at all
+ *    (`none`: Azure deployments carry the admin's own names), or a provider
+ *    the listing does not know. The tag is typed, and the width with it.
+ *  - `none` — a shipped, resolved catalog that lists no embedding model. The
+ *    form says so and refuses the provider: a tag typed here would only fail
+ *    later, at index time, as a runtime error.
+ *  - `unavailable` — a shipped catalog that could not be loaded; refused as
+ *    well, with the remedy named, since nothing is known either way.
+ */
+type ModelRowShape =
+  | { kind: 'pick'; allowCustom: boolean }
+  | { kind: 'free' }
+  | { kind: 'none' }
+  | { kind: 'unavailable' };
+
+function modelRowShape(
+  catalog: ProviderEmbeddingCatalog | undefined,
+): ModelRowShape {
+  if (catalog === undefined) return { kind: 'free' };
+  if (catalog.models.length > 0) {
+    return { kind: 'pick', allowCustom: catalog.origin === 'organization' };
+  }
+  if (catalog.origin === 'organization' || catalog.catalogSource === 'none') {
+    return { kind: 'free' };
+  }
+  if (catalog.catalogError !== undefined) return { kind: 'unavailable' };
+  return { kind: 'none' };
+}
 
 /**
  * Sentinel for "the org's default credential for this provider" — a Radix
@@ -71,23 +141,38 @@ type EmbeddingForm = {
  */
 const DEFAULT_CREDENTIAL = '__default__';
 
+/**
+ * Sentinel for the "Other model…" choice of the model select — it reveals
+ * the free tag field. A model id on the wire can never be this string.
+ */
+const CUSTOM_MODEL = '__custom__';
+
 const EMPTY_FORM: EmbeddingForm = {
   providerSlug: '',
   credentialId: DEFAULT_CREDENTIAL,
   model: '',
+  modelSource: 'catalog',
   dimensions: '',
   baseUrl: '',
 };
 
 function formFromView(
   view: KnowledgeEmbeddingView | undefined,
+  catalogs: ReadonlyMap<string, ProviderEmbeddingCatalog>,
 ): EmbeddingForm | undefined {
   if (view === undefined) return undefined;
   if (!view.configured) return EMPTY_FORM;
+  const model = view.model ?? '';
+  // A stored tag the provider's catalog does not list is a hand-typed one:
+  // the form opens on the tag field, not on a select that cannot show it.
+  const listed = (catalogs.get(view.providerSlug ?? '')?.models ?? []).some(
+    (entry) => entry.id === model,
+  );
   return {
     providerSlug: view.providerSlug ?? '',
     credentialId: view.credentialId ?? DEFAULT_CREDENTIAL,
-    model: view.model ?? '',
+    model,
+    modelSource: model !== '' && !listed ? 'custom' : 'catalog',
     dimensions: view.dimensions === undefined ? '' : String(view.dimensions),
     baseUrl: view.baseUrl ?? '',
   };
@@ -135,6 +220,64 @@ export function OrgEmbeddingSection({
     [credentialsQuery.data],
   );
 
+  // The org's provider catalogs, read from the same listing the AI-providers
+  // and governance pages use: the embedding-tagged entries of the chosen
+  // provider become the model picks, and an entry's curated vector width
+  // lands in the width field so nobody looks it up by hand. Editable states
+  // only — the read-only view shows the stored tag as it is.
+  const catalogsEnabled = !readOnly && readError === undefined;
+  const catalogsQuery = useProviderCatalogs(organizationId, {
+    enabled: catalogsEnabled,
+  });
+  const embeddingCatalogs = useMemo(() => {
+    const byProvider = new Map<string, ProviderEmbeddingCatalog>();
+    for (const provider of catalogsQuery.data ?? []) {
+      const models: EmbeddingCatalogModel[] = [];
+      for (const entry of provider.models) {
+        if (!entry.tags.includes('embedding')) continue;
+        const model: EmbeddingCatalogModel = { id: entry.id };
+        if (entry.embedding !== undefined) {
+          model.dimensions = entry.embedding.dimensions;
+        }
+        models.push(model);
+      }
+      const catalog: ProviderEmbeddingCatalog = {
+        // The listing marks an organization-defined provider; absent means
+        // shipped (the platform's own set).
+        origin: provider.origin ?? 'shipped',
+        catalogSource: provider.catalogSource,
+        models,
+      };
+      if (provider.catalogError !== undefined) {
+        catalog.catalogError = provider.catalogError;
+      }
+      byProvider.set(provider.name, catalog);
+    }
+    return byProvider;
+  }, [catalogsQuery.data]);
+  // Providers the form refuses, with the reason — read by the schema so the
+  // shared Save stays off while one is chosen, and by the provider select to
+  // say why.
+  const refusedProviders = useMemo(() => {
+    const refused = new Map<string, 'none' | 'unavailable'>();
+    for (const [slug, catalog] of embeddingCatalogs) {
+      const shape = modelRowShape(catalog);
+      if (shape.kind === 'none' || shape.kind === 'unavailable') {
+        refused.set(slug, shape.kind);
+      }
+    }
+    return refused;
+  }, [embeddingCatalogs]);
+  // The baseline waits for the catalogs: whether a stored tag is a catalog
+  // pick or a hand-typed one is decided once, when the form adopts its data
+  // — never re-decided under a form the admin is already editing, which
+  // would read as a remote update. A failed or disabled listing settles too;
+  // the form then falls back to the free tag field.
+  const catalogsSettled =
+    !catalogsEnabled ||
+    catalogsQuery.data !== undefined ||
+    catalogsQuery.isError;
+
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
 
   // Same switch contract as the sibling sections: ON only REVEALS the form
@@ -163,6 +306,7 @@ export function OrgEmbeddingSection({
           providerSlug: z.string(),
           credentialId: z.string(),
           model: z.string(),
+          modelSource: z.enum(['catalog', 'custom']),
           dimensions: z.string(),
           baseUrl: z.string(),
         })
@@ -178,6 +322,24 @@ export function OrgEmbeddingSection({
               code: z.ZodIssueCode.custom,
               path: ['providerSlug'],
               message: t('dataResidency.orgEmbedding.errors.providerRequired'),
+            });
+          }
+          // A provider whose shipped catalog lists no embedding model (or
+          // could not be read) is refused at the point of choosing — the
+          // alternative is a tag that fails later, at index time. The issue
+          // sits on the model, whose row already says so: it keeps the
+          // shared Save off without a second line under the provider pick.
+          const refusal = refusedProviders.get(values.providerSlug);
+          if (refusal !== undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['model'],
+              message: t(
+                refusal === 'none'
+                  ? 'dataResidency.orgEmbedding.modelNoneHint'
+                  : 'dataResidency.orgEmbedding.modelCatalogUnavailableHint',
+                { provider: values.providerSlug },
+              ),
             });
           }
           if (values.model === '') {
@@ -202,10 +364,13 @@ export function OrgEmbeddingSection({
             });
           }
         }),
-    [t, configured],
+    [t, configured, refusedProviders],
   );
 
-  const data = useMemo(() => formFromView(view), [view]);
+  const data = useMemo(
+    () => (catalogsSettled ? formFromView(view, embeddingCatalogs) : undefined),
+    [view, embeddingCatalogs, catalogsSettled],
+  );
 
   const saveForm = useCallback(
     async (values: EmbeddingForm) => {
@@ -287,10 +452,97 @@ export function OrgEmbeddingSection({
     register,
     setValue,
     watch,
+    clearErrors,
     formState: { errors },
   } = editor.form;
 
   const selectedProvider = watch('providerSlug');
+
+  // See `modelRowShape` for the four shapes the Model row takes.
+  const modelValue = watch('model');
+  const providerCatalog = embeddingCatalogs.get(selectedProvider);
+  const shape = modelRowShape(providerCatalog);
+  const catalogModels = providerCatalog?.models ?? EMPTY_CATALOG_MODELS;
+  // The free tag field behind "Other model…" — only where the listing may
+  // be incomplete; on a closed select a stored tag the catalog does not list
+  // shows as its own entry instead, so the admin sees what is configured
+  // and can move it onto a listed model.
+  const allowCustom = shape.kind === 'pick' && shape.allowCustom;
+  const customModel = allowCustom && watch('modelSource') === 'custom';
+  const modelOptions = useMemo(() => {
+    const listed = catalogModels.map((entry) => ({
+      value: entry.id,
+      label: entry.id,
+    }));
+    const stray =
+      modelValue !== '' &&
+      !customModel &&
+      !catalogModels.some((entry) => entry.id === modelValue)
+        ? [{ value: modelValue, label: modelValue }]
+        : [];
+    return [
+      ...listed,
+      ...stray,
+      ...(allowCustom
+        ? [
+            {
+              value: CUSTOM_MODEL,
+              label: t('dataResidency.orgEmbedding.modelCustom'),
+            },
+          ]
+        : []),
+    ];
+  }, [allowCustom, catalogModels, customModel, modelValue, t]);
+
+  const onPickModel = useCallback(
+    (value: string) => {
+      if (value === CUSTOM_MODEL) {
+        setValue('modelSource', 'custom', { shouldDirty: true });
+        // The tag field opens empty and unjudged — a "required" error under
+        // a field the admin has not typed into yet is noise.
+        setValue('model', '', { shouldDirty: true });
+        clearErrors('model');
+        return;
+      }
+      setValue('modelSource', 'catalog', { shouldDirty: true });
+      setValue('model', value, { shouldDirty: true, shouldValidate: true });
+      // The width is the one fact nobody should look up by hand; a pick
+      // that carries it fills the field, a pick without one leaves the
+      // admin's own figure alone.
+      const width = catalogModels.find(
+        (entry) => entry.id === value,
+      )?.dimensions;
+      if (width !== undefined) {
+        setValue('dimensions', String(width), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    },
+    [catalogModels, clearErrors, setValue],
+  );
+
+  // What the row's hint may claim follows the shape: only a resolved shipped
+  // listing gets to say "lists none"; an unsettled listing keeps the neutral
+  // spelling hint.
+  const modelRowHint =
+    shape.kind === 'none'
+      ? t('dataResidency.orgEmbedding.modelNoneHint', {
+          provider: selectedProvider,
+        })
+      : shape.kind === 'unavailable'
+        ? t('dataResidency.orgEmbedding.modelCatalogUnavailableHint', {
+            provider: selectedProvider,
+          })
+        : shape.kind === 'free'
+          ? catalogsSettled
+            ? t('dataResidency.orgEmbedding.modelUnlistedHint')
+            : t('dataResidency.orgEmbedding.modelHint')
+          : !shape.allowCustom
+            ? t('dataResidency.orgEmbedding.modelCatalogHint')
+            : customModel
+              ? t('dataResidency.orgEmbedding.modelHint')
+              : t('dataResidency.orgEmbedding.modelCatalogCustomHint');
 
   // Provider options: every provider the org holds a credential for, plus the
   // stored value itself (so a config whose credential set changed still shows
@@ -349,6 +601,9 @@ export function OrgEmbeddingSection({
       shouldDirty: true,
       shouldValidate: true,
     });
+    // A recommendation is a catalog entry by construction (only curated
+    // entries carry a width), so the select shows it as such.
+    setValue('modelSource', 'catalog', { shouldDirty: true });
     setValue('dimensions', String(recommendation.dimensions), {
       shouldDirty: true,
       shouldValidate: true,
@@ -522,6 +777,14 @@ export function OrgEmbeddingSection({
                           setValue('credentialId', DEFAULT_CREDENTIAL, {
                             shouldDirty: true,
                           });
+                          // So does a model tag — it names one provider's
+                          // model, so the pick starts over from the new
+                          // provider's catalog. The width stays: on a shared
+                          // database it is the corpus's, not the model's.
+                          setValue('model', '', { shouldDirty: true });
+                          setValue('modelSource', 'catalog', {
+                            shouldDirty: true,
+                          });
                         }}
                         options={providerOptions}
                         placeholder={t(
@@ -530,8 +793,7 @@ export function OrgEmbeddingSection({
                         emptyHint={t(
                           'dataResidency.orgEmbedding.noCredentials',
                         )}
-                        error={Boolean(errors.providerSlug)}
-                        description={errors.providerSlug?.message}
+                        errorMessage={errors.providerSlug?.message}
                       />
                     )}
                   />
@@ -549,24 +811,70 @@ export function OrgEmbeddingSection({
                         value={field.value}
                         onValueChange={field.onChange}
                         options={credentialOptions}
-                        error={Boolean(errors.credentialId)}
-                        description={errors.credentialId?.message}
+                        errorMessage={errors.credentialId?.message}
                       />
                     )}
                   />
                 </SettingsFieldRow>
                 <SettingsFieldRow
                   label={t('dataResidency.orgEmbedding.model')}
-                  description={t('dataResidency.orgEmbedding.modelHint')}
+                  description={modelRowHint}
                   required
                 >
-                  <Input
-                    aria-label={t('dataResidency.orgEmbedding.model')}
-                    placeholder="text-embedding-3-small"
-                    wrapperClassName="w-full"
-                    errorMessage={errors.model?.message}
-                    {...register('model')}
-                  />
+                  {shape.kind === 'pick' ? (
+                    <Stack gap={2}>
+                      <Select
+                        aria-label={t('dataResidency.orgEmbedding.model')}
+                        value={customModel ? CUSTOM_MODEL : modelValue}
+                        onValueChange={onPickModel}
+                        options={modelOptions}
+                        placeholder={t(
+                          'dataResidency.orgEmbedding.modelPlaceholder',
+                        )}
+                        errorMessage={
+                          customModel ? undefined : errors.model?.message
+                        }
+                      />
+                      {customModel ? (
+                        <Input
+                          aria-label={t('dataResidency.orgEmbedding.modelTag')}
+                          placeholder="text-embedding-3-small"
+                          wrapperClassName="w-full"
+                          errorMessage={errors.model?.message}
+                          {...register('model')}
+                        />
+                      ) : null}
+                    </Stack>
+                  ) : shape.kind === 'free' ? (
+                    <Input
+                      aria-label={t('dataResidency.orgEmbedding.model')}
+                      placeholder="text-embedding-3-small"
+                      wrapperClassName="w-full"
+                      errorMessage={errors.model?.message}
+                      {...register('model')}
+                    />
+                  ) : (
+                    // Refused: nothing to type into. A tag stored before the
+                    // refusal stays visible so the admin knows what the
+                    // config still names.
+                    <Stack gap={2}>
+                      {modelValue !== '' ? (
+                        <Input
+                          aria-label={t('dataResidency.orgEmbedding.model')}
+                          wrapperClassName="w-full"
+                          value={modelValue}
+                          readOnly
+                        />
+                      ) : null}
+                      <Text role="status" variant="muted" className="text-sm">
+                        {t(
+                          shape.kind === 'none'
+                            ? 'dataResidency.orgEmbedding.modelNone'
+                            : 'dataResidency.orgEmbedding.modelUnavailable',
+                        )}
+                      </Text>
+                    </Stack>
+                  )}
                 </SettingsFieldRow>
                 <SettingsFieldRow
                   label={t('dataResidency.orgEmbedding.dimensions')}

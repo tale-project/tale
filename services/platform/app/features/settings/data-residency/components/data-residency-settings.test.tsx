@@ -84,6 +84,20 @@ const fixtures = vi.hoisted(() => ({
     providerSlug: string;
     name: string;
   }>,
+  // The org's catalog listing, as the embedding section's model row reads
+  // it: only the fields it narrows (name, origin, catalog source, models'
+  // id/tags/embedding facts, the per-provider catalog error).
+  catalogs: [] as Array<{
+    name: string;
+    origin: 'shipped' | 'organization';
+    catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
+    models: Array<{
+      id: string;
+      tags: string[];
+      embedding?: { dimensions: number };
+    }>;
+    catalogError?: string;
+  }>,
 }));
 
 function setStorageFixture(view: StorageFixture) {
@@ -177,6 +191,11 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
     data: fixtures.credentials,
     isPending: false,
   }),
+  useProviderCatalogs: () => ({
+    data: fixtures.catalogs,
+    isPending: false,
+    isError: false,
+  }),
 }));
 
 // Instant actions (remove/backfill) report through toasts; the editor save
@@ -239,6 +258,7 @@ describe('DataResidencySettings', () => {
     fixtures.embeddingRecommendations = [];
     fixtures.backfill = null;
     fixtures.credentials = [];
+    fixtures.catalogs = [];
   });
 
   it('shows AccessDenied to a member who cannot read org settings', () => {
@@ -558,6 +578,487 @@ describe('DataResidencySettings', () => {
       baseUrl: undefined,
     });
     expect(pageToast).not.toHaveBeenCalled();
+  });
+
+  it("lists a shipped provider's catalog embedding models and fills the width from the pick", async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openai', name: 'Team key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'openai',
+        origin: 'shipped',
+        catalogSource: 'models-endpoint',
+        models: [
+          { id: 'gpt-5', tags: ['chat'] },
+          {
+            id: 'text-embedding-3-small',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+    ];
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'openai' }));
+
+    // The tag field gives way to a closed pick over the catalog's embedding
+    // models: no chat model among them, and no hand-typed escape either —
+    // a shipped catalog is authoritative.
+    expect(
+      within(section).queryByRole('textbox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        "Embedding models the provider's catalog lists.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    expect(
+      screen.getByRole('option', { name: 'text-embedding-3-small' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'gpt-5' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Other model…' }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('option', { name: 'text-embedding-3-small' }),
+    );
+
+    // The one fact nobody should look up by hand lands in the width field.
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(1536);
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'openai',
+      credentialId: undefined,
+      model: 'text-embedding-3-small',
+      dimensions: 1536,
+      baseUrl: undefined,
+    });
+  });
+
+  it('refuses a shipped provider whose catalog lists no embedding model', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'deepseek',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [{ id: 'deepseek-v4', tags: ['chat'] }],
+      },
+    ];
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+
+    // Nothing to type into: the row says so, and the shared Save stays off.
+    // The provider select carries no second line about it.
+    expect(
+      within(section).queryByRole('textbox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).queryByRole('combobox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(within(section).getByText('No embedding model')).toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'The deepseek catalog lists no embedding model. Choose a provider that serves one.',
+      ),
+    ).toBeInTheDocument();
+    expect(capture.current?.isDirty).toBe(true);
+    expect(capture.current?.isValid).toBe(false);
+    expect(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    ).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('refuses a shipped provider whose catalog could not be loaded', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'vercel-ai-gateway', name: 'Gateway key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'vercel-ai-gateway',
+        origin: 'shipped',
+        catalogSource: 'models-endpoint',
+        models: [],
+        catalogError: 'fetch failed',
+      },
+    ];
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'vercel-ai-gateway' }));
+
+    expect(
+      within(section).queryByRole('textbox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText('Catalog unavailable'),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'The vercel-ai-gateway catalog could not be loaded. Refresh the catalogs under Settings → AI providers and try again.',
+      ),
+    ).toBeInTheDocument();
+    expect(capture.current?.isValid).toBe(false);
+  });
+
+  it('keeps the free tag field for an org-defined provider whose listing carries no embedding model', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'local-embedding', name: 'Local key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'local-embedding',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [{ id: 'local-chat', tags: ['chat'] }],
+      },
+    ];
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'local-embedding' }));
+
+    // A bare listing tags nothing as an embedding model, so it cannot tell;
+    // the tag is typed, and the width with it.
+    expect(
+      within(section).queryByRole('combobox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'No listing can tell whether this provider serves embeddings, so enter the tag exactly as the provider spells it.',
+      ),
+    ).toBeInTheDocument();
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Model' }),
+      'example-embedding',
+    );
+    await user.type(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+      '1024',
+    );
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'local-embedding',
+      credentialId: undefined,
+      model: 'example-embedding',
+      dimensions: 1024,
+      baseUrl: undefined,
+    });
+  });
+
+  it('keeps the free tag field for Azure, which has no catalog to consult', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'azure', name: 'Resource key' },
+    ];
+    fixtures.catalogs = [
+      { name: 'azure', origin: 'shipped', catalogSource: 'none', models: [] },
+    ];
+
+    const { user } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'azure' }));
+
+    expect(
+      within(section).getByRole('textbox', { name: 'Model' }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).queryByText('No embedding model'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'No listing can tell whether this provider serves embeddings, so enter the tag exactly as the provider spells it.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("adds Other model… to an org-defined provider's pick and saves the typed tag", async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'local-embedding', name: 'Local key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'local-embedding',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [{ id: 'nomic-embed', tags: ['embedding'] }],
+      },
+    ];
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'local-embedding' }));
+    expect(
+      within(section).getByText(
+        "Embedding models this provider's listing carries; pick Other model to type a tag it does not list.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    expect(
+      screen.getByRole('option', { name: 'nomic-embed' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Other model…' }));
+
+    // The tag field opens empty and unjudged; the hint turns to spelling.
+    const tag = within(section).getByRole('textbox', { name: 'Model tag' });
+    expect(tag).toHaveValue('');
+    expect(
+      within(section).queryByText('Enter the model tag.'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'The model tag exactly as the provider spells it.',
+      ),
+    ).toBeInTheDocument();
+    await user.type(tag, 'nomic-embed-v2');
+    await user.type(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+      '768',
+    );
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'local-embedding',
+      credentialId: undefined,
+      model: 'nomic-embed-v2',
+      dimensions: 768,
+      baseUrl: undefined,
+    });
+  });
+
+  it('opens a stored tag an org-defined listing does not carry in the Other model state', () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'local-embedding', name: 'Local key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'local-embedding',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [{ id: 'nomic-embed', tags: ['embedding'] }],
+      },
+    ];
+    setEmbeddingFixture({
+      configured: true,
+      providerSlug: 'local-embedding',
+      model: 'my-embedder',
+      dimensions: 1536,
+    });
+
+    renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    expect(
+      within(section).getByRole('combobox', { name: 'Model' }),
+    ).toHaveTextContent('Other model…');
+    expect(
+      within(section).getByRole('textbox', { name: 'Model tag' }),
+    ).toHaveValue('my-embedder');
+  });
+
+  it('shows a stored tag a shipped catalog does not list as its own entry', () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openai', name: 'Team key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'openai',
+        origin: 'shipped',
+        catalogSource: 'models-endpoint',
+        models: [
+          {
+            id: 'text-embedding-3-small',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+    ];
+    setEmbeddingFixture({
+      configured: true,
+      providerSlug: 'openai',
+      model: 'text-embedding-3-large',
+      dimensions: 3072,
+    });
+
+    renderWithController();
+
+    // No escape on a shipped catalog — the stored tag shows as the selected
+    // entry so the admin sees what the config names and can move it.
+    const section = sectionByHeading('Embedding model');
+    expect(
+      within(section).getByRole('combobox', { name: 'Model' }),
+    ).toHaveTextContent('text-embedding-3-large');
+    expect(
+      within(section).queryByRole('textbox', { name: 'Model tag' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clears the model pick when the provider changes and keeps the width', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openai', name: 'Team key' },
+      { id: 'cred-2', providerSlug: 'zai', name: 'GLM key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'openai',
+        origin: 'shipped',
+        catalogSource: 'models-endpoint',
+        models: [
+          {
+            id: 'text-embedding-3-small',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+      {
+        name: 'zai',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [
+          {
+            id: 'embedding-3',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+    ];
+
+    const { user } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'openai' }));
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    await user.click(
+      screen.getByRole('option', { name: 'text-embedding-3-small' }),
+    );
+
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'zai' }));
+
+    // A tag names one provider's model, so the pick starts over; the width
+    // is the corpus's and stays.
+    expect(
+      within(section).getByRole('combobox', { name: 'Model' }),
+    ).toHaveTextContent('Choose a model');
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(1536);
+  });
+
+  it('leaves the width to the admin when the catalog states none for the pick', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'vercel-ai-gateway', name: 'Gateway key' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'vercel-ai-gateway',
+        origin: 'shipped',
+        catalogSource: 'models-endpoint',
+        models: [{ id: 'openai/text-embedding-3-large', tags: ['embedding'] }],
+      },
+    ];
+
+    const { user } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'vercel-ai-gateway' }));
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    await user.click(
+      screen.getByRole('option', { name: 'openai/text-embedding-3-large' }),
+    );
+
+    // No width is guessed: the field stays empty for the admin to state it,
+    // as its own row says.
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(null);
   });
 
   it('renders the org storage section from a loaded config with its stored values', async () => {

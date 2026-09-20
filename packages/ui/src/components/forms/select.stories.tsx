@@ -116,6 +116,7 @@ export const WithError: Story = {
     label: 'Favorite fruit',
     placeholder: 'Select a fruit...',
     error: true,
+    errorMessage: 'Choose an option.',
   },
 };
 

@@ -44,7 +44,7 @@ Die Dateien liegen unter `$TALE_CONFIG_DIR/<orgSlug>/knowledge/`: `connection.js
 
 ### Embedding-Modell auf den Korpus abstimmen {#das-embedding-modell-der-organisation}
 
-Wähle unter **Embedding-Modell** Anbieter und gespeicherte Zugangsdaten. Gib den genauen Modell-Tag und die Vektorbreite an. Eine optionale Basis-URL wählt einen OpenAI-kompatiblen Endpunkt. Ohne konfiguriertes Embedding-Modell können Wissensindexierung und Suche nicht regulär arbeiten.
+Wähle unter **Embedding-Modell** Anbieter und gespeicherte Zugangsdaten und dann das Modell. **Modell** führt die Embedding-Modelle aus dem Katalog des Anbieters auf und füllt die Vektorbreite aus dem Katalog aus. Ein Anbieter, dessen Katalog kein Embedding-Modell führt, lässt sich nicht wählen: Das Formular sagt es dir, und du nimmst einen anderen. Nur ein Anbieter ohne Liste, die man befragen könnte, nimmt ein von Hand eingegebenes Tag an — ein von deiner Organisation selbst definierter Anbieter, dessen Modellliste nicht verrät, ob er Embeddings bedient, oder Azure OpenAI, dessen Deployments deine eigenen Namen tragen; gib dann die Vektorbreite selbst an. Eine optionale Basis-URL wählt einen OpenAI-kompatiblen Endpunkt. Ohne konfiguriertes Embedding-Modell können Wissensindexierung und Suche nicht regulär arbeiten.
 
 Die Vektorbreite wird bei erster Verwendung pro Datenbank festgelegt. Organisationen auf derselben Datenbank müssen diese Breite verwenden. Eine andere Breite braucht eine separate kompatible Datenbank. Auch ein Modellwechsel bei gleicher Breite kann vorhandene Vektoren inkompatibel machen. Plane eine Neuindexierung mit dem gewählten Modell, statt Embeddings ungeprüft zu mischen.
 
