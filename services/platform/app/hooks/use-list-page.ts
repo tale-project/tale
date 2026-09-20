@@ -7,6 +7,7 @@ import type {
 } from '@tale/ui/data-table/data-table-types';
 import { useState, useMemo, useCallback } from 'react';
 
+import type { SortingState } from '@/lib/pagination/types';
 import { filterByTextSearch, filterByFields } from '@/lib/utils/filtering';
 
 // ---------------------------------------------------------------------------
@@ -89,18 +90,21 @@ interface UseListPageOptions<TData> {
    */
   countRow?: (row: TData) => number;
   /**
-   * Display mode for the table.
-   * - `'infiniteScroll'` (default): renders an infinite-scroll list that loads more as the user scrolls.
-   * - `'pagination'`: renders client-side pagination controls with next/previous navigation.
+   * The table's controlled sort state, when its columns are sortable. A sort
+   * orders the WHOLE dataset, not the page the user happens to have scrolled
+   * to, so while one is active the hook drains every remaining backend page
+   * and hands the table the full set instead of the `displayCount` window —
+   * otherwise the visible rows would reshuffle as later pages arrived.
+   * TanStack still owns the comparator; this only widens what it sorts.
    */
-  displayMode?: 'infiniteScroll' | 'pagination';
+  sorting?: SortingState;
 }
 
 // ---------------------------------------------------------------------------
 // Hook Return Type
 // ---------------------------------------------------------------------------
 
-interface ListPageInfiniteScrollTableProps<TData> {
+interface ListPageTableProps<TData> {
   data: TData[];
   search?: DataTableSearchConfig;
   filters?: FilterConfig[];
@@ -119,27 +123,6 @@ interface ListPageInfiniteScrollTableProps<TData> {
   };
   approxRowCount?: number;
 }
-
-interface ListPagePaginationTableProps<TData> {
-  data: TData[];
-  search?: DataTableSearchConfig;
-  filters?: FilterConfig[];
-  onClearFilters?: () => void;
-  getRowId: (row: TData) => string;
-  pagination: {
-    clientSide: true;
-    pageSize: number;
-    total: number;
-    showPageSizeSelector: boolean;
-    entityLabel?: EntityLabel;
-  };
-  isLoading: boolean;
-  approxRowCount?: number;
-}
-
-type ListPageTableProps<TData> =
-  | ListPageInfiniteScrollTableProps<TData>
-  | ListPagePaginationTableProps<TData>;
 
 interface UseListPageReturn<TData> {
   tableProps: ListPageTableProps<TData>;
@@ -190,7 +173,7 @@ export function useListPage<TData>(
     approxRowCount,
     entityLabel,
     countRow,
-    displayMode = 'infiniteScroll',
+    sorting,
   } = options;
 
   // 1. Normalize data source
@@ -242,6 +225,11 @@ export function useListPage<TData>(
     return searchActive || managedFilterActive;
   }, [search, managedSearchValue, filterValues]);
 
+  // A sort reorders the whole dataset, so it needs the whole dataset: the
+  // buffer drains like an active filter does, and the `displayCount` window
+  // is dropped so TanStack sorts every row rather than the first page.
+  const hasActiveSort = (sorting?.length ?? 0) > 0;
+
   // 5. Process data (search + filters)
   const processed = useMemo(() => {
     let data = [...rawData];
@@ -273,19 +261,21 @@ export function useListPage<TData>(
     return data;
   }, [rawData, searchValue, filterValues, search]);
 
-  // 6. Slice for display
+  // 6. Slice for display — a sort takes the whole set (see `hasActiveSort`)
   const displayed = useMemo(
-    () => processed.slice(0, displayCount),
-    [processed, displayCount],
+    () => (hasActiveSort ? processed : processed.slice(0, displayCount)),
+    [processed, displayCount, hasActiveSort],
   );
 
-  // 7. Compute hasMore
+  // 7. Compute hasMore. `displayed` already holds every processed row while a
+  // sort is active, so only an un-drained backend can still add to it.
+  const localRemaining = !hasActiveSort && displayCount < processed.length;
   const hasMore =
     dataSource.type === 'paginated'
-      ? displayCount < processed.length ||
+      ? localRemaining ||
         dataSource.status === 'CanLoadMore' ||
         dataSource.status === 'LoadingMore'
-      : displayCount < processed.length;
+      : localRemaining;
 
   // 8. Reset displayCount helper
   const resetDisplayCount = useCallback(() => {
@@ -383,43 +373,15 @@ export function useListPage<TData>(
     approxRowCount,
   };
 
-  if (displayMode === 'pagination') {
-    // In pagination mode, eagerly load all backend pages and let TanStack Table paginate client-side
-    if (
-      dataSource.type === 'paginated' &&
-      dataSource.status === 'CanLoadMore'
-    ) {
-      dataSource.loadMore(pageSize * 3);
-    }
-
-    return {
-      tableProps: {
-        ...sharedTableProps,
-        data: processed,
-        pagination: {
-          clientSide: true,
-          pageSize,
-          total: processed.length,
-          showPageSizeSelector: false,
-          entityLabel,
-        },
-        isLoading,
-      },
-      processedData: processed,
-      totalCount: rawData.length,
-      filteredCount: processed.length,
-      isLoading,
-    };
-  }
-
-  // Infinite-scroll mode normally fetches the next backend page only as the user
-  // scrolls. But while a client-side search/filter is active we eagerly drain
-  // the remaining pages so the filter scans the entire dataset — without this,
+  // The list normally fetches the next backend page only as the user scrolls.
+  // But while a client-side search/filter is active we eagerly drain the
+  // remaining pages so the filter scans the entire dataset — without this,
   // matches on un-loaded pages are silently missed, and a filter that narrows
   // the loaded buffer to zero suppresses the scroll sentinel, stranding the user
-  // on a false "no results" (#2054).
+  // on a false "no results" (#2054). A sort drains for the same reason: it has
+  // to order rows it hasn't seen yet.
   if (
-    hasActiveClientFilter &&
+    (hasActiveClientFilter || hasActiveSort) &&
     dataSource.type === 'paginated' &&
     dataSource.status === 'CanLoadMore'
   ) {
@@ -433,10 +395,13 @@ export function useListPage<TData>(
       infiniteScroll: {
         hasMore,
         onLoadMore: handleLoadMore,
+        // Only a backend fetch the local buffer can't cover reads as "loading
+        // more". While a sort is active the buffer is always spent — every
+        // processed row is already on screen — so the backend fetch is it.
         isLoadingMore:
           dataSource.type === 'paginated'
             ? dataSource.status === 'LoadingMore' &&
-              displayCount >= processed.length
+              (hasActiveSort || displayCount >= processed.length)
             : false,
         isInitialLoading:
           dataSource.type === 'paginated'

@@ -192,6 +192,19 @@ loaded, and reads **No teams** for an account in none.
   hugs those rows instead of stretching. Repeat at 390×740: the frame ends
   above the bottom tab bar, same three pages, same behaviour.
 
+- [ ] `NAV-F22` · **Every overview list ends on the same footer** — With ~25
+  rows seeded in each, visit `/dashboard/{org}/documents`,
+  `/dashboard/{org}/knowledge-entries`, `/dashboard/{org}/websites`,
+  `/dashboard/{org}/products` and `/dashboard/{org}/contacts` in turn → Each
+  ends on ONE sticky line inside the bordered frame reading "Showing all N
+  <entity>" (`common.pagination.showingAll`, the noun from the list's own
+  `entityLabel` — "products", "contacts"); none of them renders a page
+  selector or Previous/Next buttons (`common.aria.previousPage` /
+  `common.aria.nextPage`) below the frame. On Contacts, click the **Name**
+  column header → the list re-orders across ALL contacts (row 1 is the
+  alphabetically first contact in the org, not the first of the loaded page)
+  and the footer still reads "Showing all N contacts".
+
 ## Boundary & error tests
 
 - [ ] `NAV-B1` · **Bad deep link** — Open
