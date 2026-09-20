@@ -20,7 +20,11 @@ import type { Sql } from 'postgres';
  *      COPY shares one blob ref across several document rows, so a purge of
  *      one copy must never destroy the twin's bytes.
  *
- * `release.ts` acts on both verdicts.
+ * `release.ts` acts on both verdicts. The indexer asks the first one
+ * (`isCorpusRefLive`) before it pays for a download or an embedding, and
+ * again once it has claimed its corpus row: a file whose ref was rotated or
+ * deleted while its job waited is not indexed, and one released while the
+ * job ran ends quietly instead of re-creating a row nothing references.
  *
  * Its own module because the release seam imports the knowledge service for
  * the scope reconcile, and the service needs the predicate too.
@@ -89,4 +93,23 @@ export async function assessRefLiveness(
       ) AS "blobLive"
     FROM unnest(${args.refs}::text[]) AS r(ref)
   `;
+}
+
+/**
+ * May the corpus hold rows for this ref right now? The one-ref reading of
+ * the corpus predicate above — what the indexer asks. Answering "no" to a
+ * ref the query did not report (a double that knows nothing of it) errs on
+ * the side that is recoverable: a skipped index has the retry door and the
+ * daily reconcile behind it; a resurrected dead ref answers queries with
+ * content nothing references.
+ */
+export async function isCorpusRefLive(
+  sql: Sql,
+  args: { organizationId: string; ref: string },
+): Promise<boolean> {
+  const [verdict] = await assessRefLiveness(sql, {
+    organizationId: args.organizationId,
+    refs: [args.ref],
+  });
+  return verdict?.corpusLive ?? false;
 }

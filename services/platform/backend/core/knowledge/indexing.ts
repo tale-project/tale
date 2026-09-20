@@ -26,6 +26,17 @@
  *    drives several slices pays it once (`indexWholeDocument`) rather than
  *    once per slice; a document of seventy slices used to be scanned and
  *    chunked seventy times over.
+ *  - **A released document ends the run, quietly.** The corpus is keyed by
+ *    blob ref, and a ref dies the moment its document is rewritten, replaced
+ *    or deleted — the release seam (`domains/knowledge/release.ts`) then
+ *    deletes the corpus row, often seconds after the job that indexes the
+ *    same ref was queued. A run that finds its row gone stops as
+ *    `released`: it never inserts chunks under a document that is not there
+ *    (the FK violation that used to fail the job) and never claims a fresh
+ *    row for the dead ref (the resurrection a later slice used to perform).
+ *    The caller's own liveness question (`stillWanted`) is asked AFTER the
+ *    claim, so a release that landed before the claim is seen by it and one
+ *    landing after finds the claimed row and takes it.
  *
  * The document row stays `processing` — with its `updated_at` touched on every
  * committed slice, so a watchdog can tell live work from abandoned work — until
@@ -34,7 +45,7 @@
 
 import type { PiiConfig } from '@tale/shared/schemas/pii';
 import { computeContentHash } from '@tale/shared/utils/hashing';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   chunkDocument,
@@ -126,10 +137,34 @@ export interface IndexDocumentArgs {
    * checkpoint.
    */
   readonly signal?: AbortSignal;
+  /**
+   * Whether the caller's own records still want this document in the
+   * corpus. Asked after the corpus row is claimed and before anything is
+   * embedded or copied — on every slice. Answering `false` drops the claimed
+   * row (and its chunks) and ends the run as `released`.
+   *
+   * After the claim, never before: a release always follows the commit that
+   * killed the ref, so a release that ran before this run's claim is visible
+   * to a check made after it, and one that runs later finds the claimed row
+   * and deletes it — which the write path then notices. A check made before
+   * the claim leaves a gap in which the row is re-created for a dead ref.
+   */
+  readonly stillWanted?: () => Promise<boolean>;
+  /**
+   * The corpus row an earlier slice of this run claimed. A slice that no
+   * longer finds exactly that row stops as `released` instead of claiming a
+   * new one: within one run the only thing that removes the row is a release,
+   * and re-claiming would resurrect the dead ref. `indexWholeDocument` sets
+   * it on every slice after the first.
+   */
+  readonly resumeDocumentId?: string;
 }
 
 export interface IndexDocumentResult {
   readonly fileId: string;
+  /** The corpus row this invocation wrote to — what a continuation must find
+   * again. Absent when no row was claimed. */
+  readonly documentId?: string;
   /** Chunks written by THIS invocation. */
   readonly chunksWritten: number;
   /** Chunks the document has in total. */
@@ -140,8 +175,15 @@ export interface IndexDocumentResult {
   /** True when the slice budget ran out — the caller schedules a continuation,
    * which resumes after the committed prefix. */
   readonly partial: boolean;
-  /** Set when nothing was done, and why. */
-  readonly skipped?: 'unchanged' | 'secret-detected' | 'empty' | 'pii-blocked';
+  /** Set when nothing was done, and why. `released`: the document's ref was
+   * released while this run was in flight — the corpus holds nothing for it,
+   * by design, and the run stopped without writing. */
+  readonly skipped?:
+    | 'unchanged'
+    | 'secret-detected'
+    | 'empty'
+    | 'pii-blocked'
+    | 'released';
   /** Present when the upload was refused, in words for the person who made it. */
   readonly refusal?: string;
 }
@@ -299,6 +341,18 @@ export async function indexDocument(
 
   const { contentHash, chunks, repeats } = prepared;
   const stored = await readStoredState(args.sql, args.orgSlug, args.fileId);
+  if (
+    args.resumeDocumentId !== undefined &&
+    stored?.id !== args.resumeDocumentId
+  ) {
+    // The row the previous slice wrote to is gone — released between slices.
+    // Claiming again would re-create it for a ref nothing holds any more,
+    // and embed the whole document over again for nobody.
+    logger.info(
+      `document "${args.fileId}" was released between slices; stopping`,
+    );
+    return released(args.fileId, chunks.length);
+  }
   const duplicate = await findDuplicate(
     args.sql,
     args.orgSlug,
@@ -308,7 +362,7 @@ export async function indexDocument(
   const plan = planIngest({
     contentHash,
     totalChunks: chunks.length,
-    stored,
+    stored: stored?.state ?? null,
     duplicateOf: duplicate,
   });
 
@@ -372,6 +426,16 @@ export async function indexDocument(
     keepChunks: plan.action === 'resume',
   });
 
+  // Asked after the claim, never before — see `IndexDocumentArgs.stillWanted`
+  // for why the order is the whole guarantee.
+  if (args.stillWanted !== undefined && !(await args.stillWanted())) {
+    await dropClaim(args.sql, args.orgSlug, documentId);
+    logger.info(
+      `document "${args.fileId}" is no longer referenced; dropped its claim and stored nothing`,
+    );
+    return released(args.fileId, chunks.length);
+  }
+
   if (plan.action === 'clone') {
     const copied = await cloneChunks(
       args.sql,
@@ -379,12 +443,19 @@ export async function indexDocument(
       plan.sourceDocumentId,
       documentId,
     );
+    if (copied === null) {
+      logger.info(
+        `document "${args.fileId}" was released while its chunks were being copied; stopping`,
+      );
+      return released(args.fileId, chunks.length);
+    }
     await markCompleted(args.sql, args.orgSlug, documentId, copied);
     logger.info(
       `document "${args.fileId}" matched content already indexed for this organization; copied ${copied} chunks instead of re-embedding`,
     );
     return {
       fileId: args.fileId,
+      documentId,
       chunksWritten: copied,
       chunksTotal: copied,
       chunksStored: copied,
@@ -420,13 +491,19 @@ export async function indexDocument(
     for (const isRepeat of repeated) {
       vectors.push(isRepeat ? null : (embedded[next++] ?? null));
     }
-    await writeChunks({
+    const outcome = await writeChunks({
       sql: args.sql,
       orgSlug: args.orgSlug,
       documentId,
       chunks: window,
       vectors,
     });
+    if (outcome === 'released') {
+      logger.info(
+        `document "${args.fileId}" was released while its slice was being embedded; stopping`,
+      );
+      return released(args.fileId, chunks.length);
+    }
   }
 
   if (slice.done) {
@@ -435,10 +512,24 @@ export async function indexDocument(
 
   return {
     fileId: args.fileId,
+    documentId,
     chunksWritten: window.length,
     chunksTotal: chunks.length,
     chunksStored: slice.to,
     partial: !slice.done,
+  };
+}
+
+/** The result of a run that stopped because its document was released: the
+ * corpus holds nothing for the ref, so nothing is stored and nothing remains. */
+function released(fileId: string, chunksTotal: number): IndexDocumentResult {
+  return {
+    fileId,
+    chunksWritten: 0,
+    chunksTotal,
+    chunksStored: 0,
+    partial: false,
+    skipped: 'released',
   };
 }
 
@@ -477,19 +568,30 @@ export async function indexWholeDocument(
     }
     await hooks.onSlice?.(result);
     args.signal?.throwIfAborted();
-    result = await indexDocument({ ...args, prepared });
+    // Every later slice must find the row the first one claimed — a slice
+    // that does not has been released underneath and stops (see
+    // `IndexDocumentArgs.resumeDocumentId`).
+    result = await indexDocument({
+      ...args,
+      prepared,
+      ...(result.documentId !== undefined
+        ? { resumeDocumentId: result.documentId }
+        : {}),
+    });
   }
   return result;
 }
 
-/** What the corpus already holds for this document reference. */
+/** What the corpus already holds for this document reference, and under
+ * which row. */
 async function readStoredState(
   sql: Sql,
   orgSlug: string,
   fileId: string,
-): Promise<
-  import('../../../lib/knowledge/ingest-plan').StoredDocumentState | null
-> {
+): Promise<{
+  readonly id: string;
+  readonly state: import('../../../lib/knowledge/ingest-plan').StoredDocumentState;
+} | null> {
   const rows = await sql.unsafe<
     {
       id: string;
@@ -509,9 +611,12 @@ async function readStoredState(
   const row = rows[0];
   if (!row) return null;
   return {
-    contentHash: row.content_hash,
-    status: asStatus(row.status),
-    storedChunks: row.stored,
+    id: row.id,
+    state: {
+      contentHash: row.content_hash,
+      status: asStatus(row.status),
+      storedChunks: row.stored,
+    },
   };
 }
 
@@ -616,17 +721,67 @@ async function claimDocumentRow(args: {
   });
 }
 
+/**
+ * Hold the claimed document row for the rest of the transaction, or learn that
+ * it is gone. KEY SHARE is the lock an inserted chunk's foreign key takes on
+ * its parent anyway; taking it first, explicitly, turns the two outcomes of a
+ * concurrent release into two clean ones: a release that already ran leaves
+ * no row, and the write stops; one that arrives now waits for this commit
+ * and then cascades the chunks away — a consistent end state, never the FK
+ * violation the bare insert raised.
+ */
+async function lockClaimedRow(
+  tx: TransactionSql,
+  orgSlug: string,
+  documentId: string,
+): Promise<boolean> {
+  const rows = await tx.unsafe<{ id: string }[]>(
+    `SELECT id FROM ${SCHEMA}.documents
+     WHERE id = $1 AND org_slug = $2
+     FOR KEY SHARE`,
+    [documentId, orgSlug],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Take back a claim on a document nothing references any more: the row and
+ * whatever chunks it has, in one transaction. Chunks explicitly, not by
+ * cascade alone — the same shape as the release seam's delete, so a corpus
+ * without the constraint is left just as clean.
+ */
+async function dropClaim(
+  sql: Sql,
+  orgSlug: string,
+  documentId: string,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `DELETE FROM ${SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2`,
+      [documentId, orgSlug],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${SCHEMA}.documents WHERE id = $1 AND org_slug = $2`,
+      [documentId, orgSlug],
+    );
+  });
+}
+
 /** Commit one slice of chunks. A `null` vector marks a repeated passage:
  * stored for reassembly, embedded and searched once through its first
- * occurrence. */
+ * occurrence. `released` when the document row is no longer there to hold
+ * them — nothing is written. */
 async function writeChunks(args: {
   sql: Sql;
   orgSlug: string;
   documentId: string;
   chunks: readonly ContextualChunk[];
   vectors: readonly (readonly number[] | null)[];
-}): Promise<void> {
-  await args.sql.begin(async (tx) => {
+}): Promise<'written' | 'released'> {
+  return args.sql.begin(async (tx) => {
+    if (!(await lockClaimedRow(tx, args.orgSlug, args.documentId))) {
+      return 'released';
+    }
     for (const [position, chunk] of args.chunks.entries()) {
       const vector = args.vectors[position] ?? null;
       await tx.unsafe(
@@ -669,34 +824,39 @@ async function writeChunks(args: {
        WHERE id = $1 AND org_slug = $2`,
       [args.documentId, args.orgSlug],
     );
+    return 'written';
   });
 }
 
-/** Copy an identical document's chunks and embeddings. */
+/** Copy an identical document's chunks and embeddings. `null` when the
+ * target row is no longer there to receive them. */
 async function cloneChunks(
   sql: Sql,
   orgSlug: string,
   sourceDocumentId: string,
   targetDocumentId: string,
-): Promise<number> {
-  const rows = await sql.unsafe<{ count: number }[]>(
-    `WITH copied AS (
-       INSERT INTO ${SCHEMA}.chunks
-           (document_id, org_slug, chunk_index, chunk_content, content_hash,
-            embedding, context_header, core_content, prefix_overlap, suffix_overlap,
-            passage_repeat)
-       SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding,
-              context_header, core_content, prefix_overlap, suffix_overlap,
-              passage_repeat
-       FROM ${SCHEMA}.chunks
-       WHERE document_id = $3 AND org_slug = $2
-       ON CONFLICT (document_id, chunk_index) DO NOTHING
-       RETURNING 1
-     )
-     SELECT count(*)::int AS count FROM copied`,
-    [targetDocumentId, orgSlug, sourceDocumentId],
-  );
-  return rows[0]?.count ?? 0;
+): Promise<number | null> {
+  return sql.begin(async (tx) => {
+    if (!(await lockClaimedRow(tx, orgSlug, targetDocumentId))) return null;
+    const rows = await tx.unsafe<{ count: number }[]>(
+      `WITH copied AS (
+         INSERT INTO ${SCHEMA}.chunks
+             (document_id, org_slug, chunk_index, chunk_content, content_hash,
+              embedding, context_header, core_content, prefix_overlap, suffix_overlap,
+              passage_repeat)
+         SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding,
+                context_header, core_content, prefix_overlap, suffix_overlap,
+                passage_repeat
+         FROM ${SCHEMA}.chunks
+         WHERE document_id = $3 AND org_slug = $2
+         ON CONFLICT (document_id, chunk_index) DO NOTHING
+         RETURNING 1
+       )
+       SELECT count(*)::int AS count FROM copied`,
+      [targetDocumentId, orgSlug, sourceDocumentId],
+    );
+    return rows[0]?.count ?? 0;
+  });
 }
 
 async function markCompleted(

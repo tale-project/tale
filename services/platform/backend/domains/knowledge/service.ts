@@ -78,6 +78,7 @@ import {
   subtreeDocumentFolderPaths,
 } from '../folders/paths.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
+import { isCorpusRefLive } from './liveness.ts';
 import {
   decideRetrievable,
   type AccessScopeArg,
@@ -757,6 +758,28 @@ export async function indexUploadedFile(
   }
   const orgSlug = await requireOrgSlug(sql, file.organizationId);
 
+  // Nothing indexes a ref nothing references. The job outlives the moment
+  // that queued it: an agent that rewrites its report two seconds after
+  // writing it, a replacement upload, a sync update — each rotates the
+  // document's ref and releases the old one, and the job for the old one is
+  // still in the queue. The corpus-liveness predicate is the release seam's
+  // own (`liveness.ts`), so the two can never disagree about a ref; a
+  // release that lands while this run is already embedding is caught by the
+  // indexer itself (`stillWanted`, and the write path). No status write: the
+  // row is out of circulation, and a stale marker on it is read by nobody.
+  const stillLive = (): Promise<boolean> =>
+    isCorpusRefLive(sql, {
+      organizationId: file.organizationId,
+      ref: file.storageRef,
+    });
+  if (!(await stillLive())) {
+    console.info(
+      '[knowledge] indexing skipped: nothing references the file any more',
+      { fileId, orgSlug },
+    );
+    return;
+  }
+
   if (!isSupported(file.fileName)) {
     await writeRagStatus(sql, fileId, {
       ragStatus: 'unsupported',
@@ -882,6 +905,7 @@ export async function indexUploadedFile(
         teamIds,
         projectId,
         signal: options.signal,
+        stillWanted: stillLive,
       },
       {
         onSlice: (slice) =>
@@ -891,6 +915,18 @@ export async function indexUploadedFile(
           }),
       },
     );
+    if (result.skipped === 'released') {
+      // The ref died while this run was in flight and the corpus holds
+      // nothing for it — by design, not by fault: no `failed` status (a
+      // retry would index a dead ref, or find no row at all), no rethrow
+      // (the retry ladder has nothing to retry). The file row is out of
+      // circulation or already gone.
+      console.info(
+        '[knowledge] indexing ended: the document was released while it ran',
+        { fileId, orgSlug },
+      );
+      return;
+    }
     // `unchanged` means the corpus already holds ALL of this exact content —
     // that is a completed index, never a failure (a retry on an indexed
     // document lands here).
