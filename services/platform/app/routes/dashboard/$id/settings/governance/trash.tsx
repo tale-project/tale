@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { TrashPage } from '@/app/features/settings/governance/components/trash-page';
 
 export const Route = createFileRoute(
@@ -11,9 +10,8 @@ export const Route = createFileRoute(
 
 function TrashRoute() {
   const { id: organizationId } = Route.useParams();
-  return (
-    <SettingsPage>
-      <TrashPage organizationId={organizationId} />
-    </SettingsPage>
-  );
+  // The page owns its own `SettingsPage` frame — its bounded-height,
+  // full-width shell is what lets the trash table scroll inside a fixed
+  // frame, the same way the Logs page does.
+  return <TrashPage organizationId={organizationId} />;
 }

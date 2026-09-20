@@ -256,6 +256,19 @@ select lists only the current admin's keys (`useApiKeys`).
   assistants** (`analytics.usage.tables.topAgents.title`) the automation
   appears under its name and a project agent under its name, never an id.
 
+- [ ] `GOV-F21` · **Trash scrolls its rows, not the page** — Seed >20 trashed
+  rows (e.g. delete several contacts), open `trash` at 1280×720 and scroll
+  with the wheel → The rows move INSIDE the bordered table while the **Trash**
+  heading, its description, the **Filter** button, the column header row and
+  the "Showing all N records" footer (`governance.trash.entityLabel`) stay
+  put; the settings pane itself never scrolls, and the
+  **Restore** button (`governance.trash.restore.label`) is fully visible at
+  the right of every row with no horizontal scrollbar. In the console,
+  `[...document.querySelectorAll('*')].filter(el => el.scrollHeight >
+  el.clientHeight + 4 && ['auto','scroll'].includes(getComputedStyle(el).overflowY))`
+  returns exactly ONE element and it is `[data-testid="data-table-scrollport"]`
+  — the same frame `logs` renders in.
+
 ## Boundary & error tests
 
 - [ ] `GOV-B1` · **DSAR cooling-off bounds** — `data-subject-requests` →
