@@ -3851,6 +3851,38 @@ export function buildSpec(): Json {
         ...standardErrors,
       },
     },
+    patch: {
+      tags: ['Tasks'],
+      summary: 'Archive or restore a project task',
+      description:
+        'The task’s lifecycle toggle — the one verb the board had and this door did not. `archived: true` archives the task: it stays readable through this door and refuses comments and starts with 403 `TASK_ARCHIVED`; `false` restores it. Both are idempotent — a task already in the requested state is left unchanged — so a mirror that supersedes a task (a re-delivery that opened a new one, a cancelled source record) can retire the old one without reading it first. Requires write access to an ACTIVE project (403 `PROJECT_ARCHIVED` / `RBAC_FORBIDDEN` otherwise); the task itself may be archived, which is what the restore is for. The task must belong to the URL project (404 `TASK_NOT_FOUND`). Answers the task as it now stands.',
+      operationId: 'setTaskArchived',
+      security: sec,
+      parameters: taskParameters,
+      requestBody: jsonBody({
+        type: 'object',
+        additionalProperties: false,
+        required: ['archived'],
+        properties: {
+          archived: {
+            type: 'boolean',
+            description: '`true` archives the task, `false` restores it',
+          },
+        },
+      }),
+      responses: {
+        '200': jsonResponse('The task as it now stands', {
+          type: 'object',
+          required: ['task'],
+          properties: { task: ref('Task') },
+        }),
+        '403': errorResponse(
+          'Project is read-only for the key holder (`RBAC_FORBIDDEN`) or archived (`PROJECT_ARCHIVED`)',
+        ),
+        '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
   };
   paths['/api/v1/projects/{id}/tasks/{taskId}/comments'] = {
     get: {

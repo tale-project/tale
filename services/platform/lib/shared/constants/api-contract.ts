@@ -170,5 +170,13 @@
  * `GET …/automations/{name}/runs` answers a deleted automation's kept runs.
  * A website `domain` that is a bare IP address is `WEBSITE_DOMAIN_INVALID`.
  * Products are documented as deleted outright (no trash, no restore).
+ *
+ * 1.20.0 — 2026-09-21: `PATCH /api/v1/projects/{id}/tasks/{taskId}`
+ * (`setTaskArchived`) — the task's lifecycle toggle, `{ archived }`, the
+ * one board verb the door lacked: a mirror that supersedes a task (a
+ * re-delivery that opened a new one, a cancelled source record) retires
+ * the old one instead of leaving it open. Idempotent both ways, write
+ * access to an active project, the task itself may be archived (that is
+ * what the restore is for), answers the task as it now stands.
  */
-export const API_CONTRACT_VERSION = '1.19.0';
+export const API_CONTRACT_VERSION = '1.20.0';
