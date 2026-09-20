@@ -245,8 +245,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       updatedAt: task.updatedAt,
       // The archived marker, present exactly when the task is archived —
       // the state the comment and start doors refuse with `TASK_ARCHIVED`.
-      // A task is archived from the board; this door has no verb for it, so
-      // a mirror reads the state here instead of learning it from a 403.
+      // The lifecycle toggle below (and the board) sets and clears it; a
+      // mirror reads the state here instead of learning it from a 403.
       archivedAt: task.archivedAt ?? undefined,
     };
   };

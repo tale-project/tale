@@ -204,17 +204,19 @@ default means deleting the override and fixing what surfaces:
   `decideApproval`; membership for an org run, project write access for a project run, no
   developer capability, `rest:execute` charged; `ApprovalError`'s generic codes re-coded at the
   door; registry codes, schemas, docs and a contract bump.
-- **A task cannot be archived or deleted over REST** — `Task.archivedAt` says "this door has
-  no verb for it": the app's `POST /api/app/tasks/:taskId/archive` (`archiveTask`, editor) and
-  `DELETE /api/app/tasks/:taskId` (`deleteTask`, owner/admin — the recursive retire in
-  `backend/domains/tasks/retire.ts` cancels live runs, deletes the discussion thread,
-  withdraws pending reviews, releases blob refs) have no twins in
-  `services/platform/backend/rest/v1-tasks.ts` (2026-09, round g). Paying it down means
-  `PATCH …/tasks/{taskId}` `{archived}` (the thread/project idiom, 200 `{task}`, no-op when
-  already there) and `DELETE …/tasks/{taskId}` → 204 with the cascade named in its
-  description, gated by `loadVisibleTask(tx, auth, projectId, taskId, {write: true})` first so
-  `assertTaskWritable`'s `RBAC_FORBIDDEN`/`TASK_FORBIDDEN` never leak, the `archivedAt`
-  sentences rewritten, and a contract bump.
+- **A task cannot be deleted over REST** — the app's `DELETE /api/app/tasks/:taskId`
+  (`deleteTask`, owner/admin — the recursive retire in `backend/domains/tasks/retire.ts`
+  cancels live runs, deletes the discussion thread, withdraws pending reviews, releases blob
+  refs) has no twin in `services/platform/backend/rest/v1-tasks.ts` (2026-09, round g). The
+  archive half was paid down on 2026-09-21 (contract 1.20.0): `PATCH …/tasks/{taskId}`
+  `{archived}` runs the board's `archiveTask`/`restoreTask` inside the door's serializable
+  transaction, idempotent both ways, behind the project write gate and the project-scoped task
+  lookup (an archived task must stay writable there, or nothing could restore it). Paying
+  down the delete means `DELETE …/tasks/{taskId}` → 204 with the cascade named in its
+  description, gated the way the PATCH is (the project write gate, then the task's own
+  project — an archived task stays deletable) so `assertTaskWritable`'s
+  `RBAC_FORBIDDEN`/`TASK_FORBIDDEN` never leak, `deleteTask`'s owner/admin rule surfaced as
+  403 `ROLE_FORBIDDEN`, and a contract bump.
 - **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
   `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
   `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take

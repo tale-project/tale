@@ -7971,8 +7971,9 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'Epoch ms — present when the task is archived: the state ' +
                 '`…/comments` and `…/start` refuse with 403 `TASK_ARCHIVED`. ' +
-                'A task is archived from the board; this door has no verb ' +
-                'for it, so read the state here.',
+                'Set by `PATCH …/tasks/{taskId}` `{archived: true}` (the ' +
+                'board’s own archive) and cleared by `{archived: false}`; ' +
+                'read the state here before starting.',
             },
             createdAt: epochMs,
             updatedAt: epochMs,

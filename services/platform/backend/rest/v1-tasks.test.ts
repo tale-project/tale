@@ -1128,9 +1128,9 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
     const { request } = mount({ taskArchived: true });
     const read = await request(item);
     expect(read.status).toBe(200);
-    // The state the two refusals name is readable here: a task is archived
-    // from the board (this door has no verb for it), so a mirror learns it
-    // from the payload rather than from the 403.
+    // The state the two refusals name is readable here: the lifecycle
+    // toggle (and the board) sets it, so a mirror learns it from the
+    // payload rather than from the 403.
     expect(await read.json()).toMatchObject({ task: { archivedAt: 1 } });
     expect((await request(`${item}/comments`)).status).toBe(200);
     const comment = await request(`${item}/comments`, 'POST', {
