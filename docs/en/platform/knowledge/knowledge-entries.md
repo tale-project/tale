@@ -39,7 +39,7 @@ Avoid relative dates such as “next Friday” or references such as “the poli
 
 <Step title="Save and check indexing">
 
-Click **Save**. The entry appears in the table with its topic, content, source, indexing status, and update time. Open it to read the full content. Indexing happens in the background; saving the row does not mean search is already using it.
+Click **Save**. The entry appears in the table with its topic, content, source (**Manual** for the form, **Chat** for a fact the assistant captured, **API** for one an integration wrote over REST), indexing status, and update time. Open it to read the full content. Indexing happens in the background; saving the row does not mean search is already using it.
 
 </Step>
 

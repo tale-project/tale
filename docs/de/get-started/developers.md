@@ -61,6 +61,7 @@ Verwende die `id` eines Modells in Chatanfragen und zusätzlich `providerSlug`, 
 | --- | --- |
 | `401` | Prüfe Bearer-Schlüssel, Ablaufzeit und Widerruf. |
 | `400` mit `ORG_SLUG_REQUIRED` | Wähle einen Slug aus `data.organizations` in dieser Fehlermeldung und sende `X-Organization-Slug`. |
+| `404` mit `ORG_SLUG_INVALID` | Der Header benennt keine Organisation, in der der Schlüsselbesitzer Mitglied ist — ein Tippfehler, oder die Organisations-ID aus der Dashboard-URL wurde als Slug eingesetzt. Sende den Slug aus `data.organizations`. |
 | `403` | Prüfe Mitgliedschaft und die für die Aktion nötige Berechtigung. |
 | `429` | Warte gemäß `Retry-After`; lies [Ratenlimits](/de/develop/rate-limits). |
 

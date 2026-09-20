@@ -90,7 +90,7 @@ Une exécution conserve la version avec laquelle elle a démarré. Les modificat
 
 Une seule version par automatisation est en service, et c’est celle que lancent les déclencheurs. Mettre une version en service, ou revenir à une plus ancienne, est un geste unique qui ne réécrit aucun historique : la liste des versions reste exactement telle quelle, seul le pointeur bouge. Une automatisation peut aussi n’avoir aucune version en service et vivre uniquement à l’état de brouillon.
 
-Une version ne devient éligible qu’une fois ses propres tests réussis. Les tests sont rangés dans le document : chacun porte un nom, une entrée, et des attentes sur la sortie comme sur les effets que l’exécution doit produire. Le résultat des tests d’une version est consigné au moment de l’enregistrement, si bien que la mise en service lit ce fait consigné au lieu de rejouer la suite.
+Une version dont un test échoue ne peut pas être mise en service ; une version dont les tests réussissent, ou qui n’en a aucun, le peut. Les tests sont rangés dans le document : chacun porte un nom, une entrée, et des attentes sur la sortie comme sur les effets que l’exécution doit produire. Le résultat des tests d’une version est consigné au moment de l’enregistrement, si bien que la mise en service lit ce fait consigné au lieu de rejouer la suite.
 
 <Note>
 

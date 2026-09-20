@@ -90,7 +90,7 @@ A running automation keeps the version it started with, so later edits do not al
 
 One version per automation is the deployed one, and that is the version triggers run. Promoting a version, or rolling back to an earlier one, is a single act that overwrites no history — the version list stays exactly as it was and only the pointer moves. An automation may also have no deployment at all and live purely as drafts.
 
-A version becomes deployable only once its own tests pass. Tests are stored with the document: each has a name, an input, and expectations about the output and about the effects the run should produce. Whether a version's tests passed is recorded when it is saved, so promoting reads that recorded fact instead of re-running the suite.
+A version with a failing test cannot be deployed; a version whose tests pass, or that carries no tests at all, can. Tests are stored with the document: each has a name, an input, and expectations about the output and about the effects the run should produce. Whether a version's tests passed is recorded when it is saved, so promoting reads that recorded fact instead of re-running the suite.
 
 <Note>
 

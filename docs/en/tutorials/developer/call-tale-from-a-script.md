@@ -118,6 +118,7 @@ Keep the thread ID when extending this into an integration. Send later messages 
 | --- | --- |
 | `401` | Check whether the key expired, was revoked or was copied incorrectly. |
 | `400` with `ORG_SLUG_REQUIRED` | Supply the intended organization slug. |
+| `404` with `ORG_SLUG_INVALID` | The slug names no organization the key holder belongs to — check for a typo, and never paste the dashboard URL's organization ID. |
 | `403` | Check the key holder’s membership and permissions. |
 | No model candidate | Read `/models` again and select an exact ID/provider pair. |
 | `429` | Honor `Retry-After`; see [Rate limits](/develop/rate-limits). |

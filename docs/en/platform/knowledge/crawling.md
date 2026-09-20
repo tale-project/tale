@@ -40,7 +40,7 @@ The crawler visits as an anonymous reader. Content that depends on a private ses
 
 The crawler applies `robots.txt` `Disallow` rules for the `*` agent on every path a URL can enter by — the sitemaps, the link walk and the links a rendered JavaScript page reveals — and again before every fetch: a page a rule covers is never fetched, and a page a rule added later covers leaves the index on the next scan. The rules do not filter an explicit URL list: a listed address is your instruction. On each content fetch, an HTTP `X-Robots-Tag: noindex` or `none`, or an HTML `<meta name="robots" content="noindex">` tag, prevents indexing, including for listed URLs, and drops whatever an earlier scan stored of that page. These rules are courtesy, not access control: do not rely on Tale's crawler as an access-control mechanism.
 
-Use HTTPS on the standard port. Addresses with a non-default port, such as `:8001`, are rejected. Private addresses and redirects into private networks are blocked unless the operator has configured an allowed private-network deployment.
+Use HTTPS on the standard port, and register a hostname: addresses with a non-default port, such as `:8001`, and bare IP addresses are rejected — the crawler dials by host name and verifies the certificate against it. Private addresses and redirects into private networks are blocked unless the operator has configured an allowed private-network deployment.
 
 ## Work within crawl limits
 
