@@ -24,6 +24,7 @@ import {
   sendIdempotencyScopeKey,
 } from '../domains/chat/send-idempotency.ts';
 import {
+  ChatThreadError,
   createThread,
   MAX_THREAD_TITLE_CHARS,
   renameThread,
@@ -714,11 +715,15 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           );
         }
         if (body.archived !== undefined) {
+          // The pre-check above is the fast path; the domain's own
+          // predicate is the fence (a send accepted between the read and
+          // the write answers 409 from the row lock, K2-1).
           const toggled = await setThreadArchived(
             deps.sql,
             restAuth(c),
             thread.id,
             body.archived,
+            { refuseWhenTurnPending: true },
           );
           if (toggled === null)
             return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
@@ -745,19 +750,23 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
+      if (isTurnPending(thread)) {
+        return c.json(
+          {
+            error:
+              'This conversation is generating a response; cancel the turn before deleting it.',
+            code: 'CHAT_TURN_IN_PROGRESS',
+          },
+          409,
+        );
+      }
       try {
-        const trashed =
-          !isTurnPending(thread) &&
-          (await trashThread(deps.sql, restAuth(c), thread.id));
+        // The domain's trash UPDATE carries the same fence as a predicate
+        // (`CHAT_TURN_IN_PROGRESS` from the row lock, K2-1); a false here is
+        // a thread that stopped being the caller's active one meanwhile.
+        const trashed = await trashThread(deps.sql, restAuth(c), thread.id);
         if (!trashed) {
-          return c.json(
-            {
-              error:
-                'This conversation is generating a response; cancel the turn before deleting it.',
-              code: 'CHAT_TURN_IN_PROGRESS',
-            },
-            409,
-          );
+          return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
         }
       } catch (error) {
         return domainErrorResponse(c, error);
@@ -973,7 +982,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             // Trimmed before the length check: a blank prompt — whitespace
             // or invisible format characters only — is a mistake to name at
             // the door, not a turn to spend on.
-            content: nonBlank(MAX_MESSAGE),
+            content: nonBlank(MAX_MESSAGE, { unit: 'UTF-16 code units' }),
             model: z
               .string({
                 error: (issue) =>
@@ -1149,18 +1158,47 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               return;
             }
           }
+          // The claim lands only on the caller's ACTIVE, un-archived
+          // thread: an archive or a trash committing between the read
+          // above and this write held the same row lock and is seen here
+          // — the accepted turn used to open on a thread that was gone
+          // (2026-09-19 evaluation, K2-1).
           const claimed = await tx<{ threadId: string }[]>`
           UPDATE app.thread_metadata SET
             generation_queued_since_ms = ${now},
             stream_id = ${assistantMessageId}
           WHERE thread_id = ${thread.id}
+            AND status = 'active' AND archived = false
             AND generation_queued_since_ms IS NULL
             AND NOT EXISTS (
               SELECT 1 FROM app.generations WHERE thread_id = ${thread.id}
             )
           RETURNING thread_id AS "threadId"
         `;
-          if (claimed.length === 0) throw new TurnInProgress();
+          if (claimed.length === 0) {
+            // A fresh read (a new statement, a new snapshot) says which
+            // writer won: the thread moved, or a turn holds it.
+            const settled = await tx<{ status: string; archived: boolean }[]>`
+              SELECT status, archived FROM app.thread_metadata
+              WHERE thread_id = ${thread.id} LIMIT 1
+            `;
+            const row = settled[0];
+            if (row === undefined || row.status !== 'active') {
+              throw new ChatThreadError(
+                'THREAD_NOT_FOUND',
+                'Thread not found',
+                404,
+              );
+            }
+            if (row.archived) {
+              throw new ChatThreadError(
+                'CHAT_THREAD_ARCHIVED',
+                'This conversation is archived.',
+                409,
+              );
+            }
+            throw new TurnInProgress();
+          }
           // The caps that bind the caller — their own, their teams', the
           // organization's and this key's — are measured after the claim,
           // so a repeat of an accepted send still answers its 202 and a busy

@@ -792,6 +792,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/threads/:threadId/trash', async (c) => {
     const { organizationId, userId } = caller(c);
     try {
+      // A thread mid-turn (or with an accepted REST send still queued)
+      // answers the app's `ok: false`, as the domain's pre-read used to;
+      // the refusal is now the trash UPDATE's own predicate (K2-1).
       const ok = await trashThread(
         deps.sql,
         {
@@ -800,7 +803,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           email: c.get('sessionBundle').user.email,
         },
         c.req.param('threadId'),
-      );
+      ).catch((error: unknown) => {
+        if (
+          error instanceof ChatThreadError &&
+          error.code === 'CHAT_TURN_IN_PROGRESS'
+        ) {
+          return false;
+        }
+        throw error;
+      });
       if (ok) {
         // A trashed conversation takes its parked sends with it — otherwise
         // they fire into the trash (the poll re-gates too; this cancels the

@@ -39,6 +39,7 @@ import {
   moveThreadToProject,
   setThreadArchived,
   unshareThread,
+  trashThread,
 } from './threads.ts';
 
 interface Statement {
@@ -122,6 +123,156 @@ describe('setThreadArchived legal hold', () => {
     );
     expect(statements.some(({ text }) => text.includes('UPDATE'))).toBe(false);
     expect(createAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The REST door's fence is the archive UPDATE's own predicate, on the
+ * columns the send's claim and the worker's open write in their
+ * transactions — the row lock serialises them, so a send that commits
+ * between a door's read and its write is seen (2026-09-19 evaluation,
+ * K2-1). The domain re-reads after a held-back write to tell a claimed row
+ * from a thread that moved meanwhile.
+ */
+describe('setThreadArchived with the turn fence', () => {
+  const auth = { organizationId: 'org_1', userId: 'user_1' };
+  const predicate = (text: string): boolean =>
+    text.includes('generation_queued_since_ms IS NULL') &&
+    text.includes("generation_status IS DISTINCT FROM 'generating'") &&
+    text.includes("status = 'active' AND archived = false") &&
+    text.includes('RETURNING');
+
+  it('archives through one conditional UPDATE and audits it', async () => {
+    const { sql, statements } = fakeSql(({ text }) =>
+      text.includes('UPDATE app.thread_metadata SET archived')
+        ? [{ threadId: 'thread_1' }]
+        : [OWNED_ROW],
+    );
+    await expect(
+      setThreadArchived(sql, auth, 'thread_1', true, {
+        refuseWhenTurnPending: true,
+      }),
+    ).resolves.toMatchObject({ archived: true });
+    const update = statements.find(({ text }) =>
+      text.includes('UPDATE app.thread_metadata SET archived'),
+    );
+    expect(update).toBeDefined();
+    expect(predicate(update?.text ?? '')).toBe(true);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers CHAT_TURN_IN_PROGRESS when a turn claimed the row meanwhile, writing no audit', async () => {
+    const { sql } = fakeSql(({ text }) => {
+      if (text.includes('UPDATE app.thread_metadata SET archived')) return [];
+      if (text.includes('SELECT status, archived FROM app.thread_metadata')) {
+        return [{ status: 'active', archived: false }];
+      }
+      return [OWNED_ROW];
+    });
+    await expect(
+      setThreadArchived(sql, auth, 'thread_1', true, {
+        refuseWhenTurnPending: true,
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS', status: 409 });
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('answers the state another writer left when the thread was archived or trashed meanwhile', async () => {
+    const archivedMeanwhile = fakeSql(({ text }) => {
+      if (text.includes('UPDATE app.thread_metadata SET archived')) return [];
+      if (text.includes('SELECT status, archived FROM app.thread_metadata')) {
+        return [{ status: 'active', archived: true }];
+      }
+      return [{ ...OWNED_ROW, archivedAt: 5_000 }];
+    });
+    await expect(
+      setThreadArchived(archivedMeanwhile.sql, auth, 'thread_1', true, {
+        refuseWhenTurnPending: true,
+      }),
+    ).resolves.toEqual({ archived: true, archivedAt: 5_000 });
+    const trashedMeanwhile = fakeSql(({ text }) => {
+      if (text.includes('UPDATE app.thread_metadata SET archived')) return [];
+      if (text.includes('SELECT status, archived FROM app.thread_metadata')) {
+        return [{ status: 'trashed', archived: false }];
+      }
+      return [OWNED_ROW];
+    });
+    await expect(
+      setThreadArchived(trashedMeanwhile.sql, auth, 'thread_1', true, {
+        refuseWhenTurnPending: true,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('writes unfenced without the option — the app’s own archive', async () => {
+    const { sql, statements } = fakeSql(({ text }) =>
+      text.includes('UPDATE app.thread_metadata SET archived')
+        ? [{ threadId: 'thread_1' }]
+        : [OWNED_ROW],
+    );
+    await setThreadArchived(sql, auth, 'thread_1', true);
+    const update = statements.find(({ text }) =>
+      text.includes('UPDATE app.thread_metadata SET archived'),
+    );
+    expect(predicate(update?.text ?? '')).toBe(false);
+  });
+});
+
+describe('trashThread with the turn fence', () => {
+  const auth = { organizationId: 'org_1', userId: 'user_1' };
+
+  it('trashes through one conditional UPDATE — no separate generation read', async () => {
+    const { sql, statements } = fakeSql(({ text }) =>
+      text.includes("status = 'trashed', status_changed_at_ms") &&
+      text.includes('RETURNING')
+        ? [{ threadId: 'thread_1' }]
+        : [OWNED_ROW],
+    );
+    await expect(trashThread(sql, auth, 'thread_1')).resolves.toBe(true);
+    const update = statements.find(
+      ({ text }) =>
+        text.includes("status = 'trashed', status_changed_at_ms") &&
+        text.includes('RETURNING'),
+    );
+    expect(update?.text).toContain('generation_queued_since_ms IS NULL');
+    expect(update?.text).toContain(
+      "generation_status IS DISTINCT FROM 'generating'",
+    );
+    expect(
+      statements.some(({ text }) =>
+        text.startsWith(
+          '\n    SELECT thread_id AS "threadId" FROM app.generations',
+        ),
+      ),
+    ).toBe(false);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers CHAT_TURN_IN_PROGRESS when a send claimed the row meanwhile, and true when it was trashed meanwhile', async () => {
+    const claimed = fakeSql(({ text }) => {
+      if (text.includes("status = 'trashed', status_changed_at_ms")) return [];
+      if (text.includes('SELECT status FROM app.thread_metadata')) {
+        return [{ status: 'active' }];
+      }
+      return [OWNED_ROW];
+    });
+    await expect(
+      trashThread(claimed.sql, auth, 'thread_1'),
+    ).rejects.toMatchObject({
+      code: 'CHAT_TURN_IN_PROGRESS',
+      status: 409,
+    });
+    expect(createAuditLog).not.toHaveBeenCalled();
+    const trashedMeanwhile = fakeSql(({ text }) => {
+      if (text.includes("status = 'trashed', status_changed_at_ms")) return [];
+      if (text.includes('SELECT status FROM app.thread_metadata')) {
+        return [{ status: 'trashed' }];
+      }
+      return [OWNED_ROW];
+    });
+    await expect(
+      trashThread(trashedMeanwhile.sql, auth, 'thread_1'),
+    ).resolves.toBe(true);
   });
 });
 
