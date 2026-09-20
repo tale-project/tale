@@ -308,10 +308,11 @@ describe('shipped static model catalogs', () => {
 });
 
 describe('shipped harnesses', () => {
-  it('loads all nine harnesses', () => {
+  it('loads all nine base harnesses and the explicit compact variant', () => {
     const slugs = loadHarnesses().map((h) => h.slug);
     expect(slugs).toEqual([
       'claude-code',
+      'claude-code-compact',
       'codex',
       'cursor',
       'gemini',
@@ -498,6 +499,123 @@ describe('registry-completeness posture (fixture tree)', () => {
     await rm(path.join(root, 'harnesses'), { recursive: true });
     expect(() => loadHarnesses({ root })).toThrow(
       /missing shipped config directory/,
+    );
+  });
+});
+
+describe('harness variant loading', () => {
+  let root: string;
+  const base = loadHarnesses().find((h) => h.slug === 'codex')!;
+  const variant = {
+    slug: 'synthetic-compact',
+    displayName: 'Synthetic compact',
+    env: { base: { SYNTHETIC_FLAG: '1' } },
+  };
+
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'harness-variants-'));
+    await mkdir(path.join(root, 'harnesses'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  async function writeHarness(slug: string, variants: unknown) {
+    const folder = path.join(root, 'harnesses', slug);
+    await mkdir(folder, { recursive: true });
+    await writeFile(
+      path.join(folder, 'harness.yml'),
+      JSON.stringify({
+        ...base,
+        slug,
+        exec: {
+          ...base.exec,
+          env: {
+            ...base.exec.env,
+            base: {
+              ...base.exec.env?.base,
+              KEEP_ME: 'original',
+              SYNTHETIC_FLAG: 'base',
+            },
+          },
+        },
+        variants,
+      }),
+    );
+  }
+
+  it('inherits one complete base and shallowly overrides only env.base', async () => {
+    await writeHarness('synthetic-base', [variant]);
+    const facts = loadHarnesses({ root });
+    expect(facts.map((fact) => fact.slug)).toEqual([
+      'synthetic-base',
+      'synthetic-compact',
+    ]);
+    const [original, derived] = facts;
+    expect(original).not.toHaveProperty('variants');
+    expect(derived).not.toHaveProperty('variants');
+    expect(derived).toEqual({
+      ...original,
+      slug: variant.slug,
+      displayName: variant.displayName,
+      exec: {
+        ...original!.exec,
+        env: {
+          ...original!.exec.env,
+          base: { ...original!.exec.env?.base, SYNTHETIC_FLAG: '1' },
+        },
+      },
+    });
+    expect(original!.exec.env?.base?.SYNTHETIC_FLAG).toBe('base');
+    expect(derived!.exec.env?.base?.KEEP_ME).toBe('original');
+    expect(derived!.exec.env?.managed).toEqual(original!.exec.env?.managed);
+  });
+
+  it('keeps stable references and invalidates both facts after a base-file change', async () => {
+    await writeHarness('synthetic-base', [variant]);
+    const before = loadHarnesses({ root });
+    expect(loadHarnesses({ root })).toBe(before);
+    await writeHarness('synthetic-base', [
+      { ...variant, env: { base: { SYNTHETIC_FLAG: 'changed-value' } } },
+    ]);
+    const after = loadHarnesses({ root });
+    expect(after).not.toBe(before);
+    expect(after[1]!.exec.env?.base?.SYNTHETIC_FLAG).toBe('changed-value');
+    expect(before[1]!.exec.env?.base?.SYNTHETIC_FLAG).toBe('1');
+  });
+
+  it('rejects a variant shadowing another base regardless of file order', async () => {
+    await writeHarness('alpha-base', [{ ...variant, slug: 'omega-base' }]);
+    await writeHarness('omega-base', undefined);
+    expect(() => loadHarnesses({ root })).toThrow(
+      /duplicate harness slug.*omega-base/i,
+    );
+    await writeHarness('alpha-base', undefined);
+    await writeHarness('omega-base', [{ ...variant, slug: 'alpha-base' }]);
+    expect(() => loadHarnesses({ root })).toThrow(
+      /duplicate harness slug.*alpha-base/i,
+    );
+  });
+
+  it('rejects duplicate variant slugs across base files before returning a catalog', async () => {
+    await writeHarness('alpha-base', [variant]);
+    await writeHarness('omega-base', [variant]);
+    expect(() => loadHarnesses({ root })).toThrow(
+      /duplicate harness slug.*synthetic-compact/i,
+    );
+  });
+
+  it('rejects an unknown base or arbitrary override with the source path', async () => {
+    await writeHarness('synthetic-base', [{ ...variant, base: 'missing' }]);
+    expect(() => loadHarnesses({ root })).toThrow(
+      /synthetic-base.*harness\.yml/,
+    );
+    await writeHarness('synthetic-base', [
+      { ...variant, command: 'other-binary' },
+    ]);
+    expect(() => loadHarnesses({ root })).toThrow(
+      /synthetic-base.*harness\.yml/,
     );
   });
 });

@@ -34,6 +34,24 @@ Provider credentials are stored through the platform credential service, not add
 Other domains may use encrypted sidecars. Follow [secrets with SOPS](../docs/en/self-hosted/configuration/secrets-with-sops.md)
 for the distinction; never commit a real credential to either tree.
 
+## Explicit harness variants
+
+A system harness may declare `variants` beside its full definition. Each entry contains only
+`slug`, `displayName`, and a nonempty `env.base` map of environment strings. The loader inherits
+the owning harness, shallowly overlays that map, and validates the resulting definition. It rejects
+duplicate identities across the catalog, including a variant shadowing another base. Variants cannot
+reference another base, form chains, or override commands, parsers, tools, capabilities or credential
+policy. The closed shipped-harness registry must include each choice.
+
+`claude-code-compact` inherits `claude-code` and sets `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` for
+that exec only. Select it through the existing workflow `harness` field when the workflow supplies
+its own complete domain instructions. Ordinary `claude-code` remains unchanged. The pinned Claude
+Code 2.1.173 keeps its tools, hooks, MCP, discovered instructions and the platform's appended domain
+and safety guidance; its built-in prompt and some tool descriptions are shorter. This flag does not
+enable `CLAUDE_CODE_SIMPLE` or `--bare`. Measure correctness and processing time against the selected
+model before adopting the variant in a deployed workflow; smaller prompt bytes alone do not prove
+lower latency. Restoring `harness: claude-code` removes the opt-in on the next fresh run.
+
 ## Validate a catalog change
 
 ```bash

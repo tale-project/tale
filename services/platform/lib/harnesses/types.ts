@@ -41,12 +41,14 @@
 //  - `interactionMode` is dropped — no adapter ever consumed it.
 
 /**
- * The nine shipped harnesses. One fact file per slug
- * (`configs/platform/system/harnesses/<slug>/harness.yml`) carries the complete
- * declarative surface; the registry composes each into a `HarnessGlue`.
+ * The shipped harness choices. Base fact files under
+ * `configs/platform/system/harnesses/` carry the complete declarative
+ * surface; env-only variants inherit it and the registry composes each
+ * resolved choice into a `HarnessGlue`.
  */
 export const HARNESS_SLUGS = [
   'claude-code',
+  'claude-code-compact',
   'codex',
   'cursor',
   'gemini',

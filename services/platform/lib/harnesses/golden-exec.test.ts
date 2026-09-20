@@ -38,26 +38,46 @@ describe('golden exec fixtures (shipped YAML tree)', () => {
     expect(facts.map((f) => f.slug).sort()).toEqual([...HARNESS_SLUGS].sort());
   });
 
-  it.each(facts.map((fact) => [fact.slug, fact] as const))(
-    '%s rebuilds its golden execs byte for byte',
-    (slug, fact) => {
-      const glue = composeHarnessGlue(fact);
-      const cases = goldenBattery()
-        .filter(({ mode }) =>
-          mode === 'managed'
-            ? fact.credentialPolicy.managed
-            : fact.credentialPolicy.byo,
-        )
-        .map(({ name, spec }) => ({ name, exec: glue.buildExec(spec) }));
-      // Structural equality over the parsed fixture: every semantic byte
-      // lives in the leaves (argv tokens, env values, the stdin payload
-      // string with its pinned key order), which compare exactly — while
-      // the fixture FILE's YAML layout stays free for the repo formatter.
-      // readExecFixture already returns parsed YAML data; serializeExecFixture
-      // is reparsed to the same JSON-shaped structure for the comparison.
-      expect(JSON.parse(serializeExecFixture(cases))).toEqual(
-        readExecFixture(slug),
+  it.each(
+    facts
+      .filter((fact) => fact.slug !== 'claude-code-compact')
+      .map((fact) => [fact.slug, fact] as const),
+  )('%s rebuilds its golden execs byte for byte', (slug, fact) => {
+    const glue = composeHarnessGlue(fact);
+    const cases = goldenBattery()
+      .filter(({ mode }) =>
+        mode === 'managed'
+          ? fact.credentialPolicy.managed
+          : fact.credentialPolicy.byo,
+      )
+      .map(({ name, spec }) => ({ name, exec: glue.buildExec(spec) }));
+    // Structural equality over the parsed fixture: every semantic byte
+    // lives in the leaves (argv tokens, env values, the stdin payload
+    // string with its pinned key order), which compare exactly — while
+    // the fixture FILE's YAML layout stays free for the repo formatter.
+    // readExecFixture already returns parsed YAML data; serializeExecFixture
+    // is reparsed to the same JSON-shaped structure for the comparison.
+    expect(JSON.parse(serializeExecFixture(cases))).toEqual(
+      readExecFixture(slug),
+    );
+  });
+
+  it.each(goldenBattery())(
+    'compact Claude adds only its opt-in env flag: $name',
+    ({ spec }) => {
+      const base = facts.find((fact) => fact.slug === 'claude-code')!;
+      const variant = facts.find(
+        (fact) => fact.slug === 'claude-code-compact',
+      )!;
+      const original = composeHarnessGlue(base).buildExec(spec);
+      const compact = composeHarnessGlue(variant).buildExec(spec);
+      expect(original.env).not.toHaveProperty(
+        'CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT',
       );
+      expect(compact).toEqual({
+        ...original,
+        env: { ...original.env, CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1' },
+      });
     },
   );
 });

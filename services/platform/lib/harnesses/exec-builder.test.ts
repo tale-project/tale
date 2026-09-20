@@ -402,14 +402,17 @@ describe('claude reasoning levers scope to Claude models', () => {
     expect(exec.stdin ?? '').toContain('Ultrathink');
   });
 
-  it('never touches another harness even on a foreign model', () => {
-    const exec = buildHarnessExec(
-      fact('codex'),
-      managedSpec({ model: 'openrouter/~deepseek/deepseek-v4-flash-latest' }),
-    );
-    expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
-    expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
-  });
+  it.each(['codex', 'qwen-code'])(
+    'never touches %s even on a foreign model',
+    (slug) => {
+      const exec = buildHarnessExec(
+        fact(slug),
+        managedSpec({ model: 'openrouter/~deepseek/deepseek-v4-flash-latest' }),
+      );
+      expect(exec.env.CLAUDE_CODE_DISABLE_THINKING).toBeUndefined();
+      expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
+    },
+  );
 });
 
 describe('a managed CLI waits for a silent stream as long as the gateway', () => {
@@ -500,7 +503,7 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
   });
 
   const others = loadHarnesses().filter(
-    (h) => h.slug !== 'claude-code' && h.slug !== 'codex',
+    (h) => h.exec.bin !== 'claude' && h.slug !== 'codex',
   );
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',
@@ -585,7 +588,7 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
     expect(exec.env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW');
   });
 
-  const others = loadHarnesses().filter((h) => h.slug !== 'claude-code');
+  const others = loadHarnesses().filter((h) => h.exec.bin !== 'claude');
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the window',
     (_slug, harness) => {

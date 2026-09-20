@@ -10,6 +10,15 @@
 # lib/harnesses/fixtures/exec/claude-code.json pin the built execs.
 slug: claude-code
 displayName: Claude Code
+# An explicit choice for bounded workflows with their own domain guidance.
+# The pinned CLI keeps tools, hooks, MCP and appended instructions; only its
+# built-in system prompt and some tool descriptions become shorter.
+variants:
+  - slug: claude-code-compact
+    displayName: Claude Code (compact prompt)
+    env:
+      base:
+        CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1'
 credentialPolicy:
   managed: true
   byo: true

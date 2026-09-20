@@ -27,6 +27,8 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 | Pi | Verwaltet oder direkt | Nein | Nein |
 | Qwen Code | Verwaltet oder direkt | Nein | Ja |
 
+**Claude Code (compact prompt)** ist eine zusätzliche Wahl für klar abgegrenzte Workflows mit vollständigen Aufgabenanweisungen. Die Variante kürzt die eingebauten Anweisungen und einige Werkzeugbeschreibungen. Werkzeuge, Hooks, MCP und die von Tale ergänzten Hinweise bleiben erhalten. Prüfe Ergebnisse und Laufzeit mit deinem Modell, bevor du die Variante einsetzt; ein kürzerer Prompt garantiert keinen schnelleren Durchlauf. Mit **Claude Code** verwendest du beim nächsten neuen Durchlauf wieder den vollständigen Prompt. Ein auf Claude Code beschränktes Provider-Abonnement unterstützt die kompakte Variante nicht automatisch.
+
 Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
 
 ## Zugangsdaten und Kosten verstehen

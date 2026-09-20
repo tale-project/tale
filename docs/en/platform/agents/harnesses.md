@@ -27,6 +27,8 @@ A runtime needs both compatible credentials and [sandbox capacity](/platform/adm
 | Pi | Managed or direct | No | No |
 | Qwen Code | Managed or direct | No | Yes |
 
+**Claude Code (compact prompt)** is an optional choice for focused workflows that already supply complete task instructions. It shortens the runtime’s built-in instructions and some tool descriptions while retaining tools, hooks, MCP and Tale’s added guidance. Check task results and elapsed time with your model before adopting it; a smaller prompt does not guarantee a faster run. Choose ordinary **Claude Code** to restore its full prompt on the next fresh run. A provider subscription restricted to Claude Code does not automatically support the compact choice.
+
 To guide project work, comment on the task and mention its agent. Claude Code receives that guidance at a tool boundary. For the other runtimes, Tale stops the current process and continues the conversation in a new process with the comment. This is why a running task may restart its process after you give it direction.
 
 ## Understand credential exposure and cost
