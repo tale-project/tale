@@ -2,6 +2,10 @@
 
 import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { DocumentIcon } from '@tale/ui/document-icon';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -69,54 +73,55 @@ export function useDocumentsTableConfig({
         // name shares width equally with every sibling under `table-fixed`,
         // squeezing it so long filenames overflow their cell (and the inner
         // `truncate` can't engage — see the `min-w-0` on the button below).
-        meta: {
-          flex: true,
-          skeleton: {
-            type: 'icon-text',
-            iconGap: 3,
-            icon: <DocumentIcon fileName="" />,
-          },
-        },
+        meta: { flex: true, skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => {
           const fullPath = row.original.name ?? '';
           const fileName = fullPath.split('/').pop() || fullPath;
 
           return (
-            <HStack gap={3}>
-              <DocumentIcon
-                className="shrink-0"
-                fileName={fileName}
-                extension={documentIconExtension(
-                  fileName,
-                  row.original.mimeType,
-                )}
-                isFolder={row.original.type === 'folder'}
-              />
-              <button
-                type="button"
-                title={fullPath}
-                // `min-w-0` lets this flex item shrink below its content width so
-                // the inner `truncate` clips long names with an ellipsis instead
-                // of overflowing into the next column.
-                className="min-w-0 cursor-pointer text-left"
-                aria-label={
-                  row.original.type === 'folder'
-                    ? tDocuments('aria.openFolder', { name: fileName })
-                    : tDocuments('aria.openDocument', { name: fileName })
-                }
-                onClick={(e) => onDocumentClick(row.original, e)}
-              >
-                <Text
-                  as="div"
-                  variant="label"
-                  truncate
-                  className="text-primary max-w-[30rem] hover:underline"
+            // The file-type mark draws its own shape and colour, so it takes
+            // the slot plain — but the slot, and the 8px beside it, are the
+            // shared ones, so document names line up with every other list.
+            <TableIconCell
+              variant="plain"
+              icon={
+                <DocumentIcon
+                  className="size-5"
+                  fileName={fileName}
+                  extension={documentIconExtension(
+                    fileName,
+                    row.original.mimeType,
+                  )}
+                  isFolder={row.original.type === 'folder'}
+                />
+              }
+              label={
+                <button
+                  type="button"
+                  title={fullPath}
+                  // `min-w-0` lets this flex item shrink below its content width
+                  // so the inner `truncate` clips long names with an ellipsis
+                  // instead of overflowing into the next column.
+                  className="min-w-0 cursor-pointer text-left"
+                  aria-label={
+                    row.original.type === 'folder'
+                      ? tDocuments('aria.openFolder', { name: fileName })
+                      : tDocuments('aria.openDocument', { name: fileName })
+                  }
+                  onClick={(e) => onDocumentClick(row.original, e)}
                 >
-                  {fileName}
-                </Text>
-              </button>
-              <DocumentRecordBadge record={row.original.record} />
-            </HStack>
+                  <Text
+                    as="span"
+                    variant="label"
+                    truncate
+                    className="text-primary block max-w-[30rem] hover:underline"
+                  >
+                    {fileName}
+                  </Text>
+                </button>
+              }
+              badges={<DocumentRecordBadge record={row.original.record} />}
+            />
           );
         },
       },
