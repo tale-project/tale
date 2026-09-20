@@ -388,13 +388,19 @@ describe('POST …/runs/{runId}/asks/{askId}', () => {
 
   it('refuses a blank answer, an unknown key and a read-only project before anything is recorded', async () => {
     const request = mount(fakeSql().sql, 'editor');
-    expect(
-      (
-        await request('/projects/p-2/runs/run-1/asks/ask-1', 'POST', {
-          answer: '   ',
-        })
-      ).status,
-    ).toBe(400);
+    // The documented `EMPTY_ANSWER`: the schema's own `INVALID_BODY` used
+    // to speak first, so the code was never observable (2026-09-19
+    // evaluation, K3-1) — whitespace, a no-break space and a zero-width
+    // space are all blank.
+    for (const answer of ['   ', '\u00a0', '\u200b']) {
+      const blank = await request(
+        '/projects/p-2/runs/run-1/asks/ask-1',
+        'POST',
+        { answer },
+      );
+      expect(blank.status).toBe(400);
+      expect(await blank.json()).toMatchObject({ code: 'EMPTY_ANSWER' });
+    }
     expect(
       (
         await request('/projects/p-2/runs/run-1/asks/ask-1', 'POST', {
