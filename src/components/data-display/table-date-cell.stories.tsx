@@ -1,0 +1,260 @@
+import type { Meta, StoryObj } from '@storybook/react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
+
+import { TableDateCell, TableTimestampCell } from './table-date-cell';
+
+const meta: Meta<typeof TableDateCell> = {
+  title: 'Data Display/TableDateCell',
+  component: TableDateCell,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        component: `
+A standardized table date cell component for consistent date formatting.
+
+## Usage
+\`\`\`tsx
+import { TableDateCell, TableTimestampCell } from '@tale/ui/table-date-cell';
+
+// In column definition
+{
+  id: 'createdAt',
+  header: 'Created',
+  cell: ({ row }) => (
+    <TableDateCell date={row.original._creationTime} preset="relative" />
+  ),
+}
+
+// For Convex timestamps
+<TableTimestampCell timestamp={row.original._creationTime} />
+\`\`\`
+
+## Presets
+- \`short\`: "Jan 15, 2024"
+- \`medium\`: "January 15, 2024"
+- \`long\`: "Monday, January 15, 2024 at 10:30 AM"
+- \`relative\`: "2 days ago"
+- \`time\`: "10:30 AM"
+        `,
+      },
+    },
+  },
+  argTypes: {
+    preset: {
+      control: 'select',
+      options: ['short', 'medium', 'long', 'relative', 'time'],
+      description: 'Date format preset',
+    },
+    alignRight: {
+      control: 'boolean',
+      description: 'Right-align the text',
+    },
+    emptyText: {
+      control: 'text',
+      description: 'Text shown when date is null/undefined',
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof TableDateCell>;
+
+const sampleDate = new Date('2024-01-15T10:30:00Z');
+const recentDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
+
+export const Default: Story = {
+  args: {
+    date: sampleDate,
+  },
+};
+
+export const AllPresets: Story = {
+  render: () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <span className="text-muted-foreground w-20 text-sm">short:</span>
+        <TableDateCell date={sampleDate} preset="short" />
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-muted-foreground w-20 text-sm">medium:</span>
+        <TableDateCell date={sampleDate} preset="medium" />
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-muted-foreground w-20 text-sm">long:</span>
+        <TableDateCell date={sampleDate} preset="long" />
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-muted-foreground w-20 text-sm">relative:</span>
+        <TableDateCell date={recentDate} preset="relative" />
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-muted-foreground w-20 text-sm">time:</span>
+        <TableDateCell date={sampleDate} preset="time" />
+      </div>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'All available date format presets.',
+      },
+    },
+  },
+};
+
+export const Relative: Story = {
+  args: {
+    date: recentDate,
+    preset: 'relative',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Relative format shows human-readable time difference.',
+      },
+    },
+  },
+};
+
+export const AlignRight: Story = {
+  args: {
+    date: sampleDate,
+    alignRight: true,
+  },
+  render: (args) => (
+    <div className="w-48 rounded border p-2">
+      <TableDateCell {...args} />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Right-aligned for numeric columns.',
+      },
+    },
+  },
+};
+
+export const NullDate: Story = {
+  args: {
+    date: null,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Shows em-dash when date is null.',
+      },
+    },
+  },
+};
+
+export const CustomEmptyText: Story = {
+  args: {
+    date: null,
+    emptyText: 'Not set',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Custom text for null dates.',
+      },
+    },
+  },
+};
+
+export const TimestampInput: Story = {
+  args: {
+    date: 1705312200000, // Timestamp in milliseconds
+    preset: 'short',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Accepts timestamp numbers (milliseconds since epoch).',
+      },
+    },
+  },
+};
+
+export const ISOStringInput: Story = {
+  args: {
+    date: '2024-01-15T10:30:00Z',
+    preset: 'short',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Accepts ISO date strings.',
+      },
+    },
+  },
+};
+
+export const InTableContext: Story = {
+  render: () => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Created</TableHead>
+          <TableHead className="text-right">Updated</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>Document 1</TableCell>
+          <TableCell>
+            <TableDateCell date={sampleDate} preset="short" />
+          </TableCell>
+          <TableCell>
+            <TableDateCell date={recentDate} preset="relative" alignRight />
+          </TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Document 2</TableCell>
+          <TableCell>
+            <TableDateCell date={new Date('2024-01-10')} preset="short" />
+          </TableCell>
+          <TableCell>
+            <TableDateCell date={null} alignRight />
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Example usage in a table context.',
+      },
+    },
+  },
+};
+
+// TableTimestampCell stories
+export const TimestampCell: Story = {
+  render: () => (
+    <div className="space-y-2">
+      <div className="text-muted-foreground text-sm">
+        TableTimestampCell (defaults to relative, right-aligned):
+      </div>
+      <TableTimestampCell timestamp={Date.now() - 3600000} />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Convenience component for Convex _creationTime timestamps.',
+      },
+    },
+  },
+};
