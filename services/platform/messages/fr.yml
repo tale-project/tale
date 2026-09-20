@@ -5749,6 +5749,106 @@ settings:
       description:
         Les clés, références d'environnement et brokers d'abonnement avec
         lesquels cette organisation s'authentifie auprès des fournisseurs AI.
+    custom:
+      badge: Personnalisé
+      title: Fournisseurs personnalisés
+      description:
+        Les endpoints que ton organisation héberge ou auxquels elle est
+        abonnée, en plus des fournisseurs livrés — un serveur de modèles
+        auto-hébergé ou une passerelle interne qui parle l'API OpenAI ou
+        Anthropic. Ajoute des identifiants ci-dessus pour en utiliser un.
+      add: Ajouter un fournisseur
+      empty:
+        title: Aucun fournisseur personnalisé pour l'instant
+        description:
+          Relie Tale à ton propre endpoint compatible OpenAI ou au format
+          Anthropic, puis ajoute des identifiants pour lui.
+      listFailed: Impossible de charger les fournisseurs personnalisés.
+      actionsLabel: Actions pour {name}
+      edit: Modifier le fournisseur
+      check: Vérifier les modèles
+      checkOk: '{name} : {count, plural, =0 {aucun modèle listé} one {# modèle listé} other {# modèles listés}}'
+      checkFailed: 'Impossible de lister les modèles de {name} : {error}'
+      delete: Supprimer le fournisseur
+      deleteTitle: Supprimer le fournisseur
+      deleteBody: >-
+        Supprimer « {name} » ? Sa définition reste archivée dans l'historique
+        de configuration de l'organisation.
+      deleteInUse: >-
+        {count, plural, one {# identifiant utilise} other {# identifiants utilisent}}
+        encore ce fournisseur. Supprime-{count, plural, one {le} other {les}} d'abord.
+      deleteFailed: 'Impossible de supprimer le fournisseur : {error}'
+      deletedToast: Fournisseur supprimé
+      createdToast: Fournisseur ajouté — ajoute maintenant des identifiants pour lui
+      savedToast: Fournisseur mis à jour
+      dialog:
+        createTitle: Ajouter un fournisseur personnalisé
+        editTitle: Modifier le fournisseur personnalisé
+        description: >-
+          Le connecteur d'un endpoint que ton organisation héberge ou auquel
+          elle est abonnée. Les identifiants s'ajoutent séparément.
+        submitCreate: Ajouter le fournisseur
+        submitEdit: Enregistrer les modifications
+        displayName: Nom affiché
+        displayNamePlaceholder: p. ex. vLLM interne
+        displayNameRequired: Saisis un nom affiché.
+        name: Nom technique
+        nameHelp: >-
+          Lettres minuscules, chiffres et tirets. Sert de slug et de nom de
+          fichier au fournisseur ; il ne pourra plus changer.
+        nameLocked: Le nom technique ne change plus après la création.
+        nameInvalid: Utilise des lettres minuscules, des chiffres et des tirets simples.
+        nameTaken: Ce nom technique est déjà pris par un autre fournisseur.
+        apiFormat: Format d'API
+        apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM et la plupart des passerelles.
+        apiFormatAnthropicHelp: API Messages — endpoints compatibles Anthropic.
+        baseUrl: URL de base
+        baseUrlHelp: >-
+          La racine d'API à laquelle la plateforme ajoute ses chemins. Un hôte
+          public exige https ; une adresse privée ou de boucle locale exige en
+          plus l'autorisation des hôtes privés dans le déploiement.
+        baseUrlRequired: Saisis l'URL de base de l'endpoint.
+        urlInvalid: Saisis une URL https (http simple uniquement pour un hôte privé ou de boucle locale).
+        catalog: Catalogue de modèles
+        catalogHelp: >-
+          Sans liste, saisis les ID exacts des modèles dans la liste de modèles
+          autorisés de chaque identifiant.
+        catalogModelsEndpoint: Découvrir les modèles via la liste /models de l'endpoint
+        catalogNone: Aucun catalogue — les ID de modèles sont saisis sur chaque identifiant
+        catalogStatic: Fichier de modèles livré (vide pour un fournisseur personnalisé)
+        catalogOpenrouter: API de catalogue OpenRouter
+        authMethods: Méthodes d'authentification
+        authMethodsHelp: Ce qu'un identifiant pour ce fournisseur peut contenir.
+        authMethodsRequired: Choisis au moins une méthode d'authentification.
+        advanced: Avancé
+        wireDialect: L'endpoint parle l'API OpenAI actuelle
+        wireDialectHelp: >-
+          Envoie max_completion_tokens et aucune température personnalisée aux
+          modèles de raisonnement — uniquement pour les serveurs du type
+          api.openai.com. Laisse désactivé pour les endpoints compatibles
+          OpenAI d'autres fournisseurs.
+        perCredential: Chaque identifiant porte sa propre URL d'endpoint
+        perCredentialHelp: Endpoints de ressource à la manière d'Azure. L'URL de base ci-dessus devient facultative.
+        harnessEndpoint: Endpoint pour les agents de programmation
+        harnessEndpointHelp: >-
+          Facultatif. Un endpoint alternatif que la passerelle de modèles du
+          sandbox utilise pour les agents de programmation — par exemple une
+          porte native au format Anthropic à côté d'une API au format OpenAI.
+        harnessEndpointFormat: Format d'API pour les agents de programmation
+        invalid: 'La définition a été refusée : {error}'
+        loadFailed: Impossible de charger la définition du fournisseur.
+        gone: Ce fournisseur n'existe plus.
+      errors:
+        nameReserved: Ce nom technique appartient à un fournisseur livré avec la plateforme. Choisis-en un autre.
+        endpointNotPermitted: >-
+          Ce déploiement n'autorise pas cet endpoint. Un hôte privé ou de
+          boucle locale exige TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 côté backend ;
+          les hôtes de métadonnées cloud sont toujours refusés.
+        inUse: Des identifiants utilisent encore ce fournisseur. Supprime-les d'abord.
+        versionConflict: La définition a changé depuis son chargement. Rouvre la boîte de dialogue et réessaie.
+        invalid: La définition du fournisseur a été refusée. Vérifie les champs et réessaie.
+        notFound: Ce fournisseur n'existe plus.
+        catalogUnavailable: La liste des modèles de l'endpoint est indisponible.
     catalogs:
       emptyBody: >-
         Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la

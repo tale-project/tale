@@ -23,6 +23,7 @@ import {
   generateHistoryTimestamp,
   pruneHistory,
   readJsonFile,
+  removeFileSafe,
   safeJoinWithinDir,
   sha256,
 } from '../../core/lib/file_io';
@@ -167,6 +168,107 @@ export async function saveProviderDefinition(
         );
       }
       return saved;
+    }),
+  );
+}
+
+/**
+ * Remove an organization's custom provider definition.
+ *
+ * Refused while any of the organization's credentials still name the
+ * provider: a credential whose connector vanished keeps listing under its
+ * stored slug but can serve nothing, so the operator retires the keys first,
+ * deliberately, instead of finding them orphaned. The exact reviewed preimage
+ * is archived under `.history/<name>/` like every save, so a deletion is as
+ * recoverable as an edit.
+ */
+export async function deleteProviderDefinition(
+  sql: Sql,
+  scope: {
+    organizationId: string;
+    orgSlug: string;
+    userId: string;
+    email?: string;
+  },
+  name: string,
+  expectedHash: string | null | undefined,
+): Promise<{ deleted: true }> {
+  const file = definitionPath(scope.orgSlug, name);
+  return sql.begin((tx) =>
+    withConfigWriteLock(tx, scope.orgSlug, 'providers', async () => {
+      const current = await readProviderDefinition(scope.orgSlug, name);
+      if (current.config === null) {
+        throw new ConfigurationError(
+          'PROVIDER_NOT_FOUND',
+          'No custom provider definition with this name exists.',
+          404,
+        );
+      }
+      assertExpectedHash(current.hash, expectedHash);
+      const rows = await tx<{ count: number }[]>`
+        SELECT count(*)::int AS count
+        FROM app.provider_credentials
+        WHERE org_id = ${scope.organizationId}
+          AND provider_slug = ${name}
+      `;
+      const inUse = rows[0]?.count ?? 0;
+      if (inUse > 0) {
+        throw new ConfigurationError(
+          'PROVIDER_IN_USE',
+          inUse === 1
+            ? '1 credential still uses this provider. Delete it first.'
+            : `${inUse} credentials still use this provider. Delete them first.`,
+          409,
+        );
+      }
+      // Preserve the exact reviewed preimage, including its original formatting.
+      const previous = configSnapshot(
+        await readJsonFile(file, MAX_PROVIDER_BYTES, (text) => text),
+      );
+      assertExpectedHash(previous.hash, current.hash);
+      if (previous.config === null) {
+        throw new ConfigurationError(
+          'CONFIG_VERSION_CONFLICT',
+          'The provider changed during its deletion.',
+        );
+      }
+      const history = safeJoinWithinDir(
+        resolveProvidersDir(scope.orgSlug),
+        `.history/${name}`,
+      );
+      await mkdir(history, { recursive: true });
+      await atomicWrite(
+        path.join(history, `${generateHistoryTimestamp()}.yml`),
+        previous.config,
+      );
+      await pruneHistory(history, 100);
+      await createAuditLog(tx, {
+        organizationId: scope.organizationId,
+        actorId: scope.userId,
+        ...(scope.email ? { actorEmail: scope.email } : {}),
+        actorType: 'user',
+        action: 'provider_definition.deleted',
+        category: 'security',
+        resourceType: 'provider_definition',
+        resourceId: name,
+        resourceName: name,
+        previousState: { hash: current.hash },
+        newState: { hash: null },
+        status: 'success',
+      });
+      await removeFileSafe(file);
+      invalidateCatalogFetchCache();
+      if (
+        loadOrgCustomProviders(scope.orgSlug).some(
+          (provider) => provider.name === name,
+        )
+      ) {
+        throw new ConfigurationError(
+          'CONFIG_READBACK_FAILED',
+          'The native provider is still listed after its deletion.',
+        );
+      }
+      return { deleted: true as const };
     }),
   );
 }

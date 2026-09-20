@@ -5655,6 +5655,104 @@ settings:
       description:
         Die Schlüssel, Umgebungsverweise und Subscription-Broker, mit denen
         sich diese Organisation bei AI-Anbietern authentifiziert.
+    custom:
+      badge: Eigener
+      title: Eigene Anbieter
+      description:
+        Endpunkte, die deine Organisation selbst betreibt oder abonniert —
+        ein eigener Modellserver oder ein internes Gateway mit OpenAI- oder
+        Anthropic-API. Lege oben Zugangsdaten an, um einen davon zu nutzen.
+      add: Anbieter hinzufügen
+      empty:
+        title: Noch keine eigenen Anbieter
+        description:
+          Verbinde Tale mit deinem eigenen OpenAI-kompatiblen oder
+          Anthropic-Endpunkt und lege danach Zugangsdaten dafür an.
+      listFailed: Die eigenen Anbieter konnten nicht geladen werden.
+      actionsLabel: Aktionen für {name}
+      edit: Anbieter bearbeiten
+      check: Modelle prüfen
+      checkOk: '{name}: {count, plural, =0 {keine Modelle gelistet} one {# Modell gelistet} other {# Modelle gelistet}}'
+      checkFailed: 'Die Modelle von {name} konnten nicht abgerufen werden: {error}'
+      delete: Anbieter löschen
+      deleteTitle: Anbieter löschen
+      deleteBody: >-
+        „{name}“ löschen? Die Definition bleibt im Konfigurationsverlauf der
+        Organisation archiviert.
+      deleteInUse: >-
+        {count, plural, one {# Zugangsdaten-Eintrag nutzt} other {# Zugangsdaten-Einträge nutzen}}
+        diesen Anbieter noch. Lösche {count, plural, one {ihn} other {sie}} zuerst.
+      deleteFailed: 'Der Anbieter konnte nicht gelöscht werden: {error}'
+      deletedToast: Anbieter gelöscht
+      createdToast: Anbieter hinzugefügt — lege jetzt Zugangsdaten dafür an
+      savedToast: Anbieter aktualisiert
+      dialog:
+        createTitle: Eigenen Anbieter hinzufügen
+        editTitle: Eigenen Anbieter bearbeiten
+        description: >-
+          Die Verbindung zu einem Endpunkt, den deine Organisation betreibt
+          oder abonniert. Zugangsdaten dafür legst du separat an.
+        submitCreate: Anbieter hinzufügen
+        submitEdit: Änderungen speichern
+        displayName: Anzeigename
+        displayNamePlaceholder: z. B. Internes vLLM
+        displayNameRequired: Gib einen Anzeigenamen ein.
+        name: Kennung
+        nameHelp: >-
+          Kleinbuchstaben, Ziffern und Bindestriche. Wird zum Slug und
+          Dateinamen des Anbieters und lässt sich später nicht mehr ändern.
+        nameLocked: Die Kennung lässt sich nach dem Anlegen nicht mehr ändern.
+        nameInvalid: Verwende Kleinbuchstaben, Ziffern und einzelne Bindestriche.
+        nameTaken: Diese Kennung ist bereits von einem anderen Anbieter belegt.
+        apiFormat: API-Format
+        apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM und die meisten Gateways.
+        apiFormatAnthropicHelp: Messages API — Anthropic-kompatible Endpunkte.
+        baseUrl: Basis-URL
+        baseUrlHelp: >-
+          Die API-Wurzel, an die die Plattform ihre Pfade anhängt. Öffentliche
+          Hosts brauchen https; eine private oder Loopback-Adresse braucht
+          zusätzlich die Freigabe privater Hosts in der Bereitstellung.
+        baseUrlRequired: Gib die Basis-URL des Endpunkts ein.
+        urlInvalid: Gib eine https-URL ein (reines http nur für private oder Loopback-Hosts).
+        catalog: Modellkatalog
+        catalogHelp: >-
+          Ohne Liste trägst du die genauen Modell-IDs in die Freigabeliste
+          der jeweiligen Zugangsdaten ein.
+        catalogModelsEndpoint: Modelle über die /models-Liste des Endpunkts ermitteln
+        catalogNone: Kein Katalog — die Modell-IDs stehen in den Zugangsdaten
+        catalogStatic: Mitgelieferte Modelldatei (bei eigenen Anbietern leer)
+        catalogOpenrouter: OpenRouter-Katalog-API
+        authMethods: Anmeldemethoden
+        authMethodsHelp: Was Zugangsdaten für diesen Anbieter enthalten können.
+        authMethodsRequired: Wähle mindestens eine Anmeldemethode.
+        advanced: Erweitert
+        wireDialect: Endpunkt spricht die aktuelle OpenAI-API
+        wireDialectHelp: >-
+          Sendet max_completion_tokens und bei Reasoning-Modellen keine eigene
+          Temperatur — nur für Server nach dem Vorbild von api.openai.com. Für
+          OpenAI-kompatible Endpunkte anderer Anbieter ausgeschaltet lassen.
+        perCredential: Jeder Zugangsdaten-Eintrag trägt seine eigene Endpunkt-URL
+        perCredentialHelp: Ressourcen-Endpunkte wie bei Azure. Die Basis-URL oben wird optional.
+        harnessEndpoint: Endpunkt für Coding-Agenten
+        harnessEndpointHelp: >-
+          Optional. Ein alternativer Endpunkt, den das Modell-Gateway der
+          Sandbox für Coding-Agenten nutzt — etwa eine native
+          Anthropic-Schnittstelle neben einer OpenAI-API.
+        harnessEndpointFormat: API-Format für Coding-Agenten
+        invalid: 'Die Definition wurde abgelehnt: {error}'
+        loadFailed: Die Anbieterdefinition konnte nicht geladen werden.
+        gone: Diesen Anbieter gibt es nicht mehr.
+      errors:
+        nameReserved: Diese Kennung gehört zu einem mitgelieferten Anbieter. Wähle eine andere.
+        endpointNotPermitted: >-
+          Diese Bereitstellung lässt den Endpunkt nicht zu. Ein privater oder
+          Loopback-Host braucht TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 im Backend;
+          Cloud-Metadaten-Hosts werden immer abgelehnt.
+        inUse: Zugangsdaten nutzen diesen Anbieter noch. Lösche sie zuerst.
+        versionConflict: Die Definition hat sich seit dem Laden geändert. Öffne den Dialog erneut.
+        invalid: Die Anbieterdefinition wurde abgelehnt. Prüfe die Felder und versuche es erneut.
+        notFound: Diesen Anbieter gibt es nicht mehr.
+        catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht erreichbar.
     catalogs:
       emptyBody: >-
         Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das

@@ -42,6 +42,8 @@ type ProviderCatalogItem =
   ItemOf<'lib/providers/catalog_actions:listProviderCatalogs'>;
 type RefreshCatalogsResult =
   ReturnsOf<'lib/providers/catalog_actions:refreshProviderCatalogs'>;
+type ProviderDefinitionSnapshotResult =
+  ReturnsOf<'lib/providers/definition_actions:getProviderDefinition'>;
 type HarnessStatusItem =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 type VisionModelPickResult =
@@ -808,6 +810,15 @@ export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         { orgId },
       ).then((body) => body.statuses);
   },
+  'lib/providers/definition_actions:getProviderDefinition': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<ProviderDefinitionSnapshotResult>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
+        { orgId },
+      );
+  },
   'lib/providers/vision_actions:getResolvedVisionModel': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -1477,6 +1488,47 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         '/providers/catalogs/refresh',
         { orgId: requireOrg(args, ctx), body: {} },
       ).then((body) => body.results),
+    invalidate: invalidateProviderReads,
+  },
+  // The organization's custom provider definitions — native config files the
+  // backend writes under its compare-and-set (`expectedHash`) and host policy.
+  // Every row invalidates the provider reads: a definition change moves what
+  // the model pickers and the runtime status can offer.
+  'lib/providers/definition_actions:saveProviderDefinition': {
+    run: (args, ctx) =>
+      backendFetch<ProviderDefinitionSnapshotResult>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PUT',
+          body: {
+            config: args.config,
+            expectedHash:
+              typeof args.expectedHash === 'string' ? args.expectedHash : null,
+          },
+        },
+      ),
+    invalidate: invalidateProviderReads,
+  },
+  'lib/providers/definition_actions:deleteProviderDefinition': {
+    run: (args, ctx) => {
+      const query =
+        typeof args.expectedHash === 'string'
+          ? `?expectedHash=${encodeURIComponent(args.expectedHash)}`
+          : '';
+      return backendFetch<{ ok: boolean }>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}${query}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null);
+    },
+    invalidate: invalidateProviderReads,
+  },
+  'lib/providers/definition_actions:checkProviderDefinitionCatalog': {
+    run: (args, ctx) =>
+      backendFetch<{ models: ProviderCatalogItem['models'] }>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}/catalog`,
+        { orgId: requireOrg(args, ctx) },
+      ).then((body) => body.models),
     invalidate: invalidateProviderReads,
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {

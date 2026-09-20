@@ -40,9 +40,18 @@ Azure OpenAI benötigt eine **Endpoint-URL**, gewöhnlich `https://<resource>.op
 
 Verwende dokumentierte Endpunkte und Modellkennungen des Anbieters. Ein Anzeigename auf einer Produktseite muss nicht der von der API akzeptierten Kennung entsprechen.
 
-## Einen Server im eigenen Netzwerk verbinden
+## Einen eigenen Anbieter definieren
 
-Lass den Betreiber Anbieterdefinition, Erreichbarkeit und Netzwerkrichtlinie vorbereiten. Folge dann [Einen lokalen Modellserver verbinden](/de/tutorials/admin/connect-local-provider). Das Speichern von Zugangsdaten gibt eine private Adresse nicht frei. Prüfe das gewünschte Modell in einem Chat und zusätzlich in einer Agentensitzung, falls Coding-Agenten es nutzen sollen. Deren Modellverkehr läuft über ein eigenes Gateway, das ebenfalls Netzwerkzugriff und Zertifikatsvertrauen braucht.
+Eine Organisation kann einen Endpunkt anbinden, den der mitgelieferte Katalog nicht kennt: einen eigenen Modellserver wie vLLM oder Ollama oder ein internes Gateway, das die OpenAI- oder Anthropic-API spricht. Wähle unter **Eigene Anbieter** die Aktion **Anbieter hinzufügen** und beschreibe die Verbindung:
+
+1. Gib einen **Anzeigename** ein. Die **Kennung** wird daraus vorgeschlagen und wird zum Schlüssel des Anbieters; nach dem Anlegen lässt sie sich nicht mehr ändern.
+2. Wähle das **API-Format**, das der Endpunkt spricht, und trage seine **Basis-URL** ein, also die API-Wurzel, an die die Plattform ihre Pfade anhängt. Ein öffentlicher Host braucht `https`.
+3. Wähle den **Modellkatalog**. **Modelle über die /models-Liste des Endpunkts ermitteln** liest die Modellliste des Servers; bei **Kein Katalog — die Modell-IDs stehen in den Zugangsdaten** trägt jeder Zugangsdaten-Eintrag seine genauen Modell-IDs unter **Erlaubte Modelle** ein.
+4. Wähle die **Anmeldemethoden**, die Zugangsdaten für diesen Anbieter verwenden dürfen, und wähle **Anbieter hinzufügen**.
+
+Der Anbieter erscheint jetzt im Katalog von **Zugangsdaten hinzufügen** mit der Kennzeichnung **Eigener**. Lege Zugangsdaten dafür an und prüfe das gewünschte Modell in einem Chat. Eine private oder Loopback-Adresse braucht zusätzlich die Freigabe privater Hosts in der Bereitstellung; die setzt ein Betreiber, das Speichern der Definition allein gibt sie nicht frei. Lass den Betreiber Erreichbarkeit und Netzwerkrichtlinie vorbereiten und folge dann [Einen lokalen Modellserver verbinden](/de/tutorials/admin/connect-local-provider). Sollen Coding-Agenten den Anbieter nutzen, prüfe zusätzlich eine Agentensitzung: Deren Modellverkehr läuft über ein eigenes Gateway, das ebenfalls Netzwerkzugriff und Zertifikatsvertrauen braucht.
+
+Im Menü der Zeile ruft **Modelle prüfen** die Modellliste des Endpunkts erneut ab, **Anbieter bearbeiten** ändert die Definition, und **Anbieter löschen** entfernt sie, sobald keine Zugangsdaten sie mehr verwenden. Jede gespeicherte Version bleibt im Konfigurationsverlauf der Organisation erhalten. Unter **Erweitert** finden sich Ressourcen-Endpunkte pro Zugangsdaten-Eintrag wie bei Azure, der aktuelle OpenAI-Wire-Dialekt und ein separater Endpunkt für Coding-Agenten; der [Leitfaden zur Anbieterkonfiguration](/de/self-hosted/configuration/providers) beschreibt jedes Feld.
 
 ## Standard und Modellzugriff festlegen
 

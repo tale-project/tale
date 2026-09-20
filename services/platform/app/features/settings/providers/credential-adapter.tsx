@@ -248,6 +248,13 @@ export const providerCredentialAdapter: CredentialAdapter<
         })}`;
   },
 
+  // The organization's own definitions sit among the shipped vendors in the
+  // picker; the tag is what says which is which.
+  vendorTag: (t, vendor) =>
+    vendor.catalog.origin === 'organization'
+      ? t('providers.custom.badge')
+      : null,
+
   statusLabel: (t, status) =>
     status === 'disabled' ? t('providers.credential.disabled') : null,
   statusTone: () => 'slate',

@@ -40,9 +40,18 @@ Azure OpenAI requires **Endpoint URL**, typically `https://<resource>.openai.azu
 
 Use the provider's documented endpoint and model identifiers. A display name from a marketing page is not necessarily the identifier accepted by its API.
 
-## Connect a server on your own network
+## Define a custom provider
 
-Ask your operator to prepare the provider definition, endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). A private address is not enabled by saving a credential. Test the exact model in a chat; if coding agents will use it, test an agent session too. Their model traffic passes through a separate gateway, which also needs network access and certificate trust.
+An organization can connect an endpoint the shipped catalog does not list: a self-hosted model server such as vLLM or Ollama, or an internal gateway that speaks the OpenAI or Anthropic API. Under **Custom providers**, select **Add provider** and describe the connection:
+
+1. Enter a **Display name**. The **Identifier** is suggested from it and becomes the provider's key; it cannot change after creation.
+2. Choose the **API format** the endpoint speaks and enter its **Base URL**, the API root the platform appends its paths to. A public host needs `https`.
+3. Choose the **Model catalog**. **Discover models from the endpoint's /models listing** reads the server's own model list; with **No catalog — model ids are entered on each credential**, each credential names its exact model IDs in its **Model allowlist**.
+4. Choose the **Authentication methods** a credential for this provider may use, then select **Add provider**.
+
+The provider now appears in the **Add credential** catalog with a **Custom** badge. Add a credential for it and test the exact model in a chat. A private or loopback address also needs the deployment's private-host opt-in, which an operator sets; saving the definition does not grant it. Ask your operator to prepare endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). If coding agents will use the provider, test an agent session too: their model traffic passes through a separate gateway, which also needs network access and certificate trust.
+
+From the row's menu, **Check models** fetches the endpoint's model list again, **Edit provider** changes the definition, and **Delete provider** removes it once no credential uses it. Every saved version stays in the organization's configuration history. **Advanced** covers Azure-style per-credential endpoints, the current OpenAI wire dialect, and a separate coding-agent endpoint; the [provider configuration guide](/self-hosted/configuration/providers) describes each field.
 
 ## Select a default and restrict model access
 

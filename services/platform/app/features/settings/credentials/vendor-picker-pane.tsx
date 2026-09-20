@@ -107,6 +107,7 @@ export function VendorPickerPane<
           <ul className="flex flex-col gap-1.5">
             {sorted.map((vendor) => {
               const meta = adapter.vendorMeta(t, vendor);
+              const tag = adapter.vendorTag?.(t, vendor) ?? null;
               const configured = inUseKeys.has(vendor.key);
               return (
                 <li
@@ -129,6 +130,11 @@ export function VendorPickerPane<
                         </span>
                       )}
                     </span>
+                    {tag !== null && (
+                      <Badge variant="slate" className="shrink-0">
+                        {tag}
+                      </Badge>
+                    )}
                     {configured && (
                       <Badge variant="outline" className="shrink-0">
                         {t('credentials.catalog.configured')}

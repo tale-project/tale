@@ -220,6 +220,12 @@ export interface CredentialAdapter<
    */
   vendorMeta: (t: Translator, vendor: V) => ReactNode;
   /**
+   * A short badge beside the vendor in the picker, or `null` for none — what
+   * sets a vendor apart from the shipped set (a provider the organization
+   * defined itself). Most vendors need no marker.
+   */
+  vendorTag?: (t: Translator, vendor: V) => string | null;
+  /**
    * Whether this vendor can be joined by consent rather than by typing a
    * secret. Declared separately from `Consent` because the catalog has to know
    * BEFORE rendering: a vendor with neither a form nor a grant is dropped from

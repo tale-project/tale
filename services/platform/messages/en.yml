@@ -5751,6 +5751,104 @@ settings:
       description:
         The keys, environment references and subscription brokers this
         organization authenticates AI providers with.
+    custom:
+      badge: Custom
+      title: Custom providers
+      description:
+        Endpoints this organization runs or subscribes to beyond the shipped
+        vendors — a self-hosted model server or an internal gateway speaking
+        the OpenAI or Anthropic API. Add a credential above to start using one.
+      add: Add provider
+      empty:
+        title: No custom providers yet
+        description:
+          Point Tale at your own OpenAI-compatible or Anthropic-format
+          endpoint, then add a credential for it.
+      listFailed: Couldn't load the custom providers.
+      actionsLabel: Actions for {name}
+      edit: Edit provider
+      check: Check models
+      checkOk: '{name}: {count, plural, =0 {no models listed} one {# model listed} other {# models listed}}'
+      checkFailed: "Couldn't list the models of {name}: {error}"
+      delete: Delete provider
+      deleteTitle: Delete provider
+      deleteBody: >-
+        Delete "{name}"? Its definition stays archived in the organization's
+        configuration history.
+      deleteInUse: >-
+        {count, plural, one {# credential still uses} other {# credentials still use}}
+        this provider. Delete {count, plural, one {it} other {them}} first.
+      deleteFailed: 'Could not delete the provider: {error}'
+      deletedToast: Provider deleted
+      createdToast: Provider added — now add a credential for it
+      savedToast: Provider updated
+      dialog:
+        createTitle: Add custom provider
+        editTitle: Edit custom provider
+        description: >-
+          The connector for an endpoint your organization runs or subscribes
+          to. Credentials for it are added separately.
+        submitCreate: Add provider
+        submitEdit: Save changes
+        displayName: Display name
+        displayNamePlaceholder: e.g. Internal vLLM
+        displayNameRequired: Enter a display name.
+        name: Identifier
+        nameHelp: >-
+          Lower-case letters, digits and dashes. The provider's slug and file
+          name — it can't change later.
+        nameLocked: The identifier can't change after creation.
+        nameInvalid: Use lower-case letters, digits and single dashes.
+        nameTaken: This identifier is already taken by another provider.
+        apiFormat: API format
+        apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM and most gateways.
+        apiFormatAnthropicHelp: Messages API — Anthropic-compatible endpoints.
+        baseUrl: Base URL
+        baseUrlHelp: >-
+          The API root the platform appends its paths to. Public hosts need
+          https; a private or loopback address also needs the deployment's
+          private-host opt-in.
+        baseUrlRequired: Enter the endpoint's base URL.
+        urlInvalid: Enter an https URL (plain http only for a private or loopback host).
+        catalog: Model catalog
+        catalogHelp: >-
+          Without a listing, enter the exact model ids on each credential's
+          model allowlist.
+        catalogModelsEndpoint: Discover models from the endpoint's /models listing
+        catalogNone: No catalog — model ids are entered on each credential
+        catalogStatic: Shipped model file (empty for a custom provider)
+        catalogOpenrouter: OpenRouter catalog API
+        authMethods: Authentication methods
+        authMethodsHelp: What a credential for this provider can hold.
+        authMethodsRequired: Choose at least one authentication method.
+        advanced: Advanced
+        wireDialect: Endpoint speaks the current OpenAI API
+        wireDialectHelp: >-
+          Sends max_completion_tokens and no custom temperature to reasoning
+          models — for api.openai.com-style servers only. Leave it off for
+          third-party OpenAI-compatible endpoints.
+        perCredential: Each credential carries its own endpoint URL
+        perCredentialHelp: Azure-style resource endpoints. The base URL above becomes optional.
+        harnessEndpoint: Coding-agent endpoint
+        harnessEndpointHelp: >-
+          Optional. An alternate endpoint the sandbox model gateway uses for
+          coding agents — for example a native Anthropic-format door beside an
+          OpenAI-format API.
+        harnessEndpointFormat: Coding-agent API format
+        invalid: 'The definition was refused: {error}'
+        loadFailed: Couldn't load the provider definition.
+        gone: This provider no longer exists.
+      errors:
+        nameReserved: This identifier belongs to a provider shipped with the platform. Choose another.
+        endpointNotPermitted: >-
+          This deployment doesn't permit the endpoint. A private or loopback
+          host needs TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 on the backend;
+          cloud-metadata hosts are always refused.
+        inUse: Credentials still use this provider. Delete them first.
+        versionConflict: The definition changed since it was loaded. Reopen the dialog and try again.
+        invalid: The provider definition was refused. Check the fields and try again.
+        notFound: This provider no longer exists.
+        catalogUnavailable: The endpoint's model listing is unavailable.
     catalogs:
       emptyBody: >-
         This deployment ships no provider files. Check that the config root

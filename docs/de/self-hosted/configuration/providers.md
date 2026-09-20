@@ -13,7 +13,7 @@ Ein lokaler Inferenzserver braucht eine Anbieterdefinition und die Erlaubnis fü
 
 1. Mache den Inferenzserver für jede Backend-Rolle erreichbar, die ihn aufruft. `localhost` bezeichnet im Container diesen Container, nicht den Hostrechner. Prüfe Namensauflösung, Netzwerkzugriff und gegebenenfalls das TLS-Zertifikat aus dem tatsächlichen Laufzeitnetz.
 2. Setze für einen privaten oder Loopback-Endpunkt `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in der Backend-Bereitstellungsumgebung. Die Einstellung erlaubt private Anbieterhosts für die gesamte Installation; sie ist keine Freigabeliste einzelner Anbieter. Cloud-Metadatenendpunkte bleiben gesperrt. Erstelle die betroffenen Container neu, um die Änderung zu übernehmen. Ein Neustart behält ihre bestehende Compose-Umgebung.
-3. Lege die Anbieterdefinition unter `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ab oder nutze den [verwalteten Konfigurationsablauf](/de/self-hosted/configuration/config-releases). Halte das native Anbieterschema ein und wähle einen Namen, der nicht mit einer mitgelieferten Definition kollidiert.
+3. Lege die Anbieterdefinition unter `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ab oder nutze den [verwalteten Konfigurationsablauf](/de/self-hosted/configuration/config-releases). Halte das native Anbieterschema ein und wähle einen Namen, der nicht mit einer mitgelieferten Definition kollidiert. Ein Organisationsadmin kann dieselbe Datei auch in der App unter **Einstellungen > KI-Anbieter > Eigene Anbieter** anlegen; siehe [Einen eigenen Anbieter definieren](/de/platform/admin/providers#einen-eigenen-anbieter-definieren).
 
 Ersetze im Beispiel private IP und Port durch deinen erreichbaren Server. HTTP ist nur für als privat oder Loopback erkannte Hosts zulässig; öffentliche Endpunkte brauchen HTTPS. Ein interner DNS-Name umgeht die Prüfung privater Hosts zur Anfragezeit nicht.
 
@@ -74,7 +74,7 @@ Mitgelieferte Definitionen liegen unter `configs/platform/system/providers/<slug
 
 <Warning>
 
-Mitgelieferte Dateien sind schreibgeschützte Image-Eingaben und werden beim Upgrade ersetzt. Nutze für externe Anbieter die geprüfte Deployment-Deklaration `configuration` aus [CLI-Installation](/de/self-hosted/install/cli-install#plattform-konfigurieren). Sie erstellt mit dem nativen Schema einen organisationsgebundenen Connector unter `TALE_CONFIG_DIR/<org>/providers/`; Änderungen an Zugangsdaten und Richtlinien nutzen native APIs.
+Mitgelieferte Dateien sind schreibgeschützte Image-Eingaben und werden beim Upgrade ersetzt. Nutze für externe Anbieter die geprüfte Deployment-Deklaration `configuration` aus [CLI-Installation](/de/self-hosted/install/cli-install#plattform-konfigurieren). Sie erstellt mit dem nativen Schema einen organisationsgebundenen Connector unter `TALE_CONFIG_DIR/<org>/providers/`; Änderungen an Zugangsdaten und Richtlinien nutzen native APIs. Der Bereich **Eigene Anbieter** der App schreibt dieselbe organisationsgebundene Datei und bewahrt jede gespeicherte Version unter `.history/` auf.
 
 </Warning>
 

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -66,8 +66,9 @@ const definition = {
   embedding: 'unknown',
   auth: [{ method: 'env' }],
 };
-function app() {
-  const tag = async () => [];
+/** The routes over a stub `sql`: every query answers `rows` (default: none). */
+function app(rows: unknown[] = []) {
+  const tag = async () => rows;
   const sql = Object.assign(tag, {
     begin: async (work: (tx: unknown) => Promise<unknown>) => work(tag),
   });
@@ -246,5 +247,67 @@ describe('native custom provider definition HTTP door', () => {
     expect(
       (await app().request('/definitions/absent/catalog?orgId=org-a')).status,
     ).toBe(404);
+  });
+
+  it('deletes a definition behind the role gate and the in-use refusal, archiving its preimage', async () => {
+    expect((await put({ config: definition, expectedHash: null })).status).toBe(
+      200,
+    );
+    const remove = (query = '', rows: unknown[] = []) =>
+      app(rows).request(`/definitions/local-chat?orgId=org-a${query}`, {
+        method: 'DELETE',
+      });
+    // Credentials still naming the provider keep it: the operator retires
+    // the keys first, deliberately, instead of finding them orphaned.
+    const inUse = await remove('', [{ count: 2 }]);
+    expect(inUse.status).toBe(409);
+    expect(await inUse.json()).toMatchObject({ error: 'PROVIDER_IN_USE' });
+    expect(
+      await (await app().request('/definitions/local-chat?orgId=org-a')).json(),
+    ).toMatchObject({ config: definition });
+    // The optional compare-and-set mirrors the PUT's.
+    expect((await remove(`&expectedHash=${'a'.repeat(64)}`)).status).toBe(409);
+    expect((await remove('&expectedHash=nope')).status).toBe(400);
+    caller.role = 'member';
+    expect((await remove()).status).toBe(403);
+    caller.role = 'developer';
+    const deleted = await remove();
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ ok: true });
+    expect(
+      await (await app().request('/definitions/local-chat?orgId=org-a')).json(),
+    ).toEqual({ config: null, hash: null });
+    expect(
+      await readdir(
+        join(directory, 'north', 'providers', '.history', 'local-chat'),
+      ),
+    ).toHaveLength(1);
+    expect((await remove()).status).toBe(404);
+  });
+
+  it('marks organization-defined providers in the catalog listing', async () => {
+    catalog.mockResolvedValue([]);
+    expect((await put({ config: definition, expectedHash: null })).status).toBe(
+      200,
+    );
+    const listing = (await (
+      await app().request('/catalogs?orgId=org-a')
+    ).json()) as { catalogs: Array<{ name: string; origin: string }> };
+    const origins = new Map(
+      listing.catalogs.map((entry) => [entry.name, entry.origin]),
+    );
+    expect(origins.get('local-chat')).toBe('organization');
+    expect(origins.get('openai')).toBe('shipped');
+    expect(
+      [...origins.values()].filter((origin) => origin === 'organization'),
+    ).toHaveLength(1);
+    // Another organization never sees this one's definition.
+    Object.assign(caller, { orgId: 'org-b', slug: 'south' });
+    const other = (await (
+      await app().request('/catalogs?orgId=org-b')
+    ).json()) as { catalogs: Array<{ name: string }> };
+    expect(other.catalogs.some((entry) => entry.name === 'local-chat')).toBe(
+      false,
+    );
   });
 });

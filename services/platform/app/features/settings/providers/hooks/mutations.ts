@@ -3,7 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
-import { providerCatalogsQueryKey } from './queries';
+import {
+  providerCatalogsQueryKey,
+  providerDefinitionsQueryPrefix,
+} from './queries';
 
 /**
  * Write hooks for the AI-providers settings page. The secret-carrying writes
@@ -55,5 +58,60 @@ export function useRefreshProviderCatalogs(organizationId: string) {
           queryKey: providerCatalogsQueryKey(organizationId),
         }),
     },
+  );
+}
+
+/**
+ * The organization's custom provider definitions. Beside the entity
+ * invalidation their adapter rows fire, each write refetches the catalog
+ * listing — a definition is a catalog entry, and the section lists the
+ * organization's own from that listing — and drops the cached definition
+ * snapshots, whose hash the next save must name afresh. Errors are handled
+ * at the call sites (dialog-inline or toast), so the generic toast is off.
+ */
+function useProviderDefinitionWrite<
+  Name extends
+    | 'lib/providers/definition_actions:saveProviderDefinition'
+    | 'lib/providers/definition_actions:deleteProviderDefinition'
+    | 'lib/providers/definition_actions:checkProviderDefinitionCatalog',
+>(name: Name, organizationId: string) {
+  const queryClient = useQueryClient();
+  return useBackendAction(name, {
+    errorToast: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: providerCatalogsQueryKey(organizationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: providerDefinitionsQueryPrefix(organizationId),
+      });
+    },
+  });
+}
+
+/** Create or update one custom provider definition (compare-and-set on the
+ * hash it was loaded with; `null` creates). */
+export function useSaveProviderDefinition(organizationId: string) {
+  return useProviderDefinitionWrite(
+    'lib/providers/definition_actions:saveProviderDefinition',
+    organizationId,
+  );
+}
+
+/** Delete one custom provider definition. Refused by the server while any
+ * credential still names it. */
+export function useDeleteProviderDefinition(organizationId: string) {
+  return useProviderDefinitionWrite(
+    'lib/providers/definition_actions:deleteProviderDefinition',
+    organizationId,
+  );
+}
+
+/** Fetch one custom provider's live model listing anew — the reachability
+ * check for a freshly defined endpoint. */
+export function useCheckProviderDefinitionCatalog(organizationId: string) {
+  return useProviderDefinitionWrite(
+    'lib/providers/definition_actions:checkProviderDefinitionCatalog',
+    organizationId,
   );
 }

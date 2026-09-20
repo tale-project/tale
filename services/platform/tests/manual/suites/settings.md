@@ -480,6 +480,33 @@ any toggled setting after the run.
   account in no team reads `settings.account.teams.none` instead; only an
   admin/owner sees the **Manage teams** link
   (`settings.account.teams.manageLink`) to `/dashboard/{org}/settings/teams`.
+- [ ] `SET-F43` · **Custom providers** — On the providers page of an org with
+  no custom provider, the **Custom providers** section
+  (`settings.providers.custom.title`) shows its empty state
+  (`settings.providers.custom.empty.title`) → **Add provider**
+  (`settings.providers.custom.add`) → typing **Display name**
+  (`settings.providers.custom.dialog.displayName`) `Internal vLLM` fills the
+  **Identifier** (`settings.providers.custom.dialog.name`) with
+  `internal-vllm`; typing `openai` there refuses with
+  `settings.providers.custom.dialog.nameTaken`; set **Base URL**
+  (`settings.providers.custom.dialog.baseUrl`) to a public `https://` host →
+  **Add provider** (`settings.providers.custom.dialog.submitCreate`) → Toast
+  `settings.providers.custom.createdToast`; the row shows the slug and the wire
+  facts (`settings.providers.card.facts`), and **Add credential** lists the
+  vendor with the **Custom** badge (`settings.providers.custom.badge`); the
+  row menu (`settings.providers.custom.actionsLabel`) → **Check models**
+  (`settings.providers.custom.check`) toasts
+  `settings.providers.custom.checkOk`, or `settings.providers.custom.checkFailed`
+  for an unreachable host; **Edit provider** (`settings.providers.custom.edit`)
+  opens the dialog with the identifier read-only
+  (`settings.providers.custom.dialog.nameLocked`) and saving toasts
+  `settings.providers.custom.savedToast`; with a credential on the provider,
+  **Delete provider** (`settings.providers.custom.delete`) shows the in-use
+  warning (`settings.providers.custom.deleteInUse`) with **Delete** disabled;
+  after deleting that credential, the same action deletes, toasts
+  `settings.providers.custom.deletedToast`, and after reload the row and the
+  picker entry are gone while `TALE_CONFIG_DIR/<org>/providers/.history/`
+  keeps the archived file.
 
 ## Boundary & error tests
 

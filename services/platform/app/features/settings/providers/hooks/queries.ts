@@ -1,6 +1,6 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import type { ItemOf } from '@/app/lib/backend/contract';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
@@ -45,6 +45,43 @@ export function useProviderCatalogs(organizationId: string) {
     providerCatalogsQueryKey(organizationId),
     'lib/providers/catalog_actions:listProviderCatalogs',
     { organizationId },
+  );
+}
+
+/** One organization-defined provider as the settings surface reads it: the
+ * native config and the hash a save or delete must name. */
+export type ProviderDefinitionSnapshot =
+  ReturnsOf<'lib/providers/definition_actions:getProviderDefinition'>;
+
+/** React-query prefix of every custom-definition read of the organization —
+ * what a save or delete invalidates. */
+export function providerDefinitionsQueryPrefix(organizationId: string) {
+  return ['providers', 'definition', organizationId] as const;
+}
+
+/** React-query key of one custom provider definition read. */
+export function providerDefinitionQueryKey(
+  organizationId: string,
+  name: string,
+) {
+  return [...providerDefinitionsQueryPrefix(organizationId), name] as const;
+}
+
+/**
+ * One custom provider definition, read fresh whenever its edit dialog opens
+ * (`enabled`): the hash it returns is what the save names, so a copy kept
+ * from an earlier open could only produce a version conflict.
+ */
+export function useProviderDefinition(
+  organizationId: string,
+  name: string,
+  options?: { enabled?: boolean },
+) {
+  return useActionQuery(
+    providerDefinitionQueryKey(organizationId, name),
+    'lib/providers/definition_actions:getProviderDefinition',
+    { organizationId, name },
+    { staleTime: 0, ...options },
   );
 }
 

@@ -13,7 +13,7 @@ Un serveur d’inférence local exige une définition de fournisseur et l’auto
 
 1. Rends le serveur joignable depuis chaque rôle backend qui l’appelle. Dans un conteneur, `localhost` désigne ce conteneur, pas la machine hôte. Vérifie la résolution du nom, l’accès réseau et, si nécessaire, le certificat TLS depuis le réseau d’exécution réel.
 2. Pour un endpoint privé ou de boucle locale, définis `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` dans l’environnement du backend. Cette option autorise les hôtes de fournisseurs privés pour tout le déploiement ; ce n’est pas une liste d’autorisation par fournisseur. Les endpoints de métadonnées cloud restent bloqués. Recrée les conteneurs concernés pour appliquer le changement : un redémarrage conserve leur environnement Compose actuel.
-3. Déclare le fournisseur dans `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ou avec la [procédure de configuration gérée](/fr/self-hosted/configuration/config-releases). Respecte le schéma natif et choisis un nom distinct des définitions fournies.
+3. Déclare le fournisseur dans `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ou avec la [procédure de configuration gérée](/fr/self-hosted/configuration/config-releases). Respecte le schéma natif et choisis un nom distinct des définitions fournies. Un admin de l’organisation peut aussi créer le même fichier depuis l’app, sous **Paramètres > Fournisseurs IA > Fournisseurs personnalisés** ; voir [Définir un fournisseur personnalisé](/fr/platform/admin/providers#definir-un-fournisseur-personnalise).
 
 Dans cet exemple, remplace l’IP privée et le port par ceux de ton serveur. HTTP est accepté uniquement pour les hôtes reconnus comme privés ou de boucle locale ; les endpoints publics exigent HTTPS. Un nom DNS interne ne contourne pas le contrôle des hôtes privés effectué à chaque requête.
 
@@ -74,7 +74,7 @@ Les définitions fournies se trouvent dans `configs/platform/system/providers/<s
 
 <Warning>
 
-Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connecteur propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives.
+Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connecteur propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives. La section **Fournisseurs personnalisés** de l’app écrit le même fichier propre à l’organisation et conserve chaque version enregistrée sous `.history/`.
 
 </Warning>
 
