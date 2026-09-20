@@ -114,8 +114,11 @@ test.describe('core settings', () => {
     // The catalog action may still be fetching live model catalogs (OpenRouter,
     // the Vercel gateway). With no egress those fetches time out first, so the
     // shipped Anthropic row needs the execution budget.
+    // Anchored: the pinned "Custom provider" row names the API formats it
+    // takes ("OpenAI-compatible or Anthropic"), so an unanchored vendor name
+    // matches two rows.
     const anthropic = dialog.getByRole('button', {
-      name: new RegExp(SHIPPED_PROVIDER_DISPLAY_NAME),
+      name: new RegExp(`^${SHIPPED_PROVIDER_DISPLAY_NAME}`),
     });
     await expect(anthropic).toBeVisible({ timeout: TIMEOUT.EXECUTION });
     // One flat list — configured vendors lead with a badge, no section headers.

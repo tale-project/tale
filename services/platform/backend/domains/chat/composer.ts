@@ -17,7 +17,10 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
 import { getAccessibleModelsForUser } from '../governance/service.ts';
-import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import {
+  listServingCredentialFacts,
+  resolveCatalogBearer,
+} from '../provider_credentials/service.ts';
 import { chatShimHandlers } from './shim.ts';
 import { projectChatAccess, ChatThreadError } from './threads.ts';
 
@@ -103,6 +106,12 @@ export async function listComposerModels(
     shim as unknown as Parameters<typeof walkChatCatalog>[0],
     args.organizationId,
     servable,
+    {
+      // A custom provider's `/models` usually wants the key the organization
+      // holds for it; the listing is fetched with that credential.
+      bearerFor: (connector) =>
+        resolveCatalogBearer(sql, args.organizationId, connector),
+    },
   );
   const { byId, ttsAvailable } = collectComposerOptions(hits);
   const transcription = await inspectTranscriptionModels(

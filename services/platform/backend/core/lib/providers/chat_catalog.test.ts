@@ -126,3 +126,19 @@ describe('walkChatCatalog — model allowlist', () => {
     warn.mockRestore();
   });
 });
+
+describe('walkChatCatalog — listing credential', () => {
+  it('lists with the bearer the caller resolves, and anonymously when it resolves none', async () => {
+    catalogMock.mockResolvedValue([entry('gpt-5')]);
+    await walkChatCatalog(ctx, ORG, [credential()], {
+      bearerFor: async () => 'sk-listing',
+    });
+    expect(catalogMock).toHaveBeenLastCalledWith(OPENAI, undefined, {
+      bearerToken: 'sk-listing',
+    });
+    await walkChatCatalog(ctx, ORG, [credential(['gpt-5'])], {
+      bearerFor: async () => undefined,
+    });
+    expect(catalogMock).toHaveBeenLastCalledWith(OPENAI, ['gpt-5']);
+  });
+});

@@ -10032,7 +10032,34 @@ async function checkChat(
     // earlier block planted — and the attempt dies on an unreachable host.
     await send(`/api/app/user-preferences/chat-model?orgId=${orgId}`, {
       modelId: 'itest-chat',
+      providerSlug: 'itestchat',
     });
+    // The pick remembers WHICH connector served it (migration 0112): two
+    // connectors listing one id are different wires, and a seed by id alone
+    // landed on the wrong one.
+    const stickyPick = z
+      .object({
+        preferences: z
+          .object({
+            chatModelId: z.string().optional(),
+            chatModelProviderSlug: z.string().optional(),
+          })
+          .nullable(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/user-preferences?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+    record(
+      'chat model pick remembers its provider',
+      stickyPick.success &&
+        stickyPick.data.preferences?.chatModelId === 'itest-chat' &&
+        stickyPick.data.preferences?.chatModelProviderSlug === 'itestchat',
+      `read=${stickyPick.success ? JSON.stringify(stickyPick.data.preferences) : 'ERR'}`,
+    );
     const untitled = z
       .object({ id: z.string() })
       .safeParse(

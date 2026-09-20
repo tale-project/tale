@@ -192,14 +192,29 @@ function liveIsStale(lastSettledSegment: string, live: string): boolean {
 }
 
 /** A row is settled once the finalize (or a failure stamp) landed: it carries
- * text, an error, a guardrail block, or usage. An empty assistant row with
- * none of those is a placeholder a turn is still writing. */
+ * text, an error, a guardrail block, or usage — or a terminal status (a stop
+ * before the first token stamps `cancelled` and nothing else). An empty
+ * assistant row with none of those is a placeholder a turn is still
+ * writing. */
 function isSettledRow(row: ChatMessageView, rowText: string): boolean {
   return (
     rowText.length > 0 ||
-    row.error !== undefined ||
     row.blockedReason !== undefined ||
-    row.usage !== undefined
+    row.usage !== undefined ||
+    isTerminalRow(row)
+  );
+}
+
+/** The row's own terminal state: the finalize stamped an error or a status
+ * other than `pending`. Such a row is never presented as streaming again —
+ * not even while a generation row that outlived its settle still names it —
+ * and its own content is authoritative over anything this mount streamed. */
+function isTerminalRow(row: ChatMessageView): boolean {
+  return (
+    row.error !== undefined ||
+    row.status === 'complete' ||
+    row.status === 'failed' ||
+    row.status === 'cancelled'
   );
 }
 
@@ -306,7 +321,7 @@ export function reduceThreadView(
     // stays invisible for the whole turn — which is what shipped.
     let liveParts: readonly MessagePart[] | undefined;
 
-    if (targetId === row.id) {
+    if (targetId === row.id && !isTerminalRow(row)) {
       // The live row. Its text is the settled parts' text (earlier tool
       // rounds) plus the stream channel's tail (the current round); held so
       // a loading gap or the settle race never blanks the bubble, and
@@ -355,12 +370,16 @@ export function reduceThreadView(
       // A row this mount streamed, no longer targeted by a live generation.
       const held = state.streamTextByKey.get(key) ?? '';
       reasoningText = reasoningText ?? state.streamReasoningByKey.get(key);
-      if (settled && rowText.length >= held.length) {
+      if (settled && (rowText.length >= held.length || isTerminalRow(row))) {
         // Finalized: the row's own content caught up with everything that
         // streamed, so it is authoritative from here on. (During a tool
         // loop's settle gap the row already carries EARLIER rounds' text
         // while the final round's tail exists only in `held` — the length
-        // guard keeps the tail on screen until the finalize write lands.)
+        // guard keeps the tail on screen until the finalize write lands. A
+        // terminal row is authoritative even when it kept LESS than
+        // streamed: a failure mid-stream settles what the server wrote,
+        // never a tail it refused — holding that tail as "streaming" is how
+        // a failed reply kept thinking forever.)
         state.streamTextByKey.delete(key);
         state.drainedKeys.add(key);
       } else {

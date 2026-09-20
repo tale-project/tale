@@ -48,6 +48,12 @@ export function useProviderCatalogs(organizationId: string) {
   );
 }
 
+/** React-query prefix of every custom-definition read of the organization —
+ * what a save or delete invalidates. */
+export function providerDefinitionsQueryPrefix(organizationId: string) {
+  return ['providers', 'definition', organizationId] as const;
+}
+
 /** One shipped harness with its resolved status for this org. */
 export type HarnessStatus =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;

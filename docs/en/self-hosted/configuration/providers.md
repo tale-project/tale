@@ -13,7 +13,7 @@ A local inference server needs both a provider definition and permission for the
 
 1. Make the inference server reachable from every backend role that will call it. `localhost` inside a container refers to that container, not the host machine. Test name resolution, network access and any TLS certificate from the actual runtime network.
 2. For a private or loopback endpoint, set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the backend deployment environment. This permits private provider hosts across that deployment; it is not a per-provider allowlist. Cloud-metadata endpoints remain blocked. Apply the change by recreating the affected containers; restarting them retains their existing Compose environment.
-3. Declare the organization’s provider in `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml`, or through the [managed configuration workflow](/self-hosted/configuration/config-releases). Use the native provider schema and a name that does not collide with a shipped definition.
+3. Declare the organization’s provider in `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml`, or through the [managed configuration workflow](/self-hosted/configuration/config-releases). Use the native provider schema and a name that does not collide with a shipped definition. An organization admin can also create the same file from the app: **Add credential** > **Custom provider** under **Settings > AI providers**; see [Define a custom provider](/platform/admin/providers#define-a-custom-provider).
 
 For example, replace the private IP and port below with your own reachable server. HTTP is accepted only for hosts recognized as private or loopback; public endpoints require HTTPS. An internal DNS name alone does not bypass the request-time private-host check.
 
@@ -64,7 +64,7 @@ When a new sandbox session starts, the backend checks the custom provider’s ho
 
 After recreating the affected backend processes, start a new sandbox session with the intended provider, model and compatible agent runtime. Use a harmless request and verify a completed reply and the matching inference-server log entry. Inspect `sandbox-llm-gateway` logs if chat works but the agent cannot reach its model. `SANDBOX_EGRESS_ALLOWLIST` controls general sandbox web access, not this separate model connection.
 
-Coding agents also rely on the context window the catalog reports for the model: the `context_length` or `context_window` your server lists on `/v1/models`, or 128,000 tokens for a provider configured with `catalog.source: none`. Make the listing report the context your server actually serves. When that window, or a lower [context limit](/platform/admin/governance/policies-and-limits) for the person who started the run, is below 200,000 tokens, a managed Claude Code session compacts its conversation into a summary before the prompt outgrows it. Claude Code treats any value below 100,000 tokens as 100,000, so a model that serves less can still receive longer prompts than it holds. Give Claude Code a model with at least that much context.
+Coding agents also rely on the context window the catalog reports for the model: the `context_length` or `context_window` your server lists on `/v1/models`, or 128,000 tokens when the listing publishes neither, as for a provider configured with `catalog.source: none`. Make the listing report the context your server actually serves. When that window, or a lower [context limit](/platform/admin/governance/policies-and-limits) for the person who started the run, is below 200,000 tokens, a managed Claude Code session compacts its conversation into a summary before the prompt outgrows it. Claude Code treats any value below 100,000 tokens as 100,000, so a model that serves less can still receive longer prompts than it holds. Give Claude Code a model with at least that much context.
 
 A managed Claude Code session on a model other than Claude also leaves out the attribution line Claude Code otherwise puts at the start of every system prompt. That line changes with each request, so a server that caches prompt prefixes would recompute the whole conversation on every turn.
 
@@ -74,7 +74,7 @@ Shipped definitions live at `configs/platform/system/providers/<slug>/provider.y
 
 <Warning>
 
-Shipped files are read-only image inputs and are replaced on upgrade. For an external provider, use the reviewed `configuration` deployment declaration described in [CLI installation](/self-hosted/install/cli-install#configure-the-platform). It creates an organization-owned connector under `TALE_CONFIG_DIR/<org>/providers/` through the same native schema, while credential and policy changes use native APIs.
+Shipped files are read-only image inputs and are replaced on upgrade. For an external provider, use the reviewed `configuration` deployment declaration described in [CLI installation](/self-hosted/install/cli-install#configure-the-platform). It creates an organization-owned connector under `TALE_CONFIG_DIR/<org>/providers/` through the same native schema, while credential and policy changes use native APIs. The **Custom provider** entry of **Add credential** in the app writes the same organization-owned file and keeps every saved version under `.history/`.
 
 </Warning>
 

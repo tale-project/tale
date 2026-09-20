@@ -40,9 +40,18 @@ Azure OpenAI demande une **URL de l'endpoint**, généralement `https://<resourc
 
 Utilise les adresses et identifiants documentés par le fournisseur. Le nom affiché sur une page commerciale n’est pas forcément celui que son API accepte.
 
-## Connecter un serveur sur ton réseau
+## Définir un fournisseur personnalisé
 
-Demande à l’opérateur de préparer la définition du fournisseur, l’accès réseau et la politique du déploiement, puis suis [Connecter un serveur de modèles local](/fr/tutorials/admin/connect-local-provider). Enregistrer des identifiants n’autorise pas une adresse privée. Teste le modèle voulu dans un chat et, si des agents de programmation l’utiliseront, dans une session d’agent. Leur trafic passe par une passerelle distincte qui doit aussi disposer de l’accès réseau et faire confiance au certificat.
+Une organisation peut connecter un endpoint absent du catalogue livré : un serveur de modèles auto-hébergé comme vLLM ou Ollama, ou une passerelle interne qui parle l’API OpenAI ou Anthropic. Choisis **Ajouter des identifiants**, puis **Fournisseur personnalisé**, l’entrée fixée sous le catalogue :
+
+1. Saisis un **Nom du fournisseur**. Il nomme le fournisseur et cet identifiant ; le nom technique du fournisseur en est dérivé.
+2. Choisis le **Format d'API** que parle l’endpoint et saisis son **URL de base**, la racine d’API à laquelle la plateforme ajoute ses chemins. Un hôte public exige `https`.
+3. Sous **Modèles**, garde **Découvrir depuis l'endpoint** pour lire la liste `/models` du serveur avec cette clé, ou choisis **Saisir les ID de modèles** et indique les ID exacts dans **Modèles autorisés** si l’endpoint ne sait pas lister ses modèles.
+4. Renseigne la **Clé API** (ou la variable d’environnement), puis choisis **Ajouter**.
+
+La ligne de l’identifiant affiche désormais le fournisseur avec le badge **Personnalisé**, et le fournisseur apparaît avec le même badge dans le catalogue d’**Ajouter des identifiants** ; le choisir là ajoute un autre identifiant pour lui. Une adresse privée ou de boucle locale exige en plus l’autorisation des hôtes privés dans le déploiement ; c’est l’opérateur qui la définit, et enregistrer l’identifiant ne l’accorde pas. Demande à l’opérateur de préparer l’accès réseau et la politique du déploiement, puis suis [Connecter un serveur de modèles local](/fr/tutorials/admin/connect-local-provider). Si des agents de programmation utiliseront le fournisseur, teste aussi une session d’agent : leur trafic passe par une passerelle distincte qui doit aussi disposer de l’accès réseau et faire confiance au certificat.
+
+Dans le menu de la ligne, **Vérifier les modèles** relit la liste de modèles de l’endpoint avec cette clé, **Modifier les identifiants** change, à côté du nom, l’URL de base, le format d’API et la source des modèles, et **Supprimer** retire l’identifiant. Supprimer le dernier identifiant d’un fournisseur retire aussi le fournisseur lui-même ; la boîte de dialogue le dit avant. Chaque version enregistrée de la définition reste dans l’historique de configuration de l’organisation. Ce que le formulaire ne couvre pas, comme un endpoint pour les agents de programmation, se règle dans le fichier de définition que décrit le [guide de configuration des fournisseurs](/fr/self-hosted/configuration/providers).
 
 ## Définir le choix par défaut et l’accès aux modèles
 

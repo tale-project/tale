@@ -855,13 +855,23 @@ export function myPreferencesQuery(organizationId: string) {
   });
 }
 
+/** Persist the sticky chat model pick — the id and the provider serving it
+ * — or clear it (an absent pick is the explicit choice of Auto). */
 export async function setChatModelPreference(
   organizationId: string,
-  modelId: string | undefined,
+  pick: { modelId: string; providerSlug?: string } | undefined,
 ): Promise<void> {
   await backendFetch('/user-preferences/chat-model', {
     method: 'POST',
-    body: modelId !== undefined ? { modelId } : {},
+    body:
+      pick !== undefined
+        ? {
+            modelId: pick.modelId,
+            ...(pick.providerSlug !== undefined
+              ? { providerSlug: pick.providerSlug }
+              : {}),
+          }
+        : {},
     orgId: organizationId,
   });
 }

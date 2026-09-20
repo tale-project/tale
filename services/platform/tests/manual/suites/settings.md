@@ -480,6 +480,33 @@ any toggled setting after the run.
   account in no team reads `settings.account.teams.none` instead; only an
   admin/owner sees the **Manage teams** link
   (`settings.account.teams.manageLink`) to `/dashboard/{org}/settings/teams`.
+- [ ] `SET-F43` · **Custom provider from the credential dialog** — **Add
+  credential** (`settings.credentials.addCredential`) → the entry **Custom
+  provider** (`settings.providers.custom.pickerTitle`) stays pinned under the
+  catalog while a search matches nothing
+  (`settings.credentials.catalog.noMatches`) → pick it → **Provider name**
+  (`settings.providers.custom.nameLabel`) arrives empty; with the name and
+  **API key** (`settings.providers.dialog.secret`) filled, **Add credential**
+  (`settings.credentials.create`) stays disabled until **Base URL**
+  (`settings.providers.custom.baseUrl`) holds a public `https://` host; pick
+  the **API format** (`settings.providers.custom.apiFormat`), keep **Discover
+  from the endpoint** (`settings.providers.custom.modelsDiscover`) → submit →
+  Toast `settings.credentials.createdToast`; the row lists the provider with
+  the **Custom** badge (`settings.providers.custom.badge`) and, for a host
+  that refuses the listing, the catalog error
+  (`settings.providers.card.catalogUnavailable`); the picker offers the
+  provider with the same badge; the row menu
+  (`settings.credentials.actionsLabel`) → **Check models**
+  (`settings.providers.custom.check`) toasts
+  `settings.providers.custom.checkOk` or `settings.providers.custom.checkFailed`;
+  **Edit credential** (`settings.credentials.edit`) shows **Base URL** and
+  **API format** beside the name and saving toasts
+  `settings.credentials.savedToast`; **Delete** (`settings.credentials.delete`)
+  on the provider's only credential shows
+  `settings.providers.custom.deleteRetires` → confirm → after reload the row
+  and the picker entry are gone while `TALE_CONFIG_DIR/<org>/providers/.history/`
+  keeps the archived file; the same entry creates a second custom provider
+  whose identifier numbers past the first (`qwen-cn`, then `qwen-cn-2`).
 
 ## Boundary & error tests
 

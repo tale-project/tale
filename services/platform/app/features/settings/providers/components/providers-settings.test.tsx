@@ -28,6 +28,7 @@ const updateCredential = vi.hoisted(() => vi.fn());
 const deleteCredential = vi.hoisted(() => vi.fn());
 const setDefaultCredential = vi.hoisted(() => vi.fn());
 const refreshCatalogs = vi.hoisted(() => vi.fn());
+const checkCatalog = vi.hoisted(() => vi.fn());
 const toastSpy = vi.hoisted(() => vi.fn());
 
 const fixtures = vi.hoisted(() => ({
@@ -89,6 +90,24 @@ vi.mock('../hooks/mutations', () => ({
   }),
   useRefreshProviderCatalogs: () => ({
     mutateAsync: refreshCatalogs,
+    isPending: false,
+  }),
+  useCheckProviderDefinitionCatalog: () => ({
+    mutateAsync: checkCatalog,
+    isPending: false,
+  }),
+}));
+
+// The custom-provider composition (definition first, credential second,
+// rollback on refusal) has its own hook test; the page sees the arguments
+// the dialog assembles, custom facts included.
+vi.mock('../hooks/custom-provider-mutations', () => ({
+  useCreateProviderCredential: () => ({
+    mutateAsync: createCredential,
+    isPending: false,
+  }),
+  useUpdateProviderCredential: () => ({
+    mutateAsync: updateCredential,
     isPending: false,
   }),
 }));
@@ -261,7 +280,10 @@ async function pickProvider(
   const picker = within(
     await screen.findByRole('dialog', { name: 'Add credential' }),
   );
-  await user.click(picker.getByRole('button', { name: new RegExp(name) }));
+  // Anchored: the pinned custom entry's description names vendors too.
+  await user.click(
+    picker.getByRole('button', { name: new RegExp(`^${name}`) }),
+  );
   return picker;
 }
 
@@ -513,7 +535,7 @@ describe('ProvidersSettings', () => {
       await rename(user, form, 'Draft');
 
       await user.click(form.getByRole('button', { name: 'Back' }));
-      await user.click(form.getByRole('button', { name: /Anthropic/ }));
+      await user.click(form.getByRole('button', { name: /^Anthropic/ }));
 
       // The abandoned name is gone; the fresh step suggests again.
       expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
@@ -654,6 +676,218 @@ describe('ProvidersSettings', () => {
       abilityState.canRead = false;
       renderPage();
       expect(screen.queryByText('Production key')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('the custom provider entry', () => {
+    const customVendor = {
+      name: 'qwen-cn',
+      displayName: 'Qwen CN',
+      origin: 'organization',
+      apiFormat: 'openai',
+      baseUrl: 'https://maas.example.test/v1',
+      catalogSource: 'models-endpoint',
+      authMethods: ['api-key', 'env'],
+      models: [model('qwen-plus')],
+    } as unknown as ProviderCatalog;
+    const customCredential = credential({
+      id: 'c9',
+      name: 'Qwen CN',
+      providerSlug: 'qwen-cn',
+      isDefault: true,
+    });
+
+    /** Open the add flow and pick the pinned custom entry. */
+    async function pickCustom(
+      user: Awaited<ReturnType<typeof render>>['user'],
+    ) {
+      await user.click(screen.getByRole('button', { name: 'Add credential' }));
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.click(dialog.getByRole('button', { name: /Custom provider/ }));
+      return dialog;
+    }
+
+    it('pins the entry under the catalog, whatever the search says', async () => {
+      const { user } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'Add credential' }));
+      const picker = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.type(picker.getByPlaceholderText('Search provider'), 'zzzz');
+      expect(
+        picker.getByText('Nothing matches that search.'),
+      ).toBeInTheDocument();
+      expect(
+        picker.getByRole('button', { name: /Custom provider/ }),
+      ).toBeInTheDocument();
+    });
+
+    it('creates the provider and its key from one form, with the facts the reader typed', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      // No vendor name to suggest: the reader names the provider.
+      const name = dialog.getByRole('textbox', { name: /^Provider name/ });
+      expect(name).toHaveValue('');
+      await user.type(name, 'Qwen CN');
+      await user.type(
+        dialog.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-qwen',
+      );
+      const submit = dialog.getByRole('button', { name: 'Add credential' });
+      // The base URL is as mandatory as the key.
+      expect(submit).toBeDisabled();
+      await user.type(
+        dialog.getByRole('textbox', { name: /^Base URL/ }),
+        'https://maas.example.test/v1',
+      );
+      await user.click(
+        dialog.getByRole('radio', { name: /Anthropic Messages API/ }),
+      );
+      await user.click(submit);
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: '__custom-provider__',
+          authMethod: 'api-key',
+          name: 'Qwen CN',
+          secret: 'sk-qwen',
+          customProvider: {
+            providerSlug: '__custom-provider__',
+            apiFormat: 'anthropic',
+            baseUrl: 'https://maas.example.test/v1',
+            catalogSource: 'models-endpoint',
+          },
+        }),
+      );
+    });
+
+    it('requires model ids when the endpoint cannot list them', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      await user.type(
+        dialog.getByRole('textbox', { name: /^Provider name/ }),
+        'Local',
+      );
+      await user.type(
+        dialog.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-local',
+      );
+      await user.type(
+        dialog.getByRole('textbox', { name: /^Base URL/ }),
+        'https://models.example.test/v1',
+      );
+      await user.click(dialog.getByRole('radio', { name: /Enter model IDs/ }));
+      const submit = dialog.getByRole('button', { name: 'Add credential' });
+      expect(submit).toBeDisabled();
+      await user.type(
+        dialog.getByPlaceholderText('gpt-4o, o4-mini'),
+        'llama-4, qwen-3',
+      );
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelAllowlist: ['llama-4', 'qwen-3'],
+            customProvider: expect.objectContaining({ catalogSource: 'none' }),
+          }),
+        ),
+      );
+    });
+
+    it('marks an organization-defined provider in the table and retires it with its last credential', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential];
+      deleteCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      expect(screen.getByText('Custom')).toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      expect(
+        confirm.getByText(/only credential of the custom provider "Qwen CN"/),
+      ).toBeInTheDocument();
+      await user.click(confirm.getByRole('button', { name: /Delete/ }));
+      await waitFor(() =>
+        expect(deleteCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          credentialId: 'c9',
+          retireUnusedCustomProvider: true,
+        }),
+      );
+    });
+
+    it('lists the provider’s models afresh from the row menu', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential];
+      checkCatalog.mockResolvedValue([model('qwen-plus'), model('qwen-max')]);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Check models',
+        }),
+      );
+      await waitFor(() =>
+        expect(checkCatalog).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          name: 'qwen-cn',
+        }),
+      );
+      expect(toastSpy).toHaveBeenCalledWith({
+        title: 'Qwen CN: 2 models listed',
+      });
+    });
+
+    it('edits the provider’s facts beside its credential', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential];
+      updateCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const baseUrl = dialog.getByRole('textbox', { name: /^Base URL/ });
+      expect(baseUrl).toHaveValue('https://maas.example.test/v1');
+      await user.clear(baseUrl);
+      await user.type(baseUrl, 'https://maas.example.test/v2');
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          credentialId: 'c9',
+          name: 'Qwen CN',
+          modelAllowlist: null,
+          customProvider: {
+            providerSlug: 'qwen-cn',
+            apiFormat: 'openai',
+            baseUrl: 'https://maas.example.test/v2',
+            catalogSource: 'models-endpoint',
+          },
+        }),
+      );
     });
   });
 });

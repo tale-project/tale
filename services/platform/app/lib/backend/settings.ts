@@ -42,6 +42,8 @@ type ProviderCatalogItem =
   ItemOf<'lib/providers/catalog_actions:listProviderCatalogs'>;
 type RefreshCatalogsResult =
   ReturnsOf<'lib/providers/catalog_actions:refreshProviderCatalogs'>;
+type ProviderDefinitionSnapshotResult =
+  ReturnsOf<'lib/providers/definition_actions:getProviderDefinition'>;
 type HarnessStatusItem =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 type VisionModelPickResult =
@@ -1322,7 +1324,13 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
-        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}${
+          // A custom provider goes with its last credential when the row
+          // says so; the server decides whether this one was the last.
+          args.retireUnusedCustomProvider === true
+            ? '?retireUnusedCustomProvider=1'
+            : ''
+        }`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateProviderReads,
@@ -1478,6 +1486,56 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then((body) => body.results),
     invalidate: invalidateProviderReads,
+  },
+  // The organization's custom provider definitions — native config files the
+  // backend writes under its compare-and-set (`expectedHash`) and host policy.
+  // Every row invalidates the provider reads: a definition change moves what
+  // the model pickers and the runtime status can offer.
+  'lib/providers/definition_actions:saveProviderDefinition': {
+    run: (args, ctx) =>
+      backendFetch<ProviderDefinitionSnapshotResult>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PUT',
+          body: {
+            config: args.config,
+            expectedHash:
+              typeof args.expectedHash === 'string' ? args.expectedHash : null,
+          },
+        },
+      ),
+    invalidate: invalidateProviderReads,
+  },
+  'lib/providers/definition_actions:deleteProviderDefinition': {
+    run: (args, ctx) => {
+      const query =
+        typeof args.expectedHash === 'string'
+          ? `?expectedHash=${encodeURIComponent(args.expectedHash)}`
+          : '';
+      return backendFetch<{ ok: boolean }>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}${query}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null);
+    },
+    invalidate: invalidateProviderReads,
+  },
+  'lib/providers/definition_actions:checkProviderDefinitionCatalog': {
+    run: (args, ctx) =>
+      backendFetch<{ models: ProviderCatalogItem['models'] }>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}/catalog`,
+        { orgId: requireOrg(args, ctx) },
+      ).then((body) => body.models),
+    invalidate: invalidateProviderReads,
+  },
+  // A read on the write lane: the edit flow fetches the definition's current
+  // hash right before saving against it, never from a cached copy.
+  'lib/providers/definition_actions:getProviderDefinition': {
+    run: (args, ctx) =>
+      backendFetch<ProviderDefinitionSnapshotResult>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
+        { orgId: requireOrg(args, ctx) },
+      ),
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>

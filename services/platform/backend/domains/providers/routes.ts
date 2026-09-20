@@ -1,4 +1,7 @@
-import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  configurationHashSchema,
+  expectedConfigurationHashSchema,
+} from '@tale/shared/schemas/configuration';
 import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -19,9 +22,13 @@ import {
 } from '../../core/lib/providers/harness_status.ts';
 import {
   loadHarnesses,
+  loadProviderDefinitions,
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
-import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
+import {
+  loadOrgCustomProviders,
+  resolveProvidersForOrg,
+} from '../../core/lib/providers/org_providers.ts';
 import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { appErrorHandler } from '../../error-reporting';
@@ -30,8 +37,15 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
-import { listCredentials } from '../provider_credentials/service.ts';
-import { readProviderDefinition, saveProviderDefinition } from './config';
+import {
+  listCredentials,
+  resolveCatalogBearer,
+} from '../provider_credentials/service.ts';
+import {
+  deleteProviderDefinition,
+  readProviderDefinition,
+  saveProviderDefinition,
+} from './config';
 
 /**
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
@@ -126,6 +140,34 @@ export function createProviderSettingRoutes(deps: {
     );
   });
 
+  app.delete('/definitions/:name', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    // An optional compare-and-set on the reviewed hash, like the PUT: a
+    // dialog that loaded the definition deletes exactly what it showed.
+    const rawHash = c.req.query('expectedHash');
+    const expectedHash =
+      rawHash === undefined
+        ? undefined
+        : configurationHashSchema.safeParse(rawHash);
+    if (expectedHash !== undefined && !expectedHash.success)
+      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    await deleteProviderDefinition(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        orgSlug,
+        userId: c.get('sessionBundle').user.id,
+        email: c.get('sessionBundle').user.email,
+      },
+      c.req.param('name'),
+      expectedHash === undefined ? undefined : expectedHash.data,
+    );
+    return c.json({ ok: true });
+  });
+
   app.get('/definitions/:name/catalog', async (c) => {
     const denied = requireDeveloper(c);
     if (denied) return denied;
@@ -137,8 +179,16 @@ export function createProviderSettingRoutes(deps: {
     );
     if (config === null) return c.json({ error: 'PROVIDER_NOT_FOUND' }, 404);
     try {
+      const bearerToken = await resolveCatalogBearer(
+        deps.sql,
+        c.get('orgId'),
+        config,
+      );
       return c.json({
-        models: await getProviderCatalog(config, { forceRefresh: true }),
+        models: await getProviderCatalog(config, {
+          forceRefresh: true,
+          ...(bearerToken !== undefined ? { bearerToken } : {}),
+        }),
       });
     } catch {
       return c.json(
@@ -157,36 +207,58 @@ export function createProviderSettingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const results = [];
-    for (const provider of resolveProvidersForOrg(orgSlug)) {
-      let models: unknown[] = [];
-      let catalogError: string | undefined;
-      try {
-        models = [...(await getProviderCatalog(provider))];
-      } catch (error) {
-        catalogError = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[catalog] listing for ${provider.name} unavailable:`,
-          error,
-        );
+    // The same union `resolveProvidersForOrg` serves, kept apart here so each
+    // entry can say where it came from: the settings page lists and edits the
+    // organization's own definitions, which the shipped set never includes.
+    const sources = [
+      { origin: 'shipped' as const, providers: loadProviderDefinitions() },
+      {
+        origin: 'organization' as const,
+        providers: loadOrgCustomProviders(orgSlug),
+      },
+    ];
+    for (const { origin, providers } of sources)
+      for (const provider of providers) {
+        let models: unknown[] = [];
+        let catalogError: string | undefined;
+        try {
+          const bearerToken = await resolveCatalogBearer(
+            deps.sql,
+            c.get('orgId'),
+            provider,
+          );
+          models = [
+            ...(await getProviderCatalog(
+              provider,
+              bearerToken !== undefined ? { bearerToken } : {},
+            )),
+          ];
+        } catch (error) {
+          catalogError = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `[catalog] listing for ${provider.name} unavailable:`,
+            error,
+          );
+        }
+        const iconUrl = readSystemEntryIcon('providers', provider.name);
+        results.push({
+          name: provider.name,
+          displayName: provider.displayName,
+          origin,
+          ...(iconUrl !== undefined ? { iconUrl } : {}),
+          apiFormat: provider.apiFormat,
+          ...(provider.baseUrl !== undefined
+            ? { baseUrl: provider.baseUrl }
+            : {}),
+          ...(provider.endpointMode !== undefined
+            ? { endpointMode: provider.endpointMode }
+            : {}),
+          catalogSource: provider.catalog.source,
+          authMethods: provider.auth.map((entry) => entry.method),
+          models,
+          ...(catalogError !== undefined ? { catalogError } : {}),
+        });
       }
-      const iconUrl = readSystemEntryIcon('providers', provider.name);
-      results.push({
-        name: provider.name,
-        displayName: provider.displayName,
-        ...(iconUrl !== undefined ? { iconUrl } : {}),
-        apiFormat: provider.apiFormat,
-        ...(provider.baseUrl !== undefined
-          ? { baseUrl: provider.baseUrl }
-          : {}),
-        ...(provider.endpointMode !== undefined
-          ? { endpointMode: provider.endpointMode }
-          : {}),
-        catalogSource: provider.catalog.source,
-        authMethods: provider.auth.map((entry) => entry.method),
-        models,
-        ...(catalogError !== undefined ? { catalogError } : {}),
-      });
-    }
     return c.json({ catalogs: results });
   });
 
@@ -204,8 +276,14 @@ export function createProviderSettingRoutes(deps: {
         continue;
       }
       try {
+        const bearerToken = await resolveCatalogBearer(
+          deps.sql,
+          c.get('orgId'),
+          provider,
+        );
         const entries = await getProviderCatalog(provider, {
           forceRefresh: true,
+          ...(bearerToken !== undefined ? { bearerToken } : {}),
         });
         results.push({ name: provider.name, modelCount: entries.length });
       } catch (error) {

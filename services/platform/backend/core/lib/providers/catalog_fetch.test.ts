@@ -539,8 +539,10 @@ describe('getProviderCatalog — live sources', () => {
 
   it('treats a listing with no usable models as a failure and caches nothing', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // No id at all: a bare entry WITH an id would be served under the assumed
+    // window a models endpoint gets, so the unusable shape here is idless.
     mockedFetch.mockResolvedValueOnce(
-      listingResponse({ data: [{ id: 'missing-context-window' }] }),
+      listingResponse({ data: [{ object: 'model', owned_by: 'nobody' }] }),
     );
     await expect(
       getProviderCatalog(VERCEL, { maxAttempts: 1 }),
@@ -592,5 +594,132 @@ describe('getProviderCatalog — static source', () => {
       expect.stringContaining('no-such-provider'),
     );
     warn.mockRestore();
+  });
+});
+
+describe('getProviderCatalog — listing credential', () => {
+  function unauthorized() {
+    return {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new Headers(),
+      body: '',
+      finalUrl: 'https://ai-gateway.vercel.sh/v1/models',
+    };
+  }
+
+  it('sends the bearer with the listing request, and nothing without one', async () => {
+    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    await getProviderCatalog(VERCEL, { maxAttempts: 1, forceRefresh: true });
+    expect(mockedFetch).toHaveBeenLastCalledWith(
+      'https://ai-gateway.vercel.sh/v1/models',
+      expect.objectContaining({ headers: { accept: 'application/json' } }),
+    );
+    await getProviderCatalog(VERCEL, {
+      maxAttempts: 1,
+      forceRefresh: true,
+      bearerToken: 'sk-listing',
+    });
+    expect(mockedFetch).toHaveBeenLastCalledWith(
+      'https://ai-gateway.vercel.sh/v1/models',
+      expect.objectContaining({
+        headers: {
+          accept: 'application/json',
+          authorization: 'Bearer sk-listing',
+        },
+      }),
+    );
+  });
+
+  it('lets the first attempt that brings a key through an anonymous refusal, but honours a refusal of the key itself', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // An endpoint that wants a key refuses the anonymous listing…
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+      ).rejects.toThrow('HTTP 401');
+      // …and the remembered refusal keeps serving anonymous callers…
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+      ).rejects.toThrow('HTTP 401');
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+      // …while the first caller with a key goes out and populates the cache.
+      mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
+      const entries = await getProviderCatalog(VERCEL, {
+        maxAttempts: 1,
+        bearerToken: 'sk-listing',
+      });
+      expect(entries.map((entry) => entry.id)).toEqual([
+        'anthropic/claude-sonnet-5',
+        'openai/gpt-5.5',
+      ]);
+      expect(mockedFetch).toHaveBeenCalledTimes(2);
+      // The populated cache now serves an anonymous read too.
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+      ).resolves.toHaveLength(2);
+      expect(mockedFetch).toHaveBeenCalledTimes(2);
+
+      // A refusal of the key itself is remembered like any other failure:
+      // the next keyed attempt inside the back-off does not go out again.
+      invalidateCatalogFetchCache();
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'bad' }),
+      ).rejects.toThrow('HTTP 401');
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'bad' }),
+      ).rejects.toThrow('HTTP 401');
+      expect(mockedFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('getProviderCatalog — bare models endpoint listing', () => {
+  it('serves an OpenAI-style listing that names models and nothing else', async () => {
+    mockedFetch.mockResolvedValue(
+      listingResponse({
+        object: 'list',
+        data: [
+          { id: 'qwen3-max', object: 'model', created: 1, owned_by: 'system' },
+          { id: 'qwen-plus', object: 'model', created: 1, owned_by: 'system' },
+        ],
+      }),
+    );
+    const entries = await getProviderCatalog(VERCEL, { maxAttempts: 1 });
+    expect(entries.map((entry) => entry.id)).toEqual([
+      'qwen3-max',
+      'qwen-plus',
+    ]);
+    expect(entries[0]).toMatchObject({
+      contextWindow: 128_000,
+      supportsTools: true,
+      supportsVision: false,
+      tags: ['chat'],
+    });
+  });
+
+  it('keeps refusing bare entries from a catalog that always publishes the window', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue(
+        listingResponse({ data: [{ id: 'vendor/model', object: 'model' }] }),
+      );
+      // OpenRouter degrades to its shipped defaults; the bare entry is not
+      // among what serves.
+      const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+      expect(entries.some((entry) => entry.id === 'vendor/model')).toBe(false);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('openrouter'),
+        expect.objectContaining({
+          message: expect.stringContaining('yielded no usable models'),
+        }),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

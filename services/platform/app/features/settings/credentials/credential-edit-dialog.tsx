@@ -51,8 +51,9 @@ export function CredentialEditDialog<
   const update = adapter.mutations.useUpdate();
   const { extra } = adapter;
 
-  const baselineExtra = extra.fromCredential(credential);
+  const baselineExtra = extra.fromCredential(credential, vendor);
   const baselineEndpoint = credential.endpointUrl ?? '';
+  const nameField = adapter.nameField?.(t, vendor);
 
   const [name, setName] = useState(credential.name);
   const [endpointUrl, setEndpointUrl] = useState(baselineEndpoint);
@@ -93,7 +94,7 @@ export function CredentialEditDialog<
       onOpenChange(false);
     } catch (err) {
       console.error(`${adapter.logTag}: update credential failed`, err);
-      setError(adapter.mapError(err));
+      setError(adapter.mapError(err, t));
     }
   };
 
@@ -123,7 +124,8 @@ export function CredentialEditDialog<
     >
       {error !== null && <Alert variant="destructive" description={error} />}
       <Input
-        label={t('credentials.name')}
+        label={nameField?.label ?? t('credentials.name')}
+        description={nameField?.description}
         value={name}
         onChange={(e) => setName(e.target.value)}
         maxLength={100}

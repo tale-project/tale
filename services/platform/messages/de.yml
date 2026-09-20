@@ -5655,6 +5655,43 @@ settings:
       description:
         Die Schlüssel, Umgebungsverweise und Subscription-Broker, mit denen
         sich diese Organisation bei AI-Anbietern authentifiziert.
+    custom:
+      badge: Eigener
+      pickerTitle: Eigener Anbieter
+      pickerDescription: Dein eigener OpenAI-kompatibler oder Anthropic-Endpunkt — ein selbst betriebener Modellserver oder ein internes Gateway.
+      nameLabel: Anbietername
+      namePlaceholder: z. B. Internes vLLM
+      nameHelp: Benennt den Anbieter und diese Zugangsdaten. Die Kennung wird daraus abgeleitet.
+      apiFormat: API-Format
+      apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM und die meisten Gateways.
+      apiFormatAnthropicHelp: Messages API — Anthropic-kompatible Endpunkte.
+      baseUrl: Basis-URL
+      baseUrlHelp: >-
+        Die API-Wurzel, an die die Plattform ihre Pfade anhängt. Öffentliche
+        Hosts brauchen https; eine private oder Loopback-Adresse braucht
+        zusätzlich die Freigabe privater Hosts in der Bereitstellung.
+      models: Modelle
+      modelsDiscover: Vom Endpunkt ermitteln
+      modelsDiscoverHelp: Liest /models des Endpunkts mit dem Schlüssel dieser Zugangsdaten.
+      modelsManual: Modell-IDs eingeben
+      modelsManualHelp: Für einen Endpunkt, der seine Modelle nicht auflisten kann.
+      check: Modelle prüfen
+      checkOk: '{name}: {count, plural, =0 {keine Modelle gelistet} one {# Modell gelistet} other {# Modelle gelistet}}'
+      checkFailed: 'Die Modelle von {name} konnten nicht abgerufen werden: {error}'
+      deleteRetires: >-
+        Das sind die einzigen Zugangsdaten des eigenen Anbieters „{provider}“;
+        er wird damit entfernt.
+      errors:
+        nameReserved: Dieser Name gehört zu einem mitgelieferten Anbieter. Wähle einen anderen.
+        endpointNotPermitted: >-
+          Diese Bereitstellung lässt den Endpunkt nicht zu. Ein privater oder
+          Loopback-Host braucht TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 im Backend;
+          Cloud-Metadaten-Hosts werden immer abgelehnt.
+        inUse: Zugangsdaten nutzen diesen Anbieter noch. Lösche sie zuerst.
+        versionConflict: Der Anbieter hat sich seit dem Laden geändert. Öffne den Dialog erneut.
+        invalid: Die Anbieterdefinition wurde abgelehnt. Prüfe Basis-URL und API-Format.
+        notFound: Diesen Anbieter gibt es nicht mehr.
+        catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht erreichbar.
     catalogs:
       emptyBody: >-
         Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das

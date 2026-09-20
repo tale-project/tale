@@ -176,6 +176,11 @@ export interface ComposerModelOption {
   readonly id: string;
   readonly label: string;
   readonly providerSlug: string;
+  /** The provider's display name (`displayName` in its definition) — the
+   * picker's section header, so an organization-defined provider reads by
+   * the name its admin gave it rather than by its slug. Absent on a catalog
+   * stored before the field rode the wire. */
+  readonly providerLabel?: string;
   /** Present when the model's reasoning depth is controllable.
    * `toolsRequireOff` marks a model whose endpoint refuses tools+effort
    * together — the picker offers no levels for it and says why. */
@@ -192,6 +197,16 @@ export interface ComposerModelOption {
    * re-deriving which credentials force a sandbox.
    */
   readonly credential: CredentialAuth;
+}
+
+/**
+ * The user's sticky model pick: the id and, when the pick carried one, the
+ * provider that served it — so a later seed lands on the same copy when two
+ * providers list the id, never on whichever connector comes first.
+ */
+export interface ChatModelPick {
+  readonly modelId: string;
+  readonly providerSlug?: string;
 }
 
 /**

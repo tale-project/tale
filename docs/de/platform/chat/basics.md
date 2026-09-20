@@ -25,7 +25,7 @@ Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Be
 
 Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto wählt für jede Nachricht ein Modell aus dem verfügbaren Angebot deiner Organisation. Organisationsregeln können ein Standardmodell festlegen oder die Auswahl einschränken. In den Antwortdetails siehst du, welches Modell tatsächlich geantwortet hat.
 
-Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weißt, welches Modell zur Arbeit passt. Die Auswahl bleibt bestehen, bis du sie änderst. Unterstützt das Modell einen einstellbaren Denkaufwand, erscheint auch diese Einstellung. Mehr Denkaufwand kann länger dauern und ersetzt keine Prüfung der Antwort.
+Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weißt, welches Modell zur Arbeit passt. Die Auswahl bleibt bestehen, bis du sie änderst – auch der Anbieter, der das Modell bereitstellt, wenn zwei Anbieter dasselbe Modell anbieten. Unterstützt das Modell einen einstellbaren Denkaufwand, erscheint auch diese Einstellung. Mehr Denkaufwand kann länger dauern und ersetzt keine Prüfung der Antwort.
 
 <Frame caption="Die Modellauswahl steht neben dem Anhangsmenü und den Sprachfunktionen.">
 

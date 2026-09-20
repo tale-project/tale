@@ -12,6 +12,9 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
+import { loadOrgCustomProviders } from '../../core/lib/providers/org_providers.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { deleteProviderDefinition } from '../providers/config.ts';
 import {
   CredentialAdminError,
   createCredential,
@@ -116,14 +119,60 @@ export function createProviderCredentialRoutes(deps: {
   app.delete('/:credentialId', async (c) => {
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const { providerSlug } = await transactSerializable(deps.sql, (tx) =>
         deleteCredential(tx, scope, c.req.param('credentialId')),
       );
+      // A custom provider created from the credential dialog lives and dies
+      // with its credentials: the last key going removes the definition too,
+      // when the caller asked for that. After the credential's own commit, so
+      // a serialization retry never replays the file removal.
+      if (c.req.query('retireUnusedCustomProvider') === '1') {
+        await retireUnusedCustomProvider(scope, providerSlug);
+      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
   });
+
+  async function retireUnusedCustomProvider(
+    scope: CredentialScope,
+    providerSlug: string,
+  ): Promise<void> {
+    const orgSlug = await resolveOrgSlug(deps.sql, scope.organizationId);
+    if (orgSlug === null) return;
+    if (
+      !loadOrgCustomProviders(orgSlug).some(
+        (provider) => provider.name === providerSlug,
+      )
+    )
+      return;
+    const [remaining] = await deps.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.provider_credentials
+      WHERE org_id = ${scope.organizationId} AND provider_slug = ${providerSlug}
+    `;
+    if ((remaining?.count ?? 0) > 0) return;
+    try {
+      await deleteProviderDefinition(
+        deps.sql,
+        {
+          organizationId: scope.organizationId,
+          orgSlug,
+          userId: scope.userId,
+          ...(scope.email !== undefined ? { email: scope.email } : {}),
+        },
+        providerSlug,
+        undefined,
+      );
+    } catch (error) {
+      // The credential is gone either way; a definition that outlives it
+      // stays visible in the catalog picker and can be retired from there.
+      console.warn(
+        `[provider-credentials] could not retire the unused custom provider "${providerSlug}":`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 
   return app;
 }

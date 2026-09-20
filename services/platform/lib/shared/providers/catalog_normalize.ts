@@ -114,6 +114,22 @@ export interface NormalizedCatalog {
   droppedCount: number;
 }
 
+export interface NormalizeCatalogOptions {
+  /**
+   * The context window for a BARE entry — one the listing describes by id
+   * alone, with no `context_length`/`context_window` at all. That is what
+   * `/v1/models` looks like on api.openai.com and on most OpenAI-compatible
+   * servers (DashScope, DeepSeek, vLLM, Ollama): `id`, `object`, `created`,
+   * `owned_by`. Without this option such an entry is dropped, which is right
+   * for a catalog that always publishes the window (OpenRouter) and wrong for
+   * a custom provider's own listing, whose every model would vanish. A bare
+   * entry also reads as tool-capable, the same neutral assumption an
+   * allowlist entry carries: a server that refuses tools fails loudly on the
+   * wire, never silently.
+   */
+  readonly defaultContextWindow?: number;
+}
+
 /**
  * Normalize one raw listing entry for `provider`. Returns `null` when the
  * entry lacks a usable id or the context its declared model kind requires.
@@ -121,6 +137,7 @@ export interface NormalizedCatalog {
 export function normalizeCatalogModel(
   raw: unknown,
   provider: string,
+  options: NormalizeCatalogOptions = {},
 ): ModelCatalogEntry | null {
   const m = asRecord(raw);
   if (!m || typeof m.id !== 'string' || m.id.length === 0) return null;
@@ -156,10 +173,23 @@ export function normalizeCatalogModel(
   const absentTokenWindow = [m.context_length, m.context_window].every(
     (value) => value === undefined || value === 0 || value === '0',
   );
+  const publishedWindow =
+    positiveInt(m.context_length) ?? positiveInt(m.context_window);
+  // A bare entry: the listing names the model and nothing about its window.
+  // With a default on offer it stands in for the window the server did not
+  // publish; without one the entry is unusable and dropped.
+  const bareEntry =
+    !isTranscription &&
+    publishedWindow === undefined &&
+    absentTokenWindow &&
+    options.defaultContextWindow !== undefined;
   const contextWindow =
-    positiveInt(m.context_length) ??
-    positiveInt(m.context_window) ??
-    (isTranscription && absentTokenWindow ? 0 : undefined);
+    publishedWindow ??
+    (isTranscription && absentTokenWindow
+      ? 0
+      : bareEntry
+        ? options.defaultContextWindow
+        : undefined);
   if (contextWindow === undefined) return null;
   const supportsVision = !isTranscription && inputModalities.includes('image');
 
@@ -167,7 +197,8 @@ export function normalizeCatalogModel(
   const supportsTools =
     !isTranscription &&
     (supportedParameters.includes('tools') ||
-      supportedParameters.includes('tool_choice'));
+      supportedParameters.includes('tool_choice') ||
+      (bareEntry && m.supported_parameters === undefined));
   const reportsReasoning =
     !isTranscription &&
     (supportedParameters.includes('reasoning') ||
@@ -231,6 +262,7 @@ export function normalizeCatalogModel(
 export function normalizeCatalogPayload(
   payload: unknown,
   provider: string,
+  options: NormalizeCatalogOptions = {},
 ): NormalizedCatalog {
   const root = asRecord(payload);
   const list = Array.isArray(payload)
@@ -242,7 +274,7 @@ export function normalizeCatalogPayload(
   const seen = new Set<string>();
   let droppedCount = 0;
   for (const raw of list) {
-    const entry = normalizeCatalogModel(raw, provider);
+    const entry = normalizeCatalogModel(raw, provider, options);
     if (entry === null) {
       droppedCount += 1;
       continue;

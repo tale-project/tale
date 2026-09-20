@@ -41,6 +41,13 @@ interface TitleModelTarget {
   readonly modelId: string;
 }
 
+/** The thread owner's sticky chat pick, as the preferences shim answers it:
+ * the model id and, when the pick carried one, the connector serving it. */
+interface PreferredChatModel {
+  readonly modelId: string;
+  readonly providerSlug?: string;
+}
+
 /**
  * A catalog entry the wire can run WITHOUT thinking: no reasoning knob at
  * all, or an effort knob with a declared off literal the wire spells. A
@@ -55,7 +62,8 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
  * The model the title call runs on. A model the wire can run without
  * thinking is preferred throughout (see {@link runsWithoutThinking}): the
  * thread owner's sticky chat pick wins whenever a direct-credentialed
- * connector serves it and it needs no thinking — the conversation is then
+ * connector serves it (the connector the pick names, when it names one)
+ * and it needs no thinking — the conversation is then
  * named by the same model its owner chats with, which is also the model
  * most likely to actually answer (an aggregator catalog is full of models a
  * given key or region cannot call); else the first connector (shipped
@@ -69,7 +77,7 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
 async function pickTitleModel(
   ctx: ActionCtx,
   organizationId: string,
-  preferredModelId: string | null,
+  preferred: PreferredChatModel | null,
 ): Promise<TitleModelTarget | null> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
 
@@ -117,19 +125,30 @@ async function pickTitleModel(
   const walk = (
     admits: (entry: ModelCatalogEntry) => boolean,
   ): TitleModelTarget | null => {
-    if (preferredModelId !== null) {
-      const serving = candidates.find((candidate) =>
+    if (preferred !== null) {
+      const serves = (candidate: (typeof candidates)[number]): boolean =>
         candidate.catalog.some(
           (entry) =>
-            entry.id === preferredModelId &&
+            entry.id === preferred.modelId &&
             admits(entry) &&
             permits(candidate, entry.id),
-        ),
-      );
+        );
+      // The copy the user picked when the pick named its provider — two
+      // connectors listing one id are different wires with different keys —
+      // else whichever connector serves the id.
+      const named =
+        preferred.providerSlug === undefined
+          ? undefined
+          : candidates.find(
+              (candidate) =>
+                candidate.providerSlug === preferred.providerSlug &&
+                serves(candidate),
+            );
+      const serving = named ?? candidates.find(serves);
       if (serving) {
         return {
           providerSlug: serving.providerSlug,
-          modelId: preferredModelId,
+          modelId: preferred.modelId,
         };
       }
     }
@@ -178,11 +197,11 @@ async function generateWithModel(
 ): Promise<TitleAttempt> {
   let target: TitleModelTarget | null = null;
   try {
-    const preferredModelId: string | null = await ctx.runQuery(
+    const preferred: PreferredChatModel | null = await ctx.runQuery(
       internal.user_preferences.queries.getChatModelInternal,
       { userId, organizationId },
     );
-    target = await pickTitleModel(ctx, organizationId, preferredModelId);
+    target = await pickTitleModel(ctx, organizationId, preferred);
     if (target === null) return { title: null };
     const model = createBuilderModel(ctx, {
       organizationId,

@@ -48,10 +48,24 @@ export interface ChatCatalogHit {
   readonly entry: ModelCatalogEntry;
 }
 
+export interface WalkChatCatalogOptions {
+  /**
+   * The bearer a connector's live model listing is fetched with, when the
+   * caller can resolve one — a hosted OpenAI-compatible endpoint (an
+   * organization's custom provider) refuses an anonymous `/models`. Absent
+   * or `undefined` lists anonymously, as before.
+   */
+  readonly bearerFor?: (
+    connector: OrgConnector,
+    credential: ChatCatalogCredential,
+  ) => Promise<string | undefined>;
+}
+
 export async function walkChatCatalog(
   ctx: ActionCtx,
   organizationId: string,
   credentials: readonly ChatCatalogCredential[],
+  options: WalkChatCatalogOptions = {},
 ): Promise<ChatCatalogHit[]> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
   const connectorByName = new Map(
@@ -68,7 +82,16 @@ export async function walkChatCatalog(
     let catalog;
     try {
       // A catalog-less connector serves the credential's allowlist itself.
-      catalog = await getServableCatalog(connector, credential.modelAllowlist);
+      const bearerToken =
+        options.bearerFor === undefined
+          ? undefined
+          : await options.bearerFor(connector, credential);
+      catalog =
+        bearerToken === undefined
+          ? await getServableCatalog(connector, credential.modelAllowlist)
+          : await getServableCatalog(connector, credential.modelAllowlist, {
+              bearerToken,
+            });
     } catch (error) {
       // One connector's unreachable /models endpoint must not blank the
       // whole listing; skip it loudly and offer the rest.

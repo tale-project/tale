@@ -398,9 +398,20 @@ function AssistantBody({
         (part.type === 'reasoning' && part.text.length > 0),
     );
   const watchingAnswer = isStreaming || message.isFinalReveal;
+  // A turn that ended without an answer — failed, stopped or refused before
+  // the first token — has nothing left to wait for: the shell and its
+  // ticking timer drop with the notice beneath, never keep counting under
+  // an error (a failed settle drains the row like any other, and with no
+  // text nothing ever paints a first glyph).
+  const turnEnded =
+    message.error !== undefined ||
+    message.status === 'failed' ||
+    message.status === 'cancelled' ||
+    message.blockedReason !== undefined;
   const inGapShell =
     watchingAnswer &&
     !firstPainted &&
+    !turnEnded &&
     !timelineHasContent &&
     !isGenerationIncomplete(message);
 

@@ -777,7 +777,85 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
-      preference: { status: 'ready', data: SECOND_MODEL.id },
+      preference: {
+        status: 'ready',
+        data: {
+          modelId: SECOND_MODEL.id,
+          providerSlug: SECOND_MODEL.providerSlug,
+        },
+      },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent('deepseek-v4-pro');
+  });
+
+  it("seeds the sticky pick's own provider when two providers list the id", async () => {
+    // The same id under a shipped provider and an org-defined one on another
+    // endpoint: the copy the user picked is the one whose key they meant —
+    // seeding by id alone landed on the first copy and its refusal.
+    const TWIN = {
+      ...SECOND_MODEL,
+      providerSlug: 'deepseek-cn',
+      providerLabel: 'DeepSeek CN',
+    };
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL, TWIN],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: {
+        status: 'ready',
+        data: { modelId: TWIN.id, providerSlug: TWIN.providerSlug },
+      },
+      save: vi.fn(),
+    });
+    start.mockResolvedValue({
+      threadId: 't-twin',
+      boundVideoJobIds: [],
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    // The picker's sections read the providers' display names.
+    await openSection(user, /^Model/);
+    expect(await screen.findByText('DeepSeek CN')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'which copy?',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: TWIN.id,
+          providerSlug: 'deepseek-cn',
+        }),
+      );
+    });
+  });
+
+  it('seeds an id-only pick saved before providers were part of it', () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: { modelId: SECOND_MODEL.id } },
       save: vi.fn(),
     });
 
@@ -814,7 +892,10 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       }),
     );
 
-    expect(save).toHaveBeenCalledWith('deepseek-v4-pro');
+    expect(save).toHaveBeenCalledWith({
+      modelId: 'deepseek-v4-pro',
+      providerSlug: 'deepseek',
+    });
   });
 
   it('defaults a fresh session to Auto when the catalog offers a choice', () => {
@@ -867,7 +948,13 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
-      preference: { status: 'ready', data: SECOND_MODEL.id },
+      preference: {
+        status: 'ready',
+        data: {
+          modelId: SECOND_MODEL.id,
+          providerSlug: SECOND_MODEL.providerSlug,
+        },
+      },
       save,
     });
 

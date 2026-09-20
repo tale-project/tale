@@ -38,6 +38,9 @@ export interface UserPreferencesContract {
       memoriesEnabled?: boolean;
       voiceOutput?: boolean;
       chatModelId?: string;
+      /** The connector that served `chatModelId` when it was picked; absent
+       * on a pick saved before providers were part of it. */
+      chatModelProviderSlug?: string;
       onboardingCompleted?: boolean;
       organizationId: string;
       updatedAt: number;

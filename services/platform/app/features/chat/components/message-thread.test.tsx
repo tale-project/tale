@@ -363,6 +363,66 @@ describe('MessageThread transcript contract', () => {
     expect(within(streaming).queryByTestId('thinking-gap-shell')).toBeNull();
     expect(within(streaming).getByText(/Hello there/)).toBeInTheDocument();
   });
+
+  it('drops the gap shell when the turn failed before any text', () => {
+    // A failed settle drains the row like any other, but with no text nothing
+    // ever paints a first glyph — the shell used to keep its dots and
+    // ticking timer under the error.
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: '',
+            isStreaming: false,
+            isFinalReveal: true,
+            error: 'The model provider answered 401: Incorrect API key',
+            status: 'failed',
+          },
+        ]}
+      />,
+    );
+
+    const items = screen.getAllByTestId('chat-message');
+    const failed = items.at(-1);
+    if (!failed) throw new Error('expected a failed item');
+    expect(within(failed).queryByTestId('thinking-gap-shell')).toBeNull();
+    expect(within(failed).getByRole('alert')).toBeInTheDocument();
+  });
+
+  it('drops the gap shell when the reply was stopped before any text', () => {
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: '',
+            isStreaming: false,
+            isFinalReveal: true,
+            status: 'cancelled',
+          },
+        ]}
+      />,
+    );
+
+    const items = screen.getAllByTestId('chat-message');
+    const stopped = items.at(-1);
+    if (!stopped) throw new Error('expected a stopped item');
+    expect(within(stopped).queryByTestId('thinking-gap-shell')).toBeNull();
+    expect(within(stopped).getByText('Generation stopped')).toBeInTheDocument();
+  });
 });
 
 describe('MessageThread accessibility', () => {

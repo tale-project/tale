@@ -42,7 +42,11 @@ import {
   privateProviderHostsAllowed,
 } from '../../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
-import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
+import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/providers/allowlist_catalog';
+import {
+  normalizeCatalogPayload,
+  type NormalizeCatalogOptions,
+} from '../../../../lib/shared/providers/catalog_normalize';
 import {
   loadStaticCatalogs,
   type LoadSystemConfigOptions,
@@ -89,6 +93,10 @@ const liveCatalogCache = new Map<string, CachedCatalog>();
 interface RememberedFailure {
   failedAt: number;
   error: Error;
+  /** Whether the failed attempt carried a bearer. An anonymous refusal (a
+   * 401 from an endpoint that wants a key) must not hold back the first
+   * attempt that brings one. */
+  authenticated: boolean;
 }
 
 /** The last failed fetch per cache key, honoured until the back-off lapses. */
@@ -121,6 +129,14 @@ export interface CatalogFetchOptions extends LoadSystemConfigOptions {
    * independently of chat; a cold STT failure must reach the audio resolver
    * instead of degrading to unrelated shipped chat defaults. */
   readonly requiredCapability?: 'transcription';
+  /**
+   * Sent as the listing request's bearer. Most hosted OpenAI-compatible APIs
+   * refuse an anonymous `/models` (a custom provider is exactly such an
+   * endpoint), so the callers that hold the organization's credential for
+   * the provider list with it. Never logged; never part of the cache key —
+   * a listing is the provider's catalog whoever fetched it.
+   */
+  readonly bearerToken?: string;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -137,6 +153,7 @@ async function fetchListingPayload(
   provider: string,
   maxAttempts: number,
   allowedHosts?: readonly string[],
+  bearerToken?: string,
 ): Promise<unknown> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -144,7 +161,12 @@ async function fetchListingPayload(
       const response = await safeFetch(url, {
         allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'GET',
-        headers: { accept: 'application/json' },
+        headers: {
+          accept: 'application/json',
+          ...(bearerToken !== undefined
+            ? { authorization: `Bearer ${bearerToken}` }
+            : {}),
+        },
         timeoutMs: FETCH_TIMEOUT_MS,
         maxResponseBytes: MAX_RESPONSE_BYTES,
         ...(allowedHosts !== undefined
@@ -185,6 +207,8 @@ async function fetchLiveCatalog(
   provider: string,
   maxAttempts: number,
   allowedHosts?: readonly string[],
+  bearerToken?: string,
+  normalizeOptions: NormalizeCatalogOptions = {},
 ): Promise<ModelCatalogEntry[]> {
   const [primaryUrl, ...supplementUrls] = urls;
   const payload = await fetchListingPayload(
@@ -192,8 +216,13 @@ async function fetchLiveCatalog(
     provider,
     maxAttempts,
     allowedHosts,
+    bearerToken,
   );
-  const normalized = normalizeCatalogPayload(payload, provider);
+  const normalized = normalizeCatalogPayload(
+    payload,
+    provider,
+    normalizeOptions,
+  );
   // A filtered response that accidentally returns the ordinary chat
   // population is not evidence that no audio model exists.
   const entries =
@@ -222,8 +251,13 @@ async function fetchLiveCatalog(
         provider,
         maxAttempts,
         allowedHosts,
+        bearerToken,
       );
-      const supplement = normalizeCatalogPayload(supplementPayload, provider);
+      const supplement = normalizeCatalogPayload(
+        supplementPayload,
+        provider,
+        normalizeOptions,
+      );
       for (const entry of supplement.entries) {
         if (seen.has(entry.id)) continue;
         seen.add(entry.id);
@@ -286,6 +320,7 @@ async function cachedLiveCatalog(
   urls: readonly [string, ...string[]],
   options: CatalogFetchOptions,
   allowedHosts?: readonly string[],
+  normalizeOptions: NormalizeCatalogOptions = {},
 ): Promise<readonly ModelCatalogEntry[]> {
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
@@ -307,9 +342,13 @@ async function cachedLiveCatalog(
   // shipped defaults, or the error — without another retry ladder, until
   // the back-off lapses. A forced refresh is the operator asking anew.
   const remembered = liveCatalogFailures.get(cacheKey);
+  const authenticated = options.bearerToken !== undefined;
   if (
     remembered !== undefined &&
     !options.forceRefresh &&
+    // A bearer-carrying attempt is a different question from the anonymous
+    // one that failed: it goes out, and its own outcome is what is remembered.
+    (remembered.authenticated || !authenticated) &&
     Date.now() - remembered.failedAt < CATALOG_FAILURE_BACKOFF_MS
   ) {
     return serveDegraded(cached, defaults, remembered.error);
@@ -322,6 +361,8 @@ async function cachedLiveCatalog(
       providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
+      options.bearerToken,
+      normalizeOptions,
     )
       .then((entries) => {
         liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
@@ -330,7 +371,11 @@ async function cachedLiveCatalog(
       })
       .catch((err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
-        liveCatalogFailures.set(cacheKey, { failedAt: Date.now(), error });
+        liveCatalogFailures.set(cacheKey, {
+          failedAt: Date.now(),
+          error,
+          authenticated,
+        });
         warnRememberedFailure(providerName, cached, defaults, error);
         throw error;
       })
@@ -474,6 +519,12 @@ export async function getProviderCatalog(
         [modelsEndpointUrl(provider.baseUrl)],
         options,
         isPrivateIp(endpointHost) ? [endpointHost] : undefined,
+        // An OpenAI-style `/v1/models` names its models and nothing else
+        // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an entry
+        // gets the same assumed window an allowlist entry carries instead of
+        // being dropped — otherwise a custom provider's whole listing would
+        // normalize to nothing.
+        { defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW },
       );
     }
     case 'none':

@@ -286,6 +286,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   the thread; the archived thread, whose banner replaces the composer, shows
   no note; after the switch turns off, an open chat drops the note without a
   reload.
+- [ ] `CHAT-F38` · **Sticky pick keeps its provider** — With two providers
+  listing the same model id (a shipped provider plus a custom provider on
+  another endpoint of the same vendor, settings.md `SET-F43`), open the picker
+  → each provider is its own section headed by its display name; pick the id
+  under the custom provider, send, then reload `/dashboard/{org}/chat` → The
+  trigger seeds the same model and the next turn runs on the custom provider
+  (CHAT-F13's info dialog names it), never on the shipped copy of the id.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -427,6 +434,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   In a browser without SpeechRecognition, activate the microphone with Enter
   → A recovery dialog opens without starting a MediaRecorder recording.
   Escape closes it and returns focus to the microphone.
+- [ ] `CHAT-B14` · **Failed turn settles the thinking shell** — Send on a
+  credential whose key the provider refuses (a wrong key saved under
+  settings.md `SET-F20`), and separately **Stop generating**
+  (`chat.stopGenerating`) before the first token → The reply row shows the
+  **Couldn't generate a reply** notice (`chat.errorGenerating`) with the
+  classified hint, or **Generation stopped** (`chat.generationStopped`); the
+  dots and the ticking
+  `Thinking · Ns` shell are gone the moment the notice lands and the count
+  does not keep running under it; a reload shows the same settled row.
 
 ## Accessibility (WCAG 2.1 AA)
 

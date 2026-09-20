@@ -5749,6 +5749,43 @@ settings:
       description:
         Les clés, références d'environnement et brokers d'abonnement avec
         lesquels cette organisation s'authentifie auprès des fournisseurs AI.
+    custom:
+      badge: Personnalisé
+      pickerTitle: Fournisseur personnalisé
+      pickerDescription: Ton propre endpoint compatible OpenAI ou au format Anthropic — un serveur de modèles auto-hébergé ou une passerelle interne.
+      nameLabel: Nom du fournisseur
+      namePlaceholder: p. ex. vLLM interne
+      nameHelp: Nomme le fournisseur et cet identifiant. Son nom technique en est dérivé.
+      apiFormat: Format d'API
+      apiFormatOpenaiHelp: Chat Completions — vLLM, Ollama, LiteLLM et la plupart des passerelles.
+      apiFormatAnthropicHelp: API Messages — endpoints compatibles Anthropic.
+      baseUrl: URL de base
+      baseUrlHelp: >-
+        La racine d'API à laquelle la plateforme ajoute ses chemins. Un hôte
+        public exige https ; une adresse privée ou de boucle locale exige en
+        plus l'autorisation des hôtes privés dans le déploiement.
+      models: Modèles
+      modelsDiscover: Découvrir depuis l'endpoint
+      modelsDiscoverHelp: Lit /models de l'endpoint avec la clé de cet identifiant.
+      modelsManual: Saisir les ID de modèles
+      modelsManualHelp: Pour un endpoint qui ne sait pas lister ses modèles.
+      check: Vérifier les modèles
+      checkOk: '{name} : {count, plural, =0 {aucun modèle listé} one {# modèle listé} other {# modèles listés}}'
+      checkFailed: 'Impossible de lister les modèles de {name} : {error}'
+      deleteRetires: >-
+        C'est le seul identifiant du fournisseur personnalisé « {provider} »,
+        qui est retiré avec lui.
+      errors:
+        nameReserved: Ce nom appartient à un fournisseur livré avec la plateforme. Choisis-en un autre.
+        endpointNotPermitted: >-
+          Ce déploiement n'autorise pas cet endpoint. Un hôte privé ou de
+          boucle locale exige TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 côté backend ;
+          les hôtes de métadonnées cloud sont toujours refusés.
+        inUse: Des identifiants utilisent encore ce fournisseur. Supprime-les d'abord.
+        versionConflict: Le fournisseur a changé depuis son chargement. Rouvre la boîte de dialogue et réessaie.
+        invalid: La définition du fournisseur a été refusée. Vérifie l'URL de base et le format d'API.
+        notFound: Ce fournisseur n'existe plus.
+        catalogUnavailable: La liste des modèles de l'endpoint est indisponible.
     catalogs:
       emptyBody: >-
         Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la

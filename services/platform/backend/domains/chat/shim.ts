@@ -31,6 +31,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import { getChatModel } from '../user_preferences/service.ts';
 import { listWebsites } from '../websites/service.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
@@ -348,12 +349,10 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     'user_preferences/queries:getChatModelInternal': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { userId: string; organizationId: string };
-      const rows = await sql<{ chatModelId: string | null }[]>`
-        SELECT chat_model_id AS "chatModelId" FROM app.user_preferences
-        WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
-        LIMIT 1
-      `;
-      return rows[0]?.chatModelId ?? null;
+      return getChatModel(sql, {
+        userId: args.userId,
+        orgId: args.organizationId,
+      });
     },
 
     'chat/threads:setThreadTitleInternal': async (raw) => {

@@ -79,6 +79,7 @@ import type {
   ChatGenerationView,
   ChatMessageUsage,
   ChatMessageView,
+  ChatModelPick,
   ChatProjectSummary,
   ChatThreadSummary,
 } from '../types';
@@ -729,30 +730,37 @@ export function useComposerModels(
  * blocked send). Only EXPLICIT picks are saved; default seeding never writes.
  */
 export function useChatModelPreference(organizationId: string): {
-  readonly preference: ChatQuery<string | undefined>;
-  /** Absent `modelId` clears the sticky pick — how choosing Auto forgets
-   * the previously pinned model (an absent preference reads as Auto). */
-  readonly save: (modelId: string | undefined) => void;
+  readonly preference: ChatQuery<ChatModelPick | undefined>;
+  /** An absent pick clears the sticky one — how choosing Auto forgets the
+   * previously pinned model (an absent preference reads as Auto). */
+  readonly save: (pick: ChatModelPick | undefined) => void;
 } {
   const row = useChatQuery('user_preferences/queries:getMyPreferences', {
     organizationId,
   });
 
   const save = useCallback(
-    (modelId: string | undefined) => {
-      setChatModelPreference(organizationId, modelId).catch(
-        (error: unknown) => {
-          console.warn('[chat] could not save the model pick', error);
-        },
-      );
+    (pick: ChatModelPick | undefined) => {
+      setChatModelPreference(organizationId, pick).catch((error: unknown) => {
+        console.warn('[chat] could not save the model pick', error);
+      });
     },
     [organizationId],
   );
 
-  const preference: ChatQuery<string | undefined> =
-    row.status === 'ready'
-      ? { status: 'ready', data: row.data?.chatModelId ?? undefined }
-      : row;
+  const preference: ChatQuery<ChatModelPick | undefined> = useMemo(() => {
+    if (row.status !== 'ready') return row;
+    const modelId = row.data?.chatModelId;
+    if (modelId === undefined) return { status: 'ready', data: undefined };
+    const providerSlug = row.data?.chatModelProviderSlug;
+    return {
+      status: 'ready',
+      data: {
+        modelId,
+        ...(providerSlug !== undefined ? { providerSlug } : {}),
+      },
+    };
+  }, [row]);
 
   return { preference, save };
 }
