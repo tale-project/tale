@@ -67,7 +67,10 @@ export const PREFERRED_CHAT_MODELS: Readonly<
   draft: [
     'claude-haiku-4-5',
     'gemini-3.5-flash-lite',
-    'deepseek-v4-flash',
+    // DeepSeek's current Flash (V4.1): the vendor's own id, then the
+    // aggregator's dated spelling of the same model.
+    'deepseek-flash',
+    'deepseek-v4.1-flash',
     'qwen3.6-flash',
   ],
 };

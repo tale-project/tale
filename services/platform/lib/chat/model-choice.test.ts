@@ -168,9 +168,11 @@ describe('chooseChatModel — curated preference', () => {
     }
   });
 
-  it('does not prefer the retired deepseek-chat alias', () => {
+  it('prefers the current DeepSeek Flash ids, not the retired aliases', () => {
     expect(PREFERRED_CHAT_MODELS.draft).not.toContain('deepseek-chat');
-    expect(PREFERRED_CHAT_MODELS.draft).toContain('deepseek-v4-flash');
+    expect(PREFERRED_CHAT_MODELS.draft).not.toContain('deepseek-v4-flash');
+    expect(PREFERRED_CHAT_MODELS.draft).toContain('deepseek-flash');
+    expect(PREFERRED_CHAT_MODELS.draft).toContain('deepseek-v4.1-flash');
   });
 });
 
