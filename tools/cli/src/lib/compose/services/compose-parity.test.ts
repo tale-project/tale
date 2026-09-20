@@ -595,8 +595,14 @@ describe('release artifact identity', () => {
       .replaceAll('${{ needs.changes.outputs.image_tag }}', 'ci-proof')
       .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
       .replaceAll('${{ github.repository }}', 'tale-project/tale');
+    // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
+    const jqMode =
+      process.platform === 'win32'
+        ? 'jq() { command jq --binary "$@"; };\n'
+        : '';
     const result = shell(
-      'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+      jqMode +
+        'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
         script,
       { SERVICE_NAMES: JSON.stringify(services) },
     );
