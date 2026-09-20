@@ -33488,12 +33488,14 @@ async function checkTaskAgentTurnDrive(
       {
         status: string;
         resultText: string | null;
+        resultMessageId: string | null;
         error: string | null;
         launchedAt: number | null;
         agentSessionId: string | null;
       }[]
     >`
       SELECT status, result_text AS "resultText", error,
+             result_message_id AS "resultMessageId",
              launched_at_ms::float8 AS "launchedAt",
              agent_session_id AS "agentSessionId"
       FROM app.project_agent_runs
@@ -33505,13 +33507,21 @@ async function checkTaskAgentTurnDrive(
     `;
     const taskRow = taskRows[0];
     const outputsRaw = JSON.stringify(taskRow?.outputs ?? []);
-    const comments = await sql<{ body: string }[]>`
-      SELECT coalesce(m.text, '') AS body
+    const comments = await sql<
+      { id: string; body: string; authorId: string }[]
+    >`
+      SELECT m.id, coalesce(m.text, '') AS body, meta.author_id AS "authorId"
       FROM app.task_discussion_message_meta meta
       JOIN app.messages m ON m.id = meta.message_id
       WHERE meta.task_id = ${taskId} AND meta.author_type = 'agent'
-      ORDER BY m.created_at_ms DESC LIMIT 1
     `;
+    const report = comments.find(
+      (comment) => comment.id === run?.resultMessageId,
+    );
+    const notice = comments.find(
+      (comment) =>
+        comment.authorId === 'system' && comment.body.includes('report.md'),
+    );
     const opRows = await sql<
       {
         status: string;
@@ -33540,15 +33550,17 @@ async function checkTaskAgentTurnDrive(
         run.agentSessionId === 'conv-42' &&
         taskRow?.status === 'in_review' &&
         outputsRaw.includes('report.md') &&
-        (comments[0]?.body ?? '').includes(FINAL_TEXT) &&
-        (comments[0]?.body ?? '').includes('report.md') &&
+        report?.body === FINAL_TEXT &&
+        report.authorId === agentId &&
+        notice !== undefined &&
+        notice.id !== report.id &&
         opRows[0]?.status === 'completed' &&
         opRows[0].finalizedAt !== null &&
         opRows[0].spentCents === 3 &&
         Number(metadataRows[0]?.count ?? '0') >= 1 &&
         gatewayCalls.minted === 1 &&
         gatewayCalls.revoked === 1,
-      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, comment=${(comments[0]?.body ?? '').slice(0, 60)}…, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, report=${JSON.stringify(report?.body)} notice=${JSON.stringify(notice?.body)}, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
     );
 
     // --- a SUCCESSFUL end with no final text fails the run retryably ------
@@ -35572,16 +35584,19 @@ async function checkSandboxGatewayKeyReclaim(
   const deleted: string[] = [];
   const attempted: string[] = [];
   const spendReads: string[] = [];
+  const gatewayEvents: string[] = [];
   const gateway = createServer((req, res) => {
-    const url = req.url ?? '';
+    const url = new URL(req.url ?? '/', 'http://itest-gateway');
     res.setHeader('content-type', 'application/json');
     if (
       req.method === 'GET' &&
-      url.startsWith('/api/governance/virtual-keys/')
+      url.pathname.startsWith('/api/governance/virtual-keys/')
     ) {
       // Every key carries 25 cents of spend — the figure a teardown must
       // read and book BEFORE it deletes the key.
-      spendReads.push(decodeURIComponent(url.split('/').at(-1) ?? ''));
+      const keyId = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
+      spendReads.push(keyId);
+      gatewayEvents.push(`read:${keyId}`);
       res.end(
         JSON.stringify({ virtual_key: { budgets: [{ current_usage: 0.25 }] } }),
       );
@@ -35589,10 +35604,11 @@ async function checkSandboxGatewayKeyReclaim(
     }
     if (
       req.method === 'DELETE' &&
-      url.startsWith('/api/governance/virtual-keys/')
+      url.pathname.startsWith('/api/governance/virtual-keys/')
     ) {
-      const keyId = decodeURIComponent(url.split('/').at(-1) ?? '');
+      const keyId = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
       attempted.push(keyId);
+      gatewayEvents.push(`delete:${keyId}`);
       if (keyId.startsWith('vk-gk-boom')) {
         // The keys whose revoke fails — the expiry hand-back and the
         // posture lane below.
@@ -35815,9 +35831,11 @@ async function checkSandboxGatewayKeyReclaim(
       return rows[0]?.cents ?? 0;
     };
     const bookedByDeadline = await starterLedger();
+    const spendReadIndex = gatewayEvents.indexOf('read:vk-gk-run');
+    const revokeIndex = gatewayEvents.indexOf('delete:vk-gk-run');
     const deadlineOk =
-      spendReads.includes('vk-gk-run') &&
-      spendReads.indexOf('vk-gk-run') < attempted.indexOf('vk-gk-run') &&
+      spendReadIndex >= 0 &&
+      revokeIndex > spendReadIndex &&
       count('vk-gk-run') === 1 &&
       overdueOp[0]?.spentCents === 25 &&
       (overdueOp[0]?.spendSettled ?? false) &&
