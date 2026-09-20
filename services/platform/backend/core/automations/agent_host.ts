@@ -356,12 +356,22 @@ export function automationAgentHost(
       // The exec's model string: the gateway ref on the gateway lane, the
       // vendor-native catalog id on the subscription lane (the vendor CLI
       // authenticates directly and knows nothing of gateway refs).
+      // Claude Code + a connector with a native Anthropic harness endpoint
+      // (DeepSeek) rides that endpoint's distinct `…__anthropic` record; the
+      // flag must reach the execModel routing, the provision and the mint
+      // identically or they drift (task-lane parity: `mintTurnServing`).
+      // Without it the session rides the OpenAI record and the gateway
+      // down-converts Anthropic→OpenAI, which DeepSeek 400s on multi-turn
+      // `reasoning_content` replay and on PDF `document` blocks.
+      const anthropicHarnessLane =
+        serving.lane === 'gateway' && serving.anthropicHarnessLane === true;
       const execModel =
         serving.lane === 'gateway'
           ? resolveGatewayRouting(
               organizationId,
               serving.providerSlug,
               serving.modelId,
+              { anthropicHarnessLane },
             ).gatewayModel
           : serving.modelId;
       // A text-only serving model still meets image inputs (scanned PDFs,
@@ -412,6 +422,7 @@ export function automationAgentHost(
           providerSlug: serving.providerSlug,
           modelId: serving.modelId,
           gatewayModel: execModel,
+          ...(anthropicHarnessLane ? { anthropicHarnessLane: true } : {}),
           ...(serving.lane === 'subscription'
             ? { apiBaseUrl: serving.apiBaseUrl }
             : {}),
@@ -910,6 +921,10 @@ async function mintWorkflowTurnAuth(
     modelId: string;
     /** The exec's model string: gateway ref, or vendor-native catalog id. */
     gatewayModel: string;
+    /** Gateway lane: bind the key to the connector's `…__anthropic` record
+     * (see {@link GatewayRoutingOpts}) — the same routing the exec model and
+     * the provision use, or the key names a record the session never calls. */
+    anthropicHarnessLane?: boolean;
     /** Subscription lane only — the vendor API base the CLI calls. */
     apiBaseUrl?: string;
     vision: { providerSlug: string; modelId: string } | null;
@@ -944,7 +959,13 @@ async function mintWorkflowTurnAuth(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       allowedModels: [
-        { providerSlug: args.providerSlug, modelId: args.modelId },
+        {
+          providerSlug: args.providerSlug,
+          modelId: args.modelId,
+          ...(args.anthropicHarnessLane === true
+            ? { anthropicHarnessLane: true }
+            : {}),
+        },
         ...(args.vision !== null ? [args.vision] : []),
       ],
       budgetCents,
@@ -1014,6 +1035,10 @@ export interface StartWorkflowAgentTurnArgs {
   providerSlug: string;
   modelId: string;
   gatewayModel: string;
+  /** The gateway serving rides the connector's native Anthropic harness
+   * endpoint (the `…__anthropic` record `gatewayModel` already names), so the
+   * mint must bind the key to THAT record, never the OpenAI one. */
+  anthropicHarnessLane?: boolean;
   apiBaseUrl?: string;
   visionProviderSlug?: string;
   visionModelId?: string;
@@ -1122,6 +1147,9 @@ export async function startWorkflowAgentTurnImpl(
         providerSlug: args.providerSlug,
         modelId: args.modelId,
         gatewayModel: args.gatewayModel,
+        ...(args.anthropicHarnessLane === true
+          ? { anthropicHarnessLane: true }
+          : {}),
         ...(args.apiBaseUrl !== undefined
           ? { apiBaseUrl: args.apiBaseUrl }
           : {}),
@@ -1626,12 +1654,18 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           : {}),
         harness: agent.harness,
       });
+      // Same lane split as the kick: the resumed exec, its key and the
+      // provision must all name the `…__anthropic` record when the serving
+      // rides the connector's native Anthropic harness endpoint.
+      const anthropicHarnessLane =
+        serving.lane === 'gateway' && serving.anthropicHarnessLane === true;
       const execModel =
         serving.lane === 'gateway'
           ? resolveGatewayRouting(
               args.organizationId,
               serving.providerSlug,
               serving.modelId,
+              { anthropicHarnessLane },
             ).gatewayModel
           : serving.modelId;
       keys.providerSlug = serving.providerSlug;
@@ -1663,6 +1697,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
         gatewayModel: execModel,
+        ...(anthropicHarnessLane ? { anthropicHarnessLane: true } : {}),
         ...(serving.lane === 'subscription'
           ? { apiBaseUrl: serving.apiBaseUrl }
           : {}),
