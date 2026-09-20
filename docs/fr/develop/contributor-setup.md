@@ -31,7 +31,7 @@ bun run dev
 
 Le script à la racine crée les secrets manquants dans le fichier `.env`, ignoré par Git, et conserve les valeurs existantes. Garde ce fichier privé et conserve-le entre les redémarrages : le backend et la sandbox doivent partager les mêmes secrets.
 
-L’orchestrateur démarre les services Docker, lance le backend Node, attend ses routes API et d’authentification, puis démarre Vite. Le backend applique les migrations au démarrage. Attends le message `READY` avant d’ouvrir `http://localhost:3000` ; les téléchargements et la préparation initiale peuvent prolonger le premier démarrage.
+L’orchestrateur démarre les services Docker, lance le backend Node, attend ses routes API et d’authentification, puis démarre Vite. Si l’image d’exécution de la sandbox manque, par exemple au premier démarrage ou après la suppression des images locales, l’orchestrateur la construit depuis les sources avant de lancer le backend. Cette seule étape peut prendre plusieurs minutes ; les sessions d’agents et l’exécution de code restent indisponibles tant qu’elle n’est pas terminée. Le backend applique les migrations au démarrage. Attends le message `READY` avant d’ouvrir `http://localhost:3000` ; les téléchargements et la préparation initiale peuvent prolonger le premier démarrage.
 
 <Check>
 

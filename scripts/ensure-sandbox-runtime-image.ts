@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 /*
   Build the sandbox *runtime* image (`tale-sandbox-runtime:latest`) on demand,
-  but only when it is missing locally — a prestep of `docker:dev`.
+  but only when it is missing locally — a prestep of `docker:dev`, and the
+  build `bun dev` runs when its docker phase finds the image missing
+  (services/platform/scripts/dev-engine.ts, ensureSandboxRuntimeImage).
 
   Why this exists: `docker:dev` runs `docker compose up --build`, which builds
   every compose *service*. But the per-execution sandbox runtime is NOT a compose
@@ -14,11 +16,11 @@
   implicit `docker pull` also fails ("pull access denied").
 
   `tale deploy` sidesteps this by pulling + re-tagging the CI-built image from
-  GHCR (tools/cli/src/lib/actions/deploy.ts); local dev has no such step, so we
-  build from source here. Idempotent and cheap on the hot path: when the image
-  already exists this is a sub-second `docker image inspect`, so `docker:dev`
-  stays lightweight. Set SANDBOX_RUNTIME_FORCE_BUILD=1 to rebuild even when
-  present.
+  GHCR (tools/cli/src/lib/actions/deploy.ts); local dev builds from source
+  here — the ONE recipe both `docker:dev` and `bun dev` call. Idempotent and
+  cheap on the hot path: when the image already exists this is a sub-second
+  `docker image inspect`, so both callers stay lightweight. Set
+  SANDBOX_RUNTIME_FORCE_BUILD=1 to rebuild even when present.
 
   Build flags mirror CI (.github/workflows/build.yml) and the tag `tale deploy`
   applies: context = repo root, `-f services/sandbox-runtime/Dockerfile` (which

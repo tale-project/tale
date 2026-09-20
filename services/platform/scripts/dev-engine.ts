@@ -3,7 +3,9 @@
 
   What it runs, in order:
    1) The docker backing services this host loop depends on (db, knowledge-db,
-      the LLM gateway, the sandbox tier) with the dev overlays.
+      the LLM gateway, the sandbox tier) with the dev overlays — plus the
+      sandbox RUNTIME image the spawner `docker run`s per session, built once
+      when missing (it is neither a compose service nor a registry image).
    2) The video toolchain (yt-dlp + deno + ffmpeg), resolved into the env the
       backend inherits.
    3) The BACKEND — the same `backend/main.ts` entry the container runs, in
@@ -53,6 +55,12 @@ import {
   viteClassifier,
   warnLine,
 } from './dev-output';
+import {
+  ENSURE_SANDBOX_RUNTIME_SCRIPT,
+  SANDBOX_RUNTIME_BUILD_STEP,
+  SANDBOX_RUNTIME_IMAGE,
+  sandboxRuntimeUnavailable,
+} from './dev-sandbox-runtime';
 import { deriveDevSecrets } from './dev-secrets';
 
 const platformRoot = join(import.meta.dir, '..');
@@ -508,6 +516,36 @@ function ensureSandboxNetwork(): void {
   }
 }
 
+/**
+ * Ensure the sandbox RUNTIME image exists — the image the spawner `docker
+ * run`s per session, which the compose bring-up never builds (it is not a
+ * service) and the spawner cannot pull (it is not a registry image); see
+ * ./dev-sandbox-runtime for the failure this closes. Present → silent (a
+ * sub-second probe, like the network check above). Missing → one build step
+ * through the repo-root recipe `docker:dev` uses, its firehose captured; a
+ * failed build degrades to `[ ! ]` and the fleet continues — only sandbox
+ * sessions stay unavailable, and the warning carries the retry command.
+ */
+async function ensureSandboxRuntimeImage(): Promise<void> {
+  const present = spawnSync(
+    'docker',
+    ['image', 'inspect', SANDBOX_RUNTIME_IMAGE],
+    { stdio: 'ignore' },
+  );
+  if (present.status === 0) return;
+  await runStep(SANDBOX_RUNTIME_BUILD_STEP, async () => {
+    try {
+      await runCommand('bun', [ENSURE_SANDBOX_RUNTIME_SCRIPT], {}, repoRoot, {
+        label: 'sandbox-runtime',
+        classifier: dockerClassifier,
+      });
+    } catch (err) {
+      throw new StepWarning(sandboxRuntimeUnavailable(err));
+    }
+    return true;
+  });
+}
+
 /** Non-fatal docker availability probe. Mirrors the CLI's assertDockerAvailable
  *  (tools/cli/src/lib/actions/dev.ts) but resolves a status instead of
  *  throwing, so `bun dev` can warn-and-continue when docker is missing. */
@@ -762,7 +800,10 @@ async function ensureDockerDependencies(): Promise<void> {
     },
   );
 
-  if (dockerUp) await waitForLlmGateway();
+  if (dockerUp) {
+    await waitForLlmGateway();
+    await ensureSandboxRuntimeImage();
+  }
 }
 
 /** Probe the Better Auth surface until `/api/auth/ok` answers 200 — a true

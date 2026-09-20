@@ -31,7 +31,7 @@ bun run dev
 
 Das Entwicklungsskript im Stammverzeichnis ergänzt fehlende Geheimnisse in der von Git ignorierten `.env` und behält vorhandene Werte bei. Schütze diese Datei und bewahre sie zwischen Neustarts auf: Backend und Sandbox brauchen dieselben Geheimnisse.
 
-Der Orchestrator startet die Docker-Dienste und das Node-Backend, wartet auf API und Authentifizierung und startet danach Vite. Das Backend führt beim Start die Datenbankmigrationen aus. Warte auf `READY`, bevor du `http://localhost:3000` öffnest; Downloads und die erstmalige Einrichtung können den ersten Start verlängern.
+Der Orchestrator startet die Docker-Dienste und das Node-Backend, wartet auf API und Authentifizierung und startet danach Vite. Fehlt das Sandbox-Runtime-Image, etwa beim ersten Start oder nachdem du lokale Images entfernt hast, baut der Orchestrator es aus dem Quellcode, bevor das Backend startet. Dieser Schritt allein kann mehrere Minuten dauern; Agentensitzungen und das Ausführen von Code sind erst danach verfügbar. Das Backend führt beim Start die Datenbankmigrationen aus. Warte auf `READY`, bevor du `http://localhost:3000` öffnest; Downloads und die erstmalige Einrichtung können den ersten Start verlängern.
 
 <Check>
 
