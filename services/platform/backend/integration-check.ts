@@ -8619,6 +8619,363 @@ async function checkKnowledge(
 }
 
 /**
+ * A document released while its indexing job is in flight — the shape an
+ * agent produces when it rewrites its report seconds after writing it: the
+ * rewrite rotates the document's ref, `releasePreviousBlob` trashes the old
+ * file row, and the release job deletes the old ref's corpus row, all while
+ * the job that indexes the old ref is still embedding. That job used to fail
+ * its first attempt on the chunk insert (23503 `chunks_document_id_org_fkey`),
+ * retry, and — wherever the old file row survived — index the dead ref again.
+ *
+ * The fake embedding server is where the race is injected: the request that
+ * carries the marked document's text performs the rotation and runs the
+ * release inline before it answers, so the run's write lands on a row that is
+ * gone. Proven on the real worker (pg-boss picks the job the bind enqueued):
+ * the job completes on its FIRST attempt and the corpus holds nothing for the
+ * old ref — once for a single-slice document, once for one whose release
+ * lands on a later slice. Then the late-job shape: the ref is already
+ * superseded (a replacement finalized) when `indexUploadedFile` runs, and it
+ * indexes nothing.
+ */
+async function checkIndexingReleaseRace(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'indexing vs release race (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { releasePreviousBlob } =
+    await import('./domains/documents/blob-rotation.ts');
+  const { runReleaseRefsJob } = await import('./domains/knowledge/release.ts');
+  const { indexUploadedFile } = await import('./domains/knowledge/service.ts');
+  const { getKnowledgePoolForOrg } = await import('./core/knowledge/pool.ts');
+  const corpusPool = await getKnowledgePoolForOrg(orgSlug);
+
+  interface Rotation {
+    oldRef: string;
+    newRef: string;
+    /** Which embedding request carrying the marker fires the rotation. */
+    onCall: number;
+    calls: number;
+    fired: Promise<void> | null;
+  }
+  /** Armed per marker BEFORE the bind enqueues the job — the worker can pick
+   * it up within milliseconds. The document is resolved by its current ref
+   * at fire time, for the same reason. */
+  const rotations = new Map<string, Rotation>();
+  const handlerErrors: string[] = [];
+  const rotate = async (rotation: Rotation): Promise<void> => {
+    // What `documents/agent-write.ts` does on a refresh: the ref moves, the
+    // previous blob's row is trashed and unbound, the release is queued —
+    // and here run inline too, so the race is deterministic rather than a
+    // matter of which worker slot polls first.
+    await sql.begin(async (tx) => {
+      const docs = await tx<{ id: string }[]>`
+        UPDATE app.documents SET file_ref = ${rotation.newRef},
+          updated_at_ms = ${Date.now()}
+        WHERE org_id = ${orgId} AND file_ref = ${rotation.oldRef}
+        RETURNING id
+      `;
+      const documentId = docs[0]?.id;
+      if (documentId === undefined) {
+        throw new Error(`no document holds ${rotation.oldRef}`);
+      }
+      await releasePreviousBlob(tx, {
+        organizationId: orgId,
+        documentId,
+        previousFileRef: rotation.oldRef,
+      });
+    });
+    await runReleaseRefsJob(sql, {
+      organizationId: orgId,
+      refs: [rotation.oldRef],
+    });
+  };
+  const embedServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      void (async () => {
+        try {
+          for (const [marker, rotation] of rotations) {
+            if (!body.includes(marker)) continue;
+            rotation.calls += 1;
+            if (rotation.calls === rotation.onCall && rotation.fired === null) {
+              rotation.fired = rotate(rotation);
+            }
+            if (rotation.fired !== null) await rotation.fired;
+          }
+        } catch (error) {
+          handlerErrors.push(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        res.setHeader('content-type', 'application/json');
+        res.end(fakeEmbeddingsPayload(body));
+      })();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    embedServer.listen(0, '127.0.0.1', resolve);
+  });
+  const embedAddress = embedServer.address();
+  const embedPort =
+    embedAddress !== null && typeof embedAddress === 'object'
+      ? embedAddress.port
+      : 0;
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const knowledgeDir = path.join(configRoot, orgSlug, 'knowledge');
+
+  try {
+    await mkdir(knowledgeDir, { recursive: true });
+    await writeFile(
+      path.join(knowledgeDir, 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'openai',
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+      }),
+    );
+    const send = (
+      method: 'POST',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    /** Mint a blob and PUT its bytes; the ref is what the corpus is keyed by. */
+    const uploadBlob = async (text: string): Promise<string> => {
+      const handoff = z
+        .object({ s3Ref: z.string(), url: z.string() })
+        .safeParse(
+          await (
+            await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+              contentType: 'text/plain',
+            })
+          ).json(),
+        );
+      if (!handoff.success) throw new Error('upload handoff failed');
+      await fetch(handoff.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: text,
+      });
+      return handoff.data.s3Ref;
+    };
+    /** Bind a document to the blob — the door that registers the file row
+     * and enqueues `rag.index_file` in the same transaction. */
+    const bindDocument = async (
+      fileName: string,
+      ref: string,
+    ): Promise<{ documentId: string; fileId: string }> => {
+      const bound = z
+        .object({ documentId: z.string() })
+        .safeParse(
+          await (
+            await send(
+              'POST',
+              `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+              { storageRef: ref, fileName, contentType: 'text/plain' },
+            )
+          ).json(),
+        );
+      if (!bound.success) throw new Error(`document bind failed: ${fileName}`);
+      const rows = await sql<{ id: string }[]>`
+        SELECT id FROM app.file_metadata
+        WHERE org_id = ${orgId} AND storage_ref = ${ref}
+        LIMIT 1
+      `;
+      const fileId = rows[0]?.id;
+      if (fileId === undefined)
+        throw new Error(`file row missing: ${fileName}`);
+      return { documentId: bound.data.documentId, fileId };
+    };
+    const corpusCount = async (ref: string): Promise<number> => {
+      const rows = await corpusPool<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+      `;
+      return Number(rows[0]?.count ?? '0');
+    };
+    /** The newest `rag.index_file` job for a file row — pg-boss's table is
+     * internal; this read is pinned to the v10 shape like `countNoopJobs`. */
+    const jobOf = async (
+      fileId: string,
+    ): Promise<{ state: string; retryCount: number } | null> => {
+      const rows = await sql<{ state: string; retryCount: number }[]>`
+        SELECT state, retry_count AS "retryCount" FROM pgboss.job
+        WHERE name = 'rag.index_file' AND data->>'fileId' = ${fileId}
+        ORDER BY created_on DESC
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+    const fileStatus = async (fileId: string): Promise<string | null> => {
+      const rows = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata WHERE id = ${fileId}
+      `;
+      const row = rows[0];
+      return row === undefined ? 'gone' : (row.status ?? 'null');
+    };
+    const settled = (state: string | undefined): boolean =>
+      state === 'completed' || state === 'failed' || state === 'cancelled';
+
+    /** One race: bind a marked document, let the worker index it, rotate and
+     * release it from inside the embedding request `onCall`. */
+    const race = async (
+      label: string,
+      marker: string,
+      text: string,
+      onCall: number,
+    ): Promise<void> => {
+      const newRef = await uploadBlob(`${marker} rewritten body`);
+      const oldRef = await uploadBlob(text);
+      rotations.set(marker, { oldRef, newRef, onCall, calls: 0, fired: null });
+      const bound = await bindDocument(`${marker}.txt`, oldRef);
+      const done = await waitFor(
+        async () => settled((await jobOf(bound.fileId))?.state),
+        60_000,
+      );
+      const job = await jobOf(bound.fileId);
+      const rotation = rotations.get(marker);
+      const oldCorpus = await corpusCount(oldRef);
+      const oldFile = await fileStatus(bound.fileId);
+      const doc = await sql<{ fileRef: string | null }[]>`
+        SELECT file_ref AS "fileRef" FROM app.documents
+        WHERE id = ${bound.documentId}
+      `;
+      record(
+        label,
+        done &&
+          job?.state === 'completed' &&
+          job.retryCount === 0 &&
+          rotation?.fired !== null &&
+          (rotation?.calls ?? 0) >= onCall &&
+          handlerErrors.length === 0 &&
+          oldCorpus === 0 &&
+          oldFile !== 'failed' &&
+          doc[0]?.fileRef === newRef,
+        `job=${job?.state ?? 'MISSING'}/completed retries=${job?.retryCount ?? '?'}/0 rotatedOnCall=${rotation?.calls ?? 0}/${onCall} oldCorpusRows=${oldCorpus}/0 oldFileRow=${oldFile} (want gone, never failed) docRef=${doc[0]?.fileRef === newRef ? 'rotated' : 'NOT ROTATED'} handlerErrors=${handlerErrors.join('; ') || 'none'}`,
+      );
+    };
+
+    await race(
+      'indexing vs release: a release during the embedding ends the job on its first attempt',
+      'race-single-quicksilver',
+      'race-single-quicksilver: the report an agent wrote and rewrote two seconds later.',
+      1,
+    );
+    const filler =
+      'the ledger lists weights, ports, seals, and the inspection notes the auditors file. ';
+    await race(
+      'indexing vs release: a release on a later slice ends the job without re-claiming the ref',
+      'race-multi-cinnabar',
+      Array.from(
+        { length: 200 },
+        (_v, i) =>
+          `## race-multi-cinnabar section ${i}\n\n${`Entry ${i}: ${filler}`.repeat(8)}\n`,
+      ).join('\n'),
+      2,
+    );
+
+    // --- The late job: the ref is superseded before the job runs -----------
+    // A replacement finalized through the real door: the new ref indexes,
+    // the old row stays bound (its bytes are the retained snapshot), the old
+    // ref's corpus row is released. A job for the OLD row that runs now —
+    // queued before the replacement, or a retry — must index nothing.
+    const lateRef = await uploadBlob(
+      'race-late-peridot: the original body of a document about to be replaced.',
+    );
+    const late = await bindDocument('race-late-peridot.txt', lateRef);
+    const lateIndexed = await waitFor(
+      async () => (await jobOf(late.fileId))?.state === 'completed',
+      30_000,
+    );
+    await send(
+      'POST',
+      `/api/app/documents/${late.documentId}/record/mark-controlled?orgId=${orgId}`,
+      {},
+    );
+    const begin = z
+      .object({ intentId: z.string(), url: z.string().url() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/${late.documentId}/replacement-upload/begin?orgId=${orgId}`,
+            {
+              expectedRecordState: 'draft',
+              expectedVersion: 1,
+              expectedFileId: lateRef,
+              fileName: 'race-late-peridot.txt',
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    if (begin.success) {
+      await fetch(begin.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: 'race-late-peridot: the replacement body that supersedes the original.',
+      });
+    }
+    const finalize = await send(
+      'POST',
+      `/api/app/documents/replacement-uploads/${begin.success ? begin.data.intentId : ''}/finalize?orgId=${orgId}`,
+      {},
+    );
+    const lateReleased = await waitFor(
+      async () => (await corpusCount(lateRef)) === 0,
+      30_000,
+    );
+    // The old row reads as a job about to run would find it.
+    await sql`
+      UPDATE app.file_metadata SET rag_status = 'queued', rag_error = NULL,
+        rag_error_code = NULL
+      WHERE id = ${late.fileId}
+    `;
+    let lateError: string | null = null;
+    try {
+      await indexUploadedFile(sql, late.fileId);
+    } catch (error) {
+      lateError = error instanceof Error ? error.message : String(error);
+    }
+    const lateCorpus = await corpusCount(lateRef);
+    const lateStatus = await fileStatus(late.fileId);
+    record(
+      'indexing vs release: a job for an already-superseded ref indexes nothing',
+      lateIndexed &&
+        finalize.ok &&
+        lateReleased &&
+        lateError === null &&
+        lateCorpus === 0 &&
+        lateStatus === 'queued',
+      `seedIndexed=${lateIndexed} finalize=${finalize.status}/200 releasedBeforeJob=${lateReleased} run=${lateError ?? 'returned'} corpusRows=${lateCorpus}/0 status=${lateStatus}/queued (untouched)`,
+    );
+  } finally {
+    await new Promise<void>((resolve) => {
+      embedServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Corpus-purge consistency: deleted/replaced content leaves EVERYWHERE it
  * lives (corpus rows, blobs) and the retrievable set follows lifecycle
  * truth; purge failures are never reported as success.
@@ -51424,6 +51781,11 @@ async function main(): Promise<void> {
             authCtx,
             `itest-${orgSuffix}`,
           ),
+      ],
+      [
+        'checkIndexingReleaseRace',
+        () =>
+          checkIndexingReleaseRace(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
         'checkChat',

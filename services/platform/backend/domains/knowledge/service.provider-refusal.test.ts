@@ -87,6 +87,12 @@ function fakeSql(log: Query[]): Sql {
     if (text.includes('FROM "organization"')) {
       return Promise.resolve([{ slug: 'acme' }]);
     }
+    if (text.includes('AS "corpusLive"')) {
+      // The ref is still referenced — the liveness gate lets the run proceed.
+      return Promise.resolve([
+        { ref: 's3:org-1/blob-1', corpusLive: true, blobLive: true },
+      ]);
+    }
     if (text.includes('UPDATE app.file_metadata')) {
       return Promise.resolve([{ orgId: 'org-1' }]);
     }

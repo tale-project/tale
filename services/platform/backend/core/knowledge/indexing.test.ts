@@ -92,6 +92,10 @@ interface FakeDb {
   statements: string[];
   /** Parameters of each statement, index-aligned with `statements`. */
   params: unknown[][];
+  /** Make the document row disappear — what the release seam does the moment
+   * the document's ref dies while a run is in flight. From then on the stored
+   * state reads empty and the write path's row lock finds nothing. */
+  release: () => void;
 }
 
 function fakeDb(
@@ -109,10 +113,15 @@ function fakeDb(
   let claimedHash: string | null = null;
   let storedChunks = 0;
   let status = 'processing';
+  let released = false;
   const unsafe = (text: string, values: unknown[] = []): Promise<unknown[]> => {
     statements.push(text.trim());
     params.push(values);
+    if (text.includes('FOR KEY SHARE')) {
+      return Promise.resolve(released ? [] : [{ id: 'doc-1' }]);
+    }
     if (text.includes('FROM private_knowledge.documents d')) {
+      if (released) return Promise.resolve([]);
       if (options.resumable) {
         return Promise.resolve(
           claimedHash === null
@@ -157,7 +166,14 @@ function fakeDb(
     unsafe,
     begin: (fn: (tx: unknown) => Promise<unknown>) => fn({ unsafe }),
   } as unknown as Sql;
-  return { sql, statements, params };
+  return {
+    sql,
+    statements,
+    params,
+    release: () => {
+      released = true;
+    },
+  };
 }
 
 const ARGS = {
@@ -699,5 +715,143 @@ describe('a document is prepared once, not once per slice', () => {
     expect(result.refusal).toContain('PII policy');
     expect(embedder.embedded).toEqual([]);
     expect(db.statements.join('\n')).toContain("'failed'");
+  });
+});
+
+describe('a document released while its run is in flight', () => {
+  // The corpus is keyed by blob ref, and the release seam deletes the row for
+  // a ref the moment its document is rewritten, replaced or deleted — often
+  // seconds after the job for that ref was queued (an agent rewriting its
+  // report). The run must stop without writing (the chunk insert used to fail
+  // the job with a foreign-key violation) and without claiming the row again
+  // (a later slice used to re-create it and re-embed the whole document for a
+  // ref nothing holds).
+  const LONG = Array.from(
+    { length: 200 },
+    (_v, i) =>
+      `## Section ${i}\n\nParagraph ${i} with enough words to fill a chunk.\n`,
+  ).join('\n');
+
+  it('stops without writing when the row is gone by the time the slice is embedded', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    // The release lands during the embedding call — the one place a slice
+    // spends real time between its claim and its write.
+    const releasing = {
+      model: embedder.model,
+      dimensions: embedder.dimensions,
+      embed: (text: string) => embedder.embed(text),
+      embedAll: (
+        texts: readonly string[],
+        options?: { signal?: AbortSignal },
+      ) => {
+        db.release();
+        return embedder.embedAll(texts, options);
+      },
+    } as unknown as Embedder;
+
+    const result = await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: releasing,
+    });
+
+    expect(result.skipped).toBe('released');
+    expect(result.partial).toBe(false);
+    expect(result.chunksWritten).toBe(0);
+    const joined = db.statements.join('\n');
+    expect(joined).toContain('FOR KEY SHARE');
+    expect(joined).not.toContain('INSERT INTO private_knowledge.chunks');
+    expect(joined).not.toContain("SET status = 'completed'");
+  });
+
+  it('asks whether the document is still wanted AFTER claiming, and drops the claim on no', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const askedAfter: number[] = [];
+    const result = await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder,
+      stillWanted: () => {
+        askedAfter.push(db.statements.length);
+        return Promise.resolve(false);
+      },
+    });
+
+    expect(result.skipped).toBe('released');
+    expect(embedder.embedded).toEqual([]);
+    // The order is the guarantee: a release always follows the commit that
+    // killed the ref, so a question asked after the claim sees every release
+    // that could have preceded the claim.
+    const claimAt = db.statements.findIndex((statement) =>
+      statement.startsWith('INSERT INTO private_knowledge.documents'),
+    );
+    expect(claimAt).toBeGreaterThanOrEqual(0);
+    expect(askedAfter).toHaveLength(1);
+    expect(askedAfter[0]).toBeGreaterThan(claimAt);
+    // The claim is taken back — chunks, then the row, for the claimed id.
+    const dropAt = db.statements.findIndex((statement) =>
+      statement.startsWith('DELETE FROM private_knowledge.documents WHERE id'),
+    );
+    expect(dropAt).toBeGreaterThan(claimAt);
+    expect(db.params[dropAt]).toEqual(['doc-1', 'acme']);
+    expect(db.statements.join('\n')).toContain(
+      'DELETE FROM private_knowledge.chunks WHERE document_id = $1',
+    );
+  });
+
+  it('indexes as before when the caller still wants the document', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder,
+      stillWanted: () => Promise.resolve(true),
+    });
+    expect(result.skipped).toBeUndefined();
+    expect(result.documentId).toBe('doc-1');
+    expect(embedder.embedded.length).toBeGreaterThan(0);
+    expect(db.statements.join('\n')).toContain("SET status = 'completed'");
+  });
+
+  it('does not claim the row again when it vanished between slices', async () => {
+    const db = fakeDb({ resumable: true });
+    const embedder = stubEmbedder();
+    const progress: number[] = [];
+    const result = await indexWholeDocument(
+      { ...ARGS, text: LONG, sql: db.sql, embedder, maxChunks: 3 },
+      {
+        onSlice: (slice) => {
+          progress.push(slice.chunksStored);
+          if (progress.length === 1) db.release();
+        },
+      },
+    );
+
+    expect(result.skipped).toBe('released');
+    expect(result.partial).toBe(false);
+    // The first slice ran; the second found no row and stopped — it did not
+    // embed, and it did not claim a fresh row for the dead ref.
+    expect(progress).toEqual([3]);
+    expect(embedder.embedded).toHaveLength(3);
+    expect(
+      db.statements.filter((statement) =>
+        statement.startsWith('INSERT INTO private_knowledge.documents'),
+      ),
+    ).toHaveLength(1);
+    expect(db.statements.join('\n')).not.toContain("SET status = 'completed'");
+  });
+
+  it('copies nothing when the row is gone before identical content is cloned', async () => {
+    const db = fakeDb({ duplicateId: 'doc-twin' });
+    db.release();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({ ...ARGS, sql: db.sql, embedder });
+
+    expect(result.skipped).toBe('released');
+    expect(embedder.embedded).toEqual([]);
+    expect(db.statements.join('\n')).not.toContain('WITH copied AS');
   });
 });
