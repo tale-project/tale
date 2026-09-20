@@ -354,3 +354,49 @@ describe('normalizeCatalogPayload', () => {
     expect(normalizeCatalogPayload(null, 'p').entries).toEqual([]);
   });
 });
+
+describe('normalizeCatalogModel — bare listing entries', () => {
+  /** What api.openai.com and most OpenAI-compatible servers publish on
+   * `/v1/models`: the id and nothing about the window or the parameters. */
+  const BARE = {
+    id: 'qwen3-max',
+    object: 'model',
+    created: 1789726387,
+    owned_by: 'system',
+  };
+
+  it('drops a bare entry unless a default window is on offer, then reads it as a neutral chat model', () => {
+    expect(normalizeCatalogModel(BARE, 'qwen-cn')).toBeNull();
+    expect(
+      normalizeCatalogModel(BARE, 'qwen-cn', { defaultContextWindow: 128_000 }),
+    ).toEqual({
+      id: 'qwen3-max',
+      provider: 'qwen-cn',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: false,
+      contextWindow: 128_000,
+    });
+  });
+
+  it('keeps a published window and published parameters ahead of the default', () => {
+    const published = normalizeCatalogModel(
+      {
+        ...BARE,
+        context_length: 32_000,
+        supported_parameters: ['temperature'],
+      },
+      'qwen-cn',
+      { defaultContextWindow: 128_000 },
+    );
+    expect(published?.contextWindow).toBe(32_000);
+    // The listing said which parameters it takes, and tools was not one.
+    expect(published?.supportsTools).toBe(false);
+    // An explicit zero window is still an absent one for a chat model.
+    expect(
+      normalizeCatalogModel({ ...BARE, context_length: 0 }, 'qwen-cn', {
+        defaultContextWindow: 128_000,
+      })?.contextWindow,
+    ).toBe(128_000);
+  });
+});

@@ -539,8 +539,10 @@ describe('getProviderCatalog — live sources', () => {
 
   it('treats a listing with no usable models as a failure and caches nothing', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // No id at all: a bare entry WITH an id would be served under the assumed
+    // window a models endpoint gets, so the unusable shape here is idless.
     mockedFetch.mockResolvedValueOnce(
-      listingResponse({ data: [{ id: 'missing-context-window' }] }),
+      listingResponse({ data: [{ object: 'model', owned_by: 'nobody' }] }),
     );
     await expect(
       getProviderCatalog(VERCEL, { maxAttempts: 1 }),
@@ -670,6 +672,52 @@ describe('getProviderCatalog — listing credential', () => {
         getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'bad' }),
       ).rejects.toThrow('HTTP 401');
       expect(mockedFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('getProviderCatalog — bare models endpoint listing', () => {
+  it('serves an OpenAI-style listing that names models and nothing else', async () => {
+    mockedFetch.mockResolvedValue(
+      listingResponse({
+        object: 'list',
+        data: [
+          { id: 'qwen3-max', object: 'model', created: 1, owned_by: 'system' },
+          { id: 'qwen-plus', object: 'model', created: 1, owned_by: 'system' },
+        ],
+      }),
+    );
+    const entries = await getProviderCatalog(VERCEL, { maxAttempts: 1 });
+    expect(entries.map((entry) => entry.id)).toEqual([
+      'qwen3-max',
+      'qwen-plus',
+    ]);
+    expect(entries[0]).toMatchObject({
+      contextWindow: 128_000,
+      supportsTools: true,
+      supportsVision: false,
+      tags: ['chat'],
+    });
+  });
+
+  it('keeps refusing bare entries from a catalog that always publishes the window', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue(
+        listingResponse({ data: [{ id: 'vendor/model', object: 'model' }] }),
+      );
+      // OpenRouter degrades to its shipped defaults; the bare entry is not
+      // among what serves.
+      const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+      expect(entries.some((entry) => entry.id === 'vendor/model')).toBe(false);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('openrouter'),
+        expect.objectContaining({
+          message: expect.stringContaining('yielded no usable models'),
+        }),
+      );
     } finally {
       warn.mockRestore();
     }

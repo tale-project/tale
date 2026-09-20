@@ -42,7 +42,11 @@ import {
   privateProviderHostsAllowed,
 } from '../../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
-import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
+import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/providers/allowlist_catalog';
+import {
+  normalizeCatalogPayload,
+  type NormalizeCatalogOptions,
+} from '../../../../lib/shared/providers/catalog_normalize';
 import {
   loadStaticCatalogs,
   type LoadSystemConfigOptions,
@@ -204,6 +208,7 @@ async function fetchLiveCatalog(
   maxAttempts: number,
   allowedHosts?: readonly string[],
   bearerToken?: string,
+  normalizeOptions: NormalizeCatalogOptions = {},
 ): Promise<ModelCatalogEntry[]> {
   const [primaryUrl, ...supplementUrls] = urls;
   const payload = await fetchListingPayload(
@@ -213,7 +218,11 @@ async function fetchLiveCatalog(
     allowedHosts,
     bearerToken,
   );
-  const normalized = normalizeCatalogPayload(payload, provider);
+  const normalized = normalizeCatalogPayload(
+    payload,
+    provider,
+    normalizeOptions,
+  );
   // A filtered response that accidentally returns the ordinary chat
   // population is not evidence that no audio model exists.
   const entries =
@@ -244,7 +253,11 @@ async function fetchLiveCatalog(
         allowedHosts,
         bearerToken,
       );
-      const supplement = normalizeCatalogPayload(supplementPayload, provider);
+      const supplement = normalizeCatalogPayload(
+        supplementPayload,
+        provider,
+        normalizeOptions,
+      );
       for (const entry of supplement.entries) {
         if (seen.has(entry.id)) continue;
         seen.add(entry.id);
@@ -307,6 +320,7 @@ async function cachedLiveCatalog(
   urls: readonly [string, ...string[]],
   options: CatalogFetchOptions,
   allowedHosts?: readonly string[],
+  normalizeOptions: NormalizeCatalogOptions = {},
 ): Promise<readonly ModelCatalogEntry[]> {
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
@@ -348,6 +362,7 @@ async function cachedLiveCatalog(
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
       options.bearerToken,
+      normalizeOptions,
     )
       .then((entries) => {
         liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
@@ -504,6 +519,12 @@ export async function getProviderCatalog(
         [modelsEndpointUrl(provider.baseUrl)],
         options,
         isPrivateIp(endpointHost) ? [endpointHost] : undefined,
+        // An OpenAI-style `/v1/models` names its models and nothing else
+        // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an entry
+        // gets the same assumed window an allowlist entry carries instead of
+        // being dropped — otherwise a custom provider's whole listing would
+        // normalize to nothing.
+        { defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW },
       );
     }
     case 'none':
