@@ -147,7 +147,11 @@ jobs:
       # TALE_BINARY is only set after the binary is built.
       - name: Run unit tests
         working-directory: tools/cli
-        run: bun test
+        # The package script carries the per-test budget: the git fixtures
+        # spawn git several times per build, and Windows runners stall on
+        # git for seconds at a time — bun test's 5 s default killed passing
+        # tests mid-commit.
+        run: bun run test
 
       - name: Run type check
         if: matrix.platform == 'linux'
@@ -207,7 +211,7 @@ jobs:
           TALE_BINARY: dist/${{ matrix.artifact }}
         # Discover the command suites together so newly added CLI commands
         # cannot be tested only from source while their compiled cases skip.
-        run: bun test tests/
+        run: bun run test tests/
 
       - name: Upload artifact
         if: github.event_name != 'pull_request'
