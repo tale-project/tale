@@ -16,45 +16,33 @@ import { SidebarNav } from './sidebar-nav';
 
 // Labels are shared between the mocked nav-items hook (read inside the hoisted
 // factory) and the assertions below, so the two can never drift apart.
-const { primaryLabels, externalLabel, mockLocation, mockReadNavTarget } =
-  vi.hoisted(() => ({
-    primaryLabels: ['Chat', 'Automations', 'Projects', 'Agents'],
-    externalLabel: 'Help center',
-    mockLocation: { pathname: '/dashboard/test-org/chat' },
-    mockReadNavTarget: vi.fn(),
-  }));
+const { primaryLabels, externalLabel, mockLocation } = vi.hoisted(() => ({
+  primaryLabels: ['Chat', 'Automations', 'Projects', 'Agents'],
+  externalLabel: 'Help center',
+  mockLocation: { pathname: '/dashboard/test-org/chat' },
+}));
 
 type MockLinkProps = React.ComponentProps<'a'> & {
   to?: string;
   params?: Record<string, string>;
   preload?: string;
   search?: Record<string, unknown>;
-  state?: Record<string, unknown>;
 };
 
 vi.mock('@tanstack/react-router', () => ({
   // Router-only props (`to`, `params`, `preload`) are stripped so that only real
   // DOM attributes — crucially `aria-label` — reach the rendered anchor.
   Link: React.forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    {
-      to,
-      params: _params,
-      preload: _preload,
-      search,
-      state,
-      children,
-      ...rest
-    },
+    { to, params: _params, preload: _preload, search, children, ...rest },
     ref,
   ) {
-    // `search` and `state` are router props, not DOM attributes — surface them
-    // as data-* so a test can assert what the rail decided to navigate with.
+    // `search` is a router prop, not a DOM attribute — surface it as a data-*
+    // so a test can assert what the rail decided to navigate with.
     return (
       <a
         ref={ref}
         href={to}
         data-search={search ? JSON.stringify(search) : undefined}
-        data-nav-state={state ? JSON.stringify(state) : undefined}
         {...rest}
       >
         {children}
@@ -78,10 +66,6 @@ vi.mock('@tale/ui/use-is-mac', () => ({
   useIsMac: () => false,
 }));
 
-vi.mock('@/app/lib/nav-memory', () => ({
-  readNavTarget: mockReadNavTarget,
-}));
-
 vi.mock('@/app/hooks/use-navigation-items', () => ({
   useNavigationItems: () => ({
     primary: [
@@ -94,7 +78,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         // A shortcut item: its accessible name must stay the plain label, with
         // the shortcut chip living only in the sighted-hover tooltip.
         shortcut: '⌥ ⌘ N',
-        section: 'chat',
         reentrySearch: { new: true },
       },
       {
@@ -103,7 +86,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         params: { id: 'test-org' },
         href: '/dashboard/test-org/automations',
         icon: LayoutGrid,
-        section: 'automations',
       },
       {
         label: primaryLabels[2],
@@ -111,7 +93,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         params: { id: 'test-org' },
         href: '/dashboard/test-org/projects',
         icon: Folder,
-        section: 'projects',
       },
       {
         label: primaryLabels[3],
@@ -136,7 +117,6 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
 
 beforeEach(() => {
   mockLocation.pathname = '/dashboard/test-org/chat';
-  mockReadNavTarget.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -164,56 +144,31 @@ describe('SidebarNav', () => {
   });
 
   // -------------------------------------------------------------------------
-  // The rail is where section memory is resolved: section roots never redirect,
-  // so a shared `/projects` link still means the projects list.
+  // A rail click is a request for the SECTION. It lands on that section's own
+  // entry point every time — the first tab of a tabbed section — so the same
+  // click never opens two different pages on two different days.
   // -------------------------------------------------------------------------
-  describe('section memory', () => {
-    it('reopens the remembered place for a section the user is not in', () => {
-      mockReadNavTarget.mockImplementation((_org: string, section: string) =>
-        section === 'projects'
-          ? { path: 'projects/p1/tasks/board', search: { task: 'AG-31' } }
-          : undefined,
-      );
+  describe('destination', () => {
+    it('opens the section entry point, not a deeper page inside it', () => {
+      mockLocation.pathname =
+        '/dashboard/test-org/automations/qa__layout-check/runs';
 
       render(<SidebarNav organizationId="test-org" />);
 
-      const link = screen.getByRole('link', { name: primaryLabels[2] });
-      expect(link).toHaveAttribute(
-        'href',
-        '/dashboard/test-org/projects/p1/tasks/board',
-      );
-      expect(link).toHaveAttribute('data-search', '{"task":"AG-31"}');
+      expect(
+        screen.getByRole('link', { name: primaryLabels[1] }),
+      ).toHaveAttribute('href', '/dashboard/$id/automations');
     });
 
-    it('marks a restored navigation so a dead target can fall back', () => {
-      mockReadNavTarget.mockImplementation((_org: string, section: string) =>
-        section === 'projects'
-          ? { path: 'projects/p1/tasks/board' }
-          : undefined,
-      );
-
+    it('opens the same entry point from a section the user is not in', () => {
       render(<SidebarNav organizationId="test-org" />);
 
       expect(
         screen.getByRole('link', { name: primaryLabels[2] }),
-      ).toHaveAttribute('data-nav-state', '{"navRestore":true}');
-    });
-
-    it('goes to the default entry for the section already open', () => {
-      // Chat is active (see mockLocation) AND has a remembered thread. The
-      // active tile is the one-click way back out, so the memory must lose.
-      mockReadNavTarget.mockReturnValue({ path: 'chat/t-remembered' });
-
-      render(<SidebarNav organizationId="test-org" />);
-
-      expect(
-        screen.getByRole('link', { name: primaryLabels[0] }),
-      ).toHaveAttribute('href', '/dashboard/$id/chat');
+      ).toHaveAttribute('href', '/dashboard/$id/projects');
     });
 
     it('opens a fresh composer when re-entering chat', () => {
-      mockReadNavTarget.mockReturnValue(undefined);
-
       render(<SidebarNav organizationId="test-org" />);
 
       expect(
@@ -222,8 +177,6 @@ describe('SidebarNav', () => {
     });
 
     it('does not apply the re-entry search to a section left alone', () => {
-      mockReadNavTarget.mockReturnValue(undefined);
-
       render(<SidebarNav organizationId="test-org" />);
 
       expect(
@@ -236,23 +189,12 @@ describe('SidebarNav', () => {
       // inactive chat tile would replace "reopen my last chat" with a blank
       // composer on every arrival from another section.
       mockLocation.pathname = '/dashboard/test-org/projects';
-      mockReadNavTarget.mockReturnValue(undefined);
 
       render(<SidebarNav organizationId="test-org" />);
 
       expect(
         screen.getByRole('link', { name: primaryLabels[0] }),
       ).not.toHaveAttribute('data-search');
-    });
-
-    it('falls back to the section default when nothing is remembered', () => {
-      mockReadNavTarget.mockReturnValue(undefined);
-
-      render(<SidebarNav organizationId="test-org" />);
-
-      expect(
-        screen.getByRole('link', { name: primaryLabels[2] }),
-      ).toHaveAttribute('href', '/dashboard/$id/projects');
     });
   });
 });

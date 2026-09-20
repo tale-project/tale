@@ -13,25 +13,16 @@ import { render, screen } from '@/tests/utils/render';
 // the org Automations page.
 // ---------------------------------------------------------------------------
 
-const {
-  mockUseAutomations,
-  mockUseProject,
-  mockLocation,
-  mockNavigate,
-  mockClearNavSection,
-} = vi.hoisted(() => ({
-  mockUseAutomations: vi.fn(),
-  mockUseProject: vi.fn(),
-  mockLocation: {
-    pathname: '/dashboard/org-1/projects/proj-1',
-    search: {} as Record<string, unknown>,
-    // The real ParsedHistoryState is always an object; the rail sets
-    // `navRestore` on it when it reopened a REMEMBERED project.
-    state: {} as Record<string, unknown>,
-  },
-  mockNavigate: vi.fn(),
-  mockClearNavSection: vi.fn(),
-}));
+const { mockUseAutomations, mockUseProject, mockLocation, mockNavigate } =
+  vi.hoisted(() => ({
+    mockUseAutomations: vi.fn(),
+    mockUseProject: vi.fn(),
+    mockLocation: {
+      pathname: '/dashboard/org-1/projects/proj-1',
+      search: {} as Record<string, unknown>,
+    },
+    mockNavigate: vi.fn(),
+  }));
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
@@ -57,10 +48,6 @@ vi.mock('@/app/features/automations/hooks/queries', () => ({
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProject: mockUseProject,
-}));
-
-vi.mock('@/app/lib/nav-memory', () => ({
-  clearNavSection: mockClearNavSection,
 }));
 
 vi.mock(
@@ -164,7 +151,6 @@ afterEach(() => {
   vi.clearAllMocks();
   mockLocation.pathname = '/dashboard/org-1/projects/proj-1';
   mockLocation.search = {};
-  mockLocation.state = {};
 });
 
 describe('project shell — Automations tab', () => {
@@ -259,37 +245,19 @@ describe('project shell — archived badge', () => {
 });
 
 // ---------------------------------------------------------------------------
-// A remembered project can be deleted between one visit and the next. The rail
-// restoring the user into it must not strand them: a stale entity id is NOT a
-// router 404 (it matches the route and surfaces as a data-layer null), so
-// nothing else in the app catches this.
+// A project id can be stale — a deleted project, a membership that ended. That
+// is NOT a router 404 (the route matches and the read surfaces as a data-layer
+// null), so nothing else in the app catches it: the shell explains it here.
 // ---------------------------------------------------------------------------
 describe('project shell — a project that is gone', () => {
-  function setupMissing(state: Record<string, unknown>) {
+  function setupMissing() {
     mockUseProject.mockReturnValue({ project: undefined, isLoading: false });
     mockUseAutomations.mockReturnValue({ data: [] });
-    mockLocation.state = state;
     return render(<ProjectDetailLayout />);
   }
 
-  it('falls back to the list when the rail restored a project that is gone', () => {
-    setupMissing({ navRestore: true });
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects',
-      params: { id: 'org-1' },
-      replace: true,
-    });
-  });
-
-  it('forgets the stale place so the next click does not repeat it', () => {
-    setupMissing({ navRestore: true });
-
-    expect(mockClearNavSection).toHaveBeenCalledWith('org-1', 'projects');
-  });
-
-  it('explains instead of redirecting when the user followed a shared link', () => {
-    setupMissing({});
+  it('explains rather than redirecting, so a shared link says what happened', () => {
+    setupMissing();
 
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(
@@ -298,7 +266,7 @@ describe('project shell — a project that is gone', () => {
   });
 
   it('offers a way back out, which the bare message never did', () => {
-    setupMissing({});
+    setupMissing();
 
     expect(
       screen.getByRole('link', { name: 'projects.title' }),

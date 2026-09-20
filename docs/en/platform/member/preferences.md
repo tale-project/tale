@@ -31,12 +31,6 @@ To narrow a list to certain work, use its **Teams** filter: **Organization-wide*
 
 Owners and Admins manage membership under [Teams](/platform/admin/teams); the section links there for them.
 
-## Understand remembered navigation {#navigation-memory}
-
-Tale remembers the last place you visited in each [main section](/platform#navigation), separately for each organization. Switching organization and returning keeps that organization’s places. Each browser tab keeps its own navigation, so you can work in two projects side by side.
-
-A new tab can pick up recent places from the same browser. That shared copy expires after eight hours without recorded navigation in the organization; a tab that already remembers a place keeps its own copy. This is browser-local state and does not sync to another device. Signing out clears remembered navigation in the current tab and the shared browser copy. If browser storage is unavailable, sections use their default entry points.
-
 ## Understand the Preferences page
 
 Open **Settings > Preferences** to view **Custom instructions** and **Memories**. The switches can follow organization defaults or store a personal choice. Saved instructions and memory lists belong to your preferences.

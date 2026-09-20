@@ -33,7 +33,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import { backendErrorCode } from '@/app/hooks/use-action-query';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
-import { clearNavMemory } from '@/app/lib/nav-memory';
 import { authClient } from '@/lib/auth-client';
 
 /** True when a query failed because its organization no longer exists. */
@@ -87,9 +86,6 @@ async function recoverFromDeadOrg(): Promise<void> {
   // Drop the client-side hint that would instantly rehydrate the dead org's
   // shell on the next dashboard load.
   clearMemberContextCache();
-  // Every remembered place in the dead org points at routes that no longer
-  // resolve.
-  clearNavMemory();
 
   // Dynamic import: this module is created BY app/router.tsx, so a static
   // import would be a cycle (same pattern as branding-provider.tsx).

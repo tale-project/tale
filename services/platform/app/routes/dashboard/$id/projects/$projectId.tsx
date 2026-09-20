@@ -38,7 +38,6 @@ import {
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
-import { clearNavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -99,23 +98,7 @@ function ProjectDetailLayout() {
   });
 
   const { project, isLoading } = useProject(asProjectId(projectId));
-
-  // A remembered project can be deleted, or left behind by a membership
-  // change, between one visit and the next. When the rail RESTORED us here,
-  // drop the stale memory and fall back to the list: the user asked for
-  // "Projects", so give them Projects rather than a dead end they never
-  // chose. A link someone shared keeps the explanatory message below.
   const isMissing = !isLoading && !project;
-  const wasRestored = location.state.navRestore === true;
-  useEffect(() => {
-    if (!isMissing || !wasRestored) return;
-    clearNavSection(organizationId, 'projects');
-    void navigate({
-      to: '/dashboard/$id/projects',
-      params: { id: organizationId },
-      replace: true,
-    });
-  }, [isMissing, wasRestored, organizationId, navigate]);
 
   // The Automations tab is conditional: a project with nothing bound gets no
   // tab rather than one that opens an empty list. `listAutomations` scoped to

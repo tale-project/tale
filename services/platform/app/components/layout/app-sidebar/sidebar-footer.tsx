@@ -32,11 +32,7 @@ export function SidebarFooter({ organizationId }: SidebarFooterProps) {
       {pinned.length > 0 && (
         <ul role="list" className="flex list-none flex-col gap-2">
           {pinned.map((item) => (
-            <SidebarNavItem
-              key={item.href}
-              item={item}
-              organizationId={organizationId}
-            />
+            <SidebarNavItem key={item.href} item={item} />
           ))}
         </ul>
       )}

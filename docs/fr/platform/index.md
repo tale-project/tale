@@ -8,16 +8,16 @@ Ces guides expliquent comment travailler dans Tale, dans le Cloud ou sur ton pro
 
 ## Passer d’une section à l’autre {#navigation}
 
-Sur ordinateur, utilise la barre latérale gauche ; sur téléphone, la navigation se trouve en bas de l’écran et **Plus** donne accès aux autres sections. Lorsque tu reviens depuis une autre section, Tale rouvre la dernière vue consultée. Par exemple, ouvre l’onglet **Agents** d’un projet, passe dans **Chat**, puis choisis **Projets** : tu retrouves le même projet et le même onglet.
+Sur ordinateur, utilise la barre latérale gauche ; sur téléphone, la navigation se trouve en bas de l’écran et **Plus** donne accès aux autres sections. Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Chat**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Seul le chat reprend où tu en étais : son point d’entrée rouvre la conversation que tu as lue en dernier.
 
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
-| Reprendre le travail dans une autre section | Choisis cette section dans la navigation principale. |
-| Revenir à la liste des projets | Choisis **Projets** alors que tu es déjà dans cette section, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
-| Revenir à la liste des documents | Choisis **Connaissances** alors que tu es déjà dans cette section. |
+| Ouvrir une autre section | Choisis cette section dans la navigation principale. |
+| Revenir à la liste des projets | Choisis **Projets**, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
+| Revenir à la liste des documents | Choisis **Connaissances**. |
 | Aborder un nouveau sujet dans le chat | Choisis **Chat** alors que tu es déjà dans Chat, ou utilise **Nouveau chat**. |
 
-Les favoris et les liens partagés vers un projet, une tâche ou un document précis ouvrent toujours cette destination. La navigation mémorisée ne modifie pas tes droits d’accès. Le [guide des préférences](/fr/platform/member/preferences#navigation-memory) explique son fonctionnement entre onglets et organisations.
+Les favoris et les liens partagés vers un projet, une tâche ou un document précis ouvrent toujours cette destination.
 
 ## Choisir une fonction
 

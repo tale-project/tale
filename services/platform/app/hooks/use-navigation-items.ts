@@ -12,7 +12,6 @@ import {
 import { useMemo } from 'react';
 
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
-import { type NavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -43,13 +42,6 @@ export interface NavItem {
    * sibling entries share a prefix and the default would over-match.
    */
   isActivePath?: (pathname: string) => boolean;
-  /**
-   * Which nav-memory section this entry owns. Present on every primary
-   * destination; absent on anything that is not a section (external links).
-   * The rail reads the remembered place for this section when the user is
-   * somewhere else, and ignores it when they are already here.
-   */
-  section?: NavSection;
   /**
    * Search to apply when the tile is clicked while ALREADY active — the
    * "take me back to this section's default" gesture. Only chat needs one:
@@ -90,11 +82,9 @@ export function useNavigationItems(businessId: string): NavigationItems {
           href: `/dashboard/${businessId}/chat`,
           icon: MessageCircle,
           shortcut: newChatShortcut,
-          section: 'chat',
           // Clicking chat while already in it starts a new one — the same
           // navigation the ⌥⌘N shortcut performs. Entering from elsewhere
-          // still resumes (the remembered thread, else the surface's own
-          // most-recently-active fallback).
+          // resumes the surface's most-recently-active thread.
           reentrySearch: { new: true },
           isActivePath: (pathname) =>
             pathname === `/dashboard/${businessId}/chat` ||
@@ -106,7 +96,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
           params: { id: businessId },
           href: `/dashboard/${businessId}/projects`,
           icon: Folder,
-          section: 'projects',
           can: ['read', 'projects'],
         },
         {
@@ -115,11 +104,9 @@ export function useNavigationItems(businessId: string): NavigationItems {
           params: { id: businessId },
           href: `/dashboard/${businessId}/documents`,
           icon: BrainIcon,
-          section: 'knowledge',
-          // Mirrors KnowledgeNavigation's tab strip exactly. The rail's active
-          // state is computed from these, and that state now decides where a
-          // click GOES (remembered place vs. section default), so a tab
-          // missing here would both fail to highlight and mis-route.
+          // Mirrors KnowledgeNavigation's tab strip exactly: the rail's
+          // active state is computed from these, so a tab missing here would
+          // fail to highlight while the user is on it.
           subItems: [
             {
               label: tKnowledge('documents'),
@@ -159,11 +146,10 @@ export function useNavigationItems(businessId: string): NavigationItems {
           params: { id: businessId },
           href: `/dashboard/${businessId}/automations`,
           icon: Workflow,
-          section: 'automations',
         },
         // Annotated: an inline conditional spread is inferred without the
-        // array's contextual type, which widens `section` to `string` and
-        // then poisons the whole literal.
+        // array's contextual type, which widens the literal's fields and then
+        // poisons the whole array.
         ...(hasInboxAutomation
           ? ([
               {
@@ -172,7 +158,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
                 params: { id: businessId },
                 href: `/dashboard/${businessId}/conversations`,
                 icon: Inbox,
-                section: 'conversations',
               },
             ] satisfies NavItem[])
           : []),
@@ -187,7 +172,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
           params: { id: businessId },
           href: `/dashboard/${businessId}/settings`,
           icon: SettingsIcon,
-          section: 'settings',
         },
       ],
       pinned: [],

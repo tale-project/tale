@@ -8,16 +8,16 @@ Use these guides to work in Tale, whether your organization uses Cloud or runs i
 
 ## Move between sections {#navigation}
 
-Use the left sidebar on a computer or the bottom navigation on a phone. On a phone, **More** opens the remaining sections. When you return from another section, Tale remembers where you were. For example, open a project’s **Agents** tab, switch to **Chat**, then choose **Projects**: the same project and tab reopen.
+Use the left sidebar on a computer or the bottom navigation on a phone. On a phone, **More** opens the remaining sections. A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time. For example, open an automation’s **Runs** tab, switch to **Chat**, then choose **Automations**: the automation list opens, not the tab you left. Chat is the one section that picks up where you were, because its own entry point reopens the chat you last read.
 
 | You want to… | Do this |
 | --- | --- |
-| Resume work in another section | Choose that section in the main navigation. |
-| Return to the project list | Choose **Projects** while already inside Projects, or use the **Projects** breadcrumb above the project. |
-| Return to the Documents list | Choose **Knowledge** while already inside Knowledge. |
+| Open another section | Choose that section in the main navigation. |
+| Return to the project list | Choose **Projects**, or use the **Projects** breadcrumb above the project. |
+| Return to the Documents list | Choose **Knowledge**. |
 | Start a new subject in chat | Choose **Chat** while already in Chat, or use **New chat**. |
 
-Bookmarks and shared links to a particular project, task, or document still open that destination. Remembered navigation does not change your access. [Account preferences](/platform/member/preferences#navigation-memory) explains how this works across tabs and organizations.
+Bookmarks and shared links to a particular project, task, or document still open that destination.
 
 ## Choose a feature
 

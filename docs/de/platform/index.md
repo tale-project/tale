@@ -8,16 +8,16 @@ Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen
 
 ## Zwischen Bereichen wechseln {#navigation}
 
-Am Computer wechselst du über die linke Seitenleiste zwischen den Bereichen, auf dem Smartphone über die Navigation am unteren Rand. **Mehr** öffnet dort die weiteren Bereiche. Kehrst du aus einem anderen Bereich zurück, öffnet Tale deine zuletzt besuchte Ansicht. Ein Beispiel: Öffne in einem Projekt **Agenten**, wechsle zu **Chat** und wähle dann **Projekte**. Du landest wieder im selben Projekt auf demselben Tab.
+Am Computer wechselst du über die linke Seitenleiste zwischen den Bereichen, auf dem Smartphone über die Navigation am unteren Rand. **Mehr** öffnet dort die weiteren Bereiche. Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Chat** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Nur der Chat macht dort weiter, wo du aufgehört hast: Sein Einstieg öffnet den Chat, den du zuletzt gelesen hast.
 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
-| In einem anderen Bereich weiterarbeiten | Wähle den Bereich in der Hauptnavigation. |
-| Zur Projektliste zurückkehren | Wähle **Projekte**, während du bereits im Bereich Projekte bist, oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
-| Zur Dokumentenliste zurückkehren | Wähle **Wissen**, während du bereits im Bereich Wissen bist. |
+| Einen anderen Bereich öffnen | Wähle den Bereich in der Hauptnavigation. |
+| Zur Projektliste zurückkehren | Wähle **Projekte** oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
+| Zur Dokumentenliste zurückkehren | Wähle **Wissen**. |
 | Ein neues Thema im Chat beginnen | Wähle **Chat**, während du bereits im Chat bist, oder nutze **Neuer Chat**. |
 
-Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder einem Dokument öffnen weiterhin dieses Ziel. Die gemerkte Navigation ändert deine Zugriffsrechte nicht. Die [Kontoeinstellungen](/de/platform/member/preferences#navigation-memory) erklären das Verhalten bei mehreren Tabs und Organisationen.
+Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder einem Dokument öffnen weiterhin dieses Ziel.
 
 ## Eine Funktion wählen
 
