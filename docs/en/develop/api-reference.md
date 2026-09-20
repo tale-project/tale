@@ -1105,11 +1105,24 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Check whether a task run started
 
-Starting requires edit access to an active project and an active task — an archived task returns **403**, `TASK_ARCHIVED` (a task is archived from the board; this endpoint has no verb for it, and the task read carries `archivedAt` while it is, so check that before starting). It wraps the task as `{task: ...}` and needs no additional developer capability; the run log attributes the start to your key. Poll `GET /api/v1/projects/{id}/runs/{runId}` with the `runId` (`executionId` carries the same value and is deprecated).
+Starting requires edit access to an active project and an active task — an archived task returns **403**, `TASK_ARCHIVED` (the task read carries `archivedAt` while it is; `PATCH …/tasks/{taskId}` with `{ "archived": false }` restores it — see below). It wraps the task as `{task: ...}` and needs no additional developer capability; the run log attributes the start to your key. Poll `GET /api/v1/projects/{id}/runs/{runId}` with the `runId` (`executionId` carries the same value and is deprecated).
 
 The answer is **200** whether or not a run started, so branch on `started`, never on the status alone: with `started: false`, `reason: "already_running"` carries the in-flight run's `runId` — a task holds at most one live run, whichever automation started it, so that run may belong to another automation (its `name` says which); poll that run. A workflow bound to other projects returns **403**, `AUTOMATION_PROJECT_FORBIDDEN`. The `workflowSlug` names the automation as `GET /api/v1/automations` lists it — the `/` form (`billing/dunning`), never the `__` spelling the URL path takes — and must name one that exists — **404**, `AUTOMATION_NOT_FOUND`, otherwise — with a deployed version: one that is saved but not deployed returns **409**, `AUTOMATION_NOT_DEPLOYED`, naming it, the same two refusals the intake gives an `automationSlug`, judged before the execute budget is charged; `reason: "not_started"` is left for the one residual case, a deployment withdrawn between that check and the start.
 
 Concurrent starts for the same task share the one in-flight run, whichever automation they name, including requests that arrive together. This is not `Idempotency-Key` support for task starts: once that run finishes, another start can create another run. Save the returned `runId` and inspect it before retrying an uncertain start.
+
+### Archive or restore a task
+
+`PATCH /api/v1/projects/{id}/tasks/{taskId}` with `{ "archived": true }` archives the task — the board's own archive: it stays readable here and refuses comments and starts with **403**, `TASK_ARCHIVED` — and `{ "archived": false }` restores it. Both are idempotent, so a mirror that supersedes a task (a re-delivery that opened a new one, a source record that was cancelled) retires the old task without reading it first. It needs write access to an **active** project (**403**, `PROJECT_ARCHIVED` or `RBAC_FORBIDDEN`); the task itself may be archived, which is what the restore is for. The body takes exactly `archived`; title, description and labels travel through the intake's repeat. The answer is the task as it now stands.
+
+```bash
+curl -sS --compressed -X PATCH "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "archived": true }'
+# → 200 { "task": { "id": "<taskId>", "status": "in_progress", "archivedAt": 1789921403000, ... } }
+```
 
 ### Comment and read task state
 

@@ -14,6 +14,13 @@ const service = vi.hoisted(() => ({
   startWorkflowForTaskInTx: vi.fn(),
   addTaskComment: vi.fn(),
   listTaskComments: vi.fn(),
+  archiveTask: vi.fn(),
+  restoreTask: vi.fn(),
+}));
+vi.mock('../domains/tasks/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/tasks/service.ts')>()),
+  archiveTask: service.archiveTask,
+  restoreTask: service.restoreTask,
 }));
 
 vi.mock('../domains/tasks/external-ref.ts', async (importOriginal) => ({
@@ -1121,9 +1128,9 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
     const { request } = mount({ taskArchived: true });
     const read = await request(item);
     expect(read.status).toBe(200);
-    // The state the two refusals name is readable here: a task is archived
-    // from the board (this door has no verb for it), so a mirror learns it
-    // from the payload rather than from the 403.
+    // The state the two refusals name is readable here: the lifecycle
+    // toggle (and the board) sets it, so a mirror learns it from the
+    // payload rather than from the 403.
     expect(await read.json()).toMatchObject({ task: { archivedAt: 1 } });
     expect((await request(`${item}/comments`)).status).toBe(200);
     const comment = await request(`${item}/comments`, 'POST', {
@@ -1150,4 +1157,79 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
     });
     expect(service.addTaskComment).not.toHaveBeenCalled();
   });
+});
+
+describe('the task lifecycle toggle', () => {
+  it('archives inside the serializable transaction and answers the task', async () => {
+    const { request, tx, begin } = mount();
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(200);
+    expect(begin).toHaveBeenCalledWith(
+      'isolation level serializable',
+      expect.any(Function),
+    );
+    expect(service.archiveTask).toHaveBeenCalledExactlyOnceWith(
+      tx,
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+      't-1',
+    );
+    expect(service.restoreTask).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({
+      task: { id: 't-1', projectId: 'p-1' },
+    });
+  });
+
+  it('restores an archived task — the one write an archived task takes', async () => {
+    const { request, tx } = mount({ taskArchived: true });
+    const res = await request(item, 'PATCH', { archived: false });
+    expect(res.status).toBe(200);
+    expect(service.restoreTask).toHaveBeenCalledExactlyOnceWith(
+      tx,
+      expect.anything(),
+      't-1',
+    );
+    expect(service.archiveTask).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent: archiving an archived task is not TASK_ARCHIVED', async () => {
+    const { request } = mount({ taskArchived: true });
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(200);
+    expect(service.archiveTask).toHaveBeenCalledOnce();
+  });
+
+  it('refuses the toggle on an archived project before touching the task', async () => {
+    const { request } = mount({ archived: true });
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'PROJECT_ARCHIVED' });
+    expect(service.archiveTask).not.toHaveBeenCalled();
+  });
+
+  it('refuses a member who cannot edit the project', async () => {
+    const { request } = mount({ role: 'member' });
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(403);
+    expect(service.archiveTask).not.toHaveBeenCalled();
+  });
+
+  it("answers the opaque 404 for another project's task", async () => {
+    const { request } = mount({ taskProjectId: 'p-2' });
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'TASK_NOT_FOUND' });
+    expect(service.archiveTask).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { archived: 'yes' }, { archived: true, title: 'x' }])(
+    'refuses %j at the door',
+    async (body) => {
+      const { request } = mount();
+      const res = await request(item, 'PATCH', body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+      expect(service.archiveTask).not.toHaveBeenCalled();
+      expect(service.restoreTask).not.toHaveBeenCalled();
+    },
+  );
 });

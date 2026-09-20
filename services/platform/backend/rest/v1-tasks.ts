@@ -37,7 +37,9 @@ import {
 } from '../domains/tasks/external-ref.ts';
 import { getPendingReviewForTask } from '../domains/tasks/reviews.ts';
 import {
+  archiveTask,
   loadTaskOrThrow,
+  restoreTask,
   TASK_DESCRIPTION_MAX,
   TaskError,
   type TaskRow,
@@ -123,6 +125,11 @@ const taskCommentBody = z
     bodyByLocale: taskCommentBodiesSchema.optional(),
   })
   .strict();
+/** The task's mutable surface through this door: the lifecycle toggle.
+ * Identity (title, description, labels) travels through the intake's
+ * repeat instead, keyed on the external reference. */
+const taskPatchBody = z.object({ archived: z.boolean() }).strict();
+
 const taskStartBody = z
   .object({ workflowSlug: z.string().min(1).max(200) })
   .strict();
@@ -238,8 +245,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       updatedAt: task.updatedAt,
       // The archived marker, present exactly when the task is archived —
       // the state the comment and start doors refuse with `TASK_ARCHIVED`.
-      // A task is archived from the board; this door has no verb for it, so
-      // a mirror reads the state here instead of learning it from a 403.
+      // The lifecycle toggle below (and the board) sets and clears it; a
+      // mirror reads the state here instead of learning it from a 403.
       archivedAt: task.archivedAt ?? undefined,
     };
   };
@@ -455,6 +462,42 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             location: `/api/v1/projects/${c.req.param('id')}/tasks/${taskId}`,
           })
         : c.json(payload, 200);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /**
+   * The task's lifecycle toggle — the one verb the board had and this door
+   * did not. `archived: true` retires the task (the app's own archive: it
+   * stays readable, refuses comments and starts with `TASK_ARCHIVED`),
+   * `false` restores it. Both idempotent: a task already in the requested
+   * state is left as it is, so a mirror can settle a superseded task
+   * without first reading it. Write access to an ACTIVE project, like
+   * every task write — the archived-task refusal itself does not apply
+   * here, or the toggle could never turn a task back.
+   */
+  app.patch('/projects/:id/tasks/:taskId', async (c) => {
+    const body = await parseBody(c, taskPatchBody);
+    if (body instanceof Response) return body;
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const projectId = c.req.param('id');
+      const taskId = c.req.param('taskId');
+      await transactSerializable(deps.sql, async (tx) => {
+        // The project's write gate (an archived project answers
+        // PROJECT_ARCHIVED), the task's own project, and only then the
+        // toggle — inside the one transaction the domain writes in.
+        await loadRestProject(tx, auth, projectId, { write: true });
+        const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+        if (task.projectId !== projectId) {
+          throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+        }
+        if (body.archived) await archiveTask(tx, auth, taskId);
+        else await restoreTask(tx, auth, taskId);
+      });
+      const task = await loadVisibleTask(deps.sql, auth, projectId, taskId);
+      return c.json({ task: await taskPayload(task) });
     } catch (error) {
       return domainErrorResponse(c, error);
     }

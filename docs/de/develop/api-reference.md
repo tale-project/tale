@@ -1164,13 +1164,26 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Prüfen, ob ein Aufgabenlauf gestartet wurde
 
-Zum Starten brauchst du Bearbeitungsrechte auf ein aktives Projekt und eine aktive Aufgabe — eine archivierte Aufgabe ergibt **403**, `TASK_ARCHIVED` (archiviert wird eine Aufgabe vom Board aus; diese Schnittstelle hat kein Verb dafür, und das Lesen der Aufgabe trägt `archivedAt`, solange sie es ist — prüf das also vor dem Start). Der Lauf erhält die Aufgabe als `{task: ...}`; eine zusätzliche Entwickler-Fähigkeit ist dafür nicht nötig. Das Laufprotokoll ordnet den Start deinem Schlüssel zu. Polle `GET /api/v1/projects/{id}/runs/{runId}` mit der `runId` (`executionId` trägt denselben Wert und ist veraltet).
+Zum Starten brauchst du Bearbeitungsrechte auf ein aktives Projekt und eine aktive Aufgabe — eine archivierte Aufgabe ergibt **403**, `TASK_ARCHIVED` (das Lesen der Aufgabe trägt `archivedAt`, solange sie es ist; `PATCH …/tasks/{taskId}` mit `{ "archived": false }` stellt sie wieder her — siehe unten). Der Lauf erhält die Aufgabe als `{task: ...}`; eine zusätzliche Entwickler-Fähigkeit ist dafür nicht nötig. Das Laufprotokoll ordnet den Start deinem Schlüssel zu. Polle `GET /api/v1/projects/{id}/runs/{runId}` mit der `runId` (`executionId` trägt denselben Wert und ist veraltet).
 
 Die Antwort ist **200**, ob ein Lauf gestartet ist oder nicht, verzweige also auf `started`, nie auf den Status allein: Bei `started: false` liefert `reason: "already_running"` die `runId` des bereits laufenden Laufs — eine Aufgabe hält höchstens einen lebenden Lauf, egal welche Automatisierung ihn gestartet hat, dieser Lauf kann also zu einer anderen Automatisierung gehören (sein `name` sagt, zu welcher); polle diesen. Ein Workflow, der an andere Projekte gebunden ist, ergibt **403**, `AUTOMATION_PROJECT_FORBIDDEN`.
 
 Der `workflowSlug` benennt die Automatisierung so, wie `GET /api/v1/automations` sie listet — in der `/`-Form (`billing/dunning`), nie in der `__`-Schreibweise des URL-Pfads —, und muss eine benennen, die es gibt — sonst **404**, `AUTOMATION_NOT_FOUND` — und die eine bereitgestellte Version hat: Eine gespeicherte, aber nicht bereitgestellte ergibt **409**, `AUTOMATION_NOT_DEPLOYED`, und nennt sie — dieselben zwei Ablehnungen, die das Anlegen einer Aufgabe einem `automationSlug` gibt, beurteilt, bevor das Execute-Budget belastet wird; `reason: "not_started"` bleibt dem einen Restfall vorbehalten, einer Bereitstellung, die zwischen dieser Prüfung und dem Start zurückgezogen wurde.
 
 Gleichzeitige Starts derselben Aufgabe verwenden denselben laufenden Durchgang, egal welche Automatisierung sie nennen. Das ist keine Unterstützung für `Idempotency-Key` bei Aufgabenstarts: Nach dessen Abschluss kann ein weiterer Start einen neuen Lauf erzeugen. Speichere die zurückgegebene `runId` und prüfe diesen Lauf, bevor du einen unklaren Start wiederholst.
+
+### Aufgabe archivieren oder wiederherstellen
+
+`PATCH /api/v1/projects/{id}/tasks/{taskId}` mit `{ "archived": true }` archiviert die Aufgabe — genau wie das Board: sie bleibt hier lesbar und verweigert Kommentare und Starts mit **403**, `TASK_ARCHIVED` — und `{ "archived": false }` stellt sie wieder her. Beides ist idempotent; ein Spiegel, der eine Aufgabe ablöst (eine erneute Lieferung, die eine neue Aufgabe eröffnet hat, ein storniertes Quellobjekt), legt die alte Aufgabe ab, ohne sie vorher zu lesen. Nötig sind Bearbeitungsrechte auf ein **aktives** Projekt (**403**, `PROJECT_ARCHIVED` oder `RBAC_FORBIDDEN`); die Aufgabe selbst darf archiviert sein — dafür ist die Wiederherstellung da. Der Body enthält genau `archived`; Titel, Beschreibung und Labels laufen über die Wiederholung der Aufnahme. Die Antwort ist die Aufgabe in ihrem neuen Zustand.
+
+```bash
+curl -sS --compressed -X PATCH "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "archived": true }'
+# → 200 { "task": { "id": "<taskId>", "status": "in_progress", "archivedAt": 1789921403000, ... } }
+```
 
 ### Kommentieren und Aufgabenstatus lesen
 

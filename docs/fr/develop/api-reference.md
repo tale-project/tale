@@ -1403,7 +1403,7 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Vérifier si une exécution de tâche a démarré
 
-Le démarrage exige l’accès en édition à un projet actif et une tâche active. Une tâche archivée provoque **403**, `TASK_ARCHIVED`. L’archivage se fait depuis le tableau ; ces routes ne proposent pas d’opération pour cela. Consulte `archivedAt` dans la tâche avant de la démarrer.
+Le démarrage exige l’accès en édition à un projet actif et une tâche active. Une tâche archivée provoque **403**, `TASK_ARCHIVED`. La lecture de la tâche porte `archivedAt` tant qu’elle l’est ; `PATCH …/tasks/{taskId}` avec `{ "archived": false }` la restaure — voir ci-dessous.
 
 L’exécution reçoit la tâche dans `{task: ...}`. Aucune capacité développeur supplémentaire n’est requise pour ce démarrage. Le journal l’attribue à la clé utilisée. Suis ensuite `GET /api/v1/projects/{id}/runs/{runId}` avec `runId` ; `executionId` est son ancien alias déprécié.
 
@@ -1414,6 +1414,19 @@ Une réponse **200** ne prouve pas qu’une nouvelle exécution a commencé. Lis
 Ces vérifications précèdent la facturation du budget de démarrage. `reason: "not_started"` couvre le cas résiduel où le déploiement disparaît entre la vérification et le démarrage.
 
 Des démarrages simultanés de la même tâche avec la même automatisation retrouvent la même exécution active. Ce mécanisme ne correspond pas à une prise en charge d’`Idempotency-Key` pour les tâches : après sa fin, un nouvel appel peut créer une autre exécution. Conserve le `runId` renvoyé et consulte-le avant de répéter un démarrage au résultat incertain.
+
+### Archiver ou restaurer une tâche
+
+`PATCH /api/v1/projects/{id}/tasks/{taskId}` avec `{ "archived": true }` archive la tâche — comme depuis le tableau : elle reste lisible ici et refuse les commentaires et les démarrages avec **403**, `TASK_ARCHIVED` — et `{ "archived": false }` la restaure. Les deux sont idempotents ; un miroir qui remplace une tâche (une nouvelle livraison qui en a ouvert une autre, un enregistrement source annulé) classe l’ancienne sans la lire d’abord. Il faut l’accès en édition à un projet **actif** (**403**, `PROJECT_ARCHIVED` ou `RBAC_FORBIDDEN`) ; la tâche elle-même peut être archivée, c’est à cela que sert la restauration. Le corps contient exactement `archived` ; le titre, la description et les libellés passent par la répétition de l’admission. La réponse est la tâche dans son nouvel état.
+
+```bash
+curl -sS --compressed -X PATCH "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "archived": true }'
+# → 200 { "task": { "id": "<taskId>", "status": "in_progress", "archivedAt": 1789921403000, ... } }
+```
 
 ### Commenter et lire l’état de la tâche
 
