@@ -6,6 +6,14 @@
 # credentials (its own hosted OAuth free tier was discontinued 2026-04-15,
 # so the CLI authenticates with a DashScope API key like every other
 # caller) — there is no separate subscription method here.
+#
+# Model Studio also serves an Anthropic-compatible Messages door for Claude
+# Code, but on a WORKSPACE-specific host
+# (`https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/apps/anthropic`,
+# https://www.alibabacloud.com/help/en/model-studio/claude-code) that a
+# shared system definition cannot name — no `harnessEndpoint` here. An
+# organization that wants it declares one on its own connector definition
+# with its workspace host.
 name: qwen
 displayName: Qwen (Alibaba)
 apiFormat: openai
