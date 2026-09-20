@@ -1,7 +1,6 @@
 import {
   providerDefinitionSchema,
   type ApiFormat,
-  type CatalogSource,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 
@@ -11,55 +10,37 @@ import { backendErrorCode } from '@/app/hooks/use-action-query';
 import { formatZodError } from '@/lib/shared/schemas/format-error';
 
 /**
- * The custom-provider dialog's form state and its two projections: a stored
- * definition INTO the fields, and the fields back OUT into the native
- * `providerDefinitionSchema` document the backend writes.
+ * The custom provider as the credential dialog authors it: the facts the
+ * reader types beside the key (wire format, base URL, how models are listed)
+ * and their projection into the native `providerDefinitionSchema` document
+ * the backend writes.
  *
- * The form covers what an organization defining its own endpoint decides —
- * wire format, base URL, how models are listed, which credential methods are
- * accepted — plus the three advanced facts a gateway operator may need. The
- * rest of the schema (an `embedding` claim, a subscription-flavoured auth
- * method bound to a harness) is a hand-authored fact with no form: a file that
- * carries one keeps it through an edit rather than losing it to the dialog.
+ * The rest of the schema (an `embedding` claim, a subscription-flavoured auth
+ * method bound to a harness, a coding-agent endpoint) is a hand-authored fact
+ * with no field: a definition that carries one keeps it through an edit
+ * rather than losing it to the dialog.
  */
 
-/** The catalog sources the dialog offers. The other two (`static`, which has
- * no organization-side models file, and `openrouter-api`) only appear when a
- * hand-written file already uses them. */
-export const OFFERED_CATALOG_SOURCES = ['models-endpoint', 'none'] as const;
+/** The picker's pinned "define your own" entry — never a real slug. */
+export const CUSTOM_VENDOR_KEY = '__custom-provider__';
 
-/** The credential methods a custom provider can accept from the form. */
-export const OFFERED_AUTH_METHODS = ['api-key', 'env'] as const;
-export type OfferedAuthMethod = (typeof OFFERED_AUTH_METHODS)[number];
-
-export interface ProviderDefinitionFormValues {
-  displayName: string;
-  /** The slug — the provider's key and its file name. */
-  name: string;
+export interface CustomProviderFacts {
+  /** The provider the facts belong to: {@link CUSTOM_VENDOR_KEY} while it
+   * is being created, its slug once it exists. */
+  providerSlug: string;
   apiFormat: ApiFormat;
   baseUrl: string;
-  catalogSource: CatalogSource['source'];
-  authMethods: string[];
-  /** `wireDialect: openai-modern` — meaningful for `apiFormat: openai` only. */
-  modernOpenAiWire: boolean;
-  /** `endpointMode: per-credential` — each credential carries its own URL. */
-  perCredentialEndpoint: boolean;
-  harnessEndpointUrl: string;
-  harnessEndpointFormat: ApiFormat;
+  /** `models-endpoint` discovers models from the endpoint's own listing;
+   * `none` means the credential's allowlist names them. */
+  catalogSource: 'models-endpoint' | 'none';
 }
 
-export function emptyProviderDefinitionForm(): ProviderDefinitionFormValues {
+export function emptyCustomProviderFacts(): CustomProviderFacts {
   return {
-    displayName: '',
-    name: '',
+    providerSlug: CUSTOM_VENDOR_KEY,
     apiFormat: 'openai',
     baseUrl: '',
     catalogSource: 'models-endpoint',
-    authMethods: [...OFFERED_AUTH_METHODS],
-    modernOpenAiWire: false,
-    perCredentialEndpoint: false,
-    harnessEndpointUrl: '',
-    harnessEndpointFormat: 'anthropic',
   };
 }
 
@@ -76,96 +57,66 @@ export function slugifyProviderName(displayName: string): string {
     .replace(/-+$/g, '');
 }
 
-/** A stored definition as the dialog's fields. */
-export function providerDefinitionToForm(
-  config: ProviderDefinition,
-): ProviderDefinitionFormValues {
-  return {
-    displayName: config.displayName,
-    name: config.name,
-    apiFormat: config.apiFormat,
-    baseUrl: config.baseUrl ?? '',
-    catalogSource: config.catalog.source,
-    authMethods: config.auth
-      .map((entry) => entry.method)
-      .filter((method): method is OfferedAuthMethod =>
-        (OFFERED_AUTH_METHODS as readonly string[]).includes(method),
-      ),
-    modernOpenAiWire: config.wireDialect === 'openai-modern',
-    perCredentialEndpoint: config.endpointMode === 'per-credential',
-    harnessEndpointUrl: config.harnessEndpoint?.baseUrl ?? '',
-    harnessEndpointFormat: config.harnessEndpoint?.apiFormat ?? 'anthropic',
-  };
+/**
+ * A slug for a new custom provider that no shipped or existing provider
+ * carries: the name's own slug, numbered past the taken ones ("qwen-cn",
+ * then "qwen-cn-2"). A name that slugs to nothing becomes `custom-provider`.
+ */
+export function uniqueProviderSlug(
+  displayName: string,
+  taken: ReadonlySet<string>,
+): string {
+  const base = slugifyProviderName(displayName) || 'custom-provider';
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 64 - suffix.length)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 /**
- * The dialog's fields as the native document. `existing` is the definition
- * being edited: the facts the form has no field for (`embedding`, subscription
- * auth methods) are carried over from it unchanged.
+ * The native document for a custom provider, or the reason the schema
+ * refuses it. `existing` is the definition being edited: everything the
+ * dialog has no field for rides along, except an `openai-modern` dialect
+ * once the wire is no longer OpenAI's (the schema refuses that pair).
  */
-export function providerDefinitionFromForm(
-  values: ProviderDefinitionFormValues,
-  existing?: ProviderDefinition,
-): ProviderDefinition {
-  const baseUrl = values.baseUrl.trim();
-  const harnessEndpointUrl = values.harnessEndpointUrl.trim();
-  const offered = new Set(values.authMethods);
-  const auth: ProviderDefinition['auth'] = [
-    ...OFFERED_AUTH_METHODS.filter((method) => offered.has(method)).map(
-      (method) => ({ method }),
-    ),
-    ...(existing?.auth.filter(
-      (entry) =>
-        !(OFFERED_AUTH_METHODS as readonly string[]).includes(entry.method),
-    ) ?? []),
-  ];
-  return {
-    name: values.name.trim(),
-    displayName: values.displayName.trim(),
-    apiFormat: values.apiFormat,
-    ...(values.apiFormat === 'openai' && values.modernOpenAiWire
-      ? { wireDialect: 'openai-modern' as const }
-      : {}),
-    ...(baseUrl.length > 0 ? { baseUrl } : {}),
-    ...(values.perCredentialEndpoint
-      ? { endpointMode: 'per-credential' as const }
-      : {}),
-    ...(harnessEndpointUrl.length > 0
-      ? {
-          harnessEndpoint: {
-            baseUrl: harnessEndpointUrl,
-            apiFormat: values.harnessEndpointFormat,
-          },
-        }
-      : {}),
-    catalog: { source: values.catalogSource },
-    ...(existing?.embedding !== undefined
-      ? { embedding: existing.embedding }
-      : {}),
-    auth,
-  };
-}
-
-/**
- * The native document for the fields, or the reason the schema refuses it.
- * The form validates each field as it is filled; this is the whole-document
- * gate the backend applies, run before the request so a refusal reads as
- * inline copy rather than a 400.
- */
-export function buildProviderDefinition(
-  values: ProviderDefinitionFormValues,
+export function buildCustomProviderDefinition(
+  input: {
+    name: string;
+    displayName: string;
+    apiFormat: ApiFormat;
+    baseUrl: string;
+    catalogSource: CustomProviderFacts['catalogSource'];
+  },
   existing?: ProviderDefinition,
 ): { ok: true; config: ProviderDefinition } | { ok: false; message: string } {
-  const outcome = providerDefinitionSchema.safeParse(
-    providerDefinitionFromForm(values, existing),
-  );
+  const carried: Partial<ProviderDefinition> =
+    existing === undefined ? {} : { ...existing };
+  delete carried.wireDialect;
+  const draft = {
+    ...carried,
+    name: input.name,
+    displayName: input.displayName.trim(),
+    apiFormat: input.apiFormat,
+    ...(input.apiFormat === 'openai' && existing?.wireDialect !== undefined
+      ? { wireDialect: existing.wireDialect }
+      : {}),
+    baseUrl: input.baseUrl.trim(),
+    catalog: { source: input.catalogSource },
+    auth: existing?.auth ?? [
+      { method: 'api-key' as const },
+      { method: 'env' as const },
+    ],
+  };
+  const outcome = providerDefinitionSchema.safeParse(draft);
   return outcome.success
     ? { ok: true, config: outcome.data }
     : { ok: false, message: formatZodError(outcome.error) };
 }
 
 /**
- * Admin-facing copy for a failed definition write or check. The backend's
+ * Admin-facing copy for a failed provider write or listing. The backend's
  * refusals are coded, and each code has a localized sentence naming the fix;
  * anything else keeps the server's own sentence via `mapCredentialError`.
  */

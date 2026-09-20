@@ -6,6 +6,7 @@ import {
   providerCredentialCreateSchema,
   providerCredentialUpdateSchema,
   type BrokerCredentialData,
+  type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 import type { Sql, TransactionSql } from 'postgres';
 import type { z } from 'zod';
@@ -707,16 +708,63 @@ export async function updateCredential(
   await hintCredential(tx, scope.organizationId, credentialId);
 }
 
+/**
+ * The bearer a live model listing is fetched with: the organization's
+ * default api-key/env credential for the provider, when the provider
+ * discovers its models from its own `/models` endpoint. Most hosted
+ * OpenAI-compatible APIs refuse an anonymous listing, and an organization's
+ * custom provider is exactly such an endpoint. `undefined` when the provider
+ * lists nothing live, or the organization holds no usable default credential
+ * for it — the listing then goes out anonymously, as it always did.
+ */
+export async function resolveCatalogBearer(
+  sql: Sql,
+  organizationId: string,
+  provider: ProviderDefinition,
+): Promise<string | undefined> {
+  if (provider.catalog.source !== 'models-endpoint') return undefined;
+  try {
+    const resolved = await resolveProviderCredential04(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver's two credential-row reads are exactly what these handlers serve
+      createCtxShim(credentialShimHandlers(sql)) as unknown as Parameters<
+        typeof resolveProviderCredential04
+      >[0],
+      { organizationId, providerSlug: provider.name },
+    );
+    return resolved.authMethod === 'api-key' || resolved.authMethod === 'env'
+      ? resolved.secret
+      : undefined;
+  } catch (error) {
+    // No default credential is the ordinary case for a provider nobody has
+    // configured yet; anything else is worth a line, never a failed listing.
+    const data: unknown = error instanceof AppError ? error.data : undefined;
+    const code =
+      data !== null &&
+      typeof data === 'object' &&
+      'code' in data &&
+      typeof data.code === 'string'
+        ? data.code
+        : undefined;
+    if (code !== 'CREDENTIAL_NOT_FOUND') {
+      console.warn(
+        `[catalog] could not resolve a listing credential for "${provider.name}"; listing anonymously:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+    return undefined;
+  }
+}
+
 export async function deleteCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   credentialId: string,
-): Promise<void> {
+): Promise<{ providerSlug: string }> {
   assertCredentialAdmin(scope);
-  const rows = await tx<{ name: string }[]>`
+  const rows = await tx<{ name: string; providerSlug: string }[]>`
     DELETE FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}
-    RETURNING name
+    RETURNING name, provider_slug AS "providerSlug"
   `;
   const row = rows[0];
   if (!row) {
@@ -739,6 +787,7 @@ export async function deleteCredential(
     status: 'success',
   });
   await hintCredential(tx, scope.organizationId, credentialId);
+  return { providerSlug: row.providerSlug };
 }
 
 /**

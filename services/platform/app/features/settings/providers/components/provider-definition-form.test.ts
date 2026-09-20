@@ -4,12 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
-  buildProviderDefinition,
-  emptyProviderDefinitionForm,
+  buildCustomProviderDefinition,
   mapProviderDefinitionError,
-  providerDefinitionFromForm,
-  providerDefinitionToForm,
   slugifyProviderName,
+  uniqueProviderSlug,
 } from './provider-definition-form';
 
 const t = (key: string, options?: Record<string, unknown>) =>
@@ -47,95 +45,100 @@ describe('slugifyProviderName', () => {
   });
 });
 
-describe('provider definition form projections', () => {
-  it('round-trips a stored definition through the fields, keeping the facts the form has no field for', () => {
-    const values = providerDefinitionToForm(stored);
-    expect(values).toEqual({
-      displayName: 'Internal gateway',
-      name: 'internal-gateway',
-      apiFormat: 'openai',
-      baseUrl: 'https://models.example.test/v1',
-      catalogSource: 'models-endpoint',
-      authMethods: ['api-key', 'env'],
-      modernOpenAiWire: true,
-      perCredentialEndpoint: false,
-      harnessEndpointUrl: 'https://models.example.test/anthropic',
-      harnessEndpointFormat: 'anthropic',
-    });
-    // The subscription entry and the embedding claim ride along unchanged.
-    expect(providerDefinitionFromForm(values, stored)).toEqual(stored);
+describe('uniqueProviderSlug', () => {
+  it('numbers a slug past the shipped and existing providers, and names a nameless one', () => {
+    const taken = new Set(['openai', 'qwen-cn', 'qwen-cn-2']);
+    expect(uniqueProviderSlug('Qwen CN', taken)).toBe('qwen-cn-3');
+    expect(uniqueProviderSlug('OpenAI', taken)).toBe('openai-2');
+    expect(uniqueProviderSlug('Local vLLM', taken)).toBe('local-vllm');
+    expect(uniqueProviderSlug('***', taken)).toBe('custom-provider');
+    // The suffix never pushes the slug past the schema's 64 characters.
+    const long = 'a'.repeat(64);
+    expect(uniqueProviderSlug(long, new Set([long]))).toBe(
+      `${'a'.repeat(62)}-2`,
+    );
   });
+});
 
-  it('emits only what the fields say for a new definition', () => {
-    const built = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: ' Local models ',
-      name: 'local-models',
-      baseUrl: ' https://models.example.test/v1 ',
-      authMethods: ['env'],
-      // Ignored for the anthropic wire: the dialect refines openai only.
-      apiFormat: 'anthropic',
-      modernOpenAiWire: true,
-    });
-    expect(built).toEqual({
+describe('buildCustomProviderDefinition', () => {
+  it('emits only what the dialog collected for a new provider', () => {
+    expect(
+      buildCustomProviderDefinition({
+        name: 'local-models',
+        displayName: ' Local models ',
+        apiFormat: 'anthropic',
+        baseUrl: ' https://models.example.test/v1 ',
+        catalogSource: 'none',
+      }),
+    ).toEqual({
       ok: true,
       config: {
         name: 'local-models',
         displayName: 'Local models',
         apiFormat: 'anthropic',
         baseUrl: 'https://models.example.test/v1',
-        catalog: { source: 'models-endpoint' },
-        auth: [{ method: 'env' }],
+        catalog: { source: 'none' },
+        auth: [{ method: 'api-key' }, { method: 'env' }],
       },
     });
   });
 
-  it('lets a per-credential provider omit the base URL, and names the schema refusal otherwise', () => {
-    const perCredential = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: 'Azure-like',
-      name: 'azure-like',
-      perCredentialEndpoint: true,
-      catalogSource: 'none',
-    });
-    expect(perCredential).toMatchObject({
+  it('keeps the facts the dialog has no field for through an edit, except a dialect the new wire refuses', () => {
+    const kept = buildCustomProviderDefinition(
+      {
+        name: stored.name,
+        displayName: 'Renamed gateway',
+        apiFormat: 'openai',
+        baseUrl: 'https://models.example.test/v2',
+        catalogSource: 'models-endpoint',
+      },
+      stored,
+    );
+    expect(kept).toEqual({
       ok: true,
-      config: { endpointMode: 'per-credential', catalog: { source: 'none' } },
+      config: {
+        ...stored,
+        displayName: 'Renamed gateway',
+        baseUrl: 'https://models.example.test/v2',
+      },
     });
-    const listingNeedsUrl = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: 'Azure-like',
-      name: 'azure-like',
-      perCredentialEndpoint: true,
-    });
-    expect(listingNeedsUrl).toMatchObject({ ok: false });
-    if (listingNeedsUrl.ok) throw new Error('unreachable');
-    expect(listingNeedsUrl.message).toMatch(/models-endpoint catalog/);
-    const noAuth = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: 'Local',
-      name: 'local',
-      baseUrl: 'https://models.example.test/v1',
-      authMethods: [],
-    });
-    expect(noAuth.ok).toBe(false);
+    const rewired = buildCustomProviderDefinition(
+      {
+        name: stored.name,
+        displayName: stored.displayName,
+        apiFormat: 'anthropic',
+        baseUrl: stored.baseUrl ?? '',
+        catalogSource: 'models-endpoint',
+      },
+      stored,
+    );
+    expect(rewired).toMatchObject({ ok: true });
+    if (!rewired.ok) throw new Error('unreachable');
+    expect(rewired.config.wireDialect).toBeUndefined();
+    expect(rewired.config.harnessEndpoint).toEqual(stored.harnessEndpoint);
+    expect(rewired.config.auth).toEqual(stored.auth);
   });
 
-  it('rejects a plain-http public endpoint but keeps a private one', () => {
-    const publicHttp = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: 'Local',
+  it('refuses a plain-http public endpoint and keeps a private one', () => {
+    const publicHttp = buildCustomProviderDefinition({
       name: 'local',
+      displayName: 'Local',
+      apiFormat: 'openai',
       baseUrl: 'http://models.example.test/v1',
+      catalogSource: 'models-endpoint',
     });
     expect(publicHttp.ok).toBe(false);
-    const privateHttp = buildProviderDefinition({
-      ...emptyProviderDefinitionForm(),
-      displayName: 'Local',
-      name: 'local',
-      baseUrl: 'http://192.168.1.20:8000/v1',
-    });
-    expect(privateHttp).toMatchObject({
+    if (publicHttp.ok) throw new Error('unreachable');
+    expect(publicHttp.message).toMatch(/https/);
+    expect(
+      buildCustomProviderDefinition({
+        name: 'local',
+        displayName: 'Local',
+        apiFormat: 'openai',
+        baseUrl: 'http://192.168.1.20:8000/v1',
+        catalogSource: 'models-endpoint',
+      }),
+    ).toMatchObject({
       ok: true,
       config: { baseUrl: 'http://192.168.1.20:8000/v1' },
     });

@@ -10,10 +10,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrgEnv } from '../../auth/org';
 import { createProviderSettingRoutes } from './routes';
 
-const { caller, catalog, transcriptionState } = vi.hoisted(() => ({
+const { caller, catalog, transcriptionState, bearer } = vi.hoisted(() => ({
   caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
   catalog: vi.fn(),
   transcriptionState: vi.fn(),
+  bearer: vi.fn(),
+}));
+vi.mock('../provider_credentials/service', async (original) => ({
+  ...(await original<typeof import('../provider_credentials/service')>()),
+  resolveCatalogBearer: bearer,
 }));
 vi.mock(
   '../../core/lib/providers/resolve_transcription_model',
@@ -90,6 +95,7 @@ beforeEach(async () => {
   Object.assign(caller, { role: 'admin', orgId: 'org-a', slug: 'north' });
   catalog.mockReset();
   transcriptionState.mockReset();
+  bearer.mockReset();
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -229,12 +235,21 @@ describe('native custom provider definition HTTP door', () => {
       },
     ];
     catalog.mockResolvedValue(models);
+    // The listing goes out with the organization's key for the provider —
+    // most hosted OpenAI-compatible endpoints refuse an anonymous /models.
+    bearer.mockResolvedValue('sk-listing');
     const good = await app().request(
       '/definitions/local-chat/catalog?orgId=org-a',
     );
     expect(await good.json()).toEqual({ models });
+    expect(bearer).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-a',
+      expect.objectContaining({ name: 'local-chat' }),
+    );
     expect(catalog).toHaveBeenCalledExactlyOnceWith(definition, {
       forceRefresh: true,
+      bearerToken: 'sk-listing',
     });
     catalog.mockRejectedValue(new Error('private upstream request data'));
     const unavailable = await app().request(

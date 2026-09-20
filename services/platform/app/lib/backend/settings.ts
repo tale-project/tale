@@ -810,15 +810,6 @@ export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         { orgId },
       ).then((body) => body.statuses);
   },
-  'lib/providers/definition_actions:getProviderDefinition': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return () =>
-      backendFetch<ProviderDefinitionSnapshotResult>(
-        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
-        { orgId },
-      );
-  },
   'lib/providers/vision_actions:getResolvedVisionModel': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -1333,7 +1324,13 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
-        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}${
+          // A custom provider goes with its last credential when the row
+          // says so; the server decides whether this one was the last.
+          args.retireUnusedCustomProvider === true
+            ? '?retireUnusedCustomProvider=1'
+            : ''
+        }`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateProviderReads,
@@ -1530,6 +1527,15 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx) },
       ).then((body) => body.models),
     invalidate: invalidateProviderReads,
+  },
+  // A read on the write lane: the edit flow fetches the definition's current
+  // hash right before saving against it, never from a cached copy.
+  'lib/providers/definition_actions:getProviderDefinition': {
+    run: (args, ctx) =>
+      backendFetch<ProviderDefinitionSnapshotResult>(
+        `/providers/definitions/${encodeURIComponent(stringArg(args, 'name'))}`,
+        { orgId: requireOrg(args, ctx) },
+      ),
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>

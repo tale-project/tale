@@ -5,7 +5,7 @@ import { Badge } from '@tale/ui/badge';
 import { Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
 import { Text } from '@tale/ui/text';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -83,10 +83,16 @@ export function VendorPickerPane<
     ];
   }, [addable, inUseKeys, query]);
 
+  // The surface's own "define your own" entry, pinned under the catalog:
+  // it is not one vendor among the shipped ones, it is the way out when
+  // none of them is the endpoint the reader runs — so it stays put whatever
+  // the search says.
+  const custom = adapter.customVendor?.make(t) ?? null;
+
   // Nothing to search through at all is a DEPLOYMENT fault (an unmounted or
   // unreadable config root), not a search that found nothing — so it says so,
   // and it says so instead of the search box rather than under it.
-  if (addable.length === 0) {
+  if (addable.length === 0 && custom === null) {
     return <Alert variant="warning" description={catalogEmpty} />;
   }
 
@@ -99,7 +105,9 @@ export function VendorPickerPane<
         className="max-w-none"
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {sorted.length === 0 ? (
+        {addable.length === 0 ? (
+          <Alert variant="warning" description={catalogEmpty} />
+        ) : sorted.length === 0 ? (
           <Text as="p" variant="muted" className="px-1 py-6 text-sm">
             {t('credentials.catalog.noMatches')}
           </Text>
@@ -151,6 +159,31 @@ export function VendorPickerPane<
           </ul>
         )}
       </div>
+      {custom !== null && (
+        <div className="border-border shrink-0 border-t pt-3">
+          <button
+            type="button"
+            onClick={() => onSelect(custom)}
+            className="border-border hover:bg-accent focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg border border-dashed px-3 py-2.5 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none"
+          >
+            <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-md">
+              <Plus aria-hidden className="size-4" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-foreground truncate text-sm font-medium">
+                {custom.displayName}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                {adapter.vendorMeta(t, custom)}
+              </span>
+            </span>
+            <ChevronRight
+              aria-hidden
+              className="text-muted-foreground size-4 shrink-0"
+            />
+          </button>
+        </div>
+      )}
     </Stack>
   );
 }

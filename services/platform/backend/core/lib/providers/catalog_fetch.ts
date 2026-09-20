@@ -89,6 +89,10 @@ const liveCatalogCache = new Map<string, CachedCatalog>();
 interface RememberedFailure {
   failedAt: number;
   error: Error;
+  /** Whether the failed attempt carried a bearer. An anonymous refusal (a
+   * 401 from an endpoint that wants a key) must not hold back the first
+   * attempt that brings one. */
+  authenticated: boolean;
 }
 
 /** The last failed fetch per cache key, honoured until the back-off lapses. */
@@ -121,6 +125,14 @@ export interface CatalogFetchOptions extends LoadSystemConfigOptions {
    * independently of chat; a cold STT failure must reach the audio resolver
    * instead of degrading to unrelated shipped chat defaults. */
   readonly requiredCapability?: 'transcription';
+  /**
+   * Sent as the listing request's bearer. Most hosted OpenAI-compatible APIs
+   * refuse an anonymous `/models` (a custom provider is exactly such an
+   * endpoint), so the callers that hold the organization's credential for
+   * the provider list with it. Never logged; never part of the cache key —
+   * a listing is the provider's catalog whoever fetched it.
+   */
+  readonly bearerToken?: string;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -137,6 +149,7 @@ async function fetchListingPayload(
   provider: string,
   maxAttempts: number,
   allowedHosts?: readonly string[],
+  bearerToken?: string,
 ): Promise<unknown> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -144,7 +157,12 @@ async function fetchListingPayload(
       const response = await safeFetch(url, {
         allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'GET',
-        headers: { accept: 'application/json' },
+        headers: {
+          accept: 'application/json',
+          ...(bearerToken !== undefined
+            ? { authorization: `Bearer ${bearerToken}` }
+            : {}),
+        },
         timeoutMs: FETCH_TIMEOUT_MS,
         maxResponseBytes: MAX_RESPONSE_BYTES,
         ...(allowedHosts !== undefined
@@ -185,6 +203,7 @@ async function fetchLiveCatalog(
   provider: string,
   maxAttempts: number,
   allowedHosts?: readonly string[],
+  bearerToken?: string,
 ): Promise<ModelCatalogEntry[]> {
   const [primaryUrl, ...supplementUrls] = urls;
   const payload = await fetchListingPayload(
@@ -192,6 +211,7 @@ async function fetchLiveCatalog(
     provider,
     maxAttempts,
     allowedHosts,
+    bearerToken,
   );
   const normalized = normalizeCatalogPayload(payload, provider);
   // A filtered response that accidentally returns the ordinary chat
@@ -222,6 +242,7 @@ async function fetchLiveCatalog(
         provider,
         maxAttempts,
         allowedHosts,
+        bearerToken,
       );
       const supplement = normalizeCatalogPayload(supplementPayload, provider);
       for (const entry of supplement.entries) {
@@ -307,9 +328,13 @@ async function cachedLiveCatalog(
   // shipped defaults, or the error — without another retry ladder, until
   // the back-off lapses. A forced refresh is the operator asking anew.
   const remembered = liveCatalogFailures.get(cacheKey);
+  const authenticated = options.bearerToken !== undefined;
   if (
     remembered !== undefined &&
     !options.forceRefresh &&
+    // A bearer-carrying attempt is a different question from the anonymous
+    // one that failed: it goes out, and its own outcome is what is remembered.
+    (remembered.authenticated || !authenticated) &&
     Date.now() - remembered.failedAt < CATALOG_FAILURE_BACKOFF_MS
   ) {
     return serveDegraded(cached, defaults, remembered.error);
@@ -322,6 +347,7 @@ async function cachedLiveCatalog(
       providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
+      options.bearerToken,
     )
       .then((entries) => {
         liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
@@ -330,7 +356,11 @@ async function cachedLiveCatalog(
       })
       .catch((err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
-        liveCatalogFailures.set(cacheKey, { failedAt: Date.now(), error });
+        liveCatalogFailures.set(cacheKey, {
+          failedAt: Date.now(),
+          error,
+          authenticated,
+        });
         warnRememberedFailure(providerName, cached, defaults, error);
         throw error;
       })

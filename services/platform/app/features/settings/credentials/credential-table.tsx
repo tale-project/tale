@@ -157,6 +157,17 @@ export function CredentialTable<
       .sort((a, b) => a.localeCompare(b));
   }, [adapter, credentials, vendorsByKey]);
 
+  // How many credentials each vendor holds — a row's delete dialog says what
+  // else goes when it is the vendor's last one.
+  const vendorCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const credential of credentials) {
+      const key = adapter.vendorKeyOf(credential);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [adapter, credentials]);
+
   // Only vendors actually represented in the table are worth offering: a facet
   // that can only ever narrow to zero rows is noise.
   const vendorFacets = useMemo(() => {
@@ -230,15 +241,28 @@ export function CredentialTable<
         header: labels.vendorColumn,
         size: 200,
         meta: { skeleton: { type: 'icon-text' } },
-        cell: ({ row }) => (
-          <HStack align="center" gap={2} className="min-w-0">
-            <VendorIcon
-              iconUrl={row.original.vendor?.iconUrl}
-              className="size-4"
-            />
-            <span className="truncate text-sm">{row.original.vendorName}</span>
-          </HStack>
-        ),
+        cell: ({ row }) => {
+          const tag =
+            row.original.vendor === null
+              ? null
+              : (adapter.vendorTag?.(t, row.original.vendor) ?? null);
+          return (
+            <HStack align="center" gap={2} className="min-w-0">
+              <VendorIcon
+                iconUrl={row.original.vendor?.iconUrl}
+                className="size-4"
+              />
+              <span className="truncate text-sm">
+                {row.original.vendorName}
+              </span>
+              {tag !== null && (
+                <Badge variant="slate" className="shrink-0">
+                  {tag}
+                </Badge>
+              )}
+            </HStack>
+          );
+        },
       },
       {
         id: 'method',
@@ -267,13 +291,14 @@ export function CredentialTable<
               organizationId={organizationId}
               credential={row.original.credential}
               vendor={row.original.vendor}
+              siblingCount={(vendorCounts.get(row.original.vendorKey) ?? 1) - 1}
               adapter={adapter}
             />
           </HStack>
         ),
       },
     ];
-  }, [adapter, labels.vendorColumn, organizationId, t]);
+  }, [adapter, labels.vendorColumn, organizationId, t, vendorCounts]);
 
   const list = useListPage<CredentialTableRow<V, Cred>>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },

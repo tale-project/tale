@@ -159,8 +159,10 @@ export interface CredentialSecretModule<Method extends string, Draft> {
  */
 export interface CredentialExtraModule<V, Cred, Extra> {
   empty: () => Extra;
-  /** Seed the edit dialog from the stored credential. */
-  fromCredential: (credential: Cred) => Extra;
+  /** Seed the edit dialog from the stored credential — and its vendor, when
+   * the caller knows it, for extras that belong to the vendor rather than
+   * the row (a custom provider's endpoint facts). */
+  fromCredential: (credential: Cred, vendor?: V) => Extra;
   isDirty: (value: Extra, baseline: Extra) => boolean;
   /** Arguments contributed when creating. */
   createArgs: (value: Extra) => Record<string, unknown>;
@@ -191,8 +193,9 @@ export interface CredentialAdapter<
 > {
   /** Prefix for `console.error` lines, so operator logs name the surface. */
   logTag: string;
-  /** Turns a Convex failure into the message the reader sees. */
-  mapError: (err: unknown) => string;
+  /** Turns a backend failure into the message the reader sees — localized
+   * where the surface knows the code, the server's own sentence otherwise. */
+  mapError: (err: unknown, t: Translator) => string;
   /** Display label for a raw auth-method string. */
   methodLabel: (t: Translator, method: string) => string;
   /**
@@ -226,6 +229,14 @@ export interface CredentialAdapter<
    */
   vendorTag?: (t: Translator, vendor: V) => string | null;
   /**
+   * A vendor the picker ALWAYS offers, pinned under the catalog and immune
+   * to the search: the surface's "define your own" entry (an AI provider
+   * the organization runs itself). Picking it opens the same setup step,
+   * whose extra fields then collect the vendor's own facts beside the
+   * secret; `key` is what the create mutation recognises it by.
+   */
+  customVendor?: { key: string; make: (t: Translator) => V };
+  /**
    * Whether this vendor can be joined by consent rather than by typing a
    * secret. Declared separately from `Consent` because the catalog has to know
    * BEFORE rendering: a vendor with neither a form nor a grant is dropped from
@@ -252,13 +263,45 @@ export interface CredentialAdapter<
    * badge on the vendor's card. `null` when the vendor left the catalog.
    */
   detailLine?: (t: Translator, credential: Cred, vendor: V | null) => ReactNode;
-  /** Surface-specific row actions, prepended to the shared ones. */
-  extraActions?: (context: {
+  /**
+   * Surface-specific row actions, prepended to the shared ones. A HOOK, called
+   * once per row render like the mutations below: an action that talks to the
+   * server (the providers' model check) needs its mutation and its toast.
+   */
+  useExtraActions: (context: {
     t: Translator;
     credential: Cred;
+    /** `null` when the vendor left the catalog. */
+    vendor: V | null;
     organizationId: string;
     busy: boolean;
   }) => EntityRowAction[];
+  /**
+   * Copy for the name field when a vendor needs its own — the custom
+   * provider's name names the provider as well as the key. Absent keeps
+   * the shared credential copy.
+   */
+  nameField?: (
+    t: Translator,
+    vendor: V,
+  ) => { label?: string; placeholder?: string; description?: string };
+  /**
+   * Arguments the delete mutation takes beside the credential id — how the
+   * providers surface tells the server to retire a custom provider with its
+   * last credential.
+   */
+  deleteArgs?: (credential: Cred, vendor: V | null) => Record<string, unknown>;
+  /**
+   * A warning for the delete dialog beyond the shared default one, or
+   * `undefined`. `siblingCount` is how many OTHER credentials the vendor
+   * still holds — what decides whether the vendor itself goes with this row.
+   */
+  deleteWarning?: (
+    t: Translator,
+    credential: Cred,
+    vendor: V | null,
+    siblingCount: number,
+  ) => string | undefined;
   /** Copy for the per-credential endpoint field. */
   endpointField: (
     t: Translator,

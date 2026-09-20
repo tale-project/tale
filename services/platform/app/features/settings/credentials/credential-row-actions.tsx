@@ -47,11 +47,14 @@ export function CredentialRowActions<
   organizationId,
   credential,
   vendor,
+  siblingCount,
   adapter,
 }: {
   organizationId: string;
   credential: Cred;
   vendor: V | null;
+  /** How many OTHER credentials the organization holds on this vendor. */
+  siblingCount: number;
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
 }) {
   const { t } = useT('settings');
@@ -63,10 +66,17 @@ export function CredentialRowActions<
 
   const disabled = credential.status === 'disabled';
   const busy = setDefault.isPending || update.isPending || remove.isPending;
+  const extraActions = adapter.useExtraActions({
+    t,
+    credential,
+    vendor,
+    organizationId,
+    busy,
+  });
 
   const failToast = (err: unknown) =>
     toast({
-      title: t('credentials.updateFailed', { error: adapter.mapError(err) }),
+      title: t('credentials.updateFailed', { error: adapter.mapError(err, t) }),
       variant: 'destructive',
     });
 
@@ -100,6 +110,7 @@ export function CredentialRowActions<
       await remove.mutateAsync({
         organizationId,
         credentialId: credential.id,
+        ...adapter.deleteArgs?.(credential, vendor),
       });
       toast({ title: t('credentials.deletedToast') });
       dialogs.setOpen.delete(false);
@@ -120,7 +131,7 @@ export function CredentialRowActions<
     adapter.secret.hasFields(method);
 
   const actions: EntityRowAction[] = [
-    ...(adapter.extraActions?.({ t, credential, organizationId, busy }) ?? []),
+    ...extraActions,
     {
       key: 'make-default',
       label: t('credentials.makeDefault'),
@@ -202,9 +213,10 @@ export function CredentialRowActions<
         title={t('credentials.deleteTitle')}
         description={t('credentials.deleteBody', { name: credential.name })}
         warning={
-          credential.isDefault
+          adapter.deleteWarning?.(t, credential, vendor, siblingCount) ??
+          (credential.isDefault
             ? t('credentials.deleteDefaultWarning')
-            : undefined
+            : undefined)
         }
         isDeleting={remove.isPending}
         onDelete={() => void handleDelete()}

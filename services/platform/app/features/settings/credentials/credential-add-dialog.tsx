@@ -122,12 +122,19 @@ export function CredentialAddDialog<
   // credential list is live, and a derived suggestion would renumber under
   // the reader whenever it moved — the credential being saved included.
   const selectVendor = (next: V) => {
-    const suggestion = uniqueCredentialName(
-      credentials
-        .filter((credential) => adapter.vendorKeyOf(credential) === next.key)
-        .map((credential) => credential.name),
-      next.displayName,
-    );
+    // The custom entry has no vendor name to suggest — its name IS what the
+    // reader is about to type.
+    const suggestion =
+      next.key === adapter.customVendor?.key
+        ? ''
+        : uniqueCredentialName(
+            credentials
+              .filter(
+                (credential) => adapter.vendorKeyOf(credential) === next.key,
+              )
+              .map((credential) => credential.name),
+            next.displayName,
+          );
     setVendor(next);
     setSuggestedName(suggestion);
     setName(suggestion);
@@ -176,7 +183,7 @@ export function CredentialAddDialog<
       onOpenChange(false);
     } catch (err) {
       console.error(`${adapter.logTag}: create credential failed`, err);
-      setError(adapter.mapError(err));
+      setError(adapter.mapError(err, t));
     }
   };
 
@@ -196,6 +203,8 @@ export function CredentialAddDialog<
   const Consent = adapter.Consent;
   const endpoint =
     vendor === null ? undefined : adapter.endpointField(t, vendor);
+  const nameField =
+    vendor === null ? undefined : adapter.nameField?.(t, vendor);
 
   // A vendor can offer BOTH a grant and a hand-entered secret (GitHub takes
   // either), so these are two independent affordances on one step, not a
@@ -301,11 +310,15 @@ export function CredentialAddDialog<
                   />
                 )}
                 <Input
-                  label={t('credentials.name')}
-                  placeholder={t('credentials.namePlaceholder')}
+                  label={nameField?.label ?? t('credentials.name')}
+                  placeholder={
+                    nameField?.placeholder ?? t('credentials.namePlaceholder')
+                  }
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  description={t('credentials.nameHelp')}
+                  description={
+                    nameField?.description ?? t('credentials.nameHelp')
+                  }
                   maxLength={100}
                   disabled={create.isPending}
                   required

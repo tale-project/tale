@@ -37,7 +37,10 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
-import { listCredentials } from '../provider_credentials/service.ts';
+import {
+  listCredentials,
+  resolveCatalogBearer,
+} from '../provider_credentials/service.ts';
 import {
   deleteProviderDefinition,
   readProviderDefinition,
@@ -176,8 +179,16 @@ export function createProviderSettingRoutes(deps: {
     );
     if (config === null) return c.json({ error: 'PROVIDER_NOT_FOUND' }, 404);
     try {
+      const bearerToken = await resolveCatalogBearer(
+        deps.sql,
+        c.get('orgId'),
+        config,
+      );
       return c.json({
-        models: await getProviderCatalog(config, { forceRefresh: true }),
+        models: await getProviderCatalog(config, {
+          forceRefresh: true,
+          ...(bearerToken !== undefined ? { bearerToken } : {}),
+        }),
       });
     } catch {
       return c.json(
@@ -211,7 +222,17 @@ export function createProviderSettingRoutes(deps: {
         let models: unknown[] = [];
         let catalogError: string | undefined;
         try {
-          models = [...(await getProviderCatalog(provider))];
+          const bearerToken = await resolveCatalogBearer(
+            deps.sql,
+            c.get('orgId'),
+            provider,
+          );
+          models = [
+            ...(await getProviderCatalog(
+              provider,
+              bearerToken !== undefined ? { bearerToken } : {},
+            )),
+          ];
         } catch (error) {
           catalogError = error instanceof Error ? error.message : String(error);
           console.warn(
@@ -255,8 +276,14 @@ export function createProviderSettingRoutes(deps: {
         continue;
       }
       try {
+        const bearerToken = await resolveCatalogBearer(
+          deps.sql,
+          c.get('orgId'),
+          provider,
+        );
         const entries = await getProviderCatalog(provider, {
           forceRefresh: true,
+          ...(bearerToken !== undefined ? { bearerToken } : {}),
         });
         results.push({ name: provider.name, modelCount: entries.length });
       } catch (error) {

@@ -45,7 +45,13 @@ export interface ProviderCredentialsContract {
   };
   'provider_credentials/mutations:deleteCredential': {
     kind: 'mutation';
-    args: { organizationId: string; credentialId: string };
+    args: {
+      organizationId: string;
+      credentialId: string;
+      /** Retire the organization-defined provider too when this was its
+       * last credential. */
+      retireUnusedCustomProvider?: boolean;
+    };
     returns: null;
   };
   'provider_credentials/mutations:setDefaultCredential': {

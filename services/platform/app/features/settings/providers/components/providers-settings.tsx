@@ -21,7 +21,6 @@ import {
 } from '../credential-adapter';
 import { useRefreshProviderCatalogs } from '../hooks/mutations';
 import { useProviderCatalogs, useProviderCredentials } from '../hooks/queries';
-import { CustomProvidersSection } from './custom-providers-section';
 import { HarnessStatusSection } from './harness-status-section';
 
 /** One line of the per-provider refresh report. */
@@ -204,15 +203,6 @@ export function ProvidersSettings({
           />
         </Stack>
       </SettingsSection>
-
-      <CustomProvidersSection
-        organizationId={organizationId}
-        catalogs={catalogsQuery.data ?? []}
-        credentials={credentialsQuery.data ?? []}
-        isLoading={abilityLoading || catalogsQuery.isPending}
-        isError={catalogsQuery.isError}
-        onRetry={() => void catalogsQuery.refetch()}
-      />
 
       <SettingsSection
         title={t('providers.harnesses.title')}

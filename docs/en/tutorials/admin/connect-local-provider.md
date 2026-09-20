@@ -10,14 +10,14 @@ A local chat provider controls where that model request goes. Embeddings, speech
 
 Ask the operator for the provider name, compatible API format, base URL, model IDs and authentication method. The address must work from the backend processes, not just from your browser. Inside a container, `localhost` names that container.
 
-For a self-hosted deployment, the operator follows [Local provider endpoints](/self-hosted/configuration/providers#local-provider-endpoints). You can also create the provider definition yourself under **Settings > AI providers**, in the **Custom providers** section ([Define a custom provider](/platform/admin/providers#define-a-custom-provider)); the operator's steps for network access and policy remain. Private hosts require an explicit deployment opt-in. Public endpoints require HTTPS; supported private addresses can use HTTP when the operator accepts that network arrangement. Adding a proxy hostname does not bypass the private-host policy.
+For a self-hosted deployment, the operator follows [Local provider endpoints](/self-hosted/configuration/providers#local-provider-endpoints). You can also create the provider yourself under **Settings > AI providers** with **Add credential** > **Custom provider** ([Define a custom provider](/platform/admin/providers#define-a-custom-provider)); the operator's steps for network access and policy remain. Private hosts require an explicit deployment opt-in. Public endpoints require HTTPS; supported private addresses can use HTTP when the operator accepts that network arrangement. Adding a proxy hostname does not bypass the private-host policy.
 
 Ollama, LM Studio and vLLM can expose compatible APIs, but compatibility depends on the enabled server features and model. Check the actual model list and a supported chat call before configuring Tale.
 
 ## Add the organization’s credential
 
 1. Open **Settings > AI providers** and select **Add credential**.
-2. Choose the provider definition the operator prepared or that you defined under **Custom providers**; it carries a **Custom** badge.
+2. Choose the provider definition the operator prepared, or pick **Custom provider** to define one yourself; a provider you defined carries a **Custom** badge.
 3. Name the credential for its purpose and choose the supported authentication method.
 4. Supply the server’s real token, or the environment-variable reference the operator provided. If the inference server ignores authentication, agree on the required placeholder with its operator; do not reuse an unrelated secret.
 5. Review **Model allowlist**, then save. Make the credential the provider default if ordinary calls should use it.

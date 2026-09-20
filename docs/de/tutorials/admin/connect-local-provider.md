@@ -10,14 +10,14 @@ Ein lokaler Chatanbieter bestimmt das Ziel dieser Modellanfrage. Embeddings, Spr
 
 Lass dir Anbietername, kompatibles API-Format, Basis-URL, Modell-IDs und Anmeldemethode geben. Die Adresse muss aus den Backend-Prozessen erreichbar sein, nicht nur aus deinem Browser. Innerhalb eines Containers bezeichnet `localhost` diesen Container.
 
-Für eine selbst gehostete Installation folgt der Betreiber [Lokale Anbieterendpunkte](/de/self-hosted/configuration/providers#lokale-anbieterendpunkte). Die Anbieterdefinition kannst du auch selbst unter **Einstellungen > KI-Anbieter** im Bereich **Eigene Anbieter** anlegen ([Einen eigenen Anbieter definieren](/de/platform/admin/providers#einen-eigenen-anbieter-definieren)); die Schritte des Betreibers für Netzwerkzugriff und Richtlinie bleiben. Private Hosts brauchen eine ausdrückliche Freigabe in der Bereitstellung. Öffentliche Endpunkte erfordern HTTPS; unterstützte private Adressen dürfen HTTP verwenden, wenn der Betreiber diese Netzwerkkonfiguration freigibt. Ein Proxyhostname umgeht die Richtlinie für private Hosts nicht.
+Für eine selbst gehostete Installation folgt der Betreiber [Lokale Anbieterendpunkte](/de/self-hosted/configuration/providers#lokale-anbieterendpunkte). Den Anbieter kannst du auch selbst unter **Einstellungen > KI-Anbieter** über **Zugangsdaten hinzufügen** > **Eigener Anbieter** anlegen ([Einen eigenen Anbieter definieren](/de/platform/admin/providers#einen-eigenen-anbieter-definieren)); die Schritte des Betreibers für Netzwerkzugriff und Richtlinie bleiben. Private Hosts brauchen eine ausdrückliche Freigabe in der Bereitstellung. Öffentliche Endpunkte erfordern HTTPS; unterstützte private Adressen dürfen HTTP verwenden, wenn der Betreiber diese Netzwerkkonfiguration freigibt. Ein Proxyhostname umgeht die Richtlinie für private Hosts nicht.
 
 Ollama, LM Studio und vLLM können kompatible APIs anbieten. Entscheidend sind aber die aktivierten Serverfunktionen und das Modell. Prüfe die tatsächliche Modellliste und eine unterstützte Chatanfrage, bevor du Tale einrichtest.
 
 ## Zugangsdaten für die Organisation hinzufügen
 
 1. Öffne **Einstellungen > KI-Anbieter** und wähle **Zugangsdaten hinzufügen**.
-2. Wähle die vom Betreiber vorbereitete Anbieterdefinition oder die, die du unter **Eigene Anbieter** angelegt hast; sie trägt die Kennzeichnung **Eigener**.
+2. Wähle die vom Betreiber vorbereitete Anbieterdefinition oder **Eigener Anbieter**, um selbst eine anzulegen; ein von dir angelegter Anbieter trägt die Kennzeichnung **Eigener**.
 3. Gib den Zugangsdaten einen passenden Namen und wähle eine unterstützte Anmeldemethode.
 4. Trage den echten Servertoken oder die vom Betreiber genannte Umgebungsvariablenreferenz ein. Ignoriert der Inferenzserver die Anmeldung, stimme den nötigen Platzhalter mit seinem Betreiber ab; verwende kein fremdes Geheimnis dafür.
 5. Prüfe die **Modell-Freigabeliste** und speichere. Lege die Zugangsdaten als Standard des Anbieters fest, wenn normale Aufrufe sie verwenden sollen.

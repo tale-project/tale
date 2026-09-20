@@ -59,32 +59,6 @@ export function providerDefinitionsQueryPrefix(organizationId: string) {
   return ['providers', 'definition', organizationId] as const;
 }
 
-/** React-query key of one custom provider definition read. */
-export function providerDefinitionQueryKey(
-  organizationId: string,
-  name: string,
-) {
-  return [...providerDefinitionsQueryPrefix(organizationId), name] as const;
-}
-
-/**
- * One custom provider definition, read fresh whenever its edit dialog opens
- * (`enabled`): the hash it returns is what the save names, so a copy kept
- * from an earlier open could only produce a version conflict.
- */
-export function useProviderDefinition(
-  organizationId: string,
-  name: string,
-  options?: { enabled?: boolean },
-) {
-  return useActionQuery(
-    providerDefinitionQueryKey(organizationId, name),
-    'lib/providers/definition_actions:getProviderDefinition',
-    { organizationId, name },
-    { staleTime: 0, ...options },
-  );
-}
-
 /** One shipped harness with its resolved status for this org. */
 export type HarnessStatus =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;

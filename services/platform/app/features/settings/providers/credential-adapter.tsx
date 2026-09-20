@@ -1,8 +1,16 @@
 'use client';
 
-import { SECRETS_ENV_PREFIX } from '@tale/shared/schemas/providers';
+import {
+  providerBaseUrlSchema,
+  SECRETS_ENV_PREFIX,
+} from '@tale/shared/schemas/providers';
 import { Input } from '@tale/ui/input';
+import { Stack } from '@tale/ui/layout';
+import { RadioGroup } from '@tale/ui/radio-group';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
+import { RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 
 import {
   looseMutation,
@@ -10,7 +18,6 @@ import {
   type CredentialExtraModule,
   type CredentialVendor,
 } from '@/app/features/settings/credentials/adapter';
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -22,10 +29,19 @@ import {
 } from './components/broker-form';
 import { ModelAllowlistField } from './components/model-allowlist-field';
 import {
-  useCreateCredential,
+  CUSTOM_VENDOR_KEY,
+  emptyCustomProviderFacts,
+  mapProviderDefinitionError,
+  type CustomProviderFacts,
+} from './components/provider-definition-form';
+import {
+  useCreateProviderCredential,
+  useUpdateProviderCredential,
+} from './hooks/custom-provider-mutations';
+import {
+  useCheckProviderDefinitionCatalog,
   useDeleteCredential,
   useSetDefaultCredential,
-  useUpdateCredential,
 } from './hooks/mutations';
 import type { MaskedCredential, ProviderCatalog } from './hooks/queries';
 import {
@@ -36,16 +52,12 @@ import {
 } from './labels';
 
 /**
- * How an AI provider's credentials plug into the shared credential UI.
- *
- * Four methods, four different shapes of material: an API key, a subscription
- * key destined for a sandboxed harness, the NAME of a deployment env var (no
- * secret reaches the database at all), or a whole broker document that is
- * validated client-side before any request goes out. That last one is why the
- * shared contract types `buildArgs` as a Result.
- *
- * The model allowlist rides along as the typed `extra` module — it is the one
- * non-secret field only this surface has.
+ * The AI-providers surface's half of the shared credential UI: the secret
+ * shapes a provider credential takes (an API key, an env-var name, a broker
+ * document), the model allowlist, and the organization's own CUSTOM
+ * providers — the picker's pinned entry whose setup step collects the
+ * provider's wire format and base URL beside the key, and whose credentials
+ * edit those facts and carry the provider away with the last of them.
  */
 
 export interface ProviderSecretDraft {
@@ -89,6 +101,29 @@ export function toProviderVendor(catalog: ProviderCatalog): ProviderVendor {
     // its own resource endpoint.
     needsEndpoint: catalog.endpointMode === 'per-credential',
     catalog,
+  };
+}
+
+/** The picker's pinned entry: not a provider yet, the way to define one. */
+const isCustomEntry = (vendor: ProviderVendor): boolean =>
+  vendor.key === CUSTOM_VENDOR_KEY;
+
+/** A provider this organization defined (from the entry above, or from its
+ * config tree) — its credentials own the provider's facts. */
+const isOrgDefined = (vendor: ProviderVendor | null | undefined): boolean =>
+  vendor !== null &&
+  vendor !== undefined &&
+  vendor.catalog.origin === 'organization';
+
+/** The facts an organization-defined provider's credential edits — read off
+ * the catalog listing, which is the definition's public shape. */
+function factsOf(vendor: ProviderVendor): CustomProviderFacts {
+  return {
+    providerSlug: vendor.key,
+    apiFormat: vendor.catalog.apiFormat,
+    baseUrl: vendor.catalog.baseUrl ?? '',
+    catalogSource:
+      vendor.catalog.catalogSource === 'none' ? 'none' : 'models-endpoint',
   };
 }
 
@@ -174,38 +209,194 @@ function SecretFields({
   );
 }
 
-/** The model allowlist: the one non-secret field only providers have. */
-const modelAllowlistExtras: CredentialExtraModule<
-  ProviderVendor,
-  MaskedCredential,
-  string[]
-> = {
-  empty: () => [],
-  fromCredential: (credential) => credential.modelAllowlist ?? [],
-  isDirty: (value, baseline) =>
-    value.length !== baseline.length ||
-    value.some((id, index) => id !== baseline[index]),
-  createArgs: (value) => (value.length > 0 ? { modelAllowlist: value } : {}),
-  // Sent even when empty, and as an explicit `null`: that is how the server is
-  // told to CLEAR the restriction rather than leave the stored list in place.
-  editArgs: (value) => ({ modelAllowlist: value.length > 0 ? value : null }),
-  Fields: function AllowlistFields({ vendor, value, onChange, disabled }) {
+/**
+ * The non-secret half of a provider credential: the model allowlist every
+ * provider has, plus — for the custom entry and for a credential of an
+ * organization-defined provider — the provider's own facts.
+ */
+export interface ProviderCredentialExtras {
+  allowlist: string[];
+  /** Present while the setup step is the custom entry, or the credential
+   * belongs to an organization-defined provider. Absent for a shipped one. */
+  custom?: CustomProviderFacts;
+}
+
+const sameList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id, index) => id === b[index]);
+
+const sameFacts = (a: CustomProviderFacts, b: CustomProviderFacts) =>
+  a.apiFormat === b.apiFormat &&
+  a.baseUrl === b.baseUrl &&
+  a.catalogSource === b.catalogSource;
+
+function ProviderExtraFields({
+  vendor,
+  value,
+  onChange,
+  disabled,
+}: {
+  vendor: ProviderVendor;
+  value: ProviderCredentialExtras;
+  onChange: (next: ProviderCredentialExtras) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useT('settings');
+  const showsFacts = isCustomEntry(vendor) || value.custom !== undefined;
+
+  // The custom entry starts from blank facts. Seeded here rather than in
+  // `empty`, so a shipped vendor's extras never carry facts it has no say in.
+  useEffect(() => {
+    if (isCustomEntry(vendor) && value.custom === undefined) {
+      onChange({ ...value, custom: emptyCustomProviderFacts() });
+    }
+  }, [onChange, value, vendor]);
+
+  const setAllowlist = (allowlist: string[]) =>
+    onChange({ ...value, allowlist });
+
+  if (!showsFacts) {
     // Without a catalog there is nothing to pick from, so the field becomes
     // free entry (on Azure the ids are the resource's deployment names).
     const freeText = vendor.catalog.catalogSource === 'none';
-    if (vendor.catalog.models.length === 0 && !freeText && value.length === 0) {
+    if (
+      vendor.catalog.models.length === 0 &&
+      !freeText &&
+      value.allowlist.length === 0
+    ) {
       return null;
     }
     return (
       <ModelAllowlistField
         models={vendor.catalog.models}
         freeText={freeText}
-        value={value}
-        onValueChange={onChange}
+        value={value.allowlist}
+        onValueChange={setAllowlist}
         disabled={disabled}
       />
     );
+  }
+
+  const facts = value.custom ?? emptyCustomProviderFacts();
+  const setFacts = (patch: Partial<CustomProviderFacts>) =>
+    onChange({ ...value, custom: { ...facts, ...patch } });
+
+  return (
+    <Stack gap={4}>
+      <RadioGroup
+        label={t('providers.custom.apiFormat')}
+        value={facts.apiFormat}
+        onValueChange={(next) =>
+          setFacts({ apiFormat: next === 'anthropic' ? 'anthropic' : 'openai' })
+        }
+        options={[
+          {
+            value: 'openai',
+            label: apiFormatLabel(t, 'openai'),
+            description: t('providers.custom.apiFormatOpenaiHelp'),
+          },
+          {
+            value: 'anthropic',
+            label: apiFormatLabel(t, 'anthropic'),
+            description: t('providers.custom.apiFormatAnthropicHelp'),
+          },
+        ]}
+        disabled={disabled}
+      />
+      <Input
+        label={t('providers.custom.baseUrl')}
+        placeholder="https://models.example.com/v1"
+        inputMode="url"
+        autoComplete="off"
+        value={facts.baseUrl}
+        onChange={(e) => setFacts({ baseUrl: e.target.value })}
+        description={t('providers.custom.baseUrlHelp')}
+        disabled={disabled}
+        required
+      />
+      <RadioGroup
+        label={t('providers.custom.models')}
+        value={facts.catalogSource}
+        onValueChange={(next) =>
+          setFacts({
+            catalogSource: next === 'none' ? 'none' : 'models-endpoint',
+          })
+        }
+        options={[
+          {
+            value: 'models-endpoint',
+            label: t('providers.custom.modelsDiscover'),
+            description: t('providers.custom.modelsDiscoverHelp'),
+          },
+          {
+            value: 'none',
+            label: t('providers.custom.modelsManual'),
+            description: t('providers.custom.modelsManualHelp'),
+          },
+        ]}
+        disabled={disabled}
+      />
+      {facts.catalogSource === 'none' ? (
+        <ModelAllowlistField
+          models={[]}
+          freeText
+          value={value.allowlist}
+          onValueChange={setAllowlist}
+          disabled={disabled}
+        />
+      ) : vendor.catalog.models.length > 0 || value.allowlist.length > 0 ? (
+        <ModelAllowlistField
+          models={vendor.catalog.models}
+          value={value.allowlist}
+          onValueChange={setAllowlist}
+          disabled={disabled}
+        />
+      ) : null}
+    </Stack>
+  );
+}
+
+const providerExtras: CredentialExtraModule<
+  ProviderVendor,
+  MaskedCredential,
+  ProviderCredentialExtras
+> = {
+  empty: () => ({ allowlist: [] }),
+  fromCredential: (credential, vendor) => ({
+    allowlist: credential.modelAllowlist ?? [],
+    ...(vendor !== undefined && isOrgDefined(vendor)
+      ? { custom: factsOf(vendor) }
+      : {}),
+  }),
+  // Blank facts count as the untouched baseline: the custom entry seeds
+  // them on open, and an unfilled form is nothing to warn about discarding.
+  isDirty: (value, baseline) =>
+    !sameList(value.allowlist, baseline.allowlist) ||
+    !sameFacts(
+      value.custom ?? emptyCustomProviderFacts(),
+      baseline.custom ?? emptyCustomProviderFacts(),
+    ),
+  createArgs: (value) => ({
+    ...(value.allowlist.length > 0 ? { modelAllowlist: value.allowlist } : {}),
+    ...(value.custom !== undefined ? { customProvider: value.custom } : {}),
+  }),
+  // The allowlist is sent even when empty, and as an explicit `null`: that is
+  // how the server is told to CLEAR the restriction rather than leave the
+  // stored list in place.
+  editArgs: (value) => ({
+    modelAllowlist: value.allowlist.length > 0 ? value.allowlist : null,
+    ...(value.custom !== undefined ? { customProvider: value.custom } : {}),
+  }),
+  isComplete: (value, vendor) => {
+    if (!isCustomEntry(vendor) && value.custom === undefined) return true;
+    const facts = value.custom;
+    if (facts === undefined) return false;
+    if (!providerBaseUrlSchema.safeParse(facts.baseUrl.trim()).success)
+      return false;
+    // Without a listing the allowlist IS the model set — an empty one would
+    // define a provider that can serve nothing.
+    return facts.catalogSource !== 'none' || value.allowlist.length > 0;
   },
+  Fields: ProviderExtraFields,
 };
 
 export const providerCredentialAdapter: CredentialAdapter<
@@ -213,10 +404,10 @@ export const providerCredentialAdapter: CredentialAdapter<
   MaskedCredential,
   KnownAuthMethod,
   ProviderSecretDraft,
-  string[]
+  ProviderCredentialExtras
 > = {
   logTag: 'providers',
-  mapError: mapCredentialError,
+  mapError: (err, t) => mapProviderDefinitionError(t, err),
   methodLabel: authMethodLabel,
 
   // A provider may declare methods this page has no form for (a vendor
@@ -232,6 +423,7 @@ export const providerCredentialAdapter: CredentialAdapter<
   // the host it goes to, and how many models are reachable through it. A
   // provider ships no description of its own, so these facts ARE its summary.
   vendorMeta: (t, vendor) => {
+    if (isCustomEntry(vendor)) return t('providers.custom.pickerDescription');
     const format = apiFormatLabel(t, vendor.catalog.apiFormat);
     const host = baseUrlHost(vendor.catalog.baseUrl);
     const facts =
@@ -248,12 +440,36 @@ export const providerCredentialAdapter: CredentialAdapter<
         })}`;
   },
 
-  // The organization's own definitions sit among the shipped vendors in the
-  // picker; the tag is what says which is which.
+  // The organization's own providers sit among the shipped vendors in the
+  // picker and the table; the tag is what says which is which.
   vendorTag: (t, vendor) =>
-    vendor.catalog.origin === 'organization'
-      ? t('providers.custom.badge')
-      : null,
+    isOrgDefined(vendor) ? t('providers.custom.badge') : null,
+
+  // The pinned entry under the catalog: an endpoint the organization runs or
+  // subscribes to that no shipped vendor is. Its setup step names the
+  // provider and collects its facts beside the key.
+  customVendor: {
+    key: CUSTOM_VENDOR_KEY,
+    make: (t) =>
+      toProviderVendor({
+        name: CUSTOM_VENDOR_KEY,
+        displayName: t('providers.custom.pickerTitle'),
+        apiFormat: 'openai',
+        catalogSource: 'models-endpoint',
+        authMethods: ['api-key', 'env'],
+        models: [],
+      }),
+  },
+
+  // The name of a custom provider's credential names the provider too.
+  nameField: (t, vendor) =>
+    isCustomEntry(vendor) || isOrgDefined(vendor)
+      ? {
+          label: t('providers.custom.nameLabel'),
+          placeholder: t('providers.custom.namePlaceholder'),
+          description: t('providers.custom.nameHelp'),
+        }
+      : {},
 
   statusLabel: (t, status) =>
     status === 'disabled' ? t('providers.credential.disabled') : null,
@@ -267,6 +483,61 @@ export const providerCredentialAdapter: CredentialAdapter<
           error: vendor.catalog.catalogError,
         })
       : undefined,
+
+  // A custom provider lives and dies with its credentials: the last one going
+  // retires the definition, and the delete dialog says so.
+  deleteArgs: (_credential, vendor) =>
+    isOrgDefined(vendor) ? { retireUnusedCustomProvider: true } : {},
+  deleteWarning: (t, _credential, vendor, siblingCount) =>
+    vendor !== null && isOrgDefined(vendor) && siblingCount === 0
+      ? t('providers.custom.deleteRetires', { provider: vendor.displayName })
+      : undefined,
+
+  // "Check models" on a custom provider's row: list its endpoint afresh, with
+  // this organization's key, and say how many models answered.
+  useExtraActions: ({ t, vendor, organizationId, busy }) => {
+    const { toast } = useToast();
+    const check = useCheckProviderDefinitionCatalog(organizationId);
+    if (
+      vendor === null ||
+      !isOrgDefined(vendor) ||
+      vendor.catalog.catalogSource === 'none'
+    ) {
+      return [];
+    }
+    const handleCheck = async () => {
+      try {
+        const models = await check.mutateAsync({
+          organizationId,
+          name: vendor.key,
+        });
+        toast({
+          title: t('providers.custom.checkOk', {
+            name: vendor.displayName,
+            count: models.length,
+          }),
+        });
+      } catch (err) {
+        console.error('providers: custom provider catalog check failed', err);
+        toast({
+          title: t('providers.custom.checkFailed', {
+            name: vendor.displayName,
+            error: mapProviderDefinitionError(t, err),
+          }),
+          variant: 'destructive',
+        });
+      }
+    };
+    return [
+      {
+        key: 'check-models',
+        label: t('providers.custom.check'),
+        icon: RefreshCw,
+        onClick: () => void handleCheck(),
+        disabled: busy || check.isPending,
+      },
+    ];
+  },
 
   endpointField: (t) => ({
     label: t('providers.dialog.endpointUrl'),
@@ -328,13 +599,13 @@ export const providerCredentialAdapter: CredentialAdapter<
     Fields: SecretFields,
   },
 
-  extra: modelAllowlistExtras,
+  extra: providerExtras,
 
   vendorArg: (vendor) => ({ providerSlug: vendor.key }),
 
   mutations: {
-    useCreate: () => looseMutation(useCreateCredential()),
-    useUpdate: () => looseMutation(useUpdateCredential()),
+    useCreate: () => looseMutation(useCreateProviderCredential()),
+    useUpdate: () => looseMutation(useUpdateProviderCredential()),
     useDelete: () => looseMutation(useDeleteCredential()),
     useSetDefault: () => looseMutation(useSetDefaultCredential()),
   },

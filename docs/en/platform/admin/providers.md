@@ -42,16 +42,16 @@ Use the provider's documented endpoint and model identifiers. A display name fro
 
 ## Define a custom provider
 
-An organization can connect an endpoint the shipped catalog does not list: a self-hosted model server such as vLLM or Ollama, or an internal gateway that speaks the OpenAI or Anthropic API. Under **Custom providers**, select **Add provider** and describe the connection:
+An organization can connect an endpoint the shipped catalog does not list: a self-hosted model server such as vLLM or Ollama, or an internal gateway that speaks the OpenAI or Anthropic API. Select **Add credential** and choose **Custom provider**, the entry pinned under the catalog:
 
-1. Enter a **Display name**. The **Identifier** is suggested from it and becomes the provider's key; it cannot change after creation.
+1. Enter a **Provider name**. It names the provider and this credential, and the provider's identifier is derived from it.
 2. Choose the **API format** the endpoint speaks and enter its **Base URL**, the API root the platform appends its paths to. A public host needs `https`.
-3. Choose the **Model catalog**. **Discover models from the endpoint's /models listing** reads the server's own model list; with **No catalog — model ids are entered on each credential**, each credential names its exact model IDs in its **Model allowlist**.
-4. Choose the **Authentication methods** a credential for this provider may use, then select **Add provider**.
+3. Under **Models**, keep **Discover from the endpoint** to read the server's `/models` listing with this key, or choose **Enter model IDs** and list the exact IDs in the **Model allowlist** for an endpoint that cannot list them.
+4. Fill in the **API key** (or the environment variable) and select **Add credential**.
 
-The provider now appears in the **Add credential** catalog with a **Custom** badge. Add a credential for it and test the exact model in a chat. A private or loopback address also needs the deployment's private-host opt-in, which an operator sets; saving the definition does not grant it. Ask your operator to prepare endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). If coding agents will use the provider, test an agent session too: their model traffic passes through a separate gateway, which also needs network access and certificate trust.
+The credential row now shows the provider with a **Custom** badge, and the provider appears in the **Add credential** catalog with the same badge; choosing it there adds another credential for it. A private or loopback address also needs the deployment's private-host opt-in, which an operator sets; saving the credential does not grant it. Ask your operator to prepare endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). If coding agents will use the provider, test an agent session too: their model traffic passes through a separate gateway, which also needs network access and certificate trust.
 
-From the row's menu, **Check models** fetches the endpoint's model list again, **Edit provider** changes the definition, and **Delete provider** removes it once no credential uses it. Every saved version stays in the organization's configuration history. **Advanced** covers Azure-style per-credential endpoints, the current OpenAI wire dialect, and a separate coding-agent endpoint; the [provider configuration guide](/self-hosted/configuration/providers) describes each field.
+From the row's menu, **Check models** reads the endpoint's model list again with this key, **Edit credential** changes the base URL, API format and model source beside the credential's name, and **Delete** removes the credential. Deleting a provider's last credential removes the provider itself, and the dialog says so beforehand. Every saved version of the definition stays in the organization's configuration history. Facts the form does not cover, such as a coding-agent endpoint, are set in the definition file the [provider configuration guide](/self-hosted/configuration/providers) describes.
 
 ## Select a default and restrict model access
 

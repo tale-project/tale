@@ -10,14 +10,14 @@ Un fournisseur de chat local détermine la destination de cette requête de mod�
 
 Demande le nom du fournisseur, le format d’API compatible, l’URL de base, les identifiants des modèles et la méthode d’authentification. L’adresse doit être joignable depuis les processus backend, pas seulement depuis ton navigateur. Dans un conteneur, `localhost` désigne ce conteneur.
 
-Pour un déploiement auto-hébergé, l’opérateur suit [Endpoints de fournisseurs locaux](/fr/self-hosted/configuration/providers#endpoints-de-fournisseurs-locaux). Tu peux aussi créer la définition du fournisseur toi-même dans **Paramètres > Fournisseurs IA**, section **Fournisseurs personnalisés** ([Définir un fournisseur personnalisé](/fr/platform/admin/providers#definir-un-fournisseur-personnalise)) ; les étapes de l’opérateur pour l’accès réseau et la politique restent nécessaires. Les hôtes privés exigent une activation explicite dans le déploiement. Les endpoints publics nécessitent HTTPS ; les adresses privées prises en charge peuvent utiliser HTTP si l’opérateur accepte cette configuration réseau. Un nom de proxy ne contourne pas la politique des hôtes privés.
+Pour un déploiement auto-hébergé, l’opérateur suit [Endpoints de fournisseurs locaux](/fr/self-hosted/configuration/providers#endpoints-de-fournisseurs-locaux). Tu peux aussi créer le fournisseur toi-même dans **Paramètres > Fournisseurs IA** avec **Ajouter des identifiants** > **Fournisseur personnalisé** ([Définir un fournisseur personnalisé](/fr/platform/admin/providers#definir-un-fournisseur-personnalise)) ; les étapes de l’opérateur pour l’accès réseau et la politique restent nécessaires. Les hôtes privés exigent une activation explicite dans le déploiement. Les endpoints publics nécessitent HTTPS ; les adresses privées prises en charge peuvent utiliser HTTP si l’opérateur accepte cette configuration réseau. Un nom de proxy ne contourne pas la politique des hôtes privés.
 
 Ollama, LM Studio et vLLM peuvent exposer des API compatibles, mais cela dépend des fonctions activées et du modèle. Vérifie la liste réelle des modèles et un appel de chat pris en charge avant de configurer Tale.
 
 ## Ajouter l’accès de l’organisation
 
 1. Ouvre **Paramètres > Fournisseurs IA** et choisis **Ajouter des identifiants**.
-2. Sélectionne la définition de fournisseur préparée par l’opérateur ou celle que tu as définie dans **Fournisseurs personnalisés** ; elle porte le badge **Personnalisé**.
+2. Sélectionne la définition de fournisseur préparée par l’opérateur, ou choisis **Fournisseur personnalisé** pour en définir un toi-même ; un fournisseur que tu as défini porte le badge **Personnalisé**.
 3. Donne un nom utile à cet accès et choisis une méthode d’authentification proposée.
 4. Saisis le vrai jeton du serveur ou la référence de variable d’environnement fournie. Si le serveur ignore l’authentification, conviens de la valeur de remplacement avec son opérateur ; ne réutilise pas un autre secret.
 5. Vérifie la **Liste de modèles autorisés**, puis enregistre. Définis cet accès par défaut pour le fournisseur si les appels ordinaires doivent l’utiliser.

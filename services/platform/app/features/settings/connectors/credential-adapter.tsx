@@ -304,7 +304,7 @@ export const connectorCredentialAdapter: CredentialAdapter<
         : t('connectors.credential.needsReauthHint')
       : undefined,
 
-  extraActions: ({ t, credential, organizationId, busy }) => [
+  useExtraActions: ({ t, credential, organizationId, busy }) => [
     {
       key: 'reconnect',
       label: t('connectors.credential.reconnect'),
