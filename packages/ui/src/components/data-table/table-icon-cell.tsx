@@ -9,16 +9,30 @@ import type { DataTableSkeleton } from './data-table-skeleton-cell';
 
 interface TableIconCellProps {
   /**
-   * The row's glyph. Any element that renders an `<svg>` — a Lucide icon, an
-   * Iconify `<Icon>`, a `ConfigIcon` — passed bare: the tile owns its size and
-   * colour so no two tables can drift apart on either.
+   * The row's mark, passed bare — the 20px slot around it is what keeps every
+   * table's label at the same offset.
+   *
+   * Under the default `tile` variant this is a monochrome glyph (a Lucide
+   * icon, an Iconify `<Icon>`, a `ConfigIcon`) that the tile sizes and colours
+   * itself. Under `plain` it draws itself; size it to the slot.
    */
   icon: ReactNode;
-  /** The row's primary label. Truncates at the cell edge. */
+  /**
+   * How the mark is framed. `tile` (default) gives a monochrome glyph a muted
+   * square to sit in; `plain` leaves the slot empty for a mark that carries
+   * its own shape and colour — a file-type icon, a vendor logo, an avatar.
+   */
+  variant?: 'tile' | 'plain';
+  /**
+   * The row's name. A string gets the shared label style and truncation; a
+   * node is rendered untouched, for a label that has to be a link or a button
+   * (and then owns its own truncation and `title`).
+   */
   label: ReactNode;
   /**
-   * Chips riding beside the label — a kind, a catalog tag. They keep their own
-   * width; the label is what gives way when the column narrows.
+   * Chips riding beside the label — a kind, a catalog tag, a record state.
+   * They keep their own width; the label is what gives way when the column
+   * narrows.
    */
   badges?: ReactNode;
   /**
@@ -27,19 +41,21 @@ interface TableIconCellProps {
    * so the loading mask is the same height as the loaded row.
    */
   caption?: ReactNode;
-  /** Native `title` on the label, so a truncated value is readable on hover. */
+  /** Native `title` on a string label, so a truncated value reads on hover. */
   title?: string;
   className?: string;
 }
 
 /**
- * The first column of an entity list: a glyph in a muted tile, then the name.
+ * A list's icon-and-name cell: a 20px mark, 8px, then the name.
  *
- * One composition for every collection screen — Knowledge entries, Websites,
- * Automations — so a reader's eye lands in the same place on each, and a row
- * keeps its height whichever glyph it carries. The tile is decorative; the
- * label carries the meaning, so nothing here needs an accessible name of its
- * own.
+ * One composition for every collection screen, so a reader's eye lands in the
+ * same place on each and a row keeps its height whichever mark it carries.
+ * The gap and the slot are the contract — a list that sets its own leaves its
+ * labels a few pixels off every other list's.
+ *
+ * The mark is decorative; the label carries the meaning, so nothing here needs
+ * an accessible name of its own.
  *
  * @example
  * ```tsx
@@ -56,6 +72,7 @@ interface TableIconCellProps {
  */
 export function TableIconCell({
   icon,
+  variant = 'tile',
   label,
   badges,
   caption,
@@ -68,7 +85,11 @@ export function TableIconCell({
         gap={0}
         justify="center"
         aria-hidden
-        className="bg-muted text-muted-foreground size-5 shrink-0 rounded [&_svg]:size-3"
+        className={cn(
+          'size-5 shrink-0',
+          variant === 'tile' &&
+            'bg-muted text-muted-foreground rounded [&_svg]:size-3',
+        )}
       >
         {icon}
       </Row>
@@ -76,9 +97,13 @@ export function TableIconCell({
           label's `truncate` engages instead of pushing into the next cell. */}
       <Stack gap={0} className="min-w-0">
         <Row gap={2} className="min-w-0">
-          <Text as="span" variant="label" truncate title={title}>
-            {label}
-          </Text>
+          {typeof label === 'string' || typeof label === 'number' ? (
+            <Text as="span" variant="label" truncate title={title}>
+              {label}
+            </Text>
+          ) : (
+            label
+          )}
           {badges}
         </Row>
         {caption === undefined ? null : (
@@ -92,9 +117,9 @@ export function TableIconCell({
 }
 
 /**
- * The loading mask a `TableIconCell` column pairs with: the tile's own 20px
- * footprint rather than the skeleton's bare-icon default, so the placeholder
- * row and the loaded row are the same height and nothing jumps on arrival.
+ * The loading mask a `TableIconCell` column pairs with: the cell's own 20px
+ * slot rather than the skeleton's bare-icon default, so the placeholder row
+ * and the loaded row are the same height and nothing jumps on arrival.
  *
  * Pass `{ lines: 2 }` when the cell renders a `caption`.
  */

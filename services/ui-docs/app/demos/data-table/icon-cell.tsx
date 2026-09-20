@@ -5,14 +5,14 @@ import {
   tableIconCellSkeleton,
 } from '@tale/ui/data-table/table-icon-cell';
 import type { ColumnDef } from '@tanstack/react-table';
-import { BookOpen, Globe, Workflow } from 'lucide-react';
+import { BookOpen, FileSpreadsheet, Globe, Workflow } from 'lucide-react';
 
 interface Entry {
   id: string;
   name: string;
   slug?: string;
   kind?: string;
-  icon: 'entry' | 'website' | 'automation';
+  icon: 'entry' | 'website' | 'automation' | 'file';
   updated: string;
 }
 
@@ -20,6 +20,8 @@ const GLYPHS = {
   entry: <BookOpen />,
   website: <Globe />,
   automation: <Workflow />,
+  // A mark that carries its own colour takes the slot plain.
+  file: <FileSpreadsheet className="size-5 text-emerald-600" />,
 } as const;
 
 const ENTRIES: Entry[] = [
@@ -43,6 +45,12 @@ const ENTRIES: Entry[] = [
     icon: 'automation',
     updated: 'Feb 27, 2025',
   },
+  {
+    id: '4',
+    name: 'q3-forecast.xlsx',
+    icon: 'file',
+    updated: 'Feb 24, 2025',
+  },
 ];
 
 const columns: ColumnDef<Entry>[] = [
@@ -53,6 +61,7 @@ const columns: ColumnDef<Entry>[] = [
     meta: { flex: true, skeleton: tableIconCellSkeleton({ lines: 2 }) },
     cell: ({ row }) => (
       <TableIconCell
+        variant={row.original.icon === 'file' ? 'plain' : 'tile'}
         icon={GLYPHS[row.original.icon]}
         label={row.original.name}
         badges={

@@ -29,6 +29,40 @@ describe('TableIconCell', () => {
     expect(tile).toHaveAttribute('aria-hidden');
   });
 
+  it('keeps the 20px slot in both variants so labels line up across lists', () => {
+    // The drift this locks: the slot and the gap are the whole contract. A
+    // list that frames its mark differently must still hand the label the
+    // same offset, or its names sit a few pixels off every other list's.
+    const tile = render(<TableIconCell icon={<Globe />} label="tale.dev" />);
+    const plain = render(
+      <TableIconCell variant="plain" icon={<Globe />} label="tale.dev" />,
+    );
+
+    for (const { container } of [tile, plain]) {
+      const slot = container.querySelector('svg')?.parentElement;
+      expect(slot?.className).toContain('size-5');
+      expect(slot?.className).toContain('shrink-0');
+      expect(slot?.parentElement?.className).toContain('gap-2');
+    }
+    // Only the framing differs.
+    expect(
+      plain.container.querySelector('svg')?.parentElement?.className,
+    ).not.toContain('bg-muted');
+  });
+
+  it('renders a node label untouched so it can be a link or a button', () => {
+    render(
+      <TableIconCell
+        icon={<Globe />}
+        label={<button type="button">tale.dev</button>}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'tale.dev' }),
+    ).toBeInTheDocument();
+  });
+
   it('renders badges beside the label and a caption under it', () => {
     render(
       <TableIconCell
