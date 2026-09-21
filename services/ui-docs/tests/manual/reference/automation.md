@@ -30,6 +30,7 @@ a spec failure and belongs in the gate, not in a round.
 | Frontmatter present, single `h1`, manifest in sync with disk | `tests/content.test.ts` | — |
 | Content loader contract | `tests/loader.test.ts` | — |
 | Chrome a11y (axe): the docs frame (layout, nav tree, header strip, article, outline, neighbours, footer, page actions, 404) and the demo tag | `packages/ui/src/components/docs/*.test.tsx` + `app/**/*.test.tsx` | focus order and visible focus rings by hand, colour contrast (axe's contrast rule is off in jsdom) |
+| Locale routing: a German/French reader is not redirected off this single English tree, no `tale_locale` cookie is written, and a stale `/de…` / `/fr…` 301s onto the tree | `packages/ui/src/server/locale-routing.integration.test.ts` | the same two probes against the **deployed** site ([seo.md](../suites/seo.md) `SEO-10`, `SEO-11`) |
 | Image builds, health, headers, artifacts, 404 status | `services/platform/tests/integration/container-ui-docs-test.ts` (`bun run docker:test:ui-docs`) | prerendered content without JavaScript (`SEO-2`) |
 | Phone drawer: open, choose a row, Escape, focus return, viewport release | — | **manual-only** — a focus-trap release timed to an exit animation is what jsdom cannot judge (`DOCS-12`, `DOCS-13`) |
 | Header strip and rail logo row end on one line, with the page actions in the strip | `tests/e2e/specs/smoke.spec.ts` › documentation page + `packages/ui/src/components/docs/docs-layout.browser.test.tsx` | the look of the line in both themes (`DOCS-2`) |
