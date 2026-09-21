@@ -68,8 +68,18 @@ const activationSchema = z
 // This fixed reader follows the spawner's boot lookup order. It exposes only
 // the non-secret deployment resource, through its already-proved read-only
 // config mount. No arbitrary path, credential or application writer is used.
+//
+// Every refusal is reported by writing the reason to stderr and setting a
+// non-zero exit code EXPLICITLY, never by letting the throw reach the top
+// level. The runtime evaluates this with `-e`, and a script that calls
+// `require` is evaluated as CommonJS, where Bun 1.3 swallows an uncaught
+// exception: no stderr, and exit code 0. A refusal that exits 0 with an empty
+// answer reaches the caller as "invalid JSON" instead of the reason it
+// refused, and any future line that printed before throwing would hand back a
+// partial answer under a success code.
 const READ_CONFIGURATION = String.raw`
 const fs = require('node:fs');
+try {
 const root = '/app/platform-config';
 if ((process.env.TALE_PLATFORM_SHARED_CONFIG_DIR ?? root) !== root) throw Error('config mount differs');
 const directory = fs.lstatSync(root);
@@ -98,6 +108,10 @@ for (const file of ['deployment.yml','deployment.json']) {
   break;
 }
 process.stdout.write(JSON.stringify(result));
+} catch (error) {
+  process.stderr.write(String((error && error.message) || error));
+  process.exitCode = 1;
+}
 `;
 
 function json(text: string): unknown {

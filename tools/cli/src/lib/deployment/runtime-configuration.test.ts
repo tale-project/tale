@@ -314,9 +314,16 @@ describe.skipIf(process.platform === 'win32')(
       });
       writeFileSync(yaml, 'version: 1\n');
       expect(JSON.parse((await read()).stdout).file).toBe('deployment.yml');
-      expect(
-        (await read({ TALE_PLATFORM_SHARED_CONFIG_DIR: '/foreign' })).code,
-      ).not.toBe(0);
+      // A refusal has to SAY so: the reader reports every guard by writing
+      // the reason and setting the exit code itself. Letting the throw reach
+      // the top level is not equivalent — the runtime evaluates this script
+      // as CommonJS, where an uncaught exception exits 0 with no stderr, and
+      // the refusal reaches the caller as "invalid JSON" instead.
+      const foreignMount = await read({
+        TALE_PLATFORM_SHARED_CONFIG_DIR: '/foreign',
+      });
+      expect(foreignMount.code).not.toBe(0);
+      expect(foreignMount.stderr).toContain('config mount differs');
       const original = readFileSync(yaml);
       rmSync(yaml);
       symlinkSync(legacy, yaml);
