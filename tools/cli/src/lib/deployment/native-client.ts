@@ -108,7 +108,7 @@ const createBodySchema = z.strictObject({
   grant_types: z.tuple([z.literal('authorization_code')]),
   response_types: z.tuple([z.literal('code')]),
   token_endpoint_auth_method: z.literal('client_secret_post'),
-  type: z.literal('web'),
+  application_type: z.literal('web'),
   require_pkce: z.literal(true),
   skip_consent: z.literal(false),
   metadata: z.strictObject({ taleOrganizationId: identifier }),
@@ -129,13 +129,37 @@ export interface ManagedClientOptions {
   create?: NativeClientCreate;
   verify?: NativeClientVerify;
 }
+/**
+ * A retained intent this CLI wrote before Better Auth 1.7 carries the client's
+ * application type under the provider's old key, `type`. The upgrade renamed it
+ * to `application_type`, and the intent is durable operator state on disk — so
+ * a half-provisioned deployment would otherwise hard-refuse with "does not
+ * match its contract" the first time an upgraded CLI resumed it. The value is
+ * never re-sent (the create already happened; resume only re-reads the intent
+ * for its identity checks), so accepting the legacy spelling and normalizing it
+ * costs nothing and keeps the resume path working across the upgrade. Every
+ * WRITE uses the new key, so a rewritten intent carries only that.
+ */
+const retainedBodySchema = z.preprocess((value) => {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    !('type' in value) ||
+    'application_type' in value
+  )
+    return value;
+  const { type, ...rest } = value as Record<string, unknown>;
+  return { ...rest, application_type: type };
+}, createBodySchema);
+
 export const intentSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.enum(['pending', 'ready']),
   origin: nativeOriginSchema,
   organizationId: identifier,
   operatorUserId: identifier,
-  body: createBodySchema,
+  body: retainedBodySchema,
   credentials: credentialSchema,
 });
 export type ClientIntent = z.infer<typeof intentSchema>;
@@ -152,7 +176,7 @@ export const existingSchema = z.object({
   grant_types: z.array(z.string()),
   response_types: z.array(z.string()),
   scope: z.string(),
-  type: z.string(),
+  application_type: z.string(),
   taleOrganizationId: z.string(),
 });
 type ExistingClient = z.infer<typeof existingSchema>;
@@ -170,7 +194,7 @@ export function assertNativeClientPolicy(
     client.token_endpoint_auth_method !== 'client_secret_post' ||
     client.grant_types.join(' ') !== 'authorization_code' ||
     client.response_types.join(' ') !== 'code' ||
-    client.type !== 'web' ||
+    client.application_type !== 'web' ||
     JSON.stringify(client.scope.split(' ').sort()) !== JSON.stringify(scopes) ||
     client.taleOrganizationId !== organizationId
   )
@@ -336,7 +360,7 @@ export async function reconcileNativeClients(
         grant_types: ['authorization_code'],
         response_types: ['code'],
         token_endpoint_auth_method: 'client_secret_post',
-        type: 'web',
+        application_type: 'web',
         require_pkce: true,
         skip_consent: false,
         metadata: { taleOrganizationId: context.organization.id },

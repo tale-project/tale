@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { getString } from '../../lib/utils/type-utils.ts';
+import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import type { Auth } from './auth.ts';
 import { isAdminRole } from './membership.ts';
 import { OIDC_SCOPES } from './oidc.ts';
@@ -104,6 +104,13 @@ export function createIdentityRoutes(deps: { sql: Sql; auth: Auth }) {
             .sort((a, b) => a.localeCompare(b))
             .join(' ') !==
             [...OIDC_SCOPES].sort((a, b) => a.localeCompare(b)).join(' ') ||
+          // The provider spreads a client's custom `metadata` onto the top
+          // level of the response (`schemaToOAuth`), so the stamp reads off
+          // `found` itself. Better Auth 1.7 types that response as
+          // `OAuthClient` — the RFC 7591 fields only, no index signature — so
+          // the extension field needs the record guard. A non-object reads as
+          // a conflict rather than skipping the check.
+          !isRecord(found) ||
           getString(found, 'taleOrganizationId') !== organizationId
         ) {
           return c.json({ error: 'CLIENT_CONFIGURATION_CONFLICT' }, 409);
@@ -122,7 +129,7 @@ export function createIdentityRoutes(deps: { sql: Sql; auth: Auth }) {
           grant_types: ['authorization_code'],
           response_types: ['code'],
           token_endpoint_auth_method: 'client_secret_post',
-          type: 'web',
+          application_type: 'web',
           require_pkce: true,
           skip_consent: false,
           metadata: { taleOrganizationId: organizationId },

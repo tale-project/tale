@@ -50,12 +50,15 @@ const nativeClientSchema = z.object({
   disabled: z.boolean(),
   requirePKCE: z.boolean(),
   skipConsent: z.boolean(),
-  public: z.literal(false),
+  // Better Auth 1.7 dropped the `public` column: a public client is now one
+  // whose token endpoint auth method is `none`. Nothing is lost by not
+  // restating it here — `assertNativeClientPolicy` requires
+  // `client_secret_post`, so a public client is refused either way.
   tokenEndpointAuthMethod: z.string(),
   grantTypes: z.array(z.string()),
   responseTypes: z.array(z.string()),
   scopes: z.array(z.string()),
-  type: z.string(),
+  applicationType: z.string(),
   metadata: z.unknown(),
   expiresAt: z.null().optional(),
 });
@@ -161,7 +164,7 @@ export function createBackendClientExportVerifier(
           grant_types: client.grantTypes,
           response_types: client.responseTypes,
           scope: client.scopes.join(' '),
-          type: client.type,
+          application_type: client.applicationType,
           taleOrganizationId: metadata.taleOrganizationId,
         });
         assertNativeClientPolicy(projected, target.organization.id);

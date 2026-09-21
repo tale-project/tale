@@ -138,6 +138,9 @@ describe('TwoFactorEnrollPage – enrollment-wall guard (#2085[04])', () => {
     mockStatus.value = status();
     vi.mocked(authClient.twoFactor.enable).mockResolvedValue({
       data: {
+        // Better Auth 1.7 discriminates the enable answer on `method`; this
+        // deployment registers TOTP only, so the server always answers this arm.
+        method: 'totp',
         totpURI: 'otpauth://totp/Tale:user?secret=JBSWY3DPEHPK3PXP',
         backupCodes: ['aaaa-bbbb', 'cccc-dddd'],
       },
@@ -158,5 +161,28 @@ describe('TwoFactorEnrollPage – enrollment-wall guard (#2085[04])', () => {
 
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Verification code')).toBeInTheDocument();
+  });
+
+  it('refuses an enable answer that carries no TOTP secret', async () => {
+    mockStatus.value = status();
+    // The `{method: 'otp'}` arm Better Auth 1.7 added: no `totpURI`, no backup
+    // codes. This deployment registers `totpOptions` only, so the server never
+    // sends it — but the screen must refuse rather than advance to a QR code
+    // it has no secret for.
+    vi.mocked(authClient.twoFactor.enable).mockResolvedValue({
+      data: { method: 'otp' },
+      error: null,
+      // oxlint-disable-next-line typescript/no-explicit-any -- better-auth's full response envelope is irrelevant to the guard under test
+    } as any);
+
+    const { user } = render(<TwoFactorEnrollPage />);
+
+    await user.type(screen.getByLabelText('Password'), 'hunter2!');
+    await user.click(screen.getByRole('button', { name: 'Enable two-factor' }));
+
+    expect(
+      screen.queryByLabelText('Verification code'),
+    ).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

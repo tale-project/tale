@@ -179,7 +179,7 @@ async function fixture(
         grant_types: ['authorization_code'],
         response_types: ['code'],
         token_endpoint_auth_method: 'client_secret_post',
-        type: 'web',
+        application_type: 'web',
         require_pkce: true,
         skip_consent: false,
         metadata: { taleOrganizationId: `org-${team}` },

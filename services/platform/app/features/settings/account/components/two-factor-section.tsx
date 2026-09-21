@@ -74,6 +74,15 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
         setError(result.error?.message ?? t('errors.enableFailed'));
         return;
       }
+      // Better Auth 1.7 answers a discriminated union: an OTP-configured
+      // server returns `{method: 'otp'}` with no secret to show. This
+      // deployment registers `totpOptions` only (`backend/auth/auth.ts`), so
+      // the other arm cannot happen — but narrowing here rather than asserting
+      // keeps a future `otpOptions` from silently rendering an empty QR code.
+      if (result.data.method !== 'totp') {
+        setError(t('errors.enableFailed'));
+        return;
+      }
       setState({
         step: 'verify',
         totpURI: result.data.totpURI,

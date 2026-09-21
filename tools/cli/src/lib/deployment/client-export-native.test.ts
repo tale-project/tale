@@ -29,7 +29,14 @@ async function nativeFixture() {
   let introspections = 0;
   let duplicate = false;
   let memberDuplicate = false;
-  const adapter = {
+  const adapter: Record<string, unknown> = {
+    // Better Auth 1.7 runs a client create inside `adapter.transaction`. The
+    // real Postgres adapter the CLI loads from the platform supplies one; this
+    // in-memory stub has a single store and no rollback, so it runs the body
+    // against itself. Declared before `create` so the object literal can name
+    // `adapter` — the reference is only read once a callback runs.
+    transaction: async <T>(fn: (trx: unknown) => Promise<T>): Promise<T> =>
+      fn(adapter),
     create: async ({
       model,
       data,
@@ -190,7 +197,7 @@ async function nativeFixture() {
       grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'client_secret_post',
-      type: 'web',
+      application_type: 'web',
       require_pkce: true,
       skip_consent: false,
       metadata: { taleOrganizationId: organization.id },
@@ -295,11 +302,13 @@ describe('supported native credential export readback', () => {
     if (change === 'disabled') client.disabled = true;
     if (change === 'pkce') client.requirePKCE = false;
     if (change === 'consent') client.skipConsent = true;
-    if (change === 'public') client.public = true;
+    // 1.7 has no `public` column — a public client is one that authenticates
+    // with no secret at all.
+    if (change === 'public') client.tokenEndpointAuthMethod = 'none';
     if (change === 'scope') client.scopes = ['openid', 'email'];
     if (change === 'grant')
       client.grantTypes = ['authorization_code', 'refresh_token'];
-    if (change === 'type') client.type = 'native';
+    if (change === 'type') client.applicationType = 'native';
     if (change === 'callback')
       client.redirectUris = ['https://foreign.invalid/callback'];
     if (change === 'client-id') client.clientId = 'foreign';
