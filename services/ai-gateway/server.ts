@@ -1,0 +1,24 @@
+// Bun server: serves the prebuilt SPA from `./dist` via the shared
+// React-server pipeline from `@tale/ui/server` (locale negotiation,
+// static serving, `/api/health`, security headers).
+//
+// Add service-specific routes via `extraRoutes`. To serve `/<route>.md`
+// URLs on demand (markdown rendered from the SSR'd HTML and cached
+// in-memory), construct a renderer with `createOnDemandMdRenderer` from
+// `@tale/ui/seo/on-demand-md` and pass it as `onDemandMd: { renderer }` —
+// see `services/web/server.ts` for a full example.
+
+import { resolve } from 'node:path';
+
+import {
+  defaultReactServerSecurityHeaders,
+  startReactServer,
+} from '@tale/ui/server';
+
+startReactServer({
+  port: Number(process.env.PORT ?? 3004),
+  distDir: resolve(import.meta.dir, 'dist'),
+  logPrefix: 'ai-gateway',
+  shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
+  securityHeaders: defaultReactServerSecurityHeaders,
+});
