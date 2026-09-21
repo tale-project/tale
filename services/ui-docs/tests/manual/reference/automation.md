@@ -29,6 +29,7 @@ a spec failure and belongs in the gate, not in a round.
 | Every `<Demo>` resolves, every demo is used, no raw hex in a demo | `tests/demos.test.ts` | — |
 | Frontmatter present, single `h1`, manifest in sync with disk | `tests/content.test.ts` | — |
 | Content loader contract | `tests/loader.test.ts` | — |
+| Optional analytics: runtime disablement, safe SPA pageviews, DNT/GPC and the collector boundary | `packages/ui/src/analytics/browser.test.ts`, `packages/ui/src/analytics/server.test.ts`, `tests/analytics.test.ts` | — |
 | Chrome a11y (axe): the docs frame (layout, nav tree, header strip, article, outline, neighbours, footer, page actions, 404) and the demo tag | `packages/ui/src/components/docs/*.test.tsx` + `app/**/*.test.tsx` | focus order and visible focus rings by hand, colour contrast (axe's contrast rule is off in jsdom) |
 | Locale routing: a German/French reader is not redirected off this single English tree, no `tale_locale` cookie is written, and a stale `/de…` / `/fr…` 301s onto the tree | `packages/ui/src/server/locale-routing.integration.test.ts` | the same two probes against the **deployed** site ([seo.md](../suites/seo.md) `SEO-10`, `SEO-11`) |
 | Image builds, health, headers, artifacts, 404 status | `services/platform/tests/integration/container-ui-docs-test.ts` (`bun run docker:test:ui-docs`) | prerendered content without JavaScript (`SEO-2`) |

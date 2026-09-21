@@ -1,3 +1,4 @@
+import { startBrowserAnalytics } from '@tale/ui/analytics/browser';
 import { AppShell } from '@tale/ui/app-shell';
 import {
   initBrowserMonitoring,
@@ -15,6 +16,18 @@ import './globals.css';
 import './locals.css';
 
 initBrowserMonitoring();
+// Only a resolved, known page is a pageview: the home route reports itself and
+// a documentation page reports the canonical path its loader derived. The 404
+// route and the `.md` twins carry no loader data and are never counted.
+startBrowserAnalytics(
+  (resolved) => router.subscribe('onResolved', resolved),
+  () => {
+    const match = router.state.matches.at(-1);
+    if (match?.status !== 'success' || match.globalNotFound) return undefined;
+    if (match.routeId === '/') return '/';
+    return match.loaderData?.analyticsPath;
+  },
+);
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
