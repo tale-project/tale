@@ -383,6 +383,22 @@ describe('ProjectFilesTab', () => {
     });
   });
 
+  // A file an agent wrote into the project — an invoice reading, a generated
+  // report — carries `sourceProvider: 'agent'`. Nothing re-syncs it, so its
+  // row offers Delete like an upload's; only a connector slug hides the entry
+  // (the connector row gets no menu at all, see the record-menu tests). A desk
+  // that asks the operator to remove its own stray reading depends on this.
+  it('offers Delete on a file an agent wrote into the project', async () => {
+    documentsFixture = [makeDoc({ sourceProvider: 'agent' })];
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Delete' }),
+    ).toBeInTheDocument();
+  });
+
   it('offers no delete to someone who cannot edit the project', async () => {
     projectFixture = { canEdit: false };
     documentsFixture = [makeDoc()];

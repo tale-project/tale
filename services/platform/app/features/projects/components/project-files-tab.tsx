@@ -51,6 +51,7 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useT } from '@/lib/i18n/client';
+import { isAuthoredSourceProvider } from '@/lib/shared/document-source-providers';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -171,16 +172,17 @@ function ProjectFileRecordMenu({
   // hold/frozen signals, and the label says WHY it is disabled rather than
   // vanishing, so a blocked delete is explained instead of absent.
   // Provenance gate, mirroring the hub's intent: deleting a connector-synced
-  // file just invites the next sync to restore it. NARROWER than the hub's
-  // `sourceMode === 'manual' || isDirectlySelected` on purpose —
-  // `listProjectDocuments` returns neither field, so a directly-selected
-  // connector row that the hub WOULD let you delete is refused here. That
-  // errs toward not offering a delete that re-syncs; widening it means adding
-  // those two fields to the query.
-  const isConnectorSourced =
-    doc.sourceProvider !== undefined &&
-    doc.sourceProvider !== '' &&
-    doc.sourceProvider !== 'upload';
+  // file just invites the next sync to restore it. A row authored here — a
+  // member's upload, or a file an agent wrote into the project (a reading, a
+  // generated report) — has no sync behind it, so it is deletable; a desk
+  // asks the operator to remove exactly such rows. The line is the one the
+  // record gate reads (`document-source-providers.ts`), not a local copy.
+  // Still NARROWER than the hub's `sourceMode === 'manual' ||
+  // isDirectlySelected` on purpose — `listProjectDocuments` returns neither
+  // field, so a directly-selected connector row that the hub WOULD let you
+  // delete is refused here. That errs toward not offering a delete that
+  // re-syncs; widening it means adding those two fields to the query.
+  const isSyncOwned = !isAuthoredSourceProvider(doc.sourceProvider);
 
   const rowActions = [
     ...actions,
@@ -194,7 +196,7 @@ function ProjectFileRecordMenu({
       icon: Trash2,
       onClick: () => setConfirmDelete(true),
       destructive: true,
-      visible: canEdit && !isConnectorSourced,
+      visible: canEdit && !isSyncOwned,
       disabled: isHeld || isRecordProtected,
     },
   ];

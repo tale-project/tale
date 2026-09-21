@@ -18,6 +18,7 @@ import { useCallback, useMemo, type ReactNode, type RefObject } from 'react';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
+import { isAuthoredSourceProvider } from '@/lib/shared/document-source-providers';
 import type { DocumentRecordInfo } from '@/types/documents';
 
 import { DocumentRecordReviewDialog } from '../components/document-record-review-dialog';
@@ -139,11 +140,9 @@ export function useDocumentRecordActions({
   }, [documentId, openRevision, isOpeningRevision, tDocuments]);
 
   // The server refuses connector/sync-owned sources; hide the entry point
-  // for them (an absent provider reads as 'upload', matching the server).
-  const canBecomeControlled =
-    sourceProvider === undefined ||
-    sourceProvider === 'upload' ||
-    sourceProvider === 'agent';
+  // for them. The predicate is the server's own line (an absent provider
+  // reads as 'upload'), so the two cannot drift apart.
+  const canBecomeControlled = isAuthoredSourceProvider(sourceProvider);
   // Mirrors the server's `recordTrashRefusal` (documents/access.ts): a
   // frozen record (in_review/approved) refuses trash/delete, and so does a
   // draft that retains an approved version in history — callers surface it

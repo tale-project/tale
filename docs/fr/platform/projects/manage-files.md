@@ -59,4 +59,6 @@ Retirer le fichier du projet le rend visible par toute l’organisation. N’uti
 
 Pour retirer le fichier entièrement, choisis **Supprimer** dans son menu et lis la confirmation. Supprimer un dossier retire aussi les fichiers, sous-dossiers et entrées de recherche qu’il contient. Ces actions ne peuvent pas être annulées depuis l’arborescence. Une conservation légale ou un document maîtrisé protégé peut empêcher la suppression.
 
+**Supprimer** est proposé pour les fichiers téléversés ici et pour ceux qu’un agent a écrits dans le projet, comme des lectures ou des rapports générés. Un fichier synchronisé depuis un connecteur ne propose pas de suppression dans le projet, car la prochaine synchronisation le restaurerait ; retire-le plutôt à sa source.
+
 Si un fichier sert à plusieurs projets indépendants, envisage une copie partagée avec les équipes appropriées dans la [bibliothèque de connaissances](/fr/platform/knowledge/documents). Évite de conserver plusieurs versions contradictoires de la même politique.

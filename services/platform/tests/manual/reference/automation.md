@@ -335,7 +335,12 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 - `app/features/projects/components/project-files-tab.test.tsx` verifies that
   terminal unsupported files retain a visible label and recovery hint without
-  a retry action. Native phone layouts remain part of manual judgment.
+  a retry action, and that a row's **Delete** follows provenance: an upload and
+  a file an agent wrote into the project (`sourceProvider: 'agent'` — a desk's
+  reading, a generated report) offer it, a connector-synced row does not (the
+  next sync would restore it). `lib/shared/document-source-providers.test.ts`
+  pins the provider line that this gate and the controlled-record gate both
+  read. Native phone layouts remain part of manual judgment.
 - `app/lib/backend/engagement.test.ts` pins native website creation dates and
   the current whole-list page envelope, retaining scan timestamps and cursors.
 
