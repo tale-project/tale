@@ -1,10 +1,10 @@
 {{#if storybook}}import path from 'node:path';
-import { yamlImports } from '@tale/ui/vite/yaml';
 import { fileURLToPath } from 'node:url';
 
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import { playwright } from '@vitest/browser-playwright';
-{{/if}}import viteReact from '@vitejs/plugin-react';
+{{/if}}import { yamlImports } from '@tale/ui/vite/yaml';
+import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 {{#if storybook}}const dirname = path.dirname(fileURLToPath(import.meta.url));
