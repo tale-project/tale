@@ -290,7 +290,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [settings](../suites/settings.md) | `SET-F9` (notification prefs) | 🔶 component | — (no e2e; `notification-preferences-settings.test.tsx`) |
 | [settings](../suites/settings.md) | `SET-F16`–`SET-F17` (member dialogs) | 🔶 component | — (no e2e; `member-add-dialog.test.tsx`, `member-row-actions.test.tsx`, `member-table.test.tsx`) |
 | [settings](../suites/settings.md) | `SET-F33` (MCP endpoint) | 🔶 component | — (no e2e; `mcp-endpoint-section.test.tsx`) |
-| [settings](../suites/settings.md) | `SET-F35` (Enterprise SSO) | 🔶 component | — (no e2e; `enterprise-sso-form.test.tsx`) |
+| [settings](../suites/settings.md) | `SET-F35` (Enterprise SSO) | 🔶 component | — (no e2e; `enterprise-sso-form.test.tsx`; the role rules at sign-in are backend-owned: `backend/core/enterprise_sso/entra_id/role_mapping.test.ts`, `backend/core/enterprise_sso/entra_id/adapter.test.ts` (an App role rule matches the app role Value from the ID token `roles` claim, never Graph), `backend/core/enterprise_sso/login/callback_handler.test.ts` (roles + token claims reach provisioning)) |
 | [settings](../suites/settings.md) | `SET-F36` (data residency) | 🔶 component | — (no e2e; `data-residency-settings.test.tsx`) |
 | [settings](../suites/settings.md) | `SET-F2`, `SET-F4`–`SET-F5`, `SET-F7`–`SET-F8`, `SET-F13`, `SET-F19`, `SET-F22`–`SET-F23`, `SET-F25`–`SET-F27`, `SET-F29`–`SET-F31`, `SET-F34` | ⛔ manual-only | — |
 | [settings](../suites/settings.md) | `SET-B1`–`SET-B10`, `SET-A1`–`SET-A5`, `SET-P1`–`SET-P3` | ⛔ manual-only | — |

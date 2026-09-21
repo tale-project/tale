@@ -105,6 +105,12 @@ jobs:
 
       - name: Run build
         run: bunx turbo run build
+        env:
+          # @tale/web's fetch-releases calls api.github.com; unauthenticated
+          # shared-runner IPs get rate-limited (403), so hand it the workflow
+          # token — the same cure the E2E prerender step carries. turbo passes
+          # it through (`globalPassThroughEnv`) without hashing it.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     name: Unit

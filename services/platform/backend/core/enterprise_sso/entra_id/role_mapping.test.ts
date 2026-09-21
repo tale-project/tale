@@ -117,4 +117,29 @@ describe('mapEntraRoleToPlatformRole (#1506)', () => {
       }),
     ).toBe('editor');
   });
+
+  it('matches app role rules against the app role values, case-insensitively', () => {
+    const rules: RoleMappingRule[] = [
+      { source: 'appRole', pattern: 'administrator', targetRole: 'admin' },
+      { source: 'appRole', pattern: 'tale.*', targetRole: 'editor' },
+    ];
+    expect(
+      mapEntraRoleToPlatformRole(rules, 'member', {
+        ...baseUser,
+        appRoles: ['Tale.Editor', 'Administrator'],
+      }),
+    ).toBe('admin');
+    expect(
+      mapEntraRoleToPlatformRole(rules, 'member', {
+        ...baseUser,
+        appRoles: ['Tale.Editor'],
+      }),
+    ).toBe('editor');
+    expect(
+      mapEntraRoleToPlatformRole(rules, 'member', {
+        ...baseUser,
+        appRoles: [],
+      }),
+    ).toBe('member');
+  });
 });

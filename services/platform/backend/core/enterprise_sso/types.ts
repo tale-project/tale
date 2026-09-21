@@ -80,10 +80,8 @@ export interface SsoProviderAdapter {
     config: SsoProviderConfig,
     accessToken: string,
   ): Promise<SsoGroup[]>;
-  getAppRoles?(
-    config: SsoProviderConfig,
-    accessToken: string,
-  ): Promise<string[]>;
+  /** The app roles the IdP granted the user for this app, from the token set. */
+  getAppRoles?(config: SsoProviderConfig, tokens: SsoTokens): Promise<string[]>;
 
   validateConfig(
     config: Omit<SsoProviderConfig, 'clientSecret'> & { clientSecret?: string },

@@ -10,6 +10,7 @@ import {
   isSilentAuthError,
   extractClaimsChallenge,
 } from '../entra_id/error_codes';
+import { decodeIdTokenPayload } from '../id_token';
 import { getAdapter } from '../registry';
 import { verifySignedValue } from '../sign_cookie_value';
 import type { FinishLogin } from './finish_login';
@@ -327,14 +328,21 @@ async function completeCallback(
     if (tokens.idToken) {
       const authContext = parseIdTokenAuthContext(tokens.idToken);
       if (authContext) userInfo.authContext = authContext;
+      // A "Claim" role rule reads the token claims. The adapters that
+      // resolve the user from a userinfo endpoint carry that payload as
+      // `rawClaims`; Entra reads the user from Graph `/me` and carries none,
+      // so the ID token's claims stand in.
+      if (userInfo.rawClaims === undefined) {
+        userInfo.rawClaims = decodeIdTokenPayload(tokens.idToken);
+      }
     }
 
     let appRoles: string[] = [];
     if (config.autoProvisionRole && adapter.getAppRoles) {
       try {
-        appRoles = await adapter.getAppRoles(ssoConfig, tokens.accessToken);
+        appRoles = await adapter.getAppRoles(ssoConfig, tokens);
       } catch (e) {
-        console.warn('[SSO] Failed to fetch app roles:', e);
+        console.warn('[SSO] Failed to read app roles:', e);
       }
     }
 

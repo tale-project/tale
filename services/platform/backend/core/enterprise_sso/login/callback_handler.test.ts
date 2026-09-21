@@ -22,6 +22,7 @@ const { fakeAdapter } = vi.hoisted(() => ({
     buildAuthorizeUrl: vi.fn(),
     exchangeCodeForTokens: vi.fn(),
     getUserInfo: vi.fn(),
+    getAppRoles: vi.fn(),
     validateConfig: vi.fn(),
   },
 }));
@@ -579,6 +580,133 @@ describe('ssoCallbackHandler — the completion must come from the browser that 
     );
     expect(res.headers.get('set-cookie')).toContain(
       '__Host-sso_flow=; Max-Age=0',
+    );
+  });
+});
+
+/**
+ * "App role" rules match the app role Value Entra puts in the ID token's
+ * `roles` claim: the token set reaches the adapter's `getAppRoles`, its
+ * answer reaches provisioning as `appRoles`, and for an adapter that carries
+ * no userinfo payload the ID token's claims stand in as `rawClaims` for
+ * "Claim" rules.
+ */
+describe('ssoCallbackHandler — app roles and claims come from the ID token', () => {
+  const ID_TOKEN_CLAIMS = {
+    sub: 'ext-1',
+    name: 'Admin One',
+    roles: ['Administrator'],
+  };
+  const segment = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
+  const ID_TOKEN = `${segment({ alg: 'RS256' })}.${segment(ID_TOKEN_CLAIMS)}.sig`;
+
+  beforeEach(() => {
+    process.env.BETTER_AUTH_SECRET = SECRET;
+    process.env.SITE_URL = PUBLIC_ORIGIN;
+    delete process.env.BASE_PATH;
+    fakeAdapter.exchangeCodeForTokens.mockResolvedValue({
+      accessToken: 'access-token',
+      idToken: ID_TOKEN,
+    });
+    fakeAdapter.getUserInfo.mockResolvedValue({
+      externalId: 'ext-1',
+      email: 'admin@example.test',
+      name: 'Admin One',
+    });
+    fakeAdapter.getAppRoles.mockResolvedValue(['Administrator']);
+  });
+
+  afterEach(() => {
+    delete process.env.BETTER_AUTH_SECRET;
+    delete process.env.SITE_URL;
+    vi.clearAllMocks();
+  });
+
+  /** A connection whose role rules need app roles; `handleSsoLogin` refuses
+   * so the test stays off the session mint — the arguments under test were
+   * handed over before the refusal. */
+  function provisioningCtx(): {
+    ctx: ActionCtx;
+    runAction: ReturnType<typeof vi.fn>;
+  } {
+    const runAction = vi
+      .fn()
+      .mockResolvedValueOnce({ clientId: 'client', clientSecret: 'secret' })
+      .mockResolvedValueOnce({ success: false, error: 'refused' });
+    const ctx = {
+      runQuery: vi.fn().mockResolvedValue({
+        organizationId: 'org1',
+        providerId: 'fake-idp',
+        issuer: 'https://idp.example.test',
+        scopes: ['openid'],
+        autoProvisionRole: true,
+        autoProvisionTeam: false,
+        roleMappingRules: [
+          { source: 'appRole', pattern: 'Administrator', targetRole: 'admin' },
+        ],
+      }),
+      runAction,
+      runMutation: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ActionCtx;
+    return { ctx, runAction };
+  }
+
+  async function completeLogin(ctx: ActionCtx): Promise<void> {
+    const flow = await boundFlow();
+    const state = await signedState({
+      redirectUri: `${PUBLIC_ORIGIN}/http_api/api/sso/callback`,
+      timestamp: Date.now(),
+      organizationId: 'org1',
+      flow: flow.hash,
+    });
+    await ssoCallbackHandler(
+      ctx,
+      callbackRequest({ code: 'code', state }, flow.cookie),
+      { finishLogin: neverFinishes },
+    );
+  }
+
+  it('hands the token set to getAppRoles, and its roles plus the token claims to provisioning', async () => {
+    const { ctx, runAction } = provisioningCtx();
+
+    await completeLogin(ctx);
+
+    expect(fakeAdapter.getAppRoles).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: 'client' }),
+      expect.objectContaining({
+        accessToken: 'access-token',
+        idToken: ID_TOKEN,
+      }),
+    );
+    expect(runAction).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        email: 'admin@example.test',
+        appRoles: ['Administrator'],
+        rawClaims: ID_TOKEN_CLAIMS,
+      }),
+    );
+  });
+
+  it('keeps the rawClaims an adapter resolved itself over the token claims', async () => {
+    fakeAdapter.getUserInfo.mockResolvedValue({
+      externalId: 'ext-1',
+      email: 'admin@example.test',
+      name: 'Admin One',
+      rawClaims: { realm_access: { roles: ['platform-admin'] } },
+    });
+    const { ctx, runAction } = provisioningCtx();
+
+    await completeLogin(ctx);
+
+    expect(runAction).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        rawClaims: { realm_access: { roles: ['platform-admin'] } },
+      }),
     );
   });
 });

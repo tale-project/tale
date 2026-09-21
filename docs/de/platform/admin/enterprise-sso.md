@@ -34,7 +34,7 @@ Trage unter **Anzeigename** einen Namen ein, den Mitglieder erkennen. Er erschei
 4. Prüfe **Scopes** und **Erweitert**. Fordere die Identitäts-Claims an, die deine Bereitstellungsregeln brauchen. Ordne abweichende Claim-Namen bei Bedarf zu. Claim-Pfade können Punkte enthalten, etwa `realm_access.roles`.
 5. Wähle **Verbindung testen**, behebe mögliche Fehler und wähle oben **Speichern**. Teste danach eine echte Anmeldung wie unten beschrieben.
 
-Verwende für Entra eine Tenant-spezifische Issuer-URL wie `https://login.microsoftonline.com/{tenant-id}/v2.0`, registriere den Callback als Web-Weiterleitungs-URI und kopiere den Wert des Client-Secrets statt seiner ID. Microsoft erklärt die Einrichtung in der [Anleitung zur App-Registrierung](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app). Die Gruppen-Team-Synchronisierung braucht die Microsoft-Graph-Berechtigung `GroupMember.Read.All` und Admin-Zustimmung.
+Verwende für Entra eine Tenant-spezifische Issuer-URL wie `https://login.microsoftonline.com/{tenant-id}/v2.0`, registriere den Callback als Web-Weiterleitungs-URI und kopiere den Wert des Client-Secrets statt seiner ID. Microsoft erklärt die Einrichtung in der [Anleitung zur App-Registrierung](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app). Die Gruppen-Team-Synchronisierung braucht die Microsoft-Graph-Berechtigung `GroupMember.Read.All` und Admin-Zustimmung. App-Rollen, die du in der App-Registrierung definierst und in der Unternehmensanwendung Benutzern oder Gruppen zuweist, stehen im Anmeldetoken. Eine **App-Rolle**-Regel passt daher auf den **Wert** (Value) der Rolle, etwa `Administrator`, und braucht keine Graph-Berechtigung.
 
 Wähle für Google **Generisches OIDC** mit dem Issuer `https://accounts.google.com`; siehe Googles [OpenID-Connect-Einrichtung](https://developers.google.com/identity/openid-connect/openid-connect). Googles Standard-OIDC liefert keine Gruppenmitgliedschaften. Eine Google-Anmeldung allein ermöglicht deshalb keine Gruppen-Team-Synchronisierung.
 
@@ -95,7 +95,7 @@ Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adr
 | Abweichende Weiterleitung, etwa `AADSTS50011` | Vergleiche den registrierten Callback exakt mit Tales URL: Domain, Schema, Pfad und abschließender Schrägstrich. |
 | Verbindungstest schlägt fehl | Prüfe Issuer/Endpunkte, Client-ID, Wert und Ablaufdatum des Secrets sowie nötige Zustimmungen beim Anbieter. |
 | Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
-| Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. |
+| Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. Eine **App-Rolle**-Regel passt auf den Wert der App-Rolle, nicht auf ihren Anzeigenamen oder ihre ID. |
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
 | Die Proxy-Anmeldung wird abgelehnt | Prüfe, ob die Karte eingeschaltet ist, der Schlüssel nicht widerrufen wurde und der Proxy E-Mail-Header und Schlüssel bei der Übergabe-Anfrage sendet. |
 | Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |
