@@ -164,8 +164,8 @@ jobs:
           DOCUMENT_SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
-          [[ "$DOCUMENT_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]]
-          [[ "$DOCUMENT_PLATFORM" == linux/amd64 || "$DOCUMENT_PLATFORM" == linux/arm64 ]]
+          [[ "$DOCUMENT_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] || exit 1
+          [[ "$DOCUMENT_PLATFORM" == linux/amd64 || "$DOCUMENT_PLATFORM" == linux/arm64 ]] || exit 1
           docker pull --platform "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_REVISION"
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_VERSION"
