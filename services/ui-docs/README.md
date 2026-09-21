@@ -87,6 +87,29 @@ route after a deployment. The unknown route must return HTTP 404 with a usable p
 | `SENTRY_DSN` | Runtime | Unset | Optional error reporting |
 | `SENTRY_ENVIRONMENT` | Runtime | `NODE_ENV` | Monitoring environment |
 | `TALE_VERSION` | Runtime | Unset | Monitoring release identifier |
+| `UMAMI_URL` | Runtime | Unset | Collector origin; server-only |
+| `UMAMI_WEBSITE_ID` | Runtime | Unset | Umami website this site reports to |
+| `UMAMI_PROXY_TOKEN` | Runtime | Unset | Collector bearer token; server-only |
+
+## Optional aggregate analytics
+
+Analytics is disabled by default. Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and server-only
+`UMAMI_PROXY_TOKEN` in the production service’s runtime environment to enable it. Recreate the
+service after changing these values; clearing the website ID disables collection without an
+image rebuild. The Vite development server does not inject this configuration.
+
+The shared `@tale/ui/analytics` implementation loads the tracker through `/_a/script.js` and
+sends curated pageviews through `/_a/api/send`. Only the website ID and proxy path enter the
+browser; the collector origin and token remain on the server. A pageview carries the canonical
+path a route loader resolved, so an unknown URL, a `.md` twin and the 404 page are never
+counted, and queries, fragments and page titles never leave the browser. Do Not Track and
+Global Privacy Control disable collection.
+
+The collector gateway must authenticate `GET /_collect/script.js` and `POST /_collect/api/send`
+with the configured bearer token. Edge Caddy must overwrite `X-Analytics-Client-IP` from its
+trusted client address. Keep the application port private and configure trusted proxy ranges
+when another proxy sits in front. The server forwards the validated IP, browser User-Agent and
+required Umami headers; it drops browser cookies, credentials and referrer headers.
 
 The repository’s `Dockerfile` target and `compose.ui-docs.yml` package the site as
 `ghcr.io/tale-project/tale/tale-ui-docs:<version>`. The runtime image contains bundled
@@ -104,7 +127,7 @@ bun run lint:manual
 ```
 
 Unit tests cover navigation/file parity, frontmatter, demo registration, loader
-behavior, and the 404. The shared frame’s own tests live with it in `packages/ui`
+behavior, the pageview path a route reports, and the 404. The shared frame’s own tests live with it in `packages/ui`
 (`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the homepage,
 docs, the header strip’s line with the rail, Code panel, search, theme, redirects, and
 404. The [manual layer](tests/manual/readme.md) adds

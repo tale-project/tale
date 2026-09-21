@@ -2,7 +2,11 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { DocPage } from '@/app/pages/doc-page';
 import { NotFoundPage } from '@/app/pages/not-found-page';
-import { ensureDocBody, getDocPage } from '@/lib/content/loader';
+import {
+  docAnalyticsPath,
+  ensureDocBody,
+  getDocPage,
+} from '@/lib/content/loader';
 
 /**
  * The markdown twin of every page (`/docs/components/button.md`) and the
@@ -27,10 +31,17 @@ export const Route = createFileRoute('/docs/$')({
   // Fetch only this page's body before it renders — one lazy chunk on the
   // client, resolved during `router.load()` on the server. The frontmatter the
   // rail and the breadcrumbs need is already in the manifest.
+  //
+  // `analyticsPath` is the page's CANONICAL path, and it is what `main.tsx`
+  // reports as a pageview. Deriving it here rather than from the browser's
+  // location is what keeps a scanner's URL, a `.md` twin and a 404 out of the
+  // reports: this loader only runs, and only returns, for a page that resolved.
   loader: async ({ params }) => {
     const splat = params._splat ?? '';
-    if (isSpecialEndpoint(splat)) return;
+    if (isSpecialEndpoint(splat)) return undefined;
     await ensureDocBody(splat);
+    const analyticsPath = docAnalyticsPath(splat);
+    return analyticsPath ? { analyticsPath } : undefined;
   },
   component: DocsSplatRoute,
   notFoundComponent: NotFoundPage,

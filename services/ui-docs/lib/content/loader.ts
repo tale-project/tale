@@ -1,6 +1,7 @@
 import { parseFrontmatter } from '@tale/ui/parse-frontmatter';
 
 import frontmatterManifest from '@/app/content/frontmatter.json';
+import { docPath } from '@/lib/content/paths';
 
 export interface DocFrontmatter {
   title: string;
@@ -98,4 +99,15 @@ export function getDocPage(slug: string): DocPage | null {
 /** Every slug the manifest knows, in manifest (alphabetical) order. */
 export function allDocSlugs(): string[] {
   return [...documents.keys()];
+}
+
+/**
+ * The canonical path a slug reports as a pageview, or `undefined` when it is
+ * not a page at all. This is the whole filter between a browser's URL and the
+ * analytics report: the route loader reports what this returns and nothing
+ * else, so a scanner's URL, a markdown twin (`…/button.md` is no slug) and the
+ * 404 route are never counted.
+ */
+export function docAnalyticsPath(slug: string): string | undefined {
+  return documents.has(slug) ? docPath(slug) : undefined;
 }
