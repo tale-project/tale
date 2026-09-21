@@ -126,6 +126,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        id: image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -146,6 +147,44 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
           provenance: false
+
+      - name: Setup Bun for document checks
+        if: matrix.service.name == 'sandbox-runtime'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Verify native document tools
+        if: matrix.service.name == 'sandbox-runtime'
+        env:
+          DOCUMENT_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}
+          DOCUMENT_PLATFORM: ${{ matrix.arch.platform }}
+          DOCUMENT_REVISION: ${{ steps.meta.outputs.revision }}
+          DOCUMENT_VERSION: ${{ needs.prepare.outputs.version_number }}
+          DOCUMENT_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$DOCUMENT_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] || exit 1
+          [[ "$DOCUMENT_PLATFORM" == linux/amd64 || "$DOCUMENT_PLATFORM" == linux/arm64 ]] || exit 1
+          docker pull --platform "$DOCUMENT_PLATFORM" "$DOCUMENT_IMAGE"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_REVISION"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_VERSION"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$DOCUMENT_IMAGE")" = "$DOCUMENT_SOURCE"
+          for DOCUMENT_UID in 65534 10001; do
+            export DOCUMENT_UID
+            bun -e '
+              import { checkDocumentTools } from "./services/platform/tests/integration/lib/document-tools.ts";
+              const image = process.env.DOCUMENT_IMAGE;
+              const platform = process.env.DOCUMENT_PLATFORM;
+              const uid = Number(process.env.DOCUMENT_UID);
+              if (!image || (platform !== "linux/amd64" && platform !== "linux/arm64") || (uid !== 65534 && uid !== 10001)) {
+                throw new Error("Invalid native document check inputs");
+              }
+              const result = await checkDocumentTools(image, uid, platform);
+              if (result.exitCode !== 0) throw new Error(result.combined);
+              console.log(result.stdout.trim());
+            '
+          done
 
   # ---------------------------------------------------------------------------
   # Gate: validate built images with the same tests CI runs on PRs.
