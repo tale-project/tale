@@ -19,6 +19,7 @@ a spec failure and belongs in the gate, not in a round.
 | Encryption at rest, tamper detection | `backend/crypto.test.ts` | the wrong-key restart's user-visible behaviour (`ACCT-14`) |
 | The account document on disk | `backend/store.test.ts` | survival across a real restart (`ACCT-13`) |
 | Configuration and the fail-fast boot | `backend/config.test.ts` | nothing |
+| The image: it builds from the workspace, boots on the four secrets, answers `/api/health`, and both doors are closed to a caller with nothing | `services/platform/tests/integration/container-ai-gateway-test.ts` (`bun run docker:test:ai-gateway`; runs on a pull request that touches the service and on every release tag) | nothing |
 | **The OAuth round trip itself** | — | **manual-only** — consent happens on a vendor's screen, for an account only its owner has; nothing headless can approve it |
 | **Handing a token to the vendor's CLI** | — | **manual-only** — proving `claude` and `codex` actually start on the token needs both CLIs and a live subscription |
 | Layout, focus order, theme, narrow viewports | — | **manual-only** — `SMOKE-4` … `SMOKE-9` |

@@ -273,6 +273,13 @@ jobs:
           export SKIP_BUILD=true
           bun services/platform/tests/integration/container-ui-docs-test.ts
 
+      - name: Run ai-gateway container test
+        if: needs.prepare.outputs.sites_only != 'true'
+        run: |
+          export PULL_POLICY=never
+          export SKIP_BUILD=true
+          bun services/platform/tests/integration/container-ai-gateway-test.ts
+
       - name: Summary
         if: always()
         run: |
@@ -348,7 +355,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform db proxy web docs ui-docs sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in platform db proxy web docs ui-docs ai-gateway sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
             echo "Verifying manifest: ${IMAGE}"
             docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
