@@ -12,9 +12,27 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
-COPY services/ai-gateway/package.json ./services/ai-gateway/
+# `bun install` resolves the WHOLE workspace, not just this service: the root
+# manifest names `services/sandbox-runtime/daemon` explicitly and every
+# `workspace:*` dependency has to resolve, so every workspace manifest is
+# copied — the same set `services/ui-docs` copies. Three alone fail with
+# `error: Workspace not found "services/sandbox-runtime/daemon"`.
+COPY packages/e2e/package.json ./packages/e2e/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/marketing-ui/package.json ./packages/marketing-ui/
+COPY services/platform/package.json ./services/platform/
+COPY services/db/package.json ./services/db/
+COPY services/proxy/package.json ./services/proxy/
+COPY services/sandbox/package.json ./services/sandbox/
+COPY services/sandbox-runtime/daemon/package.json ./services/sandbox-runtime/daemon/
+COPY services/web/package.json ./services/web/
+COPY services/docs/package.json ./services/docs/
+COPY services/ui-docs/package.json ./services/ui-docs/
+COPY services/ai-gateway/package.json ./services/ai-gateway/
+COPY tools/cli/package.json ./tools/cli/
+COPY tools/plop/package.json ./tools/plop/
+COPY tools/opengrep/package.json ./tools/opengrep/
 COPY patches/ ./patches/
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \

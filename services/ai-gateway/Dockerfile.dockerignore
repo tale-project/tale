@@ -114,6 +114,40 @@ compose.*.yml
 **/Dockerfile.dockerignore
 
 # =============================================================================
-# React-service-specific: unrelated services not needed
+# Ai-Gateway-specific: the image needs only services/ai-gateway + packages/ui
+# + packages/marketing-ui workspaces. All other service trees stay out of the
+# build context — `bun install` only needs each workspace's package.json
+# (re-included below).
 # =============================================================================
+services/platform/
+services/web/
+services/docs/
+services/ui-docs/
+services/convex/
 services/db/
+services/proxy/
+services/sandbox/
+services/sandbox-egress/
+services/sandbox-buildkitd/
+services/sandbox-llm-gateway/
+services/sandbox-runtime/
+!services/sandbox-runtime/daemon/package.json
+packages/shared/
+tools/
+builtin-configs/
+
+# `bun install` needs every workspace package.json present at its declared
+# path so the workspace graph resolves (the root manifest names
+# `services/sandbox-runtime/daemon` explicitly). Re-include just the
+# manifests — source trees stay excluded by the rules above.
+!services/platform/package.json
+!services/web/package.json
+!services/docs/package.json
+!services/ui-docs/package.json
+!services/db/package.json
+!services/proxy/package.json
+!services/sandbox/package.json
+!packages/shared/package.json
+!tools/cli/package.json
+!tools/plop/package.json
+!tools/opengrep/package.json
