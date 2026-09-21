@@ -458,6 +458,17 @@ export function createAuth(config: AuthConfig) {
       cookiePrefix: 'better-auth',
       // __Secure- prefix is added automatically when true.
       useSecureCookies: isHttps,
+      database: {
+        // Better Auth 1.7 probes the live schema when the instance is built
+        // and logs a mismatch. This deployment already reconciles that
+        // schema deliberately: `db/migrate.ts` runs Better Auth's own
+        // `getMigrations`/`runMigrations` at boot inside the app-wide
+        // advisory lock, so the probe re-asks a question boot already
+        // answered, on its own connection. Worse, during a rolling deploy the
+        // previous image would log a mismatch for every column the new one is
+        // mid-way through adding. Boot owns the schema; this stays off.
+        validateSchema: false,
+      },
     },
     // Our before-hook owns ALL sign-in throttling (per-IP flood guard via
     // app.rate_limits + per-account exponential lockout via

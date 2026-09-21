@@ -247,7 +247,7 @@ for (const [label, executable] of modes)
                   grant_types: ['authorization_code'],
                   response_types: ['code'],
                   scope: 'openid profile email tale:organization',
-                  type: 'web',
+                  application_type: 'web',
                   taleOrganizationId: 'org-example',
                   client_secret: 'synthetic-stored-native-private',
                 },

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   createBackendNativeUpdate,
+  intentSchema,
   nativeClientsSchema,
   reconcileNativeClients,
   type NativeClientContext,
@@ -25,7 +26,7 @@ const existing = {
   grant_types: ['authorization_code'],
   response_types: ['code'],
   scope: 'openid profile email tale:organization',
-  type: 'web',
+  application_type: 'web',
   taleOrganizationId: 'org-fixture',
   client_secret: 'synthetic-stored-secret-never-output',
 };
@@ -122,7 +123,7 @@ describe('native client convergence', () => {
     { grant_types: ['authorization_code', 'refresh_token'] },
     { response_types: ['token'] },
     { scope: 'openid profile' },
-    { type: 'native' },
+    { application_type: 'native' },
   ])(
     'refuses identity or security drift before mutation: %j',
     async (change) => {
@@ -382,5 +383,57 @@ describe('backend-local native compatibility adapter', () => {
     expect(error.info.cause).toBeUndefined();
     expect(f.closed).toEqual([]);
     expect(f.writes).toEqual([]);
+  });
+});
+
+describe('a retained intent across the Better Auth 1.7 upgrade', () => {
+  /** An intent exactly as a pre-1.7 CLI wrote it: the client's application
+   * type under the provider's old `type` key. */
+  const retained = {
+    schemaVersion: 1,
+    phase: 'ready',
+    origin: 'https://tale.example.org',
+    organizationId: 'org-fixture',
+    operatorUserId: 'user-fixture',
+    body: {
+      client_name: desired.name,
+      software_id: desired.key,
+      redirect_uris: desired.redirectUris,
+      scope: 'openid profile email tale:organization',
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'client_secret_post',
+      type: 'web',
+      require_pkce: true,
+      skip_consent: false,
+      metadata: { taleOrganizationId: 'org-fixture' },
+    },
+    credentials: { clientId: 'existing-client', clientSecret: 'a'.repeat(43) },
+  };
+
+  test('still loads, and normalizes onto the current key', () => {
+    const parsed = intentSchema.parse(retained);
+    expect(parsed.body.application_type).toBe('web');
+    // Normalized, not merely tolerated: a rewritten intent carries one
+    // spelling, so the byte-comparison on resume stays stable.
+    expect('type' in parsed.body).toBe(false);
+  });
+
+  test('an intent already on the current key is untouched', () => {
+    const { type: _legacyKey, ...body } = retained.body;
+    const parsed = intentSchema.parse({
+      ...retained,
+      body: { ...body, application_type: 'web' },
+    });
+    expect(parsed.body.application_type).toBe('web');
+  });
+
+  test('the legacy key does not smuggle a non-web application type', () => {
+    expect(() =>
+      intentSchema.parse({
+        ...retained,
+        body: { ...retained.body, type: 'native' },
+      }),
+    ).toThrow();
   });
 });

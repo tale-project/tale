@@ -27,7 +27,7 @@ const expectedPolicy = {
   grant_types: ['authorization_code'],
   response_types: ['code'],
   scope: 'openid profile email tale:organization',
-  type: 'web',
+  application_type: 'web',
   taleOrganizationId: 'org-north',
 };
 async function fixture(
@@ -390,6 +390,39 @@ test('actual pinned provider closures honor intent callbacks and authenticate re
             },
           ]) as unknown as Parameters<typeof createOidcProvider>[0];
           const plugin = createOidcProvider(sql, 'https://native.example.org');
+          // Better Auth 1.7 runs a client create inside `adapter.transaction`.
+          // The real Postgres adapter supplies one; this in-memory stub has a
+          // single store and no rollback, so it runs the body against itself.
+          const adapter: Record<string, unknown> = {
+            transaction: async <T>(
+              fn: (trx: unknown) => Promise<T>,
+            ): Promise<T> => fn(adapter),
+            create: async ({
+              model,
+              data,
+            }: {
+              model: string;
+              data: Record<string, unknown>;
+            }) => {
+              expect(model).toBe('oauthClient');
+              writes++;
+              expect(records.has(String(data.clientId))).toBe(false);
+              records.set(String(data.clientId), data);
+              return data;
+            },
+            findOne: async ({
+              model,
+              where,
+            }: {
+              model: string;
+              where: { value: unknown }[];
+            }) => {
+              if (model === 'oauthClient')
+                return records.get(String(where[0].value)) ?? null;
+              expect(model).toBe('oauthAccessToken');
+              return null;
+            },
+          };
           const context = {
             session: {
               user: { id: 'operator-north' },
@@ -415,33 +448,7 @@ test('actual pinned provider closures honor intent callbacks and authenticate re
                   }
                 : plugin,
             baseURL: 'https://native.example.org',
-            adapter: {
-              create: async ({
-                model,
-                data,
-              }: {
-                model: string;
-                data: Record<string, unknown>;
-              }) => {
-                expect(model).toBe('oauthClient');
-                writes++;
-                expect(records.has(String(data.clientId))).toBe(false);
-                records.set(String(data.clientId), data);
-                return data;
-              },
-              findOne: async ({
-                model,
-                where,
-              }: {
-                model: string;
-                where: { value: unknown }[];
-              }) => {
-                if (model === 'oauthClient')
-                  return records.get(String(where[0].value)) ?? null;
-                expect(model).toBe('oauthAccessToken');
-                return null;
-              },
-            },
+            adapter,
           };
           return {
             options: {
@@ -493,7 +500,7 @@ test('actual pinned provider closures honor intent callbacks and authenticate re
       grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'client_secret_post',
-      type: 'web',
+      application_type: 'web',
       require_pkce: true,
       skip_consent: false,
       metadata: { taleOrganizationId: 'org-north' },
@@ -575,7 +582,7 @@ test.each([
           grant_types: ['authorization_code'],
           response_types: ['code'],
           token_endpoint_auth_method: 'client_secret_post',
-          type: 'web',
+          application_type: 'web',
           require_pkce: true,
           skip_consent: false,
           metadata: { taleOrganizationId: 'org-north' },
