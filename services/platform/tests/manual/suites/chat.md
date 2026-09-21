@@ -308,9 +308,11 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   turn settles** — Mode B, in a project with a web or knowledge tool
   equipped: ask something the model answers with tool steps and a long
   answer (a live weather lookup, a document search), and watch the reply as
-  the stream ends → The **Thought for Ns** header (`chat.thinking.done`) and
-  its step rows stay put; the answer body never jumps up and back down when
-  the turn settles, and the steps are still there once the reply is done.
+  the stream ends → Anything the model wrote before a tool call is on screen
+  while that tool runs; the **Thought for Ns** header (`chat.thinking.done`)
+  and its step rows stay put; the answer body never jumps up and back down
+  when the turn settles, no paragraph pops in above it, and the steps are
+  still there once the reply is done.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

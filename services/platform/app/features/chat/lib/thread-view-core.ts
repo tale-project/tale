@@ -12,10 +12,12 @@
  *   row's own parts stay empty; it never shrinks mid-stream (a reconnect can
  *   deliver a shorter committed prefix), and it survives the settle gap where
  *   the generation row is already gone but the finalize write has not landed.
- * - The live row's PARTS the stream channel carried (tool calls and results,
- *   reasoning segments), held through the same settle gap: the thought
- *   timeline is drawn from them, and it must not collapse for the round-trip
- *   between the generation row's delete and the finalized row's arrival.
+ * - The live row's PARTS the stream channel carried (a tool round's text,
+ *   calls and results, reasoning segments): the settled rounds' text and
+ *   reasoning are read from them (the transcript is refetched only at
+ *   settle), and they are held through the same settle gap, so the thought
+ *   timeline drawn from them never collapses for the round-trip between the
+ *   generation row's delete and the finalized row's arrival.
  * - IDENTITY: rows keep their previous object reference unless a field a
  *   component renders actually changed, and the array itself keeps its
  *   reference when no row changed — so a streamed chunk re-renders exactly
@@ -330,43 +332,13 @@ export function reduceThreadView(
     let liveParts: readonly MessagePart[] | undefined;
 
     if (targetId === row.id && !isTerminalRow(row)) {
-      // The live row. Its text is the settled parts' text (earlier tool
-      // rounds) plus the stream channel's tail (the current round); held so
-      // a loading gap or the settle race never blanks the bubble, and
-      // clamped so it never shrinks mid-stream.
-      const held = state.streamTextByKey.get(key) ?? '';
-      const live = generationText?.text ?? '';
-      const freshLive = liveIsStale(lastPartText(row.parts, 'text'), live)
-        ? ''
-        : live;
-      const candidate = combineSettledAndLive(rowText, freshLive);
-      text = candidate.length >= held.length ? candidate : held;
-      state.streamTextByKey.set(key, text);
-
-      const heldReasoning = state.streamReasoningByKey.get(key);
-      const liveReasoningRaw = generationText?.reasoning;
-      const liveReasoning =
-        liveReasoningRaw !== undefined &&
-        liveIsStale(lastPartText(row.parts, 'reasoning'), liveReasoningRaw)
-          ? undefined
-          : liveReasoningRaw;
-      const combinedReasoning =
-        reasoningText !== undefined || liveReasoning !== undefined
-          ? combineSettledAndLive(reasoningText ?? '', liveReasoning ?? '')
-          : undefined;
-      reasoningText =
-        combinedReasoning !== undefined &&
-        (heldReasoning === undefined ||
-          combinedReasoning.length >= heldReasoning.length)
-          ? combinedReasoning
-          : heldReasoning;
-      if (reasoningText !== undefined) {
-        state.streamReasoningByKey.set(key, reasoningText);
-      }
-      // Parts only ever grow within a turn, so the longer list is the newer
-      // one — and preferring the row on a tie keeps the settle write (which
-      // carries the full tool results) authoritative the moment it lands.
-      // Held like the text: the stream channel goes idle one round-trip
+      // The live row. Parts first: the stream channel carries the row's
+      // parts as they land mid-turn (a tool round's text, calls and
+      // results) while the transcript is refetched only at settle, and
+      // parts only ever grow within a turn — so the longer list is the
+      // newer one, and preferring the row on a tie keeps the settle write
+      // (which carries the full tool results) authoritative the moment it
+      // lands. Held like the text: the channel goes idle one round-trip
       // before the finalized row arrives, and the thought timeline drawn
       // from these parts must not collapse for that gap.
       const heldParts = state.streamPartsByKey.get(key);
@@ -379,6 +351,47 @@ export function reduceThreadView(
       if (newestParts !== undefined) {
         state.streamPartsByKey.set(key, newestParts);
         if (newestParts.length > row.parts.length) liveParts = newestParts;
+      }
+      // The settled rounds are read from the SAME parts the row renders. An
+      // earlier round's text sits on the channel's parts long before the
+      // refetched row carries it; reading it from the row alone kept that
+      // paragraph invisible until settle, when it popped in above the
+      // streaming answer and remounted everything beneath it.
+      const settledParts = liveParts ?? row.parts;
+      const settledText = messagePlainText(settledParts);
+      const settledReasoning = reasoningOfParts(settledParts);
+
+      // Its text is the settled rounds' text plus the stream channel's tail
+      // (the current round); held so a loading gap or the settle race never
+      // blanks the bubble, and clamped so it never shrinks mid-stream.
+      const held = state.streamTextByKey.get(key) ?? '';
+      const live = generationText?.text ?? '';
+      const freshLive = liveIsStale(lastPartText(settledParts, 'text'), live)
+        ? ''
+        : live;
+      const candidate = combineSettledAndLive(settledText, freshLive);
+      text = candidate.length >= held.length ? candidate : held;
+      state.streamTextByKey.set(key, text);
+
+      const heldReasoning = state.streamReasoningByKey.get(key);
+      const liveReasoningRaw = generationText?.reasoning;
+      const liveReasoning =
+        liveReasoningRaw !== undefined &&
+        liveIsStale(lastPartText(settledParts, 'reasoning'), liveReasoningRaw)
+          ? undefined
+          : liveReasoningRaw;
+      const combinedReasoning =
+        settledReasoning !== undefined || liveReasoning !== undefined
+          ? combineSettledAndLive(settledReasoning ?? '', liveReasoning ?? '')
+          : undefined;
+      reasoningText =
+        combinedReasoning !== undefined &&
+        (heldReasoning === undefined ||
+          combinedReasoning.length >= heldReasoning.length)
+          ? combinedReasoning
+          : heldReasoning;
+      if (reasoningText !== undefined) {
+        state.streamReasoningByKey.set(key, reasoningText);
       }
       isStreaming = true;
     } else if (state.streamTextByKey.has(key)) {
@@ -471,18 +484,6 @@ export function reduceThreadView(
       state.realToPendingKey.set(targetId, pending.shellKey);
     }
     const key = state.realToPendingKey.get(targetId) ?? targetId;
-    const held = state.streamTextByKey.get(key) ?? '';
-    const live = generationText?.text ?? '';
-    state.streamTextByKey.set(key, live.length >= held.length ? live : held);
-    const heldReasoning = state.streamReasoningByKey.get(key);
-    const liveReasoning = generationText?.reasoning;
-    if (
-      liveReasoning !== undefined &&
-      (heldReasoning === undefined ||
-        liveReasoning.length >= heldReasoning.length)
-    ) {
-      state.streamReasoningByKey.set(key, liveReasoning);
-    }
     const meta = state.syntheticMetaById.get(targetId) ?? {
       createdAt: pending?.sentAt ?? generationText?.serverNow ?? 0,
     };
@@ -494,9 +495,44 @@ export function reduceThreadView(
       meta.parts = streamedParts;
     }
     // The real row can arrive in the same pass the turn settles; the hold
-    // above is what carries the timeline across that handover.
+    // is what carries the timeline across that handover.
     if (meta.parts !== undefined) state.streamPartsByKey.set(key, meta.parts);
     state.syntheticMetaById.set(targetId, meta);
+    // Text and reasoning composed exactly as for a real live row: the
+    // settled rounds from the parts, then the channel's tail.
+    const settledParts = meta.parts ?? [];
+    const held = state.streamTextByKey.get(key) ?? '';
+    const live = generationText?.text ?? '';
+    const freshLive = liveIsStale(lastPartText(settledParts, 'text'), live)
+      ? ''
+      : live;
+    const candidate = combineSettledAndLive(
+      messagePlainText(settledParts),
+      freshLive,
+    );
+    state.streamTextByKey.set(
+      key,
+      candidate.length >= held.length ? candidate : held,
+    );
+    const heldReasoning = state.streamReasoningByKey.get(key);
+    const settledReasoning = reasoningOfParts(settledParts);
+    const liveReasoningRaw = generationText?.reasoning;
+    const liveReasoning =
+      liveReasoningRaw !== undefined &&
+      liveIsStale(lastPartText(settledParts, 'reasoning'), liveReasoningRaw)
+        ? undefined
+        : liveReasoningRaw;
+    const combinedReasoning =
+      settledReasoning !== undefined || liveReasoning !== undefined
+        ? combineSettledAndLive(settledReasoning ?? '', liveReasoning ?? '')
+        : undefined;
+    if (
+      combinedReasoning !== undefined &&
+      (heldReasoning === undefined ||
+        combinedReasoning.length >= heldReasoning.length)
+    ) {
+      state.streamReasoningByKey.set(key, combinedReasoning);
+    }
   }
   // Materialize the synthesized rows — held through the settle gap even
   // after the generation goes idle — and retire each one the pass its real
