@@ -1,0 +1,226 @@
+'use client';
+
+import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { DialogErrorBoundary } from '@tale/ui/error-boundaries/dialog-error-boundary';
+import { useErrorScope } from '@tale/ui/error-boundaries/error-scope';
+import { useT } from '@tale/ui/i18n/client';
+import { Stack } from '@tale/ui/layout';
+import { useCallback, useRef } from 'react';
+
+import { Dialog, type DialogSize } from './dialog';
+
+export interface FormDialogProps {
+  /** Whether the dialog is open */
+  open?: boolean;
+  /** Callback when the dialog open state changes */
+  onOpenChange?: (open: boolean) => void;
+  /** Dialog title */
+  title: string;
+  /** Optional description below the title */
+  description?: React.ReactNode;
+  /** Form content (fields) */
+  children: React.ReactNode;
+  /** Text for the cancel button (defaults to common.actions.cancel) */
+  cancelText?: string;
+  /** Text for the submit button (defaults to common.actions.save) */
+  submitText?: string;
+  /** @deprecated Ignored — `isLoading` spinner carries submit state; label stays `submitText`. */
+  submittingText?: string;
+  /** Whether the form is being submitted */
+  isSubmitting?: boolean;
+  /** Whether the form has been modified (e.g. from react-hook-form formState.isDirty) */
+  isDirty?: boolean;
+  /** Whether the form passes validation (e.g. from react-hook-form formState.isValid) */
+  isValid?: boolean;
+  /**
+   * If true, closing while `isDirty` shows a native discard-confirm prompt.
+   * Default false — only opt in from forms that capture meaningful user input
+   * (otherwise read-only dialogs spuriously confirm on every close).
+   */
+  confirmDiscardOnDirty?: boolean;
+  /** Form submit handler (optional when customFooter is provided) */
+  onSubmit?: (e: React.FormEvent) => void;
+  /** Additional className for DialogContent */
+  className?: string;
+  /** Custom header content (replaces default title/description) */
+  customHeader?: React.ReactNode;
+  /** Custom footer content (replaces default buttons) */
+  customFooter?: React.ReactNode;
+  /** Use large dialog variant with scroll support */
+  large?: boolean;
+  /** Forwarded to underlying Dialog. `wide` (1100px) is the right
+   * choice for surfaces that host code editors / large tables. */
+  size?: DialogSize;
+  /** Optional trigger element that opens the dialog */
+  trigger?: React.ReactNode;
+  /** Enable error boundary (default: true) */
+  enableErrorBoundary?: boolean;
+  /** Callback when error occurs */
+  onError?: (error: Error) => void;
+  /**
+   * Stable element to restore focus to when the captured opener unmounts before
+   * close (e.g. a dropdown menu item).
+   */
+  restoreFocusRef?: React.RefObject<HTMLElement | null>;
+}
+
+/**
+ * Form dialog for create/edit operations.
+ * Wraps content in a form element with consistent header and footer.
+ */
+export function FormDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  cancelText,
+  submitText,
+  submittingText: _submittingText,
+  isSubmitting = false,
+  isDirty = true,
+  isValid = true,
+  confirmDiscardOnDirty = false,
+  onSubmit,
+  className,
+  customHeader,
+  customFooter,
+  large = false,
+  size,
+  trigger,
+  enableErrorBoundary = true,
+  onError,
+  restoreFocusRef,
+}: FormDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { organizationId: orgId } = useErrorScope();
+
+  // Pre-resolve the localized prompt so the i18n scanner sees the literal
+  // key. The handleClose callback below reads it from a ref to keep its
+  // identity stable across re-renders.
+  const discardConfirmMessage = tCommon('discardChangesConfirm');
+
+  const isSubmittingRef = useRef(isSubmitting);
+  isSubmittingRef.current = isSubmitting;
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const confirmDiscardOnDirtyRef = useRef(confirmDiscardOnDirty);
+  confirmDiscardOnDirtyRef.current = confirmDiscardOnDirty;
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const discardConfirmMessageRef = useRef(discardConfirmMessage);
+  discardConfirmMessageRef.current = discardConfirmMessage;
+
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
+  /**
+   * The default action is ALWAYS prevented, whether or not a caller passed a
+   * handler. A dialog's form has no action and no method: letting the browser
+   * submit it navigates the page, which shows up as the browser's own
+   * "Leave site? Changes you made may not be saved." prompt on top of a save
+   * that is still running. Every caller used to hand-roll this
+   * `event.preventDefault()`, so forgetting it was a trap rather than a choice.
+   *
+   * Propagation is ALWAYS stopped for the same reason: the dialog mounts in a
+   * portal, but React still bubbles the submit along the COMPONENT tree — so a
+   * FormDialog nested inside another form (the automation setup <form>, an
+   * outer FormDialog) would submit that ancestor too. No caller wants a nested
+   * dialog's submit to double as its parent's.
+   */
+  const handleSubmit = useCallback((event: React.FormEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onSubmitRef.current?.(event);
+  }, []);
+
+  const handleClose = useCallback((isOpen: boolean) => {
+    if (isOpen) {
+      onOpenChangeRef.current?.(true);
+      return;
+    }
+    // Block closing while submitting — user can still cancel via the Cancel
+    // button which gates on `disabled={isSubmitting}` independently.
+    if (isSubmittingRef.current) return;
+    // Confirm before discarding unsaved edits. Opt-in via
+    // `confirmDiscardOnDirty` so read-only dialogs (e.g. secret reveal) and
+    // dialogs that don't wire `isDirty` don't spuriously prompt on close.
+    // Native confirm avoids a nested-dialog focus-trap dance; swap for an
+    // inline AlertDialog later if a richer UX is needed.
+    if (
+      confirmDiscardOnDirtyRef.current &&
+      isDirtyRef.current &&
+      !globalThis.confirm(discardConfirmMessageRef.current)
+    ) {
+      return;
+    }
+    onOpenChangeRef.current?.(false);
+  }, []);
+
+  // Memoize the error handler to prevent inline function recreation
+  const handleBoundaryError = useCallback(
+    (error: Error) => {
+      onError?.(error);
+      onOpenChangeRef.current?.(false);
+    },
+    [onError],
+  );
+
+  const footer = customFooter ?? (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => handleClose(false)}
+        disabled={isSubmitting}
+      >
+        {cancelText ?? tCommon('actions.cancel')}
+      </Button>
+      <Button
+        type="submit"
+        disabled={isSubmitting || !isDirty || !isValid}
+        isLoading={isSubmitting}
+      >
+        {submitText ?? tCommon('actions.save')}
+      </Button>
+    </>
+  );
+
+  return (
+    <Dialog
+      open={open ?? false}
+      onOpenChange={handleClose}
+      title={title}
+      description={description}
+      size={size}
+      className={cn(large && 'max-h-[90vh] overflow-y-auto pr-2', className)}
+      trigger={trigger}
+      customHeader={customHeader}
+      restoreFocusRef={restoreFocusRef}
+    >
+      {/* The form fills the body and the actions take up the slack above
+          them, so a dialog with a minimum height (the `entity` size) keeps
+          its actions on the bottom edge instead of mid-dialog. */}
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-1 flex-col gap-4"
+        noValidate
+      >
+        {enableErrorBoundary ? (
+          <DialogErrorBoundary
+            organizationId={orgId}
+            onError={handleBoundaryError}
+          >
+            <Stack>{children}</Stack>
+          </DialogErrorBoundary>
+        ) : (
+          <Stack>{children}</Stack>
+        )}
+        <div className="mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          {footer}
+        </div>
+      </form>
+    </Dialog>
+  );
+}
