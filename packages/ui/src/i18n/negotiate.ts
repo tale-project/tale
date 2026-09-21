@@ -84,6 +84,23 @@ function urlPrefixLocale(pathname: string): UrlPrefixedLocale | null {
   return null;
 }
 
+/**
+ * The same path with a leading `/de` or `/fr` segment removed, or null when it
+ * carries none. For a site served as ONE untranslated tree (`ui-docs`): those
+ * URLs address nothing there, so the server sends them home instead of
+ * answering a 404 for a prefix only a translated site ever mints.
+ *
+ * @example
+ * stripLocalePrefix('/de')                 // '/'
+ * stripLocalePrefix('/fr/docs/button')     // '/docs/button'
+ * stripLocalePrefix('/docs/button')        // null
+ */
+export function stripLocalePrefix(pathname: string): string | null {
+  const [, first = '', ...rest] = pathname.split('/');
+  if (!isUrlPrefixedLocale(first)) return null;
+  return rest.length === 0 ? '/' : `/${rest.join('/')}`;
+}
+
 /** Best path-locale (`'en' | 'de' | 'fr'`) implied by the user's
  *  Accept-Language header. Walks the parsed candidates in preference order
  *  and matches against the URL-prefixable set, narrowing regional tags

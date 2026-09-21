@@ -36,6 +36,11 @@ startReactServer({
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'ui-docs',
   redirectPrefix: BASE_PATH,
+  // One English tree — `app/routes/` has no locale segment and the
+  // prerenderer writes no `/de` or `/fr` artifact. Path negotiation would
+  // send every German or French reader (and anyone carrying a `tale_locale`
+  // cookie from tale.dev) to a page that does not exist.
+  localeRouting: 'none',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
   artifacts,

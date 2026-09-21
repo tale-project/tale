@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { isLocaleNeutralPath, negotiatePathLocale } from './negotiate';
+import {
+  isLocaleNeutralPath,
+  negotiatePathLocale,
+  stripLocalePrefix,
+} from './negotiate';
 
 const NO_HEADERS = { cookieHeader: null, acceptLanguageHeader: null };
 
@@ -199,5 +203,36 @@ describe('negotiatePathLocale — unprefixed paths without cookie', () => {
     expect(result.locale).toBe('de');
     expect(result.redirectTo).toBe('/de');
     expect(result.setCookieValue).toBe('de');
+  });
+});
+
+describe('stripLocalePrefix', () => {
+  it('returns the root for a bare locale prefix', () => {
+    expect(stripLocalePrefix('/de')).toBe('/');
+    expect(stripLocalePrefix('/fr')).toBe('/');
+    expect(stripLocalePrefix('/de/')).toBe('/');
+  });
+
+  it('drops the prefix and keeps the rest of the path', () => {
+    expect(stripLocalePrefix('/de/docs/components/button')).toBe(
+      '/docs/components/button',
+    );
+    expect(stripLocalePrefix('/fr/docs')).toBe('/docs');
+  });
+
+  it('returns null for a path that carries no locale prefix', () => {
+    expect(stripLocalePrefix('/')).toBeNull();
+    expect(stripLocalePrefix('/docs/components/button')).toBeNull();
+    expect(stripLocalePrefix('/en/docs')).toBeNull();
+  });
+
+  it('does not match a segment that merely starts with a locale', () => {
+    expect(stripLocalePrefix('/design')).toBeNull();
+    expect(stripLocalePrefix('/frames/x')).toBeNull();
+  });
+
+  it('only strips the FIRST segment', () => {
+    expect(stripLocalePrefix('/docs/de/button')).toBeNull();
+    expect(stripLocalePrefix('/de/de/button')).toBe('/de/button');
   });
 });

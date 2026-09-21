@@ -27,6 +27,7 @@ import { join, resolve, sep } from 'node:path';
 import { serializeLocaleCookie } from '@tale/ui/i18n/cookie';
 import {
   negotiatePathLocale,
+  stripLocalePrefix,
   type NegotiatePathLocaleResult,
 } from '@tale/ui/i18n/negotiate';
 
@@ -83,6 +84,22 @@ export interface ReactServerOptions {
    * when served at the origin root.
    */
   redirectPrefix?: string;
+  /**
+   * Shape of the site's URL tree.
+   *
+   * `'path'` (default) is the translated shape web and docs ship: English at
+   * the canonical path, German and French under `/de` and `/fr`. Every
+   * request is negotiated from the locale cookie and `Accept-Language`, and
+   * an unprefixed path 302s into the reader's tree.
+   *
+   * `'none'` is for a site served as ONE untranslated tree (`ui-docs`).
+   * Negotiation is skipped whole: no redirect, no `tale_locale` cookie (the
+   * site owns no locale state) and no locale `Vary` (the answer varies by
+   * neither header). A stale `/de…` or `/fr…` — minted by this server before
+   * the mode existed, or carried in a bookmark — 301s back onto the tree
+   * rather than answering a 404 for a prefix the site never had.
+   */
+  localeRouting?: 'path' | 'none';
   /**
    * Path to a graceful-shutdown marker file. When the file exists, the
    * docker entrypoint's signal handler created it; `/api/health` returns
@@ -213,6 +230,7 @@ export function startReactServer(opts: ReactServerOptions) {
     logPrefix,
     localeCookieDomain = process.env.LOCALE_COOKIE_DOMAIN || undefined,
     redirectPrefix = '',
+    localeRouting = 'path',
     shutdownMarkerPath,
     securityHeaders,
     buildHealthResponse,
@@ -427,6 +445,29 @@ export function startReactServer(opts: ReactServerOptions) {
           reportError,
         );
         if (artifact) return finalize(artifact);
+      }
+
+      // One untranslated tree: nothing to negotiate, and a `/de…` or `/fr…`
+      // addresses no page here — send it home instead of 404ing a prefix a
+      // reader only ever got from this server or a shared bookmark.
+      if (localeRouting === 'none') {
+        const unprefixed = stripLocalePrefix(url.pathname);
+        if (unprefixed) {
+          return finalize(
+            new Response(null, {
+              status: 301,
+              headers: {
+                Location: `${redirectPrefix}${unprefixed}${url.search}`,
+              },
+            }),
+          );
+        }
+        return finalize(
+          await serveStatic(
+            url.pathname,
+            request.method === 'GET' ? request.headers.get('range') : null,
+          ),
+        );
       }
 
       const negotiation = negotiatePathLocale({

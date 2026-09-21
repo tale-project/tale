@@ -55,3 +55,11 @@ for the prerender boxes.
 - [ ] `SEO-9` · **`curl -si /`** → the security headers the shared server sets
   are present (`content-security-policy`, `x-content-type-options: nosniff`,
   `referrer-policy`), and `GET /api/health` answers `200` with JSON.
+- [ ] `SEO-10` · **`curl -si -H 'Accept-Language: de-CH,de' /`, then the same
+  with `-H 'Cookie: tale_locale=de'`** → both answer **200** with the front
+  page: no `Location`, no `Set-Cookie: tale_locale`, no `Vary: Accept-Language`.
+  This site is one English tree, and a reader carrying tale.dev's language
+  cookie has no other tree to be sent to.
+- [ ] `SEO-11` · **`curl -si /de` and `curl -si /fr/docs/components/button`** →
+  **301** to `/` and to `/docs/components/button` — the prefixes this server
+  once redirected readers into still land them on the page.

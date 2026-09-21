@@ -43,6 +43,10 @@ server you opened.
 The body routes are English-only and `LocaleSync` pins this site to English. The
 EN/DE/FR chrome catalogs remain complete; follow the translation skill when editing
 them. Demo literals are English sample code, while shared controls use package copy.
+Because there is no `/de` or `/fr` tree, `server.ts` passes `localeRouting: 'none'`
+to the shared server: no locale negotiation, no `tale_locale` cookie, and a stale
+locale-prefixed URL 301s back onto the English tree. Adding a translated tree means
+routes, prerendered artifacts and flipping that option back to `'path'`.
 
 The homepage product window and nested application-layout examples are labelled,
 inert illustrations. Their explanation must remain understandable outside the frame.
