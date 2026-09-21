@@ -127,6 +127,7 @@ caller never receives one that is about to expire.
 | `AI_GATEWAY_CLAUDE_CODE_VERSION` | `1.0.0` | Reported as `claude-code/<version>` to Anthropic's usage endpoint |
 | `AI_GATEWAY_ANTHROPIC_CLIENT_ID` | the CLI's | Override only if Anthropic rotates its public client |
 | `AI_GATEWAY_OPENAI_CLIENT_ID` | the CLI's | Override only if OpenAI rotates its public client |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | — | Error reporting. Absent, nothing is reported |
 
 ## Add a third provider
 

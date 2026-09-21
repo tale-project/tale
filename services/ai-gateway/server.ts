@@ -10,6 +10,7 @@
 
 import { resolve } from 'node:path';
 
+import { initServerMonitoring } from '@tale/ui/monitoring/server';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
@@ -17,6 +18,16 @@ import {
 
 import { ConfigError } from './backend/config';
 import { createGateway } from './backend/gateway';
+
+// Absent `SENTRY_DSN`, this reports nothing and costs nothing — which is the
+// state of every local run. A deployment supplies the DSN of its own
+// error-tracking project.
+const monitoring = initServerMonitoring({
+  dsn: process.env.SENTRY_DSN,
+  release: process.env.TALE_VERSION,
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
+  service: 'tale-ai-gateway',
+});
 
 let gateway;
 try {
@@ -35,6 +46,8 @@ try {
 gateway.startRefreshLoop();
 
 startReactServer({
+  monitoring: monitoring.config,
+  reportError: monitoring.capture,
   port: Number(process.env.PORT ?? 3004),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'ai-gateway',
