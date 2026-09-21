@@ -211,7 +211,11 @@ async function main(): Promise<number> {
     await dockerExecOk(egressContainer, [
       'sh',
       '-c',
-      '! touch /tmp/tale-egress-smoke-probe 2>/dev/null && nc -z 127.0.0.1 3128',
+      // Same probe the healthcheck uses: tinyproxy answers a non-proxy
+      // request with its own 400 page, so this asserts the proxy SERVES
+      // (not merely that the port accepts) and leaves no
+      // `read_request_line: … closed socket before read.` error behind.
+      "! touch /tmp/tale-egress-smoke-probe 2>/dev/null && curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/",
     ])
   ) {
     r.pass('Egress serves with read-only /tmp');

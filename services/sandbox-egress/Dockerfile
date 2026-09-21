@@ -28,7 +28,7 @@ FROM alpine:3.20
 # - gettext:        provides envsubst for the conf template
 # - ca-certificates: tinyproxy TLS validation when filtering
 # - iptables:       SSRF firewall (IMDS + RFC1918 REJECT rules in entrypoint)
-# - curl:           healthcheck CONNECT probe
+# - curl:           the readiness probe (HEALTHCHECK below)
 # - dnsmasq:        DNS forwarder for the internal sandbox network. The runtime
 #                   session + its nested DinD containers sit on an internal-only
 #                   bridge and cannot resolve external names (their embedded DNS
@@ -47,11 +47,17 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
 EXPOSE 3128
 EXPOSE 53/udp
 
-# Local readiness probe only — confirms tinyproxy is bound and accepting
-# TCP. We deliberately do NOT call out to an external host every 10s on
-# every host. `nc` is part of busybox in alpine; no extra apk install is
-# needed.
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-  CMD nc -z 127.0.0.1 3128 || exit 1
+# Local readiness probe only — one HTTP request to the proxy port, which
+# tinyproxy answers itself with its own 400 page ("You tried to connect to
+# the machine the proxy is running on"). That proves the daemon reads and
+# serves, and never calls out to an external host. The 400 IS the healthy
+# answer, so no `-f`; curl still exits non-zero on refusal, timeout or an
+# empty reply. `--noproxy '*'` keeps an http_proxy in the container's env
+# from redirecting the probe. NOT `nc -z`: tinyproxy logs every
+# connect-and-close at ERROR ("read_request_line: Client … closed socket
+# before read."), so a TCP probe floods the log with one error per interval.
+# Keep byte-identical to EGRESS_HEALTH_PROBE in the CLI compose generator.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

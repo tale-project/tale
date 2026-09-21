@@ -180,7 +180,7 @@ Behalte `db-backup`, wenn deine Datenbankwerkzeuge nach `/var/lib/postgresql/bac
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres und Initialisierung bereit; Benutzer anpassen. |
 | `object-store` | `mc ready local` | Bereitschaft des mitgelieferten MinIO. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner nach Vorbereitung des Laufzeit-Images bereit. |
-| `sandbox-egress` | `nc -z 127.0.0.1 3128` | Lokaler Proxy-Port, unabhängig von externen Webseiten. |
+| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | Der Proxy beantwortet eine Nicht-Proxy-Anfrage selbst (400-Seite); das belegt, dass er ausliefert, ohne externe Webseiten zu erreichen. Den Port nicht mit einer reinen TCP-Verbindung prüfen: tinyproxy protokolliert jedes Verbinden-und-Schließen als Fehler, eine Zeile pro Intervall. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Verwendet den vorhandenen Client; das Image enthält kein `curl`. |
 
 Plane genug Zeit für Kaltstarts. Der Download der Sandbox-Laufzeit kann ein für warme Hosts passendes Zeitlimit überschreiten. Eine erfolgreiche Bereitschaftsprüfung belegt weder Dateizugriff noch Modellzugangsdaten oder einen vollständigen Nutzerablauf. Prüfe diese separat.

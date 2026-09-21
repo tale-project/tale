@@ -180,7 +180,7 @@ Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres and initialization are ready; adapt the user to your configuration. |
 | `object-store` | `mc ready local` | Bundled MinIO readiness. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner readiness after runtime-image preparation. |
-| `sandbox-egress` | `nc -z 127.0.0.1 3128` | Local proxy port, independent of a third-party website. |
+| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | The proxy answers a non-proxy request itself (400 page), so this proves it serves without reaching a third-party website. Do not probe the port with a bare TCP connect: tinyproxy logs every connect-and-close at error level, one line per interval. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Use the image's available client; it does not ship `curl`. |
 
 Give cold starts enough time: downloading the sandbox runtime can take longer than a warm-host probe budget. A successful readiness probe does not prove file access, model credentials, or an entire user task. Check those separately.
