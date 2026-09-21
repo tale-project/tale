@@ -109,6 +109,9 @@ jobs:
               - 'services/ui-docs/**'
               - 'packages/ui/**'
               - 'packages/marketing-ui/**'
+            ai-gateway:
+              - 'services/ai-gateway/**'
+              - 'packages/ui/**'
             storybook:
               - 'services/platform/**'
               - 'packages/ui/**'

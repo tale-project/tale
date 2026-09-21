@@ -60,7 +60,7 @@ jobs:
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
           fi
-          SERVICE_NAMES='["platform","db","proxy","web","docs","ui-docs","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
+          SERVICE_NAMES='["platform","db","proxy","web","docs","ui-docs","ai-gateway","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
           if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"
