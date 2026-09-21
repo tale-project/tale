@@ -165,6 +165,7 @@
     "./icons/google-icon": "./src/icons/google-icon.tsx",
     "./icons/locale-icon": "./src/icons/locale-icon.tsx",
     "./icons/microsoft-icon": "./src/icons/microsoft-icon.tsx",
+    "./icons/openai-icon": "./src/icons/openai-icon.tsx",
     "./icons/onedrive-icon": "./src/icons/onedrive-icon.tsx",
     "./icons/outlook-icon": "./src/icons/outlook-icon.tsx",
     "./icons/sharepoint-icon": "./src/icons/sharepoint-icon.tsx",

@@ -11,6 +11,7 @@ import { GoogleIcon } from './google-icon';
 import { LocaleIcon } from './locale-icon';
 import { MicrosoftIcon } from './microsoft-icon';
 import { OneDriveIcon } from './onedrive-icon';
+import { OpenAIIcon } from './openai-icon';
 import { OutlookIcon } from './outlook-icon';
 import { SharePointIcon } from './sharepoint-icon';
 import { ShopifyIcon } from './shopify-icon';
@@ -25,6 +26,7 @@ const icons = [
   { name: 'LocaleIcon', Component: LocaleIcon },
   { name: 'MicrosoftIcon', Component: MicrosoftIcon },
   { name: 'OneDriveIcon', Component: OneDriveIcon },
+  { name: 'OpenAIIcon', Component: OpenAIIcon },
   { name: 'OutlookIcon', Component: OutlookIcon },
   { name: 'SharePointIcon', Component: SharePointIcon },
   { name: 'ShopifyIcon', Component: ShopifyIcon },
