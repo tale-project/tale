@@ -27,6 +27,7 @@ export function createRouterStub(pathname = '/') {
       children,
       onClick,
       activeOptions: _activeOptions,
+      activeProps: _activeProps,
       preload: _preload,
       ...rest
     }: {
@@ -34,6 +35,7 @@ export function createRouterStub(pathname = '/') {
       children: ReactNode;
       onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
       activeOptions?: unknown;
+      activeProps?: unknown;
       preload?: unknown;
     } & Record<string, unknown>) => (
       <a

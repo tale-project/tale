@@ -30,6 +30,8 @@ home:
   heroDescription: Baue Anwendungsoberflächen mit @tale/ui und öffentliche Websites mit @tale/marketing-ui. Die Anleitungen und interaktiven Beispiele helfen dir, Komponenten auszuwählen und zu verbinden.
   heroPrimary: Zur Doku
   heroSecondary: Auf GitHub ansehen
+  heroMeta: "{count, plural, one {# Anleitung} other {# Anleitungen}} · @tale/ui
+    und @tale/marketing-ui · MIT-lizenziert"
   showcaseTitle: Komponenten in einem Beispiel-Workspace
   showcaseDescription: Diese Abbildung verwendet die veröffentlichten Komponenten und folgt deinem gewählten Theme. In den Anleitungen kannst du die interaktiven Beispiele ausprobieren.
   showcaseWindowTitle: Workspace-Einstellungen
@@ -60,6 +62,7 @@ home:
   sectionsComponents: Wähle Komponentenzustände und verbinde Props, Rückruffunktionen und zugängliche Namen.
   sectionsPatterns: Baue Listen- und Einstellungsseiten mit Suche, Entwürfen und passendem Speicherverhalten.
   sectionsMarketingUi: Verwende Seitennavigation, Marketing-Komponenten und Rahmen für Produktbeispiele auf öffentlichen Websites.
+  guideCount: "{count, plural, one {# Anleitung} other {# Anleitungen}}"
   installTitle: In dein eigenes Repository einbauen
   installDescription: Die Pakete liefern TypeScript-Quelltext. Probiere einen Snapshot-Branch aus; für eine reproduzierbare Installation fixierst du anschließend einen Release-Tag und commitest die Lockdatei.
   installCodeLabel: package.json
