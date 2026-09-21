@@ -105,6 +105,11 @@ Safety and architecture invariants — they hold even where no linter covers the
   **directly on `main`** — no feature branch, no pull request, unless the repo contract says
   otherwise. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution
   line** — `.husky/commit-msg` strips such trailers before commitlint runs.
+- **Branches** — where the repo contract asks for one, name it for the work, never for the
+  tool that did it: `<type>/<kebab-slug>` with a type from `.commitlintrc.json` (`feat/`,
+  `fix/`, `refactor/`, `docs/`, `chore/`, `ci/`), or `dist/` for published build output.
+  **Never** an agent-vendor namespace (`codex/…`, `claude/…`, `cursor/…`); `renovate/` and
+  `automated/` belong to the bots.
 - **A change is rarely one file** — sweep the concept's blast radius: a user-visible string →
   every locale the repo ships (+ docs); a new UI element → label + a11y + docs + tests; an env
   var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones —
