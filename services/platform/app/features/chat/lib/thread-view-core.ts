@@ -12,6 +12,10 @@
  *   row's own parts stay empty; it never shrinks mid-stream (a reconnect can
  *   deliver a shorter committed prefix), and it survives the settle gap where
  *   the generation row is already gone but the finalize write has not landed.
+ * - The live row's PARTS the stream channel carried (tool calls and results,
+ *   reasoning segments), held through the same settle gap: the thought
+ *   timeline is drawn from them, and it must not collapse for the round-trip
+ *   between the generation row's delete and the finalized row's arrival.
  * - IDENTITY: rows keep their previous object reference unless a field a
  *   component renders actually changed, and the array itself keeps its
  *   reference when no row changed — so a streamed chunk re-renders exactly
@@ -71,6 +75,9 @@ export interface ThreadViewState {
    * gaps and the settle gap before the finalize write lands. */
   streamTextByKey: Map<string, string>;
   streamReasoningByKey: Map<string, string>;
+  /** Last streamed parts per live row — the same settle-gap bridge as the
+   * text, for the thought timeline the parts draw. */
+  streamPartsByKey: Map<string, readonly MessagePart[]>;
   /** Rows that finished streaming during this mount — their reveal drains
    * out instead of popping, and settle-gated chrome can wait for it. */
   drainedKeys: Set<string>;
@@ -101,6 +108,7 @@ export function createThreadViewState(): ThreadViewState {
     hasGeneration: false,
     streamTextByKey: new Map(),
     streamReasoningByKey: new Map(),
+    streamPartsByKey: new Map(),
     drainedKeys: new Set(),
     realToPendingKey: new Map(),
     adoptedPendingKeys: new Set(),
@@ -358,12 +366,19 @@ export function reduceThreadView(
       // Parts only ever grow within a turn, so the longer list is the newer
       // one — and preferring the row on a tie keeps the settle write (which
       // carries the full tool results) authoritative the moment it lands.
+      // Held like the text: the stream channel goes idle one round-trip
+      // before the finalized row arrives, and the thought timeline drawn
+      // from these parts must not collapse for that gap.
+      const heldParts = state.streamPartsByKey.get(key);
       const streamedParts = generationText?.parts;
-      if (
+      const newestParts =
         streamedParts !== undefined &&
-        streamedParts.length > row.parts.length
-      ) {
-        liveParts = streamedParts;
+        (heldParts === undefined || streamedParts.length >= heldParts.length)
+          ? streamedParts
+          : heldParts;
+      if (newestParts !== undefined) {
+        state.streamPartsByKey.set(key, newestParts);
+        if (newestParts.length > row.parts.length) liveParts = newestParts;
       }
       isStreaming = true;
     } else if (state.streamTextByKey.has(key)) {
@@ -381,12 +396,19 @@ export function reduceThreadView(
         // never a tail it refused — holding that tail as "streaming" is how
         // a failed reply kept thinking forever.)
         state.streamTextByKey.delete(key);
+        state.streamPartsByKey.delete(key);
         state.drainedKeys.add(key);
       } else {
         // The generation row is gone but the finalize write has not landed
-        // yet — keep the streamed text and the streaming presentation for
-        // the gap instead of blanking the bubble.
+        // yet — keep the streamed text, the streamed parts and the streaming
+        // presentation for the gap instead of blanking the bubble or
+        // collapsing the thought timeline under the answer (the placeholder
+        // row's own parts are still empty here).
         text = held;
+        const heldParts = state.streamPartsByKey.get(key);
+        if (heldParts !== undefined && heldParts.length > row.parts.length) {
+          liveParts = heldParts;
+        }
         isStreaming = true;
       }
     } else if (
@@ -471,6 +493,9 @@ export function reduceThreadView(
     ) {
       meta.parts = streamedParts;
     }
+    // The real row can arrive in the same pass the turn settles; the hold
+    // above is what carries the timeline across that handover.
+    if (meta.parts !== undefined) state.streamPartsByKey.set(key, meta.parts);
     state.syntheticMetaById.set(targetId, meta);
   }
   // Materialize the synthesized rows — held through the settle gap even

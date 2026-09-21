@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 75 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 76 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -304,6 +304,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.scrollToBottom`) → The view lands at the bottom and keeps following
   the growing reply; a wheel or trackpad scroll up stops the follow and the
   button returns.
+- [ ] `CHAT-F41` · **A tool-using reply keeps its thought timeline when the
+  turn settles** — Mode B, in a project with a web or knowledge tool
+  equipped: ask something the model answers with tool steps and a long
+  answer (a live weather lookup, a document search), and watch the reply as
+  the stream ends → The **Thought for Ns** header (`chat.thinking.done`) and
+  its step rows stay put; the answer body never jumps up and back down when
+  the turn settles, and the steps are still there once the reply is done.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
