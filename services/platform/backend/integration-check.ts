@@ -51590,6 +51590,47 @@ async function main(): Promise<void> {
     `app_migrations rows=${migrationRows[0]?.count}, better-auth user table=${authTable[0]?.ok ? 'present' : 'MISSING'}`,
   );
 
+  // 1a. Better Auth 1.7 added `team.memberCount` as NOT NULL with an
+  //     application-level default only, so it emits no SQL DEFAULT. This
+  //     deployment owns team membership in plain SQL (`domains/scim`,
+  //     `domains/sso`) and never calls Better Auth's team API, so without the
+  //     default those inserts fail outright — SCIM group provisioning and SSO
+  //     team mapping both break. `defaultTeamMemberCount` in `db/migrate.ts`
+  //     supplies it after Better Auth's own migrations; this proves a raw
+  //     insert that names no `memberCount` still lands.
+  const teamDefault = await sql<{ def: string | null }[]>`
+    SELECT column_default AS def
+    FROM information_schema.columns
+    WHERE table_name = 'team' AND column_name = 'memberCount'
+  `;
+  const teamOrgId = `itest-team-default-${randomUUID()}`;
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${teamOrgId}, 'Team default proof', ${teamOrgId}, ${new Date()})
+  `;
+  let rawTeamInsert = 'threw';
+  try {
+    await sql`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+      VALUES (${`t-${teamOrgId}`}, 'Raw insert', ${teamOrgId}, ${new Date()})
+    `;
+    rawTeamInsert = 'landed';
+  } catch (error) {
+    rawTeamInsert = errorText(error);
+  }
+  const teamCount = await sql<{ memberCount: number }[]>`
+    SELECT "memberCount" FROM "team" WHERE "id" = ${`t-${teamOrgId}`}
+  `;
+  await sql`DELETE FROM "organization" WHERE "id" = ${teamOrgId}`;
+  record(
+    'team.memberCount carries a SQL default, so a raw team insert lands',
+    teamDefault[0]?.def !== null &&
+      teamDefault[0]?.def !== undefined &&
+      rawTeamInsert === 'landed' &&
+      teamCount[0]?.memberCount === 0,
+    `default=${teamDefault[0]?.def ?? 'NONE'} (want 0), insert=${rawTeamInsert} (want landed), memberCount=${String(teamCount[0]?.memberCount)} (want 0)`,
+  );
+
   // 1b. The boot backfill: accounts this deployment provisioned before a
   //     provisioned account counted as a verified one are caught up, and a
   //     directory-provisioned account (no credential row) keeps its

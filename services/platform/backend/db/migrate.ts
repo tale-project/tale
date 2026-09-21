@@ -40,6 +40,36 @@ export interface BootMigrationOptions {
 }
 
 /**
+ * Give Better Auth's `team.memberCount` a SQL default.
+ *
+ * 1.7 added the column as NOT NULL with an application-level `defaultValue`
+ * only — its own adapter always supplies a value, so it emits no SQL DEFAULT.
+ * This deployment owns team membership in plain SQL instead (`domains/scim`,
+ * `domains/sso`, the teams domain) and never calls Better Auth's team API, so
+ * every one of those inserts would fail the not-null constraint. Defaulting
+ * the column fixes the whole class at once rather than threading a bookkeeping
+ * value through each caller.
+ *
+ * The value stays 0 and is deliberately NOT maintained: nothing here reads it.
+ * The Teams surfaces count `teamMember` live
+ * (`domains/teams/service.ts`), which cannot drift. Should anything ever start
+ * calling Better Auth's team endpoints, this column has to be maintained
+ * first.
+ *
+ * Not a numbered migration, for the same reason `verifyProvisionedAccounts`
+ * is not: the app's `.sql` files run before Better Auth's tables exist. Runs
+ * every boot; `IF EXISTS` and `SET DEFAULT` are both idempotent, and Better
+ * Auth's migrator only adds missing tables and columns, so it never takes the
+ * default back off.
+ */
+async function defaultTeamMemberCount(sql: postgres.Sql): Promise<void> {
+  await sql`
+    ALTER TABLE IF EXISTS "team"
+    ALTER COLUMN "memberCount" SET DEFAULT 0
+  `;
+}
+
+/**
  * Catch up accounts this deployment provisioned before a provisioned account
  * counted as a verified one (`backend/auth/auth.ts`). A `credential` row is
  * the proof: it exists only for an account whose password this instance
@@ -127,6 +157,7 @@ export async function runBootMigrations(
         );
         await runMigrations();
       }
+      await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
     }
   } finally {
