@@ -9,7 +9,7 @@ import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
 import { generateStatefulCompose } from '../generators/generate-stateful-compose';
-import type { ServiceConfig } from '../types';
+import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
   THIRD_PARTY_IMAGES,
@@ -23,7 +23,10 @@ import {
 } from './create-backend-services';
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
-import { createSandboxEgressService } from './create-sandbox-egress-service';
+import {
+  EGRESS_HEALTH_PROBE,
+  createSandboxEgressService,
+} from './create-sandbox-egress-service';
 import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
@@ -60,6 +63,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       build?: unknown;
       ports?: unknown[];
       environment?: Record<string, string>;
+      healthcheck?: { test?: string[] };
     }
   >;
 };
@@ -68,6 +72,30 @@ function networkNames(networks: unknown): string[] {
   if (Array.isArray(networks)) return networks as string[];
   if (networks && typeof networks === 'object') return Object.keys(networks);
   return [];
+}
+
+/** The shell command a generated service probes with, '' when it has none. */
+function probeOf(service: ComposeService): string {
+  const healthcheck = service.healthcheck;
+  if (!healthcheck || 'disable' in healthcheck) return '';
+  return healthcheck.test.join(' ');
+}
+
+/**
+ * The `HEALTHCHECK` directive of a Dockerfile, continuation lines folded in —
+ * the surrounding comments are NOT part of it, so a comment that names the
+ * probe we moved away from can't satisfy (or break) an assertion.
+ */
+function dockerfileHealthcheck(source: string): string {
+  const lines = source.split('\n');
+  const start = lines.findIndex((line) => line.startsWith('HEALTHCHECK'));
+  if (start === -1) return '';
+  const directive: string[] = [];
+  for (const line of lines.slice(start)) {
+    directive.push(line.trimEnd().replace(/\\$/, ''));
+    if (!line.trimEnd().endsWith('\\')) break;
+  }
+  return directive.join(' ');
 }
 
 function graceSeconds(value: string | undefined): number {
@@ -183,6 +211,39 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
       expect([...(service?.cap_add ?? [])].sort()).toEqual(expected);
     }
   });
+});
+
+describe('egress readiness probe parity (log-flood guard)', () => {
+  // tinyproxy logs EVERY connect-and-close at ERROR ("read_request_line:
+  // Client (file descriptor: N) closed socket before read."), so a bare TCP
+  // probe wrote one error line per interval, for the lifetime of the
+  // container, into the log an operator reads to find real failures. It also
+  // called a proxy that accepts but never answers healthy. The probe must be a real
+  // HTTP request, in both pipelines AND in the image's own HEALTHCHECK (which
+  // is what runs wherever neither compose file overrides it).
+  const pipelines: [string, string][] = [
+    [
+      'compose.yml',
+      (compose.services['sandbox-egress']?.healthcheck?.test ?? []).join(' '),
+    ],
+    ['CLI generator', probeOf(createSandboxEgressService(config))],
+    [
+      'image HEALTHCHECK',
+      dockerfileHealthcheck(
+        readFileSync(
+          resolve(repoRoot, 'services/sandbox-egress/Dockerfile'),
+          'utf8',
+        ),
+      ),
+    ],
+  ];
+
+  for (const [pipeline, command] of pipelines) {
+    test(`${pipeline} probes the proxy over HTTP, not a bare TCP connect`, () => {
+      expect(command).toContain(EGRESS_HEALTH_PROBE);
+      expect(command).not.toMatch(/nc\s+-z/);
+    });
+  }
 });
 
 describe('sandbox spawner URL parity', () => {

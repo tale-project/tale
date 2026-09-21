@@ -705,15 +705,25 @@ services:
       - NET_BIND_SERVICE
       - KILL
     healthcheck:
-      # Plain TCP-listen check: if tinyproxy is up the port answers. We
-      # intentionally do NOT CONNECT-probe an external host (pypi/npm)
+      # One local HTTP request: tinyproxy answers a non-proxy request with
+      # its own 400 page, so the probe proves the daemon reads and serves
+      # without leaving the container. The 400 IS the healthy answer, so no
+      # `-f`. NOT `nc -z`: tinyproxy logs every connect-and-close at ERROR
+      # ("read_request_line: Client … closed socket before read."), which
+      # wrote one error line per interval into the log an operator reads to
+      # find real failures.
+      # We intentionally do NOT CONNECT-probe an external host (pypi/npm)
       # — flapping that probe against a transient upstream outage flips
       # the spawner's `depends_on: service_healthy` gate to false and
       # blocks all new sandbox launches even though the proxy itself is
-      # fine. Round-2 R2-B11: aligned with the CLI generator (TCP-only)
-      # so `docker compose up` and `tale start` produce identical health
-      # semantics.
-      test: ['CMD-SHELL', 'nc -z 127.0.0.1 3128 || exit 1']
+      # fine. Round-2 R2-B11: aligned with the CLI generator (same probe
+      # string) so `docker compose up` and `tale start` produce identical
+      # health semantics.
+      test:
+        [
+          'CMD-SHELL',
+          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 2

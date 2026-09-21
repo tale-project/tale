@@ -3,6 +3,16 @@ import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
+ * The egress readiness probe, shared by both compose pipelines and kept
+ * byte-identical to the `HEALTHCHECK` baked into
+ * `services/sandbox-egress/Dockerfile` (guarded in `compose-parity.test.ts`).
+ * See the `healthcheck` block below for why it is an HTTP request and not a
+ * TCP connect.
+ */
+export const EGRESS_HEALTH_PROBE =
+  "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1";
+
+/**
  * Sandbox egress proxy — tinyproxy on `sandbox` (faces the runtime
  * containers) + `internal` (the only Docker network in this stack with
  * outbound NAT; `tale-sandbox-net` is created with `--internal` so
@@ -72,17 +82,33 @@ export function createSandboxEgressService(
       nofile: { soft: 4096, hard: 8192 },
     },
     healthcheck: {
-      // Local readiness probe: a TCP `nc -z 3128` confirms tinyproxy is
-      // bound and accepting connections. We deliberately do NOT probe an
-      // external host (pypi) on every interval: 10s × 24h = 8,640
-      // pypi.org/simple/ hits per day per host, which is wasteful and
-      // makes the proxy's healthiness depend on a third party's uptime
-      // (a pypi blip would flap the container and trigger restarts).
-      // Allow-list regressions are caught by the smoke test, not by the
-      // health probe.
-      test: ['CMD-SHELL', 'nc -z 127.0.0.1 3128 || exit 1'],
+      // Local readiness probe: one HTTP request to the proxy port. A
+      // non-proxy request is answered by tinyproxy itself with its own 400
+      // page, so the round trip never leaves the container and still proves
+      // the daemon reads and serves — where a bare `nc -z` only proved the
+      // kernel accepted the socket and called a proxy that accepts but never
+      // answers healthy. The 400 IS the healthy answer, so no `-f`; curl
+      // still exits non-zero on refusal, timeout or empty reply.
+      // `--noproxy '*'` keeps an http_proxy in the container's `.env` from
+      // redirecting the probe away from the proxy it is probing.
+      //
+      // NOT `nc -z`: tinyproxy logs every connect-and-close at ERROR
+      // ("read_request_line: Client … closed socket before read."), so a TCP
+      // probe wrote one error line per interval, for the lifetime of the
+      // container, into the log an operator reads to find real failures.
+      //
+      // We still deliberately do NOT probe an external host (pypi) on every
+      // interval: 30s × 24h = 2,880 pypi.org/simple/ hits per day per host,
+      // which is wasteful and makes the proxy's healthiness depend on a third
+      // party's uptime (a pypi blip would flap the container and trigger
+      // restarts). Allow-list regressions are caught by the smoke test, not
+      // by the health probe.
+      test: ['CMD-SHELL', EGRESS_HEALTH_PROBE],
       interval: '30s',
-      timeout: '3s',
+      // Above curl's own `--max-time 3`, so a slow proxy is reported by curl
+      // (exit 28, with a reason in the health log) instead of being cut off
+      // by Docker at the same moment.
+      timeout: '5s',
       retries: 3,
       start_period: '10s',
     },

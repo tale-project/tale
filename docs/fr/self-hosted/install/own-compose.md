@@ -180,7 +180,7 @@ Conserve `db-backup` si tes outils écrivent dans `/var/lib/postgresql/backup` 
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres et initialisation prêts ; adapter l’utilisateur. |
 | `object-store` | `mc ready local` | Disponibilité du MinIO fourni. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner prêt après préparation de l’image d’exécution. |
-| `sandbox-egress` | `nc -z 127.0.0.1 3128` | Port local du proxy, sans dépendance à un site tiers. |
+| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | Le proxy répond lui-même à une requête non proxy (page 400) : cela prouve qu’il sert, sans dépendance à un site tiers. Ne sonde pas le port par une simple connexion TCP : tinyproxy journalise chaque connexion-fermeture comme une erreur, une ligne par intervalle. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Utiliser le client présent dans l’image ; elle ne contient pas `curl`. |
 
 Prévois assez de temps pour un démarrage à froid : le téléchargement de l’environnement sandbox peut dépasser un délai adapté à un hôte déjà préparé. Une sonde réussie ne prouve ni accès aux fichiers, ni identifiants de modèle, ni parcours utilisateur complet. Vérifie-les séparément.
