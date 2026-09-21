@@ -84,6 +84,22 @@ export function navGroupTrail(slug: string): readonly string[] {
   return find(UI_DOCS_NAV, []) ?? [];
 }
 
+/**
+ * Pages inside one top-level group, nested subgroups included. The front
+ * page's section cards state how much a section holds, so the figure comes
+ * from the same tree the rail renders and cannot drift from it.
+ */
+export function navGroupPageCount(label: string): number {
+  const group = UI_DOCS_NAV.find((g) => g.labelKey === `nav.groups.${label}`);
+  if (!group) return 0;
+  const count = (entries: readonly UiDocsNavEntry[]): number =>
+    entries.reduce(
+      (total, entry) => total + (isNavGroup(entry) ? count(entry.pages) : 1),
+      0,
+    );
+  return count(group.pages);
+}
+
 /** Flatten every page in nav order — drives prev/next and the sitemap. */
 export function flattenNav(): { slug: string }[] {
   const out: { slug: string }[] = [];

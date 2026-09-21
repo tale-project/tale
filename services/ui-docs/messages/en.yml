@@ -30,6 +30,8 @@ home:
   heroDescription: Build application screens with @tale/ui and public websites with @tale/marketing-ui. Use the guides and live examples to choose and connect the components.
   heroPrimary: Read the docs
   heroSecondary: View on GitHub
+  heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui and
+    @tale/marketing-ui · MIT licensed"
   showcaseTitle: Components in a sample workspace
   showcaseDescription: This illustration uses the shipped components and follows your selected theme. Try the interactive examples in the guides.
   showcaseWindowTitle: Workspace settings
@@ -63,6 +65,7 @@ home:
   sectionsPatterns: Compose collection and settings screens, including search, drafts, and save behavior.
   sectionsMarketingUi: The site chrome, the marketing primitives and the demo
     frames that build tale.dev.
+  guideCount: "{count, plural, one {# guide} other {# guides}}"
   installTitle: Install it in your own repository
   installDescription: The packages ship TypeScript source. Try a snapshot branch, then pin a release tag and commit the lockfile for a reproducible installation.
   installCodeLabel: package.json

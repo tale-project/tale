@@ -31,21 +31,27 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
 
 - [ ] `HOME-1` · **Open `/`** → the header carries the logo, **Docs**,
   **Components**, **GitHub** and the theme control; the hero reads **The Tale
-  design system** with one sentence under it and the pair **Read the docs** /
-  **View on GitHub**; the page sits on the marketing paper (`bg-surface-site`),
+  design system** with one sentence under it, the pair **Read the docs** /
+  **View on GitHub**, and a quiet line naming the guide count, both packages
+  and the licence; the page sits on the marketing paper (`bg-surface-site`),
   not the app's flat background.
+- [ ] `HOME-11` · **Sight down the left edge of the page** → the logo, the
+  hero heading, every section heading and every band's content start on the
+  same vertical line, and the top wash runs unbroken from behind the header
+  into the hero with no seam under the nav bar.
 - [ ] `HOME-2` · **Activate Read the docs, then the browser Back button** → the
   first click lands on `/docs/getting-started/introduction` in the app chrome;
   Back returns to `/` with the marketing chrome, and neither transition leaves
   a stale header behind.
 - [ ] `HOME-3` · **Scroll to Components in a sample workspace** → the heading
-  and its sentence sit **above** the product window; the window shows
+  and its sentence sit **above** the product window with no empty band between
+  them, and the stage's own rules open and close the picture; the window shows
   **Workspace settings** with the General tab (a name field, a Data region
-  select, a Weekly digest switch) and a Members tab holding a three-row table
-  with status badges.
+  select, a Weekly digest switch) and an inert Members tab.
 - [ ] `HOME-4` · **Switch the theme to Dark from the header, then to Light** →
-  the product window follows each switch (its fields, tabs and table re-skin
-  with the page — it reads the same tokens), and the switch survives a reload.
+  the product window follows each switch (its fields, its tab strip and its
+  chrome re-skin with the page — it reads the same tokens), and the switch
+  survives a reload.
 - [ ] `HOME-5` · **Tab through the product window** → nothing inside it takes
   focus (it is a labelled illustration — `role="img"`, inert); focus moves from
   the hero's second call to action straight to the section cards.
@@ -53,6 +59,9 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   Getting started, Foundations, Components, Patterns and Marketing UI each open
   their section's first page (`introduction`, `colors`, `button`, `list-page`,
   `overview`) in the app chrome.
+- [ ] `HOME-12` · **Read the five cards without activating them** → the panel
+  has no empty cell at any width, and each card's guide count matches the
+  number of rows its section holds in the documentation rail.
 - [ ] `HOME-7` · **Copy the package.json snippet from the install band** → the
   copy button announces success, the clipboard holds the exact block including
   `"@tale/ui": "github:tale-project/tale#dist/ui"`, and **Read the installation
