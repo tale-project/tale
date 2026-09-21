@@ -34,7 +34,7 @@ Choose a **Display name** members will recognize. It appears in the organization
 4. Review **Scopes** and **Advanced**. Request the identity claims your provisioning rules need. Map nonstandard claim names where necessary; claim paths can use dots, such as `realm_access.roles`.
 5. Select **Test connection**, resolve any error, then **Save** in the header. Continue with a real sign-in test below.
 
-For Entra, use a tenant-specific issuer such as `https://login.microsoftonline.com/{tenant-id}/v2.0`, register the callback as a Web redirect URI, and copy the client secret's value rather than its ID. Microsoft's [application registration guide](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) explains the provider-side setup. Group-to-team sync requires the Microsoft Graph `GroupMember.Read.All` permission and admin consent.
+For Entra, use a tenant-specific issuer such as `https://login.microsoftonline.com/{tenant-id}/v2.0`, register the callback as a Web redirect URI, and copy the client secret's value rather than its ID. Microsoft's [application registration guide](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) explains the provider-side setup. Group-to-team sync requires the Microsoft Graph `GroupMember.Read.All` permission and admin consent. App roles you define in the app registration and assign to users or groups in the enterprise application arrive in the sign-in token, so an **App role** rule matches the role's **Value** (for example `Administrator`) and needs no Graph permission.
 
 For Google, choose **Generic OIDC** with issuer `https://accounts.google.com`; see Google's [OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect). Standard Google OIDC does not provide group memberships, so signing in with Google alone does not enable group-to-team sync.
 
@@ -95,7 +95,7 @@ Open a separate browser session, choose **Continue with SSO**, and select the or
 | Redirect mismatch, including `AADSTS50011` | Compare the registered callback with Tale's exact URL; check domain, scheme, path, and trailing slash. |
 | Connection test fails | Check issuer/endpoints, client ID, secret value and expiry, and required provider consent. |
 | Browser-binding error | Start sign-in again in the same browser and allow the cookies needed across redirects. |
-| Wrong role or missing team | Inspect the IdP's actual claims, role rules, exclusions, and group permissions. |
+| Wrong role or missing team | Inspect the IdP's actual claims, role rules, exclusions, and group permissions. An **App role** rule matches the app role's Value, not its display name or ID. |
 | SCIM cannot connect | Check the base URL, bearer token, and whether provisioning is enabled. |
 | Proxy sign-in is refused | Check that the card is on, the key is not revoked, and the proxy sends the email header and the key on the hand-off request. |
 | Missing redirect URL or server-configuration warning | Ask the deployment operator to check [authentication configuration](/self-hosted/configuration/authentication). |

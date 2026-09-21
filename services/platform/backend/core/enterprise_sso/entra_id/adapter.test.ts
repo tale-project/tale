@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SsoGroup, SsoProviderConfig } from '../types';
+import type { SsoGroup, SsoProviderConfig, SsoTokens } from '../types';
 import { entraIdAdapter } from './adapter';
 
 // `getUserInfo` ignores the config (reads the signed-in user from Graph `/me`),
@@ -21,9 +21,9 @@ function getGroups(
 
 function getAppRoles(
   config: SsoProviderConfig,
-  token: string,
+  tokens: SsoTokens,
 ): Promise<string[]> {
-  const result = entraIdAdapter.getAppRoles?.(config, token);
+  const result = entraIdAdapter.getAppRoles?.(config, tokens);
   if (result === undefined) {
     throw new Error('the Entra adapter must expose getAppRoles');
   }
@@ -198,42 +198,67 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
   });
 });
 
-describe('entraIdAdapter.getAppRoles — Graph pagination', () => {
+/**
+ * App roles come from the ID token's `roles` claim (the app role Value), not
+ * from Graph: `/me/appRoleAssignments` answered with role-id GUIDs across
+ * every app in the tenant, and only for callers holding
+ * `AppRoleAssignment.ReadWrite.All` / `Directory.Read.All`, so an "App role"
+ * rule could never match the value an admin typed and every user landed on
+ * the default role.
+ */
+describe('entraIdAdapter.getAppRoles — the ID token roles claim', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('unions appRoleIds across pages', async () => {
-    stubGraphPages([
-      {
-        value: [{ appRoleId: 'role-1' }, { appRoleId: '' }],
-        '@odata.nextLink':
-          'https://graph.microsoft.com/v1.0/me/appRoleAssignments?$skiptoken=p2',
-      },
-      { value: [{ appRoleId: 'role-2' }] },
-    ]);
+  function idToken(payload: Record<string, unknown>): string {
+    const segment = (value: unknown): string =>
+      Buffer.from(JSON.stringify(value)).toString('base64url');
+    return `${segment({ alg: 'RS256', typ: 'JWT' })}.${segment(payload)}.sig`;
+  }
 
-    const roles = await getAppRoles(fakeConfig, 'token');
+  it('answers the app role values of the roles claim, without any Graph call', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
 
-    expect(roles).toEqual(['role-1', 'role-2']);
+    const roles = await getAppRoles(fakeConfig, {
+      accessToken: 'at',
+      idToken: idToken({
+        sub: 'user-1',
+        roles: ['Administrator', 'Tale.Editor'],
+      }),
+    });
+
+    expect(roles).toEqual(['Administrator', 'Tale.Editor']);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('degrades to no roles on a failed fetch (unchanged contract)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        async () =>
-          ({
-            ok: false,
-            status: 403,
-            json: async () => ({}),
-          }) as unknown as Response,
-      ),
-    );
+  it('answers no roles when the token carries no roles claim (no assignment for this app)', async () => {
+    expect(
+      await getAppRoles(fakeConfig, {
+        accessToken: 'at',
+        idToken: idToken({ sub: 'user-1', name: 'User One' }),
+      }),
+    ).toEqual([]);
+  });
 
-    const roles = await getAppRoles(fakeConfig, 'token');
+  it('keeps only the string entries of the claim', async () => {
+    expect(
+      await getAppRoles(fakeConfig, {
+        accessToken: 'at',
+        idToken: idToken({ roles: ['Editor', 42, null, { v: 'x' }] }),
+      }),
+    ).toEqual(['Editor']);
+  });
 
-    expect(roles).toEqual([]);
+  it('answers no roles without an ID token, or with one that is not a JWT', async () => {
+    expect(await getAppRoles(fakeConfig, { accessToken: 'at' })).toEqual([]);
+    expect(
+      await getAppRoles(fakeConfig, {
+        accessToken: 'at',
+        idToken: 'not-a-jwt',
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -288,10 +313,9 @@ describe('entraIdAdapter — network calls time out', () => {
     });
     await entraIdAdapter.getUserInfo(config, 'token');
     await getGroups(config, 'token');
-    await getAppRoles(config, 'token');
 
     const signals = signalsOf(fetchMock);
-    expect(signals).toHaveLength(4);
+    expect(signals).toHaveLength(3);
     for (const signal of signals) {
       expect(signal).toBeInstanceOf(AbortSignal);
     }

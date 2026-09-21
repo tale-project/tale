@@ -1,5 +1,6 @@
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
-import { requireEmailClaim } from '../claims';
+import { claimValueToStrings, requireEmailClaim } from '../claims';
+import { decodeIdTokenPayload } from '../id_token';
 import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   SsoProviderAdapter,
@@ -130,26 +131,21 @@ function extractStringArray(values: unknown[]): string[] {
 }
 
 function parseIdTokenAuthContext(idToken: string): SsoAuthContext | undefined {
-  try {
-    const parts = idToken.split('.');
-    if (parts.length !== 3 || !parts[1]) {
-      return undefined;
-    }
-    const payload = JSON.parse(atob(parts[1]));
-    const acrs = typeof payload.acrs === 'string' ? payload.acrs : undefined;
-    const amr = Array.isArray(payload.amr)
-      ? extractStringArray(payload.amr)
-      : undefined;
-    const mfaCompleted = amr ? amr.includes('mfa') : undefined;
-
-    if (!acrs && !amr) {
-      return undefined;
-    }
-
-    return { authContextClassRef: acrs, authMethodsRef: amr, mfaCompleted };
-  } catch {
+  const payload = decodeIdTokenPayload(idToken);
+  if (!payload) {
     return undefined;
   }
+  const acrs = typeof payload.acrs === 'string' ? payload.acrs : undefined;
+  const amr = Array.isArray(payload.amr)
+    ? extractStringArray(payload.amr)
+    : undefined;
+  const mfaCompleted = amr ? amr.includes('mfa') : undefined;
+
+  if (!acrs && !amr) {
+    return undefined;
+  }
+
+  return { authContextClassRef: acrs, authMethodsRef: amr, mfaCompleted };
 }
 
 async function getUserInfo(
@@ -192,14 +188,13 @@ async function getUserInfo(
 }
 
 /**
- * Graph pages `/me/memberOf` and `/me/appRoleAssignments` at 100 entries; a
- * page-1-only read silently truncates for enterprise users, and truncated
- * groups are WORSE than a failed fetch — `syncTeamsFromGroupNames` revokes
- * every membership IT granted that is missing from the list, so page-2+
- * synced teams would be REMOVED on each login. The cap bounds a
- * runaway/looping feed; exceeding it throws,
- * which lands in the callers' existing failed-fetch path (team sync skipped,
- * memberships preserved) instead of a silent partial list.
+ * Graph pages `/me/memberOf` at 100 entries; a page-1-only read silently
+ * truncates for enterprise users, and truncated groups are WORSE than a
+ * failed fetch — `syncTeamsFromGroupNames` revokes every membership IT
+ * granted that is missing from the list, so page-2+ synced teams would be
+ * REMOVED on each login. The cap bounds a runaway/looping feed; exceeding it
+ * throws, which lands in the caller's existing failed-fetch path (team sync
+ * skipped, memberships preserved) instead of a silent partial list.
  */
 const GRAPH_MAX_PAGES = 50;
 
@@ -263,31 +258,28 @@ async function getGroups(
   return groups;
 }
 
-async function getAppRoles(
+/**
+ * The app roles Entra granted the signed-in user for THIS app registration.
+ *
+ * They ride in the ID token's `roles` claim as the role's **Value** from the
+ * app registration (`Administrator`, `Survey.Create`): one entry per app
+ * role assigned to the user, directly or through a group, in the enterprise
+ * application — the string an admin types into an "App role" rule — and they
+ * need no Graph permission. Graph's `/me/appRoleAssignments` is NOT the
+ * source: it answers with app-role-id GUIDs across every application in the
+ * tenant, and only for a caller holding `AppRoleAssignment.ReadWrite.All` or
+ * `Directory.Read.All`, so read that way a normal employee's roles never
+ * reached the mapping and every user landed on the default role.
+ */
+function getAppRoles(
   _config: SsoProviderConfig,
-  accessToken: string,
+  tokens: SsoTokens,
 ): Promise<string[]> {
-  try {
-    const values = await fetchAllGraphPages(
-      `${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId`,
-      accessToken,
-      'app role assignments',
-    );
-    const roles: string[] = [];
-    for (const assignment of values) {
-      if (!isRecord(assignment)) continue;
-      const appRoleId = getString(assignment, 'appRoleId');
-      if (appRoleId !== undefined && appRoleId !== '') {
-        roles.push(appRoleId);
-      }
-    }
-    return roles;
-  } catch (error) {
-    // Same contract as before: app roles are advisory for role mapping, a
-    // failed fetch degrades to "no roles" (default role), never a dead login.
-    console.error('[Entra ID] Failed to fetch app roles:', error);
-    return [];
+  if (!tokens.idToken) {
+    return Promise.resolve([]);
   }
+  const payload = decodeIdTokenPayload(tokens.idToken);
+  return Promise.resolve(payload ? claimValueToStrings(payload.roles) : []);
 }
 
 async function validateConfig(
