@@ -36,6 +36,7 @@ prefix may shadow another.
 | Suite | Prefix | What it is | Resets | Rough cost |
 |---|---|---|---|---|
 | [smoke](suites/smoke.md) | `SMOKE-` | is this build even drivable — run it before investing in anything bigger | once, at the start | 10 min |
+| [accounts](suites/accounts.md) | `ACCT-` | the credential lifecycle against the real vendors — the one thing no spec can drive | before the suite | 30 min |
 
 ## How a round runs
 
@@ -61,6 +62,7 @@ always a finding, on any page.** Check it against the known-benign list in
 | Profile | Run | When |
 |---|---|---|
 | **Smoke** | [`suites/smoke.md`](suites/smoke.md) | before investing in anything bigger; after a dependency bump |
+| **Accounts** | [`suites/accounts.md`](suites/accounts.md) | any change to a provider module, the store, the refresh arithmetic or the two doors |
 | **Change-scoped** | the rows below that the change touches | the ordinary case — a feature or a fix landed |
 | **Full** | every suite | before a release, after a platform-level change, or when a round is asked for by name |
 

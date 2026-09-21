@@ -1,1 +1,82 @@
-{}
+signIn:
+  heading: AI-Gateway
+  description: Dieses Panel schützt ein einziges Passwort.
+  passwordLabel: Panel-Passwort
+  submit: Anmelden
+  wrongPassword: Dieses Passwort stimmt nicht.
+  unreachable: Das Gateway hat nicht geantwortet. Prüfe, ob der Dienst läuft.
+  failed: Die Anmeldung konnte nicht abgeschlossen werden.
+panel:
+  title: AI-Gateway
+  subtitle: Claude- und ChatGPT-Abos, gebündelt hinter einem Token-Endpunkt.
+  signOut: Abmelden
+  languageLabel: Sprache
+accounts:
+  caption: Verbundene Abo-Konten
+  searchPlaceholder: Konten durchsuchen
+  add: Konto hinzufügen
+  entity:
+    one: Konto
+    other: Konten
+  loadFailed: Die Kontenliste konnte nicht gelesen werden.
+  columns:
+    account: Konto
+    status: Status
+    usage: Verbrauch
+    token: Zugriffstoken
+    actions: Zeilenaktionen
+  empty:
+    title: Noch keine Konten
+    description: Füge ein Claude- oder ChatGPT-Konto hinzu. Das Gateway hält dessen Token danach frisch und gibt es aus.
+  validUntil: Gültig bis {date}
+  noExpiry: Kein Ablauf angegeben
+  actions:
+    menu: Kontoaktionen
+    reauthenticate: Neu anmelden
+    copyCommand: CLI-Befehl kopieren
+    remove: Entfernen
+  commandCopied: Der Befehl für {label} liegt in der Zwischenablage.
+  commandFailed: Der Befehl konnte nicht gelesen werden.
+  removeTitle: '{label} entfernen?'
+  removeDescription: Die gespeicherten Tokens gehen mit. Das Abo selbst bleibt unberührt, und du kannst das Konto jederzeit wieder hinzufügen.
+  removeConfirm: Entfernen
+  removed: '{label} ist nicht mehr im Pool.'
+  removeFailed: Dieses Konto konnte nicht entfernt werden.
+status:
+  active: Aktiv
+  expired: Neue Anmeldung nötig
+  error: Letzter Aufruf fehlgeschlagen
+providers:
+  anthropic: Anthropic (Claude)
+  openai: OpenAI (ChatGPT)
+usage:
+  session: Sitzung
+  weekly: Woche
+  unread: Noch kein Verbrauch gelesen
+  spent: '{percent}% verbraucht'
+  resets: Setzt sich {when} zurück
+addAccount:
+  title: Konto hinzufügen
+  reauthenticateTitle: '{label} neu anmelden'
+  providerLabel: Anbieter
+  nameLabel: Name
+  namePlaceholder: Standardmäßig die Adresse des Kontos
+  nameDescription: Nur eine Bezeichnung für dieses Panel.
+  continue: Weiter
+  cancel: Abbrechen
+  connect: Verbinden
+  approveHeading: Konto freigeben
+  approveDescription: Öffne das in einem Browser, der beim gewünschten Konto angemeldet ist, und gib die Anfrage frei.
+  openLink: Freigabeseite öffnen
+  urlLabel: Freigabe-URL
+  resultHeading: Rückgabewert einfügen
+  resultHintCode: Nach der Freigabe zeigt die Seite einen Code. Füge ihn hier ein.
+  resultHintRedirectUrl: Der Browser landet auf einer localhost-Adresse, die möglicherweise nicht lädt. Kopiere die ganze Adresszeile und füge sie hier ein.
+  resultLabel: Freigabe-Ergebnis
+  connected: '{label} ist verbunden.'
+  errors:
+    unknown_state: Diese Freigabe ist abgelaufen. Starte sie neu.
+    missing_code: Im eingefügten Text war kein Freigabe-Code zu finden.
+    state_mismatch: Dieser Wert gehört zu einer anderen Freigabe.
+    exchange_failed: Der Anbieter hat den Code abgelehnt. Führe die Freigabe erneut aus.
+    failed: Das Konto konnte nicht verbunden werden.

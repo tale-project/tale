@@ -1,5 +1,9 @@
 node_modules
 dist
+# `bun build server.ts` output, produced in the image build.
+server.js
+# The default AI_GATEWAY_DATA_DIR — the credentials this gateway holds.
+.data
 storybook-static
 .turbo
 .vite

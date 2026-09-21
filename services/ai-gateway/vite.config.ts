@@ -3,6 +3,8 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { gatewayApi } from './backend/vite-plugin';
+
 // To serve `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
 // and `/<route>.md` on demand, build a server with `createArtifactsServer`
 // from `@tale/ui/seo` and wire it through `artifactsPlugin` here and
@@ -46,5 +48,5 @@ export default defineConfig({
       'i18next-icu',
     ],
   },
-  plugins: [tanstackRouter(), viteReact(), yamlImports()],
+  plugins: [tanstackRouter(), viteReact(), yamlImports(), gatewayApi()],
 });

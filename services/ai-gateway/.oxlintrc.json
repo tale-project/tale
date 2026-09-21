@@ -1,4 +1,13 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
-  "extends": ["../../.oxlintrc.json"]
+  "extends": ["../../.oxlintrc.json"],
+  "ignorePatterns": [
+    ".turbo",
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    "**/*.gen.ts",
+    "**/*.gen.tsx",
+    "public/**"
+  ]
 }

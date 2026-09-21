@@ -1,1 +1,82 @@
-{}
+signIn:
+  heading: Passerelle IA
+  description: Un seul mot de passe protège ce panneau.
+  passwordLabel: Mot de passe du panneau
+  submit: Se connecter
+  wrongPassword: Ce mot de passe est incorrect.
+  unreachable: La passerelle n’a pas répondu. Vérifie que le service tourne.
+  failed: La connexion n’a pas pu aboutir.
+panel:
+  title: Passerelle IA
+  subtitle: Les abonnements Claude et ChatGPT, regroupés derrière un seul point de terminaison.
+  signOut: Se déconnecter
+  languageLabel: Langue
+accounts:
+  caption: Comptes d’abonnement connectés
+  searchPlaceholder: Rechercher un compte
+  add: Ajouter un compte
+  entity:
+    one: compte
+    other: comptes
+  loadFailed: La liste des comptes n’a pas pu être lue.
+  columns:
+    account: Compte
+    status: État
+    usage: Consommation
+    token: Jeton d’accès
+    actions: Actions de la ligne
+  empty:
+    title: Aucun compte pour l’instant
+    description: Ajoute un compte Claude ou ChatGPT. La passerelle garde ensuite son jeton valide et le distribue.
+  validUntil: Valable jusqu’au {date}
+  noExpiry: Aucune expiration annoncée
+  actions:
+    menu: Actions du compte
+    reauthenticate: Réautoriser
+    copyCommand: Copier la commande CLI
+    remove: Retirer
+  commandCopied: La commande pour {label} est dans le presse-papiers.
+  commandFailed: La commande n’a pas pu être lue.
+  removeTitle: 'Retirer {label} ?'
+  removeDescription: Ses jetons enregistrés partent avec lui. L’abonnement lui-même reste intact, et tu peux rajouter le compte quand tu veux.
+  removeConfirm: Retirer
+  removed: '{label} ne fait plus partie du pool.'
+  removeFailed: Ce compte n’a pas pu être retiré.
+status:
+  active: Actif
+  expired: Réautorisation nécessaire
+  error: Dernier appel en échec
+providers:
+  anthropic: Anthropic (Claude)
+  openai: OpenAI (ChatGPT)
+usage:
+  session: Session
+  weekly: Semaine
+  unread: Aucune consommation lue pour l’instant
+  spent: '{percent} % consommés'
+  resets: Réinitialisation {when}
+addAccount:
+  title: Ajouter un compte
+  reauthenticateTitle: Réautoriser {label}
+  providerLabel: Fournisseur
+  nameLabel: Nom
+  namePlaceholder: Par défaut, l’adresse du compte
+  nameDescription: Une étiquette pour ce panneau uniquement.
+  continue: Continuer
+  cancel: Annuler
+  connect: Connecter
+  approveHeading: Autoriser le compte
+  approveDescription: Ouvre ce lien dans un navigateur connecté au compte que tu veux ajouter, puis autorise la demande.
+  openLink: Ouvrir la page d’autorisation
+  urlLabel: URL d’autorisation
+  resultHeading: Colle ce que tu as récupéré
+  resultHintCode: La page affiche un code une fois la demande autorisée. Colle-le ici.
+  resultHintRedirectUrl: Le navigateur atterrit sur une adresse localhost qui ne se chargera peut-être pas. Copie toute la barre d’adresse et colle-la ici.
+  resultLabel: Résultat de l’autorisation
+  connected: '{label} est connecté.'
+  errors:
+    unknown_state: Cette autorisation a expiré. Relance-la.
+    missing_code: Aucun code d’autorisation dans ce que tu as collé.
+    state_mismatch: Cette valeur appartient à une autre autorisation.
+    exchange_failed: Le fournisseur a refusé le code. Relance l’autorisation.
+    failed: Le compte n’a pas pu être connecté.

@@ -1,1 +1,82 @@
-{}
+signIn:
+  heading: AI gateway
+  description: This panel is guarded by one password.
+  passwordLabel: Panel password
+  submit: Sign in
+  wrongPassword: That password is wrong.
+  unreachable: The gateway did not answer. Check that the service is running.
+  failed: The sign-in could not be completed.
+panel:
+  title: AI gateway
+  subtitle: Claude and ChatGPT subscriptions, pooled behind one token endpoint.
+  signOut: Sign out
+  languageLabel: Language
+accounts:
+  caption: Connected subscription accounts
+  searchPlaceholder: Search accounts
+  add: Add account
+  entity:
+    one: account
+    other: accounts
+  loadFailed: The account list could not be read.
+  columns:
+    account: Account
+    status: Status
+    usage: Usage
+    token: Access token
+    actions: Row actions
+  empty:
+    title: No accounts yet
+    description: Add a Claude or ChatGPT account. The gateway then keeps its token fresh and hands it out.
+  validUntil: Valid until {date}
+  noExpiry: No stated expiry
+  actions:
+    menu: Account actions
+    reauthenticate: Reauthenticate
+    copyCommand: Copy CLI command
+    remove: Remove
+  commandCopied: The command for {label} is on your clipboard.
+  commandFailed: The command could not be read.
+  removeTitle: Remove {label}?
+  removeDescription: Its stored tokens go with it. The subscription itself is untouched, and you can add it again at any time.
+  removeConfirm: Remove
+  removed: '{label} is no longer in the pool.'
+  removeFailed: That account could not be removed.
+status:
+  active: Active
+  expired: Needs reauthentication
+  error: Last call failed
+providers:
+  anthropic: Anthropic (Claude)
+  openai: OpenAI (ChatGPT)
+usage:
+  session: Session
+  weekly: Weekly
+  unread: No usage read yet
+  spent: '{percent}% spent'
+  resets: Resets {when}
+addAccount:
+  title: Add account
+  reauthenticateTitle: Reauthenticate {label}
+  providerLabel: Provider
+  nameLabel: Name
+  namePlaceholder: Defaults to the address on the account
+  nameDescription: A label for this panel only.
+  continue: Continue
+  cancel: Cancel
+  connect: Connect
+  approveHeading: Approve the account
+  approveDescription: Open this in a browser signed in to the account you want to add, then approve the request.
+  openLink: Open the authorization page
+  urlLabel: Authorization URL
+  resultHeading: Paste what you got back
+  resultHintCode: The page prints a code once you approve. Paste it here.
+  resultHintRedirectUrl: The browser lands on a localhost address that may not load. Copy the whole address bar and paste it here.
+  resultLabel: Authorization result
+  connected: '{label} is connected.'
+  errors:
+    unknown_state: That authorization expired. Start it again.
+    missing_code: No authorization code was found in what you pasted.
+    state_mismatch: That value belongs to a different authorization.
+    exchange_failed: The provider refused the code. Run the authorization again.
+    failed: The account could not be connected.

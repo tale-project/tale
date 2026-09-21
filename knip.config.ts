@@ -225,6 +225,15 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/ai-gateway': {
+      vite: { config: ['vite.config.ts'] },
+      entry: [
+        'app/routes/**/*.tsx',
+        // Playwright specs (config builds via the shared @tale/e2e factory).
+        'tests/e2e/specs/**/*.spec.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
     'services/ui-docs': {
       vite: { config: ['vite.config.ts'] },
       entry: [

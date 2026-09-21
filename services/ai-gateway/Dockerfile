@@ -34,7 +34,12 @@ COPY services/ai-gateway ./services/ai-gateway
 
 ENV NODE_ENV=production
 WORKDIR /app/services/ai-gateway
-RUN bun --bun vite build
+# Build the SPA, then bundle the Bun server into one file. The runner
+# stage carries no `node_modules`, so every import `server.ts` makes —
+# `@tale/ui/server`, the service's own modules, its dependencies — has to
+# be inlined here (the pattern `services/web` and `services/docs` use).
+RUN bun --bun vite build \
+    && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
 # ============================================================================
@@ -61,10 +66,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
     && useradd --system --uid 1001 --gid app app
 
 COPY --from=builder --chown=app:app /app/services/ai-gateway/dist ./dist
-COPY --from=builder --chown=app:app /app/services/ai-gateway/server.ts ./server.ts
+COPY --from=builder --chown=app:app /app/services/ai-gateway/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/ai-gateway/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/ai-gateway/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
+
+# The credential pool's mount point, created here so a named volume inherits
+# the unprivileged user rather than root — the server could not write it
+# otherwise. `AI_GATEWAY_DATA_DIR` still decides where the document goes.
+RUN mkdir -p /data && chown app:app /data
+VOLUME ["/data"]
 
 USER app
 EXPOSE 3004

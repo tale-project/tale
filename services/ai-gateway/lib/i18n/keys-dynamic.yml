@@ -7,4 +7,13 @@
 # across files, enum-driven dispatch, etc.). Static keys, even with template
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
-entries: []
+entries:
+  # One key per provider id, chosen by the row's `provider` field.
+  - providers
+  # One key per account status, chosen by the row's `status` field.
+  - status
+  # One key per usage-window kind the providers normalize onto.
+  - usage.session
+  - usage.weekly
+  # One key per backend error code, chosen by what the API answered.
+  - addAccount.errors
