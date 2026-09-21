@@ -55,7 +55,7 @@
     "storybook:marketing-ui": "bun run --filter @tale/marketing-ui storybook",
     "storybook:platform": "bun run --filter @tale/platform storybook",
     "storybook:web": "bun run --filter @tale/web storybook",
-    "gen": "bunx --bun plop --plopfile tools/plop/plopfile.ts",
+    "gen": "bunx --bun plop --plopfile tools/plop/plopfile.ts --dest .",
     "gen:package": "bun run gen package",
     "gen:service": "bun run gen service",
     "gen:tool": "bun run gen tool",

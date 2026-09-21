@@ -1,0 +1,38 @@
+# Why a box says that
+
+Each row below is an expectation a suite carries **because something once went
+wrong**. The box itself states only the check, so it stays readable; the reason
+lives here.
+
+Read this **before you reword, merge or delete a box** — an oddly specific
+expectation is usually specific on purpose. Read it too when a box fails and you
+want to know what class of defect it was written to catch.
+
+Rows marked `docs` are corrections to this guide rather than to the product: the
+box used to ask for something unreachable or wrong, and a round proved it. They
+stay so nobody re-introduces the old wording.
+
+**Adding a row:** when a round sharpens a box, add the row here in the same
+change as the box edit. Key it by box ID, state the mechanism (not the symptom),
+and name the test that now holds it. Never key a row by round — the journal in
+[`../runs`](../runs) records rounds, this register records product knowledge.
+
+## Smoke
+
+| Box | What it pins |
+|---|---|
+| `SMOKE-3` | The session check runs before anything is drawn. An early build rendered the sign-in card while `GET /api/session` was still in flight, so every reload flashed the door at someone already through it. The panel now holds an `unknown` state until the answer lands. |
+| `SMOKE-4` | French punctuation spacing survives the catalog. The `%` in a usage bar takes a nonbreaking space before it, and an editor that retypes the line loses it silently — the character is invisible. |
+| `SMOKE-6` | The row action menu is the only route to three of this panel's four verbs. A toolbar that is reachable but a menu that is not leaves a keyboard user unable to copy a command, re-authenticate or remove. |
+
+## Accounts
+
+| Box | What it pins |
+|---|---|
+| `ACCT-2` | A freshly connected account pulls its first usage reading immediately, rather than waiting for the background pass. Without that forced first read the row arrived with empty bars and read as broken. |
+| `ACCT-5` | The row caption carries the provider name and the address even when the label is custom. Defaulting the label to the address once made the caption repeat it word for word, which is how the caption came to be conditional. |
+| `ACCT-6` | Closing the dialog discards the attempt. The reset lives in the close handler, not in an effect on `open` — an effect fired a second render on every open and made the provider control flicker through the previous row's value. |
+| `ACCT-7` | A pending authorization is consumed by the read that finds it, so a replayed paste cannot mint a second account from one consent. |
+| `ACCT-11` | The panel session and the API key open different doors. The session guard was once a wildcard middleware over `/api/*`, which silently swallowed `/api/tokens` as well — the endpoint answered 401 to a correct key. It is now applied per route. |
+| `ACCT-12` | Reset countdowns are computed from an absolute instant. A vendor that reports `resets_in_seconds` rather than `resets_at` is converted at read time; keeping the relative figure made every countdown drift by the reader's UTC offset. |
+| `ACCT-14` | A store that cannot be decrypted fails loudly. AES-256-GCM's authentication tag is what makes a wrong key an error rather than plausible garbage. |

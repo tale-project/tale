@@ -7,6 +7,7 @@ import { GoogleDriveIcon } from './google-drive-icon';
 import { LocaleIcon } from './locale-icon';
 import { MicrosoftIcon } from './microsoft-icon';
 import { OneDriveIcon } from './onedrive-icon';
+import { OpenAIIcon } from './openai-icon';
 import { OutlookIcon } from './outlook-icon';
 import { ShopifyIcon } from './shopify-icon';
 import { WebsiteIcon } from './website-icon';
@@ -16,6 +17,11 @@ const icons = [
     name: 'ClaudeIcon',
     component: ClaudeIcon,
     description: 'Anthropic / Claude brand mark',
+  },
+  {
+    name: 'OpenAIIcon',
+    component: OpenAIIcon,
+    description: 'OpenAI brand mark',
   },
   {
     name: 'MicrosoftIcon',

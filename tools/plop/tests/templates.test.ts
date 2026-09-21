@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -184,4 +184,23 @@ describe('plop generators stay in sync with their templates', () => {
       ).toEqual([]);
     });
   }
+});
+
+describe('the gen script writes where the docs say it does', () => {
+  // Plop resolves an action's relative path against the PLOPFILE's directory,
+  // not the working directory. `plopfile.ts` lives in `tools/plop/`, so
+  // without `--dest .` every generator writes its `services/…` / `packages/…`
+  // tree inside `tools/plop/` — silently, with a success message naming the
+  // path it did not use.
+  test('`gen` passes both --plopfile and --dest', () => {
+    const manifest = path.resolve(here, '../../../package.json');
+    const scripts = (
+      JSON.parse(readFileSync(manifest, 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+
+    expect(scripts['gen']).toContain('--plopfile tools/plop/plopfile.ts');
+    expect(scripts['gen']).toContain('--dest .');
+  });
 });

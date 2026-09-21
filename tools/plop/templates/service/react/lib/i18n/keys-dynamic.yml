@@ -7,4 +7,4 @@
 # across files, enum-driven dispatch, etc.). Static keys, even with template
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
-entries:
+entries: []

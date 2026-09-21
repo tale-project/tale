@@ -1,0 +1,52 @@
+import { yamlImports } from '@tale/ui/vite/yaml';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import viteReact from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+
+import { gatewayApi } from './backend/vite-plugin';
+
+// To serve `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
+// and `/<route>.md` on demand, build a server with `createArtifactsServer`
+// from `@tale/ui/seo` and wire it through `artifactsPlugin` here and
+// `startReactServer({ artifacts })` in `server.ts`. See
+// `services/web/lib/seo/artifacts-server.ts` for a full example.
+
+export default defineConfig({
+  base: './',
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    tsconfigPaths: true,
+  },
+  server: {
+    port: 3004,
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react/jsx-runtime',
+      '@tanstack/react-router',
+      '@tanstack/react-query',
+      'framer-motion',
+      'lucide-react',
+      'zod',
+    ],
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    chunkSizeWarningLimit: 2000,
+  },
+  ssr: {
+    noExternal: [
+      '@tale/ui',
+      '@tanstack/react-router',
+      'framer-motion',
+      'lucide-react',
+      'react-i18next',
+      'i18next',
+      'i18next-icu',
+    ],
+  },
+  plugins: [tanstackRouter(), viteReact(), yamlImports(), gatewayApi()],
+});
