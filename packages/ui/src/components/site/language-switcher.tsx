@@ -1,6 +1,7 @@
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
 import {
+  baseLocaleOf,
   isUrlPrefixedLocale,
   type SupportedLocale,
 } from '@tale/ui/i18n/locales';
@@ -52,6 +53,14 @@ interface LanguageSwitcherProps {
   /** When `false`, hides the flag icon in the trigger button (the menu
    *  items still show flags for visual scanning). Defaults to `true`. */
   showFlag?: boolean;
+  /** The selected language, for an app whose locale is a stored preference
+   *  rather than a path segment. Pair with `onSelect`; a regional variant
+   *  (`de-CH`) folds onto its base through `baseLocaleOf`. Omit both and the
+   *  control reads the locale off the URL and navigates, as web/docs do. */
+  value?: string;
+  /** Called with the picked language instead of navigating. Supplying it is
+   *  what makes the control state-driven. */
+  onSelect?: (locale: SupportedLocale) => void;
 }
 
 function defaultResolveLocaleUrl(
@@ -81,21 +90,33 @@ function readCurrentLocale(pathname: string): SupportedLocale {
 }
 
 /**
- * Cross-app language switcher. The visual + state machinery lives here;
- * each consumer supplies a `resolveLocaleUrl` callback that turns a
- * (target, pathname) pair into the URL to navigate to.
+ * Cross-app language switcher, in either of the two shapes an app's locale
+ * takes.
+ *
+ * **URL-driven** (the default, used by web and docs): the language is a path
+ * segment, so the control reads it off the pathname and navigates — each
+ * consumer supplies a `resolveLocaleUrl` callback that turns a
+ * (target, pathname) pair into the URL to go to.
+ *
+ * **State-driven** (`value` + `onSelect`): the language is a stored
+ * preference on a site served as one untranslated tree, so picking one is a
+ * setting rather than a destination and nothing navigates. Same control,
+ * same menu, same accessible name — only the commit differs.
  */
 export function LanguageSwitcher({
   resolveLocaleUrl = defaultResolveLocaleUrl,
   className,
   showFlag = true,
+  value,
+  onSelect,
 }: LanguageSwitcherProps) {
   const { t } = useT('languageSwitcher');
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const hash = useRouterState({ select: (s) => s.location.hash });
   const navigate = useNavigate();
-  const currentLocale = readCurrentLocale(pathname);
+  const currentLocale =
+    value === undefined ? readCurrentLocale(pathname) : baseLocaleOf(value);
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -159,6 +180,10 @@ export function LanguageSwitcher({
     setOpen(false);
     buttonRef.current?.focus();
     if (target === currentLocale) return;
+    if (onSelect) {
+      onSelect(target);
+      return;
+    }
     const base = resolveLocaleUrl(target, pathname);
     const url = appendHashAndSearch(base, searchStr, hash);
     // oxlint-disable-next-line typescript/no-explicit-any, typescript-eslint/no-unsafe-type-assertion -- runtime-typed router target
