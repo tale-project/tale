@@ -1,5 +1,4 @@
 panel:
-  title: The Tale AI Gateway
   skipToMain: Skip to the account list
 accounts:
   caption: Connected subscription accounts
@@ -16,6 +15,7 @@ accounts:
     account: Account
     status: Status
     usage: Usage
+    resets: Resets in
     validUntil: Valid until
     actions: Row actions
   empty:
@@ -47,6 +47,7 @@ usage:
   unread: No usage read yet
   spent: '{percent}% spent'
   resets: Resets {when}
+  untilReset: '{window}: time until the window resets'
 addAccount:
   title: Add account
   reauthenticateTitle: Reauthenticate {label}

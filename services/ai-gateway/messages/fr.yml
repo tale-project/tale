@@ -1,5 +1,4 @@
 panel:
-  title: La passerelle IA de Tale
   skipToMain: Aller à la liste des comptes
 accounts:
   caption: Comptes d’abonnement connectés
@@ -16,6 +15,7 @@ accounts:
     account: Compte
     status: État
     usage: Consommation
+    resets: Temps restant
     validUntil: Valable jusqu’au
     actions: Actions de la ligne
   empty:
@@ -47,6 +47,7 @@ usage:
   unread: Aucune consommation lue pour l’instant
   spent: '{percent} % consommés'
   resets: Réinitialisation {when}
+  untilReset: '{window} : temps restant avant la réinitialisation'
 addAccount:
   title: Ajouter un compte
   reauthenticateTitle: Réautoriser {label}

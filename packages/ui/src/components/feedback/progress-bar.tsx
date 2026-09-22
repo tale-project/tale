@@ -16,6 +16,12 @@ interface ProgressBarProps {
   tooltipContent: React.ReactNode;
   className?: string;
   indicatorClassName?: string;
+  /**
+   * What to print beside the bar. Left out, it is the percentage; `null`
+   * prints nothing, for a caller whose own figure sits outside the bar and
+   * has to line up with something else.
+   */
+  valueText?: React.ReactNode;
 }
 
 export function ProgressBar({
@@ -25,6 +31,7 @@ export function ProgressBar({
   tooltipContent,
   className,
   indicatorClassName,
+  valueText,
 }: ProgressBarProps) {
   const percentage = max > 0 ? Math.round((value / max) * 100) : 0;
   const clampedPercentage = Math.min(percentage, 100);
@@ -57,9 +64,15 @@ export function ProgressBar({
           aria-hidden="true"
         />
       </div>
-      <span className="text-muted-foreground w-10 shrink-0 text-right text-xs tabular-nums">
-        {clampedPercentage}&#8239;%
-      </span>
+      {valueText === null ? null : (
+        <span className="text-muted-foreground w-10 shrink-0 text-right text-xs tabular-nums">
+          {valueText === undefined ? (
+            <>{clampedPercentage}&#8239;%</>
+          ) : (
+            valueText
+          )}
+        </span>
+      )}
     </div>
   );
 

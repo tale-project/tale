@@ -105,8 +105,16 @@ export function useFormatDate() {
   );
 
   const formatRelative = useCallback(
-    (date: string | Date | Dayjs): string => {
-      return formatDate(date, { preset: 'relative', locale, timezone });
+    (
+      date: string | Date | Dayjs,
+      options: { withoutSuffix?: boolean } = {},
+    ): string => {
+      return formatDate(date, {
+        ...options,
+        preset: 'relative',
+        locale,
+        timezone,
+      });
     },
     [locale, timezone],
   );

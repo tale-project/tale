@@ -25,6 +25,12 @@ import { ProgressBar } from '@tale/ui/progress-bar';
 />
 \`\`\`
 
+## Value text
+The figure beside the bar is the percentage. Pass \`valueText\` to print
+something else — a countdown, a "3 of 5" — or \`valueText={null}\` to print
+nothing, when the caller's own figure sits outside the bar and has to line up
+with a neighbouring column.
+
 ## Accessibility
 - Uses \`role="progressbar"\` with proper ARIA attributes
 - Group wrapper with \`aria-label\` for screen readers
@@ -45,6 +51,11 @@ import { ProgressBar } from '@tale/ui/progress-bar';
     label: {
       control: 'text',
       description: 'Accessible label for screen readers',
+    },
+    valueText: {
+      control: 'text',
+      description:
+        'What to print beside the bar; the percentage when left out, nothing when null',
     },
   },
   decorators: [
@@ -177,6 +188,41 @@ export const CustomColors: Story = {
     docs: {
       description: {
         story: 'Progress with custom indicator colors.',
+      },
+    },
+  },
+};
+
+export const ValueText: Story = {
+  render: () => (
+    <div className="flex w-48 flex-col gap-4">
+      <ProgressBar
+        value={60}
+        max={100}
+        label="Percentage"
+        tooltipContent={'60\u202F%'}
+      />
+      <ProgressBar
+        value={60}
+        max={100}
+        label="Time until the window resets"
+        tooltipContent="Resets 27 September 2026 02:00"
+        valueText="2 days"
+      />
+      <ProgressBar
+        value={60}
+        max={100}
+        label="No figure"
+        tooltipContent={'60\u202F%'}
+        valueText={null}
+      />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The default percentage, a caller\u2019s own figure, and no figure at all.',
       },
     },
   },

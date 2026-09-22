@@ -1,5 +1,7 @@
 # Locale-neutral keys folded into every base locale (same convention as the
 # other services' messages/global.yml). A brand reads the same in every
-# interface, so the repository button's accessible name belongs here.
+# interface, so this service's own name and the repository button's accessible
+# name belong here.
 panel:
+  title: Tale AI Gateway
   github: GitHub

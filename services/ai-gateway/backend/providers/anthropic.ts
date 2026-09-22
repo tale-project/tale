@@ -43,6 +43,17 @@ const PROFILE_URL = 'https://api.anthropic.com/api/oauth/profile';
 const SCOPES = 'org:create_api_key user:profile user:inference';
 
 /**
+ * How long each of Anthropic's windows runs.
+ *
+ * The vendor never states a length; it states a name — `five_hour`,
+ * `seven_day`, and `group: "session" | "weekly"` on a per-model limit — and
+ * the name IS the length. Reading it here is what lets the panel show how far
+ * through a window the clock is rather than only when it ends.
+ */
+const FIVE_HOUR_SECONDS = 5 * 60 * 60;
+const SEVEN_DAY_SECONDS = 7 * 24 * 60 * 60;
+
+/**
  * The Claude Code OAuth client. It identifies the *application*, is the same
  * for every account, and is published by the CLI itself; it is configurable
  * only so a rotation needs an environment change rather than a release.
@@ -265,6 +276,7 @@ export function parseAnthropicUsage(
       label: null,
       utilization: toUtilization(fiveHour['utilization']),
       resetsAt: toIsoInstant(fiveHour['resets_at']),
+      windowSeconds: FIVE_HOUR_SECONDS,
     });
   }
 
@@ -275,6 +287,7 @@ export function parseAnthropicUsage(
       label: null,
       utilization: toUtilization(sevenDay['utilization']),
       resetsAt: toIsoInstant(sevenDay['resets_at']),
+      windowSeconds: SEVEN_DAY_SECONDS,
     });
   }
 
@@ -293,9 +306,25 @@ export function parseAnthropicUsage(
           limit['percent'] ?? limit['utilization'] ?? null,
         ),
         resetsAt: toIsoInstant(limit['resets_at']),
+        windowSeconds: scopedWindowSeconds(limit),
       });
     }
   }
 
   return windows;
+}
+
+/**
+ * How long a per-model limit's window runs.
+ *
+ * The entry says which family it belongs to rather than how long it is:
+ * `group` is `session` or `weekly`, and `kind` repeats it with the scope
+ * attached (`weekly_scoped`). Either is enough; a family neither names is left
+ * unmeasured rather than guessed at.
+ */
+function scopedWindowSeconds(limit: Record<string, unknown>): number | null {
+  const family = readString(limit, 'group') ?? readString(limit, 'kind') ?? '';
+  if (family.startsWith('session')) return FIVE_HOUR_SECONDS;
+  if (family.startsWith('weekly')) return SEVEN_DAY_SECONDS;
+  return null;
 }

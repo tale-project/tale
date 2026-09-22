@@ -10,6 +10,12 @@ export interface FormatDateOptions {
   locale: string;
   timezone?: string;
   customFormat?: string;
+  /**
+   * `relative` only: drop the "in"/"ago" and leave the bare distance
+   * ("5 days", "an hour"), for a caller whose own label supplies the
+   * direction — a column headed "Resets in", say.
+   */
+  withoutSuffix?: boolean;
 }
 
 export interface DateTranslations {
@@ -58,7 +64,13 @@ export function formatDate(
   date: string | Date | Dayjs,
   options: FormatDateOptions,
 ): string {
-  const { preset = 'medium', locale, timezone, customFormat } = options;
+  const {
+    preset = 'medium',
+    locale,
+    timezone,
+    customFormat,
+    withoutSuffix = false,
+  } = options;
 
   if (!date) return '';
 
@@ -89,7 +101,7 @@ export function formatDate(
 
     // Handle relative formatting
     if (preset === 'relative') {
-      return dayjsDate.fromNow();
+      return dayjsDate.fromNow(withoutSuffix);
     }
 
     // Use custom format if provided

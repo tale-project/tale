@@ -152,7 +152,7 @@ describe('fetchUsage', () => {
 });
 
 describe('parseAnthropicUsage', () => {
-  it('maps the two general windows', () => {
+  it('maps the two general windows, each with the length its key names', () => {
     expect(
       parseAnthropicUsage({
         five_hour: { utilization: 42, resets_at: '2026-09-21T15:00:00Z' },
@@ -164,12 +164,14 @@ describe('parseAnthropicUsage', () => {
         label: null,
         utilization: 42,
         resetsAt: '2026-09-21T15:00:00.000Z',
+        windowSeconds: 18_000,
       },
       {
         kind: 'weekly',
         label: null,
         utilization: 8,
         resetsAt: '2026-09-27T00:00:00.000Z',
+        windowSeconds: 604_800,
       },
     ]);
   });
@@ -177,13 +179,31 @@ describe('parseAnthropicUsage', () => {
   it('maps a per-model cap out of the limits array', () => {
     const windows = parseAnthropicUsage({
       limits: [
-        { scope: { model: { display_name: 'Fable' } }, percent: 61 },
+        {
+          scope: { model: { display_name: 'Fable' } },
+          group: 'weekly',
+          kind: 'weekly_scoped',
+          percent: 61,
+        },
         { scope: {}, percent: 5 },
       ],
     });
     expect(windows).toEqual([
-      { kind: 'scoped', label: 'Fable', utilization: 61, resetsAt: null },
+      {
+        kind: 'scoped',
+        label: 'Fable',
+        utilization: 61,
+        resetsAt: null,
+        windowSeconds: 604_800,
+      },
     ]);
+  });
+
+  it('leaves a per-model cap unmeasured when it names no family', () => {
+    const windows = parseAnthropicUsage({
+      limits: [{ scope: { model: { display_name: 'Fable' } }, percent: 61 }],
+    });
+    expect(windows[0]?.windowSeconds).toBeNull();
   });
 
   it('answers no windows for a payload it does not recognize', () => {
