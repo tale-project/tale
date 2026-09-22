@@ -5356,6 +5356,10 @@ settings:
       oauthAppMissingAdmin:
         '{connector} has no OAuth app to connect against yet. Configure one
         in the OAuth apps section below, then come back to connect.'
+      oauthAppMissingDeployment:
+        '{connector} has no OAuth app to connect against yet. Its app is set
+        up by the deployment operator, not in this organization''s OAuth apps
+        — ask your operator to configure it.'
     credential:
       disabled: Disabled
       needsReauth: Reconnect needed

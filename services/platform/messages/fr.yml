@@ -5309,6 +5309,10 @@ settings:
       oauthAppMissingAdmin:
         "{connector} n'a pas encore d'app OAuth pour se connecter. Configure-la
         dans la section Apps OAuth ci-dessous, puis reviens te connecter."
+      oauthAppMissingDeployment:
+        "{connector} n'a pas encore d'app OAuth pour se connecter. Cette app
+        est configurée par l'opérateur du déploiement, pas dans les apps OAuth
+        de cette organisation — demande à ton opérateur de la configurer."
     credential:
       disabled: Désactivé
       needsReauth: Reconnexion requise

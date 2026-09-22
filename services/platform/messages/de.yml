@@ -5230,6 +5230,10 @@ settings:
       oauthAppMissingAdmin:
         'Für {connector} ist noch keine OAuth-App hinterlegt. Richte sie unten
         im Abschnitt OAuth-Apps ein und verbinde danach.'
+      oauthAppMissingDeployment:
+        'Für {connector} ist noch keine OAuth-App hinterlegt. Diese App richtet
+        der Bereitstellungsbetreiber ein, nicht die OAuth-Apps dieser
+        Organisation — bitte deinen Betreiber, sie zu konfigurieren.'
     credential:
       disabled: Deaktiviert
       needsReauth: Neu verbinden nötig

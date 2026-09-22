@@ -175,7 +175,12 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   `…/http_api/api/connectors/oauth2/start?connector=slack&organizationId=…`;
   after consent the browser lands on `…/settings/connectors?connected=slack`
   and a new row exists: method **OAuth**, named after the connector, default
-  if first. No toast — the row is the assertion.
+  if first. No toast — the row is the assertion. In **mode A** (no Slack app
+  registered) Step 2 instead explains that the app is set up by the
+  deployment operator (`settings.connectors.card.oauthAppMissingDeployment`)
+  — it must never point at the OAuth apps card below, which carries no Slack
+  row; Gmail/Outlook in the same state keep pointing an admin at that card
+  (`settings.connectors.card.oauthAppMissingAdmin`).
 - [ ] `CONN-F16` · **Reconnect a stale grant** — On an OAuth row badged
   **Reconnect needed** (`settings.connectors.credential.needsReauth`) → row
   menu → **Reconnect** (`settings.connectors.credential.reconnect`) → The

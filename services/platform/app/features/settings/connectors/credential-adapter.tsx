@@ -39,6 +39,10 @@ import {
   endpointPlaceholder,
   statusLabel,
 } from './labels';
+import {
+  oauthAppMissingExplainer,
+  type OauthAppMissingExplainer,
+} from './oauth-app-missing';
 
 /**
  * How a connector's credentials plug into the shared credential UI.
@@ -216,6 +220,17 @@ function ConnectorConsent({
 }: CredentialConsentProps<ConnectorVendor>) {
   const { t } = useT('settings');
   const ability = useAbility();
+  // Literal keys per case, so the catalog guard sees every string in use.
+  const oauthAppMissingCopy = (explainer: OauthAppMissingExplainer) => {
+    const values = { connector: vendor.displayName };
+    if (explainer === 'deployment') {
+      return t('connectors.card.oauthAppMissingDeployment', values);
+    }
+    if (explainer === 'admin') {
+      return t('connectors.card.oauthAppMissingAdmin', values);
+    }
+    return t('connectors.card.oauthAppMissing', values);
+  };
   if (!vendor.summary.authMethods.includes('oauth2')) return null;
   // No app to consent against — say so here instead of sending the browser
   // to the not-configured error page. Admins get pointed at the registry.
@@ -226,13 +241,12 @@ function ConnectorConsent({
     return (
       <Stack gap={3} className="border-border rounded-lg border p-4">
         <Text as="p" variant="muted" className="text-sm">
-          {ability.can('write', 'orgSettings')
-            ? t('connectors.card.oauthAppMissingAdmin', {
-                connector: vendor.displayName,
-              })
-            : t('connectors.card.oauthAppMissing', {
-                connector: vendor.displayName,
-              })}
+          {oauthAppMissingCopy(
+            oauthAppMissingExplainer({
+              orgConfigurable: vendor.summary.oauthApp.orgConfigurable,
+              canManageOrgSettings: ability.can('write', 'orgSettings'),
+            }),
+          )}
         </Text>
       </Stack>
     );
