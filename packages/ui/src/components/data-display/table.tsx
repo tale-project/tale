@@ -100,7 +100,9 @@ const TableHead = forwardRef<
     ref={ref}
     scope={scope}
     className={cn(
-      'text-muted-foreground h-10 px-3 text-left align-middle font-medium text-nowrap first:rounded-tl-lg last:rounded-tr-lg [&:has([role=checkbox])]:pr-0',
+      // `--table-header-foreground`, not `--muted-foreground`: header text
+      // sits on the `--muted` fill, where the muted pair is under 4.5:1.
+      'text-table-header-foreground h-10 px-3 text-left align-middle font-medium text-nowrap first:rounded-tl-lg last:rounded-tr-lg [&:has([role=checkbox])]:pr-0',
       className,
     )}
     {...props}
