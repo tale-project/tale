@@ -1,9 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { BorderedSection } from '@tale/ui/bordered-section';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { CopyableField } from '@tale/ui/copyable-field';
 import {
   EntityViewDialog,
   EntityViewSection,
@@ -61,20 +59,6 @@ export function KnowledgeEntryViewDialog({
         label: t('viewDialog.updated'),
         value: <Text>{formatDate(new Date(entry.createdAt), 'long')}</Text>,
       },
-      {
-        label: t('content'),
-        value: (
-          <Text className="leading-relaxed whitespace-pre-wrap">
-            {entry.content}
-          </Text>
-        ),
-        colSpan: 2,
-      },
-      {
-        label: t('viewDialog.entryId'),
-        value: <CopyableField value={entry._id} />,
-        colSpan: 2,
-      },
     ],
     [entry, t, formatDate],
   );
@@ -86,9 +70,7 @@ export function KnowledgeEntryViewDialog({
         if (!open) onClose();
       }}
       title={t('viewDialog.title')}
-      description={t('viewDialog.description')}
       name={entry.topic}
-      summary={entry.content}
       icon={BookOpen}
       badges={
         <RagStatusBadge
@@ -115,6 +97,12 @@ export function KnowledgeEntryViewDialog({
             }
           : undefined
       }
+      identifier={{ label: t('viewDialog.entryId'), value: entry._id }}
+      content={
+        <Text className="leading-relaxed wrap-anywhere whitespace-pre-wrap">
+          {entry.content}
+        </Text>
+      }
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     >
@@ -125,11 +113,14 @@ export function KnowledgeEntryViewDialog({
         >
           <Stack gap={2}>
             {versions.map((version) => (
-              <BorderedSection key={version._id}>
+              <div
+                key={version._id}
+                className="border-border border-b py-3 last:border-0 last:pb-0"
+              >
                 <CollapsibleDetails
                   summary={
                     <Stack gap={1} className="min-w-0 flex-1">
-                      <Row gap={2}>
+                      <Row gap={2} wrap>
                         <Badge variant="outline">
                           {t('viewDialog.superseded')}
                         </Badge>
@@ -154,7 +145,7 @@ export function KnowledgeEntryViewDialog({
                     {version.content}
                   </Text>
                 </CollapsibleDetails>
-              </BorderedSection>
+              </div>
             ))}
           </Stack>
         </EntityViewSection>

@@ -58,6 +58,17 @@ describe('ProductViewDialog', () => {
     expect(within(dialog).getByText('Product ID')).toBeInTheDocument();
   });
 
+  it('shows the description once', () => {
+    render(
+      <ProductViewDialog
+        isOpen
+        onClose={vi.fn()}
+        product={{ ...PRODUCT, description: 'A useful gadget.' }}
+      />,
+    );
+    expect(screen.getAllByText('A useful gadget.')).toHaveLength(1);
+  });
+
   it('offers Edit for a writer without opening the form until they ask', () => {
     render(<ProductViewDialog isOpen onClose={vi.fn()} product={PRODUCT} />);
 

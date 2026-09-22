@@ -3,6 +3,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
+import { TooltipProvider } from '@tale/ui/tooltip';
 import { BookOpen, Globe, Play } from 'lucide-react';
 import { useState } from 'react';
 
@@ -12,6 +13,13 @@ const meta: Meta<typeof EntityViewDialog> = {
   title: 'Dialog/EntityViewDialog',
   component: EntityViewDialog,
   tags: ['autodocs'],
+  decorators: [
+    (Story) => (
+      <TooltipProvider>
+        <Story />
+      </TooltipProvider>
+    ),
+  ],
   parameters: {
     layout: 'centered',
     docs: {
@@ -19,8 +27,7 @@ const meta: Meta<typeof EntityViewDialog> = {
         component: `
 The details of one knowledge record — a product, contact, website, or knowledge
 entry — in the layout every record shares: an identity block, the key facts,
-then the record's own sections. It uses the \`entity\` dialog size, the same
-width and minimum height as the record's create and edit dialogs.
+then the record's own sections. It uses a compact identity header and a reading width, with height determined by its content.
 
 ## Usage
 \`\`\`tsx
@@ -57,8 +64,9 @@ import {
 \`\`\`
 
 ## Features
-- One identity block: image or icon tile, name, summary, badges
-- Key facts in a two-column description list; long values span both columns
+- One identity block: image or small icon, name, inline status and actions
+- Key facts in aligned metadata rows; long content uses the full width
+- Copyable identifiers sit after the record content
 - Edit hands the frame to the record's edit dialog; cancel returns, save closes
 - Extra header shortcuts for the row menu's other verbs
         `,
@@ -81,7 +89,6 @@ export const Default: Story = {
           open={open}
           onOpenChange={setOpen}
           title="Website details"
-          description="View all information about this website"
           name="example.com"
           summary="Example Domain"
           icon={Globe}
@@ -98,6 +105,10 @@ export const Default: Story = {
               onClick: () => undefined,
             },
           ]}
+          identifier={{
+            label: 'Website ID',
+            value: '795c9221-156f-434e-a458-24625f59bde0',
+          }}
           facts={[
             { label: 'Scan interval', value: 'Every 1 day' },
             { label: 'Last scanned', value: 'September 15, 2026 8:54 AM' },
@@ -130,7 +141,21 @@ export const WithEdit: Story = {
           onOpenChange={setOpen}
           title="Knowledge entry details"
           name={topic}
-          summary="Customers can return any unused item within 30 days."
+          badges={
+            <Badge variant="green" dot>
+              Indexed
+            </Badge>
+          }
+          content={
+            <p className="text-sm leading-relaxed">
+              Customers can return unused items within 30 days of delivery.
+              Refunds go back to the original payment method.
+            </p>
+          }
+          identifier={{
+            label: 'Entry ID',
+            value: 'e2467808-ecb7-4661-9725-164de8201f0e',
+          }}
           icon={BookOpen}
           edit={{
             label: 'Edit',
@@ -150,7 +175,10 @@ export const WithEdit: Story = {
               </FormDialog>
             ),
           }}
-          facts={[{ label: 'Source', value: 'Manual' }]}
+          facts={[
+            { label: 'Source', value: 'Manual' },
+            { label: 'Updated', value: 'September 14, 2026 11:11 AM' },
+          ]}
         />
       </>
     );
@@ -159,7 +187,7 @@ export const WithEdit: Story = {
     docs: {
       description: {
         story:
-          'Edit swaps the details for the edit form in the same frame size. Cancel returns to the details; saving closes both.',
+          'Edit swaps the details for the edit form with focus restored when returning. Cancel returns to the details; saving closes both.',
       },
     },
   },

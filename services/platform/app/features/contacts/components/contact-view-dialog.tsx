@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { CopyableField } from '@tale/ui/copyable-field';
 import { EntityViewDialog } from '@tale/ui/entity/entity-view-dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import type { StatGridItem } from '@tale/ui/stat-grid';
@@ -136,13 +135,8 @@ export function ContactViewDialog({
             },
           ]
         : []),
-      {
-        label: tDialogs('contactInfo.contactId'),
-        value: <CopyableField value={contact._id} />,
-        colSpan: 2,
-      },
     ],
-    [contact, tCommon, tDialogs, formatDate, notAvailable],
+    [contact, tCommon, formatDate, notAvailable],
   );
 
   return (
@@ -152,7 +146,6 @@ export function ContactViewDialog({
         if (!open) onClose();
       }}
       title={tDialogs('contactInfo.title')}
-      description={tDialogs('contactInfo.description')}
       name={contact.name || contact.email || notAvailable}
       summary={contact.name ? contact.email : undefined}
       icon={User}
@@ -190,6 +183,10 @@ export function ContactViewDialog({
           visible: canEmailContact(contact),
         },
       ]}
+      identifier={{
+        label: tDialogs('contactInfo.contactId'),
+        value: contact._id,
+      }}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     />

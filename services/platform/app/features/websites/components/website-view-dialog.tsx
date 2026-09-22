@@ -4,7 +4,6 @@ import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { CopyableField } from '@tale/ui/copyable-field';
 import { EmptyState } from '@tale/ui/empty-state';
 import {
   EntityViewDialog,
@@ -232,30 +231,32 @@ function PageRow({
   );
 
   return (
-    <BorderedSection>
-      <CollapsibleDetails summary={summary} onToggle={handleToggle}>
-        <Stack gap={2} className="mt-3">
-          {isPending && (
-            <Row gap={0} justify="center" className="py-2">
-              <Spinner size="sm" />
-            </Row>
-          )}
-          {chunks?.length === 0 && (
-            <Text variant="muted">{t('pagesDialog.noChunks')}</Text>
-          )}
-          {chunks?.map((chunk) => (
-            <div key={chunk.chunk_index} className="bg-muted/50 rounded-md p-3">
-              <Text variant="caption" className="mb-1 block font-medium">
-                {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
-              </Text>
-              <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
-                {chunk.chunk_content}
-              </Text>
-            </div>
-          ))}
-        </Stack>
-      </CollapsibleDetails>
-    </BorderedSection>
+    <CollapsibleDetails
+      summary={summary}
+      onToggle={handleToggle}
+      className="border-border border-b py-3 last:border-0 last:pb-0"
+    >
+      <Stack gap={2} className="mt-3">
+        {isPending && (
+          <Row gap={0} justify="center" className="py-2">
+            <Spinner size="sm" />
+          </Row>
+        )}
+        {chunks?.length === 0 && (
+          <Text variant="muted">{t('pagesDialog.noChunks')}</Text>
+        )}
+        {chunks?.map((chunk) => (
+          <div key={chunk.chunk_index} className="bg-muted/50 rounded-md p-3">
+            <Text variant="caption" className="mb-1 block font-medium">
+              {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
+            </Text>
+            <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
+              {chunk.chunk_content}
+            </Text>
+          </div>
+        ))}
+      </Stack>
+    </CollapsibleDetails>
   );
 }
 
@@ -497,11 +498,6 @@ export function WebsiteViewDialog({
             },
           ]
         : []),
-      {
-        label: t('viewDialog.websiteId'),
-        value: <CopyableField value={website._id} />,
-        colSpan: 2,
-      },
     ],
     [website, t, formatDate, scanIntervals, statusNotice, paused],
   );
@@ -515,7 +511,6 @@ export function WebsiteViewDialog({
         if (!open) onClose();
       }}
       title={t('viewDialog.title')}
-      description={t('viewDialog.description')}
       name={website.domain}
       summary={website.title}
       icon={Globe}
@@ -564,17 +559,21 @@ export function WebsiteViewDialog({
           visible: canWrite && paused,
         },
       ]}
+      identifier={{ label: t('viewDialog.websiteId'), value: website._id }}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     >
       {hollowScan ? (
-        <div title={lastSyncError ?? undefined}>
-          <EmptyState
-            title={t(scanErrorMessageKey(scanErrorKind))}
-            description={t(scanEmptyMessageKey(scanErrorKind))}
-            className="py-6"
-          />
-        </div>
+        <Stack
+          gap={1}
+          className="bg-muted/50 rounded-lg p-3"
+          title={lastSyncError ?? undefined}
+        >
+          <Heading level={3} size="sm" weight="medium">
+            {t(scanErrorMessageKey(scanErrorKind))}
+          </Heading>
+          <Text variant="muted">{t(scanEmptyMessageKey(scanErrorKind))}</Text>
+        </Stack>
       ) : (
         <EntityViewSection
           title={t('pagesDialog.title')}
@@ -640,11 +639,7 @@ export function WebsiteViewDialog({
           ) : (
             <Stack gap={2}>
               {!isFirstLoad && pages.length === 0 && (
-                <EmptyState
-                  icon={FileText}
-                  title={t('pagesDialog.noPages')}
-                  description={t('pagesDialog.noPagesDescription')}
-                />
+                <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
               )}
 
               <Skeletonize loading={isFirstLoad && isPending}>

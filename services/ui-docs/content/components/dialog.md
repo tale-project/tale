@@ -46,11 +46,25 @@ For a type-to-confirm decision, set `requireConfirmPhrase`. The trimmed input mu
 
 The base Dialog itself uses a bottom-sheet layout below `md` and a centered modal above it. Its header and footer remain outside the scrollable body. Test long content on a phone; choosing a large desktop size does not remove the need for that check.
 
+## Keep record details scannable
+
+`EntityViewDialog` uses the `lg` reading width and sizes its height to the content.
+The record name, status and actions form one header; the generic `title` remains
+available to assistive technology. Use `name` for the main heading, a short
+`summary` only when it adds information,
+and `content` for the primary reading area. Omit generic descriptions that repeat
+the dialog title.
+
+`facts` renders aligned label/value rows; items with `colSpan: 2` use the full width
+for longer content. Put pages or version history in `EntityViewSection`, and pass
+`identifier={{ label, value }}` for a compact copyable ID after all sections.
+Keep descriptions in one place rather than repeating them in the summary and body.
+
 ## Base dialog options
 
 | Prop | Purpose |
 | --- | --- |
-| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives a record's details, create, and edit dialogs one width and a shared minimum height from `md` up. |
+| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives create and edit forms a shared minimum height from `md` up. `EntityViewDialog` uses `lg` without that minimum height. |
 | `children`, `footer` | Body and action content; either may be omitted. |
 | `icon`, `headerActions` | Additional header content. |
 | `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |

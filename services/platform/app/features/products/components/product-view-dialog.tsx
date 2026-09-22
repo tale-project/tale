@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { CopyableField } from '@tale/ui/copyable-field';
 import { EntityViewDialog } from '@tale/ui/entity/entity-view-dialog';
 import { Row } from '@tale/ui/layout';
 import type { StatGridItem } from '@tale/ui/stat-grid';
@@ -74,6 +73,19 @@ export function ProductViewDialog({
             },
           ]
         : []),
+      ...(product.description
+        ? [
+            {
+              label: tProducts('view.labels.fullDescription'),
+              value: (
+                <Text className="leading-relaxed whitespace-pre-wrap">
+                  {product.description}
+                </Text>
+              ),
+              colSpan: 2 as const,
+            },
+          ]
+        : []),
       ...(product.category
         ? [
             {
@@ -109,19 +121,6 @@ export function ProductViewDialog({
             },
           ]
         : []),
-      ...(product.description
-        ? [
-            {
-              label: tProducts('view.labels.fullDescription'),
-              value: (
-                <Text className="leading-relaxed whitespace-pre-wrap">
-                  {product.description}
-                </Text>
-              ),
-              colSpan: 2 as const,
-            },
-          ]
-        : []),
       ...(sourceUrl
         ? [
             {
@@ -140,11 +139,6 @@ export function ProductViewDialog({
             },
           ]
         : []),
-      {
-        label: tProducts('view.labels.productId'),
-        value: <CopyableField value={product._id} />,
-        colSpan: 2,
-      },
     ],
     [product, sourceUrl, tProducts, tCommon, formatDate, locale],
   );
@@ -156,9 +150,7 @@ export function ProductViewDialog({
         if (!open) onClose();
       }}
       title={tProducts('view.title')}
-      description={tProducts('view.description')}
       name={product.name}
-      summary={product.description}
       badges={
         product.status ? (
           <ProductStatusBadge status={product.status} />
@@ -168,7 +160,11 @@ export function ProductViewDialog({
         <ProductImage
           images={product.imageUrl ? [product.imageUrl] : []}
           productName={product.name}
-          className="size-16 shrink-0 rounded-lg"
+          className={
+            product.imageUrl
+              ? 'size-16 shrink-0 rounded-lg'
+              : 'size-10 shrink-0 rounded-lg'
+          }
         />
       }
       edit={
@@ -187,6 +183,10 @@ export function ProductViewDialog({
             }
           : undefined
       }
+      identifier={{
+        label: tProducts('view.labels.productId'),
+        value: product._id,
+      }}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     />
