@@ -2371,7 +2371,6 @@ documents:
     toast:
       documentIdRequired: L'ID du document est requis pour la relance
       indexingStarted: Indexation démarrée
-      indexingQueued: Document mis en file d'attente pour l'indexation.
       retryFailed: Échec de la relance
       retryFailedDescription: Échec de la relance de l'indexation RAG
       unexpectedError: Une erreur inattendue s'est produite
