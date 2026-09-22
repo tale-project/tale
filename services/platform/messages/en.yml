@@ -1684,6 +1684,7 @@ conversations:
     assignedTeam: Team
     assignedToTeam: Queued to {name}
     unassignTeam: Remove team
+    reclickToUnassign: Choose again to unassign
     peopleSection: People
     teamsSection: Team
     assignSearchAll: Search people and teams

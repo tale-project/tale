@@ -567,6 +567,59 @@ describe('SearchableSelect', () => {
       expect(opt.getAttribute('aria-selected')).toBe('false');
     });
 
+    // A picker carrying two independent dimensions (a person AND a team) has no
+    // single controlled `value`, so each row states its own selected state.
+    it('marks an option selected from the option itself, with a null value', async () => {
+      const { user } = renderSelect({
+        value: null,
+        options: [
+          { value: 'apple', label: 'Apple', selected: true },
+          { value: 'banana', label: 'Banana' },
+        ],
+      });
+      await user.click(screen.getByText('Open select'));
+      expect(
+        screen
+          .getByRole('option', { name: /Apple/i })
+          .getAttribute('aria-selected'),
+      ).toBe('true');
+      expect(
+        screen
+          .getByRole('option', { name: /Banana/i })
+          .getAttribute('aria-selected'),
+      ).toBe('false');
+    });
+
+    it('marks two options selected at once', async () => {
+      const { user } = renderSelect({
+        value: null,
+        options: [
+          { value: 'apple', label: 'Apple', selected: true },
+          { value: 'banana', label: 'Banana' },
+          { value: 'cherry', label: 'Cherry', selected: true },
+        ],
+      });
+      await user.click(screen.getByText('Open select'));
+      const selected = screen
+        .getAllByRole('option')
+        .filter((opt) => opt.getAttribute('aria-selected') === 'true')
+        .map((opt) => opt.textContent);
+      expect(selected).toEqual(['Apple', 'Cherry']);
+    });
+
+    it('lets an explicit false override a matching value', async () => {
+      const { user } = renderSelect({
+        value: 'apple',
+        options: [{ value: 'apple', label: 'Apple', selected: false }],
+      });
+      await user.click(screen.getByText('Open select'));
+      expect(
+        screen
+          .getByRole('option', { name: /Apple/i })
+          .getAttribute('aria-selected'),
+      ).toBe('false');
+    });
+
     it('disabled option has aria-disabled', async () => {
       const { user } = renderSelect();
       await user.click(screen.getByText('Open select'));

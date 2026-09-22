@@ -1758,6 +1758,7 @@ conversations:
     assignedTeam: Équipe
     assignedToTeam: Assignée à {name}
     unassignTeam: Retirer l'équipe
+    reclickToUnassign: Choisis à nouveau pour retirer l'attribution
     peopleSection: Personnes
     teamsSection: Équipe
     assignSearchAll: Rechercher des personnes et des équipes
