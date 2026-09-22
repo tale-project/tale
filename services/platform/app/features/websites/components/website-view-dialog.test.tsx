@@ -82,7 +82,18 @@ describe('WebsiteViewDialog', () => {
     expect(
       within(dialog).getByRole('heading', { name: 'docs.example.com' }),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText('Example docs')).toBeInTheDocument();
+    const nameLabel = within(dialog).getByText('Name', {
+      selector: 'dt span',
+    });
+    expect(nameLabel.closest('div')?.querySelector('dd')).toHaveTextContent(
+      'Example docs',
+    );
+    const idLabel = within(dialog).getByText('Website ID', {
+      selector: 'dt span',
+    });
+    expect(idLabel.closest('div')?.querySelector('dd')).toHaveTextContent(
+      WEBSITE._id,
+    );
     expect(within(dialog).getByText('Active')).toBeInTheDocument();
     expect(within(dialog).getByText('Website pages')).toBeInTheDocument();
     expect(within(dialog).getByText(/1 indexed/)).toBeInTheDocument();
@@ -275,7 +286,14 @@ describe('WebsiteViewDialog', () => {
       <WebsiteViewDialog
         isOpen
         onClose={vi.fn()}
-        website={{ ...WEBSITE, crawledPageCount: 1, failedPageCount: 1 }}
+        website={{
+          ...WEBSITE,
+          crawledPageCount: 1,
+          failedPageCount: 1,
+          metadata: {
+            lastSyncError: 'Host does not resolve: docs.example.com',
+          },
+        }}
       />,
     );
 
@@ -291,8 +309,8 @@ describe('WebsiteViewDialog', () => {
     expect(screen.getByText(/0 indexed/)).toBeInTheDocument();
     expect(screen.getByText(/1 page failed/)).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText('Search website content'),
-    ).toBeInTheDocument();
+      screen.queryByPlaceholderText('Search website content'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/getaddrinfo/)).not.toBeInTheDocument();
     expect(screen.queryByText('0 words')).not.toBeInTheDocument();
     expect(screen.queryByText('0 chunks')).not.toBeInTheDocument();

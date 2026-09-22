@@ -1679,7 +1679,11 @@ conversations:
     fromDomainHint: N'importe quelle adresse sur {domain}
     fromLocalPlaceholder: support
     from: 'Expéditeur : {from}'
+    noEmailConnectorTitle: Connector e-mail requis
     noEmailConnector: Connecte un connector e-mail pour envoyer des e-mails.
+    noEmailConnectorAskAdmin: Demande à un admin de l'organisation de connecter
+      un connector e-mail avant de pouvoir envoyer.
+    openConnectorSettings: Ouvrir les paramètres des connectors
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
     assignLabel: Responsable
@@ -7320,6 +7324,7 @@ websites:
   viewDialog:
     title: Détails du site web
     status: Statut
+    nameField: Nom
     scanInterval: Intervalle d'analyse
     lastScanned: Dernière analyse
     notScannedYet: Pas encore analysé

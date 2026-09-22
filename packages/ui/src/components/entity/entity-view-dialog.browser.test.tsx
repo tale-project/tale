@@ -1,4 +1,7 @@
 import '@testing-library/jest-dom/vitest';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Textarea } from '@tale/ui/textarea';
 import { cleanup, waitFor } from '@testing-library/react';
 import { Globe } from 'lucide-react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -43,6 +46,35 @@ describe('record details layout', () => {
     });
     const date = screen.getByText('September 22, 2026 9:30 AM');
     expect(date.getBoundingClientRect().height).toBeLessThan(30);
+  });
+
+  it('sizes record forms to their fields and keeps the footer directly below them', async () => {
+    await page.viewport(1100, 900);
+    render(
+      <FormDialog
+        open
+        title="Edit knowledge entry"
+        size="entity"
+        onOpenChange={() => undefined}
+        onSubmit={() => undefined}
+      >
+        <Input label="Topic" defaultValue="Returns policy" />
+        <Textarea
+          label="Content"
+          rows={4}
+          defaultValue="Customers can return unused items within 30 days."
+        />
+      </FormDialog>,
+    );
+    const dialog = screen.getByRole('dialog');
+    await waitFor(() =>
+      expect(dialog.getBoundingClientRect().height).toBeLessThan(440),
+    );
+    const field = screen.getByRole('textbox', { name: 'Content' });
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(
+      save.getBoundingClientRect().top - field.getBoundingClientRect().bottom,
+    ).toBeLessThan(40);
   });
 
   it('keeps long names and identifiers within a phone viewport', async () => {

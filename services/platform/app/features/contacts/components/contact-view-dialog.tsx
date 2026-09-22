@@ -43,6 +43,7 @@ export function ContactViewDialog({
 }: ContactViewDialogProps) {
   const { t: tDialogs } = useT('dialogs');
   const { t: tCommon } = useT('common');
+  const { t: tContacts } = useT('contacts');
   const { t: tConversations } = useT('conversations');
   const { formatDate } = useFormatDate();
   const navigate = useNavigate();
@@ -53,6 +54,14 @@ export function ContactViewDialog({
 
   const facts = useMemo<StatGridItem[]>(
     () => [
+      ...(contact.email
+        ? [
+            {
+              label: tContacts('email'),
+              value: <Text>{contact.email}</Text>,
+            },
+          ]
+        : []),
       ...(contact.phone
         ? [
             {
@@ -136,7 +145,7 @@ export function ContactViewDialog({
           ]
         : []),
     ],
-    [contact, tCommon, formatDate, notAvailable],
+    [contact, tCommon, tContacts, formatDate, notAvailable],
   );
 
   return (
@@ -147,7 +156,6 @@ export function ContactViewDialog({
       }}
       title={tDialogs('contactInfo.title')}
       name={contact.name || contact.email || notAvailable}
-      summary={contact.name ? contact.email : undefined}
       icon={User}
       edit={
         canEdit

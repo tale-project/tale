@@ -1673,7 +1673,11 @@ conversations:
     fromDomainHint: Beliebige Adresse unter {domain}
     fromLocalPlaceholder: support
     from: 'Absender: {from}'
+    noEmailConnectorTitle: E-Mail-Connector erforderlich
     noEmailConnector: Verbinde einen E-Mail-Connector, um E-Mails zu senden.
+    noEmailConnectorAskAdmin: Bitte einen Org-Admin, einen E-Mail-Connector zu
+      verbinden, bevor du senden kannst.
+    openConnectorSettings: Connector-Einstellungen öffnen
     subject: Betreff
     subjectPlaceholder: Worum geht es?
     assignLabel: Zuständig
@@ -7222,6 +7226,7 @@ websites:
   viewDialog:
     title: Website-Details
     status: Status
+    nameField: Name
     scanInterval: Scan-Intervall
     lastScanned: Zuletzt gescannt
     notScannedYet: Noch nicht gescannt

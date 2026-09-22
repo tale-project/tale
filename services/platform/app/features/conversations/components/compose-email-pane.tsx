@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
@@ -15,12 +16,20 @@ import {
 import { selectTriggerClasses } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
-import { ChevronDown, Loader2Icon, Trash2Icon, Users } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import {
+  Check,
+  ChevronDown,
+  Loader2Icon,
+  Trash2Icon,
+  Users,
+} from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
@@ -111,11 +120,16 @@ export function ComposeEmailPane({
 }: ComposeEmailPaneProps) {
   const { t } = useT('conversations');
   const { user } = useAuth();
+  const ability = useAbility();
+  const navigate = useNavigate();
   const assignTriggerId = useId();
   const { emailConnectors, isLoading: connectorsLoading } =
     useEmailConnectors(organizationId);
   const { mutateAsync: composeEmail } = useComposeEmailConversation();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  // Matching connectors settings: anyone who can open the page gets the
+  // deep-link; everyone else is told to ask an admin.
+  const canOpenConnectors = ability.can('read', 'developerSettings');
 
   const draftPrefix = user?.userId
     ? `compose-${user.userId}-${organizationId}`
@@ -193,7 +207,6 @@ export function ComposeEmailPane({
                 {t('compose.assignYou')}
               </Badge>
             ) : undefined,
-          selected: member.userId === assigneeUserId,
         });
       }
     }
@@ -207,12 +220,11 @@ export function ComposeEmailPane({
         options.push({
           value: `${TEAM_PREFIX}${tm.id}`,
           label: tm.name,
-          selected: tm.id === assigneeTeamId,
         });
       }
     }
     return options;
-  }, [members, teams, user?.userId, assigneeUserId, assigneeTeamId, t]);
+  }, [members, teams, user?.userId, t]);
 
   // Seeded recipient (from a contact row) wins over a restored draft contact.
   useEffect(() => {
@@ -288,9 +300,6 @@ export function ComposeEmailPane({
       setAssignOpen(false);
       return;
     }
-    // A draft always has an owner: the effect above re-seeds the sender the
-    // moment this is empty, so re-picking the current person cannot clear it
-    // the way the reading pane's picker does. Only the team queue toggles.
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
       if (next !== assigneeUserId) setAssigneeUserId(next);
@@ -299,8 +308,7 @@ export function ComposeEmailPane({
     }
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
-      if (next === assigneeTeamId) clearAssigneeTeamId();
-      else setAssigneeTeamId(next);
+      if (next !== assigneeTeamId) setAssigneeTeamId(next);
       setAssignOpen(false);
     }
   };
@@ -468,6 +476,9 @@ export function ComposeEmailPane({
                     const uid = opt.value.slice(USER_PREFIX.length);
                     return (
                       <span className="flex items-center gap-1.5">
+                        {assigneeUserId === uid && (
+                          <Check className="text-primary size-4 shrink-0" />
+                        )}
                         <AssigneeAvatar
                           assigneeType="user"
                           assigneeId={uid}
@@ -481,9 +492,7 @@ export function ComposeEmailPane({
                     return (
                       <span className="flex items-center gap-1.5">
                         {assigneeTeamId === tid && (
-                          <span className="sr-only">
-                            {t('header.reclickToUnassign')}
-                          </span>
+                          <Check className="text-primary size-4 shrink-0" />
                         )}
                         <Users
                           className="text-muted-foreground size-4 shrink-0"
@@ -517,10 +526,36 @@ export function ComposeEmailPane({
                 placeholder={t('compose.subjectPlaceholder')}
               />
 
-              {/* Sending details — demoted below the message fields; most orgs
-                  have one inbox and a fixed sender, so this is usually empty. */}
+              {/* Sending details — demoted below the message fields when an
+                  inbox exists; the missing-connector case is a banner, not a
+                  muted label, so send being off is obvious. */}
               {connectorsLoading ? null : !hasEmailConnector ? (
-                <Text variant="muted">{t('compose.noEmailConnector')}</Text>
+                <Alert
+                  variant="warning"
+                  live="off"
+                  title={t('compose.noEmailConnectorTitle')}
+                  description={
+                    canOpenConnectors
+                      ? t('compose.noEmailConnector')
+                      : t('compose.noEmailConnectorAskAdmin')
+                  }
+                >
+                  {canOpenConnectors ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => {
+                        void navigate({
+                          to: '/dashboard/$id/settings/connectors',
+                          params: { id: organizationId },
+                        });
+                      }}
+                    >
+                      {t('compose.openConnectorSettings')}
+                    </Button>
+                  ) : null}
+                </Alert>
               ) : (
                 <>
                   {emailConnectors.length > 1 && (
@@ -582,6 +617,13 @@ export function ComposeEmailPane({
               organizationId={organizationId}
               messageId={composeBodyMessageId}
               disabled={!canSend}
+              sendDisabledReason={
+                !hasEmailConnector
+                  ? t('compose.noEmailConnectorTitle')
+                  : !canSend
+                    ? t('compose.fillRequired')
+                    : undefined
+              }
             />
             {hasEmailConnector && !canSend && (
               <Text variant="muted" className="mt-2 text-xs">

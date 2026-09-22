@@ -64,7 +64,12 @@ describe('ContactViewDialog', () => {
     expect(
       within(dialog).getByRole('heading', { name: 'John Doe' }),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText('john@example.com')).toBeInTheDocument();
+    const emailLabel = within(dialog).getByText('Email', {
+      selector: 'dt span',
+    });
+    expect(emailLabel.closest('div')?.querySelector('dd')).toHaveTextContent(
+      'john@example.com',
+    );
     expect(within(dialog).getByText('+1-555-0123')).toBeInTheDocument();
     expect(within(dialog).getByText('Prefers email')).toBeInTheDocument();
     expect(within(dialog).getByText('contact-1')).toBeInTheDocument();

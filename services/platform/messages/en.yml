@@ -1617,7 +1617,11 @@ conversations:
     fromDomainHint: Any address at {domain}
     fromLocalPlaceholder: support
     from: 'From: {from}'
+    noEmailConnectorTitle: Email connector required
     noEmailConnector: Connect an email connector to send email.
+    noEmailConnectorAskAdmin: Ask an organization admin to connect an email
+      connector before you can send.
+    openConnectorSettings: Open connector settings
     subject: Subject
     subjectPlaceholder: What's this about?
     assignLabel: Assign to
@@ -7272,6 +7276,7 @@ websites:
   viewDialog:
     title: Website details
     status: Status
+    nameField: Name
     scanInterval: Scan interval
     lastScanned: Last scanned
     notScannedYet: Not scanned yet

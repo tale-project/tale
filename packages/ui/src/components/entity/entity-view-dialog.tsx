@@ -90,7 +90,7 @@ export interface EntityViewDialogProps {
  * knowledge entry — in the layout every record shares: an identity block
  * (image or icon, name, summary, badges), the key facts, then any sections of
  * its own. Details use a comfortable reading width and grow with their content
- * instead of reserving the form's minimum height.
+ * without reserving empty space below short records.
  *
  * @example
  * ```tsx

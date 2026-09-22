@@ -64,7 +64,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 
 | Prop | Purpose |
 | --- | --- |
-| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives create and edit forms a shared minimum height from `md` up. `EntityViewDialog` uses `lg` without that minimum height. |
+| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, `entity`, or `wide`; default `default`. `entity` gives record forms a shared width and content-driven height. `EntityViewDialog` uses the wider `lg` reading measure. |
 | `children`, `footer` | Body and action content; either may be omitted. |
 | `icon`, `headerActions` | Additional header content. |
 | `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |
@@ -76,7 +76,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 
 ## Handle lifecycle and focus deliberately
 
-The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row. `Sheet` and `ResponsiveDialog` carry the same restoration and the same `restoreFocusRef` prop, so an overlay opened from state — a bottom tab, a task card — returns focus to its opener without a trigger element.
+The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row.
 
 Content can remain mounted through a closing animation. Do not assume `open=false` immediately stops its subscriptions or requests. If hook-heavy content has a closing-lifecycle problem, move it into a separate component and conditionally mount that component; do not call hooks conditionally inside one component.
 
