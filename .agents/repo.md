@@ -98,6 +98,18 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
   title must itself be commitlint-shaped.
 
+## A green check is not always a run
+
+Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
+`@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
+forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
+every later run that shares those inputs — so a task that is flaky but passed once reads green
+until its inputs change, and "it passes on `main`" is not evidence the suite ran there. Before
+concluding that a failure is yours, open the job log and look for `cache hit, replaying logs`
+beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
+declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
+cacheable, and the fix is the determinism, not the cache.
+
 ## Skills index
 
 Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` after editing one.
