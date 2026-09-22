@@ -46,6 +46,7 @@ The surrounding page header supplies the `h1`. Do not repeat it in the settings 
 | Use `EditorActions` with the controller | Save/Discard availability follows dirty, valid, loading, and saving state. |
 | Register related sections through `EditorGroup` | Their controllers contribute to one active-editor action area. The group does not draw a bar on its own. |
 | Map server field errors where possible | Show repairable errors beside the relevant field rather than only in a disappearing toast. |
+| Pass `onReset` for state kept outside the form | A reveal toggle or local mode switch is not a form field, so `reset` cannot restore it. `onReset` runs after every reset — the section's own Discard and a group header's alike — so that state returns to the saved baseline with the fields. |
 
 For nested configuration objects that do not suit flat form paths, inspect `useJsonConfigEditor` before introducing another editor mechanism. Import controllers from `@tale/ui/editor/*`.
 

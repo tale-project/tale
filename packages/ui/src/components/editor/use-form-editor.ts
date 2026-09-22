@@ -49,6 +49,14 @@ interface UseFormEditorArgs<T extends FieldValues> {
   mapServerError?: (
     err: unknown,
   ) => ReadonlyArray<{ path: string; message: string }> | null;
+  /**
+   * Runs after `reset` restores the form to its saved baseline — from the
+   * section's own Discard or from a group header's. For state a section keeps
+   * OUTSIDE the form (a reveal toggle, a local mode switch) that must return
+   * to the saved state with the fields; without it the header's Discard
+   * clears the fields and leaves that state where the draft put it.
+   */
+  onReset?: () => void;
 }
 
 interface FormEditor<T extends FieldValues> extends EditorController {
@@ -80,6 +88,7 @@ export function useFormEditor<T extends FieldValues>({
   schema,
   save,
   mapServerError,
+  onReset,
 }: UseFormEditorArgs<T>): FormEditor<T> {
   const form = useForm<T>({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- T extends FieldValues
@@ -119,6 +128,8 @@ export function useFormEditor<T extends FieldValues>({
   saveRef.current = save;
   const mapServerErrorRef = useRef(mapServerError);
   mapServerErrorRef.current = mapServerError;
+  const onResetRef = useRef(onReset);
+  onResetRef.current = onReset;
   const dataRef = useRef(data);
   dataRef.current = data;
 
@@ -241,6 +252,7 @@ export function useFormEditor<T extends FieldValues>({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
     form.reset(dataRef.current);
     setHasRemoteUpdate(false);
+    onResetRef.current?.();
   }, [form]);
 
   const setServerErrors = useCallback(

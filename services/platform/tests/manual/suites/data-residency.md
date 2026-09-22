@@ -253,6 +253,13 @@ default is an external bucket rather than the bundled store.
   route) → after ~30 s `tale_backend_store_up{store="object_store"}` reads
   `0` while `GET /ready` stays `200` (a flapping store must not drain the
   colour).
+- [ ] `DATA-F10` · **Discard collapses an unsaved external mode** — With
+  External Postgres and External S3 both saved OFF, switch **External
+  Postgres** (`settings.dataResidency.externalPostgres`) on, type a Host, do NOT save
+  or test → activate the header **Discard** → the Host is cleared AND the
+  switch returns to off with its panel collapsed; the same for **External
+  S3**. Reload → both still off. A Discard must never leave the page showing
+  an external mode that was not saved.
 
 ## Accessibility
 

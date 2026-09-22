@@ -239,6 +239,9 @@ export function OrgKnowledgeSection({
     defaultValues: EMPTY_FORM,
     schema,
     save: saveForm,
+    // The reveal switch lives outside the form, so a Discard — the header's
+    // as much as this section's — has to put it back to the saved state too.
+    onReset: () => setEnabled(configured),
   });
   useRegisterGroupedEditor(editor, { enabled: !readOnly });
 
@@ -305,8 +308,8 @@ export function OrgKnowledgeSection({
       setClearConfirmOpen(true);
       return;
     }
+    // `onReset` collapses the panel: nothing is saved, so `configured` is off.
     editor.reset();
-    setEnabled(false);
   }
 
   const onLabel = t('dataResidency.externalPostgres');
