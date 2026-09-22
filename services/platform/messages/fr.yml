@@ -2111,6 +2111,8 @@ documents:
     goToSettings: Aller aux paramètres
     orgWide: Toute l'organisation
     projectScoped: Limité à un projet
+    unknownTeam: Équipe inconnue
+    moreTeams: '+{count}'
   deleteFile:
     title: Supprimer le document
     confirmation: 'Supprimer « {name} » ? Cette action est irréversible.'

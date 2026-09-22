@@ -2022,6 +2022,8 @@ documents:
     goToSettings: Go to settings
     orgWide: Organization-wide
     projectScoped: Project-scoped
+    unknownTeam: Unknown team
+    moreTeams: '+{count}'
   deleteFile:
     title: Delete document
     confirmation: Delete "{name}"? This can't be undone.

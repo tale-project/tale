@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 33 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 34 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -315,6 +315,19 @@ records and delete them after.
   row, **My teams** only the A row, picking B by name only the B row, and any
   two selections union; the choice lands in the URL as `?teams=org,mine,…`
   and survives a reload; **Clear filters** empties it.
+
+- [ ] `KNOW-F21` · **Teams column names the audience** — With one org-wide
+  document, one assigned to a single team, one assigned to three teams and one
+  folder inside a project → The **Teams** column (`tables.headers.teams`) reads
+  a globe plus `documents.teamTags.orgWide` for the first, one team NAME in a
+  chip (never an id) for the second, one name plus `+2`
+  (`documents.teamTags.moreTeams`) for the third with all three in the cell's
+  title, and a folder glyph plus `documents.teamTags.projectScoped` for the
+  fourth; every row's glyph and the text beside it sit on the same offset as
+  the **Document** column's, and the projects list's **Sharing** column
+  (PROJ-F23) reads the same way. Delete one of the three teams in Settings →
+  the row it tagged reads `documents.teamTags.unknownTeam` rather than
+  dropping the team and reading as unrestricted.
 
 ## Boundary & error tests
 

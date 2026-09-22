@@ -34,7 +34,7 @@ function DocumentTable({ state }: { state: 'in_review' | 'approved' }) {
     onDocumentView: vi.fn(),
     onFolderDeleted: vi.fn(),
     isLoadingTeams: false,
-    teamMap: new Map(),
+    nameOf: () => undefined,
   });
   const rows: DocumentItem[] = [
     {

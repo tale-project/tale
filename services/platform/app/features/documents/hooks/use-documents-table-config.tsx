@@ -8,12 +8,12 @@ import {
 } from '@tale/ui/data-table/table-icon-cell';
 import { DocumentIcon } from '@tale/ui/document-icon';
 import { HStack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { Folder } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { TeamAudienceCell } from '@/app/features/settings/teams/components/team-audience-cell';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
@@ -33,7 +33,8 @@ interface DocumentsTableConfigParams {
   onDocumentView: (documentId: string, opener: HTMLElement | null) => void;
   onFolderDeleted: () => void;
   isLoadingTeams: boolean;
-  teamMap: Map<string, string>;
+  /** Resolves a team id to its directory name; `undefined` = no longer known. */
+  nameOf: (teamId: string) => string | undefined;
   parentFolderTeamId?: string;
   /** The folder currently open, which is the folder every listed file sits
    *  in — the move dialog opens on it. */
@@ -52,12 +53,12 @@ export function useDocumentsTableConfig({
   currentFolderId,
   onFolderDeleted,
   isLoadingTeams,
-  teamMap,
+  nameOf,
   parentFolderTeamId,
 }: DocumentsTableConfigParams): DocumentsTableConfig {
   const { t: tTables } = useT('tables');
   const { t: tDocuments } = useT('documents');
-  const { locale, formatNumber } = useFormatNumber();
+  const { locale } = useFormatNumber();
 
   const columns = useMemo<ColumnDef<DocumentItem>[]>(
     () => [
@@ -192,7 +193,11 @@ export function useDocumentsTableConfig({
       {
         id: 'teams',
         header: tTables('headers.teams'),
-        size: 160,
+        // Wider than the projects list's 160 declares, because THIS table's
+        // flex column takes all the slack and hands every other column its
+        // declared px exactly: at 160 a team chip has ~68px of text and even
+        // `documents.teamTags.unknownTeam` came out clipped.
+        size: 192,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
           // Classified by the same predicate the access rules use, never by
@@ -201,45 +206,34 @@ export function useDocumentsTableConfig({
           // and calling either "Organization-wide" states the opposite of the
           // truth on the screen built to audit document access.
           const scope = documentScopeKind(row.original);
-          if (scope === 'hub') {
-            return (
-              <Text as="span" variant="muted" className="text-sm">
-                {tDocuments('teamTags.orgWide')}
-              </Text>
-            );
-          }
           if (scope === 'project') {
+            // The third scope, which only documents have: the project owns the
+            // audience, so there are no teams to name.
+            const label = tDocuments('teamTags.projectScoped');
             return (
-              <Text as="span" className="text-sm">
-                {tDocuments('teamTags.projectScoped')}
-              </Text>
+              <TableIconCell
+                icon={<Folder />}
+                label={
+                  <Text as="span" variant="caption" truncate title={label}>
+                    {label}
+                  </Text>
+                }
+              />
             );
           }
-          const teamIds = scopeTeamIds(row.original);
-          if (isLoadingTeams) {
-            return (
-              <Skeletonize loading className="contents">
-                <SkeletonBox>
-                  <div className="h-5 w-20" />
-                </SkeletonBox>
-              </Skeletonize>
-            );
-          }
-          const MAX_VISIBLE = 2;
-          const names = teamIds
-            .map((id) => teamMap.get(id))
-            .filter((name): name is string => Boolean(name));
-          const visible = names.slice(0, MAX_VISIBLE);
-          const remaining = names.length - MAX_VISIBLE;
+          // `hub` reaches this with an empty audience, which is the cell's own
+          // organization-wide branch.
           return (
-            <Text as="span" className="text-sm">
-              {visible.join(', ')}
-              {remaining > 0 && (
-                <span className="text-muted-foreground">
-                  {` +${formatNumber(remaining)}`}
-                </span>
-              )}
-            </Text>
+            <TeamAudienceCell
+              teamIds={scopeTeamIds(row.original)}
+              nameOf={nameOf}
+              isLoading={isLoadingTeams}
+              labels={{
+                orgWide: tDocuments('teamTags.orgWide'),
+                unknownTeam: tDocuments('teamTags.unknownTeam'),
+                more: (count) => tDocuments('teamTags.moreTeams', { count }),
+              }}
+            />
           );
         },
       },
@@ -351,10 +345,9 @@ export function useDocumentsTableConfig({
       onDocumentView,
       onFolderDeleted,
       isLoadingTeams,
-      teamMap,
+      nameOf,
       parentFolderTeamId,
       locale,
-      formatNumber,
       tTables,
       tDocuments,
     ],

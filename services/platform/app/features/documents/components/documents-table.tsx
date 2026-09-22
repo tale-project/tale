@@ -10,7 +10,7 @@ import { FileText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  useTeamDirectory,
+  useTeamNames,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -78,14 +78,13 @@ export function DocumentsTable({
   // Names resolve through the org's team DIRECTORY (every team, for any
   // member), so a row shared with a team the viewer is not in still says
   // which; the viewer's OWN teams feed the "My teams" audience filter.
-  const { teams: directoryTeams, isLoading: isLoadingTeams } =
-    useTeamDirectory();
+  const {
+    teams: directoryTeams,
+    nameOf,
+    isLoading: isLoadingTeams,
+  } = useTeamNames();
   const { teams: myTeams } = useTeams();
 
-  const teamMap = useMemo(() => {
-    if (!directoryTeams) return new Map<string, string>();
-    return new Map(directoryTeams.map((team) => [team.id, team.name]));
-  }, [directoryTeams]);
   const myTeamIds = useMemo(
     () => (myTeams ?? []).map((team) => team.id),
     [myTeams],
@@ -403,7 +402,7 @@ export function DocumentsTable({
     currentFolderId,
     onFolderDeleted: handleFolderDeleted,
     isLoadingTeams,
-    teamMap,
+    nameOf,
     parentFolderTeamId,
   });
 

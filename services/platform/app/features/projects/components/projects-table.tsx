@@ -11,9 +11,10 @@ import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
-import { Folder, Globe, Plus, Users } from 'lucide-react';
+import { Folder, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { TeamAudienceCell } from '@/app/features/settings/teams/components/team-audience-cell';
 import {
   useTeamNames,
   useTeams,
@@ -107,7 +108,11 @@ export function ProjectsTable({
   // Names resolve through the org's team DIRECTORY (every team, for any
   // member) so a row shared with a team the viewer is not in still says
   // which; the viewer's OWN teams feed the "My teams" audience filter.
-  const { teams: directoryTeams, nameOf } = useTeamNames();
+  const {
+    teams: directoryTeams,
+    nameOf,
+    isLoading: isLoadingTeams,
+  } = useTeamNames();
   const { teams: myTeams } = useTeams();
   const myTeamIds = useMemo(
     () => (myTeams ?? []).map((team) => team.id),
@@ -360,57 +365,23 @@ export function ProjectsTable({
           className: 'hidden md:table-cell',
           skeleton: { type: 'badge' },
         },
-        cell: ({ row }) => {
+        cell: ({ row }) => (
           // The audience, by NAME: who can open this project is the fact a
           // member of two teams needs at a glance. An icon alone said only
           // "some teams"; the names come from the directory so a team the
-          // viewer is not in still reads as itself.
-          const teamIds = projectTeamIds(row.original);
-          if (teamIds.length === 0) {
-            const label = t('list.sharingOrgWide');
-            return (
-              <span
-                className="text-muted-foreground inline-flex items-center gap-1 text-xs"
-                title={label}
-              >
-                <Globe className="size-3.5" aria-hidden />
-                {label}
-              </span>
-            );
-          }
-          const names = teamIds.map(
-            (id) => nameOf(id) ?? t('list.unknownTeam'),
-          );
-          const shown = names.slice(0, 2);
-          const remaining = names.length - shown.length;
-          const label = names.join(', ');
-          return (
-            <span
-              className="inline-flex max-w-full items-center gap-1"
-              title={label}
-            >
-              <Users
-                className="text-muted-foreground size-3.5 shrink-0"
-                aria-hidden
-              />
-              {shown.map((name) => (
-                <Badge
-                  key={name}
-                  variant="outline"
-                  className="max-w-[9rem] truncate"
-                >
-                  {name}
-                </Badge>
-              ))}
-              {remaining > 0 ? (
-                <span className="text-muted-foreground text-xs">
-                  {t('list.sharingMoreTeams', { count: remaining })}
-                </span>
-              ) : null}
-              <span className="sr-only">{label}</span>
-            </span>
-          );
-        },
+          // viewer is not in still reads as itself. The documents list's
+          // Teams column is this same cell.
+          <TeamAudienceCell
+            teamIds={projectTeamIds(row.original)}
+            nameOf={nameOf}
+            isLoading={isLoadingTeams}
+            labels={{
+              orgWide: t('list.sharingOrgWide'),
+              unknownTeam: t('list.unknownTeam'),
+              more: (count) => t('list.sharingMoreTeams', { count }),
+            }}
+          />
+        ),
       },
       {
         accessorKey: 'updatedAt',
@@ -447,7 +418,7 @@ export function ProjectsTable({
         enableSorting: false,
       },
     ],
-    [t, locale, organizationId, overdueTruncated, nameOf],
+    [t, locale, organizationId, overdueTruncated, nameOf, isLoadingTeams],
   );
 
   const list = useListPage<ProjectOverviewRow>({

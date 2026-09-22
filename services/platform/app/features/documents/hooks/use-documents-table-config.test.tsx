@@ -43,7 +43,7 @@ function renderColumnCell(
         onDocumentView: () => {},
         onFolderDeleted: () => {},
         isLoadingTeams: false,
-        teamMap,
+        nameOf: (teamId) => teamMap.get(teamId),
       }),
     { wrapper: Providers },
   );
@@ -174,7 +174,33 @@ describe('useDocumentsTableConfig — teams cell', () => {
 
   it('names the teams of a multi-team document', () => {
     renderTeamsCell({ teamIds: ['team_a', 'team_b'] });
-    expect(screen.getByText(/Compliance, Legal/)).toBeInTheDocument();
+
+    // A chip and a fold — the same audience shape the projects list uses.
+    expect(screen.getByText('Compliance')).toBeInTheDocument();
+    expect(screen.getByText('+1')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Compliance, Legal').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the folded teams readable out loud', () => {
+    renderTeamsCell(
+      { teamIds: ['team_a', 'team_b', 'team_c'] },
+      new Map([...teamMap, ['team_c', 'Finance']]),
+    );
+
+    expect(
+      screen.getAllByTitle('Compliance, Legal, Finance').length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText('Legal, Finance')).toHaveClass('sr-only');
+  });
+
+  // A team the directory no longer knows used to be dropped outright, which
+  // left a restricted document rendering an empty Teams cell — unrestricted,
+  // said the screen built to audit exactly that.
+  it('labels a team the directory no longer knows instead of dropping it', () => {
+    renderTeamsCell({ teamIds: ['team_gone'] });
+
+    expect(screen.getByText('Unknown team')).toBeInTheDocument();
+    expect(screen.queryByText('team_gone')).not.toBeInTheDocument();
   });
 });
 

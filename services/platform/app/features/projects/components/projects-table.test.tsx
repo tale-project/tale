@@ -247,22 +247,27 @@ describe('ProjectsTable', () => {
 
     // The names come from the directory, so a team the viewer is NOT in
     // (Design) still reads as itself instead of a raw id.
-    const two = renderTable([row({ teamIds: ['team_1', 'team_2'] })]);
-    expect(screen.getByText('Engineering')).toBeInTheDocument();
+    const one = renderTable([row({ teamIds: ['team_2'] })]);
     expect(screen.getByText('Design')).toBeInTheDocument();
     expect(
       screen.queryByText('projects.list.sharingMoreTeams'),
     ).not.toBeInTheDocument();
-    two.unmount();
+    one.unmount();
 
-    // Beyond two, the rest folds into a count; the full list stays in the
-    // title and the screen-reader text.
+    // Past the first, the rest folds into a count; the full list stays in the
+    // title and the folded names in the screen-reader text.
     renderTable([row({ teamIds: ['team_1', 'team_2', 'team_3'] })]);
+    expect(screen.getByText('Engineering')).toBeInTheDocument();
     expect(
       screen.getByText('projects.list.sharingMoreTeams'),
     ).toBeInTheDocument();
-    expect(screen.getByTitle('Engineering, Design, Sales')).toBeInTheDocument();
-    expect(screen.queryByText('Sales')).not.toBeInTheDocument();
+    expect(
+      screen.getAllByTitle('Engineering, Design, Sales').length,
+    ).toBeGreaterThan(0);
+    // Design and Sales lost their chip but not their reader: they are the
+    // screen-reader-only twin of the `+2`, which is itself hidden from the
+    // accessibility tree.
+    expect(screen.getByText('Design, Sales')).toHaveClass('sr-only');
   });
 
   it('labels a team the directory no longer knows instead of showing its id', () => {
