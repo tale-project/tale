@@ -181,6 +181,23 @@ describe('ProgressBar', () => {
     });
   });
 
+  describe('value text', () => {
+    it("prints the caller's own figure instead of the percentage", () => {
+      renderProgressBar({ value: 40, max: 100, valueText: '5 days' });
+      expect(getPercentageText()).toBe('5 days');
+    });
+
+    it('prints nothing when the caller keeps its figure outside the bar', () => {
+      renderProgressBar({ value: 40, max: 100, valueText: null });
+      expect(screen.getByRole('group').querySelector('span')).toBeNull();
+    });
+
+    it('still passes an axe audit with no figure beside it', async () => {
+      const { container } = renderProgressBar({ valueText: null });
+      await checkAccessibility(container);
+    });
+  });
+
   describe('styling', () => {
     it('applies custom className', () => {
       renderProgressBar({ className: 'custom-class' });
