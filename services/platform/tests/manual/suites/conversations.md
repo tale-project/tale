@@ -289,7 +289,7 @@ rows lead with the subject.
   and the next reply falls back to the default connector credential rather than
   failing.
 
-- [ ] `CONV-F17` · **Unassign by picking the assignee again** — On a
+- [ ] `CONV-F18` · **Unassign by picking the assignee again** — On a
   conversation queued to a team AND claimed by a person, as an owner, open the
   reading pane's assignee picker and choose the claimed person's row again →
   The person clears and the team chip stays. Choose the team's row again → The
