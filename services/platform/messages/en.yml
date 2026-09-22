@@ -1605,6 +1605,11 @@ conversations:
     searchContacts: Search contacts
     contactsLoading: Loading contacts…
     noContacts: No contacts with an email address yet
+    noContactsFound: No contacts match "{query}"
+    noContactsFoundAddHint: No contacts match "{query}". Type a full email
+      address to add a new contact.
+    addContact: Add "{email}" as a contact
+    contactExistsSelected: Already a contact — selected it
     inboxLabel: Inbox
     inboxPlaceholder: Select an inbox
     fromLabel: From

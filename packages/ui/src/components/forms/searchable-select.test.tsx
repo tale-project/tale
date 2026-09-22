@@ -460,6 +460,71 @@ describe('SearchableSelect', () => {
     });
   });
 
+  describe('reporting the typed query', () => {
+    it('reports every keystroke to the consumer', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = renderSelect({ onSearchChange });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'ap');
+      expect(onSearchChange.mock.calls.map(([q]) => q)).toEqual(['a', 'ap']);
+    });
+
+    // A consumer deriving a server search from the query would otherwise keep
+    // searching for a term the (now empty) search box no longer shows.
+    it('reports the reset when the popover closes', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = renderSelect({ onSearchChange });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'ap');
+      await user.keyboard('{Escape}');
+      expect(onSearchChange).toHaveBeenLastCalledWith('');
+    });
+  });
+
+  describe('pinned options', () => {
+    const withPinned: SearchableSelectOption[] = [
+      ...options,
+      { value: 'create', label: 'Add it', alwaysVisible: true, group: 'add' },
+    ];
+
+    it('keeps a pinned option when the query matches nothing', async () => {
+      const { user } = renderSelect({ options: withPinned });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'zzzzz');
+      const opts = screen.getAllByRole('option');
+      expect(opts).toHaveLength(1);
+      expect(opts[0]).toHaveTextContent('Add it');
+    });
+
+    // A pinned row is on screen whatever the query, so it is no evidence that
+    // the query matched: the empty state must still say nothing did.
+    it('still shows the empty state beside a lone pinned option', async () => {
+      const { user } = renderSelect({ options: withPinned });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'zzzzz');
+      expect(screen.getByText('No results')).toBeInTheDocument();
+    });
+
+    it('hides the empty state once a real option matches too', async () => {
+      const { user } = renderSelect({ options: withPinned });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'Apple');
+      expect(screen.queryByText('No results')).not.toBeInTheDocument();
+    });
+
+    it('lets the keyboard reach and select a lone pinned option', async () => {
+      const { user, onValueChange } = renderSelect({ options: withPinned });
+      await user.click(screen.getByText('Open select'));
+      const input = screen.getByRole('combobox');
+      await user.type(input, 'zzzzz');
+      expect(input.getAttribute('aria-activedescendant')).toBe(
+        screen.getByRole('option', { name: /Add it/i }).id,
+      );
+      await user.keyboard('{Enter}');
+      expect(onValueChange).toHaveBeenCalledWith('create');
+    });
+  });
+
   describe('accessibility', () => {
     it('search input has role combobox', async () => {
       const { user } = renderSelect();

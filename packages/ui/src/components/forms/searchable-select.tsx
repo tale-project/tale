@@ -38,6 +38,14 @@ export interface SearchableSelectOption {
   group?: string;
   /** Non-selectable section header row (skipped by keyboard navigation). */
   isSectionHeader?: boolean;
+  /**
+   * Survives the search filter, so the row stays on screen whatever the
+   * query — for an action pinned under the results ("Add <query> as a
+   * contact") or for the selected row when the list is a server-side search
+   * that no longer contains it. Pinned rows do not count towards the empty
+   * state, so `emptyText` still reports that nothing matched.
+   */
+  alwaysVisible?: boolean;
 }
 
 export interface SearchableSelectProps {
@@ -92,6 +100,13 @@ export interface SearchableSelectProps {
   'aria-label'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
+  /**
+   * Notified whenever the search text changes, including the reset to `''`
+   * when the popover closes. The component keeps OWNING the value; this is a
+   * read-only mirror for consumers that must react to what was typed — a
+   * server-side search, or an action row appended to `options`.
+   */
+  onSearchChange?: (query: string) => void;
   /** Show a radio indicator instead of a check icon for the selected state */
   showRadio?: boolean;
   /** Optional action element rendered on the right side of each option */
@@ -165,6 +180,15 @@ function defaultFilterFn(option: SearchableSelectOption, query: string) {
  * headers against the query; keep a header only when its section has ≥1
  * matching item. Leading unsectioned items filter normally.
  */
+/** Whether a row survives the query — a pinned row always does. */
+function keeps(
+  option: SearchableSelectOption,
+  query: string,
+  filter: (option: SearchableSelectOption, query: string) => boolean,
+): boolean {
+  return option.alwaysVisible === true || filter(option, query);
+}
+
 function filterOptionsWithSections(
   options: ReadonlyArray<SearchableSelectOption>,
   query: string,
@@ -184,7 +208,7 @@ function filterOptionsWithSections(
       const matched: SearchableSelectOption[] = [];
       while (i < options.length && !options[i]?.isSectionHeader) {
         const item = options[i];
-        if (item && filter(item, query)) matched.push(item);
+        if (item && keeps(item, query, filter)) matched.push(item);
         i++;
       }
       if (matched.length > 0) {
@@ -193,7 +217,7 @@ function filterOptionsWithSections(
       continue;
     }
     // Unsectioned leading (or mid-list) item — filter on its own.
-    if (filter(current, query)) result.push(current);
+    if (keeps(current, query, filter)) result.push(current);
     i++;
   }
   return result;
@@ -246,6 +270,7 @@ function SearchableSelectBase({
   contentClassName,
   'aria-label': ariaLabel,
   filterFn,
+  onSearchChange,
   showRadio,
   optionAction,
   descriptionMode = 'inline',
@@ -293,6 +318,18 @@ function SearchableSelectBase({
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // The single write path for the query, so `onSearchChange` can't miss one —
+  // the close reset below is a change like any other, and a consumer deriving
+  // a server search from it would otherwise keep searching for a term the
+  // (now empty) search box no longer shows.
+  const updateSearch = useCallback(
+    (next: string) => {
+      setSearch(next);
+      onSearchChange?.(next);
+    },
+    [onSearchChange],
+  );
+
   // Controlled state for the optional trigger tooltip. Closing the popover
   // restores focus to the trigger, which Radix Tooltip reads as a
   // focus-to-open and flashes the tooltip over the value the user just picked.
@@ -315,6 +352,14 @@ function SearchableSelectBase({
     if (!search) return options;
     return filterOptionsWithSections(options, search, filter);
   }, [options, search, filter]);
+
+  // A pinned row is on screen whatever the query, so it is not evidence that
+  // the query matched anything — a list showing only "Add <query> as a
+  // contact" must still say that no contact matched.
+  const hasMatches = useMemo(
+    () => filteredOptions.some((option) => option.alwaysVisible !== true),
+    [filteredOptions],
+  );
 
   const initializeHighlight = useCallback(() => {
     if (filteredOptions.length === 0) return;
@@ -345,7 +390,7 @@ function SearchableSelectBase({
     (nextOpen: boolean) => {
       setIsOpen(nextOpen);
       if (!nextOpen) {
-        setSearch('');
+        updateSearch('');
         // The popover restores focus to the trigger on close, which Radix
         // Tooltip reads as a focus-to-open and flashes the tooltip over the
         // value just picked. Arm a one-shot guard so that focus-driven open is
@@ -363,7 +408,7 @@ function SearchableSelectBase({
         }, 500);
       }
     },
-    [setIsOpen],
+    [setIsOpen, updateSearch],
   );
 
   const handleSelect = useCallback(
@@ -527,7 +572,7 @@ function SearchableSelectBase({
                     type="text"
                     role="combobox"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => updateSearch(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={searchPlaceholder}
                     // text-base (≥16px) prevents iOS focus-zoom; md:text-sm keeps
@@ -587,7 +632,7 @@ function SearchableSelectBase({
                 </Fragment>
               ))}
 
-              {filteredOptions.length === 0 && emptyText && (
+              {!hasMatches && emptyText && (
                 <Text
                   as="div"
                   variant="muted"

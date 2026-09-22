@@ -16,8 +16,10 @@ export function isContactDoc(contact: ContactData): contact is ContactDoc {
 }
 
 /** Placeholder email a contact record carries when it has no real address
- *  (e.g. a conversation whose sender couldn't be resolved). */
-const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
+ *  (e.g. a conversation whose sender couldn't be resolved). Exported so the
+ *  pickers that offer to CREATE a contact from a typed address can refuse
+ *  this one, instead of each re-declaring the literal. */
+export const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
 /**
  * Whether a contact is the organization's own record to edit or delete: one a

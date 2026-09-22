@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 33 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -25,6 +25,7 @@ seeding pattern.
 | Channel filter      | `…/{status}?channel={gmail\|outlook\|imap_smtp}` — set by the toolbar dropdown |
 | Search (in-page)    | typed search rides the `?search=` URL param (`validateSearch` on `$status`)    |
 | Selection (in-page) | selecting a conversation is **local view state** — the URL never changes       |
+| Compose (in-pane)   | `…/{status}?compose=new[&composeContact={id}]` — the reading pane composer     |
 | Automations (gate)  | `/dashboard/{org}/automations` — install/uninstall the email automations       |
 
 Route files: `app/routes/dashboard/$id/conversations.tsx` (layout + redirect +
@@ -239,6 +240,23 @@ rows lead with the subject.
   pane still shows exactly one pending message (migration 0108's partial unique
   index), and the second call reports the first card rather than minting a twin.
 
+- [ ] `CONV-F14` · **Add an unknown recipient without leaving compose** — With
+  an email automation deployed, open **Compose** (`conversations.compose.compose`)
+  and type into **To** (`conversations.compose.to`) a full address no contact
+  carries → The list reports **No contacts match** (`conversations.compose.noContactsFound`)
+  and offers **Add "`<address>`" as a contact** (`conversations.compose.addContact`)
+  under a divider; choosing it opens **Add contact** (`contacts.create.title`)
+  with **Email** (`contacts.email`) already filled and **Save** live without
+  further typing. Save → the dialog closes, **To** names the new contact, and
+  the contact is on `/dashboard/{org}/contacts` after a reload. Fill Subject
+  and a body → **Send** → the thread opens with that contact as correspondent.
+
+- [ ] `CONV-F15` · **A contact past the listing's first page** — In an org with
+  more than 200 contacts, type the full address of one created earliest into
+  **To** → The contact appears as an option (the picker searches server-side)
+  and **no** Add row is offered; selecting it puts its name on the To trigger,
+  and the trigger keeps that name while the query is narrowed to other rows.
+
 ## Boundary & error tests
 
 - [ ] `CONV-B1` · **Search with no matches** — Type a term matching nothing in
@@ -258,6 +276,15 @@ rows lead with the subject.
   hand → The list queries with `connectorName: "bogus"` and renders empty (no
   rows match); the channel dropdown falls back to its unselected label;
   clearing via **All channels** restores the list — no crash.
+- [ ] `CONV-B5` · **The add offer is withheld where it would be wrong** — In
+  **To**, in turn: type a partial name (`jan`) → no Add row, and the list reads
+  **No contacts match … Type a full email address to add a new contact**
+  (`conversations.compose.noContactsFoundAddHint`); type an existing contact's
+  address in a different case (`JANE@Example.com` for a `jane@example.com`
+  contact) → no Add row and that contact is listed; type `unknown@example.com`
+  → no Add row; as a **member** who cannot write contacts, type any unknown
+  address → no Add row and no hint, and the field still searches and selects
+  normally. No console error in any case.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -278,6 +305,11 @@ rows lead with the subject.
 - [ ] `CONV-A5` · **Nav entry** → The sidebar Inbox entry is a link whose
   accessible name is **Inbox** (`conversations.title`); the mobile bottom-bar
   tab carries the same label.
+- [ ] `CONV-A6` · **Add-contact row** → The Add row is a real listbox option:
+  reachable with ArrowDown from the search field, announced through
+  `aria-activedescendant`, and Enter-activatable. The dialog it opens traps
+  focus; closing it with **Save** or **Cancel** returns focus to the **To**
+  trigger, never to `<body>`. The whole flow completes with no pointer.
 
 ## Performance
 
