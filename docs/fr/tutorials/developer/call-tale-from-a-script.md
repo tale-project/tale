@@ -118,8 +118,9 @@ Conserve l’ID du thread pour prolonger cette intégration. Envoie les messages
 | --- | --- |
 | `401` | Vérifie si la clé a expiré, a été révoquée ou a été mal copiée. |
 | `400` avec `ORG_SLUG_REQUIRED` | Fournis le slug de l’organisation visée. |
-| `404` avec `ORG_SLUG_INVALID` | Le slug ne désigne aucune organisation dont le détenteur de la clé est membre : vérifie l’orthographe, et ne colle jamais l’identifiant d’organisation de l’URL du tableau de bord. |
-| `403` | Vérifie l’appartenance et les droits du titulaire de la clé. |
+| `404` avec `ORG_SLUG_INVALID` | Le slug ne désigne aucune organisation du tout : vérifie l’orthographe, et ne colle jamais l’identifiant d’organisation de l’URL du tableau de bord. |
+| `403` avec `ORG_FORBIDDEN` | L’organisation existe, mais le détenteur de la clé n’en est pas membre : choisis un slug dans `data.organizations`. |
+| `403` | Vérifie les droits du titulaire de la clé pour l’opération. |
 | Aucun modèle correspondant | Relis `/models` et choisis une paire exacte ID/fournisseur. |
 | `429` | Respecte `Retry-After` ; consulte les [limites de débit](/fr/develop/rate-limits). |
 | Statut du message `failed` | Lis `errorCode` et corrige le compte ou le modèle avant de réessayer. |

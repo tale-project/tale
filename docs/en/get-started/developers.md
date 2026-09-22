@@ -61,8 +61,9 @@ Use a model’s `id` in chat requests and its `providerSlug` when that ID is ava
 | --- | --- |
 | `401` | Check the bearer key, expiration and revocation state. |
 | `400` with `ORG_SLUG_REQUIRED` | Choose a slug from `data.organizations` in this error and send `X-Organization-Slug`. |
-| `404` with `ORG_SLUG_INVALID` | The header names no organization the key holder belongs to — a typo, or the dashboard URL's organization ID pasted as the slug. Send the slug from `data.organizations`. |
-| `403` | Check organization membership and the permission needed for the operation. |
+| `404` with `ORG_SLUG_INVALID` | The header names no organization at all — a typo, or the dashboard URL's organization ID pasted as the slug. Send the slug from `data.organizations`. |
+| `403` with `ORG_FORBIDDEN` | The organization exists, but the key holder is not a member of it. Pick a slug from `data.organizations`. |
+| `403` | Check the permission needed for the operation. |
 | `429` | Wait as directed by `Retry-After`; read [Rate limits](/develop/rate-limits). |
 
 If curl reports a TLS or network error before receiving JSON, check the host and certificate. Avoid disabling certificate verification in production scripts.
