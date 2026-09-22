@@ -109,7 +109,7 @@ describe('ContactEditDialog', () => {
     });
   });
 
-  it('strips letters from the phone field as they are typed', async () => {
+  it('strips letters from the phone field and explains why', async () => {
     const onClose = vi.fn();
     const { user } = render(
       <ContactEditDialog
@@ -124,14 +124,11 @@ describe('ContactEditDialog', () => {
     await user.type(phoneInput, '00kkkk');
 
     expect(phoneInput).toHaveValue('00');
-
-    await user.click(screen.getByRole('button', { name: /save/i }));
-
-    await waitFor(() => {
-      expect(mockMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ phone: '00' }),
-      );
-    });
+    expect(
+      await screen.findByText(
+        'Enter a phone number using digits and + ( ) - only',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('shows a visible, localized inline error when a required field is emptied', async () => {

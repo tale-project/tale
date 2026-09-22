@@ -51,6 +51,8 @@ export function ContactEditDialog({
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
     reset,
+    setError,
+    clearErrors,
   } = useForm<ContactFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: toFormValues(contact),
@@ -117,6 +119,8 @@ export function ContactEditDialog({
       <ContactFormFields
         register={register}
         errors={errors}
+        setError={setError}
+        clearErrors={clearErrors}
         disabled={isSubmitting}
       />
     </FormDialog>
