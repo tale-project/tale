@@ -5006,6 +5006,8 @@ settings:
         automatisations et les projets.
     sandboxes:
       description: Gérer les sandboxes distantes toujours actives.
+    skills:
+      description: Instructions et outils réutilisables que l'assistant peut charger.
     enterpriseSso:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:

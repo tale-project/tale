@@ -5072,6 +5072,8 @@ settings:
       description: Organization-wide metrics for usage, feedback, automations, and projects.
     sandboxes:
       description: Manage always-on remote sandboxes.
+    skills:
+      description: Reusable instructions and tools the assistant can load.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:

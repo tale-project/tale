@@ -4936,6 +4936,8 @@ settings:
         und Projekte.
     sandboxes:
       description: Always-on Remote-Sandboxes verwalten.
+    skills:
+      description: Wiederverwendbare Anleitungen und Werkzeuge, die der Assistent laden kann.
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:
