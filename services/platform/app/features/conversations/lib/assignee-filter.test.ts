@@ -45,11 +45,17 @@ describe('matchesAssigneeFilter', () => {
   });
 
   it('matches nothing under "me" while the member context is still loading', () => {
-    expect(
-      matchesAssigneeFilter(rows.mine, [ASSIGNEE_ME], {
-        myTeamIds: viewer.myTeamIds,
-      }),
-    ).toBe(false);
+    const loading = { myTeamIds: viewer.myTeamIds };
+
+    expect(matchesAssigneeFilter(rows.mine, [ASSIGNEE_ME], loading)).toBe(
+      false,
+    );
+    // The one that matters: an unclaimed row carries no `assigneeUserId`, so
+    // without the guard `undefined === undefined` would make every unassigned
+    // conversation read as the viewer's own.
+    expect(matchesAssigneeFilter(rows.unassigned, [ASSIGNEE_ME], loading)).toBe(
+      false,
+    );
   });
 
   it('does not treat a team queue the viewer belongs to as theirs personally', () => {

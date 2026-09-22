@@ -102,7 +102,7 @@ export type ReadFilter = 'all' | 'read' | 'unread';
 /** The read facet's resting value — narrows nothing. */
 const ALL_READ_STATES = 'all';
 
-export function isReadFilter(value: string): value is ReadFilter {
+function isReadFilter(value: string): value is ReadFilter {
   return value === 'all' || value === 'read' || value === 'unread';
 }
 

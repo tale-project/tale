@@ -48,7 +48,7 @@ Toute ressource liée à des équipes suit la même règle. Une ressource sans �
 
 Lorsque tu restreins un travail à des équipes, tu ne peux choisir que celles dont tu fais partie ; les propriétaires et les admins choisissent n’importe quelle équipe de l’organisation. Appartenir à une équipe n’autorise pas une action interdite par le rôle : un Éditeur et un Membre de la même équipe peuvent avoir des droits de modification différents.
 
-Chaque membre voit ses équipes dans **Paramètres > Compte > Tes équipes** et dans la ligne **Équipes** du menu de profil. Pour restreindre une liste à certains travaux, chaque liste propose un filtre **Équipes** avec **Toute l'organisation**, **Mes équipes** et chaque équipe par son nom ; la boîte de réception filtre par file. Consulte [Gérer ton compte](/fr/platform/member/preferences#teams).
+Chaque membre voit ses équipes dans **Paramètres > Compte > Tes équipes** et dans la ligne **Équipes** du menu de profil. Pour restreindre une liste à certains travaux, chaque liste propose un filtre **Équipes** avec **Toute l'organisation**, **Mes équipes** et chaque équipe par son nom ; la boîte de réception utilise plutôt un filtre **Responsable**, qui couvre les personnes comme les équipes. Consulte [Gérer ton compte](/fr/platform/member/preferences#teams).
 
 Pour les conversations entrantes, [les règles de routage](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations) peuvent choisir l’équipe dès l’arrivée. Sans attribution à une personne ou à une équipe, la conversation reste dans le triage des administrateurs.
 

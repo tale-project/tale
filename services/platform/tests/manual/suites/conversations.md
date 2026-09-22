@@ -1,11 +1,12 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 33 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 34 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
 `conversations.title`) with its status lanes (Open / Closed / Spam /
-Archived), the read-status filter, the **channel filter**, client-side search,
+Archived), the **Filter** panel behind the search box (Assignee / Read status /
+Source), client-side search,
 opening a conversation into the reading pane, reply + improve, and single +
 bulk status transitions. The Inbox is **gated**: its sidebar entry, mobile
 tab, and routes only render the inbox when at least one **deployed**
@@ -22,7 +23,9 @@ seeding pattern.
 | ------------------- | ------------------------------------------------------------------------------ |
 | Inbox (default)     | `/dashboard/{org}/conversations` → redirects to `…/open`                       |
 | By status           | `/dashboard/{org}/conversations/{open\|closed\|spam\|archived}`                |
-| Channel filter      | `…/{status}?channel={gmail\|outlook\|imap_smtp}` — set by the toolbar dropdown |
+| Source facet        | `…/{status}?channel={gmail\|outlook\|imap_smtp}` — set in the Filter panel    |
+| Assignee facet      | `…/{status}?assignee=` — comma-separated ids and sentinels, set in the panel  |
+| Read facet          | `…/{status}?read={read\|unread}` — set in the panel; absent means every state |
 | Search (in-page)    | typed search rides the `?search=` URL param (`validateSearch` on `$status`)    |
 | Selection (in-page) | selecting a conversation is **local view state** — the URL never changes       |
 | Compose (in-pane)   | `…/{status}?compose=new[&composeContact={id}]` — the reading pane composer     |
@@ -157,21 +160,26 @@ rows lead with the subject.
   the **Search conversations** box (`conversations.searchPlaceholder`) → The
   visible row list narrows to title/subject/description/contact-name matches;
   search state syncs to `?search=` and clears on lane switch.
-- [ ] `CONV-F4` · **Read-status filter** — Click the filter chevron (aria
-  `conversations.filter.label` = "Filter by read status") next to select-all;
-  choose **All** / **Read** / **Unread** (`conversations.filter.all` / `.read`
-  / `.unread`) → Rows scope to that read state (Unread keeps only rows with
-  the unread dot); the trigger highlights while a non-All filter is active.
-- [ ] `CONV-F5` · **Channel filter** — Click the **Channel** dropdown (aria
-  `conversations.filter.channel`) in the toolbar; options are **All channels**
-  (`conversations.filter.allChannels`) + one entry per **installed** inbox
-  provider, labelled with the connector's display title (e.g. **Microsoft
-  Outlook**); pick one → The URL gains `?channel={slug}` and the list
-  re-queries server-side (`listConversationsPaginated` with `connectorName`) —
-  only rows seeded with that `connectorName` remain; the trigger shows the
-  selected title and highlights. **All channels** clears the param and
-  restores the full list. Providers derive from installed inbox automations'
-  `requires.connectors[0]`, so uninstalling a provider removes its option.
+- [ ] `CONV-F4` · **Read facet** — Open **Filter**
+  (`common.labels.filter`) to the RIGHT of the search box; expand **Read
+  status** (`conversations.filter.readStatus`); choose **All** / **Read** /
+  **Unread** (`conversations.filter.all` / `.read` / `.unread`) → Rows scope to
+  that read state (Unread keeps only rows with the unread dot); the section
+  header carries a blue dot and the button a blue corner dot while a non-All
+  value is set; the choice lands in the URL as `?read=` (**All** drops the
+  param) and survives a reload.
+- [ ] `CONV-F5` · **Source facet** — **Precondition:** the org must have at
+  least one inbox provider to offer. `useChannelOptions` in
+  `app/routes/dashboard/$id/conversations/$status.tsx` returns a frozen empty
+  array while the automations backend is rebuilt, so today the facet is absent
+  by design and this box cannot run — record it skipped, not failed. With a
+  provider source restored: open **Filter**, expand **Channel**
+  (`conversations.filter.channel`); options are **All channels**
+  (`conversations.filter.allChannels`) + one entry per **installed** provider,
+  labelled with the connector's display title (e.g. **Microsoft Outlook**);
+  pick one → The URL gains `?channel={slug}` and the list re-queries
+  server-side (`listConversationsPaginated` with `connectorName`) — only rows
+  seeded with that `connectorName` remain. **All channels** clears the param.
 - [ ] `CONV-F6` · **Open conversation** — In a populated lane, click a row
   (`getByRole('button', { name: '<subject>' })`) → Right reading pane replaces
   "No conversation selected" with the conversation header + message history;
@@ -217,16 +225,20 @@ rows lead with the subject.
 
 - [ ] `CONV-F11` · **Reply through an API source** — In an isolated organization with a registered API source and no email automation, open Inbox and its synchronized customer thread, send a reply with a supported attachment, then let the source worker poll → The same reply and attachment appear once in the source app, native delivery becomes delivered, and an acknowledgement retry creates no extra message; keyboard focus remains usable after send.
 
-- [ ] `CONV-F12` · **Queue chip and filter** — With one conversation assigned
-  to team A (routing rule or assignee picker), one to a person and one
-  unassigned, as an owner, then as a member of team A only → Each row of the
-  list shows its queue as a chip (the team's NAME, or the assignee's name);
-  the toolbar's queue dropdown (`conversations.queue.filterLabel`) offers
-  **All queues** (`conversations.queue.all`), **My teams**
-  (`conversations.queue.mine`), **Unassigned** (`conversations.queue.unassigned`,
-  admins only) and each team by name; **My teams** keeps only the A row, the
-  choice lands in the URL as `?queue=…` and survives a reload; the member of
-  A sees no **Unassigned** option and no unassigned rows at all.
+- [ ] `CONV-F12` · **Queue chip and assignee facet** — With one conversation
+  assigned to team A (routing rule or assignee picker), one to a person and one
+  unassigned, as an owner, then as a member of team A only → Each row queued to
+  a team shows that team's NAME as a chip; a row assigned only to a PERSON
+  shows no chip (the person is visible in the reading pane's assignee picker,
+  not on the row). Open **Filter** → **Assignee**
+  (`conversations.filter.assignee`) offers **Assigned to me**
+  (`conversations.filter.assigneeMe`), **Unassigned**
+  (`conversations.filter.assigneeUnassigned`, admins only), **My teams**
+  (`conversations.filter.assigneeMyTeams`), then a **People**
+  (`.assigneePeople`) group and a **Teams** (`.assigneeTeams`) group naming
+  only the assignees present on the loaded rows. **My teams** keeps only the A
+  row; the choice lands in the URL as `?assignee=…` and survives a reload; the
+  member of A sees no **Unassigned** option and no unassigned rows at all.
 
 - [ ] `CONV-F13` · **A drafted reply waits for a person** — With a populated
   thread, have an automation call `conversation.draft_reply` on it (or seed one
@@ -257,6 +269,16 @@ rows lead with the subject.
   and **no** Add row is offered; selecting it puts its name on the To trigger,
   and the trigger keeps that name while the query is narrowed to other rows.
 
+- [ ] `CONV-F16` · **Filter to one person** — With one conversation claimed by
+  member X (the reading pane's assignee picker, or X composing an email, which
+  self-assigns) and others assigned elsewhere, as an owner → Open **Filter** →
+  **Assignee**; X appears under **People** by display name; tick it → only X's
+  rows remain and `?assignee=<userId>` lands in the URL. Tick a second person
+  as well → both people's rows show (the facet ORs, it does not intersect).
+  Tick **Assigned to me** while some rows are queued to a team the viewer is
+  in → team-queued rows the viewer has NOT claimed are excluded. **Clear all**
+  empties every facet AND the search box.
+
 ## Boundary & error tests
 
 - [ ] `CONV-B1` · **Search with no matches** — Type a term matching nothing in
@@ -272,10 +294,13 @@ rows lead with the subject.
   **Incoming conversations from your connected channels will appear here.**
   (`conversations.activate.description`); the list panel shows the empty
   message; search box + select-all + filters are **disabled**.
-- [ ] `CONV-B4` · **Unknown channel param** — Open `…/open?channel=bogus` by
-  hand → The list queries with `connectorName: "bogus"` and renders empty (no
-  rows match); the channel dropdown falls back to its unselected label;
-  clearing via **All channels** restores the list — no crash.
+- [ ] `CONV-B4` · **Unknown filter params** — Open
+  `…/open?channel=bogus&assignee=nobody` by hand → The list queries with
+  `connectorName: "bogus"` and renders empty (no rows match); the Assignee
+  facet still lists `nobody` as an option so the selection is visible and
+  undoable (named **Unknown person**, `conversations.filter.assigneeUnknownPerson`);
+  **Clear all** restores the list — no crash. An unparseable `?read=` value is
+  rejected by `validateSearch` before the page renders.
 - [ ] `CONV-B5` · **The add offer is withheld where it would be wrong** — In
   **To**, in turn: type a partial name (`jan`) → no Add row, and the list reads
   **No contacts match … Type a full email address to add a new contact**
@@ -295,13 +320,16 @@ rows lead with the subject.
   `<button>` with an accessible name (subject → contact name → Unknown
   contact); reachable and openable by keyboard.
 - [ ] `CONV-A3` · **Bulk select** → The select-all control is a labelled
-  checkbox (`common.aria.selectAll`); the read-filter trigger has aria
-  `conversations.filter.label`; per-row checkboxes are labelled
-  `dialogs.selectConversation`
-- [ ] `CONV-A4` · **Channel filter** → The trigger is a real `<button>` with
-  aria-label **Channel** (`conversations.filter.channel`); the menu options
-  are `menuitemradio` entries reflecting the current selection; fully
-  keyboard-operable.
+  checkbox (`common.aria.selectAll`) and stands alone — no chevron hangs off
+  it; per-row checkboxes are labelled `dialogs.selectConversation`
+- [ ] `CONV-A4` · **Filter panel** → The trigger is a real `<button>` whose
+  accessible name is **Filter** (`common.labels.filter`) even though no label
+  is drawn; each facet header is a `button` with `aria-expanded`; multi-select
+  options are labelled `checkbox`es, single-select options are `radio`s inside
+  a labelled `radiogroup`, and a grouped facet labels each `radiogroup` by its
+  group heading; the panel is NOT modal, so the list stays in the
+  accessibility tree behind it; Escape closes it and returns focus to the
+  button; fully keyboard-operable.
 - [ ] `CONV-A5` · **Nav entry** → The sidebar Inbox entry is a link whose
   accessible name is **Inbox** (`conversations.title`); the mobile bottom-bar
   tab carries the same label.
@@ -322,5 +350,6 @@ rows lead with the subject.
 - [ ] `CONV-P3` · **Search keystroke (populated, ≤30 rows)** → Filtered rows
   update within **300 ms** of typing (client-side `filterByTextSearch`, no
   network round-trip)
-- [ ] `CONV-P4` · **Channel filter switch (warm)** → Selecting a channel
-  repaints the list within **1 s** (one server-side paginated re-query)
+- [ ] `CONV-P4` · **Source facet switch (warm)** → Selecting a channel in the
+  Filter panel repaints the list within **1 s** (one server-side paginated
+  re-query). Needs the CONV-F5 precondition.

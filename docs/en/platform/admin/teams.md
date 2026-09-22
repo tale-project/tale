@@ -48,7 +48,7 @@ Every team-scoped resource follows one rule. A resource with no team is visible 
 
 When you restrict work to teams, you can only choose teams you belong to; Owners and Admins can choose any team of the organization. Team membership does not grant actions that a role forbids: an Editor and a Member in the same team can have different editing rights.
 
-Members see their own teams under **Settings > Account > Your teams** and in the **Teams** row of the profile menu. To narrow a list to certain work, each list offers a **Teams** filter with **Organization-wide**, **My teams**, and every team by name; the inbox filters by queue instead. See [Manage your account](/platform/member/preferences#teams).
+Members see their own teams under **Settings > Account > Your teams** and in the **Teams** row of the profile menu. To narrow a list to certain work, each list offers a **Teams** filter with **Organization-wide**, **My teams**, and every team by name; the inbox uses an **Assignee** filter instead, which covers people as well as teams. See [Manage your account](/platform/member/preferences#teams).
 
 For inbound conversations, [routing rules](/platform/admin/governance/policies-and-limits#conversation-routing) can select the team when the conversation arrives. Without a person or team assignment, the conversation stays in administrator triage.
 
