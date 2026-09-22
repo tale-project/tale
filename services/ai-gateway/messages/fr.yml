@@ -1,7 +1,6 @@
 panel:
-  title: Passerelle IA
-  subtitle: Les abonnements Claude et ChatGPT, regroupés derrière un point de terminaison par fournisseur.
-  languageLabel: Langue
+  title: La passerelle IA de Tale
+  skipToMain: Aller à la liste des comptes
 accounts:
   caption: Comptes d’abonnement connectés
   searchPlaceholder: Rechercher un compte

@@ -2,16 +2,20 @@ import { Badge } from '@tale/ui/badge';
 import { ContentArea } from '@tale/ui/content-area';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
-import { TableIconCell } from '@tale/ui/data-table/table-icon-cell';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { PageLayout } from '@tale/ui/page-layout';
+import { SkipLink } from '@tale/ui/skip-link';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide-react';
+import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
@@ -57,6 +61,7 @@ export function AccountsScreen({
   onReload,
 }: AccountsScreenProps) {
   const { t } = useT('accounts');
+  const { t: tPanel } = useT('panel');
   const { t: tProviders } = useT('providers');
   const { t: tStatus } = useT('status');
   const { formatDate } = useFormatDate();
@@ -73,10 +78,13 @@ export function AccountsScreen({
       try {
         const command = await gatewayApi.command(account.id);
         await navigator.clipboard.writeText(command);
-        toast({ description: t('commandCopied', { label: account.label }) });
+        toast({
+          title: t('commandCopied', { label: account.label }),
+          variant: 'success',
+        });
       } catch (cause) {
         console.error('[ai-gateway] copying the CLI command failed:', cause);
-        toast({ description: t('commandFailed'), variant: 'destructive' });
+        toast({ title: t('commandFailed'), variant: 'destructive' });
       }
     },
     [t, toast],
@@ -86,11 +94,14 @@ export function AccountsScreen({
     async (account: AccountView) => {
       try {
         await gatewayApi.remove(account.id);
-        toast({ description: t('removed', { label: account.label }) });
+        toast({
+          title: t('removed', { label: account.label }),
+          variant: 'success',
+        });
         onReload();
       } catch (cause) {
         console.error('[ai-gateway] removing the account failed:', cause);
-        toast({ description: t('removeFailed'), variant: 'destructive' });
+        toast({ title: t('removeFailed'), variant: 'destructive' });
       }
     },
     [onReload, t, toast],
@@ -102,12 +113,23 @@ export function AccountsScreen({
         id: 'account',
         accessorFn: (account) => account.label,
         header: t('columns.account'),
-        meta: { flex: 2 },
+        // The one column that grows: a name, a plan badge and a caption
+        // carrying the provider plus an e-mail address need every pixel the
+        // fixed siblings leave over. `size` is its readable floor, not its
+        // width — it is what the table's min-width is summed from.
+        size: 360,
+        meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {
           const { accountEmail, label, plan, provider } = row.original;
           return (
             <TableIconCell
-              badges={plan ? <Badge variant="slate">{plan}</Badge> : undefined}
+              // `outline` rather than a colour variant: it is the only
+              // Badge surface built from theme tokens, so the plan chip
+              // follows the page into dark mode (`slate` and its
+              // siblings are fixed light tints — see the shared Badge).
+              badges={
+                plan ? <Badge variant="outline">{plan}</Badge> : undefined
+              }
               // The mark is the only other thing naming the provider, and it
               // is decorative — so the caption carries that name in text, plus
               // the address whenever the label is not already it.
@@ -128,6 +150,16 @@ export function AccountsScreen({
         id: 'status',
         accessorFn: (account) => account.status,
         header: t('columns.status'),
+        // A dot and one short phrase. Sized for the English and German
+        // labels on one line; the longest French one ("Réautorisation
+        // nécessaire") wraps to two, which the row already has room for —
+        // a wider column would be empty gutter on every other row.
+        size: 150,
+        // `icon-text`: the loaded cell is a dot plus one phrase, not a pill.
+        meta: {
+          className: 'overflow-hidden',
+          skeleton: { type: 'icon-text', iconGap: 2 },
+        },
         cell: ({ row }) => (
           <StatusIndicator variant={STATUS_VARIANT[row.original.status]}>
             {tStatus(row.original.status)}
@@ -137,7 +169,9 @@ export function AccountsScreen({
       {
         id: 'usage',
         header: t('columns.usage'),
-        meta: { flex: 2 },
+        // Two or three bar rows, each a 64px name + the bar + a 40px figure.
+        size: 300,
+        meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <UsageCell windows={row.original.usage?.windows ?? []} />
         ),
@@ -145,9 +179,20 @@ export function AccountsScreen({
       {
         id: 'token',
         accessorFn: (account) => account.expiresAt,
-        header: t('columns.token'),
+        header: () => (
+          <span className="block w-full text-right">{t('columns.token')}</span>
+        ),
+        // One short date sentence, right-aligned against the row menu the way
+        // every platform table ends on its timestamp.
+        size: 172,
+        meta: {
+          align: 'right',
+          headerLabel: t('columns.token'),
+          skeleton: { type: 'text', lines: 1 },
+          className: 'overflow-hidden',
+        },
         cell: ({ row }) => (
-          <Text variant="caption">
+          <Text truncate variant="caption">
             {row.original.expiresAt
               ? t('validUntil', {
                   date: formatDate(row.original.expiresAt, 'short'),
@@ -186,6 +231,9 @@ export function AccountsScreen({
               },
             ]}
             ariaLabel={t('actions.menu')}
+            // The default 10rem clips "Neu anmelden" / "Copier la commande
+            // CLI"; `w-max` takes the longest label in whatever locale is on.
+            contentWidth="w-max min-w-[12rem]"
           />
         ),
       },
@@ -213,38 +261,58 @@ export function AccountsScreen({
   }, [accounts, query, tProviders]);
 
   return (
-    <PageLayout header={<PanelHeader />}>
-      <ContentArea variant="list">
-        <DataTable
-          addAction={{
-            icon: KeyRound,
-            label: t('add'),
-            onClick: () => setDialog({ account: null }),
-          }}
-          approxRowCount={accounts.length || undefined}
-          caption={t('caption')}
-          columns={columns}
-          data={rows}
-          emptyState={{
-            title: t('empty.title'),
-            description: t('empty.description'),
-          }}
-          error={loadError}
-          getRowId={(account) => account.id}
-          isLoading={isLoading}
-          onRetry={onReload}
-          pagination={{
-            clientSide: true,
-            entityLabel: { one: t('entity.one'), other: t('entity.other') },
-          }}
-          search={{
-            value: query,
-            onChange: setQuery,
-            placeholder: t('searchPlaceholder'),
-          }}
-          stickyLayout
-        />
-      </ContentArea>
+    <>
+      <SkipLink>{tPanel('skipToMain')}</SkipLink>
+      <PanelHeader />
+      {/* The strip is a sibling of the page column rather than
+          `PageLayout header=` — that slot wraps its child in `StickyHeader`,
+          whose own background and blur would sit on top of the ones the
+          documentation header row already carries.
+
+          `<main>` is the landmark the skip link lands on, and the reason
+          every control on this screen sits inside one: a page whose only
+          landmark is the header leaves a screen-reader user with no region
+          to jump to. */}
+      <main className="flex min-h-0 flex-1 flex-col" id="main" tabIndex={-1}>
+        <PageLayout>
+          <ContentArea variant="list">
+            <DataTable
+              addAction={{
+                icon: Plus,
+                label: t('add'),
+                onClick: () => setDialog({ account: null }),
+              }}
+              approxRowCount={accounts.length || undefined}
+              caption={t('caption')}
+              columns={columns}
+              data={rows}
+              emptyState={{
+                description: t('empty.description'),
+                icon: KeyRound,
+                title: t('empty.title'),
+              }}
+              error={loadError}
+              // This screen IS the panel — nothing sits below the table — so
+              // the frame keeps the whole height and the count footer stays on
+              // the bottom edge whether the pool holds one account or fifty.
+              fillHeight
+              getRowId={(account) => account.id}
+              isLoading={isLoading}
+              onRetry={onReload}
+              pagination={{
+                clientSide: true,
+                entityLabel: { one: t('entity.one'), other: t('entity.other') },
+              }}
+              search={{
+                value: query,
+                onChange: setQuery,
+                placeholder: t('searchPlaceholder'),
+              }}
+              stickyLayout
+            />
+          </ContentArea>
+        </PageLayout>
+      </main>
 
       <AddAccountDialog
         onConnected={onReload}
@@ -270,6 +338,6 @@ export function AccountsScreen({
         open={pendingRemoval !== null}
         title={t('removeTitle', { label: pendingRemoval?.label ?? '' })}
       />
-    </PageLayout>
+    </>
   );
 }

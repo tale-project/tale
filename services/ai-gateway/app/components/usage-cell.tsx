@@ -6,6 +6,26 @@ import type { UsageWindow } from '@/app/lib/api';
 import { useT } from '@/lib/i18n/client';
 
 /**
+ * Where a window stops being comfortable. Below this the bar is the ordinary
+ * accent; from here on it warns, and at the ceiling it reads as spent.
+ */
+const WARNING_PERCENT = 75;
+
+/**
+ * The tint a spent share of a plan takes.
+ *
+ * `ProgressBar`'s own default reads a full bar as *finished* and paints it
+ * green, which is the opposite of what a quota means: a window at 100 % is an
+ * account that cannot answer. Same three tokens the platform's usage meter
+ * uses, same order — accent, then warning, then destructive.
+ */
+function usageTint(percent: number): string {
+  if (percent >= 100) return 'bg-destructive';
+  if (percent >= WARNING_PERCENT) return 'bg-warning';
+  return 'bg-primary';
+}
+
+/**
  * An account's rate-limit windows as bars.
  *
  * The two shared windows are translated (`Session`, `Weekly`); a `scoped`
@@ -46,6 +66,7 @@ export function UsageCell({ windows }: { windows: UsageWindow[] }) {
             </Text>
             <ProgressBar
               className="min-w-0 flex-1"
+              indicatorClassName={usageTint(percent)}
               label={name}
               max={100}
               tooltipContent={

@@ -1,7 +1,6 @@
 panel:
-  title: AI gateway
-  subtitle: Claude and ChatGPT subscriptions, pooled behind a token endpoint each.
-  languageLabel: Language
+  title: The Tale AI Gateway
+  skipToMain: Skip to the account list
 accounts:
   caption: Connected subscription accounts
   searchPlaceholder: Search accounts

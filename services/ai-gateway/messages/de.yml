@@ -1,7 +1,6 @@
 panel:
-  title: AI-Gateway
-  subtitle: Claude- und ChatGPT-Abos, gebündelt hinter je einem Token-Endpunkt.
-  languageLabel: Sprache
+  title: Das Tale KI-Gateway
+  skipToMain: Zur Kontenliste springen
 accounts:
   caption: Verbundene Abo-Konten
   searchPlaceholder: Konten durchsuchen

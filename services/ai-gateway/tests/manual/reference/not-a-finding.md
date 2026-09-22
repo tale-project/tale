@@ -75,6 +75,5 @@ on; a round never re-files one.
 
 | ID | What | Pay it off when |
 |---|---|---|
-| `BL-1` | A plan badge keeps a light surface in dark mode — `Badge`'s colour variants have no dark counterpart in `@tale/ui`. | The shared `Badge` grows dark variants; this panel then inherits them with no change of its own. |
 | `BL-2` | The account document is rewritten whole on every change. Fine for the handful of rows a credential pool holds; not a store for thousands. | A deployment ever pools more accounts than a person can read in one screen. |
 | `BL-3` | Usage windows are the panel's only view of a plan — nothing is recorded over time, so "was it already at 90% yesterday?" is unanswerable. | Someone needs to see a trend rather than a number. |

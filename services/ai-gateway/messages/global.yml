@@ -1,8 +1,5 @@
 # Locale-neutral keys folded into every base locale (same convention as the
-# other services' messages/global.yml). A language's own name reads the same
-# in every interface, so it belongs here rather than in each catalog.
-global:
-  languages:
-    en: English
-    de: Deutsch
-    fr: Français
+# other services' messages/global.yml). A brand reads the same in every
+# interface, so the repository button's accessible name belongs here.
+panel:
+  github: GitHub
