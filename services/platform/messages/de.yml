@@ -2075,6 +2075,10 @@ documents:
   actions:
     deleteSyncFolder: Synchronisierungsordner löschen
     deleteFolderFailed: Ordner konnte nicht gelöscht werden
+    deleteFolderProtectedRecord:
+      Ein kontrolliertes Dokument in diesem Ordner hat eine freigegebene
+      Version und ist damit ein aufbewahrter Datensatz — verschiebe es zuerst
+      aus dem Ordner.
     deleteFileFailed: Datei konnte nicht gelöscht werden — versuch es erneut.
     manageTeams: Team zuweisen
     reindex: Neu indexieren
@@ -7391,6 +7395,9 @@ projects:
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
     folderDeleteHeld: Eine Datei in diesem Ordner unterliegt einem Legal Hold —
       hebe ihn zuerst auf.
+    folderDeleteProtected:
+      Eine kontrollierte Datei in diesem Ordner hat eine freigegebene Version
+      und ist damit ein aufbewahrter Datensatz — verschiebe sie zuerst.
     folderDeleteAction: Ordner löschen
     folderDeleteConfirm:
       „{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus

@@ -913,7 +913,10 @@ export function useCreateFolder() {
 }
 
 export function useDeleteFolder() {
-  return useBackendMutation('folders/mutations:deleteFolder');
+  return useBackendMutation('folders/mutations:deleteFolder', {
+    // Both callers show their own, code-aware toast.
+    errorToast: false,
+  });
 }
 
 export function useCancelOneDriveSync() {

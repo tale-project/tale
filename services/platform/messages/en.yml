@@ -1997,6 +1997,9 @@ documents:
   actions:
     deleteSyncFolder: Delete sync folder
     deleteFolderFailed: Couldn't delete folder
+    deleteFolderProtectedRecord:
+      A controlled document in this folder has an approved version, which is
+      a retained record — move it out of the folder first.
     deleteFileFailed: Couldn't delete the file — try again.
     manageTeams: Assign team
     reindex: Reindex
@@ -4822,6 +4825,9 @@ projects:
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
     folderDeleteHeld: A file in this folder is on legal hold — release it first.
+    folderDeleteProtected:
+      A controlled file in this folder has an approved version, which is a
+      retained record — move it out first.
     folderDeleteAction: Delete folder
     folderDeleteConfirm:
       Delete "{folder}" and everything inside it? The files are

@@ -2082,6 +2082,9 @@ documents:
   actions:
     deleteSyncFolder: Supprimer le dossier synchronisé
     deleteFolderFailed: Échec de la suppression du dossier
+    deleteFolderProtectedRecord:
+      Un document contrôlé de ce dossier a une version approuvée, donc un
+      enregistrement conservé — déplace-le d'abord hors du dossier.
     deleteFileFailed: Impossible de supprimer le fichier.
     manageTeams: Assigner une équipe
     reindex: Réindexer
@@ -7488,6 +7491,9 @@ projects:
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier
     folderDeleteHeld: Un fichier de ce dossier est sous conservation légale — lève-la d'abord.
+    folderDeleteProtected:
+      Un fichier contrôlé de ce dossier a une version approuvée, donc un
+      enregistrement conservé — déplace-le d'abord.
     folderDeleteAction: Supprimer le dossier
     folderDeleteConfirm:
       Supprimer « {folder} » et tout son contenu ? Les fichiers
