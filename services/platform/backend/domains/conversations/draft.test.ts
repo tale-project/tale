@@ -7,10 +7,10 @@
  * body must be refused before a transaction is opened.
  */
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
-import { draftReplyToConversation } from './draft.ts';
+import { completePendingDraftInTx, draftReplyToConversation } from './draft.ts';
 
 function sqlThatMustNotRun(): Sql {
   const begin = vi.fn(() => {
@@ -66,5 +66,73 @@ describe('draftReplyToConversation', () => {
     });
 
     expect(begin).toHaveBeenCalledOnce();
+  });
+});
+
+/** A transaction double that answers the pending read and records the write. */
+function txDouble(
+  pending: { id: string; metadata: Record<string, unknown> }[],
+) {
+  const statements: { text: string; values: unknown[] }[] = [];
+  const tx = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      return Promise.resolve(text.startsWith('SELECT') ? pending : []);
+    },
+    { json: (value: unknown) => ({ json: value }) },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { tx: tx as unknown as TransactionSql, statements };
+}
+
+describe('completePendingDraftInTx', () => {
+  // The API lane used to skip this: a sent and acknowledged reply left the
+  // draft pending, so the composer re-offered it on every reload (CONV-F13).
+  it('completes the pending draft with the send receipt', async () => {
+    const { tx, statements } = txDouble([
+      { id: 'appr_1', metadata: { emailBody: 'draft', source: 'crm' } },
+    ]);
+    await expect(
+      completePendingDraftInTx(tx, {
+        conversationId: 'conv_1',
+        actorUserId: 'user_1',
+        sentAt: 1_700_000_000_000,
+        receipt: {
+          sentContent: 'final',
+          deliveryMessageId: 'msg_9',
+          sentTo: undefined,
+        },
+      }),
+    ).resolves.toEqual({ approvalId: 'appr_1' });
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    expect(update?.text).toContain("status = 'completed'");
+    expect(update?.values).toEqual([
+      'user_1',
+      1_700_000_000_000,
+      {
+        json: {
+          emailBody: 'draft',
+          source: 'crm',
+          sentContent: 'final',
+          deliveryMessageId: 'msg_9',
+          sentAt: 1_700_000_000_000,
+        },
+      },
+      'appr_1',
+    ]);
+  });
+
+  it('is a no-op when nothing is pending', async () => {
+    const { tx, statements } = txDouble([]);
+    await expect(
+      completePendingDraftInTx(tx, {
+        conversationId: 'conv_1',
+        actorUserId: 'user_1',
+        sentAt: 1,
+        receipt: { sentContent: 'x' },
+      }),
+    ).resolves.toBeNull();
+    expect(statements.filter((s) => s.text.startsWith('UPDATE'))).toEqual([]);
   });
 });

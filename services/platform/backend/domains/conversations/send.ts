@@ -26,6 +26,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { getFileUrl } from '../files/service.ts';
 import { queueApiReply, retryApiDeliveryAudited } from './api-sync.ts';
+import { completePendingDraftInTx } from './draft.ts';
 import {
   assertAssignableMember,
   CONVERSATION_COLUMNS,
@@ -351,34 +352,19 @@ export async function sendMessageViaConnectorInTx(
 
   // A pending approval on the conversation (an agent-drafted reply
   // awaiting a human) completes when the human sends.
-  const pending = await tx<
-    { id: string; metadata: Record<string, unknown> | null }[]
-  >`
-      SELECT id, metadata FROM app.approvals
-      WHERE resource_type = 'conversations'
-        AND resource_id = ${args.conversationId} AND status = 'pending'
-      ORDER BY seq ASC LIMIT 1
-    `;
-  if (pending[0]) {
-    await tx`
-        UPDATE app.approvals SET
-          status = 'completed', approved_by = ${args.actor.userId},
-          reviewed_at_ms = ${now},
-          metadata = ${tx.json(
-            toJson({
-              ...pending[0].metadata,
-              sentContent: args.content,
-              sentTo: args.to,
-              sentSubject: args.subject,
-              sentAt: now,
-              ...(args.html ? { sentHtml: args.html } : {}),
-              ...(args.text ? { sentText: args.text } : {}),
-              ...(args.cc ? { sentCc: args.cc } : {}),
-            }),
-          )}
-        WHERE id = ${pending[0].id}
-      `;
-  }
+  await completePendingDraftInTx(tx, {
+    conversationId: args.conversationId,
+    actorUserId: args.actor.userId,
+    sentAt: now,
+    receipt: {
+      sentContent: args.content,
+      sentTo: args.to,
+      sentSubject: args.subject,
+      ...(args.html ? { sentHtml: args.html } : {}),
+      ...(args.text ? { sentText: args.text } : {}),
+      ...(args.cc ? { sentCc: args.cc } : {}),
+    },
+  });
 
   await createAuditLog(tx, {
     organizationId: args.organizationId,

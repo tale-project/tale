@@ -228,7 +228,9 @@ rows lead with the subject.
   thread → The draft renders in the reading pane as a **pending message** below
   the thread; nothing has been sent and the customer's mailbox is untouched.
   Send from the composer → the pending message resolves into the sent reply and
-  the draft does not reappear on reload. Draft twice on one conversation → the
+  the draft does not reappear on reload — on an email conversation AND on a
+  native API-source conversation (whose reply is queued for its source rather
+  than handed to a mail connector). Draft twice on one conversation → the
   pane still shows exactly one pending message (migration 0108's partial unique
   index), and the second call reports the first card rather than minting a twin.
 

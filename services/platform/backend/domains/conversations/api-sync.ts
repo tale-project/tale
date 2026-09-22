@@ -17,6 +17,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { FileError, statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
+import { completePendingDraftInTx } from './draft.ts';
 import {
   addMessageToConversation,
   ConversationError,
@@ -540,6 +541,18 @@ export async function queueApiReply(
       INSERT INTO app.conversation_api_deliveries(message_id, conversation_id, org_id, actor_user_id, actor_email, body, available_at_ms, retry_at_ms)
       VALUES (${created.messageId}, ${args.conversationId}, ${args.organizationId}, ${args.actor.userId}, ${actorEmail}, ${args.body}, ${args.availableAt}, ${args.availableAt})
     `;
+    // The human's send consumes the drafted reply on this lane exactly as the
+    // email lane's does — otherwise the card stayed pending and the composer
+    // re-offered the sent text on every reload.
+    await completePendingDraftInTx(tx, {
+      conversationId: args.conversationId,
+      actorUserId: args.actor.userId,
+      sentAt: Date.now(),
+      receipt: {
+        sentContent: args.content,
+        deliveryMessageId: created.messageId,
+      },
+    });
     return created.messageId;
   });
 }
