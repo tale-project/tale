@@ -146,6 +146,74 @@ describe('useRestoreFocus', () => {
     expect(document.activeElement).toBe(first);
   });
 
+  it('prefers the fallback over a menu item still mounted at close time', () => {
+    // A dropdown keeps its items mounted through its own closing animation,
+    // so the opener is connected AND takes focus — and then unmounts, leaving
+    // the document on <body>. Its role is what says it was never a target.
+    const trigger = document.createElement('button');
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    menu.appendChild(item);
+    document.body.append(trigger, menu);
+    item.focus();
+    expect(document.activeElement).toBe(item);
+
+    const fallbackRef = createRef<HTMLButtonElement>();
+    fallbackRef.current = trigger;
+
+    const { result } = renderHook(
+      ({ open }) => useRestoreFocus(open, fallbackRef),
+      { initialProps: { open: true } },
+    );
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps a menu item as the target when there is no fallback', () => {
+    // Nothing better exists, and Radix's own default is <body>.
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    document.body.append(item);
+    item.focus();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('leaves an ordinary control that merely sits in a menu alone', () => {
+    // The rule is the element's own role, not its ancestry: a button inside a
+    // menu-labelled container is still a real control.
+    const trigger = document.createElement('button');
+    const opener = document.createElement('button');
+    document.body.append(trigger, opener);
+    opener.focus();
+
+    const fallbackRef = createRef<HTMLButtonElement>();
+    fallbackRef.current = trigger;
+
+    const { result } = renderHook(
+      ({ open }) => useRestoreFocus(open, fallbackRef),
+      { initialProps: { open: true } },
+    );
+    result.current(new Event('close', { cancelable: true }));
+
+    expect(document.activeElement).toBe(opener);
+  });
+
   it('returns a stable handler across renders', () => {
     const { result, rerender } = renderHook(
       ({ open }) => useRestoreFocus(open),

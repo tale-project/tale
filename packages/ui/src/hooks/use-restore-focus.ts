@@ -1,6 +1,30 @@
 import { type RefObject, useCallback, useLayoutEffect, useRef } from 'react';
 
 /**
+ * Roles whose elements live inside an overlay that closes when one of them is
+ * chosen. Such an element is never a restore target: by the time the dialog it
+ * opened is closed again, its menu is gone or going.
+ *
+ * Whether it is still in the document at that moment is not something a
+ * caller can rely on — a dropdown keeps its items mounted through its closing
+ * animation, so an `isConnected` check passes, the item takes the focus, and
+ * the unmount a moment later drops the document on `<body>`. The role says
+ * what the DOM cannot: this thing is transient. Standard ARIA, so it holds for
+ * any menu implementation, not just the one behind `DropdownMenu`.
+ */
+const TRANSIENT_OPENER_ROLES: ReadonlySet<string> = new Set([
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+]);
+
+function isTransientOpener(element: HTMLElement): boolean {
+  const role = element.getAttribute('role');
+  return role !== null && TRANSIENT_OPENER_ROLES.has(role);
+}
+
+/**
  * Restores DOM focus to the control that was focused before an overlay opened.
  *
  * Radix's Dialog only restores focus to its `Trigger` on close (its built-in
@@ -17,10 +41,13 @@ import { type RefObject, useCallback, useLayoutEffect, useRef } from 'react';
  * `event.preventDefault()` so Radix's trigger-focus (and its fallback to body)
  * does not also run.
  *
+ * What it captured is not always a control that can hold focus past the close
+ * — see `TRANSIENT_OPENER_ROLES` — which is what `fallbackRef` is for.
+ *
  * @param open Whether the overlay is currently open.
- * @param fallbackRef Optional element to focus when the captured opener has
- *   been removed from the DOM (e.g. a menu item that unmounts when its
- *   dropdown closes).
+ * @param fallbackRef Optional stable element to focus when the captured opener
+ *   cannot hold focus past the close — it was removed from the DOM, or it is
+ *   an item of an overlay that closes with it (a dropdown's menu item).
  * @returns An `onCloseAutoFocus` handler to pass to `Dialog.Content`.
  */
 export function useRestoreFocus(
@@ -39,15 +66,16 @@ export function useRestoreFocus(
   return useCallback(
     (event: Event) => {
       let target = previouslyFocused.current;
-      // Menu items and other transient openers unmount when their parent
-      // overlay closes; fall back to a stable trigger (e.g. the menu button).
+      // Menu items and other transient openers go away with the overlay they
+      // belong to; fall back to a stable trigger (e.g. the menu button).
       // `<body>` is no opener either: focus rests there when the focused
       // control was removed in the same update that opened this overlay — an
       // edit dialog's Cancel bringing a details dialog back.
       if (
         target === null ||
         !target.isConnected ||
-        target === target.ownerDocument.body
+        target === target.ownerDocument.body ||
+        isTransientOpener(target)
       ) {
         target = fallbackRef?.current ?? null;
       }
