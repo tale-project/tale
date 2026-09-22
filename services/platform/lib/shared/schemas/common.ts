@@ -4,6 +4,9 @@ import { z } from 'zod/v4';
  * language-script tags, including the underscore spelling used by exports. */
 export const CONTACT_LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/i;
 
+/** Digits plus common phone punctuation. At least one digit required. */
+export const CONTACT_PHONE_PATTERN = /^[+]?[\d\s().-]*\d[\d\s().-]*$/;
+
 const dataSourceLiterals = [
   'manual_import',
   'file_upload',

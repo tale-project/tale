@@ -1513,6 +1513,7 @@ common:
     required: '{field} is required'
     maxLength: '{field} must be {max} characters or fewer'
     email: Enter a valid email address
+    phone: Enter a phone number using digits and + ( ) - only
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
   aria:
@@ -1812,6 +1813,7 @@ contacts:
   locale: Locale
   localePlaceholder: e.g., en-US
   phone: Phone
+  phonePlaceholder: '+1 555 0100'
   import:
     provideData: No data provided
     noValidData: No valid contact data found

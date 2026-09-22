@@ -109,6 +109,28 @@ describe('ContactEditDialog', () => {
     });
   });
 
+  it('strips letters from the phone field and explains why', async () => {
+    const onClose = vi.fn();
+    const { user } = render(
+      <ContactEditDialog
+        contact={makeContact({ name: 'John' })}
+        isOpen={true}
+        onClose={onClose}
+      />,
+    );
+
+    const phoneInput = screen.getByDisplayValue('+1-555-0100');
+    await user.clear(phoneInput);
+    await user.type(phoneInput, '00kkkk');
+
+    expect(phoneInput).toHaveValue('00');
+    expect(
+      await screen.findByText(
+        'Enter a phone number using digits and + ( ) - only',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('shows a visible, localized inline error when a required field is emptied', async () => {
     const onClose = vi.fn();
     const { user } = render(

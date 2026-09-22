@@ -4,7 +4,10 @@ import { useMemo } from 'react';
 import * as z from 'zod';
 
 import { useT } from '@/lib/i18n/client';
-import { CONTACT_LOCALE_PATTERN } from '@/lib/shared/schemas/common';
+import {
+  CONTACT_LOCALE_PATTERN,
+  CONTACT_PHONE_PATTERN,
+} from '@/lib/shared/schemas/common';
 
 /** Shared shape for both the create and edit contact forms — keeping one
  *  schema factory means the two dialogs can't drift on which fields are
@@ -22,7 +25,8 @@ export type ContactFormValues = {
  * Name is intentionally optional — bulk import already allows a name-less
  * contact (email alone is a valid row), so requiring it only in the edit
  * form stranded name-less imported rows behind a fabricated name (#2640).
- * Email and locale stay required.
+ * Email and locale stay required. Phone is optional but, when present,
+ * digits and phone punctuation only.
  */
 export function useContactFormSchema() {
   const { t: tContacts } = useT('contacts');
@@ -33,7 +37,13 @@ export function useContactFormSchema() {
       z.object({
         name: z.string().trim(),
         email: z.string().email(tCommon('validation.email')),
-        phone: z.string(),
+        phone: z
+          .string()
+          .trim()
+          .refine(
+            (value) => value === '' || CONTACT_PHONE_PATTERN.test(value),
+            tCommon('validation.phone'),
+          ),
         locale: z
           .string()
           .min(

@@ -1571,6 +1571,7 @@ common:
     required: '{field} est requis'
     maxLength: '{field} ne doit pas dépasser {max} caractères'
     email: Entre une adresse email valide
+    phone: Entre un numéro de téléphone avec des chiffres et + ( ) - uniquement
     uploadFile: Téléverse un fichier
     unsupportedFileType: Type de fichier non pris en charge
   aria:
@@ -1891,6 +1892,7 @@ contacts:
   locale: Langue
   localePlaceholder: ex. en-US
   phone: Téléphone
+  phonePlaceholder: '+33 1 23 45 67 89'
   import:
     provideData: Fournis des données
     noValidData: Aucune donnée de contact valide trouvée

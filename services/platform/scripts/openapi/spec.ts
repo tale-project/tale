@@ -745,7 +745,13 @@ const contactInputProperties: Record<string, Json> = {
       'case-insensitively; the part before `@` is at most ' +
       `${CONTACT_EMAIL_LOCAL_PART_MAX} characters`,
   },
-  phone: { ...str, maxLength: CONTACT_PHONE_MAX, description: 'Trimmed' },
+  phone: {
+    ...str,
+    maxLength: CONTACT_PHONE_MAX,
+    description:
+      'Trimmed — digits and phone punctuation only (`+`, spaces, ' +
+      'dashes, parentheses, dots); at least one digit',
+  },
   source: {
     type: 'string',
     enum: [...dataSourceSchema.options],

@@ -1566,6 +1566,7 @@ common:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
     email: Gib eine gültige E-Mail-Adresse ein
+    phone: Gib eine Telefonnummer nur mit Ziffern und + ( ) - ein
     uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp
   aria:
@@ -1883,6 +1884,7 @@ contacts:
   locale: Sprache
   localePlaceholder: z. B. en-US
   phone: Telefon
+  phonePlaceholder: '+49 30 123456'
   import:
     provideData: Keine Daten angegeben
     noValidData: Keine gültigen Kontaktdaten gefunden

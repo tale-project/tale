@@ -1,15 +1,25 @@
 'use client';
 
 import { Input } from '@tale/ui/input';
-import type { FieldErrors, UseFormRegister } from 'react-hook-form';
+import type {
+  FieldErrors,
+  UseFormClearErrors,
+  UseFormRegister,
+  UseFormSetError,
+} from 'react-hook-form';
 
 import { useT } from '@/lib/i18n/client';
 
 import type { ContactFormValues } from '../hooks/use-contact-form';
 
+/** Digits plus the punctuation people type in phone numbers. */
+const PHONE_ALLOWED = /[^\d+().\s-]/g;
+
 interface ContactFormFieldsProps {
   register: UseFormRegister<ContactFormValues>;
   errors: FieldErrors<ContactFormValues>;
+  setError: UseFormSetError<ContactFormValues>;
+  clearErrors: UseFormClearErrors<ContactFormValues>;
   disabled?: boolean;
   autoFocus?: boolean;
 }
@@ -29,10 +39,13 @@ interface ContactFormFieldsProps {
 export function ContactFormFields({
   register,
   errors,
+  setError,
+  clearErrors,
   disabled,
   autoFocus = false,
 }: ContactFormFieldsProps) {
   const { t: tContacts } = useT('contacts');
+  const { t: tCommon } = useT('common');
 
   return (
     <>
@@ -58,8 +71,28 @@ export function ContactFormFields({
 
       <Input
         id="phone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
         label={tContacts('phone')}
-        {...register('phone')}
+        placeholder={tContacts('phonePlaceholder')}
+        {...register('phone', {
+          // Refuse letters, but say so — silent stripping feels like a
+          // broken keyboard. Digits and phone punctuation stay.
+          onChange: (event) => {
+            const raw = event.target.value;
+            const cleaned = raw.replace(PHONE_ALLOWED, '');
+            if (raw !== cleaned) {
+              event.target.value = cleaned;
+              setError('phone', {
+                type: 'manual',
+                message: tCommon('validation.phone'),
+              });
+            } else if (errors.phone?.type === 'manual') {
+              clearErrors('phone');
+            }
+          },
+        })}
         disabled={disabled}
         errorMessage={errors.phone?.message}
       />

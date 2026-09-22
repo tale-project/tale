@@ -72,6 +72,8 @@ export function ContactCreateDialog({
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
     reset,
+    setError,
+    clearErrors,
   } = useForm<ContactFormValues>({
     resolver: zodResolver(formSchema),
     // Stays the BLANK shape even when `initialEmail` is set — see the reset
@@ -172,6 +174,8 @@ export function ContactCreateDialog({
       <ContactFormFields
         register={register}
         errors={errors}
+        setError={setError}
+        clearErrors={clearErrors}
         disabled={isSubmitting}
       />
     </FormDialog>
