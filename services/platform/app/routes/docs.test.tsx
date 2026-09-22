@@ -20,7 +20,12 @@ vi.mock('@/lib/i18n/client', () => ({
 // The rendered reference used to be the only surface `/docs` pointed at:
 // the guides and the raw OpenAPI document were reachable only by knowing
 // their URLs (2026-09-14 evaluation, g9-2). The header names both.
-import { DeveloperSurfaces, SWAGGER_UI_OPTIONS } from './docs';
+import { ApiDocsPage, DeveloperSurfaces, SWAGGER_UI_OPTIONS } from './docs';
+
+vi.mock('swagger-ui-react', () => ({
+  default: () => <div>swagger-ui</div>,
+}));
+vi.mock('swagger-ui-react/swagger-ui.css', () => ({}));
 
 describe('DeveloperSurfaces', () => {
   it('links the developer guides on the docs site and the OpenAPI document', async () => {
@@ -41,6 +46,18 @@ describe('DeveloperSurfaces', () => {
       screen.getByRole('navigation', { name: 'API documentation' }),
     ).toBeInTheDocument();
     await checkAccessibility(container);
+  });
+});
+
+describe('ApiDocsPage', () => {
+  // The root skip link targets `main-content`. This page is anonymous and
+  // served under an injected `<base href>`, so with no target the link used
+  // to resolve `#main-content` against the site root and land on sign-in.
+  it('carries the skip-link target on its main landmark', async () => {
+    render(<ApiDocsPage />);
+    const main = await screen.findByRole('main');
+    expect(main).toHaveAttribute('id', 'main-content');
+    expect(main).toHaveAttribute('tabindex', '-1');
   });
 });
 
