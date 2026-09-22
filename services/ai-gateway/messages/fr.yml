@@ -4,6 +4,9 @@ panel:
 accounts:
   caption: Comptes d’abonnement connectés
   searchPlaceholder: Rechercher un compte
+  filters:
+    provider: Fournisseur
+    status: État
   add: Ajouter un compte
   entity:
     one: compte

@@ -4,6 +4,9 @@ panel:
 accounts:
   caption: Verbundene Abo-Konten
   searchPlaceholder: Konten durchsuchen
+  filters:
+    provider: Anbieter
+    status: Status
   add: Konto hinzufügen
   entity:
     one: Konto
@@ -42,7 +45,7 @@ usage:
   session: Sitzung
   weekly: Woche
   unread: Noch kein Verbrauch gelesen
-  spent: '{percent}% verbraucht'
+  spent: '{percent} % verbraucht'
   resets: Setzt sich {when} zurück
 addAccount:
   title: Konto hinzufügen

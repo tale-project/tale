@@ -58,3 +58,14 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
 - [ ] `SMOKE-14` · **Tab from the address bar into the page** → the first stop
   is a skip link that reveals itself; activating it moves focus into the
   account list rather than only scrolling to it.
+- [ ] `SMOKE-15` · **Narrow the viewport until the Status column loses its
+  words** → each row still says which state it is in: a tick, a warning
+  triangle or a cross, in the state's own colour, and hovering one names it.
+  The column never shows a bare dot with no other cue.
+- [ ] `SMOKE-16` · **Hover a date in the last column** → the exact instant,
+  with the time, in the language the panel is set to — a German panel gives
+  `22. Oktober 2026 06:25`, an English one `October 22, 2026 6:25 AM`.
+- [ ] `SMOKE-17` · **Read the whole screen in each language** → every value
+  follows that language, not only the labels: the date order, the 12- or
+  24-hour clock, the relative reset time in a usage tooltip, the space before
+  a `%` (none in English, one in German and French), and the count footer.

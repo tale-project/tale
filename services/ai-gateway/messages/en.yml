@@ -4,6 +4,9 @@ panel:
 accounts:
   caption: Connected subscription accounts
   searchPlaceholder: Search accounts
+  filters:
+    provider: Provider
+    status: Status
   add: Add account
   entity:
     one: account
