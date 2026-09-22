@@ -57,8 +57,11 @@ provider/configuration refusals from browser failures.
   URL twice before sending → One unsent attachment represents the URL; the
   backend does not start a second job for the same unbound URL in that chat.
 - [ ] `VID-F5` · **Playlist rejection** — Paste a playlist URL → The UI
-  explains that playlists are unsupported; no usable transcript attachment
-  appears and no playlist is downloaded.
+  explains that playlists are unsupported — a destructive toast
+  (`chat.videoLink.toast.ingestFailedTitle` / `chat.videoLink.errors.playlist`)
+  on the paste itself, once per paste, while the URL stays as plain text; no
+  attachment appears, no ingest request leaves the browser and no playlist is
+  downloaded.
 - [ ] `VID-F6` · **Anti-bot configuration** — On a local test deployment where
   VID-F2 fails with `botDetection`, configure an authorized
   `VIDEO_INGEST_PROXY_URL`, `VIDEO_INGEST_POT_PROVIDER_URL`, or

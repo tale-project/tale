@@ -16,7 +16,7 @@ import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
-import { extractVideoUrls } from '@/lib/shared/video-url';
+import { extractVideoUrls, findPlaylistUrls } from '@/lib/shared/video-url';
 
 import { useChatQueryClient } from '../data/chat-backend';
 
@@ -200,6 +200,15 @@ export function useChatVideoLinks(args: {
   const ingestUrlsFromText = useCallback(
     async (text: string): Promise<number> => {
       const matches = extractVideoUrls(text, { maxUrls: 3 });
+      // A pasted playlist never chips (the extractor skips it), so nothing
+      // downstream would ever explain why — say it here, once per paste.
+      if (findPlaylistUrls(text).length > 0) {
+        toast({
+          title: t('videoLink.toast.ingestFailedTitle'),
+          description: t('videoLink.errors.playlist'),
+          variant: 'destructive',
+        });
+      }
       let ingested = 0;
       for (const match of matches) {
         try {
