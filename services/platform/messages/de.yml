@@ -1750,6 +1750,7 @@ conversations:
     assignedTeam: Team
     assignedToTeam: An {name} zugewiesen
     unassignTeam: Team entfernen
+    reclickToUnassign: Wähle erneut, um die Zuweisung aufzuheben
     peopleSection: Personen
     teamsSection: Team
     assignSearchAll: Personen und Teams suchen

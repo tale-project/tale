@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({
@@ -18,6 +18,11 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
         displayName: 'Ada Lovelace',
         email: 'ada@example.com',
       },
+      {
+        userId: 'user-2',
+        displayName: 'Grace Hopper',
+        email: 'grace@example.com',
+      },
     ],
   }),
 }));
@@ -28,9 +33,14 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   }),
 }));
 
+const mutations = vi.hoisted(() => ({
+  assignUser: vi.fn(),
+  assignTeam: vi.fn(),
+}));
+
 vi.mock('../hooks/mutations', () => ({
-  useAssignConversation: () => ({ mutate: vi.fn() }),
-  useAssignConversationTeam: () => ({ mutate: vi.fn() }),
+  useAssignConversation: () => ({ mutate: mutations.assignUser }),
+  useAssignConversationTeam: () => ({ mutate: mutations.assignTeam }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -81,16 +91,47 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }));
 
+interface StubOption {
+  value: string;
+  label: string;
+  selected?: boolean;
+  isSectionHeader?: boolean;
+}
+
 vi.mock('@tale/ui/searchable-select', () => ({
   SearchableSelect: ({
     trigger,
     footer,
+    options = [],
+    optionAction,
+    onValueChange,
   }: {
     trigger: React.ReactNode;
     footer?: React.ReactNode;
+    options?: StubOption[];
+    optionAction?: (option: StubOption) => React.ReactNode;
+    onValueChange?: (value: string) => void;
   }) => (
     <div data-testid="assign-select">
-      {trigger}
+      <div data-testid="assign-trigger">{trigger}</div>
+      {options
+        .filter((option) => option.isSectionHeader !== true)
+        .map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            // `role="option"` mirrors the real component, and keeps the
+            // footer's `getByRole('button')` queries unambiguous.
+            role="option"
+            aria-selected={option.selected === true}
+            data-testid={`option-${option.value}`}
+            data-selected={String(option.selected)}
+            onClick={() => onValueChange?.(option.value)}
+          >
+            {option.label}
+            {optionAction?.(option)}
+          </button>
+        ))}
       {footer ? <div data-testid="assign-footer">{footer}</div> : null}
     </div>
   ),
@@ -115,6 +156,11 @@ function makeConversation(
 }
 
 describe('ConversationAssigneePicker', () => {
+  beforeEach(() => {
+    mutations.assignUser.mockClear();
+    mutations.assignTeam.mockClear();
+  });
+
   it('shows a dual stack when both team and person are assigned (mobile keeps both)', () => {
     render(
       <ConversationAssigneePicker
@@ -135,8 +181,9 @@ describe('ConversationAssigneePicker', () => {
     ).toBeInTheDocument();
 
     // Desktop still lists both labelled chips.
-    expect(screen.getByText('Support')).toBeInTheDocument();
-    expect(screen.getAllByText('Ada Lovelace').length).toBeGreaterThanOrEqual(
+    const trigger = within(screen.getByTestId('assign-trigger'));
+    expect(trigger.getByText('Support')).toBeInTheDocument();
+    expect(trigger.getAllByText('Ada Lovelace').length).toBeGreaterThanOrEqual(
       1,
     );
   });
@@ -150,7 +197,9 @@ describe('ConversationAssigneePicker', () => {
     );
 
     expect(screen.queryByTestId('assign-dual-stack')).not.toBeInTheDocument();
-    expect(screen.getByText('Support')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('assign-trigger')).getByText('Support'),
+    ).toBeInTheDocument();
   });
 
   it('shows only the person avatar when only a person is assigned', () => {
@@ -162,7 +211,9 @@ describe('ConversationAssigneePicker', () => {
     );
 
     expect(screen.queryByTestId('assign-dual-stack')).not.toBeInTheDocument();
-    expect(screen.getByTestId('avatar-user-1')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('assign-trigger')).getByTestId('avatar-user-1'),
+    ).toBeInTheDocument();
   });
 
   it('always shows Auto assign linking to conversation routing settings', () => {
@@ -230,5 +281,151 @@ describe('ConversationAssigneePicker', () => {
     expect(
       screen.getByRole('link', { name: /auto assign/i }),
     ).toBeInTheDocument();
+  });
+
+  describe('re-picking the current row', () => {
+    it('clears the person when the assigned person is picked again', async () => {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({ assigneeUserId: 'user-1' })}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByTestId('option-user:user-1'));
+
+      expect(mutations.assignUser).toHaveBeenCalledWith(
+        { conversationId: 'conv-1', assigneeUserId: undefined },
+        expect.anything(),
+      );
+    });
+
+    it('assigns instead when a different person is picked', async () => {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({ assigneeUserId: 'user-1' })}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByTestId('option-user:user-2'));
+
+      expect(mutations.assignUser).toHaveBeenCalledWith(
+        { conversationId: 'conv-1', assigneeUserId: 'user-2' },
+        expect.anything(),
+      );
+    });
+
+    it('clears the team queue when the assigned team is picked again', async () => {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({ assigneeTeamId: 'team-1' })}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByTestId('option-team:team-1'));
+
+      expect(mutations.assignTeam).toHaveBeenCalledWith(
+        { conversationId: 'conv-1', assigneeTeamId: undefined },
+        expect.anything(),
+      );
+    });
+
+    // The two stamps are independent: releasing a personal claim must leave the
+    // conversation in its team queue, or it drops to admin-only triage.
+    it('leaves the team queue alone when the person is cleared', async () => {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({
+            assigneeUserId: 'user-1',
+            assigneeTeamId: 'team-1',
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByTestId('option-user:user-1'));
+
+      expect(mutations.assignUser).toHaveBeenCalledTimes(1);
+      expect(mutations.assignTeam).not.toHaveBeenCalled();
+    });
+
+    it('leaves the person alone when the team queue is cleared', async () => {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({
+            assigneeUserId: 'user-1',
+            assigneeTeamId: 'team-1',
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByTestId('option-team:team-1'));
+
+      expect(mutations.assignTeam).toHaveBeenCalledTimes(1);
+      expect(mutations.assignUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('selected state', () => {
+    it('marks the assigned person and team, and nothing else', () => {
+      render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({
+            assigneeUserId: 'user-1',
+            assigneeTeamId: 'team-1',
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.getByTestId('option-user:user-1')).toHaveAttribute(
+        'data-selected',
+        'true',
+      );
+      expect(screen.getByTestId('option-team:team-1')).toHaveAttribute(
+        'data-selected',
+        'true',
+      );
+      expect(screen.getByTestId('option-user:user-2')).toHaveAttribute(
+        'data-selected',
+        'false',
+      );
+    });
+
+    it('marks nothing when the conversation is unassigned', () => {
+      render(
+        <ConversationAssigneePicker
+          conversation={makeConversation()}
+          organizationId="org-1"
+        />,
+      );
+
+      for (const id of ['option-user:user-1', 'option-team:team-1']) {
+        expect(screen.getByTestId(id)).toHaveAttribute(
+          'data-selected',
+          'false',
+        );
+      }
+    });
+
+    // The gesture is invisible, so it must at least be announced.
+    it('tells assistive technology that the assigned row clears it', () => {
+      render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({ assigneeUserId: 'user-1' })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.getByTestId('option-user:user-1').textContent).toContain(
+        'Choose again to unassign',
+      );
+      expect(
+        screen.getByTestId('option-user:user-2').textContent,
+      ).not.toContain('Choose again to unassign');
+    });
   });
 });

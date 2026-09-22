@@ -15,13 +15,7 @@ import {
 import { selectTriggerClasses } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
-import {
-  Check,
-  ChevronDown,
-  Loader2Icon,
-  Trash2Icon,
-  Users,
-} from 'lucide-react';
+import { ChevronDown, Loader2Icon, Trash2Icon, Users } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -199,6 +193,7 @@ export function ComposeEmailPane({
                 {t('compose.assignYou')}
               </Badge>
             ) : undefined,
+          selected: member.userId === assigneeUserId,
         });
       }
     }
@@ -212,11 +207,12 @@ export function ComposeEmailPane({
         options.push({
           value: `${TEAM_PREFIX}${tm.id}`,
           label: tm.name,
+          selected: tm.id === assigneeTeamId,
         });
       }
     }
     return options;
-  }, [members, teams, user?.userId, t]);
+  }, [members, teams, user?.userId, assigneeUserId, assigneeTeamId, t]);
 
   // Seeded recipient (from a contact row) wins over a restored draft contact.
   useEffect(() => {
@@ -292,6 +288,9 @@ export function ComposeEmailPane({
       setAssignOpen(false);
       return;
     }
+    // A draft always has an owner: the effect above re-seeds the sender the
+    // moment this is empty, so re-picking the current person cannot clear it
+    // the way the reading pane's picker does. Only the team queue toggles.
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
       if (next !== assigneeUserId) setAssigneeUserId(next);
@@ -300,7 +299,8 @@ export function ComposeEmailPane({
     }
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
-      if (next !== assigneeTeamId) setAssigneeTeamId(next);
+      if (next === assigneeTeamId) clearAssigneeTeamId();
+      else setAssigneeTeamId(next);
       setAssignOpen(false);
     }
   };
@@ -468,9 +468,6 @@ export function ComposeEmailPane({
                     const uid = opt.value.slice(USER_PREFIX.length);
                     return (
                       <span className="flex items-center gap-1.5">
-                        {assigneeUserId === uid && (
-                          <Check className="text-primary size-4 shrink-0" />
-                        )}
                         <AssigneeAvatar
                           assigneeType="user"
                           assigneeId={uid}
@@ -484,7 +481,9 @@ export function ComposeEmailPane({
                     return (
                       <span className="flex items-center gap-1.5">
                         {assigneeTeamId === tid && (
-                          <Check className="text-primary size-4 shrink-0" />
+                          <span className="sr-only">
+                            {t('header.reclickToUnassign')}
+                          </span>
                         )}
                         <Users
                           className="text-muted-foreground size-4 shrink-0"

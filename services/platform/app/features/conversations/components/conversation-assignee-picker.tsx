@@ -7,7 +7,7 @@ import {
 } from '@tale/ui/searchable-select';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
-import { Check, Settings, UserPlus, Users } from 'lucide-react';
+import { Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -194,6 +194,7 @@ export function ConversationAssigneePicker({
       options.push({
         value: `${USER_PREFIX}${member.userId}`,
         label: member.displayName ?? member.email ?? member.userId,
+        selected: member.userId === assigneeUserId,
       });
     }
   }
@@ -204,7 +205,11 @@ export function ConversationAssigneePicker({
       isSectionHeader: true,
     });
     for (const tm of teams) {
-      options.push({ value: `${TEAM_PREFIX}${tm.id}`, label: tm.name });
+      options.push({
+        value: `${TEAM_PREFIX}${tm.id}`,
+        label: tm.name,
+        selected: tm.id === assigneeTeamId,
+      });
     }
   }
 
@@ -232,15 +237,29 @@ export function ConversationAssigneePicker({
       );
       return;
     }
+    // Re-picking the row that is already set clears that dimension, which is
+    // what the footer button does. The other dimension is left alone.
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
-      if ((assigneeUserId ?? undefined) === next) return;
+      if ((assigneeUserId ?? undefined) === next) {
+        assignConversation(
+          { conversationId, assigneeUserId: undefined },
+          onError,
+        );
+        return;
+      }
       assignConversation({ conversationId, assigneeUserId: next }, onError);
       return;
     }
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
-      if ((assigneeTeamId ?? undefined) === next) return;
+      if ((assigneeTeamId ?? undefined) === next) {
+        assignConversationTeam(
+          { conversationId, assigneeTeamId: undefined },
+          onError,
+        );
+        return;
+      }
       assignConversationTeam({ conversationId, assigneeTeamId: next }, onError);
     }
   }
@@ -249,8 +268,8 @@ export function ConversationAssigneePicker({
     <SearchableSelect
       open={open}
       onOpenChange={setOpen}
-      // Two dimensions can be selected at once, so there is no single controlled
-      // value — the current pick in each section is marked via `optionAction`.
+      // Two dimensions can be selected at once, so there is no single
+      // controlled value; each option carries its own `selected` instead.
       value={null}
       onValueChange={handleValueChange}
       options={options}
@@ -271,13 +290,16 @@ export function ConversationAssigneePicker({
           {chips}
         </Button>
       }
+      // The check mark comes from each option's `selected`; this slot carries
+      // only what the component cannot know — the avatar, and the hint that
+      // picking the current row again clears it.
       optionAction={(opt) => {
         if (opt.value.startsWith(USER_PREFIX)) {
           const uid = opt.value.slice(USER_PREFIX.length);
           return (
             <span className="flex items-center gap-1.5">
               {assigneeUserId === uid && (
-                <Check className="text-primary size-4 shrink-0" />
+                <span className="sr-only">{t('header.reclickToUnassign')}</span>
               )}
               <AssigneeAvatar
                 assigneeType="user"
@@ -290,7 +312,7 @@ export function ConversationAssigneePicker({
         if (opt.value.startsWith(TEAM_PREFIX)) {
           const tid = opt.value.slice(TEAM_PREFIX.length);
           return assigneeTeamId === tid ? (
-            <Check className="text-primary size-4 shrink-0" />
+            <span className="sr-only">{t('header.reclickToUnassign')}</span>
           ) : null;
         }
         return null;
