@@ -8,8 +8,11 @@ import {
 } from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
+  useEmailConnectors,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
+import { channelOptionsOf } from '@/app/features/conversations/lib/channel-source';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ConversationRow } from '@/app/lib/backend/contract/docs';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 
@@ -77,15 +80,29 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 });
 
 /**
- * The Inbox's channel-filter options. They were derived from the installed
- * inbox automations' required connectors; that backend is offline while it
- * is rebuilt, so the filter has no providers to offer and stays hidden (an
- * empty option list) until the automations rebuild restores the source.
+ * The Inbox's channel-filter options: every lane a thread can arrive on.
+ *
+ * Email connectors come from the installed inbox automations' required
+ * connectors, named by their credential's title. API sources come from the
+ * threads themselves — an integration names its own source slug, so there is
+ * no catalog to read it from.
+ *
+ * The value is what the server filters on (`connectorName`), so the two
+ * namespaces share one list without colliding: a slug identifies one lane.
  */
 function useChannelOptions(
-  _organizationId: string,
+  organizationId: string,
 ): Array<{ value: string; label: string }> {
-  return EMPTY_CHANNEL_OPTIONS;
+  const { emailConnectors } = useEmailConnectors(organizationId);
+  const { data: apiSources } = useBackendQuery(
+    'conversations/queries:apiSources',
+    organizationId ? { organizationId } : 'skip',
+  );
+
+  return useMemo(() => {
+    const options = channelOptionsOf(emailConnectors, apiSources ?? []);
+    return options.length === 0 ? EMPTY_CHANNEL_OPTIONS : options;
+  }, [emailConnectors, apiSources]);
 }
 
 // Stable identity so downstream memos don't re-run every render.

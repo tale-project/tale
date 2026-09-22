@@ -187,23 +187,23 @@ describe('useBulkActions handleSendMessages', () => {
       expect.objectContaining({
         conversationId: 'conv-1',
         organizationId: 'org-1',
-        connectorName: 'gmail',
         content: 'Hello there',
-        text: 'Hello there',
-        to: ['alice@example.com'],
-        subject: 'panel.replySubjectPrefix:{"subject":"Original subject"}',
       }),
     );
     expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
       expect.objectContaining({
         conversationId: 'conv-2',
-        to: ['bob@example.com'],
+        content: 'Hello there',
       }),
     );
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to a default subject when the conversation has none', async () => {
+  // The reply door takes content alone and derives the connector, recipient
+  // and subject from the conversation. Anything sent from here was dropped in
+  // the adapter, so composing it invited the reader to believe the client
+  // chose the route.
+  it('sends content only, leaving the envelope to the reply door', async () => {
     const conversations = [
       makeConversation('conv-1', 'alice@example.com', { subject: undefined }),
     ];
@@ -213,11 +213,12 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('Hi');
     });
 
-    expect(mockSendMessageViaConnector).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: 'panel.replySubjectPrefix:{"subject":"panel.defaultSubject"}',
-      }),
-    );
+    const sent = mockSendMessageViaConnector.mock.calls[0]?.[0] ?? {};
+    expect(Object.keys(sent).sort()).toEqual([
+      'content',
+      'conversationId',
+      'organizationId',
+    ]);
   });
 
   it('counts conversations with missing or unknown email as failures and does not dispatch them', async () => {

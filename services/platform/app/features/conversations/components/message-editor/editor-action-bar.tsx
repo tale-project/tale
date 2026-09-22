@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import {
   LoaderCircleIcon,
@@ -28,6 +29,7 @@ interface EditorActionBarProps {
   onImproveOpen: () => void;
   onImproveSubmit: () => void;
   onSend: () => void;
+  replyDestination?: string;
 }
 
 export const EditorActionBar = memo(function EditorActionBar({
@@ -42,6 +44,7 @@ export const EditorActionBar = memo(function EditorActionBar({
   onImproveOpen,
   onImproveSubmit,
   onSend,
+  replyDestination,
 }: EditorActionBarProps) {
   const { t: tConversations } = useT('conversations');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,6 +106,11 @@ export const EditorActionBar = memo(function EditorActionBar({
       )}
       {isImproveMode && <div />}
 
+      {!isImproveMode && replyDestination !== undefined && (
+        <Text variant="caption" className="truncate">
+          {replyDestination}
+        </Text>
+      )}
       {!isImproveMode && (
         <Button
           onClick={onSend}

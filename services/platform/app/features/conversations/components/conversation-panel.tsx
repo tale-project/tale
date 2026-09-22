@@ -17,7 +17,7 @@ import {
   RefreshCwIcon,
   ShieldAlertIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n/client';
@@ -32,7 +32,11 @@ import {
   useSendMessageViaConnector,
   useUndoSendMessage,
 } from '../hooks/mutations';
-import { useConversationWithMessages } from '../hooks/queries';
+import {
+  useConnectorTitles,
+  useConversationWithMessages,
+} from '../hooks/queries';
+import { channelSourceOf } from '../lib/channel-source';
 import { ConversationHeader } from './conversation-header';
 import {
   ConversationDateHeader,
@@ -102,6 +106,8 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
+  const { titleOf: connectorTitleOf } = useConnectorTitles();
+
   const { formatDateHeader } = useFormatDate();
 
   const {
@@ -111,6 +117,20 @@ export function ConversationPanel({
     error: loadError,
     refetch,
   } = useConversationWithMessages(selectedConversationId);
+  // Where a reply leaves from. The server derives the route from the
+  // conversation's own stamps, so this states the outcome rather than
+  // choosing it: the composer cannot send anywhere else.
+  const replyDestination = useMemo(() => {
+    if (!conversation) return undefined;
+    const source = channelSourceOf(conversation, connectorTitleOf);
+    if (source.lane === 'unknown') {
+      return tConversations('header.replyViaUnknown');
+    }
+    const name = source.label ?? tConversations('header.apiSourceShort');
+    return source.lane === 'api'
+      ? tConversations('header.replyViaApi', { source: name })
+      : tConversations('header.replyVia', { source: name });
+  }, [conversation, connectorTitleOf, tConversations]);
 
   // Surface the underlying load failure — the UI only renders a generic
   // "something went wrong", so without this the real error (e.g. a Convex
@@ -285,22 +305,14 @@ export function ConversationPanel({
       throw new Error(tConversations('panel.contactEmailNotFound'));
     }
 
-    const subject =
-      conversation.subject || tConversations('panel.defaultSubject');
-
-    const replySubject = tConversations('panel.replySubjectPrefix', {
-      subject,
-    });
-
+    // The door takes the content and derives everything else from the
+    // conversation: `POST /conversations/:id/reply` accepts content,
+    // sourceMarkdown and attachments alone, so a connector, recipient or
+    // subject assembled here never left the browser.
     await sendMessageViaConnector({
       conversationId: conversation._id,
       organizationId: conversation.organizationId,
-      connectorName: conversation.connectorName ?? 'outlook',
       content: message,
-      to: contactEmail ? [contactEmail] : [],
-      subject: replySubject,
-      html: message,
-      text: message.replace(/<[^>]*>/g, ''),
       ...(sourceMarkdown ? { sourceMarkdown } : {}),
       ...(uploadedAttachments?.length
         ? { attachments: uploadedAttachments }
@@ -641,6 +653,9 @@ export function ConversationPanel({
                   onPendingMessageConsumed={() => setRestoredDraft(undefined)}
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
+                  {...(replyDestination !== undefined
+                    ? { replyDestination }
+                    : {})}
                 />
               </div>
             ) : conversation.status === 'closed' ? (

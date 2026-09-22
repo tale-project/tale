@@ -105,20 +105,13 @@ export function useBulkActions({
               );
             }
 
-            const subject =
-              conversation.subject || tConversations('panel.defaultSubject');
-            const replySubject = tConversations('panel.replySubjectPrefix', {
-              subject,
-            });
-
+            // Content only: the reply door derives the connector, recipient
+            // and subject from each conversation, so an envelope assembled
+            // here never left the browser.
             return sendMessageViaConnector({
               conversationId: conversation._id,
               organizationId,
-              connectorName: conversation.connectorName ?? 'outlook',
               content: body,
-              to: [contactEmail],
-              subject: replySubject,
-              text: body,
             });
           }),
         );

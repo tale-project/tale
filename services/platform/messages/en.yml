@@ -1690,6 +1690,11 @@ conversations:
     assignSearchAll: Search people and teams
     noAssignees: No people or teams found
     autoAssignSettings: Auto assign
+    apiSource: 'API: {source}'
+    apiSourceShort: API
+    replyVia: 'Reply goes out via {source}'
+    replyViaApi: 'Reply goes back via {source}'
+    replyViaUnknown: This conversation has no channel to reply through
   editor:
     noContent: No content to improve
     improveFailed: Couldn't improve content. Try again.
@@ -1713,9 +1718,7 @@ conversations:
     notFound: Conversation not found
     noMessages: No messages yet
     invalidFileAttachment: Invalid file attachment
-    defaultSubject: 'Re: Conversation'
     contactEmailNotFound: 'Cannot send email: contact email not found'
-    replySubjectPrefix: 'Re: {subject}'
     loadFailed: Couldn't load conversation
     loadFailedDescription: Something went wrong while loading this conversation.
     tryAgain: Try again
