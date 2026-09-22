@@ -297,6 +297,28 @@ function budgetErrorResponse<E extends OrgEnv>(
   return c.json({ error: code, message, data: cap }, 429);
 }
 
+/**
+ * The early budget answer a door gives BEFORE it writes anything for a turn
+ * that has yet to start — the parked send, and the edit / regenerate forks
+ * whose second half is a turn. `null` when every cap that binds the sender
+ * still has room; the worker or the turn's open measures again.
+ */
+async function refuseWhenOverBudget<E extends OrgEnv>(
+  c: Context<E>,
+  sql: Sql,
+  sender: { organizationId: string; userId: string },
+): Promise<Response | null> {
+  try {
+    await assertChatTurnBudget(sql, sender);
+  } catch (error) {
+    if (error instanceof ChatBudgetExceededError) {
+      return budgetErrorResponse(c, error);
+    }
+    throw error;
+  }
+  return null;
+}
+
 async function listMessageViews(
   sql: Sql,
   organizationId: string,
@@ -722,6 +744,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
+    // The fork is the first half of a turn: a cap already reached refuses it
+    // HERE, so a send that cannot start leaves no sibling behind and no
+    // selection pointing at one — the view would follow it to a prefix-only
+    // branch with no fork row to navigate back from.
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     const branchId = await branchForEdit(
       deps.sql,
       organizationId,
@@ -742,6 +773,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
+    // The same early answer as the edit fork: refused before anything forks.
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     const branchId = await branchForRegenerate(
       deps.sql,
       organizationId,
@@ -1013,14 +1050,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     // A parked send fires later, but a cap already reached refuses it now —
     // the sender learns at once, not after the attachments finish. The
     // worker measures again when the send fires.
-    try {
-      await assertChatTurnBudget(deps.sql, { organizationId, userId });
-    } catch (error) {
-      if (error instanceof ChatBudgetExceededError) {
-        return budgetErrorResponse(c, error);
-      }
-      throw error;
-    }
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     try {
       const enqueued = await enqueueDeferredSend(deps.sql, {
         organizationId,

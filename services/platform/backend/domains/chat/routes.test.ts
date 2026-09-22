@@ -14,6 +14,9 @@ import type { OrgEnv } from '../../auth/org.ts';
 const {
   trashThread,
   listArchivedThreads,
+  branchForEdit,
+  branchForRegenerate,
+  assertChatTurnBudget,
   searchApprovedMemories,
   saveMemory,
   deleteMemory,
@@ -23,6 +26,9 @@ const {
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
   listArchivedThreads: vi.fn(),
+  branchForEdit: vi.fn(),
+  branchForRegenerate: vi.fn(),
+  assertChatTurnBudget: vi.fn(),
   searchApprovedMemories: vi.fn(),
   saveMemory: vi.fn(),
   deleteMemory: vi.fn(),
@@ -37,6 +43,12 @@ vi.mock('./threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./threads.ts')>()),
   trashThread,
   listArchivedThreads,
+  branchForEdit,
+  branchForRegenerate,
+}));
+vi.mock('./budget-admission.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./budget-admission.ts')>()),
+  assertChatTurnBudget,
 }));
 vi.mock('./memories.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./memories.ts')>()),
@@ -74,6 +86,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 });
 
 import { endAllEventStreams } from '../../realtime/sse.ts';
+import { ChatBudgetExceededError } from './budget-admission.ts';
 import { MemoryError } from './memories.ts';
 import { createChatRoutes } from './routes.ts';
 
@@ -85,10 +98,97 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** A reached cap, as the admission names it. */
+function budgetExceeded(): ChatBudgetExceededError {
+  return new ChatBudgetExceededError({
+    code: 'BUDGET_EXCEEDED',
+    message: 'Usage limit reached. Your monthly cost limit is used up.',
+    scope: 'user',
+    limitCode: 'COST_LIMIT',
+    period: 'monthly',
+    used: 500,
+    limit: 500,
+    resetsAt: Date.now() + 60_000,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   emitHintInTx.mockResolvedValue(undefined);
   cancelDeferredSendsForThread.mockResolvedValue(0);
+  assertChatTurnBudget.mockResolvedValue(undefined);
+});
+
+/**
+ * An edit or regenerate is a fork PLUS a turn. A cap that would refuse the
+ * turn refuses the fork first: nothing is created and nothing is selected,
+ * so a refused edit never strands the view on a prefix-only sibling.
+ */
+describe('the edit / regenerate forks measure the budget before forking', () => {
+  const post = (route: string, body: unknown) =>
+    makeApp().request(`${route}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('answers 429 BUDGET_EXCEEDED on branch-edit without forking', async () => {
+    assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
+    const res = await post('/threads/t1/branch-edit', {
+      editedMessageId: 'm1',
+    });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toMatch(/^\d+$/);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'BUDGET_EXCEEDED',
+      message: expect.stringContaining('Usage limit reached'),
+      data: { scope: 'user', limitCode: 'COST_LIMIT' },
+    });
+    expect(assertChatTurnBudget).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+    });
+    expect(branchForEdit).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('answers 429 BUDGET_EXCEEDED on branch-regenerate without forking', async () => {
+    assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
+    const res = await post('/threads/t1/branch-regenerate', {
+      assistantMessageId: 'm2',
+    });
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'BUDGET_EXCEEDED',
+    });
+    expect(branchForRegenerate).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('forks as before when every cap has room', async () => {
+    branchForEdit.mockResolvedValueOnce('b1');
+    const res = await post('/threads/t1/branch-edit', {
+      editedMessageId: 'm1',
+    });
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual({ id: 'b1' });
+    expect(branchForEdit).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      'm1',
+    );
+  });
+
+  it('lets a non-budget admission failure surface as an error, not a fork', async () => {
+    assertChatTurnBudget.mockRejectedValueOnce(new Error('db down'));
+    const res = await post('/threads/t1/branch-regenerate', {
+      assistantMessageId: 'm2',
+    });
+    expect(res.status).toBe(500);
+    expect(branchForRegenerate).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /threads/bulk', () => {

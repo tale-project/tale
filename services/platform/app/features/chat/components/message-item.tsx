@@ -114,7 +114,7 @@ interface MessageItemProps {
   /** The sibling flipper for a fork at this message's sequence. */
   forkGroup?: MessageForkGroupView;
   /** Start an edited sibling of this user message. Absent = not editable. */
-  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  onEditSubmit?: (message: ChatMessageView, text: string) => Promise<boolean>;
   /** Re-answer the prompt this assistant reply answered, as a sibling. */
   onRegenerate?: (message: ChatMessageView) => void;
   /** Fork the conversation up to this message into a visible new chat. */
@@ -264,7 +264,7 @@ function UserBubble({
 }: {
   message: ChatMessageView;
   forkGroup?: MessageForkGroupView;
-  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  onEditSubmit?: (message: ChatMessageView, text: string) => Promise<boolean>;
 }) {
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
@@ -297,9 +297,12 @@ function UserBubble({
     return (
       <MessageEditForm
         initialText={messagePlainText(message.parts)}
-        onSubmit={(text) => {
-          setEditing(false);
-          onEditSubmit?.(message, text);
+        onSubmit={async (text) => {
+          // The form closes only once the edit STARTED; a refusal that wrote
+          // nothing (a reached usage cap) hands the draft back instead.
+          const accepted = (await onEditSubmit?.(message, text)) ?? false;
+          if (accepted) setEditing(false);
+          return accepted;
         }}
         onCancel={() => setEditing(false)}
       />

@@ -436,7 +436,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   after** → Each is refused with a toast titled `chat.toast.budgetExceeded`
   and `chat.errorHintBudgetExceeded` below it; a composer send keeps its text,
   no user message or reply lands, and the banner switches to
-  `chat.budgetLimitReached` without a reload
+  `chat.budgetLimitReached` without a reload. A refused edit or regenerate
+  forks nothing: the transcript stays on the original branch with no new
+  ‹n/m› under the message (also after a reload), and the edit draft stays
+  open with its text, **Send** (`chat.editSend`) enabled again
 - [ ] `CHAT-B11` · **Long project and chat lists** — In an org with 30+
   projects (one holding 20+ chats, expanded) and 40+ unfiled chats, open the
   chats panel in a desktop window, shorten the window, then open the phone

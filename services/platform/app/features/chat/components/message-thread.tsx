@@ -62,7 +62,7 @@ export interface MessageThreadHandlers {
   /** The sibling flippers of the view path, keyed by message sequence. */
   forkGroups?: ReadonlyMap<number, MessageForkGroupView>;
   /** Start an edited sibling of a user message. Absent = read-only surface. */
-  onEditSubmit?: (message: ChatMessageView, text: string) => void;
+  onEditSubmit?: (message: ChatMessageView, text: string) => Promise<boolean>;
   /** Re-answer the prompt an assistant reply answered, as a sibling. */
   onRegenerate?: (message: ChatMessageView) => void;
   /** Fork the conversation up to a message into a visible new chat. */
