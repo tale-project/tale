@@ -8,7 +8,7 @@ import { useT } from '@tale/ui/i18n/client';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { Circle } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 /**
  * THE filter affordance: one button that opens every facet group at once,
@@ -132,6 +132,7 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
+  const headingId = useId();
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({});
@@ -162,6 +163,9 @@ export function FilterPanel({
     <Popover
       open={isOpen}
       onOpenChange={setIsOpen}
+      // The panel is a `role="dialog"` layer; name it after its visible heading
+      // so assistive technology announces "Filters" on entry.
+      aria-labelledby={headingId}
       // Never a modal layer: a modal popover marks the rest of the page
       // aria-hidden, so the grid it narrows would vanish from the accessibility
       // tree while the panel is open.
@@ -177,7 +181,7 @@ export function FilterPanel({
       }
     >
       <div className="border-border flex shrink-0 items-center justify-between border-b p-3">
-        <Text as="span" variant="label" className="text-sm">
+        <Text as="span" id={headingId} variant="label" className="text-sm">
           {t('labels.filters')}
         </Text>
         {activeFilterCount > 0 && (

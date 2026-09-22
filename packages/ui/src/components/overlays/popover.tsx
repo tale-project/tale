@@ -16,6 +16,14 @@ interface PopoverProps {
   contentClassName?: string;
   modal?: boolean;
   onOpenAutoFocus?: (event: Event) => void;
+  /**
+   * Accessible name for the popover layer. Radix renders the content as
+   * `role="dialog"`, and a dialog without a name leaves assistive technology
+   * with no context on entry — point this at the id of the visible heading.
+   */
+  'aria-labelledby'?: string;
+  /** Accessible name when the popover has no visible heading to point at. */
+  'aria-label'?: string;
 }
 
 const CONTENT_CLASSES =
@@ -32,6 +40,8 @@ export function Popover({
   contentClassName,
   modal,
   onOpenAutoFocus,
+  'aria-labelledby': ariaLabelledby,
+  'aria-label': ariaLabel,
 }: PopoverProps) {
   return (
     <PopoverPrimitive.Root
@@ -46,6 +56,8 @@ export function Popover({
           side={side}
           sideOffset={sideOffset}
           onOpenAutoFocus={onOpenAutoFocus}
+          aria-labelledby={ariaLabelledby}
+          aria-label={ariaLabel}
           className={cn(CONTENT_CLASSES, contentClassName)}
         >
           {children}
