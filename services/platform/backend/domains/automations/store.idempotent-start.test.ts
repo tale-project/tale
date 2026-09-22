@@ -132,7 +132,6 @@ describe('beginRunIdempotentInTx', () => {
     const requestHash = await runIdempotencyRequestHash({
       input: args.input,
       mode: args.mode,
-      version: undefined,
     });
     const { sql, statements } = fakeStore({
       claimed: false,
@@ -143,6 +142,43 @@ describe('beginRunIdempotentInTx', () => {
       version: 3,
       duplicate: true,
     });
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.automation_runs'),
+      ),
+    ).toBe(false);
+  });
+
+  // MCP `run_deployed` resolves "the deployed version" to its number before
+  // starting, REST and `start_run` pass only what the caller pinned; hashing
+  // the version split one key into two ledgers and the doors refused each
+  // other's repeats. The version is judged against the remembered run instead.
+  it('answers the remembered run for a repeat that pins the version it has', async () => {
+    const requestHash = await runIdempotencyRequestHash({
+      input: args.input,
+      mode: args.mode,
+    });
+    const { sql } = fakeStore({
+      claimed: false,
+      remembered: { requestHash, runId: 'run-old' },
+    });
+    await expect(
+      beginRunIdempotent(sql, { ...args, version: 3 }, key),
+    ).resolves.toEqual({ runId: 'run-old', version: 3, duplicate: true });
+  });
+
+  it('refuses a repeat that pins a version the remembered run is not', async () => {
+    const requestHash = await runIdempotencyRequestHash({
+      input: args.input,
+      mode: args.mode,
+    });
+    const { sql, statements } = fakeStore({
+      claimed: false,
+      remembered: { requestHash, runId: 'run-old' },
+    });
+    await expect(
+      beginRunIdempotent(sql, { ...args, version: 2 }, key),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED', status: 409 });
     expect(
       statements.some((s) =>
         s.text.startsWith('INSERT INTO app.automation_runs'),

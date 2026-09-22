@@ -3,7 +3,6 @@
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { MetricsSection } from '@tale/ui/metrics/metrics-section';
 import { TableDateCell } from '@tale/ui/table-date-cell';
-import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -14,6 +13,8 @@ import {
   formatDurationSeconds,
   formatSuccessRate,
 } from '@/lib/utils/format/duration';
+
+import { DrilldownButton } from '../components/drilldown-button';
 
 export interface TopAutomationRow {
   name: string;
@@ -54,13 +55,11 @@ export function TopAutomationsTable({
         id: 'automation',
         header: t('automations.table.automation'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[320px] truncate text-sm"
-          >
-            {row.original.name}
-          </Text>
+          <DrilldownButton
+            name={row.original.name}
+            onSelect={() => onSelectAutomation(row.original.name)}
+            className="max-w-[320px]"
+          />
         ),
         size: 320,
       },
@@ -125,7 +124,7 @@ export function TopAutomationsTable({
         size: 160,
       },
     ],
-    [t, locale, formatNumber],
+    [t, locale, formatNumber, onSelectAutomation],
   );
 
   return (

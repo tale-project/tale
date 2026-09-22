@@ -285,6 +285,30 @@ describe('DataResidencySettings', () => {
     await waitFor(() => expect(capture.current?.isValid).toBe(true));
   });
 
+  it('returns an unsaved reveal toggle to Off when the header Discard runs', async () => {
+    // The External Postgres switch is local state, not a form field: the
+    // header's Discard used to reset the fields (Host cleared) and leave the
+    // switch on with the panel expanded, showing an "external" mode that was
+    // never saved (DATA-F10).
+    const { capture, user } = renderWithController();
+    const section = sectionByHeading('Knowledge database');
+    const toggle = within(section).getByRole('switch', {
+      name: 'External Postgres',
+    });
+    await user.click(toggle);
+    const host = within(section).getByRole('textbox', { name: 'Host' });
+    await user.type(host, 'pg.example.test');
+    await waitFor(() => expect(capture.current?.isDirty).toBe(true));
+
+    act(() => capture.current?.reset());
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    expect(
+      within(section).queryByRole('textbox', { name: 'Host' }),
+    ).not.toBeInTheDocument();
+    expect(capture.current?.isDirty).toBe(false);
+  });
+
   it('renders exactly the three org sections — no deployment-wide store section', () => {
     render(<DataResidencySettings organizationId="org-1" />);
 

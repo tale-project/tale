@@ -323,23 +323,18 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
       ),
     invalidate: invalidateConversations,
   },
-};
-
-/**
- * The composer's AI rewrite. It is OFFLINE in 0.4 too — the action returns
- * the message unchanged with an explanatory `error` that the editor toasts —
- * so there is no door to call and this row answers with that same contract
- * rather than leaving the button on a lane that will not exist after
- * cutover. The one place to light it up when the rewrite lane lands.
- */
-export const conversationOfflineWriteAdapters: Record<string, WriteAdapter> = {
+  // The composer's AI rewrite: one bounded model call on the door; nothing
+  // is stored, so there is nothing to invalidate.
   'conversations/actions:improveMessage': {
-    run: (args) =>
-      Promise.resolve({
-        improvedMessage:
-          typeof args.originalMessage === 'string' ? args.originalMessage : '',
-        error:
-          'Message improvement is offline while the platform AI backend is rewritten.',
+    run: (args, ctx) =>
+      backendFetch<{ improvedMessage: string }>('/conversations/improve', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          originalMessage: stringArg(args, 'originalMessage'),
+          ...(typeof args.instruction === 'string' && args.instruction !== ''
+            ? { instruction: args.instruction }
+            : {}),
+        },
       }),
   },
 };

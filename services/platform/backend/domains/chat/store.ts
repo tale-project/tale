@@ -17,7 +17,10 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
-import { admitChatTurnSpend } from './budget-admission.ts';
+import {
+  admitChatTurnSpend,
+  type ChatTurnAdmissionExclude,
+} from './budget-admission.ts';
 import { ChatThreadError, projectChatAccess } from './threads.ts';
 
 /**
@@ -311,9 +314,17 @@ export function createPgTurnStore(
     /** The id the assistant placeholder is inserted under — the REST door
      * mints it before the turn runs and names it in its 202. */
     placeholderId?: string;
+    /** The partner column of an arena pair: admitted together with this
+     * turn up front, so its hold is left out of this open's measure. */
+    admissionExclude?: ChatTurnAdmissionExclude;
   } = {},
 ): TurnStore {
-  const store = pgTurnStore(sql, options.scope, options.placeholderId);
+  const store = pgTurnStore(
+    sql,
+    options.scope,
+    options.placeholderId,
+    options.admissionExclude,
+  );
   return options.onUserMessageAppended !== undefined
     ? settleDeferredSendOnUserAppend(store, options.onUserMessageAppended)
     : store;
@@ -323,6 +334,7 @@ function pgTurnStore(
   sql: Sql,
   scope?: ThreadWriteScope,
   placeholderId?: string,
+  admissionExclude?: ChatTurnAdmissionExclude,
 ): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
@@ -424,13 +436,17 @@ function pgTurnStore(
         // and a reached cap throws here, rolling the open back with
         // nothing written.
         if (admission !== undefined) {
-          await admitChatTurnSpend(tx, {
-            organizationId: setup.organizationId,
-            userId: admission.userId,
-            ...(admission.apiKeyId !== undefined
-              ? { apiKeyId: admission.apiKeyId }
-              : {}),
-          });
+          await admitChatTurnSpend(
+            tx,
+            {
+              organizationId: setup.organizationId,
+              userId: admission.userId,
+              ...(admission.apiKeyId !== undefined
+                ? { apiKeyId: admission.apiKeyId }
+                : {}),
+            },
+            admissionExclude,
+          );
         }
         if (scope !== undefined) {
           await assertThreadWriteScope(tx, {

@@ -1,5 +1,7 @@
+import { toast } from '@tale/ui/use-toast';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ProjectFilesTab } from './project-files-tab';
@@ -517,6 +519,34 @@ describe('ProjectFilesTab', () => {
       expect(deleteFolderMutateAsync).toHaveBeenCalledWith({
         folderId: 'folder-1',
       });
+    });
+  });
+
+  it('explains a folder delete refused for a retained record in words', async () => {
+    foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
+    deleteFolderMutateAsync.mockRejectedValueOnce(
+      new AppError({
+        code: 'DOCUMENT_RECORD_PROTECTED',
+        message: 'A retained record cannot be deleted.',
+      }),
+    );
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'Delete folder' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete folder',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete folder' }),
+    );
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining('retained record'),
+          variant: 'destructive',
+        }),
+      );
     });
   });
 

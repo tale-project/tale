@@ -154,3 +154,61 @@ export async function draftReplyToConversationInTx(
   }
   return { approvalId: winner.id, created: false };
 }
+
+/**
+ * What a sent reply records on the draft it consumed. `sentTo` / `sentSubject`
+ * belong to the email lane; a native API reply carries the id of the message
+ * it queued instead.
+ */
+export interface SentDraftReceipt {
+  sentContent: string;
+  sentTo?: string | string[];
+  sentSubject?: string;
+  sentHtml?: string;
+  sentText?: string;
+  sentCc?: string[] | string;
+  deliveryMessageId?: string;
+}
+
+/**
+ * Completes the pending drafted reply on a conversation when a human sends —
+ * whichever lane carries the send. The card is the reader's "reply awaiting
+ * you" and the composer's prefill; a draft left pending after its send was
+ * offered again on every reload, on the API lane, as if never sent.
+ *
+ * Runs inside the send's own transaction so a send that rolls back leaves the
+ * draft pending. No-op when nothing is pending.
+ */
+export async function completePendingDraftInTx(
+  tx: TransactionSql,
+  args: {
+    conversationId: string;
+    actorUserId: string;
+    sentAt: number;
+    receipt: SentDraftReceipt;
+  },
+): Promise<{ approvalId: string } | null> {
+  const pending = await tx<
+    { id: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT id, metadata FROM app.approvals
+    WHERE resource_type = 'conversations'
+      AND resource_id = ${args.conversationId} AND status = 'pending'
+    ORDER BY seq ASC LIMIT 1
+  `;
+  const row = pending[0];
+  if (!row) return null;
+  const receipt = Object.fromEntries(
+    Object.entries(args.receipt).filter(([, value]) => value !== undefined),
+  );
+  await tx`
+    UPDATE app.approvals SET
+      status = 'completed', approved_by = ${args.actorUserId},
+      reviewed_at_ms = ${args.sentAt},
+      metadata = ${tx.json(
+        toJson({ ...row.metadata, ...receipt, sentAt: args.sentAt }),
+      )}
+    WHERE id = ${row.id}
+  `;
+  return { approvalId: row.id };
+}

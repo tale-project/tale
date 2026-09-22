@@ -29,15 +29,10 @@ const meta: Meta<typeof FeatureFlagsEditor> = {
       </AbilityContext.Provider>
     ),
   ],
-  beforeEach({ args }) {
+  beforeEach() {
     mocked(useGovernancePolicy, { partial: true }).mockReturnValue({
       data: {
-        _id: 'storybook-feature-flags',
-        _creationTime: 0,
-        organizationId: args.organizationId,
-        domain: 'governance',
         key: 'feature_flags',
-        syncedAt: 0,
         config: { enabled: true, rules: [] },
       },
       isLoading: false,

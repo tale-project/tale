@@ -18,8 +18,13 @@ import { sha256Hex } from './webhook_token.ts';
  *    choice for one automation in one scope (the URL project, or none), so
  *    the same key aimed at another automation or project is another start;
  *  - the REQUEST hash — the canonical form of what the start asked for
- *    (`input`, `mode`, `version`), compared on a repeat so a reused key with
- *    a changed body reads as the mistake it is.
+ *    (`input`, `mode`), compared on a repeat so a reused key with a changed
+ *    body reads as the mistake it is. The version is NOT part of it: one
+ *    door resolves "the deployed version" to its number before starting
+ *    (MCP `run_deployed`) while the others pass what the caller pinned, so
+ *    hashing it split one key into two ledgers — the same request through
+ *    REST and through `run_deployed` refused each other. A pinned version is
+ *    compared against the remembered run's version instead.
  */
 
 /** The ledger row's identity inside the organization. */
@@ -33,20 +38,17 @@ export async function runIdempotencyScopeKey(args: {
 
 /**
  * The request a key was first used for, as one digest: object keys are
- * sorted so two spellings of the same body agree, and a field the caller
- * left out (`version`) is absent from the form rather than `undefined`.
+ * sorted so two spellings of the same body agree.
  */
 export async function runIdempotencyRequestHash(args: {
   input: unknown;
   mode: 'mock' | 'live';
-  version: number | undefined;
 }): Promise<string> {
   return sha256Hex(
     JSON.stringify(
       sortObjectKeysDeep({
         input: args.input,
         mode: args.mode,
-        version: args.version,
       }),
     ),
   );

@@ -178,6 +178,18 @@ describe('AutomationsList presentation', () => {
     expect(container.querySelector('svg.lucide-sparkles')).toBeNull();
   });
 
+  it('renders the name as a link the keyboard can reach and open', () => {
+    automationsData = [{ name: 'weekly-report', latest: 1, projectIds: [] }];
+    render(<AutomationsList organizationId="org-1" />);
+
+    // `onRowClick` is a pointer convenience only — a `<tr>` takes no focus —
+    // so the name itself is the row's real, named link (AUTO-A3).
+    expect(screen.getByRole('link', { name: 'Weekly report' })).toHaveAttribute(
+      'href',
+      '/dashboard/$id/automations/$automationSlug/editor',
+    );
+  });
+
   it('falls back to the neutral glyph and no chips without a presentation', () => {
     automationsData = [{ name: 'weekly-report', latest: 1, projectIds: [] }];
     const { container } = render(<AutomationsList organizationId="org-1" />);

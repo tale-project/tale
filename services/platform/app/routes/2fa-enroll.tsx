@@ -179,7 +179,11 @@ export function TwoFactorEnrollPage() {
       <div className="px-4 pt-8 pb-8 sm:px-8">
         <LogoLink href="/" />
       </div>
-      <main className="mx-auto w-full max-w-[24.875rem] px-4 pb-12">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-[24.875rem] px-4 pb-12 outline-none"
+      >
         <Stack gap={6}>
           <Stack gap={2} className="text-center">
             <Heading level={1} size="xl">

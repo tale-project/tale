@@ -179,6 +179,14 @@ function chatDraftKey(
   return threadId !== undefined ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
+/** The fork an edit / regenerate send goes into: the parent's fork point and
+ * the fresh sibling — enough to undo the fork when the turn never lands. */
+interface BranchFork {
+  readonly parentId: string;
+  readonly forkSequence: number;
+  readonly branchId: string;
+}
+
 interface ChatSurfaceProps {
   organizationId: string;
   /** The open thread, or none on the chat index. */
@@ -679,7 +687,11 @@ function ChatSurfaceInner({
     if ('refused' in result) {
       toast({
         title: t(
-          result.refused === 'busy' ? 'arena.busy' : 'arena.verdictError',
+          result.refused === 'busy'
+            ? 'arena.busy'
+            : result.refused === 'one_sided'
+              ? 'arena.oneSided'
+              : 'arena.verdictError',
         ),
         variant: 'destructive',
       });
@@ -1070,7 +1082,35 @@ function ChatSurfaceInner({
     });
   };
 
-  const handleSend = (text: string, intoThreadId?: string) => {
+  /** Flip a fork point locally and persist the choice in the background. */
+  const rememberSelection = (
+    parentId: string,
+    sequence: number,
+    chosen: string,
+  ) => {
+    if (threadId === undefined) return;
+    const key = forkKey(parentId, sequence);
+    setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
+    branchActions.select(threadId, key, chosen);
+  };
+
+  /**
+   * A send into a fresh edit / regenerate sibling names the fork it came
+   * from, so a refusal that wrote nothing can undo the fork: the selection
+   * flips back to the parent's own tail and the empty sibling is dropped.
+   * Left in place, the persisted selection would follow it to a prefix-only
+   * branch whose fork row does not exist — no ‹n/m› control, no way back.
+   */
+  const abandonBranch = (fork: BranchFork) => {
+    rememberSelection(fork.parentId, fork.forkSequence, fork.parentId);
+    void branchActions.discard(fork.branchId);
+  };
+
+  const handleSend = (
+    text: string,
+    intoThreadId?: string,
+    fork?: BranchFork,
+  ) => {
     // A turn needs its model — a concrete pick or Auto. `sendDisabled`
     // already gates this; the guard here keeps a race from slipping through.
     // The pick is narrowed ONCE, in the exact shape the wire speaks.
@@ -1100,6 +1140,8 @@ function ChatSurfaceInner({
       void arenaActions
         .startTurn({
           threadId: viewThreadId,
+          partnerThreadId:
+            pair.threadIdA === viewThreadId ? pair.threadIdB : pair.threadIdA,
           userText: text,
           modelIdA,
           modelIdB: arenaModelBId,
@@ -1282,6 +1324,11 @@ function ChatSurfaceInner({
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
+            // An edit send that wrote nothing leaves its fresh sibling
+            // empty: undo the fork so the view returns to the original tail.
+            if (fork !== undefined && outcome.persisted !== true) {
+              abandonBranch(fork);
+            }
             refusalToast(outcome.reason, outcome.code);
           },
           (error: unknown) => {
@@ -1300,6 +1347,16 @@ function ChatSurfaceInner({
               }
               videoLinks.unmarkJobsSent(consumedJobIds);
               void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
+            }
+            // Whether the turn landed is unknown here, so the sibling stays
+            // (its rows, if any, are reachable as ‹n/m›) — only the view
+            // returns to the original tail.
+            if (fork !== undefined) {
+              rememberSelection(
+                fork.parentId,
+                fork.forkSequence,
+                fork.parentId,
+              );
             }
             toast({ title: t('toast.sendFailed'), variant: 'destructive' });
           },
@@ -1320,21 +1377,11 @@ function ChatSurfaceInner({
           composerRef.current?.restoreText(text);
           videoLinks.unmarkJobsSent(consumedJobIds);
         }
+        // A turn that never started wrote nothing into the sibling.
+        if (fork !== undefined) abandonBranch(fork);
         toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       }
     })();
-  };
-
-  /** Flip a fork point locally and persist the choice in the background. */
-  const rememberSelection = (
-    parentId: string,
-    sequence: number,
-    chosen: string,
-  ) => {
-    if (threadId === undefined) return;
-    const key = forkKey(parentId, sequence);
-    setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
-    branchActions.select(threadId, key, chosen);
   };
 
   // The ‹ n/m › groups along the view path, keyed by message sequence.
@@ -1359,18 +1406,32 @@ function ChatSurfaceInner({
   }, [threadId, viewPath, branches, branchActions]);
 
   // Edit = a sibling branch carrying the history BEFORE the edited message;
-  // the edited text is then sent into it through the normal turn.
-  const handleEditSubmitImpl = (message: ChatMessageView, text: string) => {
-    if (viewThreadId === undefined) return;
+  // the edited text is then sent into it through the normal turn. Resolves
+  // whether the edit STARTED: a fork the door refused (a reached usage cap
+  // answers before anything forks) is named like a refused send and hands
+  // the draft back to the still-open edit form.
+  const handleEditSubmitImpl = async (
+    message: ChatMessageView,
+    text: string,
+  ): Promise<boolean> => {
+    if (viewThreadId === undefined) return false;
     const parentId = viewThreadId;
-    void branchActions.branchForEdit(parentId, message.id).then((branchId) => {
-      if (branchId === null) {
-        toast({ title: t('toast.sendFailed'), variant: 'destructive' });
-        return;
-      }
-      rememberSelection(parentId, message.sequence, branchId);
-      handleSend(text, branchId);
+    const forked = await branchActions.branchForEdit(parentId, message.id);
+    if (forked.status === 'refused') {
+      refusalToast(forked.reason, forked.code);
+      return false;
+    }
+    if (forked.status === 'failed') {
+      toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+      return false;
+    }
+    rememberSelection(parentId, message.sequence, forked.id);
+    handleSend(text, forked.id, {
+      parentId,
+      forkSequence: message.sequence,
+      branchId: forked.id,
     });
+    return true;
   };
 
   // Try again = a sibling branch carrying the history THROUGH the prompt the
@@ -1399,11 +1460,18 @@ function ChatSurfaceInner({
     if (!prompt) return;
     void branchActions
       .branchForRegenerate(parentId, message.id)
-      .then(async (branchId) => {
-        if (branchId === null) {
+      .then(async (forked) => {
+        // The door measured the budget before forking: a reached cap is
+        // named as a refused send is, and nothing was created or selected.
+        if (forked.status === 'refused') {
+          refusalToast(forked.reason, forked.code);
+          return;
+        }
+        if (forked.status === 'failed') {
           toast({ title: t('regenerateFailed'), variant: 'destructive' });
           return;
         }
+        const branchId = forked.id;
         rememberSelection(parentId, prompt.sequence, branchId);
         const outcome = await branchActions.regenerate(branchId, {
           ...modelPick,
@@ -1411,18 +1479,35 @@ function ChatSurfaceInner({
             ? { reasoningEffort: selection.reasoningEffort }
             : {}),
         });
-        if (outcome.refused) {
-          const { titleKey, description } = turnNamedFailureToastContent(
-            outcome.reason,
-            'regenerateFailed',
-            t,
-          );
-          toast({
-            title: t(titleKey),
-            ...(description !== undefined ? { description } : {}),
-            variant: 'destructive',
+        if (!outcome.refused) return;
+        // A refusal that wrote nothing leaves the sibling without its
+        // reply: undo the fork so the view returns to the original tail.
+        // When the request itself failed, whether the turn landed is
+        // unknown — the sibling stays reachable as ‹n/m›, only the view
+        // returns.
+        if (outcome.persisted === false) {
+          abandonBranch({
+            parentId,
+            forkSequence: prompt.sequence,
+            branchId,
           });
+        } else if (outcome.persisted === undefined) {
+          rememberSelection(parentId, prompt.sequence, parentId);
         }
+        if (isBudgetRefusalCode(outcome.code)) {
+          refusalToast(outcome.reason, outcome.code);
+          return;
+        }
+        const { titleKey, description } = turnNamedFailureToastContent(
+          outcome.reason,
+          'regenerateFailed',
+          t,
+        );
+        toast({
+          title: t(titleKey),
+          ...(description !== undefined ? { description } : {}),
+          variant: 'destructive',
+        });
       });
   };
 
@@ -1858,6 +1943,7 @@ function ChatSurfaceInner({
               organizationId={organizationId}
               threadIdA={pair.threadIdA}
               threadIdB={pair.threadIdB}
+              pairCreatedAt={pair.createdAt}
               {...(selection.modelId !== undefined
                 ? { modelAId: selection.modelId }
                 : {})}

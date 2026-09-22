@@ -40,27 +40,22 @@ describe('runIdempotencyRequestHash', () => {
     const one = await runIdempotencyRequestHash({
       input: { b: 1, a: { d: [1, 2], c: 'x' } },
       mode: 'live',
-      version: undefined,
     });
     const other = await runIdempotencyRequestHash({
       input: { a: { c: 'x', d: [1, 2] }, b: 1 },
       mode: 'live',
-      version: undefined,
     });
     expect(one).toMatch(HEX_64);
     expect(other).toBe(one);
   });
 
-  it('tells a changed input, mode or version apart', async () => {
-    const base = { input: { n: 1 }, mode: 'live' as const, version: undefined };
+  it('tells a changed input or mode apart', async () => {
+    const base = { input: { n: 1 }, mode: 'live' as const };
     const hash = await runIdempotencyRequestHash(base);
     expect(
       await runIdempotencyRequestHash({ ...base, input: { n: 2 } }),
     ).not.toBe(hash);
     expect(await runIdempotencyRequestHash({ ...base, mode: 'mock' })).not.toBe(
-      hash,
-    );
-    expect(await runIdempotencyRequestHash({ ...base, version: 1 })).not.toBe(
       hash,
     );
     // Array order is semantic and stays part of the request.
@@ -77,13 +72,11 @@ describe('runIdempotencyRequestHash', () => {
     const empty = await runIdempotencyRequestHash({
       input: {},
       mode: 'live',
-      version: undefined,
     });
     expect(
       await runIdempotencyRequestHash({
         input: null,
         mode: 'live',
-        version: undefined,
       }),
     ).not.toBe(empty);
   });

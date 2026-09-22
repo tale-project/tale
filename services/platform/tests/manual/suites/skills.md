@@ -71,7 +71,8 @@ builtin skill from `configs/platform/custom/skills/`.
   icon** (`skills.iconPicker.none`) → The popover grid is searchable; a broad
   query shows the keep-typing footer (`skills.iconPicker.refine`); the picked
   icon renders on the trigger and, after save + reload, in the table's Name
-  cell; clearing restores the default.
+  cell; after **No icon** + save + reload the trigger and the Name cell show
+  the default again and the picker has nothing checked.
 - [ ] `SKILL-F5` · **Upload a zip bundle** — **Add skill** → **Upload zip**
   (`skills.createMenu.uploadZip`) → drop/pick the bundle zip in the dropzone
   (`skills.upload.dropOrClick`) → review the preview step → **Upload bundle**

@@ -255,6 +255,38 @@ describe('every refusal carries a code and a hint', () => {
     expect(deploy).toHaveBeenCalledWith(SAVED, 1, { testsPassed: true });
   });
 
+  // The ledger's `duplicate` marker used to be dropped on this door alone:
+  // a repeated key read exactly like a fresh start.
+  it('run_deployed reports a repeated idempotency key as a duplicate', async () => {
+    const result = await dispatch(
+      'run_deployed',
+      { name: SAVED, idempotencyKey: 'k-1' },
+      {
+        store: fullStore({
+          startRun: async () => ({
+            runId: 'run-1',
+            version: 1,
+            duplicate: true,
+          }),
+          getRun: async () =>
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the answer needs only the fields the wait reads
+            ({
+              runId: 'run-1',
+              version: 1,
+              status: 'success',
+              finishedAt: 1,
+            }) as never,
+        }),
+        allowLive: true,
+      },
+    );
+    expect(result).toMatchObject({
+      runId: 'run-1',
+      status: 'success',
+      duplicate: true,
+    });
+  });
+
   it('a live run on a host with no runner is a refusal, not a mock run', async () => {
     const result = await dispatch(
       'run_deployed',

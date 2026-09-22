@@ -17,7 +17,7 @@ Pour commencer, fournis une source courte et une demande précise, par exemple 
 
 </Frame>
 
-Chaque réponse apparaît dans sa colonne. Attends qu’elles soient toutes deux terminées avant de choisir un verdict ; les boutons restent indisponibles tant qu’un côté répond. Le délai fait aussi partie du résultat. Si un côté échoue, examine son erreur avant d’en tirer un jugement sur la qualité.
+Chaque réponse apparaît dans sa colonne. Le message est admis pour les deux colonnes ensemble : une limite d’utilisation qui l’arrête l’arrête pour les deux côtés, jamais pour une seule colonne. Attends qu’elles soient toutes deux terminées avant de choisir un verdict ; les boutons restent indisponibles tant qu’un côté répond. Le délai fait aussi partie du résultat. Si un côté échoue, sa colonne affiche l’erreur et le tour ne peut pas être jugé : les quatre boutons de verdict restent indisponibles tant que les deux colonnes ne contiennent pas une réponse terminée, tandis que **Quitter sans verdict** reste disponible. Examine l’erreur avant d’en tirer un jugement sur la qualité.
 
 ## Évaluer les réponses
 
@@ -35,10 +35,10 @@ Chaque choix termine la comparaison à deux colonnes. Le message suivant est env
 
 ## Retrouver le feedback enregistré
 
-Lorsque les deux modèles ont répondu, le verdict alimente l’[analyse des retours](/fr/platform/admin/governance/feedback-analytics) de l’organisation. Les administrateurs peuvent y examiner les verdicts de l’Arène et les comparaisons entre modèles. Quitter sans verdict n’ajoute aucune note.
+Lorsque les deux modèles ont répondu, le verdict alimente l’[analyse des retours](/fr/platform/admin/governance/feedback-analytics) de l’organisation. Les administrateurs peuvent y examiner les verdicts de l’Arène et les comparaisons entre modèles. Un tour où une seule colonne a répondu n’est jamais enregistré : le verdict est refusé, si bien que l’analyse ne contient que des comparaisons de deux réponses terminées. Quitter sans verdict n’ajoute aucune note.
 
 Essaie plusieurs questions représentatives avant de conclure sur un modèle. Un bon résumé court ne prédit pas forcément ses résultats sur du code ou de longs documents. Les préférences de l’organisation incluent aussi les tâches des autres personnes.
 
 ## Débloquer une comparaison
 
-Si un modèle manque, consulte le [catalogue des modèles](/fr/platform/models) pour vérifier son fournisseur et les règles d’accès. Si les boutons de verdict restent indisponibles, les deux générations doivent d’abord se terminer. Un échec peut venir des identifiants, de la disponibilité ou d’une règle : utilise la cause affichée pour décider quoi corriger avant de réessayer.
+Si un modèle manque, consulte le [catalogue des modèles](/fr/platform/models) pour vérifier son fournisseur et les règles d’accès. Si les boutons de verdict restent indisponibles, les deux générations doivent d’abord se terminer, ou vérifie que les deux colonnes affichent une réponse terminée : un côté qui a échoué ou n’a jamais répondu ne laisse rien à comparer. Quitte alors sans verdict, corrige la cause et renvoie le message. Un échec peut venir des identifiants, de la disponibilité ou d’une règle : utilise la cause affichée pour décider quoi corriger avant de réessayer.

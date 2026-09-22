@@ -61,7 +61,8 @@ export interface SkillsContract {
     kind: 'action';
     args: {
       visibility?: 'org' | 'team' | 'private';
-      icon?: string;
+      /** A string sets the icon, `null` clears it, omitted keeps it. */
+      icon?: string | null;
       labels?: string[];
       teams?: string[];
       disableModelInvocation?: boolean;

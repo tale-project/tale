@@ -34,6 +34,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import { useGovernancePolicy } from '../hooks/queries';
+import { policyEnabled } from '../lib/policy-enabled';
 
 interface RecentEvent {
   _id: string;
@@ -130,7 +131,7 @@ export function GuardrailsOverview({
   const { data: moderationPolicy, isLoading: moderationLoading } =
     useGovernancePolicy(organizationId, 'moderation_provider');
 
-  const chatFilterEnabled = !!chatFilterPolicy?.enabled;
+  const chatFilterEnabled = policyEnabled(chatFilterPolicy);
   const chatFilterParsed = chatFilterPolicy
     ? chatFilterConfigSchema.safeParse(chatFilterPolicy.config)
     : null;
@@ -159,7 +160,7 @@ export function GuardrailsOverview({
       })
     : undefined;
 
-  const piiEnabled = !!piiPolicy?.enabled;
+  const piiEnabled = policyEnabled(piiPolicy);
   const piiParsed = piiPolicy
     ? piiConfigSchema.safeParse(piiPolicy.config)
     : null;
@@ -170,7 +171,7 @@ export function GuardrailsOverview({
       })
     : undefined;
 
-  const moderationEnabled = !!moderationPolicy?.enabled;
+  const moderationEnabled = policyEnabled(moderationPolicy);
   const moderationParsed = moderationPolicy
     ? moderationProviderConfigSchema.safeParse(moderationPolicy.config)
     : null;

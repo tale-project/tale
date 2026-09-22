@@ -74,8 +74,14 @@ export interface ConnectorCredentialsContract {
       authMethods: Array<'oauth2' | 'api-key' | 'bearer' | 'basic'>;
       actionCount: number;
       /** OAuth2 connectors only: whether an app is available to consent
-       * against, and where it comes from (org row beats deployment env). */
-      oauthApp?: { configured: boolean; source: 'org' | 'env' | null };
+       * against, where it comes from (org row beats deployment env), and
+       * whether this organization could register one itself — a
+       * deployment-only app (Slack) cannot. */
+      oauthApp?: {
+        configured: boolean;
+        source: 'org' | 'env' | null;
+        orgConfigurable: boolean;
+      };
     }>;
   };
   'connector_oauth_apps/queries:list': {

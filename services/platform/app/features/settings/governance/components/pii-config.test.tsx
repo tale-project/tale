@@ -34,8 +34,13 @@ const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
     policy: {
-      enabled: false,
-      config: { mode: 'tokenize', enabledPatterns: [], customPatterns: [] },
+      key: 'pii_config',
+      config: {
+        enabled: false,
+        mode: 'tokenize',
+        enabledPatterns: [],
+        customPatterns: [],
+      },
     } as Record<string, unknown> | undefined,
   },
 }));
@@ -50,8 +55,25 @@ vi.mock('../hooks/queries', () => ({
 function setLoaded() {
   state.isLoading = false;
   state.policy = {
-    enabled: false,
-    config: { mode: 'tokenize', enabledPatterns: [], customPatterns: [] },
+    key: 'pii_config',
+    config: {
+      enabled: false,
+      mode: 'tokenize',
+      enabledPatterns: [],
+      customPatterns: [],
+    },
+  };
+}
+function setEnabledOnServer() {
+  state.isLoading = false;
+  state.policy = {
+    key: 'pii_config',
+    config: {
+      enabled: true,
+      mode: 'block',
+      enabledPatterns: ['email'],
+      customPatterns: [],
+    },
   };
 }
 function setLoading() {
@@ -61,8 +83,9 @@ function setLoading() {
 function setConfigured() {
   state.isLoading = false;
   state.policy = {
-    enabled: false,
+    key: 'pii_config',
     config: {
+      enabled: false,
       mode: 'block',
       enabledPatterns: ['email'],
       customPatterns: [],
@@ -137,6 +160,23 @@ describe('PiiConfig', () => {
       setLoaded();
       render(<PiiConfig organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    // The app door carries the on/off flag INSIDE `config`; the switch used to
+    // read a policy-level `enabled` the server never sends, so a saved and
+    // reloaded "on" rendered as off with the editor hidden (GOV-F16).
+    it('renders the switch on and the editor mounted when the server has it enabled', async () => {
+      setEnabledOnServer();
+      render(<PiiConfig organizationId="org-1" />);
+      expect(screen.getByRole('switch')).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+      // The editor is a lazy chunk; its Mode control arriving proves the
+      // `enabled` branch mounted.
+      expect((await screen.findAllByLabelText('Mode')).length).toBeGreaterThan(
+        0,
+      );
     });
   });
 

@@ -17,7 +17,7 @@ Für einen ersten Vergleich eignen sich eine kurze Quelle und ein präziser Auft
 
 </Frame>
 
-Jede Antwort erscheint in einer eigenen Spalte. Warte mit der Bewertung, bis beide abgeschlossen sind. Während eine Seite noch antwortet, bleiben die Bewertungsbuttons gesperrt. Auch die Wartezeit gehört zum Vergleich. Schlägt eine Seite fehl, lies zuerst den Fehler, bevor du das Ergebnis als Qualitätsurteil wertest.
+Jede Antwort erscheint in einer eigenen Spalte. Die Nachricht wird für beide Spalten gemeinsam zugelassen: Ein Nutzungslimit, das sie stoppt, stoppt sie für beide Seiten und nie nur für eine Spalte. Warte mit der Bewertung, bis beide abgeschlossen sind. Während eine Seite noch antwortet, bleiben die Bewertungsbuttons gesperrt. Auch die Wartezeit gehört zum Vergleich. Schlägt eine Seite fehl, zeigt ihre Spalte den Fehler, und die Runde lässt sich nicht bewerten: Die vier Bewertungsbuttons bleiben gesperrt, bis beide Spalten eine fertige Antwort enthalten, während **Ohne Bewertung beenden** verfügbar bleibt. Lies den Fehler, bevor du das Ergebnis als Qualitätsurteil wertest.
 
 ## Die Antworten beurteilen
 
@@ -35,10 +35,10 @@ Jede Auswahl beendet den Vergleich mit zwei Spalten. Die nächste Nachricht geht
 
 ## Gespeichertes Feedback finden
 
-Wenn beide Modelle geantwortet haben, fließt die Bewertung in die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) der Organisation ein. Administratoren können dort die Arena-Bewertungen und Modellvergleiche prüfen. **Ohne Bewertung beenden** erzeugt keine Bewertung.
+Wenn beide Modelle geantwortet haben, fließt die Bewertung in die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) der Organisation ein. Administratoren können dort die Arena-Bewertungen und Modellvergleiche prüfen. Eine Runde, in der nur eine Spalte geantwortet hat, wird nie gespeichert: Die Bewertung wird abgelehnt, sodass die Analyse nur Vergleiche zweier fertiger Antworten enthält. **Ohne Bewertung beenden** erzeugt keine Bewertung.
 
 Vergleiche mehrere typische Aufgaben, bevor du ein Modell beurteilst. Ein Ergebnis für kurze Zusammenfassungen sagt wenig über Code oder lange Dokumente aus. Organisationsweite Vorlieben enthalten außerdem Aufgaben anderer Personen.
 
 ## Einen blockierten Vergleich klären
 
-Fehlt ein Modell, prüfe mit dem [Modellkatalog](/de/platform/models) Provider und Zugriffsregeln. Sind die Bewertungsbuttons noch gesperrt, müssen zuerst beide Antworten enden. Ein fehlgeschlagener Aufruf kann an Zugangsdaten, Verfügbarkeit oder Richtlinien liegen. Entscheide anhand der angezeigten Begründung, was vor einem neuen Versuch zu korrigieren ist.
+Fehlt ein Modell, prüfe mit dem [Modellkatalog](/de/platform/models) Provider und Zugriffsregeln. Sind die Bewertungsbuttons noch gesperrt, müssen zuerst beide Antworten enden, oder prüfe, ob beide Spalten eine fertige Antwort zeigen: Eine Seite, die fehlgeschlagen ist oder nie geantwortet hat, lässt nichts zu vergleichen. Beende dann ohne Bewertung, behebe die Ursache und sende die Nachricht erneut. Ein fehlgeschlagener Aufruf kann an Zugangsdaten, Verfügbarkeit oder Richtlinien liegen. Entscheide anhand der angezeigten Begründung, was vor einem neuen Versuch zu korrigieren ist.

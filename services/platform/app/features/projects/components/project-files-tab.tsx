@@ -783,9 +783,14 @@ export function ProjectFilesTab({
                   defaultValue:
                     'A file in this folder is on legal hold — release it first.',
                 })
-              : t('files.folderDeleteFailed', {
-                  defaultValue: "Couldn't delete the folder",
-                }),
+              : code === 'DOCUMENT_RECORD_PROTECTED'
+                ? t('files.folderDeleteProtected', {
+                    defaultValue:
+                      'A controlled file in this folder has an approved version, which is a retained record — move it out first.',
+                  })
+                : t('files.folderDeleteFailed', {
+                    defaultValue: "Couldn't delete the folder",
+                  }),
           variant: 'destructive',
         });
       }

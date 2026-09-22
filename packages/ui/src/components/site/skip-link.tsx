@@ -14,7 +14,11 @@ interface SkipLinkProps extends ComponentProps<'a'> {
  * the browser focusing a `tabIndex={-1}` target after a `#main` navigation —
  * is unreliable (some browsers only scroll, headless Chromium doesn't move
  * focus at all), which would strand keyboard and screen-reader users on the
- * link. The hash still updates when the target is missing.
+ * link. When the target is missing the hash still updates — set on the
+ * current document, never through the anchor's own navigation: under an
+ * injected `<base href>` a bare `#fragment` resolves against the base, and
+ * "skip to content" would leave the page (a public docs page landed on the
+ * sign-in screen that way).
  */
 export function SkipLink({
   targetId = 'main',
@@ -26,9 +30,12 @@ export function SkipLink({
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (event.defaultPrevented) return;
-    const target = document.getElementById(targetId);
-    if (!target) return;
     event.preventDefault();
+    const target = document.getElementById(targetId);
+    if (!target) {
+      window.location.hash = targetId;
+      return;
+    }
     target.focus();
   };
 

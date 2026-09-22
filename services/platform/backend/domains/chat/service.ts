@@ -6,7 +6,10 @@ import {
   type ExecuteTurnArgs,
 } from '../../core/chat/turn_action.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
-import { assertChatTurnBudget } from './budget-admission.ts';
+import {
+  assertChatTurnBudget,
+  type ChatTurnAdmissionExclude,
+} from './budget-admission.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
 
@@ -64,6 +67,10 @@ export interface ChatTurnRequest {
    * never shown twice (bubble + "sending" row) for the whole generation.
    * Never called on a turn that refused or threw before that write. */
   readonly onUserMessageAppended?: () => Promise<void>;
+  /** Arena: the partner column, admitted together with this turn by the
+   * door (room for both), so neither the early measure nor the open counts
+   * the hold the other column wrote first. */
+  readonly admissionExclude?: ChatTurnAdmissionExclude;
 }
 
 export async function runChatTurn(
@@ -77,6 +84,9 @@ export async function runChatTurn(
     organizationId: request.organizationId,
     userId: request.userId,
     ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+    ...(request.admissionExclude !== undefined
+      ? { exclude: request.admissionExclude }
+      : {}),
   });
   const shim = createCtxShim(chatShimHandlers(sql));
   const args: ExecuteTurnArgs = {
@@ -121,6 +131,9 @@ export async function runChatTurn(
             : {}),
           ...(request.placeholderId !== undefined
             ? { placeholderId: request.placeholderId }
+            : {}),
+          ...(request.admissionExclude !== undefined
+            ? { admissionExclude: request.admissionExclude }
             : {}),
           ...(request.expectedProjectId !== undefined
             ? {

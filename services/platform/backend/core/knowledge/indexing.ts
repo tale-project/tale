@@ -874,6 +874,22 @@ async function markCompleted(
   );
 }
 
+/**
+ * Record a failure the CALLER classified on the corpus row — the indexing
+ * job's own catch, which knows the sentence a person reads. The corpus row
+ * is what the RAG watchdog consults: a row left at `processing` after the
+ * job had already given up read as a live chain, and the watchdog "revived"
+ * the file's `failed` status back to `running` with nothing behind it.
+ */
+export async function markCorpusIndexingFailed(
+  sql: Sql,
+  orgSlug: string,
+  fileId: string,
+  reason: string,
+): Promise<void> {
+  await markFailed(sql, orgSlug, fileId, reason);
+}
+
 /** Record a refusal on the document row so the reason survives the invocation
  * that produced it. */
 async function markFailed(

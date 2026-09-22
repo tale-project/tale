@@ -38084,6 +38084,33 @@ async function checkChatThreadSurface(
     `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${!listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
   );
 
+  // Palette search reads the whole live lineage: a body that exists ONLY on
+  // the hidden edit sibling is found, and the hit names the ROOT (the id the
+  // chat URL carries), never the sibling. The regenerate sibling — selected
+  // above, still active — is scanned the same way.
+  const branchOnlyBody = `branch only quokka ${Date.now()}`;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${editBranchId}, ${orgId}, 0, 0, 'user', ${branchOnlyBody},
+       ${sql.json(toJson([{ type: 'text', text: branchOnlyBody }]))},
+       'complete', ${Date.now()})
+  `;
+  const branchHit = hitsSchema.safeParse(
+    await get(
+      `/api/app/chat/threads/search?orgId=${orgId}&q=${encodeURIComponent('branch only quokka')}`,
+    ),
+  );
+  record(
+    'palette search finds a body saved on an edit branch, under the root',
+    branchHit.success &&
+      branchHit.data.results.some((hit) => hit.threadId === threadB) &&
+      !branchHit.data.results.some((hit) => hit.threadId === editBranchId),
+    `hits=${branchHit.success ? branchHit.data.results.map((hit) => hit.threadId).join(',') : 'ERR'} root=${threadB}`,
+  );
+
   // The AI-title lane: the TurnStore's first-user-message append on an
   // untitled thread enqueues the job; with no reachable model the fallback
   // (the message's own words) lands via the guarded fill-only write.

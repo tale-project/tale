@@ -97,6 +97,15 @@ export interface ChatTurnSender {
 }
 
 /**
+ * A hold the measure leaves out: the partner column of an arena pair. The
+ * pair is admitted as ONE unit up front (room for both requests), so the
+ * two opens must not refuse each other over the hold the other just wrote.
+ */
+export interface ChatTurnAdmissionExclude {
+  threadId: string;
+}
+
+/**
  * Refuse the turn when any cap that binds the sender is already reached,
  * counting what every turn in flight holds. The sender's teams and role are
  * read at call time, so a worker firing a parked or REST send measures them
@@ -105,7 +114,13 @@ export interface ChatTurnSender {
  */
 export async function assertChatTurnBudget(
   sql: Sql | TransactionSql,
-  args: ChatTurnSender & { now?: number },
+  args: ChatTurnSender & {
+    now?: number;
+    /** Room for this many further requests — a fan-out that opens more
+     * than one turn is admitted as one unit, never one column alone. */
+    prospectiveRequests?: number;
+    exclude?: ChatTurnAdmissionExclude;
+  },
 ): Promise<void> {
   const subject = await loadBudgetSubject(sql, {
     organizationId: args.organizationId,
@@ -113,8 +128,15 @@ export async function assertChatTurnBudget(
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
   });
   const violation = await findBudgetViolation(sql, subject, {
-    reservations: await readInFlightReservations(sql, subject),
+    reservations: await readInFlightReservations(
+      sql,
+      subject,
+      args.exclude !== undefined ? { threadId: args.exclude.threadId } : {},
+    ),
     ...(args.now !== undefined ? { now: args.now } : {}),
+    ...(args.prospectiveRequests !== undefined
+      ? { prospectiveRequests: args.prospectiveRequests }
+      : {}),
   });
   if (violation !== null) {
     throw new ChatBudgetExceededError(toChatBudgetRefusal(violation));
@@ -131,7 +153,11 @@ export async function assertChatTurnBudget(
 export async function admitChatTurnSpend(
   tx: TransactionSql,
   sender: ChatTurnSender,
+  exclude?: ChatTurnAdmissionExclude,
 ): Promise<void> {
   await lockBudgetAdmission(tx, sender.organizationId);
-  await assertChatTurnBudget(tx, sender);
+  await assertChatTurnBudget(tx, {
+    ...sender,
+    ...(exclude !== undefined ? { exclude } : {}),
+  });
 }

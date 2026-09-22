@@ -91,6 +91,46 @@ async function newestAssistantModel(
   return rows[0]?.model ?? null;
 }
 
+/**
+ * Whether a column has a reply to judge: its newest turn row (user or
+ * assistant) is a finished, error-free assistant reply with a model,
+ * written AFTER the pair formed. A trailing unanswered prompt, an error row
+ * (a side the fan-out could not start), a placeholder, or only the history
+ * copied at pairing — its rows carry the pairing instant — leaves nothing
+ * to rate, and a verdict recorded against it would attribute a comparison
+ * to a reply that never happened.
+ */
+async function hasJudgeableReply(
+  sql: Sql | TransactionSql,
+  threadId: string,
+  pairedAt: number,
+): Promise<boolean> {
+  const rows = await sql<
+    {
+      role: string;
+      model: string | null;
+      error: string | null;
+      status: string | null;
+      createdAt: number;
+    }[]
+  >`
+    SELECT role, model, error, status, created_at_ms::float8 AS "createdAt"
+    FROM app.messages
+    WHERE thread_id = ${threadId} AND role IN ('user', 'assistant')
+    ORDER BY "order" DESC, step_order DESC
+    LIMIT 1
+  `;
+  const newest = rows[0];
+  return (
+    newest !== undefined &&
+    newest.role === 'assistant' &&
+    newest.model !== null &&
+    newest.error === null &&
+    newest.status !== 'pending' &&
+    newest.createdAt > pairedAt
+  );
+}
+
 function mintPairId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -323,14 +363,18 @@ export async function getArenaPair(
 
 export type SettleArenaResult =
   | { continueThreadId: string }
-  | { refused: 'not_found' | 'busy' };
+  /** `one_sided`: a verdict was given, but a column has no finished reply
+   * to this round — nothing to compare, nothing recorded. */
+  | { refused: 'not_found' | 'busy' | 'one_sided' };
 
 /**
  * Settle the pair. The verdict picks the surviving thread (`b_better` → B,
  * everything else → A; no verdict = plain exit → A). The loser goes
  * hidden + archived with its marker cleared; a winning B graduates to a
  * standalone visible conversation. A verdict also records itself as a fresh
- * `message_feedback` row in the SAME transaction.
+ * `message_feedback` row in the SAME transaction — and only when BOTH
+ * columns hold a finished reply written since the pair formed; a plain exit
+ * needs no such round.
  */
 export async function settleArenaPair(
   sql: Sql,
@@ -374,6 +418,21 @@ export async function settleArenaPair(
     (await hasLiveGeneration(sql, args.organizationId, idB))
   ) {
     return { refused: 'busy' };
+  }
+
+  // A verdict compares THIS round's two replies. A column whose newest
+  // turn row is not a finished reply written since pairing — a side the
+  // fan-out could not start, an unanswered prompt, or only the copied
+  // history (which carries a model too) — has nothing to rate: the verdict
+  // is refused rather than attributed to a reply that never happened.
+  if (
+    args.verdict !== undefined &&
+    !(
+      (await hasJudgeableReply(sql, idA, arena.createdAt)) &&
+      (await hasJudgeableReply(sql, idB, arena.createdAt))
+    )
+  ) {
+    return { refused: 'one_sided' };
   }
 
   const winnerId = args.verdict === 'b_better' ? idB : idA;

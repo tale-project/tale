@@ -547,7 +547,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `failed` and `unsupported`. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed`, `secret_detected`, `pii_blocked`.',
+        'The stable cause to branch on, present with `failed` and `unsupported`. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, or the model answers vectors of another width than the settings state), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -5187,7 +5187,7 @@ export function buildSpec(): Json {
               minLength: 1,
               maxLength: 200,
               description:
-                'Model ID from GET /api/v1/models; never auto-selected. Checked at the door: an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN`.',
+                'Model ID from GET /api/v1/models; never auto-selected. Checked at the door: without `providerSlug`, an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN` (and an id listed under several providers `CHAT_MODEL_AMBIGUOUS`); with a `providerSlug` the pair is judged instead — an unknown provider answers `CHAT_PROVIDER_UNKNOWN`, a listed provider that does not serve the id `CHAT_MODEL_NOT_ON_PROVIDER`.',
             },
             providerSlug: {
               type: 'string',

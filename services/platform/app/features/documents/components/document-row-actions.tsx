@@ -18,6 +18,10 @@ import { useMemo, useCallback, useRef } from 'react';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
+import {
+  backendErrorCode,
+  backendErrorMessage,
+} from '@/lib/utils/backend-error';
 import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
@@ -154,9 +158,16 @@ export function DocumentRowActions({
         },
         onError: (error) => {
           console.error('Failed to delete folder:', error);
+          // `AppError.message` is the serialized payload by design; the
+          // readable sentence is `data.message`, and a retained record has
+          // its own explanation.
+          const message =
+            backendErrorCode(error) === 'DOCUMENT_RECORD_PROTECTED'
+              ? tDocuments('actions.deleteFolderProtectedRecord')
+              : backendErrorMessage(error, '');
           toast({
             title: tDocuments('actions.deleteFolderFailed'),
-            description: error instanceof Error ? error.message : undefined,
+            ...(message ? { description: message } : {}),
             variant: 'destructive',
           });
         },

@@ -367,7 +367,7 @@ Branch on `indexing.errorCode`, not the wording of `error`. The OpenAPI schema e
 | --- | --- |
 | `unsupported`: `unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed` | Replace or re-export the source in a supported format. For `not_text`, export actual UTF-8 text. `malformed` currently identifies an unreadable PDF; corrupt Office files can instead report `indexer_error`. The retry route skips terminal codes, including older rows still marked `failed`. |
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | The background job retries these failures. Poll before requesting another attempt. |
-| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Ask the operator to correct provider configuration, permissions, or index health, then retry. |
+| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Ask the operator to correct provider configuration, permissions, or index health, then retry. `embedding_provider_refused` also covers a model that answers vectors of another width than the settings state; saving corrected embedding settings re-queues every document that failed on the embedding model. |
 | `failed`: `secret_detected`, `pii_blocked` | Correct the source or the organization’s approved content policy before retrying. |
 
 `POST` and `PATCH` bodies are strict: `projectId` is refused with **400**. Create project files through the project upload and file routes below.

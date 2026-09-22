@@ -297,6 +297,28 @@ function budgetErrorResponse<E extends OrgEnv>(
   return c.json({ error: code, message, data: cap }, 429);
 }
 
+/**
+ * The early budget answer a door gives BEFORE it writes anything for a turn
+ * that has yet to start — the parked send, and the edit / regenerate forks
+ * whose second half is a turn. `null` when every cap that binds the sender
+ * still has room; the worker or the turn's open measures again.
+ */
+async function refuseWhenOverBudget<E extends OrgEnv>(
+  c: Context<E>,
+  sql: Sql,
+  sender: { organizationId: string; userId: string },
+): Promise<Response | null> {
+  try {
+    await assertChatTurnBudget(sql, sender);
+  } catch (error) {
+    if (error instanceof ChatBudgetExceededError) {
+      return budgetErrorResponse(c, error);
+    }
+    throw error;
+  }
+  return null;
+}
+
 async function listMessageViews(
   sql: Sql,
   organizationId: string,
@@ -722,6 +744,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
+    // The fork is the first half of a turn: a cap already reached refuses it
+    // HERE, so a send that cannot start leaves no sibling behind and no
+    // selection pointing at one — the view would follow it to a prefix-only
+    // branch with no fork row to navigate back from.
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     const branchId = await branchForEdit(
       deps.sql,
       organizationId,
@@ -742,6 +773,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
+    // The same early answer as the edit fork: refused before anything forks.
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     const branchId = await branchForRegenerate(
       deps.sql,
       organizationId,
@@ -1013,14 +1050,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     // A parked send fires later, but a cap already reached refuses it now —
     // the sender learns at once, not after the attachments finish. The
     // worker measures again when the send fires.
-    try {
-      await assertChatTurnBudget(deps.sql, { organizationId, userId });
-    } catch (error) {
-      if (error instanceof ChatBudgetExceededError) {
-        return budgetErrorResponse(c, error);
-      }
-      throw error;
-    }
+    const refused = await refuseWhenOverBudget(c, deps.sql, {
+      organizationId,
+      userId,
+    });
+    if (refused !== null) return refused;
     try {
       const enqueued = await enqueueDeferredSend(deps.sql, {
         organizationId,
@@ -1252,10 +1286,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const busy = { status: 'refused' as const, reason: THREAD_BUSY_REASON };
       return c.json({ a: busy, b: busy });
     }
-    // Both columns spend under the same caps: a reached cap refuses the
-    // pair up front, as a busy side does, rather than one column alone.
+    // Both columns spend under the same caps, so the PAIR is admitted as
+    // one unit: room for two requests up front, refused for both — as a
+    // busy side is — rather than one column alone. Each open then leaves
+    // its partner's hold out of its own measure (`admissionExclude`), so
+    // the second open cannot lose to the first over headroom this probe
+    // already granted the pair.
     try {
-      await assertChatTurnBudget(deps.sql, { organizationId, userId });
+      await assertChatTurnBudget(deps.sql, {
+        organizationId,
+        userId,
+        prospectiveRequests: 2,
+      });
     } catch (error) {
       if (!(error instanceof ChatBudgetExceededError)) throw error;
       const refused = {
@@ -1278,12 +1320,14 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     };
     const runSide = async (side: {
       threadId: string;
+      partnerThreadId: string;
       modelId: string;
       providerSlug?: string;
     }): Promise<{
       status: 'completed' | 'refused';
       reason?: string;
       persisted?: boolean;
+      code?: string;
     }> => {
       try {
         const outcome = await runChatTurn(deps.sql, {
@@ -1293,6 +1337,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ...(side.providerSlug !== undefined
             ? { providerSlug: side.providerSlug }
             : {}),
+          admissionExclude: { threadId: side.partnerThreadId },
         });
         return outcome.status === 'completed'
           ? { status: 'completed' }
@@ -1316,6 +1361,13 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         const reason = sanitizeError(
           describeChatError(err, 'The turn could not be started.'),
         );
+        // The refusal keeps its stable code: a cap reached between the
+        // pair's admission and this open (another sender's turn) is
+        // named as a budget stop, not a bare "Send failed".
+        const code =
+          err instanceof ChatBudgetExceededError
+            ? err.data.code
+            : classifyChatErrorCode(err);
         try {
           await appendMessageRow(deps.sql, {
             organizationId,
@@ -1332,12 +1384,13 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         } catch (writeErr) {
           console.error('[arena] could not record side failure', writeErr);
         }
-        return { status: 'refused', reason, persisted: true };
+        return { status: 'refused', reason, code, persisted: true };
       }
     };
     const [a, b] = await Promise.all([
       runSide({
         threadId: pair.threadIdA,
+        partnerThreadId: pair.threadIdB,
         modelId: body.data.modelIdA,
         ...(body.data.providerSlugA !== undefined
           ? { providerSlug: body.data.providerSlugA }
@@ -1345,6 +1398,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       }),
       runSide({
         threadId: pair.threadIdB,
+        partnerThreadId: pair.threadIdA,
         modelId: body.data.modelIdB,
         ...(body.data.providerSlugB !== undefined
           ? { providerSlug: body.data.providerSlugB }

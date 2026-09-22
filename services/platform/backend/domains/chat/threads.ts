@@ -1299,8 +1299,16 @@ export interface ChatSearchHit {
 
 /**
  * Chat search for the ⌘K palette — the 0.4 bounded, recency-biased scan:
- * the caller's newest ACTIVE threads, per thread their newest messages,
- * AND-matching lowercased tokens. A bounded miss beats an unbounded walk.
+ * the caller's newest ACTIVE root threads, per ROOT the newest messages
+ * across its whole live lineage, AND-matching lowercased tokens. A bounded
+ * miss beats an unbounded walk.
+ *
+ * The lineage matters: an edit or regenerate lands on a HIDDEN sibling
+ * (`createBranchSibling`) that is never unhidden, and the transcript the
+ * user reads is the selected sibling's — so a hit is looked for in every
+ * active, unarchived thread whose `branch_root_id` names the root (a settled
+ * Arena loser is archived and drops out) and reported under the root, whose
+ * id every chat URL names.
  */
 export async function searchChats(
   sql: Sql,
@@ -1326,17 +1334,21 @@ export async function searchChats(
     LIMIT ${SCAN_THREADS}
   `;
   if (threads.length === 0) return [];
+  const rootIds = threads.map((thread) => thread.id);
   const recent = await sql<
     { threadId: string; text: string | null; rank: number }[]
   >`
-    SELECT thread_id AS "threadId", text, rank FROM (
-      SELECT thread_id, text,
+    SELECT root_id AS "threadId", text, rank FROM (
+      SELECT coalesce(tm.branch_root_id, m.thread_id) AS root_id, m.text,
              row_number() OVER (
-               PARTITION BY thread_id
-               ORDER BY "order" DESC, step_order DESC
+               PARTITION BY coalesce(tm.branch_root_id, m.thread_id)
+               ORDER BY m."order" DESC, m.step_order DESC, m.created_at_ms DESC
              ) AS rank
-      FROM app.messages
-      WHERE thread_id IN ${sql(threads.map((thread) => thread.id))}
+      FROM app.messages m
+      JOIN app.thread_metadata tm ON tm.thread_id = m.thread_id
+      WHERE (tm.branch_root_id IN ${sql(rootIds)}
+             OR (tm.branch_root_id IS NULL AND m.thread_id IN ${sql(rootIds)}))
+        AND tm.status = 'active' AND tm.archived = false
     ) ranked
     WHERE rank <= ${SCAN_MESSAGES}
     ORDER BY "threadId", rank

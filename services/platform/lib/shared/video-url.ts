@@ -371,6 +371,32 @@ function collectUrlCandidates(text: string): UrlCandidate[] {
  *     forms of the same video collapse to one chip.
  *  6. Cap to `maxUrls` (default 3) — pastes of 100 URLs are an abuse vector.
  */
+/**
+ * The standalone playlist URLs on a recognized video host that
+ * `extractVideoUrls` skips — so the surface can SAY it skipped them. The
+ * extractor drops a playlist silently by design (a chip must never spawn a
+ * job for it), but a person who pasted one deserves the "playlists aren't
+ * supported" explanation the backend gives a submitted one, not plain text
+ * that looks accepted. Same cleaning and dedup as the extractor.
+ */
+export function findPlaylistUrls(text: string): string[] {
+  const cleaned = stripCodeBlocks(text);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of collectUrlCandidates(cleaned)) {
+    const cleanedUrl = stripTrailingNoise(candidate.url);
+    if (cleanedUrl.length === 0) continue;
+    if (!isSafeVideoUrl(cleanedUrl)) continue;
+    if (!isPlaylistUrl(cleanedUrl)) continue;
+    if (detectPlatform(cleanedUrl) === 'generic') continue;
+    const dedupKey = normalizeUrlForHash(cleanedUrl);
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+    out.push(cleanedUrl);
+  }
+  return out;
+}
+
 export function extractVideoUrls(
   text: string,
   opts: { maxUrls?: number } = {},

@@ -67,6 +67,14 @@ vi.mock('./send.ts', async (importOriginal) => {
   };
 });
 
+const { improveConversationMessage } = vi.hoisted(() => ({
+  improveConversationMessage: vi.fn(),
+}));
+vi.mock('./improve.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./improve.ts')>()),
+  improveConversationMessage,
+}));
+
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
@@ -99,6 +107,60 @@ function makeApp() {
     auth: {} as never,
   });
 }
+
+describe('POST /improve — the composer rewrite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    viewerRole.current = 'admin';
+  });
+  afterEach(() => {
+    viewerRole.current = 'admin';
+  });
+
+  const post = (body: unknown) =>
+    makeApp().request('/improve?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('answers the rewrite for the signed-in writer', async () => {
+    improveConversationMessage.mockResolvedValue({ improvedMessage: 'Better' });
+    const res = await post({ originalMessage: 'ok', instruction: 'warmer' });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ improvedMessage: 'Better' });
+    expect(improveConversationMessage).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+      originalMessage: 'ok',
+      instruction: 'warmer',
+    });
+  });
+
+  it('refuses an empty or oversized body before any model is asked', async () => {
+    expect((await post({ originalMessage: '' })).status).toBe(400);
+    expect((await post({})).status).toBe(400);
+    expect(improveConversationMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a reader out, the same as every other write', async () => {
+    viewerRole.current = 'viewer';
+    if (viewerCanWrite('viewer')) return;
+    expect((await post({ originalMessage: 'ok' })).status).toBe(403);
+    expect(improveConversationMessage).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the lane's coded refusal", async () => {
+    improveConversationMessage.mockRejectedValue(
+      new ConversationError('IMPROVE_UNAVAILABLE', 'no provider', 409),
+    );
+    const res = await post({ originalMessage: 'ok' });
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'IMPROVE_UNAVAILABLE',
+    });
+  });
+});
 
 describe('conversations route — connector filter wire contract', () => {
   beforeEach(() => {
@@ -336,7 +398,7 @@ describe('conversations route — every write door checks the role', () => {
 
   // A pattern that stops matching would make the gate assertion vacuous.
   it('finds the write doors', () => {
-    expect(writeRoutes.length).toBe(13);
+    expect(writeRoutes.length).toBe(14);
   });
 
   it('gates all of them but the admin-only assignment pair', () => {

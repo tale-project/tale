@@ -47,7 +47,7 @@ The target must accept programmatic focus. `tabIndex={-1}` makes the main region
 
 ## Check overlays and disabled controls
 
-A modal dialog traps focus while open and should return it to a useful opener on close. If that opener unmounts, supply a stable `restoreFocusRef`. Test Escape, explicit cancellation, completion, and a failed request. Nonmodal tooltips and popovers do not all share modal focus behavior; do not assume every overlay traps focus.
+A modal dialog traps focus while open and should return it to a useful opener on close. `Dialog`, `Sheet` and `ResponsiveDialog` all capture the opener themselves; if that opener unmounts, supply a stable `restoreFocusRef`. Test Escape, explicit cancellation, completion, and a failed request. Nonmodal tooltips and popovers do not all share modal focus behavior; do not assume every overlay traps focus. A popover that renders as `role="dialog"` still needs a name: point `aria-labelledby` at its visible heading, as `FilterPanel` does.
 
 `disabledReason` keeps supported disabled controls reachable so people can discover why an action is unavailable. Check both the tooltip and the blocked action. Keep essential instructions visible outside the tooltip as well.
 

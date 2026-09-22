@@ -6,7 +6,10 @@ import { shouldRagIndexOnUpload } from '../../../lib/shared/file-types.ts';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
-import { pinDimensions } from '../../core/knowledge/dimensions.ts';
+import {
+  EmbeddingDimensionMismatch,
+  pinDimensions,
+} from '../../core/knowledge/dimensions.ts';
 import {
   isOnDemandReadableName,
   ON_DEMAND_TEXT_MAX_BYTES,
@@ -23,7 +26,10 @@ import {
   type FetchedDocument,
 } from '../../core/knowledge/fetch.ts';
 import { KnowledgeIndexUnavailable } from '../../core/knowledge/index_health.ts';
-import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
+import {
+  indexWholeDocument,
+  markCorpusIndexingFailed,
+} from '../../core/knowledge/indexing.ts';
 import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
   getKnowledgePool,
@@ -689,6 +695,51 @@ async function writeRagStatus(
 }
 
 /**
+ * A failure of the indexing job, recorded on BOTH rows that describe it: the
+ * file's status (what the document list shows) and the corpus document (what
+ * the RAG watchdog consults). Recording only the first left the corpus row at
+ * `processing` after the job had given up, and the watchdog — reading a live
+ * chain — flipped the file back to `running` with no job behind it, for as
+ * long as the row looked fresh. The corpus write is best-effort: a knowledge
+ * database fault must not hide the failure that was just classified.
+ */
+async function recordIndexingFailure(
+  sql: Sql,
+  args: {
+    fileId: string;
+    orgSlug: string;
+    storageRef: string;
+    ragStatus: 'failed' | 'unsupported';
+    ragError: string;
+    ragErrorCode: string;
+  },
+): Promise<void> {
+  await writeRagStatus(sql, args.fileId, {
+    ragStatus: args.ragStatus,
+    ragError: args.ragError,
+    ragErrorCode: args.ragErrorCode,
+  });
+  try {
+    const pool = await getKnowledgePoolForOrg(args.orgSlug);
+    await markCorpusIndexingFailed(
+      pool,
+      args.orgSlug,
+      args.storageRef,
+      args.ragError,
+    );
+  } catch (error) {
+    console.warn(
+      '[knowledge] could not record the indexing failure on the corpus row',
+      {
+        fileId: args.fileId,
+        orgSlug: args.orgSlug,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+}
+
+/**
  * Persist what extraction learned about the file: how many pages it has, how
  * many of them are scans, and whether OCR actually ran on them. Only the PDF
  * leg answers these today, so a format that reports nothing leaves the
@@ -981,13 +1032,19 @@ export async function indexUploadedFile(
         { cause: error },
       );
     }
+    const failure = {
+      fileId,
+      orgSlug,
+      storageRef: file.storageRef,
+      ragStatus: 'failed' as const,
+    };
     if (error instanceof KnowledgeIndexUnavailable) {
       // The corpus's BM25 index is being rebuilt (or its rebuild failed): a
       // refusal, not a failure — retrying now would hit the same wall, so the
       // job ends here. A rebuild that verifies re-queues every file refused
       // while it ran; a failed one names the operator's move in the prose.
-      await writeRagStatus(sql, fileId, {
-        ragStatus: 'failed',
+      await recordIndexingFailure(sql, {
+        ...failure,
         ragError: error.message,
         ragErrorCode: error.code,
       });
@@ -998,11 +1055,25 @@ export async function indexUploadedFile(
       // dialog show the Settings → Data residency deep link (or "ask an
       // admin"), and the prose says the same for everyone reading the raw
       // status — an operator file path is not something a member can act on.
-      await writeRagStatus(sql, fileId, {
-        ragStatus: 'failed',
+      await recordIndexingFailure(sql, {
+        ...failure,
         ragError:
           'No embedding model is configured for this organization. An admin can set one under Settings → Data residency → Embedding model, then retry indexing.',
         ragErrorCode: RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+      });
+      return;
+    }
+    // The model answers vectors of another width than the settings state
+    // (a provider that ignores the requested `dimensions`), or than the
+    // database is pinned to. Nothing heals by waiting — the same call
+    // answers the same width — so the job ends here with both numbers on
+    // the file; an admin corrects the width or the model and saves, which
+    // re-queues the document.
+    if (error instanceof EmbeddingDimensionMismatch) {
+      await recordIndexingFailure(sql, {
+        ...failure,
+        ragError: `${error.message} Correct the embedding settings under Settings → Data residency → Embedding model (the vector width, or the model) and save; indexing then resumes by itself.`,
+        ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
       return;
     }
@@ -1012,8 +1083,8 @@ export async function indexUploadedFile(
     // account or settings and retries indexing.
     const refusal = classifyEmbeddingFailure(error);
     if (refusal === 'credit' || refusal === 'credential') {
-      await writeRagStatus(sql, fileId, {
-        ragStatus: 'failed',
+      await recordIndexingFailure(sql, {
+        ...failure,
         ragError: `${EMBEDDING_FAILURE_PROSE[refusal]}. Fix the provider account or settings, then retry indexing: ${error instanceof Error ? error.message : String(error)}`,
         ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
@@ -1024,7 +1095,8 @@ export async function indexUploadedFile(
     // terminal `unsupported`, with its code, and NO rethrow: the job's five
     // retries used to re-download, re-extract and re-embed the same bytes.
     if (error instanceof ExtractionError) {
-      await writeRagStatus(sql, fileId, {
+      await recordIndexingFailure(sql, {
+        ...failure,
         ragStatus: 'unsupported',
         ragError: error.message,
         ragErrorCode:
@@ -1045,15 +1117,15 @@ export async function indexUploadedFile(
       error: error instanceof Error ? error.message : String(error),
     });
     if (refusal === 'upstream') {
-      await writeRagStatus(sql, fileId, {
-        ragStatus: 'failed',
+      await recordIndexingFailure(sql, {
+        ...failure,
         ragError: `${EMBEDDING_FAILURE_PROSE.upstream}; indexing is retried automatically.`,
         ragErrorCode: RAG_ERROR_EMBEDDING_UPSTREAM,
       });
       throw error;
     }
-    await writeRagStatus(sql, fileId, {
-      ragStatus: 'failed',
+    await recordIndexingFailure(sql, {
+      ...failure,
       ragError:
         'Indexing failed on the platform’s side; it is retried automatically, and the cause is in the platform log.',
       ragErrorCode: RAG_ERROR_INDEXER_ERROR,
@@ -1063,16 +1135,20 @@ export async function indexUploadedFile(
 }
 
 /**
- * Re-queue every document that failed for want of an embedding model.
+ * Re-queue every document that failed on the embedding model — for want of
+ * one, on the provider refusing the account or the credential, on the model
+ * answering the wrong width, or on a provider that could not serve the call
+ * until the job's retries ran out.
  *
- * Configuring one did not previously fix anything: each document that failed
- * while unconfigured stayed `failed`, and the only remedy was knowing to
- * retry every one by hand. The failure text tells the operator to "set one
+ * Configuring a model did not previously fix anything: each document that
+ * failed while unconfigured stayed `failed`, and the only remedy was knowing
+ * to retry every one by hand. The failure text tells the operator to "set one
  * under Settings → Data residency … then retry indexing" — following it
- * exactly left them no better off, one document at a time.
+ * exactly left them no better off, one document at a time. The same held for
+ * a wrong endpoint or width: the save that corrected it re-queued nothing.
  *
- * Scoped by `rag_error_code`, not by status: `embedding_not_configured` is
- * stamped by exactly this cause, so a document that failed for any other
+ * Scoped by `rag_error_code`, not by status: the three embedding codes are
+ * stamped by exactly these causes, so a document that failed for any other
  * reason (a secret, a PII block, an unreadable file) is left alone — its
  * operator still has the per-document Retry.
  *
@@ -1096,7 +1172,11 @@ export async function requeueEmbeddingBlockedDocuments(
         rag_error_code = NULL
       WHERE org_id = ${args.organizationId}
         AND rag_status = 'failed'
-        AND rag_error_code = ${RAG_ERROR_EMBEDDING_NOT_CONFIGURED}
+        AND rag_error_code IN (
+          ${RAG_ERROR_EMBEDDING_NOT_CONFIGURED},
+          ${RAG_ERROR_EMBEDDING_PROVIDER_REFUSED},
+          ${RAG_ERROR_EMBEDDING_UPSTREAM}
+        )
         AND skip_rag_indexing IS DISTINCT FROM true
       RETURNING id
     `;

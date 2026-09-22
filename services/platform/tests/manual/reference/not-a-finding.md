@@ -23,6 +23,22 @@ here the first time a round re-files it.
 
 ## Product quirks
 
+- **A secret field is a `type="text"` input masked with CSS, not a
+  `type="password"` control.** API-key and token fields (`sensitive` on
+  `@tale/ui` `Input`) render `type="text"` with `-webkit-text-security: disc`,
+  `autocomplete="off"` and the password-manager opt-outs, so Chrome's saved-
+  password dropdown and "suggest strong password" stay away from a field that
+  is not a password (#1912; locked by `input.test.tsx` and the `Input` guide).
+  The accessibility tree therefore exposes the typed value as a plain
+  textbox — a property of any text control, not a leak: stored secrets are
+  never echoed into the field. Report it only if a round finds a stored value
+  rendered into the field.
+- **A client-side search, filter or sort on a paginated list drains every
+  page.** The contacts table (and every `useListPage` list) fetches one page
+  at rest, but a search box, facet or sort that is evaluated client-side
+  intentionally loads the remaining pages so the result is complete (#2054) —
+  eleven list responses after typing a query are that drain, not eager
+  paging. PERF-B2 measures the resting page only.
 - **A wizard-created org in mode A is not provider-wired.** It lands on chat's
   **No AI provider connected yet** empty state with zero credentials; add the
   mock provider under Settings → AI providers, or mint the org through

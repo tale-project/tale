@@ -253,6 +253,20 @@ default is an external bucket rather than the bundled store.
   route) → after ~30 s `tale_backend_store_up{store="object_store"}` reads
   `0` while `GET /ready` stays `200` (a flapping store must not drain the
   colour).
+- [ ] `DATA-F10` · **Discard collapses an unsaved external mode** — With
+  External Postgres and External S3 both saved OFF, switch **External
+  Postgres** (`settings.dataResidency.externalPostgres`) on, type a Host, do NOT save
+  or test → activate the header **Discard** → the Host is cleared AND the
+  switch returns to off with its panel collapsed; the same for **External
+  S3**. Reload → both still off. A Discard must never leave the page showing
+  an external mode that was not saved.
+- [ ] `DATA-F11` · **Saving embedding settings re-queues the documents they
+  failed** — With documents whose RAG status is **Failed** for an embedding
+  cause (no model, a provider refusal or a wrong vector width, or a provider
+  that could not serve the call until the retries ran out), correct the
+  **Embedding model** section and **Save** → every such document returns to
+  **Queued** and indexes without a per-row Retry; a document that failed on a
+  secret or a PII block stays **Failed** with its own reason.
 
 ## Accessibility
 

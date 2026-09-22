@@ -42,6 +42,10 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: mockLegalHold }),
 }));
 
+const { deleteFolderMutate } = vi.hoisted(() => ({
+  deleteFolderMutate: vi.fn(),
+}));
+
 vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
@@ -54,7 +58,7 @@ vi.mock('../hooks/mutations', () => ({
   useCancelOneDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCancelGoogleDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteFolder: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteFolder: () => ({ mutate: deleteFolderMutate, isPending: false }),
   useMarkDocumentControlled: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
@@ -75,6 +79,20 @@ vi.mock('./document-replace-file-dialog', () => ({
   },
 }));
 
+// The folder confirm reduces to its confirm control: the toast after a
+// refused delete is what the test judges, not the dialog's copy.
+vi.mock('./document-delete-folder-dialog', () => ({
+  DocumentDeleteFolderDialog: (props: {
+    open: boolean;
+    onConfirmDelete: () => void;
+  }) =>
+    props.open ? (
+      <button type="button" onClick={props.onConfirmDelete}>
+        confirm-delete-folder
+      </button>
+    ) : null,
+}));
+
 vi.mock('./document-record-submit-dialog', () => ({
   DocumentRecordSubmitDialog: (props: {
     open: boolean;
@@ -88,6 +106,10 @@ vi.mock('./document-record-submit-dialog', () => ({
   },
 }));
 
+import { toast } from '@tale/ui/use-toast';
+
+import { AppError } from '@/lib/shared/errors/app-error';
+
 import { DocumentRowActions } from './document-row-actions';
 
 beforeEach(() => {
@@ -98,6 +120,50 @@ beforeEach(() => {
 });
 
 describe('DocumentRowActions', () => {
+  describe('folder delete refusal', () => {
+    // `AppError.message` is the serialized payload by design, and the toast
+    // used to print it verbatim: `{"code":"DOCUMENT_RECORD_PROTECTED",…}`
+    // (KNOW-B5). The description is the readable explanation instead.
+    it('explains a retained record in words, not serialized JSON', async () => {
+      deleteFolderMutate.mockImplementation(
+        (_args: unknown, options?: { onError?: (error: unknown) => void }) => {
+          options?.onError?.(
+            new AppError({
+              code: 'DOCUMENT_RECORD_PROTECTED',
+              message: 'A retained record cannot be deleted.',
+            }),
+          );
+        },
+      );
+      const user = userEvent.setup();
+      render(
+        <DocumentRowActions
+          documentId="folder-1"
+          itemType="folder"
+          name="Meetings"
+        />,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      await user.click(screen.getByText('common.actions.delete'));
+      await user.click(
+        await screen.findByRole('button', { name: 'confirm-delete-folder' }),
+      );
+
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'documents.actions.deleteFolderFailed',
+          description: 'documents.actions.deleteFolderProtectedRecord',
+          variant: 'destructive',
+        }),
+      );
+      const description = vi.mocked(toast).mock.calls.at(-1)?.[0]
+        ?.description as string;
+      expect(description.startsWith('{')).toBe(false);
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit for file row actions', async () => {
       const { container } = render(

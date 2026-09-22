@@ -68,6 +68,123 @@ const ARGS = {
   threadId: 'thread_a',
 };
 
+/** A finished reply written after the pair formed (`createdAt: 1`). */
+const FRESH_REPLY = {
+  role: 'assistant',
+  model: 'model-x',
+  error: null,
+  status: 'complete',
+  createdAt: 50,
+};
+
+const PAIR_OF = (threadId: unknown) =>
+  threadId === 'thread_a'
+    ? { pairId: 'pair', role: 'a', partnerThreadId: 'thread_b', createdAt: 1 }
+    : { pairId: 'pair', role: 'b', partnerThreadId: 'thread_a', createdAt: 1 };
+
+/** The settle's reads answered; `newestOf` scripts each column's newest
+ * turn row (the judgeable read), everything else is empty. */
+function settleSql(newestOf: (threadId: unknown) => unknown[]) {
+  return fakeSql((statement) => {
+    if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
+    if (statement.text.includes('SELECT arena FROM')) {
+      return [{ arena: PAIR_OF(statement.values[0]) }];
+    }
+    if (statement.text.includes('SELECT role, model, error, status')) {
+      return newestOf(statement.values[0]);
+    }
+    if (statement.text.includes('SELECT model FROM app.messages')) {
+      return [{ model: 'model-x' }];
+    }
+    return [];
+  });
+}
+
+/**
+ * A verdict compares THIS round's two replies: a column whose newest turn
+ * row is not a finished reply written since pairing — an error row, an
+ * unanswered prompt, or only the copied history — has nothing to rate, so
+ * the verdict is refused and nothing is written. A plain exit needs no round.
+ */
+describe('settleArenaPair verdict integrity', () => {
+  const writes = (statements: Statement[]) =>
+    statements.filter(
+      (s) => s.text.includes('UPDATE') || s.text.includes('INSERT'),
+    );
+
+  it('refuses a verdict when one column holds only an error row, writing nothing', async () => {
+    const { sql, statements } = settleSql((threadId) =>
+      threadId === 'thread_a'
+        ? [FRESH_REPLY]
+        : [{ ...FRESH_REPLY, error: '{"code":"PROVIDER_4XX"}' }],
+    );
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'a_better' }),
+    ).resolves.toEqual({ refused: 'one_sided' });
+    expect(writes(statements)).toEqual([]);
+  });
+
+  it('refuses a verdict when a column ends on an unanswered prompt', async () => {
+    const { sql, statements } = settleSql((threadId) =>
+      threadId === 'thread_b'
+        ? [FRESH_REPLY]
+        : [
+            {
+              role: 'user',
+              model: null,
+              error: null,
+              status: 'complete',
+              createdAt: 40,
+            },
+          ],
+    );
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'tie' }),
+    ).resolves.toEqual({ refused: 'one_sided' });
+    expect(writes(statements)).toEqual([]);
+  });
+
+  it('refuses a verdict when a column has only the history copied at pairing', async () => {
+    const { sql } = settleSql((threadId) =>
+      threadId === 'thread_a'
+        ? [FRESH_REPLY]
+        : [{ ...FRESH_REPLY, createdAt: 1 }],
+    );
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'b_better' }),
+    ).resolves.toEqual({ refused: 'one_sided' });
+  });
+
+  it('records the verdict once both columns hold a finished reply to the round', async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'a_better' }),
+    ).resolves.toEqual({ continueThreadId: 'thread_a' });
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.message_feedback'),
+      ),
+    ).toBe(true);
+  });
+
+  it('still settles a plain exit on a one-sided round, without a feedback row', async () => {
+    const { sql, statements } = settleSql(() => [
+      { ...FRESH_REPLY, error: 'boom' },
+    ]);
+    await expect(settleArenaPair(sql, ARGS)).resolves.toEqual({
+      continueThreadId: 'thread_a',
+    });
+    expect(
+      statements.some((s) => s.text.includes('SELECT role, model, error')),
+    ).toBe(false);
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.message_feedback'),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe('ensureArenaPair', () => {
   it("gives column B the conversation's project filing and effort pick", async () => {
     const { sql, statements } = fakeSql((statement) => {
@@ -116,6 +233,9 @@ describe('settleArenaPair', () => {
       if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
       if (statement.text.includes('SELECT arena FROM')) {
         return [{ arena: arenaOf(statement.values[0]) }];
+      }
+      if (statement.text.includes('SELECT role, model, error, status')) {
+        return [FRESH_REPLY];
       }
       return [];
     });

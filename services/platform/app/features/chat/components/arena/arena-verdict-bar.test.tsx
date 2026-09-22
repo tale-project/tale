@@ -42,6 +42,32 @@ describe('ArenaVerdictBar', () => {
     }
   });
 
+  it('holds the verdicts — not the exit — while a column has no reply to rate, and says why', async () => {
+    const onExit = vi.fn();
+    const { user } = render(
+      <ArenaVerdictBar
+        disabled={false}
+        verdictDisabled
+        hint="Both columns need a finished reply to this round before a verdict"
+        onVerdict={vi.fn()}
+        onExit={onExit}
+      />,
+    );
+    const group = screen.getByRole('group', { name: 'Choose a verdict' });
+    for (const name of ['A is better', 'B is better', 'Tie', 'Both bad']) {
+      expect(within(group).getByRole('button', { name })).toBeDisabled();
+    }
+    expect(within(group).getByRole('status')).toHaveTextContent(
+      'Both columns need a finished reply to this round before a verdict',
+    );
+    const exit = within(group).getByRole('button', {
+      name: 'Exit without verdict',
+    });
+    expect(exit).toBeEnabled();
+    await user.click(exit);
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <ArenaVerdictBar disabled={false} onVerdict={vi.fn()} onExit={vi.fn()} />,

@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { policyEnabled } from '../lib/policy-enabled';
 import type { PiiConfigPanelValue } from './pii/pii-config-panel';
 
 // The PII engine (which `PiiConfigPanel` transitively imports from
@@ -66,10 +67,10 @@ type PiiPolicy = ReturnType<typeof useGovernancePolicy>['data'];
 /**
  * A policy's `config` is free-form on the wire — one read serves every policy
  * type — so the panel reads its own three fields out FIELD BY FIELD rather
- * than validating the whole file. A partially-written config (the panel's own
- * writes carry `enabled` at the policy level, not inside `config`) must still
+ * than validating the whole file. A partially-written config must still
  * render what it does have; whole-object validation would discard an
- * operator's configured mode and patterns as if nothing were set.
+ * operator's configured mode and patterns as if nothing were set. The on/off
+ * flag is `config.enabled` too — see `policyEnabled`.
  */
 function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
   const config = readRecord(policy?.config);
@@ -140,7 +141,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const [enabled, setEnabled] = useState(() => policy?.enabled ?? false);
+  const [enabled, setEnabled] = useState(() => policyEnabled(policy));
   const [value, setValue] = useState<PiiConfigPanelValue>(() =>
     deriveValue(policy),
   );
@@ -154,7 +155,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const syncedRef = useRef(policy != null);
   if (!syncedRef.current && policy != null) {
     syncedRef.current = true;
-    setEnabled(policy.enabled ?? false);
+    setEnabled(policyEnabled(policy));
     setValue(deriveValue(policy));
   }
 

@@ -156,7 +156,7 @@ Authoring methods:
 - list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
 - deploy_automation    params {name, version}         → mark the version triggers run
 - set_trigger          params {name, trigger}         → host-managed trigger binding
-- run_deployed         params {name, input}           → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll
+- run_deployed         params {name, input, idempotencyKey?} → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll. idempotencyKey shares start_run's and the REST door's ledger: a repeat answers the first run with duplicate: true
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:

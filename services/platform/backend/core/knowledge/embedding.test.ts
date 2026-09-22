@@ -325,6 +325,122 @@ describe('account refusals from the provider', () => {
 });
 
 describe('batching', () => {
+  // DashScope's compatible mode refuses a batch over its per-model cap (10
+  // or 25 texts) with a 400 naming the number; a document with more chunks
+  // than that could never index, every retry re-sending the same batch.
+  describe('a provider that caps the batch', () => {
+    const tooLarge = OpenAI.APIError.generate(
+      400,
+      {
+        error: {
+          message:
+            'InternalError.Algo.InvalidParameter: Value error, batch size is invalid, it should not be larger than 25.: input.contents',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    const cappedAt = (cap: number) =>
+      create.mockImplementation((args) =>
+        args.input.length > cap
+          ? Promise.reject(tooLarge)
+          : Promise.resolve({
+              data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+            }),
+      );
+
+    it('learns the cap from the refusal and sends the batch again in parts', async () => {
+      cappedAt(25);
+      const embedder = new Embedder(
+        { ...MODEL, model: 'capped-25' },
+        'sk-test',
+      );
+
+      const vectors = await embedder.embedAll(
+        Array.from({ length: MAX_BATCH + 1 }, (_, i) => `text ${i}`),
+      );
+
+      expect(vectors).toHaveLength(MAX_BATCH + 1);
+      const sizes = create.mock.calls.map(([args]) => args.input.length);
+      // The full batch is refused once, then goes out in parts of the cap;
+      // the sibling batch of one was never over it.
+      expect(sizes[0]).toBe(MAX_BATCH);
+      expect(sizes.filter((size) => size > 25)).toEqual([MAX_BATCH]);
+      expect(sizes.slice(1).reduce((sum, size) => sum + size, 0)).toBe(
+        MAX_BATCH + 1,
+      );
+    });
+
+    it('starts the next call below the cap it learned for the lane', async () => {
+      cappedAt(25);
+      const embedder = new Embedder(
+        { ...MODEL, model: 'capped-25' },
+        'sk-test',
+      );
+      await embedder.embedAll(
+        Array.from({ length: MAX_BATCH + 1 }, (_, i) => `text ${i}`),
+      );
+      create.mockClear();
+
+      await embedder.embedAll(
+        Array.from({ length: 60 }, (_, i) => `later ${i}`),
+      );
+
+      const sizes = create.mock.calls.map(([args]) => args.input.length);
+      expect(Math.max(...sizes)).toBeLessThanOrEqual(25);
+      expect(sizes.reduce((sum, size) => sum + size, 0)).toBe(60);
+    });
+
+    it('halves the batch when the refusal names no number', async () => {
+      const unnumbered = OpenAI.APIError.generate(
+        400,
+        { error: { message: 'batch size is invalid' } },
+        undefined,
+        new Headers(),
+      );
+      create.mockImplementation((args) =>
+        args.input.length > 8
+          ? Promise.reject(unnumbered)
+          : Promise.resolve({
+              data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+            }),
+      );
+      const embedder = new Embedder(
+        { ...MODEL, model: 'capped-unnumbered' },
+        'sk-test',
+      );
+
+      const vectors = await embedder.embedAll(
+        Array.from({ length: 16 }, (_, i) => `text ${i}`),
+      );
+
+      expect(vectors).toHaveLength(16);
+      expect(create.mock.calls.map(([args]) => args.input.length)).toEqual([
+        16, 8, 8,
+      ]);
+    });
+
+    it('leaves every other 400 to fail the call', async () => {
+      create.mockRejectedValue(
+        OpenAI.APIError.generate(
+          400,
+          { error: { message: 'input must not be empty' } },
+          undefined,
+          new Headers(),
+        ),
+      );
+      const embedder = new Embedder(
+        { ...MODEL, model: 'other-400' },
+        'sk-test',
+      );
+
+      await expect(embedder.embedAll(['a', 'b'])).rejects.toBeInstanceOf(
+        OpenAI.APIError,
+      );
+      expect(create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('never sends more texts per request than the tightest shipped cap', async () => {
     // Z.ai's embedding-3 refuses more than 64 inputs (error 1214) before it
     // bills anything; a document with more chunks than that must still index.

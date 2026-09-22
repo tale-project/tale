@@ -263,6 +263,9 @@ export function OrgStorageSection({
     defaultValues: EMPTY_FORM,
     schema,
     save: saveForm,
+    // The reveal switch lives outside the form, so a Discard — the header's
+    // as much as this section's — has to put it back to the saved state too.
+    onReset: () => setEnabled(configured),
     mapServerError,
   });
   useRegisterGroupedEditor(editor, { enabled: !readOnly });
@@ -355,8 +358,8 @@ export function OrgStorageSection({
       setClearConfirmOpen(true);
       return;
     }
+    // `onReset` collapses the panel: nothing is saved, so `configured` is off.
     editor.reset();
-    setEnabled(false);
   }
 
   const run = backfillStatus.data;

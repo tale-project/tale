@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   detectPlatform,
   extractVideoUrls,
+  findPlaylistUrls,
   isPlaylistUrl,
   isSafeVideoUrl,
   normalizeUrlForHash,
@@ -358,6 +359,22 @@ describe('extractVideoUrls', () => {
       'https://localhost/abc and https://127.0.0.1/x and https://[::1]/y',
     );
     expect(out).toHaveLength(0);
+  });
+
+  it('reports the playlist URLs it skipped, so the composer can explain', () => {
+    expect(
+      findPlaylistUrls(
+        'see https://www.youtube.com/playlist?list=PLabc and www.youtube.com/playlist?list=PLabc',
+      ),
+    ).toEqual(['https://www.youtube.com/playlist?list=PLabc']);
+    // A video inside a playlist is a video, not a playlist.
+    expect(
+      findPlaylistUrls('https://www.youtube.com/watch?v=abc&list=PLabc'),
+    ).toEqual([]);
+    expect(findPlaylistUrls('https://example.com/playlist?list=PL1')).toEqual(
+      [],
+    );
+    expect(findPlaylistUrls('no links here')).toEqual([]);
   });
 
   it('rejects playlist URLs', () => {

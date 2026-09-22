@@ -119,9 +119,9 @@ export function SkillDetailPane({
         ...(form.metadata.sharing.visibility === 'team'
           ? { teams: [...form.metadata.sharing.teams] }
           : {}),
-        ...(form.metadata.icon !== undefined
-          ? { icon: form.metadata.icon }
-          : {}),
+        // `null` clears a stored icon; an omitted field keeps it (the door's
+        // documented contract), so "No icon" has to be sent, not dropped.
+        icon: form.metadata.icon ?? null,
         labels: parseLabelsInput(form.metadata.labels),
       });
       setForm(null); // Re-seed from the fresh document.

@@ -258,8 +258,11 @@ export function UserButton({
                 loading={loading || !user}
                 label={t('userButton.defaultName')}
               >
-                <Text className="font-semibold">
-                  <SkeletonBox>
+                {/* `truncate` on both: the box is a block so the ellipsis
+                    lands on the name itself; a menu is `w-64`, and an
+                    unbreakable 87-character name used to run past it. */}
+                <Text truncate className="font-semibold">
+                  <SkeletonBox fullWidth className="truncate">
                     {!loading && user ? (
                       displayName
                     ) : (
@@ -268,8 +271,8 @@ export function UserButton({
                   </SkeletonBox>
                 </Text>
                 {(loading || !user || displayName !== user.email) && (
-                  <Text variant="muted">
-                    <SkeletonBox>
+                  <Text truncate variant="muted">
+                    <SkeletonBox fullWidth className="truncate">
                       {!loading && user ? (
                         user.email
                       ) : (

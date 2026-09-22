@@ -192,8 +192,13 @@ rows lead with the subject.
   (`conversations.editor.generateImprovement`) → The **Message improvement
   preview** dialog (`conversations.improvement.title`) shows Original vs
   Improved; **Accept changes** replaces the draft, **Reject** keeps it
-  (`conversations.improvement.accept` / `.reject`); failure toasts
-  `conversations.editor.improveFailed`
+  (`conversations.improvement.accept` / `.reject`). The rewrite is a real
+  bounded model call on the writer's chat model (or the first servable
+  direct model) — check Usage books it under the `inbox-improve` agent. With
+  no AI provider connected, the toast reads
+  `conversations.editor.improveFailed` with
+  `conversations.editor.improveUnavailable`; any other failure toasts
+  `conversations.editor.improveFailed` with the door's reason.
 - [ ] `CONV-F9` · **Status transition (single)** — Open a conversation →
   **More actions** (`conversations.header.moreActions`) → **Close
   conversation** (`conversations.header.closeConversation`); reopen via
@@ -228,7 +233,9 @@ rows lead with the subject.
   thread → The draft renders in the reading pane as a **pending message** below
   the thread; nothing has been sent and the customer's mailbox is untouched.
   Send from the composer → the pending message resolves into the sent reply and
-  the draft does not reappear on reload. Draft twice on one conversation → the
+  the draft does not reappear on reload — on an email conversation AND on a
+  native API-source conversation (whose reply is queued for its source rather
+  than handed to a mail connector). Draft twice on one conversation → the
   pane still shows exactly one pending message (migration 0108's partial unique
   index), and the second call reports the first card rather than minting a twin.
 

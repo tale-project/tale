@@ -30,6 +30,12 @@ interface ArenaColumnProps {
   onReplySettled?: (reply: ArenaSettledReply) => void;
   /** The reply carrying the arena voice pill (column A only). */
   voicePillMessageId?: string;
+  /** When the pair formed (epoch ms): only a reply written after it can be
+   * judged — the history copied at pairing is not this column's answer. */
+  judgedSince?: number;
+  /** Reports whether this column holds a reply the verdict can rate — the
+   * split view gates the verdict buttons on both columns saying yes. */
+  onJudgeableChange?: (judgeable: boolean) => void;
 }
 
 export const ArenaColumn = memo(function ArenaColumn({
@@ -39,6 +45,8 @@ export const ArenaColumn = memo(function ArenaColumn({
   headerExtra,
   onReplySettled,
   voicePillMessageId,
+  judgedSince,
+  onJudgeableChange,
 }: ArenaColumnProps) {
   const view = useThreadView(organizationId, threadId);
 
@@ -61,6 +69,22 @@ export const ArenaColumn = memo(function ArenaColumn({
     reportedRef.current = settledTail.id;
     onReplySettled({ messageId: settledTail.id, text: settledTail.text });
   }, [settledTail, onReplySettled]);
+
+  // Whether there is a reply to judge: the newest row is a finished,
+  // error-free assistant reply written since the pair formed. An
+  // unanswered prompt, an error row (a side the fan-out could not start),
+  // or only the copied history reads as "nothing to rate" — the same rule
+  // the settle door enforces.
+  const judgeable =
+    last !== undefined &&
+    last.role === 'assistant' &&
+    !last.isStreaming &&
+    last.error === undefined &&
+    last.status !== 'pending' &&
+    (judgedSince === undefined || last.createdAt > judgedSince);
+  useEffect(() => {
+    onJudgeableChange?.(judgeable);
+  }, [judgeable, onJudgeableChange]);
 
   return (
     <section

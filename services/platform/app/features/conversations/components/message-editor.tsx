@@ -22,6 +22,10 @@ import { useAuth } from '@/app/hooks/use-session-user';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import { useT } from '@/lib/i18n/client';
+import {
+  backendErrorCode,
+  backendErrorMessage,
+} from '@/lib/utils/backend-error';
 
 import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
@@ -180,21 +184,20 @@ function MilkdownEditorInner({
           organizationId,
         });
 
-        if (result.error) {
-          toast({
-            title: result.error,
-            variant: 'destructive',
-          });
-          return;
-        }
-
         setImprovedContent(result.improvedMessage);
         setShowPreviewDialog(true);
         setIsImproveMode(false);
       } catch (error) {
         console.error('Failed to improve content:', error);
+        // No provider is a configuration fact the person can act on; every
+        // other refusal carries the door's own sentence.
+        const description =
+          backendErrorCode(error) === 'IMPROVE_UNAVAILABLE'
+            ? tConversations('editor.improveUnavailable')
+            : backendErrorMessage(error, '');
         toast({
           title: tConversations('editor.improveFailed'),
+          ...(description ? { description } : {}),
           variant: 'destructive',
         });
       }

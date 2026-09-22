@@ -2,7 +2,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '../../core/knowledge/rag_error_codes.ts';
+import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+  RAG_ERROR_EMBEDDING_UPSTREAM,
+  RAG_ERROR_SECRET_DETECTED,
+} from '../../core/knowledge/rag_error_codes.ts';
 
 /**
  * Configuring an embedding model has to fix the documents that failed for
@@ -82,9 +87,17 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     const [statement] = statements;
     // Too wide would retry a secret-detected or PII-blocked document on
     // every save; too narrow leaves the stall in place.
-    expect(statement).toContain('rag_error_code =');
+    expect(statement).toContain('rag_error_code IN (');
     expect(statement).toContain("rag_status = 'failed'");
+    // Every failure the embedding settings can cure: no model, a provider
+    // refusing the account/credential or answering the wrong width, and a
+    // provider that could not serve the call until the retries ran out (a
+    // wrong endpoint reads that way). A save that fixes the endpoint used
+    // to re-queue nothing, and the stalled file showed no Retry.
     expect(values[0]).toContain(RAG_ERROR_EMBEDDING_NOT_CONFIGURED);
+    expect(values[0]).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+    expect(values[0]).toContain(RAG_ERROR_EMBEDDING_UPSTREAM);
+    expect(values[0]).not.toContain(RAG_ERROR_SECRET_DETECTED);
   });
 
   it('scopes to the organization and respects the skip flag', async () => {

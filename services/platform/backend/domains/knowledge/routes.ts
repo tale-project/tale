@@ -296,7 +296,7 @@ export function createKnowledgeRoutes(deps: {
       });
       if (requeued > 0) {
         console.info(
-          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed for want of a model`,
+          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed on the embedding model`,
         );
       }
       return c.json({ ok: true, requeued });

@@ -1728,7 +1728,6 @@ export async function beginRunIdempotentInTx(
   const requestHash = await runIdempotencyRequestHash({
     input: args.input,
     mode: args.mode,
-    version: args.version,
   });
   const now = Date.now();
   const claimed = await tx<{ scopeKey: string }[]>`
@@ -1776,6 +1775,17 @@ export async function beginRunIdempotentInTx(
       // run that exists; a later ledger writer must not hide behind this.
       throw new Error(
         `run idempotency ledger row ${scopeKey} in ${args.organizationId} names a run that is gone`,
+      );
+    }
+    // The version is judged against the run, not hashed: a door that
+    // resolves "the deployed version" to its number and a caller who left it
+    // out asked for the same start. Only a pin the run does not satisfy is
+    // another request.
+    if (args.version !== undefined && run.version !== args.version) {
+      throw new AutomationError(
+        'IDEMPOTENCY_KEY_REUSED',
+        `This Idempotency-Key already started version ${run.version} — send a new key, or repeat the original request unchanged.`,
+        409,
       );
     }
     return { runId: run.id, version: run.version, duplicate: true };

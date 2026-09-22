@@ -218,6 +218,52 @@ interface Lane {
   readonly bounds: Map<number, number>;
 }
 
+/**
+ * The most texts one request may carry per lane (organization, endpoint and
+ * model), once the provider has said so (see {@link batchCapFrom}). Learned
+ * from the first refusal and kept for the process's lifetime — apart from the
+ * lanes themselves, which come and go with their queues — so every later
+ * document on the same provider starts below the cap instead of paying the
+ * refused request again.
+ */
+const batchCaps = new Map<string, number>();
+
+/** The batch cap a lane has learned, else the shipped default. */
+function laneBatchCap(key: string): number {
+  return batchCaps.get(key) ?? MAX_BATCH;
+}
+
+function rememberBatchCap(key: string, cap: number): void {
+  batchCaps.set(key, Math.min(batchCaps.get(key) ?? cap, cap));
+}
+
+/**
+ * A 400 that names the request's batch as too large. OpenAI-compatible
+ * providers cap the inputs per embedding call well under the shipped
+ * `MAX_BATCH` — DashScope's compatible mode at 10 or 25 depending on the
+ * model, spelled "batch size is invalid, it should not be larger than 25" —
+ * and a document with more chunks than that could never index. The number
+ * the message names is the cap; a message that names none halves the batch.
+ */
+const BATCH_TOO_LARGE =
+  /batch[ _]?size|too many inputs|input array|array too long/i;
+const BATCH_CAP_NUMBER =
+  /(?:larger than|greater than|at most|exceed(?:s|ed)?|maximum(?: of)?|max(?: of)?|limit(?: of| is)?)\D{0,12}(\d+)/i;
+
+function batchCapFrom(err: unknown, sent: number): number | undefined {
+  if (!(err instanceof OpenAI.APIError) || err.status !== 400) return undefined;
+  if (sent <= 1 || !BATCH_TOO_LARGE.test(err.message)) return undefined;
+  const named = Number.parseInt(
+    BATCH_CAP_NUMBER.exec(err.message)?.[1] ?? '',
+    10,
+  );
+  const cap =
+    Number.isFinite(named) && named >= 1 && named < sent
+      ? named
+      : Math.floor(sent / 2);
+  return cap >= 1 ? cap : undefined;
+}
+
 const lanes = new Map<string, Lane>();
 
 /** A search query's place in a lane: a person is waiting on it, while a
@@ -358,8 +404,9 @@ export class Embedder implements QueryEmbedder {
     options.signal?.throwIfAborted();
     if (texts.length === 0) return [];
     const batches: string[][] = [];
-    for (let i = 0; i < texts.length; i += MAX_BATCH) {
-      batches.push(texts.slice(i, i + MAX_BATCH));
+    const cap = laneBatchCap(this.lane);
+    for (let i = 0; i < texts.length; i += cap) {
+      batches.push(texts.slice(i, i + cap));
     }
     const stop = new AbortController();
     const signal =
@@ -443,11 +490,36 @@ export class Embedder implements QueryEmbedder {
         signal,
         priority: kind === 'query' ? QUERY_PRIORITY : BATCH_PRIORITY,
       },
-      () =>
-        this.request(texts, signal, kind).catch((error: unknown) => {
-          fail(error);
-          throw error;
-        }),
+      async () => {
+        try {
+          return await this.request(texts, signal, kind);
+        } catch (error) {
+          // The provider refused the batch as too large: learn its cap for
+          // the lane and send this batch again in parts, inside the slot it
+          // already holds. Any other failure stops the call as before.
+          const cap = batchCapFrom(error, texts.length);
+          if (cap === undefined) {
+            fail(error);
+            throw error;
+          }
+          rememberBatchCap(this.lane, cap);
+          console.info(
+            `[knowledge] the embedding provider caps a request at ${cap} text(s) for "${this.model.model}"; sending ${texts.length} in parts`,
+          );
+          try {
+            const parts: number[][] = [];
+            for (let i = 0; i < texts.length; i += cap) {
+              parts.push(
+                ...(await this.request(texts.slice(i, i + cap), signal, kind)),
+              );
+            }
+            return parts;
+          } catch (inner) {
+            fail(inner);
+            throw inner;
+          }
+        }
+      },
     );
     for (const [position, entry] of sendable.entries()) {
       const vector = vectors[position];

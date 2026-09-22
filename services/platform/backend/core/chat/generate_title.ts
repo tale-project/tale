@@ -36,14 +36,14 @@ Given the user's first message below, produce a concise, descriptive title (3-6 
 - Do not add punctuation at the end
 - Return ONLY the title text, nothing else`;
 
-interface TitleModelTarget {
+export interface DirectModelTarget {
   readonly providerSlug: string;
   readonly modelId: string;
 }
 
 /** The thread owner's sticky chat pick, as the preferences shim answers it:
  * the model id and, when the pick carried one, the connector serving it. */
-interface PreferredChatModel {
+export interface PreferredChatModel {
   readonly modelId: string;
   readonly providerSlug?: string;
 }
@@ -59,7 +59,11 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
 }
 
 /**
- * The model the title call runs on. A model the wire can run without
+ * The model a small direct call runs on — the title lane's pick, shared with
+ * the Inbox rewrite (`domains/conversations/improve.ts`), which needs the
+ * same "whatever a direct credential can serve" answer.
+ *
+ * A model the wire can run without
  * thinking is preferred throughout (see {@link runsWithoutThinking}): the
  * thread owner's sticky chat pick wins whenever a direct-credentialed
  * connector serves it (the connector the pick names, when it names one)
@@ -74,11 +78,11 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
  * Null when the org has nothing a direct call could use; the caller falls
  * back to the derived title.
  */
-async function pickTitleModel(
+export async function pickDirectModel(
   ctx: ActionCtx,
   organizationId: string,
   preferred: PreferredChatModel | null,
-): Promise<TitleModelTarget | null> {
+): Promise<DirectModelTarget | null> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
 
   /** The connectors a direct call could use, catalogs resolved. */
@@ -124,7 +128,7 @@ async function pickTitleModel(
 
   const walk = (
     admits: (entry: ModelCatalogEntry) => boolean,
-  ): TitleModelTarget | null => {
+  ): DirectModelTarget | null => {
     if (preferred !== null) {
       const serves = (candidate: (typeof candidates)[number]): boolean =>
         candidate.catalog.some(
@@ -195,13 +199,13 @@ async function generateWithModel(
   firstMessage: string,
   signal: AbortSignal,
 ): Promise<TitleAttempt> {
-  let target: TitleModelTarget | null = null;
+  let target: DirectModelTarget | null = null;
   try {
     const preferred: PreferredChatModel | null = await ctx.runQuery(
       internal.user_preferences.queries.getChatModelInternal,
       { userId, organizationId },
     );
-    target = await pickTitleModel(ctx, organizationId, preferred);
+    target = await pickDirectModel(ctx, organizationId, preferred);
     if (target === null) return { title: null };
     const model = createBuilderModel(ctx, {
       organizationId,

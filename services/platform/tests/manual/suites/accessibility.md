@@ -51,7 +51,10 @@ component-level axe coverage comes from `vitest-axe` via
 - [ ] `A11Y-A2` · **Skip link** — Load any surface; inspect first focusable
   element → First focusable is an `<a>` with `href="#main-content"` and text
   **Skip to main content** (`common.aria.skipToContent`); Tab→Enter from page
-  top moves focus into `<main>`
+  top moves focus into `<main>`. Include the anonymous `/docs` API reference
+  and `/2fa-enroll`: Enter stays on that page (the app is served under a
+  `<base href>`, so a missing target used to resolve `#main-content` to the
+  site root and land on `/log-in`) and focus moves into that page's `<main>`.
 - [ ] `A11Y-A3` · **Keyboard reach** — Tab / Shift+Tab through chat + a
   DataTable + settings form; Enter/Space to activate → Every interactive
   control receives focus and activates from the keyboard; no control is

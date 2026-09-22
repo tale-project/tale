@@ -21,6 +21,8 @@ accessDenied:
     Du benötigst Admin- oder Entwickler-Berechtigungen, um KI-Anbieter zu
     verwalten.
 analytics:
+  aria:
+    filterBy: Nach {name} filtern
   automations:
     title: Automatisierungs-Metriken
     description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.
@@ -1361,6 +1363,7 @@ chat:
     verdictRecorded: Bewertung gespeichert
     verdictError: Bewertung konnte nicht gespeichert werden
     busy: Beide Antworten müssen zuerst abgeschlossen sein
+    oneSided: Beide Spalten brauchen eine fertige Antwort auf diese Runde, bevor du bewerten kannst
     exitWithoutVerdict: Ohne Bewertung beenden
     startFailed: Arena-Modus konnte nicht gestartet werden
     unsharable: Ein geteilter Chat kann nicht in den Arena-Modus wechseln
@@ -1749,6 +1752,7 @@ conversations:
   editor:
     noContent: Kein Inhalt zum Verbessern
     improveFailed: Inhalt konnte nicht verbessert werden. Versuch es erneut.
+    improveUnavailable: Noch kein KI-Anbieter kann Nachrichten umschreiben — verbinde einen unter Einstellungen › KI-Anbieter.
     sendFailed: Nachricht konnte nicht gesendet werden. Versuch es erneut.
     backToEditor: Zurück zum Editor
     improving: Wird verbessert...
@@ -2073,6 +2077,10 @@ documents:
   actions:
     deleteSyncFolder: Synchronisierungsordner löschen
     deleteFolderFailed: Ordner konnte nicht gelöscht werden
+    deleteFolderProtectedRecord:
+      Ein kontrolliertes Dokument in diesem Ordner hat eine freigegebene
+      Version und ist damit ein aufbewahrter Datensatz — verschiebe es zuerst
+      aus dem Ordner.
     deleteFileFailed: Datei konnte nicht gelöscht werden — versuch es erneut.
     manageTeams: Team zuweisen
     reindex: Neu indexieren
@@ -4934,6 +4942,8 @@ settings:
         und Projekte.
     sandboxes:
       description: Always-on Remote-Sandboxes verwalten.
+    skills:
+      description: Wiederverwendbare Anleitungen und Werkzeuge, die der Assistent laden kann.
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:
@@ -5226,6 +5236,10 @@ settings:
       oauthAppMissingAdmin:
         'Für {connector} ist noch keine OAuth-App hinterlegt. Richte sie unten
         im Abschnitt OAuth-Apps ein und verbinde danach.'
+      oauthAppMissingDeployment:
+        'Für {connector} ist noch keine OAuth-App hinterlegt. Diese App richtet
+        der Bereitstellungsbetreiber ein, nicht die OAuth-Apps dieser
+        Organisation — bitte deinen Betreiber, sie zu konfigurieren.'
     credential:
       disabled: Deaktiviert
       needsReauth: Neu verbinden nötig
@@ -7383,6 +7397,9 @@ projects:
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
     folderDeleteHeld: Eine Datei in diesem Ordner unterliegt einem Legal Hold —
       hebe ihn zuerst auf.
+    folderDeleteProtected:
+      Eine kontrollierte Datei in diesem Ordner hat eine freigegebene Version
+      und ist damit ein aufbewahrter Datensatz — verschiebe sie zuerst.
     folderDeleteAction: Ordner löschen
     folderDeleteConfirm:
       „{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus

@@ -108,6 +108,23 @@ describe('useFormEditor', () => {
     expect(result.current.isDirty).toBe(true);
   });
 
+  it('notifies onReset after the baseline is restored, so state outside the form can follow', () => {
+    const onReset = vi.fn();
+    const { result } = renderHook(() =>
+      useFormEditor<Form>({
+        data: { name: 'A', color: '#FF0000' },
+        schema,
+        save: vi.fn().mockResolvedValue(undefined),
+        onReset,
+      }),
+    );
+    act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));
+    expect(onReset).not.toHaveBeenCalled();
+    act(() => result.current.reset());
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(result.current.form.getValues('name')).toBe('A');
+  });
+
   it('reset reverts to the current data baseline', () => {
     const { result } = mount({ name: 'A', color: '#FF0000' });
     act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));

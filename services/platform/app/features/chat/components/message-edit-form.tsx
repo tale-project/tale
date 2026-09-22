@@ -10,6 +10,13 @@
  * of scrolling inside a fixed box. Send stays disabled until the text is
  * non-empty AND actually different: an unchanged send would fork a sibling
  * identical to the original.
+ *
+ * Send hands the draft to `onSubmit` and waits for its verdict: `true` means
+ * the edit started (the owner closes the form), `false` that it was refused
+ * before anything was written — a reached usage cap, say — and the form
+ * stays open with the draft intact, so nothing has to be retyped. Send is
+ * disabled while the verdict is pending, so a second Enter cannot fork
+ * twice.
  */
 
 import { Button } from '@tale/ui/button';
@@ -25,12 +32,14 @@ export function MessageEditForm({
   onCancel,
 }: {
   initialText: string;
-  onSubmit: (text: string) => void;
+  /** Resolves whether the edit was accepted; `false` keeps the form open. */
+  onSubmit: (text: string) => Promise<boolean>;
   onCancel: () => void;
 }) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
   const [text, setText] = useState(initialText);
+  const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Grow with the content: height resets so a deleted line shrinks the box
@@ -53,11 +62,22 @@ export function MessageEditForm({
   }, [autoResize]);
 
   const trimmed = text.trim();
-  const canSend = hasVisibleText(trimmed) && trimmed !== initialText.trim();
+  const canSend =
+    !submitting && hasVisibleText(trimmed) && trimmed !== initialText.trim();
 
   const submit = () => {
     if (!canSend) return;
-    onSubmit(trimmed);
+    setSubmitting(true);
+    onSubmit(trimmed).then(
+      (accepted) => {
+        // Accepted: the owner swaps the form out; nothing to reset here.
+        if (!accepted) setSubmitting(false);
+      },
+      (error: unknown) => {
+        console.error('[chat] the edit could not be started', error);
+        setSubmitting(false);
+      },
+    );
   };
 
   return (

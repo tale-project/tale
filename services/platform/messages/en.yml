@@ -12,6 +12,8 @@ accessDenied:
   dataResidency: You need Admin permissions to access data residency settings.
   providers: You need Admin or Developer permissions to manage AI providers.
 analytics:
+  aria:
+    filterBy: Filter by {name}
   automations:
     title: Automation metrics
     description: Run counts, success rates, and average duration across your automations.
@@ -1314,6 +1316,7 @@ chat:
     verdictRecorded: Verdict recorded
     verdictError: Couldn't record verdict
     busy: Both replies must finish first
+    oneSided: Both columns need a finished reply to this round before a verdict
     exitWithoutVerdict: Exit without verdict
     startFailed: Could not start Arena Mode
     unsharable: A shared chat can't enter Arena Mode
@@ -1683,6 +1686,7 @@ conversations:
   editor:
     noContent: No content to improve
     improveFailed: Couldn't improve content. Try again.
+    improveUnavailable: No AI provider can rewrite messages yet — connect one under Settings › AI providers.
     sendFailed: Couldn't send message. Try again.
     backToEditor: Back to editor
     improving: Improving...
@@ -1995,6 +1999,9 @@ documents:
   actions:
     deleteSyncFolder: Delete sync folder
     deleteFolderFailed: Couldn't delete folder
+    deleteFolderProtectedRecord:
+      A controlled document in this folder has an approved version, which is
+      a retained record — move it out of the folder first.
     deleteFileFailed: Couldn't delete the file — try again.
     manageTeams: Assign team
     reindex: Reindex
@@ -4820,6 +4827,9 @@ projects:
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
     folderDeleteHeld: A file in this folder is on legal hold — release it first.
+    folderDeleteProtected:
+      A controlled file in this folder has an approved version, which is a
+      retained record — move it out first.
     folderDeleteAction: Delete folder
     folderDeleteConfirm:
       Delete "{folder}" and everything inside it? The files are
@@ -5070,6 +5080,8 @@ settings:
       description: Organization-wide metrics for usage, feedback, automations, and projects.
     sandboxes:
       description: Manage always-on remote sandboxes.
+    skills:
+      description: Reusable instructions and tools the assistant can load.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:
@@ -5352,6 +5364,10 @@ settings:
       oauthAppMissingAdmin:
         '{connector} has no OAuth app to connect against yet. Configure one
         in the OAuth apps section below, then come back to connect.'
+      oauthAppMissingDeployment:
+        '{connector} has no OAuth app to connect against yet. Its app is set
+        up by the deployment operator, not in this organization''s OAuth apps
+        — ask your operator to configure it.'
     credential:
       disabled: Disabled
       needsReauth: Reconnect needed

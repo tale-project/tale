@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveOauthAppCredentials } from '../../core/http_connectors/deployment_config.ts';
+import { isConfigurableOauthAppSlug } from '../connectors/oauth-app-routes.ts';
 import { listOauthApps } from '../connectors/oauth-apps.ts';
 import {
   ConnectorCredentialError,
@@ -93,7 +94,14 @@ export function createConnectorCredentialRoutes(deps: {
           ? ('env' as const)
           : null;
       return Object.assign({}, summary, {
-        oauthApp: { configured: source !== null, source },
+        oauthApp: {
+          configured: source !== null,
+          source,
+          // Whether this organization could register the app itself (the
+          // OAuth apps card) — a deployment-only app such as Slack cannot,
+          // and the consent step's "not configured" copy has to say so.
+          orgConfigurable: isConfigurableOauthAppSlug(summary.slug),
+        },
       });
     });
     return c.json({ connectors });

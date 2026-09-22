@@ -3,13 +3,14 @@
 import { Badge } from '@tale/ui/badge';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { MetricsSection } from '@tale/ui/metrics/metrics-section';
-import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
+
+import { DrilldownButton } from '../components/drilldown-button';
 
 export interface TopModelRow {
   provider: string;
@@ -48,13 +49,11 @@ export function TopModelsTable({
         meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
           <div className="flex max-w-[260px] items-center gap-2">
-            <Text
-              as="span"
-              variant="label"
-              className="block flex-1 truncate text-sm"
-            >
-              {row.original.model}
-            </Text>
+            <DrilldownButton
+              name={row.original.model}
+              onSelect={() => onSelectModel(row.original.model)}
+              className="flex-1"
+            />
             <Badge variant="outline">{row.original.provider}</Badge>
           </div>
         ),
@@ -99,7 +98,7 @@ export function TopModelsTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, formatNumber, formatCostCents],
+    [t, formatNumber, formatCostCents, onSelectModel],
   );
 
   return (

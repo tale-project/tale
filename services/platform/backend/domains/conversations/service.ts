@@ -37,12 +37,12 @@ export type ConversationStatus = 'open' | 'closed' | 'spam' | 'archived';
 
 export class ConversationError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409;
+  readonly status: 400 | 403 | 404 | 409 | 502;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 = 400,
+    status: 400 | 403 | 404 | 409 | 502 = 400,
   ) {
     super(message);
     this.name = 'ConversationError';

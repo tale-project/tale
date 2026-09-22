@@ -124,7 +124,7 @@ export const SWAGGER_UI_OPTIONS = {
   },
 };
 
-function ApiDocsPage() {
+export function ApiDocsPage() {
   // Prevent TanStack Router from intercepting Swagger UI internal link clicks
   const handleClick = (e: React.MouseEvent) => {
     if (!(e.target instanceof HTMLElement)) return;
@@ -142,7 +142,14 @@ function ApiDocsPage() {
       onClickCapture={handleClick}
     >
       <DeveloperSurfaces />
-      <main className="swagger-ui-standalone">
+      {/* The root skip link targets `main-content`; this page is served to
+          anonymous readers under an injected `<base href>`, where a missing
+          target used to resolve `#main-content` to the site root → sign-in. */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="swagger-ui-standalone outline-none"
+      >
         <SuspenseBoundary fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...SWAGGER_UI_OPTIONS} />
         </SuspenseBoundary>

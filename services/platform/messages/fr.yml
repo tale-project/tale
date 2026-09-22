@@ -21,6 +21,8 @@ accessDenied:
     Tu dois disposer des permissions Admin ou Développeur pour gérer les
     fournisseurs IA.
 analytics:
+  aria:
+    filterBy: Filtrer par {name}
   automations:
     title: Métriques des automatisations
     description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.
@@ -1367,6 +1369,7 @@ chat:
     verdictRecorded: Verdict enregistré
     verdictError: Échec de l'enregistrement du verdict
     busy: Les deux réponses doivent d'abord se terminer
+    oneSided: Les deux colonnes doivent avoir terminé leur réponse à ce tour avant un verdict
     exitWithoutVerdict: Quitter sans verdict
     startFailed: Impossible de démarrer le mode Arène
     unsharable: Une conversation partagée ne peut pas passer en mode Arène
@@ -1757,6 +1760,7 @@ conversations:
   editor:
     noContent: Aucun contenu à améliorer
     improveFailed: Impossible d'améliorer le contenu. Réessaie.
+    improveUnavailable: Aucun fournisseur d'IA ne peut encore réécrire les messages — connecte-en un dans Paramètres › Fournisseurs d'IA.
     sendFailed: Impossible d'envoyer le message. Réessaie.
     backToEditor: Retour à l'éditeur
     improving: Amélioration...
@@ -2080,6 +2084,9 @@ documents:
   actions:
     deleteSyncFolder: Supprimer le dossier synchronisé
     deleteFolderFailed: Échec de la suppression du dossier
+    deleteFolderProtectedRecord:
+      Un document contrôlé de ce dossier a une version approuvée, donc un
+      enregistrement conservé — déplace-le d'abord hors du dossier.
     deleteFileFailed: Impossible de supprimer le fichier.
     manageTeams: Assigner une équipe
     reindex: Réindexer
@@ -5004,6 +5011,8 @@ settings:
         automatisations et les projets.
     sandboxes:
       description: Gérer les sandboxes distantes toujours actives.
+    skills:
+      description: Instructions et outils réutilisables que l'assistant peut charger.
     enterpriseSso:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:
@@ -5305,6 +5314,10 @@ settings:
       oauthAppMissingAdmin:
         "{connector} n'a pas encore d'app OAuth pour se connecter. Configure-la
         dans la section Apps OAuth ci-dessous, puis reviens te connecter."
+      oauthAppMissingDeployment:
+        "{connector} n'a pas encore d'app OAuth pour se connecter. Cette app
+        est configurée par l'opérateur du déploiement, pas dans les apps OAuth
+        de cette organisation — demande à ton opérateur de la configurer."
     credential:
       disabled: Désactivé
       needsReauth: Reconnexion requise
@@ -7480,6 +7493,9 @@ projects:
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier
     folderDeleteHeld: Un fichier de ce dossier est sous conservation légale — lève-la d'abord.
+    folderDeleteProtected:
+      Un fichier contrôlé de ce dossier a une version approuvée, donc un
+      enregistrement conservé — déplace-le d'abord.
     folderDeleteAction: Supprimer le dossier
     folderDeleteConfirm:
       Supprimer « {folder} » et tout son contenu ? Les fichiers

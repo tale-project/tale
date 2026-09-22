@@ -5,6 +5,7 @@ import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
 import { IconButton } from '@tale/ui/icon-button';
 import { useResizable } from '@tale/ui/use-resizable';
+import { useRestoreFocus } from '@tale/ui/use-restore-focus';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import {
@@ -15,6 +16,7 @@ import {
   type ComponentPropsWithoutRef,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from 'react';
 
 // Safe-area padding is layered into the design `p-6` via per-edge calc() so
@@ -105,6 +107,12 @@ interface SheetProps extends VariantProps<typeof sheetVariants> {
    * animation.
    */
   onOpenAutoFocus?: (event: Event) => void;
+  /**
+   * Stable element to restore focus to when the captured opener cannot hold
+   * focus past the close (a dropdown menu item, an element that unmounted).
+   * Passed to `useRestoreFocus`; mirrors `Dialog`'s prop of the same name.
+   */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const SheetCloseButton = forwardRef<
@@ -162,8 +170,14 @@ export function Sheet({
   className,
   hideClose,
   onOpenAutoFocus,
+  restoreFocusRef,
 }: SheetProps) {
   const { t: tCommon } = useT('common');
+  // A sheet is always opened programmatically (there is no `SheetTrigger`), so
+  // Radix has no element to restore focus to on close and the document falls
+  // to <body> (WCAG 2.4.3). Capture the opener and refocus it — the same
+  // contract `Dialog` carries.
+  const restoreFocus = useRestoreFocus(open, restoreFocusRef);
 
   // Resize is meaningful only for side="right" (the hook geometry assumes
   // a right-anchored panel). Anything else falls through to the size
@@ -215,6 +229,7 @@ export function Sheet({
           className={cn(sheetVariants({ side, size }), widthClass, className)}
           style={widthStyle}
           onOpenAutoFocus={onOpenAutoFocus}
+          onCloseAutoFocus={restoreFocus}
           // Without a description, opt out of Radix's default
           // `aria-describedby` (which would otherwise point at a
           // `Description` id that is never rendered — a dangling ARIA

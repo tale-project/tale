@@ -718,16 +718,13 @@ export interface GovernanceContract {
       // there is readable here without a cast.
       policyType: PolicyType;
     };
+    // The app door's shape: `{key, config}`. The on/off flag is
+    // `config.enabled` — there is no policy-level `enabled` (the previous row
+    // shape had one, and panels that kept reading it showed "Off" for an
+    // enabled policy).
     returns: null | {
-      _id: string;
-      _creationTime: number;
-      enabled?: boolean;
-      effectiveAt?: number;
-      config: unknown;
-      organizationId: string;
-      domain: string;
       key: string;
-      syncedAt: number;
+      config: unknown;
     };
   };
   'governance/queries:listTrashedRows': {

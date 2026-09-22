@@ -33,6 +33,16 @@ describe('FilterPanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('names the panel dialog after its visible heading', async () => {
+    const { user } = render(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Filters' }),
+    ).toBeInTheDocument();
+  });
+
   it('reports the complete next selection when an option is ticked', async () => {
     const onChange = vi.fn();
     const { user } = render(

@@ -54,6 +54,15 @@ Tokens resolved from `packages/ui/src/globals.css`. Ratios computed against the 
 | `--foreground`       | #09090B | ~19.3:1                     | ✓ AAA   |
 | `--muted-foreground` | #71717A | ~4.80:1                     | ✓ AA    |
 
+A ratio holds for one pairing only. `--muted-foreground` on the `--muted` fill (#F4F4F5) — the
+table header — is ~4.40:1 and fails AA for 14px text, which is why `TableHead` reads
+`--table-header-foreground` (zinc-600 #52525B, ~7.03:1 on `--muted`) instead.
+
+| Token (light, on `--muted` #F4F4F5) | Hex     | Ratio   | Verdict |
+| ----------------------------------- | ------- | ------- | ------- |
+| `--muted-foreground`                | #71717A | ~4.40:1 | ✗ AA    |
+| `--table-header-foreground`         | #52525B | ~7.03:1 | ✓ AAA   |
+
 | Token (dark)         | Hex     | On `--background` (#0A0A0A) | Verdict |
 | -------------------- | ------- | --------------------------- | ------- |
 | `--foreground`       | #FFFFFF | ~19.1:1                     | ✓ AAA   |

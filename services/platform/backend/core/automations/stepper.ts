@@ -13,6 +13,7 @@ import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
   evalCondition,
   evalTemplates,
+  ExprError,
   runCode,
 } from '../../../lib/engine/core/template';
 import type {
@@ -131,6 +132,11 @@ export interface AutomationApprovalGate {
      * reads nothing, so a card a parent-level node of the same id once had
      * approved never releases a sub-node. */
     canPark: boolean;
+    /** The node's input resolved against the run's scope — what the step
+     * would call the connector with, for the approver to read before
+     * deciding. Absent when it cannot be resolved ahead of the step (a loop
+     * body reads `item`/`index`, which exist only once the loop turns). */
+    input?: unknown;
   }): Promise<
     { status: 'allowed' } | { status: 'required'; approvalId?: string }
   >;
@@ -253,6 +259,7 @@ function automationApprovalGate(
           nodeType: request.nodeType,
           automation: request.automation,
           policyOnly: !request.canPark,
+          ...(request.input !== undefined && { input: request.input }),
         },
       );
       if (decision.decision === 'allow') return { status: 'allowed' };
@@ -700,6 +707,25 @@ type StepOutcome =
  * to a hand-off. Mutates `checkpoints` so the walk's in-memory view matches
  * what the sink persisted.
  */
+/**
+ * The connector input a pending approval card shows: the node's input
+ * resolved against the run's scope, exactly as the step will resolve it.
+ * A loop body reads `item` / `index`, which exist only once the loop turns —
+ * the preview then has nothing honest to show and the card carries none.
+ */
+async function previewNodeInput(
+  node: { input?: unknown },
+  scope: Parameters<typeof evalTemplates>[1],
+): Promise<unknown> {
+  if (node.input === undefined) return undefined;
+  try {
+    return await evalTemplates(node.input, scope);
+  } catch (error) {
+    if (error instanceof ExprError) return undefined;
+    throw error;
+  }
+}
+
 async function stepNode(args: StepArgs): Promise<StepOutcome> {
   const { run, node, input, checkpoints, sink, depth } = args;
   const outputs = outputsFrom(checkpoints);
@@ -769,6 +795,9 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // re-checked on every re-entry, so an approval granted later simply lets
     // the next turn through.
     if (run.mode === 'live' && !CORE_TYPES.has(node.type) && approvalGate) {
+      // The card shows the call the step would make, not the run's input:
+      // the same resolution the connector body performs, done ahead of it.
+      const preview = await previewNodeInput(node, makeScope(input, outputs));
       const decision = await approvalGate.check({
         organizationId: run.organizationId,
         automation: run.automation,
@@ -776,6 +805,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         nodeId: node.id,
         nodeType: node.type,
         canPark: sink.canPark,
+        ...(preview !== undefined && { input: preview }),
       });
       if (decision.status === 'required') {
         if (!sink.canPark) {
