@@ -62,7 +62,7 @@ The base Dialog itself uses a bottom-sheet layout below `md` and a centered moda
 
 ## Handle lifecycle and focus deliberately
 
-The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row.
+The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row. `Sheet` and `ResponsiveDialog` carry the same restoration and the same `restoreFocusRef` prop, so an overlay opened from state — a bottom tab, a task card — returns focus to its opener without a trigger element.
 
 Content can remain mounted through a closing animation. Do not assume `open=false` immediately stops its subscriptions or requests. If hook-heavy content has a closing-lifecycle problem, move it into a separate component and conditionally mount that component; do not call hooks conditionally inside one component.
 

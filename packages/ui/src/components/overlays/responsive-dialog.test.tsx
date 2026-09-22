@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   ResponsiveDialog,
@@ -27,6 +27,38 @@ function setViewport(matches: Record<string, boolean>) {
       dispatchEvent: vi.fn(),
     })),
   });
+}
+
+/**
+ * A dialog opened from state with no `ResponsiveDialogTrigger` — the task
+ * board's card → task detail path. The opener holds focus when `open` flips.
+ */
+function StateOpened({ open }: { open: boolean }) {
+  return (
+    <>
+      <button type="button">Opener</button>
+      <ResponsiveDialog open={open} onOpenChange={vi.fn()}>
+        <ResponsiveDialogContent closeLabel="Close">
+          <ResponsiveDialogTitle>Title</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>Body text</ResponsiveDialogDescription>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    </>
+  );
+}
+
+async function expectFocusReturnsToOpener() {
+  const { rerender } = render(<StateOpened open={false} />);
+  const opener = screen.getByRole('button', { name: 'Opener' });
+  opener.focus();
+  rerender(<StateOpened open />);
+  expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  expect(opener).not.toHaveFocus();
+  rerender(<StateOpened open={false} />);
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  );
+  expect(opener).toHaveFocus();
 }
 
 function Example() {
@@ -68,6 +100,10 @@ describe('ResponsiveDialog', () => {
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
 
+    it('returns focus to the opener when a state-opened dialog closes', async () => {
+      await expectFocusReturnsToOpener();
+    });
+
     it('stays open when the pointer is on a portaled date picker', () => {
       const onOpenChange = vi.fn();
       render(
@@ -105,6 +141,10 @@ describe('ResponsiveDialog', () => {
     it('marks the drawer content as a modal dialog (aria-modal)', () => {
       render(<Example />);
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
+    it('returns focus to the opener when a state-opened drawer closes', async () => {
+      await expectFocusReturnsToOpener();
     });
   });
 

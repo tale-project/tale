@@ -66,8 +66,8 @@ if you want to keep a write.
   bottom bar → A `dialog` named **More** (`navigation.more`) opens with
   buttons **Knowledge** (`navigation.knowledge`), **Automations**
   (`navigation.automations`), **Settings** (`navigation.userSettings`).
-  Pressing **Escape** hides the dialog. Tapping an item navigates and closes
-  the sheet.
+  Pressing **Escape** hides the dialog and returns focus to the **More**
+  tab. Tapping an item navigates and closes the sheet.
 - [ ] `RESP-F3` · **Floating Save** — At 390 px, open
   `/dashboard/{org}/settings/account`; edit **Display name**
   (`settings.account.profile.name`) → Exactly **one** visible **Save** button

@@ -1,9 +1,25 @@
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { Sheet } from './sheet';
+
+/** A sheet opened from state — the only way a sheet ever opens (no trigger). */
+function OpenerHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open sheet
+      </button>
+      <Sheet open={open} onOpenChange={setOpen} title="Sheet Title">
+        <p>Sheet content</p>
+      </Sheet>
+    </>
+  );
+}
 
 const MISSING_DESCRIPTION_WARNING = 'Missing `Description`';
 
@@ -43,6 +59,22 @@ describe('Sheet', () => {
         </Sheet>,
       );
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
+    // A sheet renders no Radix Trigger, so without `useRestoreFocus` the
+    // close would drop the document on <body> (WCAG 2.4.3) — the mobile
+    // "More" tab bar sheet was reported doing exactly that.
+    it('returns focus to the opener when the sheet closes', async () => {
+      const { user } = render(<OpenerHarness />);
+      const opener = screen.getByRole('button', { name: 'Open sheet' });
+      opener.focus();
+      await user.keyboard('{Enter}');
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(opener).toHaveFocus();
     });
 
     describe('description / aria-describedby', () => {

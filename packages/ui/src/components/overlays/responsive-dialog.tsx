@@ -3,14 +3,27 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import {
+  createContext,
   forwardRef,
+  useCallback,
+  useContext,
+  useState,
   type ComponentPropsWithoutRef,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { Drawer as DrawerPrimitive } from 'vaul';
 
 import { useIsMobile } from '../../hooks/use-is-mobile';
+import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { cn } from '../../lib/cn';
+
+/**
+ * Whether the dialog is open right now, for `ResponsiveDialogContent`. Radix
+ * and vaul know, but neither exposes it to a child; the content needs it to
+ * capture the opener the moment the dialog opens (`useRestoreFocus`).
+ */
+const ResponsiveDialogOpenContext = createContext(false);
 
 /**
  * Portaled date calendars (platform DatePicker) sit on `document.body`
@@ -52,25 +65,42 @@ export function ResponsiveDialog({
   children,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
+  // Mirror the open state for the content: the controlled `open` when the
+  // caller drives it, otherwise the uncontrolled state as Radix/vaul report it.
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(
+    defaultOpen ?? false,
+  );
+  const isOpen = open ?? uncontrolledOpen;
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   if (isMobile) {
     return (
-      <DrawerPrimitive.Root
-        open={open}
-        defaultOpen={defaultOpen}
-        onOpenChange={onOpenChange}
-      >
-        {children}
-      </DrawerPrimitive.Root>
+      <ResponsiveDialogOpenContext.Provider value={isOpen}>
+        <DrawerPrimitive.Root
+          open={open}
+          defaultOpen={defaultOpen}
+          onOpenChange={handleOpenChange}
+        >
+          {children}
+        </DrawerPrimitive.Root>
+      </ResponsiveDialogOpenContext.Provider>
     );
   }
   return (
-    <DialogPrimitive.Root
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
-    >
-      {children}
-    </DialogPrimitive.Root>
+    <ResponsiveDialogOpenContext.Provider value={isOpen}>
+      <DialogPrimitive.Root
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={handleOpenChange}
+      >
+        {children}
+      </DialogPrimitive.Root>
+    </ResponsiveDialogOpenContext.Provider>
   );
 }
 
@@ -105,6 +135,12 @@ interface ResponsiveDialogContentProps {
    * element — e.g. a dialog whose first control is an inline-editable title.
    */
   onOpenAutoFocus?: (event: Event) => void;
+  /**
+   * Stable element to restore focus to when the captured opener cannot hold
+   * focus past the close (a dropdown menu item, an element that unmounted).
+   * Passed to `useRestoreFocus`; mirrors `Dialog`'s prop of the same name.
+   */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export const ResponsiveDialogContent = forwardRef<
@@ -112,10 +148,23 @@ export const ResponsiveDialogContent = forwardRef<
   ResponsiveDialogContentProps
 >(
   (
-    { children, className, closeLabel = 'Close', hideClose, onOpenAutoFocus },
+    {
+      children,
+      className,
+      closeLabel = 'Close',
+      hideClose,
+      onOpenAutoFocus,
+      restoreFocusRef,
+    },
     ref,
   ) => {
     const isMobile = useIsMobile();
+    // Most consumers open this dialog from state (a task card, a row) and
+    // render no `ResponsiveDialogTrigger`, so Radix has nothing to focus on
+    // close and the document falls to <body> (WCAG 2.4.3). Capture the opener
+    // and refocus it — the same contract `Dialog` carries.
+    const open = useContext(ResponsiveDialogOpenContext);
+    const restoreFocus = useRestoreFocus(open, restoreFocusRef);
 
     if (isMobile) {
       return (
@@ -125,6 +174,7 @@ export const ResponsiveDialogContent = forwardRef<
             ref={ref}
             aria-modal="true"
             onOpenAutoFocus={onOpenAutoFocus}
+            onCloseAutoFocus={restoreFocus}
             onPointerDownOutside={preventDatePickerDismiss}
             onInteractOutside={preventDatePickerDismiss}
             onFocusOutside={preventDatePickerDismiss}
@@ -159,6 +209,7 @@ export const ResponsiveDialogContent = forwardRef<
           ref={ref}
           aria-modal="true"
           onOpenAutoFocus={onOpenAutoFocus}
+          onCloseAutoFocus={restoreFocus}
           onPointerDownOutside={preventDatePickerDismiss}
           onInteractOutside={preventDatePickerDismiss}
           onFocusOutside={preventDatePickerDismiss}
