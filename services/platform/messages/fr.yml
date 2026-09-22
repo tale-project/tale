@@ -1679,10 +1679,10 @@ conversations:
     fromDomainHint: N'importe quelle adresse sur {domain}
     fromLocalPlaceholder: support
     from: 'Expéditeur : {from}'
-    noEmailConnectorTitle: Connector e-mail requis
-    noEmailConnector: Connecte un connector e-mail pour envoyer des e-mails.
+    noEmailConnectorTitle: Envoi pas encore possible
+    noEmailConnector: Connecte une boîte e-mail sous Paramètres > Connectors.
     noEmailConnectorAskAdmin: Demande à un admin de l'organisation de connecter
-      un connector e-mail avant de pouvoir envoyer.
+      une boîte e-mail avant de pouvoir envoyer.
     openConnectorSettings: Ouvrir les paramètres des connectors
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?

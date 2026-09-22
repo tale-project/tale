@@ -1673,9 +1673,10 @@ conversations:
     fromDomainHint: Beliebige Adresse unter {domain}
     fromLocalPlaceholder: support
     from: 'Absender: {from}'
-    noEmailConnectorTitle: E-Mail-Connector erforderlich
-    noEmailConnector: Verbinde einen E-Mail-Connector, um E-Mails zu senden.
-    noEmailConnectorAskAdmin: Bitte einen Org-Admin, einen E-Mail-Connector zu
+    noEmailConnectorTitle: Noch nicht sendebereit
+    noEmailConnector: Verbinde ein E-Mail-Postfach unter Einstellungen >
+      Connectors.
+    noEmailConnectorAskAdmin: Bitte einen Org-Admin, ein E-Mail-Postfach zu
       verbinden, bevor du senden kannst.
     openConnectorSettings: Connector-Einstellungen öffnen
     subject: Betreff

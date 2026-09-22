@@ -1617,10 +1617,10 @@ conversations:
     fromDomainHint: Any address at {domain}
     fromLocalPlaceholder: support
     from: 'From: {from}'
-    noEmailConnectorTitle: Email connector required
-    noEmailConnector: Connect an email connector to send email.
+    noEmailConnectorTitle: Can't send yet
+    noEmailConnector: Connect an email inbox under Settings > Connectors.
     noEmailConnectorAskAdmin: Ask an organization admin to connect an email
-      connector before you can send.
+      inbox before you can send.
     openConnectorSettings: Open connector settings
     subject: Subject
     subjectPlaceholder: What's this about?
