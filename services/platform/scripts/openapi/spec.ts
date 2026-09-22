@@ -5187,7 +5187,7 @@ export function buildSpec(): Json {
               minLength: 1,
               maxLength: 200,
               description:
-                'Model ID from GET /api/v1/models; never auto-selected. Checked at the door: an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN`.',
+                'Model ID from GET /api/v1/models; never auto-selected. Checked at the door: without `providerSlug`, an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN` (and an id listed under several providers `CHAT_MODEL_AMBIGUOUS`); with a `providerSlug` the pair is judged instead — an unknown provider answers `CHAT_PROVIDER_UNKNOWN`, a listed provider that does not serve the id `CHAT_MODEL_NOT_ON_PROVIDER`.',
             },
             providerSlug: {
               type: 'string',
