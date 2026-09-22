@@ -4,7 +4,7 @@
 // =============================================================================
 // Builds, validates, and smoke-tests the subscription credential gateway
 // (services/ai-gateway) using its standalone compose files
-// (compose.ai-gateway.yml + compose.ai-gateway.test.yml). The four secrets the
+// (compose.ai-gateway.yml + compose.ai-gateway.test.yml). The two secrets the
 // gateway refuses to boot without come from `.env.test`.
 //
 // Usage:
@@ -19,17 +19,21 @@ await runStaticSiteTest({
   // panel is one screen, so the built image measures well under 100 MB.
   sizeBudgetMb: 250,
   probes: [
-    // The panel shell is served to everyone; the sign-in happens inside it.
+    // The panel is served to everyone: it has no login of its own, and a
+    // deployment fronts the origin with whatever gate it wants.
     {
       path: '/',
       status: 200,
       contentTypeIncludes: 'html',
       bodyIncludes: '<div id="root"',
     },
-    // Both doors are closed to a caller with nothing: the token endpoint wants
-    // the API key, the panel routes want a session.
+    // The one door the app itself keeps: every token endpoint wants the API
+    // key, and a caller with nothing gets none of them.
     { path: '/api/tokens', status: 401, contentTypeIncludes: 'json' },
-    { path: '/api/accounts', status: 401, contentTypeIncludes: 'json' },
-    { path: '/api/providers', status: 401, contentTypeIncludes: 'json' },
+    { path: '/api/tokens/anthropic', status: 401, contentTypeIncludes: 'json' },
+    { path: '/api/tokens/openai', status: 401, contentTypeIncludes: 'json' },
+    // The panel's own routes answer without one.
+    { path: '/api/accounts', status: 200, contentTypeIncludes: 'json' },
+    { path: '/api/providers', status: 200, contentTypeIncludes: 'json' },
   ],
 });

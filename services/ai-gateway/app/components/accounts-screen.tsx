@@ -41,7 +41,6 @@ interface AccountsScreenProps {
   isLoading: boolean;
   error: Error | null;
   onReload: () => void;
-  onSignOut: () => void;
 }
 
 /**
@@ -56,7 +55,6 @@ export function AccountsScreen({
   isLoading,
   error,
   onReload,
-  onSignOut,
 }: AccountsScreenProps) {
   const { t } = useT('accounts');
   const { t: tProviders } = useT('providers');
@@ -215,7 +213,7 @@ export function AccountsScreen({
   }, [accounts, query, tProviders]);
 
   return (
-    <PageLayout header={<PanelHeader onSignOut={onSignOut} />}>
+    <PageLayout header={<PanelHeader />}>
       <ContentArea variant="list">
         <DataTable
           addAction={{

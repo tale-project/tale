@@ -1,15 +1,6 @@
-signIn:
-  heading: AI-Gateway
-  description: Dieses Panel schützt ein einziges Passwort.
-  passwordLabel: Panel-Passwort
-  submit: Anmelden
-  wrongPassword: Dieses Passwort stimmt nicht.
-  unreachable: Das Gateway hat nicht geantwortet. Prüfe, ob der Dienst läuft.
-  failed: Die Anmeldung konnte nicht abgeschlossen werden.
 panel:
   title: AI-Gateway
-  subtitle: Claude- und ChatGPT-Abos, gebündelt hinter einem Token-Endpunkt.
-  signOut: Abmelden
+  subtitle: Claude- und ChatGPT-Abos, gebündelt hinter je einem Token-Endpunkt.
   languageLabel: Sprache
 accounts:
   caption: Verbundene Abo-Konten

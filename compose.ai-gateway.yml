@@ -23,7 +23,7 @@ services:
         VERSION: ${VERSION:-dev}
 
     env_file:
-      # Required in practice — the gateway refuses to start without its four
+      # Required in practice — the gateway refuses to start without its two
       # secrets — but marked optional so the file's absence does not fail
       # compose validation for the whole project.
       - path: services/ai-gateway/.env

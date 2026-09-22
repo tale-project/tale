@@ -6,7 +6,7 @@
  * undevelopable. The plugin runs the same `createGateway` the production
  * server does, so a route behaves identically in both.
  *
- * Development may generate the four secrets it needs, printing them once —
+ * Development may generate the two secrets it needs, printing them once —
  * see `backend/config.ts`. Production never does.
  */
 

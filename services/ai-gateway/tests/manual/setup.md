@@ -12,7 +12,7 @@ suites themselves sit in [`suites/`](suites).
 | **Browser engines** | `npx playwright install chromium firefox webkit` once — the cross-engine boxes and every chauffeur script need them. |
 | **A viewport** | 1440×900 is the default; responsive boxes name their own. |
 
-| **Fixed secrets** | The four in [`../../.env.example`](../../.env.example), exported before the server starts. Development generates any that are absent — and a generated `AI_GATEWAY_ENCRYPTION_KEY` cannot read what the previous run sealed, so a round without fixed secrets loses its accounts at every restart. |
+| **Fixed secrets** | The two in [`../../.env.example`](../../.env.example), exported before the server starts. Development generates any that are absent — and a generated `AI_GATEWAY_ENCRYPTION_KEY` cannot read what the previous run sealed, so a round without fixed secrets loses its accounts at every restart. |
 | **A Claude subscription** | A Pro or Max account you own, signed in in the round's browser. Needed from `ACCT-1`. |
 | **A ChatGPT subscription** | A Plus or Pro account you own, signed in in the same browser. Needed from `ACCT-3`. |
 | **Both vendor CLIs** | `claude` and `codex` on the path, for the hand-out boxes `ACCT-8` and `ACCT-9`. |
@@ -34,8 +34,6 @@ environment, not a finding.
 
 ```bash
 export AI_GATEWAY_API_KEY=…            # see ../../.env.example
-export AI_GATEWAY_PANEL_PASSWORD=…
-export AI_GATEWAY_SESSION_SECRET=…
 export AI_GATEWAY_ENCRYPTION_KEY=…     # 32 base64 bytes
 export AI_GATEWAY_DATA_DIR=/tmp/ai-gateway-round
 
@@ -43,7 +41,8 @@ bun run --filter @tale/ai-gateway dev   # Vite + the API on :3004
 ```
 
 The app serves at **http://localhost:3004**. Wait for the first route to
-render before continuing.
+render before continuing. Nothing asks you to sign in: the panel has no login
+of its own, and a deployment puts its own gateway in front of the origin.
 
 <a id="reset-choreography"></a>
 
@@ -57,16 +56,15 @@ exactly this.
 2. **The reset is `rm -f "$AI_GATEWAY_DATA_DIR/accounts.json"`, with the
    server stopped.** That file is the whole state: the accounts, their
    encrypted tokens and any half-finished authorization. Nothing else persists
-   — there is no database, no cache and no server-side session store.
-3. **A reset wipes the accounts, but not your sign-in.** The panel session is
-   a signed cookie with nothing behind it, so an open tab stays signed in and
-   simply shows the empty state on its next read. Changing
-   `AI_GATEWAY_SESSION_SECRET` is what signs everyone out.
-4. **The automated suites write nothing.** Every e2e spec stops at a closed
-   door, so `bun run --filter @tale/ai-gateway test:e2e` cannot disturb a
-   round's accounts — but it will reuse a dev server already on :3004 and send
-   wrong-password attempts through it. See
-   [`reference/automation.md`](reference/automation.md).
+   — there is no database, no cache and no session store.
+3. **A reset leaves the browser alone.** There is no cookie to clear and no
+   session to end, so an open tab simply shows the empty state on its next
+   read.
+4. **The automated suites write nothing.** Every e2e spec either reads or
+   stops at the token endpoints' closed door, so
+   `bun run --filter @tale/ai-gateway test:e2e` cannot disturb a round's
+   accounts — but it will reuse a dev server already on :3004 and read through
+   it. See [`reference/automation.md`](reference/automation.md).
 5. **Exactly one writer at a time.** The background refresh pass inside the
    running server is the other writer: it rewrites the document every
    `AI_GATEWAY_REFRESH_INTERVAL_SECONDS` and will recreate a file you delete
@@ -82,7 +80,7 @@ a plan's usage windows is unreadable without knowing which plan.
 
 | Account | Role | Used by |
 |---|---|---|
-| the panel password | the only login there is; no roles, no user list | every suite |
+| none for the panel | there is no login, no role and no user list | every suite |
 | a Claude Pro/Max account you own | the Anthropic half of the pool | `ACCT-1`, `ACCT-2`, `ACCT-8` |
 | a ChatGPT Plus/Pro account you own | the OpenAI half | `ACCT-3`, `ACCT-4`, `ACCT-9` |
 

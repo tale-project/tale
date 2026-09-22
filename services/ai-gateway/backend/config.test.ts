@@ -6,8 +6,6 @@ import { ConfigError, loadConfig } from './config';
 
 const complete = () => ({
   AI_GATEWAY_API_KEY: 'api-key',
-  AI_GATEWAY_PANEL_PASSWORD: 'panel-password',
-  AI_GATEWAY_SESSION_SECRET: 'session-secret',
   AI_GATEWAY_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
 });
 
@@ -35,8 +33,6 @@ describe('loadConfig', () => {
     expect(thrown.missing).toEqual([
       'AI_GATEWAY_API_KEY',
       'AI_GATEWAY_ENCRYPTION_KEY',
-      'AI_GATEWAY_PANEL_PASSWORD',
-      'AI_GATEWAY_SESSION_SECRET',
     ]);
   });
 
@@ -57,21 +53,30 @@ describe('loadConfig', () => {
 
   it('generates only the secrets the environment did not supply', () => {
     const { config, generated } = loadConfig(
-      { AI_GATEWAY_PANEL_PASSWORD: 'kept' },
+      { AI_GATEWAY_API_KEY: 'kept' },
       { generateMissingSecrets: true },
     );
-    expect(config.panelPassword).toBe('kept');
+    expect(config.apiKey).toBe('kept');
     expect(generated.map((secret) => secret.name)).toEqual([
-      'AI_GATEWAY_API_KEY',
-      'AI_GATEWAY_SESSION_SECRET',
       'AI_GATEWAY_ENCRYPTION_KEY',
     ]);
     expect(config.encryptionKey).toHaveLength(32);
   });
 
   it('never generates in the default (production) mode', () => {
-    expect(() => loadConfig({ AI_GATEWAY_PANEL_PASSWORD: 'kept' })).toThrow(
+    expect(() => loadConfig({ AI_GATEWAY_API_KEY: 'kept' })).toThrow(
       ConfigError,
     );
+  });
+
+  // The panel lost its login: a deployment that still sets the old secrets
+  // must boot, not trip over an unknown key.
+  it('ignores the retired panel-password and session secrets', () => {
+    const { config } = loadConfig({
+      ...complete(),
+      AI_GATEWAY_PANEL_PASSWORD: 'no longer read',
+      AI_GATEWAY_SESSION_SECRET: 'no longer read',
+    });
+    expect(config.apiKey).toBe('api-key');
   });
 });

@@ -1,59 +1,11 @@
 /**
- * The panel's session.
+ * The one credential the gateway itself checks.
  *
- * One password guards one panel, so there is no user table and nothing to
- * look up: a successful login mints a short, signed token carrying only the
- * instant it was issued. The HMAC over `AI_GATEWAY_SESSION_SECRET` is what
- * makes it unforgeable, and the issue time is what makes it expire. The
- * secret lives in the environment, so restarting with a new one invalidates
- * every outstanding session — which is the intended way to kick everyone out.
+ * The token endpoints are the only doors the app guards: everything a machine
+ * can reach carries `AI_GATEWAY_API_KEY`. The panel has no login of its own —
+ * whatever fronts the gateway decides who reaches it — so there is no session,
+ * no cookie, and nothing for a browser to present.
  */
-
-import { createHmac } from 'node:crypto';
-
-import { secretsMatch } from './crypto';
-
-export const SESSION_COOKIE_NAME = 'ai_gateway_session';
-
-/** How long a panel login lasts before the person signs in again. */
-export const SESSION_TTL_SECONDS = 12 * 60 * 60;
-
-export interface SessionSigner {
-  /** Mint a cookie value for a session starting now. */
-  issue(now?: Date): string;
-  /** True when the value is well-formed, correctly signed and unexpired. */
-  verify(value: string | undefined | null, now?: Date): boolean;
-}
-
-export function createSessionSigner(
-  secret: string,
-  ttlSeconds: number = SESSION_TTL_SECONDS,
-): SessionSigner {
-  function sign(issuedAt: string): string {
-    return createHmac('sha256', secret).update(issuedAt).digest('base64url');
-  }
-
-  return {
-    issue(now = new Date()) {
-      const issuedAt = String(now.getTime());
-      return `${issuedAt}.${sign(issuedAt)}`;
-    },
-
-    verify(value, now = new Date()) {
-      if (!value) return false;
-      const separator = value.indexOf('.');
-      if (separator <= 0) return false;
-      const issuedAt = value.slice(0, separator);
-      const signature = value.slice(separator + 1);
-      if (!secretsMatch(signature, sign(issuedAt))) return false;
-
-      const issuedAtMs = Number(issuedAt);
-      if (!Number.isFinite(issuedAtMs)) return false;
-      const ageSeconds = (now.getTime() - issuedAtMs) / 1000;
-      return ageSeconds >= 0 && ageSeconds < ttlSeconds;
-    },
-  };
-}
 
 /**
  * Read the API key off a request, accepting either spelling.

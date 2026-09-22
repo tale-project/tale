@@ -17,10 +17,12 @@ gets re-filed every round.
 
 - **No inference proxy.** The gateway hands out credentials; it does not sit in
   front of a model. A request to `/v1/chat/completions` 404s on purpose.
-- **No account rotation or load balancing.** `GET /api/tokens` answers with the
-  whole pool and the caller picks. Nothing here counts hand-outs or prefers the
-  least-used account.
-- **No multi-user panel.** One password, one session, no user list, no roles.
+- **No account rotation or load balancing.** A token endpoint answers with
+  every account it covers and the caller picks. Nothing here counts hand-outs
+  or prefers the least-used account.
+- **No login on the panel.** No password, no session, no user list, no roles —
+  and therefore no sign-in screen to file a finding about. Access is whatever
+  fronts the origin; the fleet deployment uses its SSO gateway.
 - **No provider beyond Anthropic and OpenAI.** A third is a module and a
   registry line (see the service README), not a configuration setting.
 - **No per-account usage history.** Only the latest reading is kept; the bars

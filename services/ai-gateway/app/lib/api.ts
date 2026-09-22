@@ -109,16 +109,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const gatewayApi = {
-  session: () => request<{ authenticated: boolean }>('/api/session'),
-
-  signIn: (password: string) =>
-    request<void>('/api/session', {
-      method: 'POST',
-      body: JSON.stringify({ password }),
-    }),
-
-  signOut: () => request<void>('/api/session', { method: 'DELETE' }),
-
   providers: () =>
     request<{ providers: ProviderSummary[] }>('/api/providers').then(
       (payload) => payload.providers,

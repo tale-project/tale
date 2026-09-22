@@ -1,11 +1,9 @@
-import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SUPPORTED_LOCALES } from '@tale/ui/i18n/locales';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { ThemeSwitcher } from '@tale/ui/theme-switcher';
-import { LogOut } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -19,7 +17,7 @@ import { useT } from '@/lib/i18n/client';
  * is served as one untranslated tree, so it carries no locale in its paths
  * and the choice is a preference rather than a destination.
  */
-export function PanelHeader({ onSignOut }: { onSignOut: () => void }) {
+export function PanelHeader() {
   const { t } = useT('panel');
   const { t: tGlobal } = useT('global');
   const { locale, setLocale } = useLocale();
@@ -50,15 +48,6 @@ export function PanelHeader({ onSignOut }: { onSignOut: () => void }) {
           value={selected?.value ?? 'en'}
         />
         <ThemeSwitcher />
-        <Button
-          icon={LogOut}
-          onClick={onSignOut}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          {t('signOut')}
-        </Button>
       </div>
     </div>
   );

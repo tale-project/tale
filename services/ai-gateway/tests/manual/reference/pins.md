@@ -21,7 +21,7 @@ and name the test that now holds it. Never key a row by round — the journal in
 
 | Box | What it pins |
 |---|---|
-| `SMOKE-3` | The session check runs before anything is drawn. An early build rendered the sign-in card while `GET /api/session` was still in flight, so every reload flashed the door at someone already through it. The panel now holds an `unknown` state until the answer lands. |
+| `SMOKE-10` | The panel keeps no door of its own. It once had a password and a signed session cookie in front of the same screen the fleet's SSO gateway already guards, so every operator signed in twice. Both went; whatever fronts the origin is the only gate, and a deployment that puts nothing there exposes the pool. |
 | `SMOKE-4` | French punctuation spacing survives the catalog. The `%` in a usage bar takes a nonbreaking space before it, and an editor that retypes the line loses it silently — the character is invisible. |
 | `SMOKE-6` | The row action menu is the only route to three of this panel's four verbs. A toolbar that is reachable but a menu that is not leaves a keyboard user unable to copy a command, re-authenticate or remove. |
 
@@ -33,6 +33,7 @@ and name the test that now holds it. Never key a row by round — the journal in
 | `ACCT-5` | The row caption carries the provider name and the address even when the label is custom. Defaulting the label to the address once made the caption repeat it word for word, which is how the caption came to be conditional. |
 | `ACCT-6` | Closing the dialog discards the attempt. The reset lives in the close handler, not in an effect on `open` — an effect fired a second render on every open and made the provider control flicker through the previous row's value. |
 | `ACCT-7` | A pending authorization is consumed by the read that finds it, so a replayed paste cannot mint a second account from one consent. |
-| `ACCT-11` | The panel session and the API key open different doors. The session guard was once a wildcard middleware over `/api/*`, which silently swallowed `/api/tokens` as well — the endpoint answered 401 to a correct key. It is now applied per route. |
+| `ACCT-21` | The API key guards the token endpoints and nothing else. Its predecessor — the panel's session guard — was once a wildcard middleware over `/api/*`, which silently swallowed `/api/tokens` as well and answered 401 to a correct key. Every gate here is applied per route for that reason. |
+| `ACCT-24` | An empty pool is `{"tokens": []}` and an unknown vendor is a 404. Collapsing the two would leave a caller unable to tell a gateway holding no ChatGPT accounts from one that never heard of the vendor — the first is waiting for someone to add an account, the second is a misconfigured URL. |
 | `ACCT-12` | Reset countdowns are computed from an absolute instant. A vendor that reports `resets_in_seconds` rather than `resets_at` is converted at read time; keeping the relative figure made every countdown drift by the reader's UTC offset. |
 | `ACCT-14` | A store that cannot be decrypted fails loudly. AES-256-GCM's authentication tag is what makes a wrong key an error rather than plausible garbage. |

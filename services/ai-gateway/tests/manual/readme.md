@@ -62,7 +62,7 @@ always a finding, on any page.** Check it against the known-benign list in
 | Profile | Run | When |
 |---|---|---|
 | **Smoke** | [`suites/smoke.md`](suites/smoke.md) | before investing in anything bigger; after a dependency bump |
-| **Accounts** | [`suites/accounts.md`](suites/accounts.md) | any change to a provider module, the store, the refresh arithmetic or the two doors |
+| **Accounts** | [`suites/accounts.md`](suites/accounts.md) | any change to a provider module, the store, the refresh arithmetic or a token endpoint |
 | **Change-scoped** | the rows below that the change touches | the ordinary case — a feature or a fix landed |
 | **Full** | every suite | before a release, after a platform-level change, or when a round is asked for by name |
 
@@ -70,7 +70,7 @@ Change-scoped, by area:
 
 | What changed | Run |
 |---|---|
-| routing or the app shell | `SMOKE-1`, `SMOKE-2` |
+| routing or the app shell | `SMOKE-1`, `SMOKE-10` |
 | copy or catalogs (any locale) | `SMOKE-4` |
 | controls, focus, geometry | `SMOKE-5` · [`automation.md`](reference/automation.md) first |
 
@@ -79,8 +79,8 @@ Change-scoped, by area:
 Every box is one line of markdown that a round can tick, cite and diff:
 
 ```
-- [ ] `SMOKE-2` · **Reload the page with devtools open** → the route
-  re-renders from the URL alone; no console error, no flash of empty state.
+- [ ] `SMOKE-8` · **Open a route the panel does not define** → a real
+  not-found renders; no white screen, no unhandled rejection in the console.
 ```
 
 - **Do the bolded action, judge against everything after the `→`.** A box that

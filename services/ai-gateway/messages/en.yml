@@ -1,15 +1,6 @@
-signIn:
-  heading: AI gateway
-  description: This panel is guarded by one password.
-  passwordLabel: Panel password
-  submit: Sign in
-  wrongPassword: That password is wrong.
-  unreachable: The gateway did not answer. Check that the service is running.
-  failed: The sign-in could not be completed.
 panel:
   title: AI gateway
-  subtitle: Claude and ChatGPT subscriptions, pooled behind one token endpoint.
-  signOut: Sign out
+  subtitle: Claude and ChatGPT subscriptions, pooled behind a token endpoint each.
   languageLabel: Language
 accounts:
   caption: Connected subscription accounts
