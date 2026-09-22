@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AccountError, type AccountService } from './accounts';
+import {
+  AccountError,
+  type AccountService,
+  type TokenHandout,
+} from './accounts';
 import { createProviderRegistry } from './providers/index';
+import type { ProviderId } from './providers/types';
 import { createApi, createApiDispatcher } from './routes';
-import { createSessionSigner, SESSION_COOKIE_NAME } from './session';
 import type { AccountView } from './store';
 
-const PANEL_PASSWORD = 'panel-password';
 const API_KEY = 'the-api-key';
 
 const view: AccountView = {
@@ -23,7 +26,41 @@ const view: AccountView = {
   usage: null,
 };
 
+const claude: TokenHandout = {
+  id: 'account-1',
+  provider: 'anthropic',
+  label: 'you@example.com',
+  accountEmail: 'you@example.com',
+  status: 'active',
+  accessToken: 'sk-ant-oat01-access-1',
+  expiresAt: '2026-10-21T09:40:00.000Z',
+  scopes: 'user:inference',
+};
+
+const chatgpt: TokenHandout = {
+  id: 'account-2',
+  provider: 'openai',
+  label: 'you@example.org',
+  accountEmail: 'you@example.org',
+  status: 'active',
+  accessToken: 'codex-access-2',
+  expiresAt: null,
+  scopes: null,
+};
+
+const pool = [claude, chatgpt];
+
 function build(overrides: Partial<AccountService> = {}) {
+  // Held as a local so assertions never reference the method off the object
+  // (an unbound method reference), and so an override cannot make it stale.
+  const handOutTokens = vi.fn((provider?: ProviderId) =>
+    Promise.resolve(
+      provider === undefined
+        ? pool
+        : pool.filter((handout) => handout.provider === provider),
+    ),
+  );
+
   const accounts: AccountService = {
     list: vi.fn(() => Promise.resolve([view])),
     beginAuthorization: vi.fn(() =>
@@ -37,162 +74,50 @@ function build(overrides: Partial<AccountService> = {}) {
     remove: vi.fn(() => Promise.resolve(true)),
     cliCommand: vi.fn(() => Promise.resolve('FAKE_TOKEN=access-1 fake')),
     refreshAll: vi.fn(() => Promise.resolve()),
-    handOutTokens: vi.fn(() =>
-      Promise.resolve([
-        {
-          id: 'account-1',
-          provider: 'anthropic' as const,
-          label: 'you@example.com',
-          accountEmail: 'you@example.com',
-          accountId: null,
-          status: 'active' as const,
-          accessToken: 'access-1',
-          expiresAt: null,
-          scopes: null,
-          envVar: 'ANTHROPIC_AUTH_TOKEN',
-        },
-      ]),
-    ),
+    handOutTokens,
     ...overrides,
   };
 
-  const session = createSessionSigner('session-secret');
   // The real registry: building it touches no network, and the catalog the
   // panel reads should be the one the gateway would actually offer.
   const providers = createProviderRegistry();
+  const api = createApi({ accounts, providers, apiKey: API_KEY });
 
-  const api = createApi({
-    accounts,
-    providers,
-    session,
-    panelPassword: PANEL_PASSWORD,
-    apiKey: API_KEY,
-  });
+  const call = (path: string, init?: RequestInit) =>
+    api.fetch(new Request(`http://gateway.test${path}`, init));
 
-  const cookie = `${SESSION_COOKIE_NAME}=${session.issue()}`;
-  const call = (
-    path: string,
-    init?: RequestInit,
-    origin = 'http://gateway.test',
-  ) => api.fetch(new Request(`${origin}${path}`, init));
-
-  return { accounts, api, call, cookie };
+  return { api, call, handOutTokens };
 }
 
-describe('the panel session', () => {
-  it('reports a browser with no cookie as signed out', async () => {
-    const { call } = build();
-    const response = await call('/api/session');
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ authenticated: false });
-  });
+const withKey = { authorization: `Bearer ${API_KEY}` };
 
-  it('refuses the wrong password', async () => {
-    const { call } = build();
-    const response = await call('/api/session', {
-      method: 'POST',
-      body: JSON.stringify({ password: 'nope' }),
-    });
-    expect(response.status).toBe(401);
-    expect(await response.json()).toMatchObject({
-      error: { code: 'invalid_password' },
-    });
-    expect(response.headers.get('set-cookie')).toBeNull();
-  });
-
-  it('refuses a request that carries no password at all', async () => {
-    const { call } = build();
-    const response = await call('/api/session', { method: 'POST' });
-    expect(response.status).toBe(400);
-  });
-
-  it('mints an http-only, same-site cookie for the right password', async () => {
-    const { call } = build();
-    const response = await call('/api/session', {
-      method: 'POST',
-      body: JSON.stringify({ password: PANEL_PASSWORD }),
-    });
-    expect(response.status).toBe(204);
-    const cookie = response.headers.get('set-cookie') ?? '';
-    expect(cookie).toContain(`${SESSION_COOKIE_NAME}=`);
-    expect(cookie).toContain('HttpOnly');
-    expect(cookie).toContain('SameSite=Strict');
-  });
-
-  it('marks the cookie Secure over TLS and not over plain HTTP', async () => {
-    const { call } = build();
-    const body = JSON.stringify({ password: PANEL_PASSWORD });
-
-    const plain = await call('/api/session', { method: 'POST', body });
-    expect(plain.headers.get('set-cookie')).not.toContain('Secure');
-
-    const tls = await call(
-      '/api/session',
-      { method: 'POST', body },
-      'https://gateway.test',
-    );
-    expect(tls.headers.get('set-cookie')).toContain('Secure');
-  });
-
-  it('trusts a terminating proxy that says the hop was TLS', async () => {
-    const { call } = build();
-    const response = await call('/api/session', {
-      method: 'POST',
-      headers: { 'x-forwarded-proto': 'https' },
-      body: JSON.stringify({ password: PANEL_PASSWORD }),
-    });
-    expect(response.headers.get('set-cookie')).toContain('Secure');
-  });
-
-  it('clears the cookie on sign-out', async () => {
-    const { call } = build();
-    const response = await call('/api/session', { method: 'DELETE' });
-    expect(response.status).toBe(204);
-    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
-  });
-});
-
-describe('the panel door', () => {
+describe('the panel routes', () => {
   const paths = [
     ['GET', '/api/accounts'],
     ['GET', '/api/providers'],
-    ['POST', '/api/accounts/authorize'],
-    ['POST', '/api/accounts/complete'],
     ['GET', '/api/accounts/account-1/command'],
-    ['DELETE', '/api/accounts/account-1'],
   ] as const;
 
-  it.each(paths)('refuses %s %s without a session', async (method, path) => {
-    const { call } = build();
-    const response = await call(path, { method });
-    expect(response.status).toBe(401);
-    expect(await response.json()).toMatchObject({
-      error: { code: 'not_signed_in' },
-    });
-  });
-
+  // The panel has no login of its own: whatever fronts the gateway decides
+  // who reaches it, and the app asks a browser for nothing.
   it.each(paths)(
-    'refuses %s %s to a holder of the API key alone',
+    'serves %s %s to a browser with no credential',
     async (method, path) => {
       const { call } = build();
-      const response = await call(path, {
-        method,
-        headers: { authorization: `Bearer ${API_KEY}` },
-      });
-      expect(response.status).toBe(401);
+      expect((await call(path, { method })).status).toBe(200);
     },
   );
 
-  it('lists the accounts for a signed-in browser', async () => {
-    const { call, cookie } = build();
-    const response = await call('/api/accounts', { headers: { cookie } });
+  it('lists the accounts', async () => {
+    const { call } = build();
+    const response = await call('/api/accounts');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ accounts: [view] });
   });
 
   it('describes the providers it can add', async () => {
-    const { call, cookie } = build();
-    const response = await call('/api/providers', { headers: { cookie } });
+    const { call } = build();
+    const response = await call('/api/providers');
     expect(await response.json()).toEqual({
       providers: [
         { id: 'anthropic', callbackStyle: 'code' },
@@ -202,10 +127,10 @@ describe('the panel door', () => {
   });
 
   it('starts an authorization for a known provider only', async () => {
-    const { call, cookie } = build();
+    const { call } = build();
     const ok = await call('/api/accounts/authorize', {
       method: 'POST',
-      headers: { cookie, 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ provider: 'anthropic' }),
     });
     expect(ok.status).toBe(200);
@@ -213,17 +138,17 @@ describe('the panel door', () => {
 
     const bad = await call('/api/accounts/authorize', {
       method: 'POST',
-      headers: { cookie, 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ provider: 'gemini' }),
     });
     expect(bad.status).toBe(400);
   });
 
   it('answers a completed authorization with the new account', async () => {
-    const { call, cookie } = build();
+    const { call } = build();
     const response = await call('/api/accounts/complete', {
       method: 'POST',
-      headers: { cookie, 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ state: 'state-1', pasted: 'code-1' }),
     });
     expect(response.status).toBe(201);
@@ -231,7 +156,7 @@ describe('the panel door', () => {
   });
 
   it('turns an account failure into its own code and status', async () => {
-    const { call, cookie } = build({
+    const { call } = build({
       completeAuthorization: vi.fn(() =>
         Promise.reject(
           new AccountError('unknown_state', 'That authorization expired.'),
@@ -240,7 +165,7 @@ describe('the panel door', () => {
     });
     const response = await call('/api/accounts/complete', {
       method: 'POST',
-      headers: { cookie, 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ state: 'state-1', pasted: 'code-1' }),
     });
     expect(response.status).toBe(400);
@@ -250,65 +175,167 @@ describe('the panel door', () => {
   });
 
   it('answers 404 for a command or delete on an account that is gone', async () => {
-    const { call, cookie } = build({
+    const { call } = build({
       cliCommand: vi.fn(() => Promise.resolve(null)),
       remove: vi.fn(() => Promise.resolve(false)),
     });
+    expect((await call('/api/accounts/gone/command')).status).toBe(404);
     expect(
-      (await call('/api/accounts/gone/command', { headers: { cookie } }))
-        .status,
-    ).toBe(404);
-    expect(
-      (
-        await call('/api/accounts/gone', {
-          method: 'DELETE',
-          headers: { cookie },
-        })
-      ).status,
+      (await call('/api/accounts/gone', { method: 'DELETE' })).status,
     ).toBe(404);
   });
 });
 
-describe('the token endpoint', () => {
-  it('refuses a request with no key', async () => {
+describe('the token endpoints', () => {
+  const paths = [
+    '/api/tokens',
+    '/api/tokens/anthropic',
+    '/api/tokens/openai',
+  ] as const;
+
+  it.each(paths)('refuses %s with no key', async (path) => {
     const { call } = build();
-    const response = await call('/api/tokens');
+    const response = await call(path);
     expect(response.status).toBe(401);
     expect(response.headers.get('www-authenticate')).toBe('Bearer');
+    expect(await response.json()).toMatchObject({
+      error: { code: 'invalid_api_key' },
+    });
   });
 
-  it('refuses the wrong key', async () => {
+  it.each(paths)('refuses %s with the wrong key', async (path) => {
     const { call } = build();
-    const response = await call('/api/tokens', {
+    const response = await call(path, {
       headers: { authorization: 'Bearer wrong' },
     });
     expect(response.status).toBe(401);
   });
 
-  it('refuses a panel session — the two doors are separate', async () => {
-    const { call, cookie } = build();
-    expect((await call('/api/tokens', { headers: { cookie } })).status).toBe(
-      401,
-    );
+  it.each(paths)('accepts the x-api-key spelling on %s', async (path) => {
+    const { call } = build();
+    expect(
+      (await call(path, { headers: { 'x-api-key': API_KEY } })).status,
+    ).toBe(200);
   });
 
-  it('hands out every token for the right key', async () => {
+  it('answers in cc-gateway’s shape, field for field', async () => {
     const { call } = build();
-    const response = await call('/api/tokens', {
-      headers: { authorization: `Bearer ${API_KEY}` },
+    const response = await call('/api/tokens/anthropic', { headers: withKey });
+    expect(await response.json()).toEqual({
+      tokens: [
+        {
+          id: 'account-1',
+          label: 'you@example.com',
+          account_email: 'you@example.com',
+          status: 'active',
+          access_token: 'sk-ant-oat01-access-1',
+          expires_at: '2026-10-21T09:40:00.000Z',
+          scopes: 'user:inference',
+        },
+      ],
     });
-    expect(response.status).toBe(200);
+  });
+
+  it('hands out only Claude tokens on the Anthropic endpoint', async () => {
+    const { call, handOutTokens } = build();
+    const response = await call('/api/tokens/anthropic', { headers: withKey });
     expect(await response.json()).toMatchObject({
-      tokens: [{ accessToken: 'access-1', envVar: 'ANTHROPIC_AUTH_TOKEN' }],
+      tokens: [{ id: 'account-1' }],
     });
+    // Narrowed in the service, not filtered here: an OpenAI account must not
+    // be refreshed to answer a request for Anthropic's tokens.
+    expect(handOutTokens).toHaveBeenCalledWith('anthropic');
   });
 
-  it('accepts the x-api-key spelling too', async () => {
-    const { call } = build();
-    const response = await call('/api/tokens', {
-      headers: { 'x-api-key': API_KEY },
+  it('hands out only ChatGPT tokens on the OpenAI endpoint', async () => {
+    const { call, handOutTokens } = build();
+    const response = await call('/api/tokens/openai', { headers: withKey });
+    expect(await response.json()).toEqual({
+      tokens: [
+        {
+          id: 'account-2',
+          label: 'you@example.org',
+          account_email: 'you@example.org',
+          status: 'active',
+          access_token: 'codex-access-2',
+          expires_at: null,
+          scopes: null,
+        },
+      ],
     });
+    expect(handOutTokens).toHaveBeenCalledWith('openai');
+  });
+
+  it('never leaks one vendor’s token through the other’s endpoint', async () => {
+    const { call } = build();
+    const anthropic = await (
+      await call('/api/tokens/anthropic', { headers: withKey })
+    ).text();
+    const openai = await (
+      await call('/api/tokens/openai', { headers: withKey })
+    ).text();
+    expect(anthropic).not.toContain(chatgpt.accessToken);
+    expect(openai).not.toContain(claude.accessToken);
+  });
+
+  it('answers an empty pool with an empty array, not a 404', async () => {
+    const { call } = build({ handOutTokens: vi.fn(() => Promise.resolve([])) });
+    const response = await call('/api/tokens/openai', { headers: withKey });
     expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ tokens: [] });
+  });
+
+  it('refuses a provider it does not hold', async () => {
+    const { call, handOutTokens } = build();
+    const response = await call('/api/tokens/gemini', { headers: withKey });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'unknown_provider' },
+    });
+    expect(handOutTokens).not.toHaveBeenCalled();
+  });
+
+  it('serves the whole pool on the combined endpoint, each token named by vendor', async () => {
+    const { call, handOutTokens } = build();
+    const response = await call('/api/tokens', { headers: withKey });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      tokens: [
+        {
+          id: 'account-1',
+          provider: 'anthropic',
+          label: 'you@example.com',
+          account_email: 'you@example.com',
+          status: 'active',
+          access_token: 'sk-ant-oat01-access-1',
+          expires_at: '2026-10-21T09:40:00.000Z',
+          scopes: 'user:inference',
+        },
+        {
+          id: 'account-2',
+          provider: 'openai',
+          label: 'you@example.org',
+          account_email: 'you@example.org',
+          status: 'active',
+          access_token: 'codex-access-2',
+          expires_at: null,
+          scopes: null,
+        },
+      ],
+    });
+    expect(handOutTokens).toHaveBeenCalledWith();
+  });
+
+  it('keeps the key off the panel routes — the two audiences stay apart', async () => {
+    const { call } = build();
+    // Holding the key does not make the holder the panel, and the panel's
+    // routes never answer with a credential.
+    const command = await call('/api/accounts/account-1/command', {
+      headers: withKey,
+    });
+    expect(await command.json()).toEqual({
+      command: 'FAKE_TOKEN=access-1 fake',
+    });
   });
 });
 
@@ -322,7 +349,8 @@ describe('createApiDispatcher', () => {
         new URL(`http://gateway.test${path}`),
       );
 
-    expect(at('/api/session')).not.toBeNull();
+    expect(at('/api/accounts')).not.toBeNull();
+    expect(at('/api/tokens/anthropic')).not.toBeNull();
     // The shared React server owns the health probe and the SPA.
     expect(at('/api/health')).toBeNull();
     expect(at('/')).toBeNull();

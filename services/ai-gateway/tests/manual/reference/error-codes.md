@@ -10,7 +10,6 @@ Each surfaces as a localized message the user can act on.
 
 | Code | How to reach it |
 |---|---|
-| `invalid_password` | Sign in with anything but the panel password. |
 | `unknown_state` | Complete an authorization twice, or complete one more than 30 minutes after starting it. |
 | `missing_code` | Paste something with no `code` in it — a bare `#state`, or prose. |
 | `state_mismatch` | Paste a redirect URL whose `state` belongs to a different authorization (start two, swap the pastes). |
@@ -23,10 +22,10 @@ Never a UI message — seeing one of these in the UI is itself a bug.
 
 | Code | Where it shows up |
 |---|---|
-| `not_signed_in` | Any `/api/accounts…` or `/api/providers` request without the session cookie. |
-| `invalid_api_key` | `GET /api/tokens` with a wrong key, no key, or only a panel session. |
-| `invalid_request` | A malformed body: a `provider` the registry does not know, a login with no password, a complete with no paste. The panel's own controls cannot produce these. |
-| `unreachable` | Not the server's — the panel's own code for "the fetch never completed". Provoke it by stopping the server and signing in. |
+| `invalid_api_key` | Any `GET /api/tokens…` with a wrong key or no key. The panel's routes never answer this — the key is not their door. |
+| `unknown_provider` | `GET /api/tokens/<anything the registry does not know>` with a valid key — `/api/tokens/gemini`. A vendor that exists but holds no accounts is a 200 and an empty list instead. |
+| `invalid_request` | A malformed body: a `provider` the registry does not know, a complete with no paste. The panel's own controls cannot produce these. |
+| `unreachable` | Not the server's — the panel's own code for "the fetch never completed". Provoke it by stopping the server and reloading the panel. |
 
 ## Must never appear
 
@@ -43,6 +42,5 @@ directly.
 
 | Code | Guarded by | Proven by |
 |---|---|---|
-| `invalid_request` (empty password) | **Sign in** stays disabled until the field has a value | `SMOKE-1`, and `backend/routes.test.ts` calls the route with no body |
 | `invalid_request` (empty paste) | **Connect** stays disabled until the textarea has a value | `ACCT-6`, and the same suite covers the server's refusal |
 | `invalid_request` (unknown provider) | the provider control offers only the registry's own ids | `backend/routes.test.ts` posts `provider: "gemini"` directly |

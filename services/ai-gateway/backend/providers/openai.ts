@@ -120,8 +120,6 @@ export function createOpenAiProvider(
   return {
     id: 'openai',
     callbackStyle: 'redirect-url',
-    cliTokenEnvVar: 'CODEX_ACCESS_TOKEN',
-
     cliCommand(accessToken) {
       return `CODEX_ACCESS_TOKEN=${accessToken} codex`;
     },

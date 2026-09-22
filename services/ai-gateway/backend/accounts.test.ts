@@ -32,7 +32,6 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   return Object.assign(state, {
     id,
     callbackStyle: 'code' as const,
-    cliTokenEnvVar: 'FAKE_TOKEN',
     cliCommand: (accessToken: string) => `FAKE_TOKEN=${accessToken} fake`,
     beginAuthorization: (stateValue: string) => ({
       authorizeUrl: `https://example.test/authorize?state=${stateValue}`,
@@ -113,11 +112,16 @@ describe('createAccountService', () => {
     });
   });
 
-  async function connect(pasted = 'code-1') {
-    const { state } = await service.beginAuthorization({
-      provider: 'anthropic',
-    });
+  async function connectFor(
+    provider: 'anthropic' | 'openai',
+    pasted = 'code-1',
+  ) {
+    const { state } = await service.beginAuthorization({ provider });
     return service.completeAuthorization({ state, pasted });
+  }
+
+  async function connect(pasted = 'code-1') {
+    return connectFor('anthropic', pasted);
   }
 
   it('connects an account and labels it from the provider identity', async () => {
@@ -201,11 +205,40 @@ describe('createAccountService', () => {
     ).rejects.toBeInstanceOf(AccountError);
   });
 
-  it('hands out a decrypted token and the variable its CLI reads', async () => {
+  it('hands out a decrypted token', async () => {
     await connect();
     const [handout] = await service.handOutTokens();
     expect(handout?.accessToken).toBe('access-1');
-    expect(handout?.envVar).toBe('FAKE_TOKEN');
+    expect(handout?.provider).toBe('anthropic');
+  });
+
+  it('narrows the pool to one vendor when asked for one', async () => {
+    await connectFor('anthropic');
+    await connectFor('openai', 'code-2');
+
+    expect((await service.handOutTokens()).map((h) => h.provider)).toEqual([
+      'anthropic',
+      'openai',
+    ]);
+    expect(
+      (await service.handOutTokens('anthropic')).map((h) => h.provider),
+    ).toEqual(['anthropic']);
+    expect(
+      (await service.handOutTokens('openai')).map((h) => h.provider),
+    ).toEqual(['openai']);
+  });
+
+  it('refreshes only the vendor it was asked for', async () => {
+    await connectFor('anthropic');
+    await connectFor('openai', 'code-2');
+    // Both tokens expire at 11:00 and the skew is five minutes, so an
+    // unnarrowed pass would refresh both.
+    now = new Date('2026-09-21T10:56:00.000Z');
+
+    await service.handOutTokens('openai');
+
+    expect(openai.refreshCount).toBe(1);
+    expect(anthropic.refreshCount).toBe(0);
   });
 
   it('refreshes a token that is inside the skew window before handing it out', async () => {

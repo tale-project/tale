@@ -15,7 +15,6 @@ import {
 import { createTokenCipher } from './crypto';
 import { createProviderRegistry } from './providers/index';
 import { createApi, createApiDispatcher, type Api } from './routes';
-import { createSessionSigner } from './session';
 import { createFileAccountStore } from './store';
 
 export interface CreateGatewayOptions {
@@ -54,13 +53,7 @@ export function createGateway(options: CreateGatewayOptions = {}): Gateway {
     usageMinIntervalSeconds: config.usageMinIntervalSeconds,
   });
 
-  const api = createApi({
-    accounts,
-    providers,
-    session: createSessionSigner(config.sessionSecret),
-    panelPassword: config.panelPassword,
-    apiKey: config.apiKey,
-  });
+  const api = createApi({ accounts, providers, apiKey: config.apiKey });
 
   return {
     config,

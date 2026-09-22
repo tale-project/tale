@@ -757,7 +757,10 @@ describe('release artifact identity', () => {
     const steps = release.jobs['container-test']!.steps.filter((step) =>
       step.run?.includes('bun services/platform/tests/integration/'),
     );
-    expect(steps).toHaveLength(5);
+    // image, smoke, web, docs, ui-docs, ai-gateway. Bump this with the job:
+    // the count is what catches a check added to one workflow and not the
+    // other, which is how the ai-gateway check arrived unguarded.
+    expect(steps).toHaveLength(6);
     for (const step of steps) {
       const result = shell(
         'bun() { printf "%s\\n" "$SKIP_BUILD" "$PULL_POLICY" "$*"; };\n' +

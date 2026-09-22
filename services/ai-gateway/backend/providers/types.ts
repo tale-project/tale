@@ -109,12 +109,10 @@ export interface Provider {
   /** How the panel asks for the code back. */
   readonly callbackStyle: CallbackStyle;
   /**
-   * The environment variable that hands this provider's access token to its
-   * own CLI — `ANTHROPIC_AUTH_TOKEN` for Claude Code, `CODEX_ACCESS_TOKEN`
-   * for Codex.
+   * A ready-to-run command that starts the vendor's CLI on this token —
+   * `ANTHROPIC_AUTH_TOKEN=… claude` for Claude Code, `CODEX_ACCESS_TOKEN=…
+   * codex` for Codex.
    */
-  readonly cliTokenEnvVar: string;
-  /** A ready-to-run command that starts the vendor's CLI on this token. */
   cliCommand(accessToken: string): string;
   /** Build the authorize URL the person opens, with a fresh PKCE pair. */
   beginAuthorization(state: string): AuthorizationRequest;

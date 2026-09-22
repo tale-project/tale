@@ -40,20 +40,16 @@ export class AccountError extends Error {
   }
 }
 
-/** One account's credentials, as the token endpoint hands them out. */
+/** One account's credentials, as the token endpoints hand them out. */
 export interface TokenHandout {
   id: string;
   provider: ProviderId;
   label: string;
   accountEmail: string | null;
-  /** The vendor's own account handle, where its API needs one. */
-  accountId: string | null;
   status: StoredAccount['status'];
   accessToken: string;
   expiresAt: string | null;
   scopes: string | null;
-  /** The variable that hands this token to the provider's own CLI. */
-  envVar: string;
 }
 
 export interface AccountServiceOptions {
@@ -87,8 +83,12 @@ export interface AccountService {
   cliCommand(id: string): Promise<string | null>;
   /** One background pass: refresh every account's token and usage reading. */
   refreshAll(): Promise<void>;
-  /** Every account's access token, each refreshed first if it is close to expiry. */
-  handOutTokens(): Promise<TokenHandout[]>;
+  /**
+   * Access tokens, each refreshed first if it is close to expiry. Naming a
+   * provider narrows the pool to that vendor's accounts — and refreshes only
+   * those, so `/api/tokens/anthropic` never spends OpenAI's rate budget.
+   */
+  handOutTokens(provider?: ProviderId): Promise<TokenHandout[]>;
 }
 
 export function createAccountService(
@@ -375,21 +375,20 @@ export function createAccountService(
       }
     },
 
-    async handOutTokens() {
+    async handOutTokens(provider) {
       const handouts: TokenHandout[] = [];
       for (const account of await store.listAccounts()) {
+        if (provider !== undefined && account.provider !== provider) continue;
         const fresh = await ensureFresh(account);
         handouts.push({
           id: fresh.id,
           provider: fresh.provider,
           label: fresh.label,
           accountEmail: fresh.accountEmail,
-          accountId: fresh.accountId,
           status: fresh.status,
           accessToken: cipher.open(fresh.accessToken),
           expiresAt: fresh.expiresAt,
           scopes: fresh.scopes,
-          envVar: providerFor(fresh).cliTokenEnvVar,
         });
       }
       return handouts;

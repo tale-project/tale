@@ -135,8 +135,6 @@ export function createAnthropicProvider(
   return {
     id: 'anthropic',
     callbackStyle: 'code',
-    cliTokenEnvVar: 'ANTHROPIC_AUTH_TOKEN',
-
     cliCommand(accessToken) {
       return `ANTHROPIC_AUTH_TOKEN=${accessToken} claude`;
     },

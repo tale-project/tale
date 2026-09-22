@@ -1,12 +1,14 @@
 /**
  * Runtime configuration, read once from the environment.
  *
- * Four secrets have no safe default — the panel password, the API key that
- * guards the token endpoint, the key that signs the panel's session cookie,
- * and the key that encrypts the stored tokens — so production refuses to boot
- * without them and says which are missing. Development may generate them for
- * the session (`generateMissingSecrets`); they are printed once and never
- * written to disk, so a restart issues new ones.
+ * Two secrets have no safe default — the API key that guards the token
+ * endpoints, and the key that encrypts the stored tokens — so production
+ * refuses to boot without them and says which are missing. Development may
+ * generate them for the session (`generateMissingSecrets`); they are printed
+ * once and never written to disk, so a restart issues new ones.
+ *
+ * The panel itself holds no secret: it has no login of its own, and whatever
+ * sits in front of the gateway decides who reaches it.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -18,8 +20,6 @@ const ENCRYPTION_KEY_BYTES = 32;
 
 const secretNames = [
   'AI_GATEWAY_API_KEY',
-  'AI_GATEWAY_PANEL_PASSWORD',
-  'AI_GATEWAY_SESSION_SECRET',
   'AI_GATEWAY_ENCRYPTION_KEY',
 ] as const;
 
@@ -30,8 +30,6 @@ const positiveSeconds = (fallback: number) =>
 
 const schema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1),
-  AI_GATEWAY_PANEL_PASSWORD: z.string().min(1),
-  AI_GATEWAY_SESSION_SECRET: z.string().min(1),
   AI_GATEWAY_ENCRYPTION_KEY: z.string().min(1),
   AI_GATEWAY_DATA_DIR: z.string().min(1).default('.data'),
   AI_GATEWAY_REFRESH_INTERVAL_SECONDS: positiveSeconds(300),
@@ -44,8 +42,6 @@ const schema = z.object({
 
 export interface GatewayConfig {
   apiKey: string;
-  panelPassword: string;
-  sessionSecret: string;
   encryptionKey: Buffer;
   dataDir: string;
   refreshIntervalSeconds: number;
@@ -68,7 +64,7 @@ export class ConfigError extends Error {
   }
 }
 
-/** A fresh value for one of the four secrets, in the shape it is read back. */
+/** A fresh value for one of the two secrets, in the shape it is read back. */
 function generateSecret(name: SecretName): string {
   return name === 'AI_GATEWAY_ENCRYPTION_KEY'
     ? randomBytes(ENCRYPTION_KEY_BYTES).toString('base64')
@@ -78,8 +74,8 @@ function generateSecret(name: SecretName): string {
 export interface LoadConfigOptions {
   /**
    * Fill absent secrets with generated values instead of refusing to boot.
-   * Development only: nothing is persisted, so every restart invalidates the
-   * previous session cookie AND cannot decrypt anything stored before it.
+   * Development only: nothing is persisted, so every restart issues a new API
+   * key AND cannot decrypt anything stored before it.
    */
   generateMissingSecrets?: boolean;
 }
@@ -133,8 +129,6 @@ export function loadConfig(
   return {
     config: {
       apiKey: parsed.data.AI_GATEWAY_API_KEY,
-      panelPassword: parsed.data.AI_GATEWAY_PANEL_PASSWORD,
-      sessionSecret: parsed.data.AI_GATEWAY_SESSION_SECRET,
       encryptionKey,
       dataDir: parsed.data.AI_GATEWAY_DATA_DIR,
       refreshIntervalSeconds: parsed.data.AI_GATEWAY_REFRESH_INTERVAL_SECONDS,

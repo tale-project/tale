@@ -1,15 +1,6 @@
-signIn:
-  heading: Passerelle IA
-  description: Un seul mot de passe protège ce panneau.
-  passwordLabel: Mot de passe du panneau
-  submit: Se connecter
-  wrongPassword: Ce mot de passe est incorrect.
-  unreachable: La passerelle n’a pas répondu. Vérifie que le service tourne.
-  failed: La connexion n’a pas pu aboutir.
 panel:
   title: Passerelle IA
-  subtitle: Les abonnements Claude et ChatGPT, regroupés derrière un seul point de terminaison.
-  signOut: Se déconnecter
+  subtitle: Les abonnements Claude et ChatGPT, regroupés derrière un point de terminaison par fournisseur.
   languageLabel: Langue
 accounts:
   caption: Comptes d’abonnement connectés

@@ -9,7 +9,7 @@ CLIs, re-authenticate one, remove one.
 This is the suite that cannot be automated. Both flows end in a browser this
 service does not control, on a consent screen only a human can approve, for an
 account only a human has. Everything below the OAuth round trip — the parsing,
-the storage, the refresh arithmetic, the two doors — is already covered by
+the storage, the refresh arithmetic, the API key — is already covered by
 specs; see [`../reference/automation.md`](../reference/automation.md).
 
 ## Preconditions
@@ -57,11 +57,27 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
   without asking for a login.
 - [ ] `ACCT-9` · **The same on the ChatGPT row** → Codex starts on that account.
 - [ ] `ACCT-10` · **`curl localhost:3004/api/tokens -H "Authorization: Bearer
-  $AI_GATEWAY_API_KEY"`** → both accounts are listed, each with a token, its
-  expiry and the variable its own CLI reads; the two providers sit side by side
-  in one answer.
-- [ ] `ACCT-11` · **Call the same URL from the signed-in browser tab** → 401:
-  a panel session is not a key, and the two doors stay separate.
+  $AI_GATEWAY_API_KEY"`** → both accounts sit side by side in one answer, each
+  with `access_token`, `expires_at` and the `provider` that says whose it is.
+
+### One vendor at a time
+
+The split endpoints exist so a caller pointed at one vendor cannot be handed
+the other's credential — and the answer is cc-gateway's own shape, so anything
+written against that service reads this one. **These boxes need both accounts
+in the pool**, so they run before the removals.
+
+- [ ] `ACCT-21` · **`curl localhost:3004/api/tokens/anthropic -H
+  "Authorization: Bearer $AI_GATEWAY_API_KEY"`** → only the Claude row comes
+  back, carrying cc-gateway's own field names — `id`, `label`,
+  `account_email`, `status`, `access_token`, `expires_at`, `scopes` — and no
+  `provider`. The ChatGPT token appears nowhere in the body.
+- [ ] `ACCT-22` · **Run `ANTHROPIC_AUTH_TOKEN=<access_token> claude` with the
+  `access_token` that answer carried** → Claude Code starts on that account
+  without asking for a login. The endpoint's token is the CLI's token.
+- [ ] `ACCT-23` · **The same two steps against `/api/tokens/openai`, then
+  `CODEX_ACCESS_TOKEN=<access_token> codex`** → only the ChatGPT row, and
+  Codex starts on it.
 
 ### Staying fresh
 
@@ -84,14 +100,15 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
 - [ ] `ACCT-16` · **Row menu → Remove, then cancel the confirmation** → the row
   is still there and the token endpoint still hands it out.
 - [ ] `ACCT-17` · **Remove and confirm** → the row goes, a toast names it, and
-  `GET /api/tokens` no longer carries it.
+  neither `GET /api/tokens` nor that vendor's own endpoint carries it.
 - [ ] `ACCT-18` · **Remove the last account** → the empty state returns, with
   the create action inside it rather than only in the toolbar.
+- [ ] `ACCT-24` · **With the pool now empty, call `/api/tokens/openai`** → 200
+  with `{"tokens": []}`. An empty pool is an empty list, never a 404 — a
+  caller must be able to tell "no accounts" from "no such vendor".
 
 ### Degraded
 
 - [ ] `ACCT-19` · **Stop the network, then reload the panel** → the table shows
   its load failure with a retry, not an empty collection; restore the network
   and Retry recovers without a reload.
-- [ ] `ACCT-20` · **Sign in with the wrong password five times in a row** →
-  each is refused and named, and the right password still works afterwards.

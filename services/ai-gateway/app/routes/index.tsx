@@ -1,46 +1,33 @@
-import { FullPageCenter } from '@tale/ui/full-page-center';
-import { Spinner } from '@tale/ui/spinner';
 import { Toaster } from '@tale/ui/toaster';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccountsScreen } from '@/app/components/accounts-screen';
-import { SignInScreen } from '@/app/components/sign-in-screen';
-import { useAccounts, useProviders, useSession } from '@/app/lib/use-gateway';
+import { useAccounts, useProviders } from '@/app/lib/use-gateway';
 
 export const Route = createFileRoute('/')({
   component: PanelPage,
 });
 
 /**
- * The whole panel: one screen behind one password.
+ * The whole panel: one screen, and no door of its own.
  *
- * The session check runs before anything is drawn, so a signed-in operator
- * never sees the sign-in form flash past on a reload.
+ * The gateway asks nobody to sign in — a deployment puts whatever gate it
+ * wants in front of this origin — so the account list is read straight away
+ * rather than after a session check.
  */
 function PanelPage() {
-  const { state, signIn, signOut } = useSession();
-  const signedIn = state === 'signed-in';
-  const { accounts, isLoading, error, reload } = useAccounts(signedIn);
-  const providers = useProviders(signedIn);
+  const { accounts, isLoading, error, reload } = useAccounts();
+  const providers = useProviders();
 
   return (
     <>
-      {state === 'unknown' ? (
-        <FullPageCenter>
-          <Spinner />
-        </FullPageCenter>
-      ) : state === 'signed-out' ? (
-        <SignInScreen onSignIn={signIn} />
-      ) : (
-        <AccountsScreen
-          accounts={accounts}
-          error={error}
-          isLoading={isLoading}
-          onReload={reload}
-          onSignOut={() => void signOut()}
-          providers={providers}
-        />
-      )}
+      <AccountsScreen
+        accounts={accounts}
+        error={error}
+        isLoading={isLoading}
+        onReload={reload}
+        providers={providers}
+      />
       <Toaster />
     </>
   );
