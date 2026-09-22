@@ -34,6 +34,9 @@ import { FilterButton } from '@tale/ui/filters/filter-button';
     isLoading: {
       control: 'boolean',
     },
+    iconOnly: {
+      control: 'boolean',
+    },
   },
 };
 
@@ -55,6 +58,35 @@ export const ActiveFilters: Story = {
       description: {
         story:
           'When filters are active, a blue indicator dot appears and the border becomes primary-colored.',
+      },
+    },
+  },
+};
+
+export const IconOnly: Story = {
+  args: {
+    hasActiveFilters: false,
+    iconOnly: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'For a toolbar with no width to spend on the word, such as the Inbox list pane at 24.75rem. The accessible name stays "Filter" — it comes from `aria-label`, not from the text.',
+      },
+    },
+  },
+};
+
+export const IconOnlyWithActiveFilters: Story = {
+  args: {
+    hasActiveFilters: true,
+    iconOnly: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'The active dot sits in the same corner at either width.',
       },
     },
   },

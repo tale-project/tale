@@ -48,7 +48,7 @@ Für jede teamgebundene Ressource gilt dieselbe Regel. Eine Ressource ohne Team 
 
 Wenn du Arbeit auf Teams beschränkst, kannst du nur Teams wählen, denen du selbst angehörst; Inhaber und Admins wählen jedes Team der Organisation. Eine Teammitgliedschaft erlaubt keine Aktionen, die die Rolle verbietet: Ein Redakteur und ein Mitglied im selben Team können unterschiedliche Bearbeitungsrechte haben.
 
-Mitglieder sehen ihre eigenen Teams unter **Einstellungen > Konto > Deine Teams** und in der Zeile **Teams** des Profilmenüs. Um eine Liste auf bestimmte Arbeit einzugrenzen, bietet jede Liste einen Filter **Teams** mit **Organisationsweit**, **Meine Teams** und jedem Team nach Namen; der Posteingang filtert stattdessen nach Warteschlange. Siehe [Konto verwalten](/de/platform/member/preferences#teams).
+Mitglieder sehen ihre eigenen Teams unter **Einstellungen > Konto > Deine Teams** und in der Zeile **Teams** des Profilmenüs. Um eine Liste auf bestimmte Arbeit einzugrenzen, bietet jede Liste einen Filter **Teams** mit **Organisationsweit**, **Meine Teams** und jedem Team nach Namen; der Posteingang nutzt stattdessen den Filter **Zuständig**, der Personen wie Teams aufführt. Siehe [Konto verwalten](/de/platform/member/preferences#teams).
 
 Bei eingehenden Konversationen können [Routing-Regeln](/de/platform/admin/governance/policies-and-limits#konversations-routing) das Team bereits beim Eingang auswählen. Ohne Personen- oder Teamzuweisung bleibt die Konversation bei der Administration zur Sichtung.
 

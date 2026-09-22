@@ -27,7 +27,7 @@ Check the organization name before changing settings or adding content.
 
 **Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so.
 
-To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers a **Filter by queue** control with the same idea. A filter changes the current view; it does not grant access to another team’s data.
+To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers an **Assignee** filter behind its search box, listing people and teams together. A filter changes the current view; it does not grant access to another team’s data.
 
 Owners and Admins manage membership under [Teams](/platform/admin/teams); the section links there for them.
 

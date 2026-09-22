@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { pickFilterOption } from '@tale/ui/testing/filters';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
@@ -21,19 +22,49 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ id: 'org-1' }),
 }));
 
-// The Queue filter offers the caller's teams and the org's team directory,
-// and "Unassigned" to admins only; none of that is under test here.
+// The assignee facet resolves ids through two directories and the viewer's own
+// membership. Each is a mutable fixture so a test can pose as an admin, as a
+// plain member, or as a session whose member context has not landed yet.
+const TEAM_NAMES: Record<string, string> = { 'team-billing': 'Billing' };
+let myTeams: Array<{ id: string; name: string }> = [];
+let isAdmin = true;
+let currentUserId: string | undefined = 'user-me';
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useTeams: () => ({ teams: [], isLoading: false }),
-  useTeamDirectory: () => ({ teams: [], isLoading: false }),
-  useTeamNames: () => ({
-    nameOf: () => undefined,
+  useTeams: () => ({ teams: myTeams, isLoading: false }),
+  useTeamDirectory: () => ({
+    teams: Object.entries(TEAM_NAMES).map(([id, name]) => ({ id, name })),
     isLoading: false,
-    teams: [],
+  }),
+  useTeamNames: () => ({
+    nameOf: (id: string) => TEAM_NAMES[id],
+    isLoading: false,
+    teams: Object.entries(TEAM_NAMES).map(([id, name]) => ({ id, name })),
+  }),
+}));
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({
+    members: [
+      { userId: 'user-me', displayName: 'Zoe A.', email: 'zoe@example.test' },
+      {
+        userId: 'user-dana',
+        displayName: 'Dana K.',
+        email: 'dana@example.test',
+      },
+    ],
+    isLoading: false,
+  }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({
+    data:
+      currentUserId === undefined
+        ? undefined
+        : { status: 'ok', userId: currentUserId },
   }),
 }));
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true }),
+  useAbility: () => ({ can: () => isAdmin }),
 }));
 
 // The bulk-actions hook reaches for convex mutations; stub it out so the list
@@ -59,12 +90,17 @@ vi.mock('./conversation-panel', () => ({
   ConversationPanel: () => <div data-testid="conversation-panel" />,
 }));
 
-function makeConversation(id: string, title: string): ConversationItem {
+function makeConversation(
+  id: string,
+  title: string,
+  assignment: { assigneeUserId?: string; assigneeTeamId?: string } = {},
+): ConversationItem {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the list row only reads id/title/unread_count for this test
   return {
     _id: id,
     id,
     title,
+    ...assignment,
     description: '',
     subject: '',
     status: 'open',
@@ -91,6 +127,12 @@ const searchBox = () => screen.getByPlaceholderText('Search conversations');
 function hasConversationRow(title: string): boolean {
   return screen.queryByRole('button', { name: title }) !== null;
 }
+
+beforeEach(() => {
+  myTeams = [];
+  isAdmin = true;
+  currentUserId = 'user-me';
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -128,5 +170,139 @@ describe('Conversations', () => {
     expect(searchBox()).toHaveValue('');
     expect(hasConversationRow('Refund please')).toBe(true);
     expect(hasConversationRow('Order shipped')).toBe(true);
+  });
+
+  describe('assignee facet', () => {
+    const claimed = makeConversation('c1', 'Refund please', {
+      assigneeUserId: 'user-dana',
+    });
+    const queued = makeConversation('c2', 'Order shipped', {
+      assigneeTeamId: 'team-billing',
+    });
+    const untouched = makeConversation('c3', 'Where is my parcel');
+
+    function renderInbox(
+      props: Partial<Parameters<typeof Conversations>[0]> = {},
+    ) {
+      const rows = [claimed, queued, untouched];
+      return render(
+        <Conversations
+          status="open"
+          organizationId="test-org-id"
+          paginatedResult={makePaginatedResult(rows)}
+          conversationCount={rows.length}
+          totalConversationCount={rows.length}
+          {...props}
+        />,
+      );
+    }
+
+    it('puts the filter behind the search box with no visible label', () => {
+      renderInbox();
+
+      const filter = screen.getByRole('button', { name: 'Filter' });
+      expect(filter).toHaveTextContent('');
+      // The queue dropdown that used to sit in front of the search is gone.
+      expect(screen.queryByText('All queues')).not.toBeInTheDocument();
+      expect(
+        searchBox().compareDocumentPosition(filter) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it('narrows to one person’s conversations', async () => {
+      const onAssigneeFilterChange = vi.fn();
+      const { user } = renderInbox({ onAssigneeFilterChange });
+
+      await pickFilterOption(user, 'Assignee', 'Dana K.');
+
+      expect(onAssigneeFilterChange).toHaveBeenCalledWith(['user-dana']);
+    });
+
+    it('shows only the selected person’s rows', () => {
+      renderInbox({ assigneeFilter: ['user-dana'] });
+
+      expect(hasConversationRow('Refund please')).toBe(true);
+      expect(hasConversationRow('Order shipped')).toBe(false);
+      expect(hasConversationRow('Where is my parcel')).toBe(false);
+    });
+
+    it('separates people from teams inside the one facet', async () => {
+      myTeams = [{ id: 'team-billing', name: 'Billing' }];
+      const { user } = renderInbox();
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+      expect(screen.getByText('People')).toBeInTheDocument();
+      expect(screen.getByText('Teams')).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: 'Dana K.' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: 'Billing' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: 'My teams' }),
+      ).toBeInTheDocument();
+    });
+
+    it('offers Unassigned to an admin', async () => {
+      const { user } = renderInbox();
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+      expect(
+        screen.getByRole('checkbox', { name: 'Unassigned' }),
+      ).toBeInTheDocument();
+    });
+
+    it('withholds Unassigned from a non-admin', async () => {
+      // Unassigned rows are administrator triage — the server does not return
+      // them to a member, so offering the option would only ever filter to
+      // nothing while implying the rows exist.
+      isAdmin = false;
+      const { user } = renderInbox();
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+      expect(
+        screen.queryByRole('checkbox', { name: 'Unassigned' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('withholds "Assigned to me" until the member context lands', async () => {
+      currentUserId = undefined;
+      const { user } = renderInbox();
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+      expect(
+        screen.queryByRole('checkbox', { name: 'Assigned to me' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('clears the search box along with every facet', async () => {
+      const onAssigneeFilterChange = vi.fn();
+      const onReadFilterChange = vi.fn();
+      const { user } = renderInbox({
+        search: 'Refund',
+        assigneeFilter: ['user-dana'],
+        onAssigneeFilterChange,
+        onReadFilterChange,
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(
+        await screen.findByRole('button', { name: 'Clear all' }),
+      );
+
+      expect(onAssigneeFilterChange).toHaveBeenCalledWith([]);
+      expect(onReadFilterChange).toHaveBeenCalledWith('all');
+      expect(searchBox()).toHaveValue('');
+    });
   });
 });

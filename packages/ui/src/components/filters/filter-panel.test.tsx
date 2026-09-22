@@ -55,6 +55,67 @@ describe('FilterPanel', () => {
     expect(onChange).toHaveBeenCalledWith(['code', 'messaging']);
   });
 
+  it('heads each run of grouped options and still reports a flat selection', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <FilterPanel
+        filters={[
+          tagFilter({
+            key: 'assignee',
+            title: 'Assignee',
+            options: [
+              { value: 'me', label: 'Assigned to me' },
+              { value: 'u1', label: 'Dana K.', group: 'People' },
+              { value: 't1', label: 'Billing', group: 'Teams' },
+            ],
+            onChange,
+          }),
+        ]}
+        onClearAll={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Assignee' }));
+
+    expect(screen.getByText('People')).toBeInTheDocument();
+    expect(screen.getByText('Teams')).toBeInTheDocument();
+    // The ungrouped head keeps no heading of its own.
+    expect(
+      screen.getByRole('checkbox', { name: 'Assigned to me' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Billing' }));
+    expect(onChange).toHaveBeenCalledWith(['t1']);
+  });
+
+  it('labels a grouped radio facet by its group, not the facet title', async () => {
+    const { user } = render(
+      <FilterPanel
+        filters={[
+          tagFilter({
+            key: 'owner',
+            title: 'Owner',
+            multiSelect: false,
+            options: [
+              { value: 'u1', label: 'Dana K.', group: 'People' },
+              { value: 't1', label: 'Billing', group: 'Teams' },
+            ],
+          }),
+        ]}
+        onClearAll={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Owner' }));
+
+    expect(
+      screen.getByRole('radiogroup', { name: 'People' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radiogroup', { name: 'Teams' }),
+    ).toBeInTheDocument();
+  });
+
   it('uses one divider under the header and divide-y between facets', async () => {
     const { user } = render(
       <FilterPanel
