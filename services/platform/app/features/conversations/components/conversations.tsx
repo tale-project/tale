@@ -3,7 +3,11 @@
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
-import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import {
+  FilterPanel,
+  type FilterConfig,
+  type FilterOption,
+} from '@tale/ui/filters/filter-panel';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import { SearchInput } from '@tale/ui/search-input';
@@ -12,28 +16,34 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ChevronDownIcon,
-  ListFilter,
   Loader2Icon,
   MailXIcon,
   SendHorizontalIcon,
   ShieldXIcon,
-  UsersRoundIcon,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import {
-  useTeamDirectory,
+  useTeamNames,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
+import {
+  ASSIGNEE_ME,
+  ASSIGNEE_MY_TEAMS,
+  ASSIGNEE_UNASSIGNED,
+  buildAssigneeOptions,
+  matchesAssigneeFilter,
+} from '../lib/assignee-filter';
 import type { Conversation } from '../types';
 import { BulkSendDialog } from './bulk-send-dialog';
 import { ComposeEmailPane } from './compose-email-pane';
@@ -75,19 +85,26 @@ interface ConversationsProps {
   /** Contact to seed the composer with (URL: `?composeContact`). */
   composeContact?: string;
   /**
-   * Queue filter (URL: `?queue`): a team id, `mine` (any of the viewer's
-   * teams' queues) or `unassigned` (administrator triage). In-page over the
-   * loaded rows, like search — the list is already scoped server-side to
-   * what the viewer may see.
+   * Assignee filter (URL: `?assignee`): any mix of the `__me__`,
+   * `__unassigned__` and `__my-teams__` sentinels, user ids and team ids. A row
+   * matches when it satisfies ANY of them. In-page over the loaded rows, like
+   * search — the list is already scoped server-side to what the viewer may see.
    */
-  queueFilter?: string;
-  onQueueFilterChange?: (value?: string) => void;
+  assigneeFilter?: string[];
+  onAssigneeFilterChange?: (values: string[]) => void;
+  /** Read-status filter (URL: `?read`). In-page over the loaded rows. */
+  readFilter?: ReadFilter;
+  onReadFilterChange?: (value: ReadFilter) => void;
 }
 
-/** Queue-filter token: any of the viewer's own teams' queues. */
-const MY_QUEUES = 'mine';
-/** Queue-filter token: conversations with no person and no team assigned. */
-const UNASSIGNED_QUEUE = 'unassigned';
+export type ReadFilter = 'all' | 'read' | 'unread';
+
+/** The read facet's resting value — narrows nothing. */
+const ALL_READ_STATES = 'all';
+
+export function isReadFilter(value: string): value is ReadFilter {
+  return value === 'all' || value === 'read' || value === 'unread';
+}
 
 // ---------------------------------------------------------------------------
 // Body state machine
@@ -137,23 +154,40 @@ export function Conversations({
   channelFilter,
   composing = false,
   composeContact,
-  queueFilter,
-  onQueueFilterChange,
+  assigneeFilter,
+  onAssigneeFilterChange,
+  readFilter = ALL_READ_STATES,
+  onReadFilterChange,
 }: ConversationsProps) {
   const navigate = useNavigate();
-  // The queue filter's options: the viewer's own teams (every team for an
-  // admin, who also sees the unassigned triage queue), by name.
+  // The assignee facet resolves ids to names through two directories that any
+  // member may read: every team of the organization, and the member list.
   const { teams: myTeams } = useTeams();
-  const { teams: directoryTeams } = useTeamDirectory();
+  const { nameOf: teamNameOf } = useTeamNames();
+  const { members } = useMembers(organizationId);
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
   const isAdmin = useAbility().can('read', 'orgSettings');
+  const currentUserId =
+    memberContext && 'userId' in memberContext
+      ? memberContext.userId
+      : undefined;
   const myTeamIds = useMemo(
     () => new Set((myTeams ?? []).map((team) => team.id)),
     [myTeams],
   );
-  const queueOptions = useMemo(() => {
-    const teams = isAdmin ? (directoryTeams ?? []) : (myTeams ?? []);
-    return teams.map((team) => ({ value: team.id, label: team.name }));
-  }, [isAdmin, directoryTeams, myTeams]);
+  const personNameOf = useMemo(() => {
+    const byId = new Map(
+      (members ?? []).map((member) => [
+        member.userId,
+        member.displayName ?? member.email,
+      ]),
+    );
+    return (userId: string) => byId.get(userId);
+  }, [members]);
+  const assigneeSelection = useMemo(
+    () => assigneeFilter ?? [],
+    [assigneeFilter],
+  );
 
   const [selectedConversationId, setSelectedConversationId] = useState(
     initialConversationId ?? null,
@@ -191,9 +225,6 @@ export function Conversations({
   // state (not the other way around) so that clearing the box actually clears
   // the filter instead of falling back to the stale URL param on every render.
   const [searchQuery, setSearchQuery] = useState(initialSearch || '');
-  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>(
-    'all',
-  );
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -245,17 +276,13 @@ export function Conversations({
       results = results.filter((c) => c.unread_count === 0);
     }
 
-    if (queueFilter === MY_QUEUES) {
-      results = results.filter(
-        (c) =>
-          c.assigneeTeamId !== undefined && myTeamIds.has(c.assigneeTeamId),
+    if (assigneeSelection.length > 0) {
+      results = results.filter((c) =>
+        matchesAssigneeFilter(c, assigneeSelection, {
+          ...(currentUserId === undefined ? {} : { currentUserId }),
+          myTeamIds,
+        }),
       );
-    } else if (queueFilter === UNASSIGNED_QUEUE) {
-      results = results.filter(
-        (c) => c.assigneeTeamId === undefined && c.assigneeUserId === undefined,
-      );
-    } else if (queueFilter !== undefined && queueFilter.length > 0) {
-      results = results.filter((c) => c.assigneeTeamId === queueFilter);
     }
 
     return results;
@@ -263,17 +290,135 @@ export function Conversations({
     paginatedResult.results,
     searchQuery,
     readFilter,
-    queueFilter,
+    assigneeSelection,
+    currentUserId,
     myTeamIds,
   ]);
 
-  // Search and the read-status filter run client-side over the loaded pages
-  // only, so while either is active we must keep draining backend pages — a
-  // match beyond the first page would otherwise be silently missed (#2054).
+  // Search, the read facet and the assignee facet all run client-side over the
+  // loaded pages only, so while any of them is active we must keep draining
+  // backend pages — a match beyond the first page would otherwise be silently
+  // missed (#2054). The channel facet is absent on purpose: it narrows
+  // server-side, so its matches are never left behind a page boundary.
   const isFiltering =
     Boolean(searchQuery || initialSearch) ||
-    readFilter !== 'all' ||
-    (queueFilter !== undefined && queueFilter.length > 0);
+    readFilter !== ALL_READ_STATES ||
+    assigneeSelection.length > 0;
+
+  // The facets behind the toolbar's Filter button. Assignee comes first
+  // because it is the one an inbox is usually narrowed by; Source renders only
+  // when the organization has a provider to offer.
+  const filters = useMemo<FilterConfig[]>(() => {
+    const assigneeOptions: FilterOption[] = [
+      ...(currentUserId === undefined
+        ? []
+        : [{ value: ASSIGNEE_ME, label: tConversations('filter.assigneeMe') }]),
+      ...(isAdmin
+        ? [
+            {
+              value: ASSIGNEE_UNASSIGNED,
+              label: tConversations('filter.assigneeUnassigned'),
+            },
+          ]
+        : []),
+      ...(myTeamIds.size > 0
+        ? [
+            {
+              value: ASSIGNEE_MY_TEAMS,
+              label: tConversations('filter.assigneeMyTeams'),
+            },
+          ]
+        : []),
+      ...buildAssigneeOptions({
+        rows: paginatedResult.results,
+        selected: assigneeSelection,
+        personNameOf,
+        teamNameOf,
+        labels: {
+          people: tConversations('filter.assigneePeople'),
+          teams: tConversations('filter.assigneeTeams'),
+          unknownPerson: tConversations('filter.assigneeUnknownPerson'),
+          unknownTeam: tConversations('queue.unknownTeam'),
+        },
+      }),
+    ];
+
+    const configs: FilterConfig[] = [
+      {
+        key: 'assignee',
+        title: tConversations('filter.assignee'),
+        options: assigneeOptions,
+        selectedValues: [...assigneeSelection],
+        onChange: (values) => onAssigneeFilterChange?.(values),
+        multiSelect: true,
+      },
+      {
+        key: 'read',
+        title: tConversations('filter.readStatus'),
+        options: [
+          { value: ALL_READ_STATES, label: tConversations('filter.all') },
+          { value: 'read', label: tConversations('filter.read') },
+          { value: 'unread', label: tConversations('filter.unread') },
+        ],
+        selectedValues: [readFilter],
+        defaultValues: [ALL_READ_STATES],
+        onChange: (values) => {
+          const next = values[0];
+          onReadFilterChange?.(
+            next !== undefined && isReadFilter(next) ? next : ALL_READ_STATES,
+          );
+        },
+      },
+    ];
+
+    if (channelFilter && channelFilter.options.length > 0) {
+      configs.push({
+        key: 'channel',
+        title: tConversations('filter.channel'),
+        options: [
+          { value: ALL_CHANNELS, label: tConversations('filter.allChannels') },
+          ...channelFilter.options,
+        ],
+        selectedValues: [channelFilter.value ?? ALL_CHANNELS],
+        defaultValues: [ALL_CHANNELS],
+        onChange: (values) => {
+          const next = values[0];
+          channelFilter.onChange(
+            next === undefined || next === ALL_CHANNELS ? undefined : next,
+          );
+        },
+      });
+    }
+
+    return configs;
+  }, [
+    tConversations,
+    currentUserId,
+    isAdmin,
+    myTeamIds,
+    paginatedResult.results,
+    assigneeSelection,
+    personNameOf,
+    teamNameOf,
+    onAssigneeFilterChange,
+    readFilter,
+    onReadFilterChange,
+    channelFilter,
+  ]);
+
+  // "Clear all" reaches past the facets to the search box, which is the rest of
+  // what narrows this list.
+  const handleClearAllFilters = useCallback(() => {
+    onAssigneeFilterChange?.([]);
+    onReadFilterChange?.(ALL_READ_STATES);
+    channelFilter?.onChange(undefined);
+    handleSearchChange('');
+  }, [
+    onAssigneeFilterChange,
+    onReadFilterChange,
+    channelFilter,
+    handleSearchChange,
+  ]);
 
   const {
     selectionState,
@@ -368,127 +513,17 @@ export function Conversations({
         }
       >
         <ConversationListToolbar>
-          {/* Compound select-all + filter trigger — matches design `5txbz` */}
-          {/* Compound select-all + read-filter control. The checkbox and the
-              dropdown trigger are SIBLINGS inside a styled wrapper — never
-              nested — because a Radix Checkbox renders a <button>, and a
-              <button> inside the trigger <button> is invalid HTML (hydration
-              error: "<button> cannot be a descendant of <button>"). */}
-          <div
-            className={cn(
-              'flex shrink-0 items-center gap-0.5 rounded py-0.5 pr-1',
-              readFilter !== 'all' && 'bg-blue-100 dark:bg-blue-950',
-              controlsDisabled && 'opacity-50',
-            )}
-          >
-            <Checkbox
-              id="select-all"
-              checked={selectAllChecked}
-              onCheckedChange={handleSelectAll}
-              aria-label={tCommon('aria.selectAll')}
-              disabled={controlsDisabled}
-            />
-            <DropdownMenu
-              disabled={controlsDisabled}
-              trigger={
-                <button
-                  type="button"
-                  disabled={controlsDisabled}
-                  className="flex items-center rounded disabled:cursor-not-allowed"
-                  aria-label={tConversations('filter.label')}
-                >
-                  <ChevronDownIcon className="text-muted-foreground size-3.5" />
-                </button>
-              }
-              items={[
-                [
-                  {
-                    type: 'radio-group',
-                    value: readFilter,
-                    onValueChange: (v) => {
-                      if (v === 'all' || v === 'read' || v === 'unread') {
-                        setReadFilter(v);
-                      }
-                    },
-                    options: [
-                      { value: 'all', label: tConversations('filter.all') },
-                      { value: 'read', label: tConversations('filter.read') },
-                      {
-                        value: 'unread',
-                        label: tConversations('filter.unread'),
-                      },
-                    ],
-                  } satisfies DropdownMenuItem,
-                ],
-              ]}
-              align="start"
-            />
-          </div>
-
-          {/* Queue filter — which team's queue a row sits in is the fact a
-              member of two teams needs; the rows carry the queue chip, this
-              narrows the list to one. */}
-          {queueOptions.length > 0 || isAdmin ? (
-            <DropdownMenu
-              disabled={controlsDisabled}
-              trigger={
-                <button
-                  type="button"
-                  disabled={controlsDisabled}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs disabled:cursor-not-allowed',
-                    queueFilter ? 'bg-blue-100 dark:bg-blue-950' : undefined,
-                    controlsDisabled && 'opacity-50',
-                  )}
-                  aria-label={tConversations('queue.filterLabel')}
-                >
-                  <UsersRoundIcon className="text-muted-foreground size-3.5" />
-                  <span className="max-w-[8rem] truncate">
-                    {queueFilter === undefined || queueFilter.length === 0
-                      ? tConversations('queue.all')
-                      : queueFilter === MY_QUEUES
-                        ? tConversations('queue.mine')
-                        : queueFilter === UNASSIGNED_QUEUE
-                          ? tConversations('queue.unassigned')
-                          : (queueOptions.find((o) => o.value === queueFilter)
-                              ?.label ?? tConversations('queue.unknownTeam'))}
-                  </span>
-                </button>
-              }
-              items={[
-                [
-                  {
-                    type: 'radio-group',
-                    value: queueFilter ?? '',
-                    onValueChange: (v) => {
-                      onQueueFilterChange?.(v === '' ? undefined : v);
-                    },
-                    options: [
-                      { value: '', label: tConversations('queue.all') },
-                      ...(myTeamIds.size > 0
-                        ? [
-                            {
-                              value: MY_QUEUES,
-                              label: tConversations('queue.mine'),
-                            },
-                          ]
-                        : []),
-                      ...(isAdmin
-                        ? [
-                            {
-                              value: UNASSIGNED_QUEUE,
-                              label: tConversations('queue.unassigned'),
-                            },
-                          ]
-                        : []),
-                      ...queueOptions,
-                    ],
-                  } satisfies DropdownMenuItem,
-                ],
-              ]}
-              align="start"
-            />
-          ) : null}
+          {/* Select all. The read-status chevron that used to hang off this
+              checkbox now sits in the Filter panel with the other facets, so
+              the checkbox is a plain checkbox again. */}
+          <Checkbox
+            id="select-all"
+            className="shrink-0"
+            checked={selectAllChecked}
+            onCheckedChange={handleSelectAll}
+            aria-label={tCommon('aria.selectAll')}
+            disabled={controlsDisabled}
+          />
 
           {hasSelectedItems ? (
             <>
@@ -607,52 +642,18 @@ export function Conversations({
             />
           )}
 
-          {/* Channel filter — the connected inbox providers (server-side:
-              the selected slug becomes the query's `connectorName` arg).
-              Icon-only, mirrors FilterButton's chrome; sits to the right of
-              the search box. Rendered only when the org has at least one
-              provider to filter by. */}
-          {channelFilter && channelFilter.options.length > 0 && (
-            <DropdownMenu
-              disabled={controlsDisabled}
-              trigger={
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  disabled={controlsDisabled}
-                  aria-label={tConversations('filter.channel')}
-                  className={cn(
-                    'shrink-0',
-                    channelFilter.value !== undefined &&
-                      'bg-blue-100 hover:bg-blue-200 dark:bg-blue-950 dark:hover:bg-blue-900',
-                  )}
-                >
-                  <ListFilter className="text-muted-foreground size-4" />
-                </Button>
-              }
-              items={[
-                [
-                  {
-                    type: 'radio-group',
-                    value: channelFilter.value ?? ALL_CHANNELS,
-                    onValueChange: (v) => {
-                      channelFilter.onChange(
-                        v === ALL_CHANNELS ? undefined : v,
-                      );
-                    },
-                    options: [
-                      {
-                        value: ALL_CHANNELS,
-                        label: tConversations('filter.allChannels'),
-                      },
-                      ...channelFilter.options,
-                    ],
-                  } satisfies DropdownMenuItem,
-                ],
-              ]}
-              align="end"
-            />
-          )}
+          {/* Every facet lives behind this one button, to the RIGHT of the
+              search box: the list pane is a fixed 24.75rem column, so a
+              control in front of the search eats width the search needs, and
+              a new facet has nowhere to go. Icon-only for the same reason.
+              `align="end"` keeps the panel inside the pane. */}
+          <FilterPanel
+            filters={filters}
+            onClearAll={handleClearAllFilters}
+            disabled={controlsDisabled}
+            align="end"
+            iconOnly
+          />
         </ConversationListToolbar>
 
         <ConversationsList

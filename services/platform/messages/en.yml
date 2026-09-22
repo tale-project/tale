@@ -1749,17 +1749,20 @@ conversations:
     composeNotice: To email {name}, first install an email automation.
     browseAutomations: Browse automations
   filter:
-    label: Filter by read status
     all: All
     read: Read
     unread: Unread
+    readStatus: Read status
     channel: Channel
     allChannels: All channels
+    assignee: Assignee
+    assigneeMe: Assigned to me
+    assigneeMyTeams: My teams
+    assigneeUnassigned: Unassigned
+    assigneePeople: People
+    assigneeTeams: Teams
+    assigneeUnknownPerson: Unknown person
   queue:
-    filterLabel: Filter by queue
-    all: All queues
-    mine: My teams
-    unassigned: Unassigned
     unknownTeam: Unknown team
   category:
     churnSurvey: Churn survey

@@ -8,7 +8,7 @@ import { useT } from '@tale/ui/i18n/client';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { Circle } from 'lucide-react';
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 
 /**
  * THE filter affordance: one button that opens every facet group at once,
@@ -26,6 +26,39 @@ import { useId, useState } from 'react';
 export interface FilterOption {
   value: string;
   label: string;
+  /**
+   * Heading this option sits under. Options sharing one group render beneath a
+   * single heading, which is how one facet can hold two kinds of thing — the
+   * inbox's Assignee lists People and Teams in one list. Ungrouped options at
+   * the head of the list render with no heading above them.
+   */
+  group?: string;
+}
+
+interface OptionSegment {
+  group?: string;
+  options: FilterOption[];
+}
+
+/**
+ * Split a facet's options into consecutive runs that share a `group`. Order is
+ * the caller's — a run ends where the group changes, so ungrouped options stay
+ * above the first heading instead of being collected into one.
+ */
+function toSegments(options: readonly FilterOption[]): OptionSegment[] {
+  const segments: OptionSegment[] = [];
+  for (const option of options) {
+    const current = segments.at(-1);
+    if (current && current.group === option.group) {
+      current.options.push(option);
+      continue;
+    }
+    segments.push({
+      ...(option.group === undefined ? {} : { group: option.group }),
+      options: [option],
+    });
+  }
+  return segments;
 }
 
 export interface FilterConfig {
@@ -121,6 +154,8 @@ interface FilterPanelProps {
    * of the page, so the panel doesn't run off-viewport.
    */
   align?: 'start' | 'end';
+  /** Show the button as its icon alone — see `FilterButton`'s `iconOnly`. */
+  iconOnly?: boolean;
 }
 
 export function FilterPanel({
@@ -129,6 +164,7 @@ export function FilterPanel({
   isLoading = false,
   disabled = false,
   align = 'start',
+  iconOnly = false,
 }: FilterPanelProps) {
   const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -143,7 +179,12 @@ export function FilterPanel({
 
   if (disabled) {
     return (
-      <FilterButton hasActiveFilters={false} isLoading={isLoading} disabled />
+      <FilterButton
+        hasActiveFilters={false}
+        isLoading={isLoading}
+        iconOnly={iconOnly}
+        disabled
+      />
     );
   }
 
@@ -177,6 +218,7 @@ export function FilterPanel({
         <FilterButton
           hasActiveFilters={activeFilterCount > 0}
           isLoading={isLoading}
+          iconOnly={iconOnly}
         />
       }
     >
@@ -215,91 +257,126 @@ export function FilterPanel({
             }
             hasSelection={!filter.multiSelect && isFilterActive(filter)}
           >
-            {filter.multiSelect ? (
-              <div
-                className={cn(
-                  'flex flex-col gap-1',
-                  filter.columns === 2 && 'grid grid-cols-2',
-                )}
-              >
-                {filter.options.map((option) => {
-                  const checkboxId = `filter-${filter.key}-${option.value}`;
-                  const isChecked = filter.selectedValues.includes(
-                    option.value,
-                  );
-                  return (
-                    <label
-                      key={option.value}
-                      htmlFor={checkboxId}
+            {toSegments(filter.options).map((segment, segmentIndex) => {
+              const groupHeadingId = `filter-${filter.key}-group-${segmentIndex}`;
+              return (
+                <Fragment
+                  key={segment.group ?? `ungrouped-${String(segmentIndex)}`}
+                >
+                  {segment.group !== undefined && (
+                    <Text
+                      as="span"
+                      variant="label-sm"
+                      id={groupHeadingId}
+                      className="text-muted-foreground px-2 pt-2"
+                    >
+                      {segment.group}
+                    </Text>
+                  )}
+                  {filter.multiSelect ? (
+                    <div
+                      {...(segment.group === undefined
+                        ? {}
+                        : { role: 'group', 'aria-labelledby': groupHeadingId })}
                       className={cn(
-                        'flex cursor-pointer items-center gap-2 rounded-lg p-2',
-                        isChecked ? 'bg-muted' : 'hover:bg-muted/70',
+                        'flex flex-col gap-1',
+                        filter.columns === 2 && 'grid grid-cols-2',
                       )}
                     >
-                      <Checkbox
-                        id={checkboxId}
-                        checked={isChecked}
-                        onCheckedChange={(checked) =>
-                          handleFilterChange(filter, option.value, !!checked)
-                        }
-                      />
-                      <Text as="span" variant="muted" className="font-medium">
-                        {option.label}
-                      </Text>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                role="radiogroup"
-                aria-label={filter.title}
-                className={cn(
-                  'flex flex-col gap-1',
-                  filter.columns === 2 && 'grid grid-cols-2',
-                )}
-              >
-                {filter.options.map((option) => {
-                  const isSelected = filter.selectedValues[0] === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() =>
-                        filter.onChange(
-                          isSelected
-                            ? (filter.defaultValues ?? [])
-                            : [option.value],
-                        )
-                      }
+                      {segment.options.map((option) => {
+                        const checkboxId = `filter-${filter.key}-${option.value}`;
+                        const isChecked = filter.selectedValues.includes(
+                          option.value,
+                        );
+                        return (
+                          <label
+                            key={option.value}
+                            htmlFor={checkboxId}
+                            className={cn(
+                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              isChecked ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={isChecked}
+                              onCheckedChange={(checked) =>
+                                handleFilterChange(
+                                  filter,
+                                  option.value,
+                                  !!checked,
+                                )
+                              }
+                            />
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
+                              {option.label}
+                            </Text>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div
+                      role="radiogroup"
+                      aria-label={segment.group ?? filter.title}
                       className={cn(
-                        'flex cursor-pointer items-center gap-2 rounded-lg p-2',
-                        isSelected ? 'bg-muted' : 'hover:bg-muted/70',
+                        'flex flex-col gap-1',
+                        filter.columns === 2 && 'grid grid-cols-2',
                       )}
                     >
-                      <span
-                        className={cn(
-                          'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
-                          isSelected
-                            ? 'border-blue-600 text-blue-600'
-                            : 'border-primary',
-                        )}
-                        aria-hidden="true"
-                      >
-                        {isSelected && (
-                          <Circle className="size-2.5 fill-current" />
-                        )}
-                      </span>
-                      <Text as="span" variant="muted" className="font-medium">
-                        {option.label}
-                      </Text>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      {segment.options.map((option) => {
+                        const isSelected =
+                          filter.selectedValues[0] === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() =>
+                              filter.onChange(
+                                isSelected
+                                  ? (filter.defaultValues ?? [])
+                                  : [option.value],
+                              )
+                            }
+                            className={cn(
+                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              isSelected ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+                                isSelected
+                                  ? 'border-blue-600 text-blue-600'
+                                  : 'border-primary',
+                              )}
+                              aria-hidden="true"
+                            >
+                              {isSelected && (
+                                <Circle className="size-2.5 fill-current" />
+                              )}
+                            </span>
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
+                              {option.label}
+                            </Text>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
           </FilterSection>
         ))}
       </div>

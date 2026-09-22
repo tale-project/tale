@@ -1,8 +1,11 @@
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { Conversations } from '@/app/features/conversations/components/conversations';
+import {
+  Conversations,
+  type ReadFilter,
+} from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
@@ -33,11 +36,13 @@ const searchSchema = z.object({
   /** Channel filter: an inbox provider's connector slug (e.g. `gmail`). */
   channel: z.string().optional(),
   /**
-   * Queue filter: a team id, `mine` (any of the viewer's teams' queues) or
-   * `unassigned` (administrator triage). In the URL so a filtered inbox
-   * survives a reload and can be shared.
+   * Assignee filter: a comma-separated list of user ids, team ids and the
+   * `__me__` / `__unassigned__` / `__my-teams__` sentinels. In the URL so a
+   * filtered inbox survives a reload and can be shared.
    */
-  queue: z.string().optional(),
+  assignee: z.string().optional(),
+  /** Read-status filter. Absent means every read state. */
+  read: z.enum(['all', 'read', 'unread']).optional(),
   /** Compose mode: any value opens the compose pane in the reading pane. */
   compose: z.string().optional(),
   /** Contact id to seed the composer with (from a contact-row "Email" action). */
@@ -88,8 +93,15 @@ const EMPTY_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [];
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { search, conversation, channel, queue, compose, composeContact } =
-    Route.useSearch();
+  const {
+    search,
+    conversation,
+    channel,
+    assignee,
+    read,
+    compose,
+    composeContact,
+  } = Route.useSearch();
   const navigate = useNavigate();
 
   const mappedStatus =
@@ -132,12 +144,36 @@ function ConversationsStatusPage() {
     },
     [navigate, organizationId, status],
   );
-  const handleQueueChange = useCallback(
-    (value?: string) => {
+  // The assignee facet is multi-select, and a TanStack search param is one
+  // string, so the selection rides the URL comma-separated. An empty selection
+  // drops the param instead of leaving `?assignee=` behind.
+  const assigneeFilter = useMemo(
+    () => (assignee === undefined ? [] : assignee.split(',').filter(Boolean)),
+    [assignee],
+  );
+  const handleAssigneeChange = useCallback(
+    (values: string[]) => {
       void navigate({
         to: '/dashboard/$id/conversations/$status',
         params: { id: organizationId, status },
-        search: (prev) => ({ ...prev, queue: value }),
+        search: (prev) => ({
+          ...prev,
+          assignee: values.length > 0 ? values.join(',') : undefined,
+        }),
+        replace: true,
+      });
+    },
+    [navigate, organizationId, status],
+  );
+  const handleReadChange = useCallback(
+    (value: ReadFilter) => {
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status },
+        search: (prev) => ({
+          ...prev,
+          read: value === 'all' ? undefined : value,
+        }),
         replace: true,
       });
     },
@@ -159,8 +195,10 @@ function ConversationsStatusPage() {
         value: channel,
         onChange: handleChannelChange,
       }}
-      queueFilter={queue}
-      onQueueFilterChange={handleQueueChange}
+      assigneeFilter={assigneeFilter}
+      onAssigneeFilterChange={handleAssigneeChange}
+      readFilter={read ?? 'all'}
+      onReadFilterChange={handleReadChange}
       composing={compose !== undefined}
       composeContact={composeContact}
     />

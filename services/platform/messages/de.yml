@@ -1816,17 +1816,20 @@ conversations:
     composeNotice: Um {name} zu schreiben, installiere zuerst eine E-Mail-Automatisierung.
     browseAutomations: Automatisierungen durchsuchen
   filter:
-    label: Nach Lesestatus filtern
     all: Alle
     read: Gelesen
     unread: Ungelesen
+    readStatus: Lesestatus
     channel: Kanal
     allChannels: Alle Kanäle
+    assignee: Zuständig
+    assigneeMe: Mir zugewiesen
+    assigneeMyTeams: Meine Teams
+    assigneeUnassigned: Nicht zugewiesen
+    assigneePeople: Personen
+    assigneeTeams: Teams
+    assigneeUnknownPerson: Unbekannte Person
   queue:
-    filterLabel: Nach Warteschlange filtern
-    all: Alle Warteschlangen
-    mine: Meine Teams
-    unassigned: Nicht zugewiesen
     unknownTeam: Unbekanntes Team
   category:
     churnSurvey: Abwanderungsumfrage

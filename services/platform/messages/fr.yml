@@ -1824,17 +1824,20 @@ conversations:
     composeNotice: Pour écrire à {name}, installe d'abord une automatisation e-mail.
     browseAutomations: Parcourir les automatisations
   filter:
-    label: Filtrer par statut de lecture
     all: Tous
     read: Lus
     unread: Non lus
+    readStatus: Statut de lecture
     channel: Canal
     allChannels: Tous les canaux
+    assignee: Responsable
+    assigneeMe: Assignées à moi
+    assigneeMyTeams: Mes équipes
+    assigneeUnassigned: Non assignées
+    assigneePeople: Personnes
+    assigneeTeams: Équipes
+    assigneeUnknownPerson: Personne inconnue
   queue:
-    filterLabel: Filtrer par file
-    all: Toutes les files
-    mine: Mes équipes
-    unassigned: Non assignées
     unknownTeam: Équipe inconnue
   category:
     churnSurvey: Enquête de désabonnement
