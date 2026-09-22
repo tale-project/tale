@@ -95,7 +95,9 @@ describe('fetchUsage', () => {
   it('carries the account handle the backend keys the plan by', async () => {
     const { fetchImpl, calls } = stubFetch(() =>
       json({
-        rate_limits: { primary: { used_percent: 12, window_minutes: 300 } },
+        rate_limit: {
+          primary_window: { used_percent: 12, limit_window_seconds: 18_000 },
+        },
       }),
     );
     await createOpenAiProvider({ fetchImpl }).fetchUsage({
@@ -129,20 +131,52 @@ describe('identityFromIdToken', () => {
 describe('parseOpenAiUsage', () => {
   const now = new Date('2026-09-21T10:00:00.000Z');
 
+  it('reads the answer the usage endpoint actually sends', () => {
+    // Captured from a live ChatGPT Pro Lite account, trimmed to the keys this
+    // parser reads: one weekly window, and its rollover as epoch seconds.
+    expect(
+      parseOpenAiUsage(
+        {
+          plan_type: 'prolite',
+          rate_limit: {
+            allowed: true,
+            limit_reached: false,
+            primary_window: {
+              used_percent: 36,
+              limit_window_seconds: 604_800,
+              reset_after_seconds: 582_629,
+              reset_at: 1_790_688_140,
+            },
+            secondary_window: null,
+          },
+          additional_rate_limits: null,
+        },
+        now,
+      ),
+    ).toEqual([
+      {
+        kind: 'weekly',
+        label: null,
+        utilization: 36,
+        resetsAt: '2026-09-29T13:22:20.000Z',
+      },
+    ]);
+  });
+
   it('reads the short window as the session cap and the long one as weekly', () => {
     expect(
       parseOpenAiUsage(
         {
-          rate_limits: {
-            primary: {
+          rate_limit: {
+            primary_window: {
               used_percent: 20,
-              window_minutes: 300,
-              resets_in_seconds: 1800,
+              limit_window_seconds: 18_000,
+              reset_after_seconds: 1_800,
             },
-            secondary: {
+            secondary_window: {
               used_percent: 55,
-              window_minutes: 10_080,
-              resets_at: '2026-09-27T00:00:00Z',
+              limit_window_seconds: 604_800,
+              reset_at: 1_790_294_400,
             },
           },
         },
@@ -159,7 +193,7 @@ describe('parseOpenAiUsage', () => {
         kind: 'weekly',
         label: null,
         utilization: 55,
-        resetsAt: '2026-09-27T00:00:00.000Z',
+        resetsAt: '2026-09-25T00:00:00.000Z',
       },
     ]);
   });
@@ -167,9 +201,9 @@ describe('parseOpenAiUsage', () => {
   it('orders by window length, not by the name the vendor used', () => {
     const windows = parseOpenAiUsage(
       {
-        rate_limits: {
-          primary: { used_percent: 55, window_minutes: 10_080 },
-          secondary: { used_percent: 20, window_minutes: 300 },
+        rate_limit: {
+          primary_window: { used_percent: 55, limit_window_seconds: 604_800 },
+          secondary_window: { used_percent: 20, limit_window_seconds: 18_000 },
         },
       },
       now,
@@ -178,20 +212,13 @@ describe('parseOpenAiUsage', () => {
     expect(windows[0]?.utilization).toBe(20);
   });
 
-  it('reads a payload that puts the windows at the top level', () => {
-    expect(
-      parseOpenAiUsage(
-        { primary: { used_percent: 7, window_minutes: 300 } },
-        now,
-      ),
-    ).toEqual([
-      { kind: 'session', label: null, utilization: 7, resetsAt: null },
-    ]);
-  });
-
   it('calls a lone multi-day window weekly', () => {
     const windows = parseOpenAiUsage(
-      { rate_limits: { primary: { used_percent: 7, window_minutes: 10_080 } } },
+      {
+        rate_limit: {
+          primary_window: { used_percent: 7, limit_window_seconds: 604_800 },
+        },
+      },
       now,
     );
     expect(windows[0]?.kind).toBe('weekly');
@@ -199,6 +226,7 @@ describe('parseOpenAiUsage', () => {
 
   it('answers no windows for a payload it does not recognize', () => {
     expect(parseOpenAiUsage({}, now)).toEqual([]);
+    expect(parseOpenAiUsage({ rate_limit: null }, now)).toEqual([]);
   });
 });
 

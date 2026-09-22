@@ -218,49 +218,49 @@ export function identityFromIdToken(idToken: string): ProviderIdentity {
 }
 
 /**
- * Map OpenAI's rate-limit payload onto the shared windows.
+ * Map the Codex usage payload onto the shared windows.
  *
- * Codex reports two windows it calls `primary` and `secondary`, each with a
- * `used_percent` and a length in minutes. The short one is the session cap and
- * the long one the weekly cap; the length decides which is which rather than
- * the name, so a plan whose windows are ordered differently still reads
- * correctly. The reset arrives either as an absolute `resets_at` or as a
- * relative `resets_in_seconds`.
+ * `rate_limit` carries a `primary_window` and a `secondary_window`, each with
+ * a `used_percent`, the window's own length in `limit_window_seconds`, and the
+ * rollover as both an absolute `reset_at` (epoch seconds) and a relative
+ * `reset_after_seconds`. A plan that publishes one window answers `null` for
+ * the other.
+ *
+ * The length decides which cap a window is rather than its name: the shorter
+ * is the session cap and anything a day or longer is the weekly one. So a plan
+ * whose two windows arrive in the other order reads correctly, and so does one
+ * that publishes the weekly window alone.
  */
 export function parseOpenAiUsage(
   data: Record<string, unknown>,
   now: Date = new Date(),
 ): UsageWindow[] {
-  const limits = readObject(data, 'rate_limits') ?? data;
-  const entries = (['primary', 'secondary'] as const)
+  const limits = readObject(data, 'rate_limit');
+  const entries = (['primary_window', 'secondary_window'] as const)
     .map((name) => readObject(limits, name))
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   if (entries.length === 0) return [];
 
-  const minutesOf = (entry: Record<string, unknown>): number => {
-    const minutes = entry['window_minutes'];
-    return typeof minutes === 'number' && Number.isFinite(minutes)
-      ? minutes
+  const secondsOf = (entry: Record<string, unknown>): number => {
+    const seconds = entry['limit_window_seconds'];
+    return typeof seconds === 'number' && Number.isFinite(seconds)
+      ? seconds
       : Number.POSITIVE_INFINITY;
   };
-  // A single reported window is the session cap unless it is clearly a
-  // multi-day one; a day is the boundary the two plans' windows sit either
-  // side of (five hours vs seven days).
-  const weeklyThresholdMinutes = 24 * 60;
-  const sorted = [...entries].sort((a, b) => minutesOf(a) - minutesOf(b));
+  // A day is the boundary the two windows sit either side of — five hours
+  // against seven days — so it is what separates a session cap from a plan one.
+  const weeklyThresholdSeconds = 24 * 60 * 60;
+  const sorted = [...entries].sort((a, b) => secondsOf(a) - secondsOf(b));
 
   return sorted.map((entry, index) => ({
     kind:
-      index === 0 && minutesOf(entry) < weeklyThresholdMinutes
+      index === 0 && secondsOf(entry) < weeklyThresholdSeconds
         ? ('session' as const)
         : ('weekly' as const),
     label: null,
     utilization: toUtilization(entry['used_percent']),
     resetsAt:
-      toIsoInstant(entry['resets_at']) ??
-      resetsAtFromSeconds(
-        entry['resets_in_seconds'] ?? entry['reset_after_seconds'],
-        now,
-      ),
+      toIsoInstant(entry['reset_at']) ??
+      resetsAtFromSeconds(entry['reset_after_seconds'], now),
   }));
 }

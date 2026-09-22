@@ -40,7 +40,9 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
   loopback URL that will not load.
 - [ ] `ACCT-4` · **Approve in the browser, copy the entire failed
   `localhost:1455` address, paste it, Connect** → the row appears the same way,
-  with the OpenAI mark and its own plan badge.
+  with the OpenAI mark, its own plan badge and populated usage bars. Every
+  ChatGPT plan publishes at least its weekly window, so "No usage read yet" on
+  a freshly connected OpenAI row is a defect, not an empty plan.
 - [ ] `ACCT-5` · **Add an account and type a name in step one** → the row
   carries that name, and its caption still shows the provider and the account's
   address, so the identity is not lost behind the label.
