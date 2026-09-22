@@ -139,8 +139,12 @@ single warm sample.
   Scroll stays responsive; no `pageerror`/console error; DOM node count does
   not grow unbounded (older messages are recycled).
 - [ ] `PERF-B2` · **Large list** — A DataTable with hundreds of rows
-  (`/contacts`). → First page renders quickly and is paginated (only one page
-  of rows in the DOM); paging does not load the whole set at once.
+  (`/contacts`), with no search, filter or sort active. → First page renders
+  quickly and only one page of rows is fetched and in the DOM; scrolling
+  loads the next page, never the whole set at once. A client-side search or
+  sort intentionally drains the remaining pages (see
+  [not-a-finding](../reference/not-a-finding.md)) — do not judge that
+  as eager paging.
 - [ ] `PERF-B3` · **Slow network** — DevTools throttle to **Slow 3G**,
   hard-reload `/dashboard/{org}`. → Loading skeletons (`aria-busy="true"`
   regions) show during load with NO layout jank; the page eventually renders;
