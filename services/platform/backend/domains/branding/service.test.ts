@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { BrandingError, saveBrandingImage } from './service';
+import { resolveBrandingFilePath } from '../../core/branding/file_utils.ts';
+import {
+  BrandingError,
+  deleteBrandingImage,
+  readBrandingConfig,
+  saveBrandingImage,
+} from './service';
 
 function toBase64(text: string): string {
   return Buffer.from(text, 'utf8').toString('base64');
@@ -91,6 +97,41 @@ describe('saveBrandingImage — SVG active-content intake gate', () => {
         mimeType: 'image/png',
       });
       expect(result.filename).toBe('favicon-light.png');
+    } finally {
+      await rm(configDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('image writes record their reference on the branding config', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // The docs and the settings page promise an upload takes effect at once;
+  // the reference used to be staged in the form and written only by the
+  // header's Save, so a reload before that Save showed the default again
+  // (SET-F29).
+  it('names the stored file on save and forgets it on delete', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'tale-branding-svc-'));
+    try {
+      vi.stubEnv('TALE_CONFIG_DIR', configDir);
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>';
+      await saveBrandingImage(fakeSql(), 'acme', {
+        type: 'logo',
+        base64: toBase64(svg),
+        mimeType: 'image/svg+xml',
+      });
+      const afterSave = await readBrandingConfig('acme');
+      expect(afterSave.config).toMatchObject({ logoFilename: 'logo.svg' });
+      expect(
+        JSON.parse(await readFile(resolveBrandingFilePath('acme'), 'utf8')),
+      ).toMatchObject({ logoFilename: 'logo.svg' });
+
+      await deleteBrandingImage(fakeSql(), 'acme', 'logo');
+      const afterDelete = await readBrandingConfig('acme');
+      expect(afterDelete.config).not.toHaveProperty('logoFilename');
     } finally {
       await rm(configDir, { recursive: true, force: true });
     }

@@ -225,7 +225,9 @@ export function BrandingForm({
           base64,
           mimeType: 'image/png',
         });
-        setValue('faviconLightFilename', filename, { shouldDirty: true });
+        // Already on the server: the image write records its reference, so
+        // the field mirrors the saved state rather than staging an edit.
+        setValue('faviconLightFilename', filename);
         setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
         toast({
           title: tToast('success.faviconGenerated.title'),
@@ -290,12 +292,15 @@ export function BrandingForm({
               organizationId={organizationId}
               currentUrl={branding?.logoUrl}
               imageType="logo"
+              // Uploads and removals take effect on the server as they
+              // happen (the image write records its own reference); the
+              // fields only mirror that, so they never dirty the Save cluster.
               onUpload={(filename, file) => {
-                setValue('logoFilename', filename, { shouldDirty: true });
+                setValue('logoFilename', filename);
                 void maybeDeriveFavicon(file);
               }}
               onRemove={() => {
-                setValue('logoFilename', '', { shouldDirty: true });
+                setValue('logoFilename', '');
               }}
               onPreviewUrlChange={setLogoPreviewUrl}
               size="md"
@@ -314,14 +319,10 @@ export function BrandingForm({
                 currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                 imageType="favicon-light"
                 onUpload={(filename) => {
-                  setValue('faviconLightFilename', filename, {
-                    shouldDirty: true,
-                  });
+                  setValue('faviconLightFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconLightFilename', '', {
-                    shouldDirty: true,
-                  });
+                  setValue('faviconLightFilename', '');
                 }}
                 onPreviewUrlChange={setFaviconPreviewUrl}
                 label={t('branding.light')}
@@ -333,14 +334,10 @@ export function BrandingForm({
                 currentUrl={branding?.faviconDarkUrl}
                 imageType="favicon-dark"
                 onUpload={(filename) => {
-                  setValue('faviconDarkFilename', filename, {
-                    shouldDirty: true,
-                  });
+                  setValue('faviconDarkFilename', filename);
                 }}
                 onRemove={() => {
-                  setValue('faviconDarkFilename', '', {
-                    shouldDirty: true,
-                  });
+                  setValue('faviconDarkFilename', '');
                 }}
                 label={t('branding.dark')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}

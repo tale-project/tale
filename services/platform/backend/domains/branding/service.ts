@@ -18,6 +18,7 @@ import {
   sha256,
   svgHasActiveContent,
   validateImageType,
+  type BrandingImageType,
   type BrandingJsonConfig,
   type BrandingReadResult,
 } from '../../core/branding/file_utils.ts';
@@ -222,17 +223,60 @@ export async function saveBrandingImage(
       'SVG contains scripts, event handlers, or javascript: URLs',
     );
   }
-  const filename = `${args.type}.${ext}`;
+  // Narrowed here: the guard above does not reach into the closure below.
+  const imageType: BrandingImageType = args.type;
+  const filename = `${imageType}.${ext}`;
   const imagesDir = resolveImagesDir(orgSlug);
   // Replacing an image is a delete-then-write across extensions: two saves
   // of the same type interleaving there leave the loser's file beside the
   // winner's, and the reader picks by prefix.
   await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
     await mkdir(imagesDir, { recursive: true });
-    await removeImageVariants(imagesDir, args.type, 'saveBrandingImage');
+    await removeImageVariants(imagesDir, imageType, 'saveBrandingImage');
     await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
+    await writeImageReference(orgSlug, imageType, filename);
   });
   return { filename };
+}
+
+/** The config field that names an image type's stored file. */
+function imageReferenceField(
+  type: BrandingImageType,
+): 'logoFilename' | 'faviconLightFilename' | 'faviconDarkFilename' {
+  if (type === 'logo') return 'logoFilename';
+  if (type === 'favicon-light') return 'faviconLightFilename';
+  return 'faviconDarkFilename';
+}
+
+/**
+ * Points the branding config at the image just written (or forgets it). An
+ * upload takes effect the moment it lands — the documented contract — so the
+ * reference cannot wait for the settings header's Save: a reload before that
+ * Save used to show the default again, and a replacement across extensions
+ * left the config naming a file the write had removed. Runs under the
+ * caller's write lock.
+ */
+async function writeImageReference(
+  orgSlug: string,
+  type: BrandingImageType,
+  filename: string | undefined,
+): Promise<void> {
+  const current = await readBrandingFile(orgSlug);
+  if (!current.ok && current.error !== 'not_found') {
+    throw new BrandingError(
+      'BRANDING_CONFIG_UNREADABLE',
+      `Cannot update the branding config for "${orgSlug}": ${current.message}`,
+    );
+  }
+  const field = imageReferenceField(type);
+  const { [field]: _previous, ...rest } = current.ok ? current.config : {};
+  const next = brandingJsonSchema.parse(
+    filename === undefined ? rest : { ...rest, [field]: filename },
+  );
+  await atomicWrite(
+    resolveBrandingFilePath(orgSlug),
+    serializeBrandingJson(next),
+  );
 }
 
 /** Remove any existing file for this image type (may differ in extension).
@@ -267,9 +311,16 @@ export async function deleteBrandingImage(
       `Invalid image type: ${type}`,
     );
   }
-  await withConfigWriteLock(sql, orgSlug, 'branding', () =>
-    removeImageVariants(resolveImagesDir(orgSlug), type, 'deleteBrandingImage'),
-  );
+  // Narrowed here: the guard above does not reach into the closure.
+  const imageType: BrandingImageType = type;
+  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
+    await removeImageVariants(
+      resolveImagesDir(orgSlug),
+      imageType,
+      'deleteBrandingImage',
+    );
+    await writeImageReference(orgSlug, imageType, undefined);
+  });
 }
 
 export async function snapshotBrandingToHistory(

@@ -187,6 +187,24 @@ describe('BrandingForm', () => {
     );
   }
 
+  // An upload is written and referenced on the server as it lands (the
+  // documented "takes effect immediately"); staging it as a form edit used to
+  // make the header Save the only thing that persisted the reference, so a
+  // reload before that Save showed the default again (SET-F29).
+  it('does not dirty the active editor when an image is uploaded', async () => {
+    render(
+      <ActiveEditorProvider>
+        <BrandingForm {...defaultProps} />
+        <DirtyProbe />
+      </ActiveEditorProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId('upload-logo'));
+    await waitFor(() => expect(mockSaveImage).toHaveBeenCalled());
+
+    expect(screen.getByTestId('dirty')).toHaveTextContent('no');
+  });
+
   it('marks the active editor dirty when the accent color changes', () => {
     render(
       <ActiveEditorProvider>
@@ -268,10 +286,10 @@ describe('BrandingForm', () => {
         </ActiveEditorProvider>,
       );
 
-      // Dirty the form via an unrelated field so save() runs, leaving the
-      // accent untouched — the lossy display conversion must not drift it.
-      fireEvent.click(screen.getByTestId('upload-logo'));
-      await waitFor(() => expect(capture.current?.isDirty ?? false).toBe(true));
+      // Save with the accent untouched (an image upload no longer dirties
+      // the form — it persists on its own) — the lossy display conversion
+      // must not drift the stored color.
+      await waitFor(() => expect(capture.current).not.toBeNull());
       await capture.current?.save();
 
       expect(mockMutateAsync).toHaveBeenCalledWith(
