@@ -276,7 +276,8 @@ describe('ConversationHeader', () => {
       />,
     );
 
-    expect(screen.getByText('desk@gmail.com')).toBeInTheDocument();
+    // The connector's name now leads the address, so match within the line.
+    expect(screen.getByText(/desk@gmail\.com/)).toBeInTheDocument();
     expect(
       screen.queryByLabelText('Inbox: stranger@gmail.com'),
     ).not.toBeInTheDocument();
@@ -384,6 +385,65 @@ describe('ConversationHeader', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  /**
+   * With two connectors installed the address alone does not say which one
+   * carries the thread, so the connector's name is shown rather than hidden
+   * in a tooltip. An API thread has no envelope address at all and used to
+   * show nothing.
+   */
+  describe('where the thread came in', () => {
+    it('names the connector beside the address', () => {
+      emailConnectorsMock.current = [
+        {
+          slug: 'gmail',
+          title: 'Gmail',
+          type: 'oauth',
+        },
+      ];
+      render(
+        <ConversationHeader
+          conversation={makeConversation({
+            channel: 'email',
+            connectorName: 'gmail',
+            metadata: { to: [{ address: 'desk@company.test' }] },
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.getByText('Gmail · desk@company.test')).toBeInTheDocument();
+    });
+
+    it('names the source of an API thread, which carries no address', () => {
+      emailConnectorsMock.current = [];
+      render(
+        <ConversationHeader
+          conversation={makeConversation({
+            channel: 'api',
+            connectorName: 'helpdesk',
+            metadata: {},
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.getByText('API: helpdesk')).toBeInTheDocument();
+    });
+
+    // Says nothing rather than something wrong.
+    it('shows no source when the thread carries neither stamp', () => {
+      emailConnectorsMock.current = [];
+      render(
+        <ConversationHeader
+          conversation={makeConversation({ metadata: {} })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.queryByText(/^API:/)).not.toBeInTheDocument();
     });
   });
 });

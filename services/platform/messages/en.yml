@@ -1690,6 +1690,11 @@ conversations:
     assignSearchAll: Search people and teams
     noAssignees: No people or teams found
     autoAssignSettings: Auto assign
+    apiSource: 'API: {source}'
+    apiSourceShort: API
+    replyVia: 'Reply goes out via {source}'
+    replyViaApi: 'Reply goes back via {source}'
+    replyViaUnknown: This conversation has no channel to reply through
   editor:
     noContent: No content to improve
     improveFailed: Couldn't improve content. Try again.

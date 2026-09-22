@@ -157,6 +157,25 @@ export function useEmailConnectors(organizationId: string): {
 // Stable identity so consumers' memos don't re-run every render.
 const EMPTY_EMAIL_CONNECTORS: EmailConnectorOption[] = [];
 
+/**
+ * Names an email connector by slug, for any surface that shows where a thread
+ * came in. Reads the org from context and shares `useEmailConnectors`' cached
+ * query, so a list of rows costs one directory read rather than one per row.
+ */
+export function useConnectorTitles(): {
+  titleOf: (slug: string) => string | undefined;
+} {
+  const organizationId = useOrganizationId();
+  const { emailConnectors } = useEmailConnectors(organizationId ?? '');
+  const titleOf = useMemo(() => {
+    const bySlug = new Map(
+      emailConnectors.map((connector) => [connector.slug, connector.title]),
+    );
+    return (slug: string) => bySlug.get(slug);
+  }, [emailConnectors]);
+  return { titleOf };
+}
+
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();
   return useBackendQuery(

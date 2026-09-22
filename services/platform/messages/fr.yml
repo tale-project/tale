@@ -1764,6 +1764,11 @@ conversations:
     assignSearchAll: Rechercher des personnes et des équipes
     noAssignees: Aucune personne ou équipe trouvée
     autoAssignSettings: Assignation auto
+    apiSource: 'API : {source}'
+    apiSourceShort: API
+    replyVia: 'La réponse part via {source}'
+    replyViaApi: 'La réponse repart via {source}'
+    replyViaUnknown: Cette conversation n'a aucun canal pour répondre
   editor:
     noContent: Aucun contenu à améliorer
     improveFailed: Impossible d'améliorer le contenu. Réessaie.

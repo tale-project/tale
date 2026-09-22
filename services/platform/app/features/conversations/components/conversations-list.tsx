@@ -15,6 +15,7 @@ import {
   Inbox,
   Loader2,
   Mail,
+  Plug,
   Sparkles,
   UsersRound,
 } from 'lucide-react';
@@ -25,6 +26,8 @@ import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-utils';
 
+import { useConnectorTitles } from '../hooks/queries';
+import { channelSourceOf } from '../lib/channel-source';
 import type { Conversation } from '../types';
 
 // Strip script/style + HTML tags, decode entities, and collapse whitespace
@@ -182,6 +185,7 @@ const ConversationRow = memo(function ConversationRow({
   const { t: tCommon } = useT('common');
   // One cached directory read for every row (same query key).
   const { nameOf: teamNameOf } = useTeamNames();
+  const { titleOf: connectorTitleOf } = useConnectorTitles();
 
   // Localized fallback for a name-less contact. The backend now returns an
   // undefined name (instead of a hardcoded "Unknown Contact"), so the label is
@@ -333,6 +337,30 @@ const ConversationRow = memo(function ConversationRow({
                   t?.('queue.unknownTeam')}
               </Badge>
             ) : null}
+
+            {/* Which channel the thread came in on, and so where a reply
+                goes back out: the server re-derives the route from these same
+                stamps. Two mailboxes on one connector read alike here — the
+                connector is what the row has room to say. A thread with
+                neither stamp shows nothing rather than a guess. */}
+            {conversation
+              ? (() => {
+                  const source = channelSourceOf(
+                    conversation,
+                    connectorTitleOf,
+                  );
+                  if (source.lane === 'unknown') return null;
+                  return (
+                    <Badge
+                      variant="outline"
+                      icon={source.lane === 'api' ? Plug : Mail}
+                      className="min-w-fit"
+                    >
+                      {source.label ?? t?.('header.apiSourceShort')}
+                    </Badge>
+                  );
+                })()
+              : null}
 
             {conversation
               ? (() => {

@@ -12,6 +12,7 @@ import {
   Mail,
   MessageSquare,
   MessageSquareOff,
+  Plug,
   ShieldX,
   UserIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ import {
   useReopenConversation,
 } from '../hooks/mutations';
 import { useEmailConnectors } from '../hooks/queries';
+import { channelSourceOf } from '../lib/channel-source';
 import type { ConversationWithMessages } from '../types';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
 import { DotIcon } from './dot-icon';
@@ -78,6 +80,13 @@ export function ConversationHeader({
     ? resolveReplyFrom(ourAddress, inbox.fromAddress)
     : ourAddress;
   const inboxLabel = inbox?.title;
+  // The lane, for a thread that has no envelope address to show. An API
+  // thread carries no `metadata.to`, so before this it showed nothing at all.
+  const source = channelSourceOf(
+    conversation,
+    (slug) =>
+      emailConnectors.find((connector) => connector.slug === slug)?.title,
+  );
 
   const { mutate: closeConversation, isPending: isClosing } =
     useCloseConversation();
@@ -314,24 +323,49 @@ export function ConversationHeader({
                 </span>
               </>
             )}
-            {conversationFrom && (
+            {/* Where the thread came in, and so where a reply goes back out.
+                The connector's name is shown, not hidden in a tooltip: with
+                two connectors installed the address alone does not say which
+                one carries the thread. An API thread has no address, so its
+                source slug stands in its place. */}
+            {(conversationFrom || source.lane === 'api') && (
               <>
                 {lastMessageTime ? (
                   <DotIcon className="mx-0.5 shrink-0" />
                 ) : showEmailInMeta ? (
                   <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
                 ) : null}
-                <Tooltip content={inboxLabel ?? conversationFrom}>
+                {source.lane === 'api' ? (
                   <span
                     className="inline-flex min-w-0 items-center gap-1"
-                    aria-label={t('header.inboxSource', {
-                      inbox: conversationFrom,
+                    aria-label={t('header.apiSource', {
+                      source: source.label ?? t('header.apiSourceShort'),
                     })}
                   >
-                    <Mail className="size-3 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{conversationFrom}</span>
+                    <Plug className="size-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">
+                      {t('header.apiSource', {
+                        source: source.label ?? t('header.apiSourceShort'),
+                      })}
+                    </span>
                   </span>
-                </Tooltip>
+                ) : (
+                  <Tooltip content={conversationFrom}>
+                    <span
+                      className="inline-flex min-w-0 items-center gap-1"
+                      aria-label={t('header.inboxSource', {
+                        inbox: conversationFrom,
+                      })}
+                    >
+                      <Mail className="size-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate">
+                        {inboxLabel
+                          ? `${inboxLabel} · ${conversationFrom}`
+                          : conversationFrom}
+                      </span>
+                    </span>
+                  </Tooltip>
+                )}
               </>
             )}
           </div>
