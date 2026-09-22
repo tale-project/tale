@@ -21,6 +21,8 @@ accessDenied:
     Tu dois disposer des permissions Admin ou Développeur pour gérer les
     fournisseurs IA.
 analytics:
+  aria:
+    filterBy: Filtrer par {name}
   automations:
     title: Métriques des automatisations
     description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.

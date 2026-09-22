@@ -17,6 +17,8 @@ import {
   isTtsSlug,
 } from '@/lib/shared/constants/usage';
 
+import { DrilldownButton } from '../components/drilldown-button';
+
 export interface TopAgentRow {
   agentSlug: string;
   /** The name the backend resolved for a slug that is an id (a project
@@ -82,15 +84,26 @@ export function TopAgentsTable({
       {
         id: 'agent',
         header: t('usage.tables.topAgents.agent'),
-        cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[260px] truncate text-sm"
-          >
-            {row.original.displayName ?? resolveName(row.original.agentSlug)}
-          </Text>
-        ),
+        cell: ({ row }) =>
+          // Synthetic buckets are not agents to drill into; they stay plain
+          // labels, as their rows stay plain rows.
+          isSyntheticAgentSlug(row.original.agentSlug) ? (
+            <Text
+              as="span"
+              variant="label"
+              className="block max-w-[260px] truncate text-sm"
+            >
+              {row.original.displayName ?? resolveName(row.original.agentSlug)}
+            </Text>
+          ) : (
+            <DrilldownButton
+              name={
+                row.original.displayName ?? resolveName(row.original.agentSlug)
+              }
+              onSelect={() => onSelectAgent(row.original.agentSlug)}
+              className="max-w-[260px]"
+            />
+          ),
         size: 260,
       },
       {
@@ -132,7 +145,7 @@ export function TopAgentsTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, resolveName, formatNumber, formatCostCents],
+    [t, resolveName, formatNumber, formatCostCents, onSelectAgent],
   );
 
   return (

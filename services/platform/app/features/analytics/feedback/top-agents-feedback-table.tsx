@@ -11,6 +11,7 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { UNATTRIBUTED_AGENT_SLUG } from '@/lib/shared/constants/usage';
 
+import { DrilldownButton } from '../components/drilldown-button';
 import type { FeedbackAgentBucket } from './types';
 
 interface TopAgentsFeedbackTableProps {
@@ -62,15 +63,24 @@ export function TopAgentsFeedbackTable({
       {
         id: 'agent',
         header: t('feedback.tables.topAgents.agent'),
-        cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[260px] truncate text-sm"
-          >
-            {resolveName(row.original.agentSlug)}
-          </Text>
-        ),
+        cell: ({ row }) =>
+          // The unattributed bucket is not an agent to drill into; it stays a
+          // plain label, as its row stays a plain row.
+          row.original.agentSlug === UNATTRIBUTED_AGENT_SLUG ? (
+            <Text
+              as="span"
+              variant="label"
+              className="block max-w-[260px] truncate text-sm"
+            >
+              {resolveName(row.original.agentSlug)}
+            </Text>
+          ) : (
+            <DrilldownButton
+              name={resolveName(row.original.agentSlug)}
+              onSelect={() => onSelectAgent(row.original.agentSlug)}
+              className="max-w-[260px]"
+            />
+          ),
         size: 260,
       },
       {
@@ -116,7 +126,7 @@ export function TopAgentsFeedbackTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, resolveName, formatNumber, formatPercentShare],
+    [t, resolveName, formatNumber, formatPercentShare, onSelectAgent],
   );
 
   return (

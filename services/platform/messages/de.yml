@@ -21,6 +21,8 @@ accessDenied:
     Du benötigst Admin- oder Entwickler-Berechtigungen, um KI-Anbieter zu
     verwalten.
 analytics:
+  aria:
+    filterBy: Nach {name} filtern
   automations:
     title: Automatisierungs-Metriken
     description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.

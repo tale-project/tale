@@ -3,7 +3,6 @@
 import { Badge } from '@tale/ui/badge';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { MetricsSection } from '@tale/ui/metrics/metrics-section';
-import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -11,6 +10,7 @@ import { useCallback, useMemo } from 'react';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
+import { DrilldownButton } from '../components/drilldown-button';
 import type { FeedbackModelBucket } from './types';
 
 interface TopModelsFeedbackTableProps {
@@ -42,9 +42,13 @@ export function TopModelsFeedbackTable({
         meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
           <div className="flex items-baseline gap-2">
-            <Text as="span" variant="label" className="text-sm break-all">
-              {row.original.model}
-            </Text>
+            <DrilldownButton
+              name={row.original.model}
+              onSelect={() =>
+                onSelectModel(row.original.model, row.original.provider)
+              }
+              labelClassName="break-all"
+            />
             <Badge variant="outline" className="shrink-0">
               {row.original.provider}
             </Badge>
@@ -95,7 +99,7 @@ export function TopModelsFeedbackTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, formatNumber, formatPercentShare],
+    [t, formatNumber, formatPercentShare, onSelectModel],
   );
 
   return (

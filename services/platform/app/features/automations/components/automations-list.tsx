@@ -11,7 +11,8 @@ import {
 } from '@tale/ui/data-table/table-icon-cell';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
-import { useNavigate } from '@tanstack/react-router';
+import { Text } from '@tale/ui/text';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
   CheckCircle2,
@@ -142,8 +143,26 @@ export function AutomationsList({
             // The pack's declared glyph in the tile every entity list leads
             // with; a canvas-authored automation gets the neutral fallback.
             icon={<ConfigIcon icon={row.original.icon} />}
-            label={row.original.displayName}
-            title={row.original.displayName}
+            // The name is the row's real link: `onRowClick` is a pointer
+            // convenience a `<tr>` cannot offer the keyboard. The link stops
+            // its click at itself so the row does not navigate a second time.
+            label={
+              <Link
+                {...automationListTarget({
+                  organizationId,
+                  name: row.original.name,
+                  boundProjectIds: row.original.projectIds,
+                  ...(projectId !== undefined && { listProjectId: projectId }),
+                })}
+                title={row.original.displayName}
+                onClick={(event) => event.stopPropagation()}
+                className="focus-visible:ring-ring min-w-0 rounded-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <Text as="span" variant="label" truncate className="block">
+                  {row.original.displayName}
+                </Text>
+              </Link>
+            }
             // Catalog chips the pack declared — proper nouns, so they read the
             // same in every locale.
             badges={row.original.labels.map((label) => (
@@ -237,7 +256,14 @@ export function AutomationsList({
       });
     }
     return cols;
-  }, [t, showProjectsColumn, projectNames, canAuthor, organizationId]);
+  }, [
+    t,
+    showProjectsColumn,
+    projectNames,
+    canAuthor,
+    organizationId,
+    projectId,
+  ]);
 
   const list = useListPage<AutomationListRow>({
     dataSource: {

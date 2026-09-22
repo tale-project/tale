@@ -44,7 +44,15 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
           costCents: 20,
         },
       ],
-      topModels: [],
+      topModels: [
+        {
+          provider: 'deepseek',
+          model: 'deepseek-flash',
+          requests: 4,
+          tokens: 400,
+          costCents: 12,
+        },
+      ],
       topVoiceModels: [],
       // A person, and the bucket trigger-started runs book under.
       users: [
@@ -81,6 +89,19 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 describe('UsageMetricsPage', () => {
+  it('offers every drill-down row as a named button the keyboard can reach', () => {
+    render(<UsageMetricsPage organizationId="org-1" />);
+
+    // `onRowClick` is a pointer convenience only — a `<tr>` takes no focus —
+    // so the row's lead label is the real, named action (A11Y-A3).
+    expect(
+      screen.getByRole('button', { name: 'Filter by deepseek-flash' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Filter by Alice the agent' }),
+    ).toBeInTheDocument();
+  });
+
   it('renders the title heading, period control, and summary card labels', () => {
     render(<UsageMetricsPage organizationId="org-1" />);
 

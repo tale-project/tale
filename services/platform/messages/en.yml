@@ -12,6 +12,8 @@ accessDenied:
   dataResidency: You need Admin permissions to access data residency settings.
   providers: You need Admin or Developer permissions to manage AI providers.
 analytics:
+  aria:
+    filterBy: Filter by {name}
   automations:
     title: Automation metrics
     description: Run counts, success rates, and average duration across your automations.
