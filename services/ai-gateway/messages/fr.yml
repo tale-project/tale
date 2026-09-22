@@ -13,13 +13,12 @@ accounts:
     account: Compte
     status: État
     usage: Consommation
-    token: Jeton d’accès
+    validUntil: Valable jusqu’au
     actions: Actions de la ligne
   empty:
     title: Aucun compte pour l’instant
     description: Ajoute un compte Claude ou ChatGPT. La passerelle garde ensuite son jeton valide et le distribue.
-  validUntil: Valable jusqu’au {date}
-  noExpiry: Aucune expiration annoncée
+  noExpiry: Sans expiration
   actions:
     menu: Actions du compte
     reauthenticate: Réautoriser

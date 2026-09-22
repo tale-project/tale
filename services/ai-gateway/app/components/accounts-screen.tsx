@@ -177,26 +177,29 @@ export function AccountsScreen({
         ),
       },
       {
-        id: 'token',
+        id: 'validUntil',
         accessorFn: (account) => account.expiresAt,
         header: () => (
-          <span className="block w-full text-right">{t('columns.token')}</span>
+          <span className="block w-full text-right">
+            {t('columns.validUntil')}
+          </span>
         ),
-        // One short date sentence, right-aligned against the row menu the way
-        // every platform table ends on its timestamp.
-        size: 172,
+        // One short date, right-aligned against the row menu the way every
+        // platform table ends on its timestamp.
+        size: 140,
         meta: {
           align: 'right',
-          headerLabel: t('columns.token'),
+          headerLabel: t('columns.validUntil'),
           skeleton: { type: 'text', lines: 1 },
           className: 'overflow-hidden',
         },
+        // The header says what the date means, so the cell is the date and
+        // nothing else — a column of "Valid until 10/22/2026" repeats its own
+        // heading on every row.
         cell: ({ row }) => (
           <Text truncate variant="caption">
             {row.original.expiresAt
-              ? t('validUntil', {
-                  date: formatDate(row.original.expiresAt, 'short'),
-                })
+              ? formatDate(row.original.expiresAt, 'short')
               : t('noExpiry')}
           </Text>
         ),

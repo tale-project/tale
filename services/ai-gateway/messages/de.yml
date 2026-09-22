@@ -13,13 +13,12 @@ accounts:
     account: Konto
     status: Status
     usage: Verbrauch
-    token: Zugriffstoken
+    validUntil: Gültig bis
     actions: Zeilenaktionen
   empty:
     title: Noch keine Konten
     description: Füge ein Claude- oder ChatGPT-Konto hinzu. Das Gateway hält dessen Token danach frisch und gibt es aus.
-  validUntil: Gültig bis {date}
-  noExpiry: Kein Ablauf angegeben
+  noExpiry: Kein Ablauf
   actions:
     menu: Kontoaktionen
     reauthenticate: Neu anmelden
