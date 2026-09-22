@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { MessagePart } from '@/lib/chat/types';
+
 import type { ChatGenerationView, ChatMessageView } from '../types';
 import { createPendingSend } from '../utils/pending-messages';
 import {
@@ -113,6 +115,80 @@ describe('reduceThreadView', () => {
     });
   });
 
+  it("shows an earlier tool round's text from the live parts before the transcript refetches", () => {
+    const state = createThreadViewState();
+    const roundOne: readonly MessagePart[] = [
+      { type: 'text', text: 'Let me check.' },
+      {
+        type: 'tool-call',
+        callId: 'c1',
+        capabilityId: 'rag_search',
+        input: { query: 'returns' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'c1',
+        capabilityId: 'rag_search',
+        output: { hits: 1 },
+        structured: true,
+      },
+    ];
+    // Production shape: the row is still the empty placeholder (the
+    // transcript is refetched only at settle) while the stream channel
+    // already carries the first round's parts and the second round's tail.
+    const live = reduceThreadView(
+      state,
+      inputs({
+        messages: thread(),
+        generation: STREAMING,
+        generationText: {
+          messageId: 'a2',
+          text: 'Found it: 30 days',
+          parts: roundOne,
+        },
+      }),
+    );
+    expect(live.items.at(-1)).toMatchObject({
+      text: 'Let me check.\n\nFound it: 30 days',
+      isStreaming: true,
+    });
+    expect(live.items.at(-1)?.parts).toEqual(roundOne);
+
+    // Settle gap: nothing changes on screen.
+    const gap = reduceThreadView(
+      state,
+      inputs({ messages: thread(), generation: null, generationText: null }),
+    );
+    expect(gap.items.at(-1)).toMatchObject({
+      text: 'Let me check.\n\nFound it: 30 days',
+      isStreaming: true,
+    });
+    expect(gap.items.at(-1)?.parts).toEqual(roundOne);
+
+    // Finalize: the row's text is byte-identical to what streamed, so the
+    // reveal drains on without a paragraph popping in above it.
+    const settled = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          row({
+            id: 'a2',
+            sequence: 2,
+            parts: [...roundOne, { type: 'text', text: 'Found it: 30 days' }],
+          }),
+        ],
+        generation: null,
+        generationText: null,
+      }),
+    );
+    expect(settled.items.at(-1)).toMatchObject({
+      text: 'Let me check.\n\nFound it: 30 days',
+      isStreaming: false,
+      isFinalReveal: true,
+    });
+  });
+
   it('prefers the row text once the finalize write landed', () => {
     const state = createThreadViewState();
     reduceThreadView(
@@ -216,6 +292,72 @@ describe('reduceThreadView', () => {
       isStreaming: false,
       isFinalReveal: true,
     });
+  });
+
+  it('holds the streamed tool parts through the settle gap, then defers to the finalized row', () => {
+    const state = createThreadViewState();
+    const streamedParts: readonly MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'c1',
+        capabilityId: 'web_fetch',
+        input: { url: 'https://weather.example' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'c1',
+        capabilityId: 'web_fetch',
+        output: { status: 'ok' },
+        structured: true,
+      },
+    ];
+    reduceThreadView(
+      state,
+      inputs({
+        messages: thread(),
+        generation: STREAMING,
+        generationText: {
+          messageId: 'a2',
+          text: 'Sunny today.',
+          parts: streamedParts,
+        },
+      }),
+    );
+
+    // Generation row deleted, finalize not yet visible: the steps the thought
+    // timeline draws stay on the row — the placeholder's own parts are still
+    // empty, and the timeline must not collapse for the gap.
+    const gap = reduceThreadView(
+      state,
+      inputs({ messages: thread(), generation: null, generationText: null }),
+    );
+    expect(gap.items.at(-1)).toMatchObject({
+      text: 'Sunny today.',
+      isStreaming: true,
+    });
+    expect(gap.items.at(-1)?.parts).toEqual(streamedParts);
+
+    // Finalize lands with the full parts: the row is authoritative again.
+    const finalParts: readonly MessagePart[] = [
+      ...streamedParts,
+      { type: 'text', text: 'Sunny today.' },
+    ];
+    const settled = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          row({ id: 'a2', parts: finalParts, sequence: 2 }),
+        ],
+        generation: null,
+        generationText: null,
+      }),
+    );
+    expect(settled.items.at(-1)).toMatchObject({
+      isStreaming: false,
+      isFinalReveal: true,
+    });
+    expect(settled.items.at(-1)?.parts).toEqual(finalParts);
   });
 
   it('settles a row that failed before any text — the failure stamp ends the streaming presentation', () => {
@@ -626,6 +768,83 @@ describe('reduceThreadView', () => {
         isFinalReveal: true,
       });
       expect(settled.pendingConsumed).toBe(true);
+    });
+
+    it("keeps the synthesized row's tool parts on its real row through the settle gap", () => {
+      const state = createThreadViewState();
+      const parts: readonly MessagePart[] = [
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'rag_search',
+          input: { query: 'returns' },
+        },
+      ];
+      reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: { messageId: 'a4', text: 'Found it.', parts },
+          pending,
+        }),
+      );
+
+      // The turn settles and the refetch brings the real rows — the
+      // placeholder still without its parts (the finalize write is the next
+      // refetch). The steps stay on the adopted row across the handover.
+      const gap = reduceThreadView(
+        state,
+        inputs({
+          messages: [
+            ...thread('old answer'),
+            textRow('u3', 'A new question', { role: 'user', sequence: 3 }),
+            textRow('a4', '', { sequence: 4 }),
+          ],
+          generation: null,
+          generationText: null,
+          pending,
+        }),
+      );
+      const live = gap.items.find((item) => item.id === 'a4');
+      expect(live).toMatchObject({
+        key: pending.shellKey,
+        text: 'Found it.',
+        isStreaming: true,
+      });
+      expect(live?.parts).toEqual(parts);
+    });
+
+    it("composes the synthesized row's text from its settled rounds and the live tail", () => {
+      const state = createThreadViewState();
+      const roundOne: readonly MessagePart[] = [
+        { type: 'text', text: 'Let me check.' },
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'rag_search',
+          input: { query: 'returns' },
+        },
+      ];
+      const view = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: {
+            messageId: 'a4',
+            text: 'Found it.',
+            parts: roundOne,
+          },
+          pending,
+        }),
+      );
+      expect(view.items.at(-1)).toMatchObject({
+        id: 'a4',
+        text: 'Let me check.\n\nFound it.',
+        isStreaming: true,
+      });
+      expect(view.items.at(-1)?.parts).toEqual(roundOne);
     });
 
     it('synthesizes the live row for a mid-turn join with no overlay', () => {
