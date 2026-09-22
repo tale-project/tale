@@ -16,8 +16,15 @@ const uiCatalogs = new URL(
   '../../../../../packages/ui/src/i18n/messages/',
   import.meta.url,
 );
+// `global.yml` rides in the package slot because that is exactly what it is
+// at runtime: a catalog merged UNDER `en.yml`. The panel's own name lives
+// there — it is a brand and reads the same in every language.
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url), {
-  packages: [new URL('global.yml', uiCatalogs), new URL('en.yml', uiCatalogs)],
+  packages: [
+    new URL('global.yml', uiCatalogs),
+    new URL('en.yml', uiCatalogs),
+    new URL('../../../messages/global.yml', import.meta.url),
+  ],
 });
 
 test('the panel renders without a sign-in and without console errors', async ({

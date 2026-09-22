@@ -1,5 +1,4 @@
 panel:
-  title: The Tale AI Gateway
   skipToMain: Skip to the account list
 accounts:
   caption: Connected subscription accounts
