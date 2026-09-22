@@ -593,6 +593,116 @@ describe('DataTable entity count footer (#2646)', () => {
   });
 });
 
+describe('DataTable client-side page size', () => {
+  const twelve = Array.from({ length: 12 }, (_, i) => ({
+    _id: String(i),
+    name: `Row ${i}`,
+    status: 'active',
+  }));
+
+  it('counts the footer on the same page size the rows are sliced at', () => {
+    // Regression: the table sliced at its own default (20) while the footer
+    // fell back to the pagination component's (10), so twelve rendered rows
+    // sat under "Showing 1-10 of 12".
+    render(
+      <DataTable
+        columns={columns}
+        data={twelve}
+        pagination={{
+          clientSide: true,
+          entityLabel: { one: 'account', other: 'accounts' },
+        }}
+      />,
+    );
+
+    expect(within(getTbody()).getAllByRole('row')).toHaveLength(12);
+    expect(screen.getByText('Showing 1-12 of 12 accounts')).toBeInTheDocument();
+  });
+
+  it('honours an explicit page size on both halves', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={twelve}
+        pagination={{
+          clientSide: true,
+          pageSize: 5,
+          entityLabel: { one: 'account', other: 'accounts' },
+        }}
+      />,
+    );
+
+    expect(within(getTbody()).getAllByRole('row')).toHaveLength(5);
+    expect(screen.getByText('Showing 1-5 of 12 accounts')).toBeInTheDocument();
+  });
+});
+
+describe('DataTable fillHeight', () => {
+  function frameOf(container: HTMLElement) {
+    const port = container.querySelector(
+      '[data-testid="data-table-scrollport"]',
+    );
+    return port?.parentElement ?? null;
+  }
+
+  it('leaves the sticky frame hugging its rows by default', () => {
+    const { container } = render(
+      <DataTable columns={columns} data={sampleRows} stickyLayout />,
+    );
+
+    expect(frameOf(container)).not.toHaveClass('flex-1');
+  });
+
+  it('stretches the sticky frame to the bounded height when asked', () => {
+    const { container } = render(
+      <DataTable columns={columns} data={sampleRows} stickyLayout fillHeight />,
+    );
+
+    expect(frameOf(container)).toHaveClass('flex-1');
+  });
+
+  it('leaves the frame hugging a no-results state', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={0}
+        stickyLayout
+        fillHeight
+        search={{ value: 'zzz', onChange: vi.fn() }}
+      />,
+    );
+
+    expect(frameOf(container)).not.toHaveClass('flex-1');
+  });
+
+  it('stretches while the rows are still skeletons', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={5}
+        isLoading
+        stickyLayout
+        fillHeight
+      />,
+    );
+
+    expect(frameOf(container)).toHaveClass('flex-1');
+  });
+
+  it('is inert without stickyLayout, which owns the frame', () => {
+    const { container } = render(
+      <DataTable columns={columns} data={sampleRows} fillHeight />,
+    );
+
+    // The non-sticky layout has no scrollport at all — the page scrolls.
+    expect(
+      container.querySelector('[data-testid="data-table-scrollport"]'),
+    ).toBeNull();
+  });
+});
+
 describe('DataTable non-sticky wheel scroll', () => {
   it('chains vertical wheel scroll from the table frame to a scrollable ancestor', () => {
     const scrollParent = document.createElement('div');
