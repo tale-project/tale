@@ -13,7 +13,7 @@ import { useT } from '@/lib/i18n/client';
 import type { ContactFormValues } from '../hooks/use-contact-form';
 
 /** Digits plus the punctuation people type in phone numbers. */
-const PHONE_ALLOWED = /[^\d+().\s\-]/g;
+const PHONE_ALLOWED = /[^\d+().\s-]/g;
 
 interface ContactFormFieldsProps {
   register: UseFormRegister<ContactFormValues>;
