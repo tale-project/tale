@@ -30,17 +30,42 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
   count footer; no key leaks through as its raw dotted path, and no sentence
   stays English. The `%` in a usage bar keeps its French nonbreaking space.
 - [ ] `SMOKE-5` · **Switch the theme through light, dark and system** → the
-  table, the status dots and the usage bars all follow; nothing keeps a
-  light-mode surface on a dark page except a plan badge (`BL-1`).
+  table, the status dots, the plan badges and the usage bars all follow; no
+  surface keeps a light tint on a dark page.
 - [ ] `SMOKE-6` · **Reach the whole toolbar with Tab alone — search, Add
   account, the first row's action menu** → focus is visible at every stop, the
   order matches the reading order, and Enter opens the menu.
 - [ ] `SMOKE-8` · **Open a route the panel does not define** → a real not-found
   renders; no white screen, no unhandled rejection in the console.
-- [ ] `SMOKE-9` · **Narrow the viewport to 390×844** → the header wraps rather
-  than overflowing, the table scrolls horizontally inside its own frame, and no
-  control leaves the screen.
+- [ ] `SMOKE-9` · **Narrow the viewport to 390×844** → the header stays one
+  row: the Tale mark steps aside, the name truncates, and the language, theme
+  and GitHub controls all stay on screen. The table scrolls horizontally
+  inside its own frame; no control leaves the viewport.
 - [ ] `SMOKE-10` · **Open `/` in a fresh private window, with no cookie and no
   storage for the origin** → the same accounts screen, immediately. The panel
   keeps no door of its own, so a first-time browser reaches everything a
   returning one does — and a deployment that wants a door puts one in front.
+- [ ] `SMOKE-11` · **Read the header row** → one `h-13` strip, the same height
+  as the documentation site's, carrying the Tale mark, the panel's name, and —
+  on the right — the language picker, the theme picker and a GitHub button, in
+  that order. Its bottom border is one line: nothing sits a pixel below it.
+- [ ] `SMOKE-12` · **Follow the GitHub button** → the repository opens in a new
+  tab; the panel is still where it was, with nothing reloaded.
+- [ ] `SMOKE-13` · **Search until exactly one account matches** → the table
+  frame keeps the full height it had, the count footer stays on the bottom
+  edge, and the one row sits at the top of the frame. Clear the search and no
+  control moves.
+- [ ] `SMOKE-14` · **Tab from the address bar into the page** → the first stop
+  is a skip link that reveals itself; activating it moves focus into the
+  account list rather than only scrolling to it.
+- [ ] `SMOKE-15` · **Narrow the viewport until the Status column loses its
+  words** → each row still says which state it is in: a tick, a warning
+  triangle or a cross, in the state's own colour, and hovering one names it.
+  The column never shows a bare dot with no other cue.
+- [ ] `SMOKE-16` · **Hover a date in the last column** → the exact instant,
+  with the time, in the language the panel is set to — a German panel gives
+  `22. Oktober 2026 06:25`, an English one `October 22, 2026 6:25 AM`.
+- [ ] `SMOKE-17` · **Read the whole screen in each language** → every value
+  follows that language, not only the labels: the date order, the 12- or
+  24-hour clock, the relative reset time in a usage tooltip, the space before
+  a `%` (none in English, one in German and French), and the count footer.

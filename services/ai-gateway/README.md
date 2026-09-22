@@ -172,6 +172,13 @@ its `/api/tokens/<id>` endpoint comes with the id. A new id needs a
 | `backend/gateway.ts` | Composition root; used by `server.ts` and the Vite dev plugin alike |
 | `app/` | The panel — one screen, no door, built on `@tale/ui` |
 
+The panel is one screen in the documentation frame's chrome: an `h-13` header
+strip carrying the Tale mark, the service's name and the language / theme /
+repository cluster, over a single full-height account table. Language is a
+stored preference here, not a path segment — the panel ships as one
+untranslated tree — so the shared `LanguageSwitcher` runs in its state-driven
+mode.
+
 ## Develop
 
 ```bash

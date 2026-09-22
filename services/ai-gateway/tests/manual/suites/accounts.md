@@ -79,6 +79,27 @@ in the pool**, so they run before the removals.
   `CODEX_ACCESS_TOKEN=<access_token> codex`** → only the ChatGPT row, and
   Codex starts on it.
 
+### Finding an account
+
+- [ ] `ACCT-27` · **Read the row order with both vendors in the pool** → every
+  Claude account first, then every ChatGPT one, and inside each vendor the
+  rows in order of the address rather than the label. A renamed account sits
+  where its e-mail puts it, not where its name would.
+- [ ] `ACCT-28` · **Filter → Provider → one vendor** → only that vendor's rows,
+  and the count footer agrees. Add a Status facet on top and the two narrow
+  together; **Clear all** puts every row back.
+- [ ] `ACCT-29` · **Filter down to nothing** → the no-results state, with the
+  search and the filter button still reachable so the reader can undo it.
+
+### Reading a plan at a glance
+
+- [ ] `ACCT-25` · **Find an account whose session window is under three
+  quarters spent, one at or past three quarters, and one at the ceiling** →
+  the three bars read accent, orange and red in that order. A full bar never
+  reads as green: a spent plan is not a completed task.
+- [ ] `ACCT-26` · **Hover a usage bar** → the tooltip names the percentage and
+  when the window resets; the figure beside the bar matches it.
+
 ### Staying fresh
 
 - [ ] `ACCT-12` · **Leave the panel open past the refresh interval** → the
@@ -101,8 +122,11 @@ in the pool**, so they run before the removals.
   is still there and the token endpoint still hands it out.
 - [ ] `ACCT-17` · **Remove and confirm** → the row goes, a toast names it, and
   neither `GET /api/tokens` nor that vendor's own endpoint carries it.
-- [ ] `ACCT-18` · **Remove the last account** → the empty state returns, with
-  the create action inside it rather than only in the toolbar.
+- [ ] `ACCT-18` · **Remove the last account** → the empty state returns, headed
+  by its key glyph, and the table frame shrinks to fit it rather than framing
+  the copy in an empty screen. **Add account** stays in the toolbar: the search
+  box is still there, and the shared list pattern only moves the create action
+  into the empty body when no toolbar needs to remain visible.
 - [ ] `ACCT-24` · **With the pool now empty, call `/api/tokens/openai`** → 200
   with `{"tokens": []}`. An empty pool is an empty list, never a 404 — a
   caller must be able to tell "no accounts" from "no such vendor".

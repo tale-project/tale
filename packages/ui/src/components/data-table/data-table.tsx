@@ -83,6 +83,15 @@ import {
 const DEFAULT_SKELETON_ROWS = 6;
 /** Upper bound so a large known count doesn't paint hundreds of skeleton rows. */
 const MAX_SKELETON_ROWS = 12;
+/**
+ * Rows a client-side page holds when the caller names no `pageSize`.
+ *
+ * The footer is handed this same number rather than falling back to its own
+ * default: two defaults for one page size make the table slice at one count
+ * and the footer count the other ("Showing 1-10 of 12" under twelve rendered
+ * rows).
+ */
+const DEFAULT_CLIENT_PAGE_SIZE = 20;
 
 interface ColumnMeta {
   isAction?: boolean;
@@ -263,6 +272,22 @@ export interface DataTableProps<TData, TValue = unknown> {
   footer?: ReactNode;
   /** Enable sticky layout with header at top and pagination at bottom */
   stickyLayout?: boolean;
+  /**
+   * Stretch the bordered frame to the whole bounded height instead of letting
+   * it hug its rows (`stickyLayout` only).
+   *
+   * Off — the default every collection screen takes — a short list makes a
+   * short frame and the count footer follows it up the page, which is what a
+   * reader expects of a list that grows downward. On, the frame is a fixed
+   * window: the footer stays at the bottom edge and the rows scroll inside it
+   * whatever the count, so a screen that is ALL table (a single-screen panel
+   * with no other content below) does not leave a void under a two-row table.
+   *
+   * The empty, no-results and error states opt out of the stretch by
+   * themselves: a line of copy centred in nothing reads worse than a frame
+   * that hugs it.
+   */
+  fillHeight?: boolean;
   /** Error from query, if any */
   error?: Error | null;
   /** Callback when retry is clicked */
@@ -314,6 +339,7 @@ export function DataTable<TData, TValue = unknown>({
   filtersContent,
   footer,
   stickyLayout = false,
+  fillHeight = false,
   infiniteScroll,
   approxRowCount,
   isLoading = false,
@@ -352,7 +378,7 @@ export function DataTable<TData, TValue = unknown>({
   }, [enableExpanding, autoExpandRowIds]);
   const [internalPagination, setInternalPagination] = useState({
     pageIndex: currentPage - 1,
-    pageSize: pagination?.pageSize ?? 20,
+    pageSize: pagination?.pageSize ?? DEFAULT_CLIENT_PAGE_SIZE,
   });
 
   // Ref to the scroll container for sticky layout (needed for IntersectionObserver root)
@@ -525,6 +551,12 @@ export function DataTable<TData, TValue = unknown>({
 
   const isSkeleton =
     tableBodyState === 'loading' || tableBodyState === 'skeleton';
+
+  // `fillHeight` stretches the frame only while it has rows (or their
+  // skeletons) to show. An empty / no-results state is a short block of copy,
+  // and stretching the frame around it would leave the sentence stranded at
+  // the top of a viewport-tall empty box.
+  const stretchFrame = fillHeight && (isSkeleton || tableBodyState === 'data');
 
   // Number of skeleton rows to render based on current state. When the count
   // is unknown we render a consistent default block; when it's known we render
@@ -1071,7 +1103,11 @@ export function DataTable<TData, TValue = unknown>({
         pagination.clientSide ? internalPagination.pageIndex + 1 : currentPage
       }
       total={pagination.total ?? data.length}
-      pageSize={pagination.pageSize}
+      pageSize={
+        pagination.clientSide
+          ? internalPagination.pageSize
+          : pagination.pageSize
+      }
       totalPages={pagination.totalPages}
       hasNextPage={pagination.hasNextPage}
       hasPreviousPage={pagination.hasPreviousPage}
@@ -1223,7 +1259,14 @@ export function DataTable<TData, TValue = unknown>({
             `w-fit min-w-full` wrapper spans the full table width so full-width
             children (infinite-scroll footer separators) cover overflowing
             content too. */}
-        <div className="border-border flex min-h-0 flex-col overflow-hidden rounded-lg border">
+        <div
+          className={cn(
+            'border-border flex min-h-0 flex-col overflow-hidden rounded-lg border',
+            // `flex-1` turns the frame from "as tall as its rows, capped by
+            // the container" into "exactly the container" — see `fillHeight`.
+            stretchFrame && 'flex-1',
+          )}
+        >
           <div
             ref={scrollContainerRef}
             // The fixed frame's one scrollport. Named so a list page can

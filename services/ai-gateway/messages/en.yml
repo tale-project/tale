@@ -1,10 +1,12 @@
 panel:
-  title: AI gateway
-  subtitle: Claude and ChatGPT subscriptions, pooled behind a token endpoint each.
-  languageLabel: Language
+  title: The Tale AI Gateway
+  skipToMain: Skip to the account list
 accounts:
   caption: Connected subscription accounts
   searchPlaceholder: Search accounts
+  filters:
+    provider: Provider
+    status: Status
   add: Add account
   entity:
     one: account
@@ -14,13 +16,12 @@ accounts:
     account: Account
     status: Status
     usage: Usage
-    token: Access token
+    validUntil: Valid until
     actions: Row actions
   empty:
     title: No accounts yet
     description: Add a Claude or ChatGPT account. The gateway then keeps its token fresh and hands it out.
-  validUntil: Valid until {date}
-  noExpiry: No stated expiry
+  noExpiry: No expiry
   actions:
     menu: Account actions
     reauthenticate: Reauthenticate

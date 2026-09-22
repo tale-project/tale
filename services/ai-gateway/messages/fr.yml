@@ -1,10 +1,12 @@
 panel:
-  title: Passerelle IA
-  subtitle: Les abonnements Claude et ChatGPT, regroupés derrière un point de terminaison par fournisseur.
-  languageLabel: Langue
+  title: La passerelle IA de Tale
+  skipToMain: Aller à la liste des comptes
 accounts:
   caption: Comptes d’abonnement connectés
   searchPlaceholder: Rechercher un compte
+  filters:
+    provider: Fournisseur
+    status: État
   add: Ajouter un compte
   entity:
     one: compte
@@ -14,13 +16,12 @@ accounts:
     account: Compte
     status: État
     usage: Consommation
-    token: Jeton d’accès
+    validUntil: Valable jusqu’au
     actions: Actions de la ligne
   empty:
     title: Aucun compte pour l’instant
     description: Ajoute un compte Claude ou ChatGPT. La passerelle garde ensuite son jeton valide et le distribue.
-  validUntil: Valable jusqu’au {date}
-  noExpiry: Aucune expiration annoncée
+  noExpiry: Sans expiration
   actions:
     menu: Actions du compte
     reauthenticate: Réautoriser

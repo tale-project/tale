@@ -63,4 +63,18 @@ export function localizedPath(
   return `/${locale}${pathname}`;
 }
 
+/**
+ * The base language a locale tag belongs to — `de-CH` → `de`, `de` → `de`,
+ * anything unrecognised → `en`.
+ *
+ * A regional variant is a message override, not a pickable language, so a
+ * control that offers the three base locales needs the base its current tag
+ * folds into rather than the tag itself. Matched through `find` so the return
+ * type comes from the tuple rather than from an assertion.
+ */
+export function baseLocaleOf(locale: string | undefined): SupportedLocale {
+  const base = locale?.split('-')[0];
+  return SUPPORTED_LOCALES.find((candidate) => candidate === base) ?? 'en';
+}
+
 export { SUPPORTED_LOCALES, URL_PREFIXED_LOCALES };

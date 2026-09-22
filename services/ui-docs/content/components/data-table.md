@@ -65,6 +65,8 @@ When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `t
 
 Leave it off for a table embedded in a page that scrolls as a whole, such as a section of a settings page. Every collection screen takes it; see the [list-page pattern](/docs/patterns/list-page).
 
+A sticky frame is still only as tall as its rows, so a short list ends high on the page. Add `fillHeight` when the table is the whole screen and nothing follows it: the frame then takes the full bounded height, the count footer stays on the bottom edge, and the rows scroll inside it at any count. The empty, no-results and error states opt out of the stretch on their own — a line of copy centred in an empty frame reads worse than a frame that hugs it. Leave `fillHeight` off wherever the page continues below the table.
+
 ## Loading and errors
 
 Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve space: an unknown count gives the default skeleton; a positive estimate gives skeleton rows up to the component's cap; zero allows the supplied initial empty state. Do not pass zero merely because a request has not returned yet.

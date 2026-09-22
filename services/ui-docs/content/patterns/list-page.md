@@ -42,7 +42,7 @@ Import these components from their `@tale/ui` subpaths and mount the [adaptive h
 
 `ContentArea variant="list"` and `DataTable stickyLayout` are one decision, not two options. The variant bounds the body against the page shell; the table then takes that bound and puts its own scrollport around the rows, so the toolbar, the header row and the count footer stay where the reader left them. Write both on every collection screen.
 
-Omit either and the table grows to its content and the page scroller moves instead: search and the create action scroll off the top, and two collection screens in the same product start behaving differently. A short list is unaffected — the frame hugs its rows rather than stretching to fill the viewport.
+Omit either and the table grows to its content and the page scroller moves instead: search and the create action scroll off the top, and two collection screens in the same product start behaving differently. A short list is unaffected — the frame hugs its rows rather than stretching to fill the viewport. A screen that is nothing but its table, with no content below it, can ask for the other behaviour with [`fillHeight`](/docs/components/data-table).
 
 Content the page stacks above the table — a folder breadcrumb, a load-failure alert — is a sibling inside the same `ContentArea`, so it keeps the page inset and the table keeps the remaining height. Tables embedded in a scrolling settings page are the exception: they are not collection screens and take neither the variant nor the flag.
 

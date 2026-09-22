@@ -2,38 +2,33 @@ import { Badge } from '@tale/ui/badge';
 import { ContentArea } from '@tale/ui/content-area';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
-import { TableIconCell } from '@tale/ui/data-table/table-icon-cell';
+import {
+  TableIconCell,
+  tableIconCellSkeleton,
+} from '@tale/ui/data-table/table-icon-cell';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
+import type { FilterConfig } from '@tale/ui/filters/filter-panel';
 import { PageLayout } from '@tale/ui/page-layout';
-import { StatusIndicator } from '@tale/ui/status-indicator';
-import { Text } from '@tale/ui/text';
+import { SkipLink } from '@tale/ui/skip-link';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide-react';
+import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import {
-  gatewayApi,
-  type AccountStatus,
-  type AccountView,
-  type ProviderId,
-} from '@/app/lib/api';
+import { gatewayApi, type AccountView, type ProviderId } from '@/app/lib/api';
 import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
 import { PanelHeader } from './panel-header';
 import { ProviderMark } from './provider-mark';
+import { StatusCell } from './status-cell';
 import { UsageCell } from './usage-cell';
 
-const STATUS_VARIANT = {
-  active: 'success',
-  // An expired credential is a chore, not a fault: someone re-authenticates
-  // it and the pool is whole again. A failed call is the alarming one.
-  expired: 'warning',
-  error: 'error',
-} as const satisfies Record<AccountStatus, string>;
+/** The order the status filter offers, worst last. */
+const STATUS_ORDER = ['active', 'expired', 'error'] as const;
 
 interface AccountsScreenProps {
   accounts: AccountView[];
@@ -57,12 +52,15 @@ export function AccountsScreen({
   onReload,
 }: AccountsScreenProps) {
   const { t } = useT('accounts');
+  const { t: tPanel } = useT('panel');
   const { t: tProviders } = useT('providers');
   const { t: tStatus } = useT('status');
-  const { formatDate } = useFormatDate();
+  const { locale } = useFormatDate();
   const { toast } = useToast();
 
   const [query, setQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dialog, setDialog] = useState<AddAccountTarget | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<AccountView | null>(
     null,
@@ -73,10 +71,13 @@ export function AccountsScreen({
       try {
         const command = await gatewayApi.command(account.id);
         await navigator.clipboard.writeText(command);
-        toast({ description: t('commandCopied', { label: account.label }) });
+        toast({
+          title: t('commandCopied', { label: account.label }),
+          variant: 'success',
+        });
       } catch (cause) {
         console.error('[ai-gateway] copying the CLI command failed:', cause);
-        toast({ description: t('commandFailed'), variant: 'destructive' });
+        toast({ title: t('commandFailed'), variant: 'destructive' });
       }
     },
     [t, toast],
@@ -86,11 +87,14 @@ export function AccountsScreen({
     async (account: AccountView) => {
       try {
         await gatewayApi.remove(account.id);
-        toast({ description: t('removed', { label: account.label }) });
+        toast({
+          title: t('removed', { label: account.label }),
+          variant: 'success',
+        });
         onReload();
       } catch (cause) {
         console.error('[ai-gateway] removing the account failed:', cause);
-        toast({ description: t('removeFailed'), variant: 'destructive' });
+        toast({ title: t('removeFailed'), variant: 'destructive' });
       }
     },
     [onReload, t, toast],
@@ -102,12 +106,23 @@ export function AccountsScreen({
         id: 'account',
         accessorFn: (account) => account.label,
         header: t('columns.account'),
-        meta: { flex: 2 },
+        // The one column that grows: a name, a plan badge and a caption
+        // carrying the provider plus an e-mail address need every pixel the
+        // fixed siblings leave over. `size` is its readable floor, not its
+        // width — it is what the table's min-width is summed from.
+        size: 360,
+        meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {
           const { accountEmail, label, plan, provider } = row.original;
           return (
             <TableIconCell
-              badges={plan ? <Badge variant="slate">{plan}</Badge> : undefined}
+              // `outline` rather than a colour variant: it is the only
+              // Badge surface built from theme tokens, so the plan chip
+              // follows the page into dark mode (`slate` and its
+              // siblings are fixed light tints — see the shared Badge).
+              badges={
+                plan ? <Badge variant="outline">{plan}</Badge> : undefined
+              }
               // The mark is the only other thing naming the provider, and it
               // is decorative — so the caption carries that name in text, plus
               // the address whenever the label is not already it.
@@ -128,32 +143,57 @@ export function AccountsScreen({
         id: 'status',
         accessorFn: (account) => account.status,
         header: t('columns.status'),
-        cell: ({ row }) => (
-          <StatusIndicator variant={STATUS_VARIANT[row.original.status]}>
-            {tStatus(row.original.status)}
-          </StatusIndicator>
-        ),
+        // A glyph and one short phrase. Sized for the English and German
+        // labels on one line; the longest French one ("Réautorisation
+        // nécessaire") wraps to two, which the row already has room for —
+        // a wider column would be empty gutter on every other row.
+        size: 150,
+        // `icon-text`: the loaded cell is a glyph plus one phrase, not a pill.
+        meta: {
+          className: 'overflow-hidden',
+          skeleton: { type: 'icon-text', iconGap: 2 },
+        },
+        cell: ({ row }) => <StatusCell status={row.original.status} />,
       },
       {
         id: 'usage',
         header: t('columns.usage'),
-        meta: { flex: 2 },
+        // Two or three bar rows, each a 64px name + the bar + a 40px figure.
+        size: 300,
+        meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <UsageCell windows={row.original.usage?.windows ?? []} />
         ),
       },
       {
-        id: 'token',
+        id: 'validUntil',
         accessorFn: (account) => account.expiresAt,
-        header: t('columns.token'),
+        header: () => (
+          <span className="block w-full text-right">
+            {t('columns.validUntil')}
+          </span>
+        ),
+        // One short date, right-aligned against the row menu the way every
+        // platform table ends on its timestamp.
+        size: 140,
+        meta: {
+          align: 'right',
+          headerLabel: t('columns.validUntil'),
+          skeleton: { type: 'text', lines: 1 },
+          className: 'overflow-hidden',
+        },
+        // The header says what the date means, so the cell is the date and
+        // nothing else — a column of "Valid until 10/22/2026" repeats its own
+        // heading on every row. `TableDateCell` is the shared date cell every
+        // platform list ends on: the short form in the row, the full one on
+        // `title` for the reader who needs the hour.
         cell: ({ row }) => (
-          <Text variant="caption">
-            {row.original.expiresAt
-              ? t('validUntil', {
-                  date: formatDate(row.original.expiresAt, 'short'),
-                })
-              : t('noExpiry')}
-          </Text>
+          <TableDateCell
+            alignRight
+            date={row.original.expiresAt}
+            emptyText={t('noExpiry')}
+            preset="short"
+          />
         ),
       },
       {
@@ -186,11 +226,14 @@ export function AccountsScreen({
               },
             ]}
             ariaLabel={t('actions.menu')}
+            // The default 10rem clips "Neu anmelden" / "Copier la commande
+            // CLI"; `w-max` takes the longest label in whatever locale is on.
+            contentWidth="w-max min-w-[12rem]"
           />
         ),
       },
     ],
-    [copyCommand, formatDate, t, tProviders, tStatus],
+    [copyCommand, t, tProviders],
   );
 
   // `DataTable` renders the `Error` it is handed, so the sentence a reader
@@ -200,51 +243,151 @@ export function AccountsScreen({
     [error, t],
   );
 
+  const filterConfigs = useMemo<FilterConfig[]>(
+    () => [
+      {
+        key: 'provider',
+        title: t('filters.provider'),
+        // The catalog's own order, so the facet lists vendors the way the
+        // rows are grouped and the Add dialog offers them.
+        options: providers.map((id) => ({ value: id, label: tProviders(id) })),
+        selectedValues: providerFilter,
+        onChange: setProviderFilter,
+        multiSelect: true,
+      },
+      {
+        key: 'status',
+        title: t('filters.status'),
+        options: STATUS_ORDER.map((status) => ({
+          value: status,
+          label: tStatus(status),
+        })),
+        selectedValues: statusFilter,
+        onChange: setStatusFilter,
+        multiSelect: true,
+      },
+    ],
+    [providerFilter, providers, statusFilter, t, tProviders, tStatus],
+  );
+
+  const clearFilters = useCallback(() => {
+    setProviderFilter([]);
+    setStatusFilter([]);
+  }, []);
+
+  /**
+   * What the table shows: the pool narrowed by the search box and the two
+   * facets, then ordered.
+   *
+   * The order is the pool's own shape rather than an alphabet — vendors in
+   * the catalog's order, and inside a vendor the accounts by address. An
+   * operator opens this screen to answer "how is my Claude pool doing", which
+   * a vendor's rows sitting together answers in one glance; sorting on the
+   * address rather than the label keeps a renamed account where its e-mail
+   * says it belongs. The comparison runs through `localeCompare` in the
+   * reader's own locale, so an umlaut sorts where that reader expects it.
+   */
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return accounts;
-    return accounts.filter((account) =>
-      [
+    const matches = accounts.filter((account) => {
+      if (
+        providerFilter.length > 0 &&
+        !providerFilter.includes(account.provider)
+      ) {
+        return false;
+      }
+      if (statusFilter.length > 0 && !statusFilter.includes(account.status)) {
+        return false;
+      }
+      if (!needle) return true;
+      return [
         account.label,
         account.accountEmail ?? '',
         tProviders(account.provider),
-      ].some((value) => value.toLowerCase().includes(needle)),
-    );
-  }, [accounts, query, tProviders]);
+      ].some((value) => value.toLowerCase().includes(needle));
+    });
+
+    const providerRank = (id: ProviderId) => {
+      const index = providers.indexOf(id);
+      // A provider the catalog no longer offers still has rows; park them
+      // after the ones it does rather than at the top.
+      return index === -1 ? providers.length : index;
+    };
+
+    return matches.toSorted((a, b) => {
+      const byProvider = providerRank(a.provider) - providerRank(b.provider);
+      if (byProvider !== 0) return byProvider;
+      return (a.accountEmail ?? a.label).localeCompare(
+        b.accountEmail ?? b.label,
+        locale,
+        { sensitivity: 'base' },
+      );
+    });
+  }, [
+    accounts,
+    locale,
+    providerFilter,
+    providers,
+    query,
+    statusFilter,
+    tProviders,
+  ]);
 
   return (
-    <PageLayout header={<PanelHeader />}>
-      <ContentArea variant="list">
-        <DataTable
-          addAction={{
-            icon: KeyRound,
-            label: t('add'),
-            onClick: () => setDialog({ account: null }),
-          }}
-          approxRowCount={accounts.length || undefined}
-          caption={t('caption')}
-          columns={columns}
-          data={rows}
-          emptyState={{
-            title: t('empty.title'),
-            description: t('empty.description'),
-          }}
-          error={loadError}
-          getRowId={(account) => account.id}
-          isLoading={isLoading}
-          onRetry={onReload}
-          pagination={{
-            clientSide: true,
-            entityLabel: { one: t('entity.one'), other: t('entity.other') },
-          }}
-          search={{
-            value: query,
-            onChange: setQuery,
-            placeholder: t('searchPlaceholder'),
-          }}
-          stickyLayout
-        />
-      </ContentArea>
+    <>
+      <SkipLink>{tPanel('skipToMain')}</SkipLink>
+      <PanelHeader />
+      {/* The strip is a sibling of the page column rather than
+          `PageLayout header=` — that slot wraps its child in `StickyHeader`,
+          whose own background and blur would sit on top of the ones the
+          documentation header row already carries.
+
+          `<main>` is the landmark the skip link lands on, and the reason
+          every control on this screen sits inside one: a page whose only
+          landmark is the header leaves a screen-reader user with no region
+          to jump to. */}
+      <main className="flex min-h-0 flex-1 flex-col" id="main" tabIndex={-1}>
+        <PageLayout>
+          <ContentArea variant="list">
+            <DataTable
+              addAction={{
+                icon: Plus,
+                label: t('add'),
+                onClick: () => setDialog({ account: null }),
+              }}
+              approxRowCount={accounts.length || undefined}
+              caption={t('caption')}
+              columns={columns}
+              data={rows}
+              emptyState={{
+                description: t('empty.description'),
+                icon: KeyRound,
+                title: t('empty.title'),
+              }}
+              error={loadError}
+              filters={filterConfigs}
+              // This screen IS the panel — nothing sits below the table — so
+              // the frame keeps the whole height and the count footer stays on
+              // the bottom edge whether the pool holds one account or fifty.
+              fillHeight
+              getRowId={(account) => account.id}
+              isLoading={isLoading}
+              onClearFilters={clearFilters}
+              onRetry={onReload}
+              pagination={{
+                clientSide: true,
+                entityLabel: { one: t('entity.one'), other: t('entity.other') },
+              }}
+              search={{
+                value: query,
+                onChange: setQuery,
+                placeholder: t('searchPlaceholder'),
+              }}
+              stickyLayout
+            />
+          </ContentArea>
+        </PageLayout>
+      </main>
 
       <AddAccountDialog
         onConnected={onReload}
@@ -270,6 +413,6 @@ export function AccountsScreen({
         open={pendingRemoval !== null}
         title={t('removeTitle', { label: pendingRemoval?.label ?? '' })}
       />
-    </PageLayout>
+    </>
   );
 }

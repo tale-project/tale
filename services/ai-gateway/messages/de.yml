@@ -1,10 +1,12 @@
 panel:
-  title: AI-Gateway
-  subtitle: Claude- und ChatGPT-Abos, gebündelt hinter je einem Token-Endpunkt.
-  languageLabel: Sprache
+  title: Das Tale KI-Gateway
+  skipToMain: Zur Kontenliste springen
 accounts:
   caption: Verbundene Abo-Konten
   searchPlaceholder: Konten durchsuchen
+  filters:
+    provider: Anbieter
+    status: Status
   add: Konto hinzufügen
   entity:
     one: Konto
@@ -14,13 +16,12 @@ accounts:
     account: Konto
     status: Status
     usage: Verbrauch
-    token: Zugriffstoken
+    validUntil: Gültig bis
     actions: Zeilenaktionen
   empty:
     title: Noch keine Konten
     description: Füge ein Claude- oder ChatGPT-Konto hinzu. Das Gateway hält dessen Token danach frisch und gibt es aus.
-  validUntil: Gültig bis {date}
-  noExpiry: Kein Ablauf angegeben
+  noExpiry: Kein Ablauf
   actions:
     menu: Kontoaktionen
     reauthenticate: Neu anmelden
@@ -44,7 +45,7 @@ usage:
   session: Sitzung
   weekly: Woche
   unread: Noch kein Verbrauch gelesen
-  spent: '{percent}% verbraucht'
+  spent: '{percent} % verbraucht'
   resets: Setzt sich {when} zurück
 addAccount:
   title: Konto hinzufügen

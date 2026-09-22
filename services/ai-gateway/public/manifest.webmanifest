@@ -1,6 +1,6 @@
 {
-  "name": "Tale",
-  "short_name": "Tale",
+  "name": "The Tale AI Gateway",
+  "short_name": "AI Gateway",
   "description": "Multi-provider AI subscription credential gateway",
   "start_url": "/",
   "display": "standalone",
