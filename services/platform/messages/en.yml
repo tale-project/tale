@@ -4172,7 +4172,7 @@ navigation:
   myTeams:
     label: Teams
     none: No teams
-    more: '{names} +{count}'
+    count: '{count, plural, one {# team} other {# teams}}'
   orgSwitcher:
     label: Organization
   aria:

@@ -78,12 +78,14 @@ loaded, and reads **No teams** for an account in none.
   scoped to the new org.
 - [ ] `NAV-F6` · **Teams row** — In the user/avatar menu (bottom-left), read
   the **Teams** row (`navigation.myTeams.label`), then click it → The row is a
-  plain item, not a picker: its badge names the caller's teams (two names,
-  then `+n` per `navigation.myTeams.more`; `navigation.myTeams.none` for an
-  account in no team); clicking it closes the menu and lands on
+  plain item, not a picker: its badge COUNTS the caller's teams
+  (`navigation.myTeams.count`; `navigation.myTeams.none` for an account in no
+  team), and the **Teams** label reads in full — never clipped to an ellipsis,
+  at any team count or locale; clicking it closes the menu and lands on
   `/dashboard/{org}/settings/account#teams` with the **Your teams** section
-  (`settings.account.teams.title`) in view; no list anywhere changes — a
-  team is an audience label on work, never a context to switch into.
+  (`settings.account.teams.title`) in view, which is where the names live; no
+  list anywhere changes — a team is an audience label on work, never a context
+  to switch into.
 - [ ] `NAV-F7` · **Governance disclosure** — **Settings** → in the settings
   rail (`<nav aria-label>` = **Settings**, `navigation.userSettings`) expand
   **Governance** (`navigation.governance`) → click **Policies & Limits**

@@ -13,7 +13,7 @@ import { UserButton } from './user-button';
 // "user menu" test stays faithful to the spec it replaces.
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (_ns: string) => ({
-    t: (key: string) => {
+    t: (key: string, vars?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
         // auth.userButton.*
         'userButton.defaultName': 'User',
@@ -33,7 +33,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'orgSwitcher.label': 'Organization',
         'myTeams.label': 'Teams',
         'myTeams.none': 'No teams',
-        'myTeams.more': 'and more',
+        'myTeams.count': '{count} teams',
         // global.languages.*
         'languages.en': 'English',
         'languages.de': 'Deutsch',
@@ -41,7 +41,14 @@ vi.mock('@tale/ui/i18n/client', () => ({
         // common.actions.* (ConfirmDialog cancel button)
         'actions.cancel': 'Cancel',
       };
-      return translations[key] ?? key;
+      // Substitute `{name}` placeholders the way i18next does, so a value
+      // carrying interpolation (the teams count) asserts on what a reader
+      // actually sees rather than on the raw pattern.
+      const value = translations[key] ?? key;
+      if (!vars) return value;
+      return value.replace(/\{(\w+)\}/g, (match, name: string) =>
+        name in vars ? String(vars[name]) : match,
+      );
     },
   }),
 }));
@@ -308,13 +315,13 @@ describe('UserButton', () => {
       // The org picker renders as a sub-menu trigger (menuitem) on desktop;
       // its accessible name is the static label followed by a trailing
       // "current selection" badge, so match on the label prefix. The teams
-      // row is a plain item carrying the caller's team names.
+      // row is a plain item carrying the caller's team count.
       expect(
         within(menu).getByRole('menuitem', { name: /^Organization/ }),
       ).toBeInTheDocument();
       expect(
         within(menu).getByRole('menuitem', { name: /^Teams/ }),
-      ).toHaveTextContent('Engineering, Design');
+      ).toHaveTextContent('2 teams');
 
       // Theme control: the three theme tabs each render with their aria-label.
       expect(
@@ -364,6 +371,19 @@ describe('UserButton', () => {
         params: { id: 'org-123' },
         hash: 'teams',
       });
+    });
+
+    it('counts the caller’s teams in the badge', async () => {
+      // A count, not a name list: the row's trailing slot never shrinks, so a
+      // list long enough to overflow pushed the "Teams" label itself into an
+      // ellipsis. The account page's Teams section is where the names live.
+      mockTeams = { teams: TWO_TEAMS, isLoading: false };
+      await openMenu();
+      const menu = screen.getByRole('menu');
+      const row = within(menu).getByRole('menuitem', { name: /^Teams/ });
+      expect(row).toHaveTextContent('2 teams');
+      expect(row).not.toHaveTextContent('Engineering');
+      expect(row).not.toHaveTextContent('Design');
     });
 
     it('says so when the caller is in no team', async () => {
