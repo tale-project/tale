@@ -282,6 +282,44 @@ const OPEN = {
   userParts: [{ type: 'text' as const, text: 'hello' }],
 };
 
+/**
+ * An arena column's open hands the partner column to the admission, so the
+ * measure leaves the partner's hold out — the pair was admitted as one unit
+ * by the door, and the second open must not lose to the first.
+ */
+describe('createPgTurnStore.beginTurn admission exclusion', () => {
+  it('passes the partner column to the admission when a budget policy is on', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql, {
+      admissionExclude: { threadId: 'thread_b' },
+    }).beginTurn({
+      ...OPEN,
+      spend: { userId: 'user_1', tokens: 1_000, costCents: 2 },
+    });
+    expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org_1', userId: 'user_1' },
+      { threadId: 'thread_b' },
+    );
+    expect(f.transactions).toEqual(['commit']);
+  });
+
+  it('excludes nothing for an ordinary open', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).beginTurn({
+      ...OPEN,
+      spend: { userId: 'user_1', tokens: 1_000, costCents: 2 },
+    });
+    expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org_1', userId: 'user_1' },
+      undefined,
+    );
+  });
+});
+
 describe('createPgTurnStore.beginTurn', () => {
   it('allows a member with current read access to open the accepted project thread', async () => {
     const f = fakeChatSql();
@@ -425,11 +463,16 @@ describe('createPgTurnStore.beginTurn', () => {
 
     await createPgTurnStore(f.sql).beginTurn({ ...OPEN, spend: SPEND });
 
-    expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'org_1',
-      userId: 'user_1',
-      apiKeyId: 'key_1',
-    });
+    expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        apiKeyId: 'key_1',
+      },
+      // No partner column to leave out of the measure on an ordinary open.
+      undefined,
+    );
     // Before any of the open's own statements: its lock orders first.
     expect(statementsBeforeAdmission).toBe(0);
     expect(f.transactions).toEqual(['commit']);

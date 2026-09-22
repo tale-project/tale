@@ -186,10 +186,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.arena.modelALabel`, `chat.arena.modelBLabel`); send → Two columns
   respond; the verdict bar shows **Choose a verdict**
   (`chat.arena.verdictLabel`); a verdict before both replies finish is refused
-  (`chat.arena.busy`); **A is better** (`chat.arena.aBetter`) records with
-  **Verdict recorded** (`chat.arena.verdictRecorded`); the Share dialog for an
-  arena thread refuses (`chat.share.notShareable` /
-  `chat.share.cannotShareArena`)
+  (`chat.arena.busy`); when one column shows an error row or no reply to the
+  round (pick a Model B whose credential is disabled), the four verdict
+  buttons stay disabled under **Both columns need a finished reply to this
+  round before a verdict** (`chat.arena.oneSided`) while **Exit without
+  verdict** (`chat.arena.exitWithoutVerdict`) stays enabled — and the losing
+  column shows its error row without a reload; **A is better**
+  (`chat.arena.aBetter`) records with **Verdict recorded**
+  (`chat.arena.verdictRecorded`); the Share dialog for an arena thread
+  refuses (`chat.share.notShareable` / `chat.share.cannotShareArena`)
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode
@@ -439,7 +444,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.budgetLimitReached` without a reload. A refused edit or regenerate
   forks nothing: the transcript stays on the original branch with no new
   ‹n/m› under the message (also after a reload), and the edit draft stays
-  open with its text, **Send** (`chat.editSend`) enabled again
+  open with its text, **Send** (`chat.editSend`) enabled again. An arena
+  send is refused for the PAIR: neither column gains a prompt or an error
+  row — never one column answering while the other is silent
 - [ ] `CHAT-B11` · **Long project and chat lists** — In an org with 30+
   projects (one holding 20+ chats, expanded) and 40+ unfiled chats, open the
   chats panel in a desktop window, shorten the window, then open the phone

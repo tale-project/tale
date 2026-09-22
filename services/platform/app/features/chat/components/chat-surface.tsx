@@ -687,7 +687,11 @@ function ChatSurfaceInner({
     if ('refused' in result) {
       toast({
         title: t(
-          result.refused === 'busy' ? 'arena.busy' : 'arena.verdictError',
+          result.refused === 'busy'
+            ? 'arena.busy'
+            : result.refused === 'one_sided'
+              ? 'arena.oneSided'
+              : 'arena.verdictError',
         ),
         variant: 'destructive',
       });
@@ -1136,6 +1140,8 @@ function ChatSurfaceInner({
       void arenaActions
         .startTurn({
           threadId: viewThreadId,
+          partnerThreadId:
+            pair.threadIdA === viewThreadId ? pair.threadIdB : pair.threadIdA,
           userText: text,
           modelIdA,
           modelIdB: arenaModelBId,
@@ -1937,6 +1943,7 @@ function ChatSurfaceInner({
               organizationId={organizationId}
               threadIdA={pair.threadIdA}
               threadIdB={pair.threadIdB}
+              pairCreatedAt={pair.createdAt}
               {...(selection.modelId !== undefined
                 ? { modelAId: selection.modelId }
                 : {})}

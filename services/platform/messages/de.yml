@@ -1363,6 +1363,7 @@ chat:
     verdictRecorded: Bewertung gespeichert
     verdictError: Bewertung konnte nicht gespeichert werden
     busy: Beide Antworten müssen zuerst abgeschlossen sein
+    oneSided: Beide Spalten brauchen eine fertige Antwort auf diese Runde, bevor du bewerten kannst
     exitWithoutVerdict: Ohne Bewertung beenden
     startFailed: Arena-Modus konnte nicht gestartet werden
     unsharable: Ein geteilter Chat kann nicht in den Arena-Modus wechseln

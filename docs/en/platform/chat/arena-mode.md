@@ -17,7 +17,7 @@ For a useful first comparison, give both sides a short source and a precise requ
 
 </Frame>
 
-Each reply appears in its own column. Wait until both have finished before selecting a verdict; the controls stay unavailable while either side is answering. A slow reply is still part of the comparison. If a side fails, inspect its error before treating the result as a quality judgment.
+Each reply appears in its own column. The prompt is admitted for both columns together: a usage limit that would stop it stops it for both sides, never for one column alone. Wait until both have finished before selecting a verdict; the controls stay unavailable while either side is answering. A slow reply is still part of the comparison. If a side fails, its column shows the error and the round cannot be judged: the four verdict buttons stay unavailable until both columns hold a finished reply, while **Exit without verdict** remains available. Inspect the error before treating the result as a quality judgment.
 
 ## Judge the replies
 
@@ -35,10 +35,10 @@ Every choice ends the two-column comparison. The next message goes to the remain
 
 ## Find the recorded feedback
 
-When both models have produced replies, a verdict contributes to the organization’s [Feedback analytics](/platform/admin/governance/feedback-analytics). Administrators can inspect **Arena verdicts** and model matchups there. Exiting without a verdict does not add a rating.
+When both models have produced replies, a verdict contributes to the organization’s [Feedback analytics](/platform/admin/governance/feedback-analytics). Administrators can inspect **Arena verdicts** and model matchups there. A round in which only one column answered is never recorded: the verdict is refused, so the analytics only contain comparisons of two finished replies. Exiting without a verdict does not add a rating.
 
 Use several representative questions before drawing a conclusion about a model. A result for a short summary may not predict its performance on code or long documents, and organization-wide preferences include other people’s tasks.
 
 ## Resolve a blocked comparison
 
-If a model is absent, check its provider and access rules through the [model catalog](/platform/models). If the verdict buttons remain disabled, wait for both generations to end. A failed request may reflect credentials, availability or policy rather than answer quality; use its displayed reason to decide what to fix before retrying.
+If a model is absent, check its provider and access rules through the [model catalog](/platform/models). If the verdict buttons remain disabled, wait for both generations to end, or check that both columns show a finished reply: a side that failed or never answered leaves nothing to compare, so exit without a verdict, fix the cause and send the prompt again. A failed request may reflect credentials, availability or policy rather than answer quality; use its displayed reason to decide what to fix before retrying.

@@ -10,7 +10,7 @@
  * "the model I am talking to"; column B carries its picker in its header.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -38,6 +38,9 @@ interface ArenaSplitViewProps {
   onModelBChange: (modelId: string, providerSlug: string) => void;
   /** Either column is still answering. */
   generating: boolean;
+  /** When the pair formed (epoch ms) — a verdict needs a reply in each
+   * column written after it, not the history copied at pairing. */
+  pairCreatedAt?: number;
   /** Voice mode is on and the org can synthesize — rounds read aloud
    * A-then-B once both replies settle. */
   voiceEnabled?: boolean;
@@ -55,11 +58,18 @@ export function ArenaSplitView({
   modelBId,
   onModelBChange,
   generating,
+  pairCreatedAt,
   voiceEnabled,
   onVerdict,
   onExit,
 }: ArenaSplitViewProps) {
   const { t } = useT('chat');
+  // A round is judged only when BOTH columns hold a finished reply to it;
+  // a side that failed or never started leaves the verdict buttons waiting
+  // (the exit stays open) — the settle door refuses the same case.
+  const [judgeableA, setJudgeableA] = useState(false);
+  const [judgeableB, setJudgeableB] = useState(false);
+  const oneSided = !judgeableA || !judgeableB;
   const { onReplySettled, voicePillMessageId } = useArenaVoice({
     organizationId,
     threadIdA,
@@ -85,6 +95,10 @@ export function ArenaSplitView({
           label={t('arena.modelALabel')}
           onReplySettled={onReplySettledA}
           voicePillMessageId={voicePillMessageId}
+          {...(pairCreatedAt !== undefined
+            ? { judgedSince: pairCreatedAt }
+            : {})}
+          onJudgeableChange={setJudgeableA}
           headerExtra={
             <ArenaModelPicker
               models={models}
@@ -98,6 +112,10 @@ export function ArenaSplitView({
           threadId={threadIdB}
           label={t('arena.modelBLabel')}
           onReplySettled={onReplySettledB}
+          {...(pairCreatedAt !== undefined
+            ? { judgedSince: pairCreatedAt }
+            : {})}
+          onJudgeableChange={setJudgeableB}
           headerExtra={
             <ArenaModelPicker
               models={models}
@@ -109,6 +127,8 @@ export function ArenaSplitView({
       </div>
       <ArenaVerdictBar
         disabled={generating}
+        verdictDisabled={oneSided}
+        {...(!generating && oneSided ? { hint: t('arena.oneSided') } : {})}
         onVerdict={onVerdict}
         onExit={onExit}
       />

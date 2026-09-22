@@ -5,7 +5,9 @@
  * without one. A `role="group"` with a visible label — the four choices are
  * one decision, and assistive technology should hear them as such. Disabled
  * while either column is still answering: a verdict about a reply mid-flight
- * would rate an unfinished answer.
+ * would rate an unfinished answer. The four verdicts alone wait while a
+ * column has no finished reply to this round (a side that failed or never
+ * started) — the hint says so, and the exit stays open.
  */
 
 import { Button } from '@tale/ui/button';
@@ -18,6 +20,11 @@ import type { ArenaVerdict } from '@/lib/shared/arena';
 interface ArenaVerdictBarProps {
   /** A column is still generating — the verdict waits for both answers. */
   disabled: boolean;
+  /** A column has no finished reply to rate — the verdicts wait, the exit
+   * does not. */
+  verdictDisabled?: boolean;
+  /** Why the verdicts wait, shown beside the label. */
+  hint?: string;
   onVerdict: (verdict: ArenaVerdict) => void;
   onExit: () => void;
 }
@@ -34,6 +41,8 @@ const VERDICT_KEYS: ReadonlyArray<{
 
 export function ArenaVerdictBar({
   disabled,
+  verdictDisabled = false,
+  hint,
   onVerdict,
   onExit,
 }: ArenaVerdictBarProps) {
@@ -55,7 +64,7 @@ export function ArenaVerdictBar({
             key={verdict}
             size="sm"
             variant="secondary"
-            disabled={disabled}
+            disabled={disabled || verdictDisabled}
             data-testid={`arena-verdict-${verdict}`}
             onClick={() => onVerdict(verdict)}
           >
@@ -72,6 +81,16 @@ export function ArenaVerdictBar({
           {t('arena.exitWithoutVerdict')}
         </Button>
       </Row>
+      {hint !== undefined && (
+        <Text
+          role="status"
+          variant="muted"
+          data-testid="arena-verdict-hint"
+          className="basis-full text-center text-xs"
+        >
+          {hint}
+        </Text>
+      )}
     </div>
   );
 }

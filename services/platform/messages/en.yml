@@ -1316,6 +1316,7 @@ chat:
     verdictRecorded: Verdict recorded
     verdictError: Couldn't record verdict
     busy: Both replies must finish first
+    oneSided: Both columns need a finished reply to this round before a verdict
     exitWithoutVerdict: Exit without verdict
     startFailed: Could not start Arena Mode
     unsharable: A shared chat can't enter Arena Mode

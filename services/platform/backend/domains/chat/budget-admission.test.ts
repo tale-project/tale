@@ -63,7 +63,7 @@ const {
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
 } = await import('./budget-admission.ts');
-const { lockBudgetAdmission } =
+const { lockBudgetAdmission, readInFlightReservations } =
   await import('../governance/budget-reservations.ts');
 
 const sql = (() => Promise.resolve([])) as never;
@@ -75,6 +75,7 @@ beforeEach(() => {
   gate.options = [];
   gate.order = [];
   vi.mocked(lockBudgetAdmission).mockClear();
+  vi.mocked(readInFlightReservations).mockClear();
 });
 
 describe('assertChatTurnBudget', () => {
@@ -176,7 +177,65 @@ describe('assertChatTurnBudget', () => {
   });
 });
 
+/**
+ * An arena fan-out is admitted as ONE unit: the door measures room for
+ * both requests up front, and each column's open leaves its partner's hold
+ * out of its own measure — otherwise the second open would lose to the
+ * first over headroom the pair was already granted.
+ */
+describe('assertChatTurnBudget for a fan-out', () => {
+  it('measures room for every request of the fan-out', async () => {
+    await assertChatTurnBudget(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      prospectiveRequests: 2,
+    });
+    expect(gate.options).toEqual([
+      expect.objectContaining({ prospectiveRequests: 2, reservations: HOLDS }),
+    ]);
+  });
+
+  it('leaves the partner column’s hold out of the measure', async () => {
+    await assertChatTurnBudget(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      exclude: { threadId: 'thread_b' },
+    });
+    expect(readInFlightReservations).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ userId: 'user_1' }),
+      { threadId: 'thread_b' },
+    );
+  });
+
+  it('excludes nothing by default', async () => {
+    await assertChatTurnBudget(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+    expect(readInFlightReservations).toHaveBeenCalledWith(
+      sql,
+      expect.anything(),
+      {},
+    );
+  });
+});
+
 describe('admitChatTurnSpend', () => {
+  it('hands the partner exclusion through to the measure', async () => {
+    await admitChatTurnSpend(
+      sql,
+      { organizationId: 'org_1', userId: 'user_1' },
+      { threadId: 'thread_b' },
+    );
+    expect(gate.order).toEqual(['lock', 'subject', 'holds', 'measure']);
+    expect(readInFlightReservations).toHaveBeenCalledWith(
+      sql,
+      expect.anything(),
+      { threadId: 'thread_b' },
+    );
+  });
+
   it('takes the organization’s admission lock before it reads the holds', async () => {
     await admitChatTurnSpend(sql, {
       organizationId: 'org_1',

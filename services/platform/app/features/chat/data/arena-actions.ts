@@ -14,6 +14,7 @@ import { useCallback, useMemo } from 'react';
 import {
   createChatThread,
   ensureArenaPairRequest,
+  invalidateChatMessages,
   settleArenaPairRequest,
   startArenaTurnRequest,
 } from '@/app/lib/backend/chat';
@@ -48,6 +49,10 @@ export interface ArenaActions {
   /** Fan one prompt into both columns. */
   readonly startTurn: (args: {
     threadId: string;
+    /** The other column — both transcripts are read afresh once the
+     * fan-out settles, so a side refused before it streamed still shows
+     * its refusal without a reload. */
+    partnerThreadId?: string;
     userText: string;
     modelIdA: string;
     modelIdB: string;
@@ -103,15 +108,17 @@ export function useArenaActions(organizationId: string): ArenaActions {
   const startTurn = useCallback(
     async (args: {
       threadId: string;
+      partnerThreadId?: string;
       userText: string;
       modelIdA: string;
       modelIdB: string;
       providerSlugA?: string;
       providerSlugB?: string;
+      reasoningEffort?: ReasoningEffort;
       locale?: string;
     }): Promise<{ a: SideResult; b: SideResult }> => {
+      const { threadId, partnerThreadId, ...body } = args;
       try {
-        const { threadId, ...body } = args;
         const sides = await startArenaTurnRequest(
           organizationId,
           threadId,
@@ -126,6 +133,16 @@ export function useArenaActions(organizationId: string): ArenaActions {
         console.error('[arena] the fanned turn failed', error);
         const failed: SideResult = { status: 'refused' };
         return { a: failed, b: failed };
+      } finally {
+        // A column streams through its SSE lane, but a side refused before
+        // its generation row existed never fires it: read both transcripts
+        // afresh so the losing column shows its error row (or stays
+        // honestly empty) without a reload — what `chatSend.start` does for
+        // a single thread.
+        invalidateChatMessages(queryClient, organizationId, threadId);
+        if (partnerThreadId !== undefined) {
+          invalidateChatMessages(queryClient, organizationId, partnerThreadId);
+        }
       }
     },
     [organizationId, queryClient],

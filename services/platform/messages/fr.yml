@@ -1369,6 +1369,7 @@ chat:
     verdictRecorded: Verdict enregistré
     verdictError: Échec de l'enregistrement du verdict
     busy: Les deux réponses doivent d'abord se terminer
+    oneSided: Les deux colonnes doivent avoir terminé leur réponse à ce tour avant un verdict
     exitWithoutVerdict: Quitter sans verdict
     startFailed: Impossible de démarrer le mode Arène
     unsharable: Une conversation partagée ne peut pas passer en mode Arène
