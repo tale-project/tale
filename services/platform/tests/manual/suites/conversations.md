@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 35 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -278,6 +278,16 @@ rows lead with the subject.
   Tick **Assigned to me** while some rows are queued to a team the viewer is
   in → team-queued rows the viewer has NOT claimed are excluded. **Clear all**
   empties every facet AND the search box.
+
+- [ ] `CONV-F17` · **A reply leaves from the mailbox that received it** — With
+  TWO credentials on one email connector (two mailboxes, A and B) and B NOT the
+  connector's default, mail the organization at mailbox B, then reply from the
+  Inbox → The reply arrives at the correspondent **from mailbox B**, not from
+  the default A, and the sent row records B. Mail the same thread at A next and
+  reply again → That reply leaves from A: the newest inbound message decides.
+  Then remove mailbox B and open the thread → Its messages are all still there
+  and the next reply falls back to the default connector credential rather than
+  failing.
 
 ## Boundary & error tests
 
