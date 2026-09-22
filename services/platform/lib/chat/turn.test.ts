@@ -1912,6 +1912,39 @@ describe('runTurn — image attachments', () => {
 });
 
 /**
+ * The person's custom instructions ride the request into the context
+ * contract, where they land after the cache breakpoint: the wire's system
+ * prompt carries them behind the clock, and the prefix ahead of the clock is
+ * the same bytes with or without them.
+ */
+describe('runTurn — custom instructions', () => {
+  it('puts the person’s instructions on the system prompt after the clock, and leaves the prefix alone', async () => {
+    const seen: ModelCallRequest[] = [];
+    const capturing: ModelCall = async function* stream(call) {
+      seen.push(call);
+      yield { text: 'Sure.' };
+    };
+    await runTurn(
+      request({ customInstructions: 'End every reply with a haiku.' }),
+      deps({ model: capturing }).deps,
+    );
+    await runTurn(request(), deps({ model: capturing }).deps);
+
+    const [withThem, without] = seen;
+    expect(withThem?.system).toContain('End every reply with a haiku.');
+    expect(
+      withThem?.system.indexOf('End every reply with a haiku.'),
+    ).toBeGreaterThan(withThem?.system.indexOf('Current time:') ?? Infinity);
+    expect(without?.system).not.toContain('End every reply with a haiku.');
+    // Everything ahead of the clock is the cached prefix — identical bytes.
+    const prefix = (system: string | undefined): string =>
+      system?.slice(0, system.indexOf('Current time:')) ?? '';
+    expect(prefix(withThem?.system)).toBe(prefix(without?.system));
+    expect(prefix(withThem?.system).length).toBeGreaterThan(0);
+  });
+});
+
+/**
  * The REST send's `locale` reached the prompt as the app's own directive,
  * which lets the prompt's language win — the field read as doing nothing on
  * an English prompt. `localeFixed` rides the request into the context

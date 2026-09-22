@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 76 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 77 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -313,6 +313,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   and its step rows stay put; the answer body never jumps up and back down
   when the turn settles, no paragraph pops in above it, and the steps are
   still there once the reply is done.
+- [ ] `CHAT-F42` · **Custom instructions shape the reply** — Mode B. Open
+  `/dashboard/{org}/settings/personalization`, turn the **Custom
+  instructions** toggle (`personalization.page.customInstructionsToggle.label`)
+  on, type an instruction the eye can check (e.g. "End every reply with the
+  word PINEAPPLE.") into the field
+  (`personalization.page.customInstructions.placeholder`) and **Save** in the
+  header → start a new chat and ask anything → The reply follows the
+  instruction; flip the toggle off (the text stays saved) and send another
+  message → the reply no longer follows it; in a project chat both the
+  project's **Instructions** and the personal ones apply, and an org
+  **Custom instructions** guardrail (governance.md) still wins a conflict.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

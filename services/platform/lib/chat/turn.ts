@@ -401,6 +401,9 @@ export interface TurnRequest {
    * spawned it already applied them. */
   readonly isSubAgentTurn?: boolean;
   readonly mandatoryInstructions?: string;
+  /** The person's own standing instructions, already gated by the host (see
+   * `ContextInput.customInstructions`); they ride after the cache breakpoint. */
+  readonly customInstructions?: string;
   readonly toolDocs?: readonly ToolDoc[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
@@ -595,6 +598,9 @@ function assembleTurnContext(
     ...(request.localeFixed === true ? { localeFixed: true } : {}),
     toolDocs: request.toolDocs,
     ...(request.project !== undefined ? { project: request.project } : {}),
+    ...(request.customInstructions !== undefined
+      ? { customInstructions: request.customInstructions }
+      : {}),
     now,
     history,
     ...(request.historyOmittedCount !== undefined

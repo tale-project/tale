@@ -31,7 +31,10 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
-import { getChatModel } from '../user_preferences/service.ts';
+import {
+  getChatModel,
+  getEffectiveCustomInstructions,
+} from '../user_preferences/service.ts';
 import { listWebsites } from '../websites/service.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
@@ -350,6 +353,17 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { userId: string; organizationId: string };
       return getChatModel(sql, {
+        userId: args.userId,
+        orgId: args.organizationId,
+      });
+    },
+    // The person's custom instructions for the prompt, already gated by
+    // their toggle over the org's `custom_instructions` default; null while
+    // the feature is off for them or the text is blank.
+    'user_preferences/queries:getCustomInstructionsInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn passes exactly this shape
+      const args = raw as { userId: string; organizationId: string };
+      return getEffectiveCustomInstructions(sql, {
         userId: args.userId,
         orgId: args.organizationId,
       });

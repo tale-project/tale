@@ -10718,6 +10718,17 @@ async function checkChat(
       WHERE thread_id = ${guardThreadId}
       ORDER BY "order", step_order
     `;
+    // The person's custom instructions, on for this turn: the same wire must
+    // carry the per-person block BEHIND the clock (after the cache
+    // breakpoint), never ahead of the org's mandatory block.
+    const CUSTOM_MARKER = 'ITEST-PERSONAL-RULE: sign every reply as Ada.';
+    await send(`/api/app/user-preferences/custom-instructions?orgId=${orgId}`, {
+      customInstructions: CUSTOM_MARKER,
+    });
+    await send(
+      `/api/app/user-preferences/custom-instructions-enabled?orgId=${orgId}`,
+      { enabled: true },
+    );
     const maskedTurn = turnOutcome.safeParse(
       await (
         await send(
@@ -10731,6 +10742,11 @@ async function checkChat(
       ).json(),
     );
     const wireBodies = aiBodies.slice(bodiesBefore);
+    // Off again, so the turns after this probe read a plain prompt.
+    await send(
+      `/api/app/user-preferences/custom-instructions-enabled?orgId=${orgId}`,
+      { enabled: false },
+    );
     const maskedUserRow = (
       await sql<{ text: string | null }[]>`
         SELECT text FROM app.messages
@@ -10806,7 +10822,7 @@ async function checkChat(
       `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} persisted=${String(credOutcome.data.persisted)} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, persisted=false: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
     );
     record(
-      'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
+      'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, custom instructions ride behind the clock, events land',
       blockedTurn.success &&
         blockedTurn.data.status === 'refused' &&
         // The refusal is on the record — the composer must not hand the
@@ -10824,6 +10840,12 @@ async function checkChat(
         wireBodies.every((body) => !body.includes('anna@example.com')) &&
         wireBodies.every((body) => body.includes('[EMAIL]')) &&
         wireBodies.every((body) => body.includes(MANDATORY_MARKER)) &&
+        wireBodies.every((body) => body.includes(CUSTOM_MARKER)) &&
+        wireBodies.every(
+          (body) =>
+            body.indexOf(CUSTOM_MARKER) > body.indexOf('Current time:') &&
+            body.indexOf('Current time:') > body.indexOf(MANDATORY_MARKER),
+        ) &&
         maskedUserRow?.text ===
           'please mail [EMAIL] about the quarterly review' &&
         guardEvents.some(

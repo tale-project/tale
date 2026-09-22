@@ -1,5 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+
 /**
  * Per-user, per-org personalization preferences (0.4 `userPreferences`).
  * Tri-state feature flags: null = follow the org governance default,
@@ -93,6 +95,41 @@ export async function getMyPreferences(
       : {}),
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * The custom instructions the chat assistant follows for this person, or
+ * `null`. The gate is the cascade the preferences page renders
+ * (`resolveGate`): the person's explicit toggle wins, otherwise the org's
+ * `custom_instructions` policy default, and with neither the feature is OFF.
+ * Blank text reads as none even while the feature is on — a block saying
+ * nothing would still cost the model a header.
+ */
+export function effectiveCustomInstructions(
+  preferences: Pick<
+    UserPreferences,
+    'customInstructions' | 'customInstructionsEnabled'
+  > | null,
+  policy: { enabled: boolean } | null,
+): string | null {
+  const enabled =
+    preferences?.customInstructionsEnabled ?? policy?.enabled ?? false;
+  if (!enabled) return null;
+  const text = preferences?.customInstructions.trim() ?? '';
+  return text.length > 0 ? text : null;
+}
+
+/** {@link effectiveCustomInstructions} over the person's row and the org's
+ * policy file — what a chat turn reads for its prompt. */
+export async function getEffectiveCustomInstructions(
+  sql: Sql,
+  scope: { userId: string; orgId: string },
+): Promise<string | null> {
+  const [preferences, policy] = await Promise.all([
+    getMyPreferences(sql, scope),
+    readGovernancePolicyForOrg(sql, scope.orgId, 'custom_instructions'),
+  ]);
+  return effectiveCustomInstructions(preferences, policy);
 }
 
 /** The user's sticky chat model pick, for system work done on their behalf. */

@@ -18,7 +18,10 @@
  *     rather than being pasted into the prompt
  *  — cache breakpoint —
  *  5. Timestamp + response-language directive
- *  6. Full message history: tool messages, approval and human-input cards, and
+ *  6. The person's own standing instructions (Settings > Preferences), when
+ *     their toggle has them on — per person, so they can never join the
+ *     prefix that is shared by every user of the agent
+ *  7. Full message history: tool messages, approval and human-input cards, and
  *     attachments as content parts
  *
  * On overflow the OLDEST messages are dropped and a visible notice takes their
@@ -27,12 +30,14 @@
  * and its failure mode — confidently wrong history — is invisible to the user.
  * Dropping messages is lossy in a way everyone can see.
  *
- * Deliberately NOT assembled here, each removed on purpose: a personalization
- * blob, auto-injected memories, auto-retrieved knowledge, auto web context,
- * a todos prompt augmentation, a branding section, a skills suffix, a tuning
- * suffix, routing metadata, and an artifacts section. Everything the model
- * learns beyond its instructions, it learns by CALLING something — which is
- * visible in the transcript, attributable, and refusable.
+ * Deliberately NOT assembled here, each removed on purpose: auto-injected
+ * memories, auto-retrieved knowledge, auto web context, a todos prompt
+ * augmentation, a branding section, a skills suffix, a tuning suffix, routing
+ * metadata, and an artifacts section. Everything the model learns beyond its
+ * instructions, it learns by CALLING something — which is visible in the
+ * transcript, attributable, and refusable. The person's custom instructions
+ * are instructions, not learned content: they are the one per-person block,
+ * and the host resolves the person's toggle before they get here.
  *
  * Layer A: pure, no `node:*`, no Convex, no model call.
  */
@@ -61,6 +66,9 @@ export const CONTEXT_BLOCK_ORDER = [
   'project-context',
   'cache-breakpoint',
   'runtime-directives',
+  // After the breakpoint on purpose: the block is per person, and the prefix
+  // above must stay byte-identical for every user of the agent.
+  'custom-instructions',
   'message-history',
 ] as const;
 
@@ -142,6 +150,15 @@ export interface ContextInput {
    * Absent for an unbound thread.
    */
   readonly project?: ProjectContext;
+  /**
+   * The person's own standing instructions (Settings > Preferences), already
+   * resolved by the host through their toggle over the org default — absent
+   * while the feature is off for them or the text is blank. Per person, so
+   * the block rides AFTER the cache breakpoint: the cached prefix stays
+   * identical for every user of the agent. Skipped on a sub-agent turn, the
+   * way the org's instructions are.
+   */
+  readonly customInstructions?: string;
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -166,7 +183,9 @@ export interface AssembledContext {
   readonly cacheBreakpointIndex: number;
   /** Blocks 1–4 rendered — the part a provider may cache. */
   readonly stablePrefix: string;
-  /** Block 5 rendered — the part that changes every turn. */
+  /** The blocks after the breakpoint rendered — the clock and language
+   * directives, then the person's custom instructions when they have any.
+   * Re-sent every turn. */
   readonly volatileSuffix: string;
   /** The full system prompt: stable prefix, then volatile suffix. */
   readonly system: string;
@@ -395,6 +414,24 @@ function renderProjectContext(project?: ProjectContext): string | undefined {
 }
 
 /**
+ * The person's standing instructions, framed so the model knows whose voice
+ * they are and where they rank: the org's mandatory instructions and the
+ * project's instructions sit above them in the prompt and win a conflict.
+ * Absent for blank text — an empty header would be a block saying nothing.
+ */
+const CUSTOM_INSTRUCTIONS_HEADER =
+  'Standing instructions from the person you are talking to — their own ' +
+  'preferences for how you reply to them. Follow them. Where they conflict ' +
+  "with the organization's or the project's instructions above, those take " +
+  'precedence.';
+
+function renderCustomInstructions(text?: string): string | undefined {
+  const instructions = text?.trim();
+  if (!instructions) return undefined;
+  return `${CUSTOM_INSTRUCTIONS_HEADER}\n\n${instructions}`;
+}
+
+/**
  * Assemble the context for one turn. Pure: same input, same prompt — no clock
  * read, no model call, no I/O.
  */
@@ -437,12 +474,27 @@ export function assembleContext(input: ContextInput): AssembledContext {
   const cacheBreakpointIndex = blocks.length;
   blocks.push({ id: 'cache-breakpoint' });
 
-  const volatileSuffix = renderRuntimeDirectives(
+  const runtimeDirectives = renderRuntimeDirectives(
     input.now,
     input.locale,
     input.localeFixed === true,
   );
-  blocks.push({ id: 'runtime-directives', text: volatileSuffix });
+  blocks.push({ id: 'runtime-directives', text: runtimeDirectives });
+
+  // AFTER the breakpoint on purpose: the block is per person, and the prefix
+  // above must stay byte-identical for every user of the agent to be served
+  // from the provider's cache. The suffix is re-sent every turn regardless
+  // (the clock changes), so the block costs its own tokens and nothing more.
+  const customInstructions = input.isSubAgentTurn
+    ? undefined
+    : renderCustomInstructions(input.customInstructions);
+  if (customInstructions) {
+    blocks.push({ id: 'custom-instructions', text: customInstructions });
+  }
+
+  const volatileSuffix = [runtimeDirectives, customInstructions]
+    .filter((text): text is string => text !== undefined && text.length > 0)
+    .join(BLOCK_SEPARATOR);
 
   const stablePrefix = blocks
     .slice(0, cacheBreakpointIndex)
