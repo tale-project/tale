@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 38 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -300,6 +300,23 @@ rows lead with the subject.
   own, and the conversation leaves every non-administrator's Inbox. In
   **Compose**, re-picking the queued team clears it the same way; re-picking
   the draft's own person does NOT, because a draft always keeps an owner.
+- [ ] `CONV-F19` · **The Inbox names the channel** — In an org with TWO email
+  connectors installed and at least one API-synced thread, as an owner → Each
+  list row carries a channel chip: the connector's title for an email thread,
+  the source slug for an API one, and no chip at all on a thread that names
+  neither. Open an email thread → The header reads **{connector} · {address}**,
+  not the address alone. Open the API thread → The header reads
+  `conversations.header.apiSource` with its source, where it previously showed
+  nothing. The composer names the destination in both
+  (`conversations.header.replyVia` / `replyViaApi`), and the reply lands on
+  that same channel.
+
+- [ ] `CONV-F20` · **The channel filter offers every lane** — Same org → Open
+  **Filter** → **Channel** (`conversations.filter.channel`); it lists each
+  installed email connector by title plus each distinct API source by slug, and
+  never the same slug twice. Pick one → Only that channel's rows remain and
+  `?channel=<slug>` lands in the URL; reload and the choice survives. In an org
+  with no connector and no API thread, the Channel facet does not appear at all.
 
 ## Boundary & error tests
 
