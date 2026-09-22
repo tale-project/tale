@@ -39,6 +39,12 @@ export interface SearchableSelectOption {
   /** Non-selectable section header row (skipped by keyboard navigation). */
   isSectionHeader?: boolean;
   /**
+   * Overrides the `value`-derived selected state, for a picker that carries
+   * more than one selection dimension and so has no single controlled
+   * `value` — each row says for itself whether it is the current pick.
+   */
+  selected?: boolean;
+  /**
    * Survives the search filter, so the row stays on screen whatever the
    * query — for an action pinned under the results ("Add <query> as a
    * contact") or for the selected row when the list is a server-side search
@@ -620,7 +626,7 @@ function SearchableSelectBase({
                     option={option}
                     index={index}
                     id={optionId(index)}
-                    isSelected={value === option.value}
+                    isSelected={option.selected ?? value === option.value}
                     isHighlighted={highlightedIndex === index}
                     onSelect={handleSelect}
                     onMouseEnter={setHighlightedIndex}

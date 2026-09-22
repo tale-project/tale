@@ -81,6 +81,7 @@ import { SearchableSelect } from './searchable-select';
 - Search input has \`role="combobox"\` with \`aria-activedescendant\`
 - Options container has \`role="listbox"\`
 - Each option has \`role="option"\` with \`aria-selected\`
+- A picker with more than one selection dimension sets \`selected\` per option, so \`aria-selected\` stays truthful without a single controlled \`value\`
         `,
       },
     },
