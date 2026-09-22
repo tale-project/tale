@@ -17,6 +17,7 @@ import {
 import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
@@ -35,6 +36,10 @@ interface PrimaryTab {
   activePrefix: string;
   /** Optional CASL gate. */
   gate?: () => boolean;
+  /** Unread count shown as a chip on the icon (omit/0 = no chip). */
+  badge?: number;
+  /** What that chip means, translated — the bar reads it out after the label. */
+  badgeLabel?: string;
   /** Search applied when tapped while already active (chat: a fresh chat). */
   reentrySearch?: Record<string, unknown>;
 }
@@ -91,6 +96,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   // Inbox tab only shows once at least one INSTALLED automation declares the
   // `inbox` builtin view; hidden while the availability reads load.
   const { hasInbox: hasInboxAutomation } = useInboxAvailability(organizationId);
+  // Same chip the desktop rail carries, and the SAME request: both narrow one
+  // `/conversations/counts` body, so the two navs never disagree and a phone
+  // pays for one fetch. Skipped while the tab itself is gated off.
+  const { data: unreadConversations } = useUnreadConversationCount(
+    hasInboxAutomation ? organizationId : undefined,
+  );
   const { isStandalone, isMobileSafari } = useDisplayMode();
   // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
   // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
@@ -123,6 +134,10 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         to: `/dashboard/${organizationId}/conversations`,
         activePrefix: `/dashboard/${organizationId}/conversations`,
         gate: () => hasInboxAutomation,
+        badge: unreadConversations ?? 0,
+        badgeLabel: tNav('aria.unreadConversations', {
+          count: unreadConversations ?? 0,
+        }),
       },
     ],
     [
@@ -132,6 +147,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       tProjects,
       tConversations,
       hasInboxAutomation,
+      unreadConversations,
     ],
   );
 
@@ -174,12 +190,16 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       .filter((tab) => (tab.gate ? tab.gate() : true))
       .map((tab) => {
         const active = isPathActive(tab.activePrefix);
+        // A zero is the resting state, not a chip reading "0".
+        const showBadge = tab.badge !== undefined && tab.badge > 0;
         return {
           key: tab.key,
           label: tab.label,
           icon: tab.icon,
           active,
           accentColor: active && accentColor ? accentColor : undefined,
+          badge: showBadge ? tab.badge : undefined,
+          badgeLabel: showBadge ? tab.badgeLabel : undefined,
           onSelect: () => {
             void navigate(resolveNavTarget(tab, active));
           },

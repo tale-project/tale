@@ -46,6 +46,25 @@ export function useApproxConversationCountByStatus(
 }
 
 /**
+ * How many OPEN conversations still carry unread messages, in the caller's own
+ * inbox scope — an admin counts the organization, everyone else only the rows
+ * assigned to them or to one of their teams. Drives the rail's Inbox chip.
+ *
+ * Read state is per CONVERSATION, not per viewer (`metadata.unread_count`), so
+ * a teammate opening a thread clears it for the whole queue. Pass `undefined`
+ * to skip — the rail does that while the Inbox entry itself is hidden.
+ *
+ * Shares one request and one cache entry with the status tab badges: both
+ * narrow the same `/conversations/counts` body.
+ */
+export function useUnreadConversationCount(organizationId: string | undefined) {
+  return useBackendQuery(
+    'conversations/queries:countUnreadConversations',
+    organizationId === undefined ? 'skip' : { organizationId },
+  );
+}
+
+/**
  * A contact's display name for the Inbox's not-yet-installed empty state, when
  * a `?composeContact=` deep link (a contact-row "New email" action) arrives
  * before any mailbox is connected (#2641) — names the contact in the "install

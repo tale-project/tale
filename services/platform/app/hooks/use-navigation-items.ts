@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
@@ -30,6 +31,13 @@ export interface NavItem {
   subItems?: NavItem[];
   /** Unread count rendered as a chip on the nav icon (omit/0 = no chip). */
   badge?: number;
+  /**
+   * What the chip MEANS, translated ("3 unread conversations"). The tile's
+   * accessible name is `label, badgeLabel`, because the chip itself is
+   * decorative — a bare "3" announces nothing. Required whenever `badge` is
+   * set; without it the count is sighted-only.
+   */
+  badgeLabel?: string;
   /**
    * Platform-resolved keyboard-shortcut hint (e.g. `⌥ ⌘ N`) shown as a chip in
    * the item's hover tooltip. Present only for items that own a global
@@ -69,6 +77,13 @@ export function useNavigationItems(businessId: string): NavigationItems {
   // is offline while it is rebuilt, so `useInboxAvailability` currently
   // reports every org as inbox-capable and the entry always shows.
   const { hasInbox: hasInboxAutomation } = useInboxAvailability(businessId);
+  // The chip on the Inbox tile: OPEN conversations still carrying unread
+  // messages, already narrowed to this caller's inbox scope by the counts
+  // door. Skipped while the entry is hidden, and `undefined` until the first
+  // read lands — the tile renders bare rather than flashing a zero.
+  const { data: unreadConversations } = useUnreadConversationCount(
+    hasInboxAutomation ? businessId : undefined,
+  );
   return useMemo(
     (): NavigationItems => ({
       primary: [
@@ -158,6 +173,10 @@ export function useNavigationItems(businessId: string): NavigationItems {
                 params: { id: businessId },
                 href: `/dashboard/${businessId}/conversations`,
                 icon: Inbox,
+                badge: unreadConversations ?? 0,
+                badgeLabel: tNav('aria.unreadConversations', {
+                  count: unreadConversations ?? 0,
+                }),
               },
             ] satisfies NavItem[])
           : []),
@@ -183,6 +202,7 @@ export function useNavigationItems(businessId: string): NavigationItems {
       tProjects,
       tConversations,
       hasInboxAutomation,
+      unreadConversations,
       newChatShortcut,
     ],
   );

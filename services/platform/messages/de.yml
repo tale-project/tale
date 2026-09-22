@@ -4339,6 +4339,7 @@ navigation:
     label: Organisation
   aria:
     primaryNavigation: Hauptnavigation
+    unreadConversations: '{count, plural, one {# ungelesene Konversation} other {# ungelesene Konversationen}}'
   dataResidency: Datenresidenz
   sandboxes: Sandboxes
   enterpriseSso: Enterprise-SSO

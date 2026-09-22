@@ -80,6 +80,29 @@ describe('BottomTabBar', () => {
     expect(screen.getByText('7')).toBeInTheDocument();
   });
 
+  it('reads a badge out with the caller’s translated meaning', () => {
+    const items = makeItems('chat');
+    items[1].badge = 7;
+    items[1].badgeLabel = '7 ungelesene Konversationen';
+    render(<BottomTabBar items={items} ariaLabel="Primary" />);
+    // The tab's accessible name carries the meaning; the chip is decorative.
+    expect(
+      screen.getByRole('button', {
+        name: /7 ungelesene Konversationen/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/unread/)).toBeNull();
+  });
+
+  it('falls back to English only when no meaning is given', () => {
+    const items = makeItems('chat');
+    items[1].badge = 7;
+    render(<BottomTabBar items={items} ariaLabel="Primary" />);
+    expect(
+      screen.getByRole('button', { name: /\(7 unread\)/ }),
+    ).toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

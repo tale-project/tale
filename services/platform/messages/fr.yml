@@ -4407,6 +4407,7 @@ navigation:
     label: Organisation
   aria:
     primaryNavigation: Navigation principale
+    unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'
   dataResidency: Résidence des données
   sandboxes: Sandboxes
   enterpriseSso: SSO d'entreprise
