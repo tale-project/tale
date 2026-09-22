@@ -104,10 +104,6 @@ function OfflineOverlay({ reason }: OfflineOverlayProps) {
   const { t } = useT('connectivity');
   const { appName } = useBrandingContext();
   const { canInstall, promptInstall } = useInstallPrompt();
-  // Bumping the nonce remounts the indicator so the pulse animation restarts
-  // on "Try again" — a small visual ack that the gesture registered, without
-  // any disabled/loading "Checking…" intermediate state.
-  const [retryNonce, setRetryNonce] = useState(0);
 
   // Surface the reconnect state in the tab title so a glance at a window
   // chooser / tab strip shows which tab dropped — and so the org name (or the
@@ -127,11 +123,17 @@ function OfflineOverlay({ reason }: OfflineOverlayProps) {
     reason === 'device' ? t('deviceDescription') : t('backendDescription');
 
   const handleRetry = () => {
-    // Convex's client already auto-reconnects continuously, so we don't need
-    // to wire a manual reconnect call — bumping the nonce just restarts the
-    // ring animation so the user sees the gesture register. The overlay
-    // dismisses on its own once the WS handshake completes.
-    setRetryNonce((n) => n + 1);
+    // A FULL document reload, not a client-side nudge. Convex's client does
+    // auto-reconnect, but the states that strand a user here are the ones it
+    // cannot retry out of on its own — a stale build after a deploy, a dead
+    // auth token the ws handshake keeps rejecting, a backend that came back
+    // at a different address. A reload rebuilds every one of those from
+    // scratch, and it is what the user pressing "Try again" is asking for.
+    //
+    // Safe even while the server is still down: the service worker serves the
+    // precached offline shell on a failed navigation, so a retry that doesn't
+    // land keeps the user inside Tale rather than on the browser's error page.
+    window.location.reload();
   };
 
   return (
@@ -147,7 +149,7 @@ function OfflineOverlay({ reason }: OfflineOverlayProps) {
       )}
     >
       <div className="mx-auto flex w-full max-w-sm flex-col items-center text-center">
-        <ReachingServerIndicator key={retryNonce} label={t('reachingServer')} />
+        <ReachingServerIndicator label={t('reachingServer')} />
         <h2
           id="online-gate-title"
           className="text-foreground mt-8 text-2xl leading-tight font-semibold tracking-tight"

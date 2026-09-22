@@ -67,6 +67,16 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
       ? { backgroundColor: `${accentColor}26`, color: accentColor }
       : undefined;
 
+  // The tile's accessible name carries the badge. The link sets `aria-label`,
+  // which overrides descendant content, so a count left inside `rowContent`
+  // reaches no screen reader at all — and a bare "3" would say nothing anyway.
+  // `badgeLabel` is the translated meaning ("3 unread conversations").
+  const showBadge = item.badge !== undefined && item.badge > 0;
+  const accessibleName =
+    showBadge && item.badgeLabel !== undefined
+      ? `${item.label}, ${item.badgeLabel}`
+      : item.label;
+
   const tooltipContent = item.shortcut ? (
     <>
       {item.label}
@@ -91,12 +101,12 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
     >
       <span className="relative flex size-5 shrink-0 items-center justify-center">
         {Icon && <Icon className="size-5 shrink-0" />}
-        {item.badge !== undefined && item.badge > 0 && (
+        {showBadge && (
           <span
-            aria-label={`${item.badge}`}
+            aria-hidden="true"
             className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums"
           >
-            {item.badge > 99 ? '99+' : item.badge}
+            {(item.badge ?? 0) > 99 ? '99+' : item.badge}
           </span>
         )}
       </span>
@@ -111,13 +121,13 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
       href={item.href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={item.label}
+      aria-label={accessibleName}
       className={linkClassName}
     >
       {rowContent}
     </a>
   ) : (
-    <Link {...linkProps} aria-label={item.label} className={linkClassName}>
+    <Link {...linkProps} aria-label={accessibleName} className={linkClassName}>
       {rowContent}
     </Link>
   );

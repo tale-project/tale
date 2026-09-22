@@ -362,22 +362,19 @@ export function UserButton({
             },
       ]);
 
-      // The caller's teams, read-only: the badge names them (two, then a
-      // count) and the row opens the account page's Teams section, which
-      // says what belonging to them means. There is deliberately no
-      // "switch": a team is an audience on documents, projects and inbox
-      // queues — each of those lists carries its own Teams filter.
+      // The caller's teams, read-only: the badge COUNTS them and the row opens
+      // the account page's Teams section, which names them and says what
+      // belonging to them means. The badge is a count rather than a name list
+      // because the row's trailing slot never shrinks: a list long enough to
+      // need a "+N" overflow pushed the "Teams" label itself into an ellipsis.
+      // There is deliberately no "switch": a team is an audience on documents,
+      // projects and inbox queues — each of those lists carries its own Teams
+      // filter.
       if (teams) {
-        const names = teams.map((team) => team.name);
         const badge =
-          names.length === 0
+          teams.length === 0
             ? tNav('myTeams.none')
-            : names.length <= 2
-              ? names.join(', ')
-              : tNav('myTeams.more', {
-                  names: names.slice(0, 2).join(', '),
-                  count: names.length - 2,
-                });
+            : tNav('myTeams.count', { count: teams.length });
         groups.push([
           {
             type: 'item',

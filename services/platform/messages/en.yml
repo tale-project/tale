@@ -4172,11 +4172,12 @@ navigation:
   myTeams:
     label: Teams
     none: No teams
-    more: '{names} +{count}'
+    count: '{count, plural, one {# team} other {# teams}}'
   orgSwitcher:
     label: Organization
   aria:
     primaryNavigation: Primary navigation
+    unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'
   dataResidency: Data residency
   sandboxes: Sandboxes
   enterpriseSso: Enterprise SSO

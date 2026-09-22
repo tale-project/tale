@@ -11,7 +11,12 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { AdapterContext, ReadAdapter, WriteAdapter } from './adapters';
+import type {
+  AdaptedReadOptions,
+  AdapterContext,
+  ReadAdapter,
+  WriteAdapter,
+} from './adapters';
 import { backendFetch } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
@@ -57,6 +62,40 @@ function invalidateConversations(
 
 const LIST_LIMIT = 100;
 
+/** What `/conversations/counts` answers: the per-status map the Inbox tabs
+ * read, and the unread total the rail's chip reads. Both come back in ONE
+ * body, and both are already narrowed to the caller's inbox scope — an admin
+ * sees the organization, everyone else only what is assigned to them or to
+ * one of their teams. */
+interface ConversationCounts {
+  byStatus: Record<string, number>;
+  unread: number;
+}
+
+/** The shared read behind every count. Keyed on the FETCH (the connector
+ * filter) and narrowed by each caller's `select`, so the four status badges
+ * and the rail chip issue one request between them. Keyed on the narrowing
+ * instead, a cold load fetched the same body five times. */
+function conversationCountsRead(
+  orgId: string,
+  connector: string | undefined,
+): Pick<AdaptedReadOptions, 'queryKey' | 'queryFn'> {
+  return {
+    queryKey: backendKey(orgId, 'conversation', 'count', connector ?? ''),
+    queryFn: () =>
+      backendFetch<ConversationCounts>(
+        `/conversations/counts${connector === undefined ? '' : `?connector=${encodeURIComponent(connector)}`}`,
+        { orgId },
+      ),
+  };
+}
+
+function connectorOf(args: Record<string, unknown>): string | undefined {
+  return typeof args.connectorName === 'string' && args.connectorName !== ''
+    ? args.connectorName
+    : undefined;
+}
+
 export const conversationReadAdapters: Record<string, ReadAdapter> = {
   'conversations/queries:apiSources': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -85,24 +124,21 @@ export const conversationReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     const status = typeof args.status === 'string' ? args.status : 'open';
-    const connector =
-      typeof args.connectorName === 'string' && args.connectorName !== ''
-        ? args.connectorName
-        : undefined;
-    // The route answers EVERY status in one body; the four tab badges
-    // narrow it. Keyed on the fetch (the connector) and narrowed in
-    // `select`, so the badges share one request and one cache entry —
-    // keyed on the status, a cold load fetched the same body four times.
     return {
-      queryKey: backendKey(orgId, 'conversation', 'count', connector ?? ''),
-      queryFn: () =>
-        backendFetch<{ byStatus: Record<string, number> }>(
-          `/conversations/counts${connector === undefined ? '' : `?connector=${encodeURIComponent(connector)}`}`,
-          { orgId },
-        ).then((body) => body.byStatus),
-      select: (byStatus) =>
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the queryFn above stores the counts map
-        (byStatus as Record<string, number>)[status] ?? 0,
+      ...conversationCountsRead(orgId, connectorOf(args)),
+      select: (body) =>
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the queryFn above stores the counts body
+        (body as ConversationCounts).byStatus[status] ?? 0,
+    };
+  },
+  'conversations/queries:countUnreadConversations': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      ...conversationCountsRead(orgId, connectorOf(args)),
+      select: (body) =>
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the queryFn above stores the counts body
+        (body as ConversationCounts).unread ?? 0,
     };
   },
   'conversations/queries:getConversationWithMessages': (args, ctx) => {

@@ -18,6 +18,13 @@ export interface BottomTabBarItem {
   active?: boolean;
   /** Optional badge (e.g. `3` or `'!'`) rendered as a dot on the icon. */
   badge?: ReactNode;
+  /**
+   * What the badge MEANS, already translated ("3 unread conversations").
+   * Read out after the tab label; the chip itself is decorative. Without it
+   * the bar falls back to an English "(N unread)", which is right for no
+   * locale but English — pass this whenever the app ships more than one.
+   */
+  badgeLabel?: string;
   /** Click handler — typically wired to `useNavigate()`. */
   onSelect: () => void;
   /**
@@ -180,7 +187,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
             </span>
             <span className="sr-only">
               {' '}
-              ({stringifyBadge(item.badge)} unread)
+              {item.badgeLabel ?? `(${stringifyBadge(item.badge)} unread)`}
             </span>
           </>
         )}

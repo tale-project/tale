@@ -4402,11 +4402,12 @@ navigation:
   myTeams:
     label: Équipes
     none: Aucune équipe
-    more: '{names} +{count}'
+    count: '{count, plural, one {# équipe} other {# équipes}}'
   orgSwitcher:
     label: Organisation
   aria:
     primaryNavigation: Navigation principale
+    unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'
   dataResidency: Résidence des données
   sandboxes: Sandboxes
   enterpriseSso: SSO d'entreprise

@@ -16,9 +16,22 @@ import { SidebarNav } from './sidebar-nav';
 
 // Labels are shared between the mocked nav-items hook (read inside the hoisted
 // factory) and the assertions below, so the two can never drift apart.
-const { primaryLabels, externalLabel, mockLocation } = vi.hoisted(() => ({
+const {
+  primaryLabels,
+  externalLabel,
+  badgedLabel,
+  badgedCount,
+  badgedMeaning,
+  quietLabel,
+  mockLocation,
+} = vi.hoisted(() => ({
   primaryLabels: ['Chat', 'Automations', 'Projects', 'Agents'],
   externalLabel: 'Help center',
+  // A badged tile (the Inbox's unread chip) and one whose count is zero.
+  badgedLabel: 'Inbox',
+  badgedCount: 3,
+  badgedMeaning: '3 unread conversations',
+  quietLabel: 'Documents',
   mockLocation: { pathname: '/dashboard/test-org/chat' },
 }));
 
@@ -102,6 +115,25 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         icon: Network,
       },
       {
+        label: badgedLabel,
+        to: '/dashboard/$id/conversations',
+        params: { id: 'test-org' },
+        href: '/dashboard/test-org/conversations',
+        icon: Folder,
+        badge: badgedCount,
+        badgeLabel: badgedMeaning,
+      },
+      {
+        // A badge of 0 is the resting state, not a chip reading "0".
+        label: quietLabel,
+        to: '/dashboard/$id/documents',
+        params: { id: 'test-org' },
+        href: '/dashboard/test-org/documents',
+        icon: Folder,
+        badge: 0,
+        badgeLabel: '0 unread conversations',
+      },
+      {
         // External items render a native <a> — the other branch.
         label: externalLabel,
         to: 'https://help.example.com',
@@ -135,6 +167,38 @@ describe('SidebarNav', () => {
       for (const name of [...primaryLabels, externalLabel]) {
         expect(screen.getByRole('link', { name })).toBeInTheDocument();
       }
+    });
+
+    it('carries the badge’s MEANING in the tile’s accessible name', () => {
+      render(<SidebarNav organizationId="test-org" />);
+
+      // The link sets `aria-label`, which overrides descendant content, so a
+      // count rendered inside the tile reaches no screen reader — and a bare
+      // "3" would say nothing anyway. The name has to carry both.
+      const tile = screen.getByRole('link', {
+        name: `${badgedLabel}, ${badgedMeaning}`,
+      });
+      expect(tile).toBeInTheDocument();
+
+      // The chip itself is decorative: sighted users see the number, AT reads
+      // it once, from the name.
+      const chip = screen.getByText(String(badgedCount));
+      expect(chip).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('leaves an unbadged tile’s name plain', () => {
+      render(<SidebarNav organizationId="test-org" />);
+
+      // A count of 0 is the resting state: no chip, and no ", 0 unread…"
+      // dangling off the name of a tile with nothing to report.
+      expect(
+        screen.getByRole('link', { name: quietLabel }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('0')).toBeNull();
+      // And a tile that never had a badge is untouched.
+      expect(
+        screen.getByRole('link', { name: primaryLabels[2] }),
+      ).toBeInTheDocument();
     });
 
     it('passes an axe link-name audit', async () => {

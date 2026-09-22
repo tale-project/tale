@@ -151,6 +151,11 @@ export interface ConversationsContract {
     };
     returns: number;
   };
+  'conversations/queries:countUnreadConversations': {
+    kind: 'query';
+    args: { organizationId: string; connectorName?: string };
+    returns: number;
+  };
   'conversations/queries:getConversationWithMessages': {
     kind: 'query';
     args: { organizationId: string; conversationId: string };

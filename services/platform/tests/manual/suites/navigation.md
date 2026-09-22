@@ -78,12 +78,14 @@ loaded, and reads **No teams** for an account in none.
   scoped to the new org.
 - [ ] `NAV-F6` · **Teams row** — In the user/avatar menu (bottom-left), read
   the **Teams** row (`navigation.myTeams.label`), then click it → The row is a
-  plain item, not a picker: its badge names the caller's teams (two names,
-  then `+n` per `navigation.myTeams.more`; `navigation.myTeams.none` for an
-  account in no team); clicking it closes the menu and lands on
+  plain item, not a picker: its badge COUNTS the caller's teams
+  (`navigation.myTeams.count`; `navigation.myTeams.none` for an account in no
+  team), and the **Teams** label reads in full — never clipped to an ellipsis,
+  at any team count or locale; clicking it closes the menu and lands on
   `/dashboard/{org}/settings/account#teams` with the **Your teams** section
-  (`settings.account.teams.title`) in view; no list anywhere changes — a
-  team is an audience label on work, never a context to switch into.
+  (`settings.account.teams.title`) in view, which is where the names live; no
+  list anywhere changes — a team is an audience label on work, never a context
+  to switch into.
 - [ ] `NAV-F7` · **Governance disclosure** — **Settings** → in the settings
   rail (`<nav aria-label>` = **Settings**, `navigation.userSettings`) expand
   **Governance** (`navigation.governance`) → click **Policies & Limits**
@@ -204,6 +206,28 @@ loaded, and reads **No teams** for an account in none.
   column header → the list re-orders across ALL contacts (row 1 is the
   alphabetically first contact in the org, not the first of the loaded page)
   and the footer still reads "Showing all N contacts".
+- [ ] `NAV-F23` · **Inbox unread chip** — Needs an account whose Inbox shows at
+  least one OPEN conversation with unread messages (send one to a connected
+  mailbox, or leave a seeded one unopened). Look at the **Inbox** tile in the
+  left rail → It carries a small count chip on the icon, reading the number of
+  OPEN conversations with unread messages — the same number the **Open** tab's
+  own badge would show for unread rows, never the total Open count. Open one of
+  those conversations, then look at the rail again → the chip drops by one
+  (reading it clears `unread_count`); clear them all and the chip disappears
+  rather than showing **0**. With a screen reader (or the accessibility
+  inspector), focus the tile → it announces "Inbox, N unread conversations"
+  (`conversations.title` + `navigation.aria.unreadConversations`), NOT a bare
+  "Inbox" and NOT a stray "N". Past 99 unread the chip reads **99+** while the
+  announced name still carries the true number. Now narrow the window below
+  **768 px** → the **Inbox** tab in the bottom tab bar carries the SAME count,
+  and announces the same name; the two navs never disagree, because both read
+  one `/conversations/counts` body.
+- [ ] `NAV-F24` · **The chip counts only what the viewer may open** — Sign in
+  as a NON-admin member. In a second session as an admin, leave an OPEN unread
+  conversation assigned to nobody, and a second one assigned to the member (or
+  to one of their teams) → The member's rail chip counts ONLY the second one:
+  the unassigned triage row is invisible to them, in the chip exactly as in the
+  list. The admin's own chip counts both.
 
 ## Boundary & error tests
 
@@ -238,7 +262,12 @@ loaded, and reads **No teams** for an account in none.
   (children keep rendering below the overlay). With the backend stopped
   instead, the overlay reads **Can't reach Tale**
   (`connectivity.backendTitle`) with a **Try again** button
-  (`connectivity.retry`)
+  (`connectivity.retry`). Press **Try again** with the backend still stopped →
+  the document performs a FULL reload (the browser's load indicator runs, the
+  tab re-navigates), and the service worker's precached offline shell keeps
+  the user inside Tale — never the browser's own "site can't be reached" page.
+  Start the backend, press **Try again** → the reloaded page comes back
+  signed in on the same URL.
 
 - [ ] `NAV-B7` · **A project that is gone** — Open a project, then in a
   second session **delete it**. Back in the first session, reload that

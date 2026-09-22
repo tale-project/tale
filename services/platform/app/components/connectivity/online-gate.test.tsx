@@ -103,6 +103,44 @@ describe('OnlineGate', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
+  it('reloads the document when "Try again" is pressed', () => {
+    // A full reload, not a client-side nudge: the states that strand a user
+    // on this overlay (stale build, rejected ws auth token, backend moved)
+    // are exactly the ones Convex's own auto-reconnect cannot retry out of.
+    // jsdom's `Location.reload` is non-configurable and throws "Not
+    // implemented: navigation", so replace the whole object and restore it.
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { href: original.href, origin: original.origin, reload },
+    });
+    try {
+      vi.useFakeTimers();
+      connectionState.isWebSocketConnected = false;
+      render(
+        <OnlineGate>
+          <p>Hello</p>
+        </OnlineGate>,
+      );
+      act(() => {
+        vi.advanceTimersByTime(GRACE_MS);
+      });
+
+      const retry = screen.getByRole('button', { name: 'Try again' });
+      act(() => {
+        retry.click();
+      });
+
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
+
   it('ignores navigator.onLine — Convex on localhost stays reachable even when the device reports offline', () => {
     Object.defineProperty(window.navigator, 'onLine', {
       configurable: true,
