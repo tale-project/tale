@@ -7,6 +7,60 @@
  * actually serve them.
  */
 
+/**
+ * One row of the org's contact directory, as every contacts read answers it:
+ * the listing, its paginated twin and the single by-id read. One declaration
+ * so the three cannot drift — `ContactDoc` in `./docs` is this shape.
+ */
+interface ContactRecord {
+  _id: string;
+  _creationTime: number;
+  metadata?: Record<string, unknown>;
+  name?: string;
+  lifecycleStatus?: 'active' | 'trashed' | 'expired' | 'deleted';
+  statusChangedAt?: number;
+  locale?: string;
+  email?: string;
+  phone?: string;
+  externalId?: string | number;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    postalCode?: string;
+  };
+  tags?: string[];
+  notes?: string;
+  organizationId: string;
+  source:
+    | 'webhook'
+    | 'manual_import'
+    | 'file_upload'
+    | 'api_import'
+    | 'conversation'
+    | 'shopify'
+    | 'woocommerce'
+    | 'magento'
+    | 'bigcommerce'
+    | 'prestashop'
+    | 'chargebee'
+    | 'stripe'
+    | 'recurly'
+    | 'salesforce'
+    | 'hubspot'
+    | 'pipedrive'
+    | 'zoho'
+    | 'sap'
+    | 'oracle'
+    | 'netsuite'
+    | 'mailchimp'
+    | 'klaviyo'
+    | 'sendgrid'
+    | 'zapier'
+    | 'custom';
+}
+
 export interface ContactsContract {
   'contacts/mutations:bulkCreateContacts': {
     kind: 'mutation';
@@ -112,7 +166,12 @@ export interface ContactsContract {
         | 'zapier'
         | 'custom';
     };
-    returns: { success: boolean; contactId: string };
+    /** The new contact's id — what the adapter's `POST /contacts` unwraps,
+     *  and the shape the sibling `products/mutations:createProduct` declares.
+     *  This used to read `{success, contactId}`, a 0.4 shape the pg adapter
+     *  never returned; nothing consumed it, so the mismatch stayed hidden
+     *  behind `useBackendMutation`'s cast. */
+    returns: string;
   };
   'contacts/mutations:deleteContact': {
     kind: 'mutation';
@@ -219,57 +278,18 @@ export interface ContactsContract {
     args: { organizationId: string };
     returns: number;
   };
+  'contacts/queries:getContact': {
+    kind: 'query';
+    args: { contactId: string };
+    returns: ContactRecord;
+  };
   'contacts/queries:listContacts': {
     kind: 'query';
-    args: { organizationId: string };
-    returns: Array<{
-      _id: string;
-      _creationTime: number;
-      metadata?: Record<string, unknown>;
-      name?: string;
-      lifecycleStatus?: 'active' | 'trashed' | 'expired' | 'deleted';
-      statusChangedAt?: number;
-      locale?: string;
-      email?: string;
-      phone?: string;
-      externalId?: string | number;
-      address?: {
-        street?: string;
-        city?: string;
-        state?: string;
-        country?: string;
-        postalCode?: string;
-      };
-      tags?: string[];
-      notes?: string;
-      organizationId: string;
-      source:
-        | 'webhook'
-        | 'manual_import'
-        | 'file_upload'
-        | 'api_import'
-        | 'conversation'
-        | 'shopify'
-        | 'woocommerce'
-        | 'magento'
-        | 'bigcommerce'
-        | 'prestashop'
-        | 'chargebee'
-        | 'stripe'
-        | 'recurly'
-        | 'salesforce'
-        | 'hubspot'
-        | 'pipedrive'
-        | 'zoho'
-        | 'sap'
-        | 'oracle'
-        | 'netsuite'
-        | 'mailchimp'
-        | 'klaviyo'
-        | 'sendgrid'
-        | 'zapier'
-        | 'custom';
-    }>;
+    /** `search` narrows the page server-side (the door's ILIKE over name,
+     *  email and phone). Without it the read answers the directory's first
+     *  page, which is the browsable default a picker opens on. */
+    args: { organizationId: string; search?: string };
+    returns: Array<ContactRecord>;
   };
   'contacts/queries:listContactsPaginated': {
     kind: 'query';
@@ -288,54 +308,7 @@ export interface ContactsContract {
       };
     };
     returns: {
-      page: Array<{
-        _id: string;
-        _creationTime: number;
-        metadata?: Record<string, unknown>;
-        name?: string;
-        lifecycleStatus?: 'active' | 'trashed' | 'expired' | 'deleted';
-        statusChangedAt?: number;
-        locale?: string;
-        email?: string;
-        phone?: string;
-        externalId?: string | number;
-        address?: {
-          street?: string;
-          city?: string;
-          state?: string;
-          country?: string;
-          postalCode?: string;
-        };
-        tags?: string[];
-        notes?: string;
-        organizationId: string;
-        source:
-          | 'webhook'
-          | 'manual_import'
-          | 'file_upload'
-          | 'api_import'
-          | 'conversation'
-          | 'shopify'
-          | 'woocommerce'
-          | 'magento'
-          | 'bigcommerce'
-          | 'prestashop'
-          | 'chargebee'
-          | 'stripe'
-          | 'recurly'
-          | 'salesforce'
-          | 'hubspot'
-          | 'pipedrive'
-          | 'zoho'
-          | 'sap'
-          | 'oracle'
-          | 'netsuite'
-          | 'mailchimp'
-          | 'klaviyo'
-          | 'sendgrid'
-          | 'zapier'
-          | 'custom';
-      }>;
+      page: Array<ContactRecord>;
       isDone: boolean;
       continueCursor: string;
       splitCursor?: null | string;

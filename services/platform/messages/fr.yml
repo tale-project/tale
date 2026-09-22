@@ -1664,6 +1664,11 @@ conversations:
     searchContacts: Rechercher des contacts
     contactsLoading: Chargement des contacts…
     noContacts: Aucun contact avec une adresse e-mail pour l'instant
+    noContactsFound: Aucun contact ne correspond à « {query} »
+    noContactsFoundAddHint: Aucun contact ne correspond à « {query} ». Saisis
+      une adresse e-mail complète pour ajouter un nouveau contact.
+    addContact: Ajouter « {email} » comme contact
+    contactExistsSelected: Déjà un contact — sélectionné
     inboxLabel: Boîte
     inboxPlaceholder: Sélectionne une boîte
     fromLabel: Expéditeur

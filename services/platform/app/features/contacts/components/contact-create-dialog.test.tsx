@@ -26,7 +26,8 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 describe('ContactCreateDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMutateAsync.mockResolvedValue({ success: true, contactId: 'c1' });
+    // The adapter unwraps `POST /contacts` to the bare id — see the contract.
+    mockMutateAsync.mockResolvedValue('c1');
   });
 
   it('renders an empty structured form (name, email, phone, locale)', () => {
@@ -146,6 +147,128 @@ describe('ContactCreateDialog', () => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({ variant: 'destructive' }),
       );
+    });
+  });
+
+  describe('seeded from a caller', () => {
+    // `FormDialog` disables Save while `!isDirty`, so a seeded address that
+    // became the form's new baseline would open with the email filled in and
+    // Save dead — the whole point of seeding it, lost.
+    it('prefills Email and leaves Save usable straight away', () => {
+      render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="jane@example.com"
+        />,
+      );
+
+      expect(screen.getByLabelText(/email/i)).toHaveValue('jane@example.com');
+      expect(screen.getByRole('button', { name: /save/i })).toBeEnabled();
+    });
+
+    it('re-seeds when it reopens for a different address', () => {
+      const { rerender } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="jane@example.com"
+        />,
+      );
+      rerender(
+        <ContactCreateDialog
+          isOpen={false}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="bob@example.com"
+        />,
+      );
+      rerender(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="bob@example.com"
+        />,
+      );
+
+      expect(screen.getByLabelText(/email/i)).toHaveValue('bob@example.com');
+    });
+
+    it('hands the new contact id to the caller', async () => {
+      const onCreated = vi.fn();
+      const { user } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="jane@example.com"
+          onCreated={onCreated}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(onCreated).toHaveBeenCalledWith('c1');
+      });
+    });
+
+    it('lets a caller resolve a duplicate instead of erroring', async () => {
+      mockMutateAsync.mockRejectedValueOnce(
+        new AppError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
+      );
+      const onCreated = vi.fn();
+      const onClose = vi.fn();
+      const { user } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={onClose}
+          organizationId="org-1"
+          initialEmail="jane@example.com"
+          onCreated={onCreated}
+          onDuplicateEmail={async () => 'c-existing'}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(onCreated).toHaveBeenCalledWith('c-existing');
+      });
+      expect(onClose).toHaveBeenCalled();
+      // The caller owns the message when it handles the duplicate.
+      expect(mockToast).not.toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive' }),
+      );
+    });
+
+    it('falls back to the duplicate error when the caller cannot resolve it', async () => {
+      mockMutateAsync.mockRejectedValueOnce(
+        new AppError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
+      );
+      const onCreated = vi.fn();
+      const { user } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+          initialEmail="jane@example.com"
+          onCreated={onCreated}
+          onDuplicateEmail={async () => null}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'destructive' }),
+        );
+      });
+      expect(onCreated).not.toHaveBeenCalled();
     });
   });
 

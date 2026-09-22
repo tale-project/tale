@@ -38,7 +38,9 @@ You need an Editor role or higher to maintain organization records. Open **Knowl
 2. Check **Locale**, which starts as `en`, and set the language appropriate to the contact.
 3. Choose **Save**. The new row appears in Contacts with its details and added date.
 
-If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate. Saving a contact creates a record; it does not send that person an email.
+You can also add a contact while writing to them. In the Inbox, choose **Compose** and type an address into **To**: if no contact carries it, the list offers **Add “…” as a contact**, which opens this same form with the **Email** already filled. Saving makes that contact the recipient, so you never leave the message you are writing.
+
+If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate; from **Compose**, Tale selects the existing contact for you. Saving a contact creates a record; it does not send that person an email.
 
 ## Create a product
 

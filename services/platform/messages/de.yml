@@ -1658,6 +1658,11 @@ conversations:
     searchContacts: Kontakte durchsuchen
     contactsLoading: Kontakte werden geladen…
     noContacts: Noch keine Kontakte mit E-Mail-Adresse
+    noContactsFound: Kein Kontakt passt zu „{query}“
+    noContactsFoundAddHint: Kein Kontakt passt zu „{query}“. Gib eine
+      vollständige E-Mail-Adresse ein, um einen neuen Kontakt hinzuzufügen.
+    addContact: „{email}“ als Kontakt hinzufügen
+    contactExistsSelected: Schon ein Kontakt — ausgewählt
     inboxLabel: Postfach
     inboxPlaceholder: Postfach auswählen
     fromLabel: Absender

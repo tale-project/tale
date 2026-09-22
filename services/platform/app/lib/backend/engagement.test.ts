@@ -6,6 +6,7 @@ import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import {
   engagementPaginatedAdapters,
   engagementReadAdapters,
+  engagementWriteAdapters,
   withConvexId,
 } from './engagement';
 
@@ -236,5 +237,84 @@ describe('knowledge entry versions', () => {
     );
 
     expect(await read('entry-2')?.queryFn()).toBeNull();
+  });
+});
+
+describe('contacts reads a picker depends on', () => {
+  const wireRow = {
+    id: 'c-1',
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+    createdAt: 1770000000000,
+    updatedAt: 1770003600000,
+  };
+
+  function listRead(args: Record<string, unknown>) {
+    return engagementReadAdapters['contacts/queries:listContacts']?.(args, ctx);
+  }
+
+  it('asks the door to narrow the page, and caches that answer under the term', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ items: [wireRow] })));
+
+    const adapter = listRead({ search: '  Ada@Example.com  ' });
+    await adapter?.queryFn();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('search=ada%40example.com'),
+      expect.anything(),
+    );
+    // Trimmed and lower-cased, because the door's filter is ILIKE: `Ada` and
+    // `ada` are one result set and belong in one cache entry.
+    expect(adapter?.queryKey).toContain('ada@example.com');
+    expect(listRead({})?.queryKey).not.toEqual(adapter?.queryKey);
+  });
+
+  it('asks for the whole first page when nothing was typed', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ items: [] })));
+
+    await listRead({ search: '   ' })?.queryFn();
+
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('search='),
+      expect.anything(),
+    );
+  });
+
+  it('reads one contact by id, shaped like a row of the listing', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ contact: wireRow })),
+    );
+
+    expect(
+      await engagementReadAdapters['contacts/queries:getContact']?.(
+        { contactId: 'c-1' },
+        ctx,
+      )?.queryFn(),
+    ).toEqual({
+      ...wireRow,
+      _id: 'c-1',
+      _creationTime: wireRow.createdAt,
+      lastUpdated: wireRow.updatedAt,
+    });
+  });
+
+  // The contract used to declare `{success, contactId}` here, which no caller
+  // read and the adapter never returned — a lie `useBackendMutation`'s cast
+  // could not catch. Anything reading `.contactId` off it would get undefined.
+  it('answers a create with the new id itself', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ contactId: 'c-new' })),
+    );
+
+    expect(
+      await engagementWriteAdapters['contacts/mutations:createContact']?.run(
+        { organizationId: 'org1', email: 'ada@example.com' },
+        ctx,
+      ),
+    ).toBe('c-new');
   });
 });

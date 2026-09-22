@@ -132,12 +132,31 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
   'contacts/queries:listContacts': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
+    // Lower-cased as well as trimmed: the door filters with ILIKE, so `Jane`
+    // and `jane` are the same result set and belong in one cache entry.
+    const search =
+      typeof args.search === 'string' ? args.search.trim().toLowerCase() : '';
+    const query = search === '' ? '' : `&search=${encodeURIComponent(search)}`;
     return {
-      queryKey: backendKey(orgId, 'contact', 'list'),
+      queryKey: backendKey(orgId, 'contact', 'list', search),
       queryFn: () =>
-        backendFetch<{ items: unknown[] }>(`/contacts?limit=${LIST_LIMIT}`, {
-          orgId,
-        }).then((body) => body.items.map(withRecordDates)),
+        backendFetch<{ items: unknown[] }>(
+          `/contacts?limit=${LIST_LIMIT}${query}`,
+          { orgId },
+        ).then((body) => body.items.map(withRecordDates)),
+    };
+  },
+  'contacts/queries:getContact': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const contactId = stringArg(args, 'contactId');
+    return {
+      queryKey: backendKey(orgId, 'contact', 'one', contactId),
+      queryFn: () =>
+        backendFetch<{ contact: unknown }>(
+          `/contacts/${encodeURIComponent(contactId)}`,
+          { orgId },
+        ).then((body) => withRecordDates(body.contact)),
     };
   },
   'knowledge_entries/queries:approxCountKnowledgeEntries': (args, ctx) => {
