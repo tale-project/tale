@@ -67,7 +67,7 @@ function deriveDraft(policy: ModerationPolicy): ModerationDraft {
   const config = parsed.data;
   const shape = config.responseShape;
   return {
-    enabled: policy.enabled ?? config.enabled ?? false,
+    enabled: config.enabled ?? false,
     appliesToInput: config.appliesTo?.includes('input') ?? true,
     appliesToOutput: config.appliesTo?.includes('output') ?? false,
     url: config.endpoint?.url ?? '',

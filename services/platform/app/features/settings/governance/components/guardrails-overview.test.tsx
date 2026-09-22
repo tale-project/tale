@@ -20,7 +20,7 @@ vi.mock('@tale/ui/use-format-date', () => ({
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
-    policy: { enabled: false, config: {} } as
+    policy: { key: 'pii_config', config: { enabled: false } } as
       | Record<string, unknown>
       | undefined,
     events: [] as unknown[],
@@ -44,7 +44,12 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
 
 function setLoaded() {
   state.isLoading = false;
-  state.policy = { enabled: false, config: {} };
+  state.policy = { key: 'pii_config', config: { enabled: false } };
+  state.events = [];
+}
+function setEnabledOnServer() {
+  state.isLoading = false;
+  state.policy = { key: 'pii_config', config: { enabled: true } };
   state.events = [];
 }
 function setLoading() {
@@ -82,6 +87,16 @@ describe('GuardrailsOverview', () => {
       setLoaded();
       render(<GuardrailsOverview organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    // The status cards read the on/off flag from `config.enabled` — the only
+    // place the app door carries it. Reading a policy-level `enabled` showed
+    // every card "Off" for policies the server had enabled.
+    it('reports a policy the server has enabled as On', () => {
+      setEnabledOnServer();
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(screen.getAllByText('On')).toHaveLength(3);
+      expect(screen.queryByText('Off')).not.toBeInTheDocument();
     });
 
     it('shows lean status cards with jump links and no instructional body copy', () => {

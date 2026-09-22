@@ -88,7 +88,7 @@ function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
   if (!parsed.success) return DEFAULT_DRAFT;
   const config = parsed.data;
   return {
-    enabled: policy.enabled ?? config.enabled ?? false,
+    enabled: config.enabled ?? false,
     maskReplacement: config.maskReplacement ?? '[BLOCKED]',
     appliesToInput: config.appliesTo?.includes('input') ?? true,
     appliesToOutput: config.appliesTo?.includes('output') ?? false,
