@@ -212,7 +212,12 @@ export function LanguageSwitcher({
           {BASE_LOCALES.map((code, index) => {
             const isActive = code === currentLocale;
             return (
-              <li key={code}>
+              // `role="none"` strips the list semantics the `menu` role
+              // forbids between it and its `menuitem`s — without it the
+              // <li> sits in the a11y tree as a listitem inside a menu and
+              // every item loses its required parent (axe:
+              // aria-required-children / aria-required-parent / listitem).
+              <li key={code} role="none">
                 <button
                   ref={(el) => {
                     itemRefs.current[index] = el;

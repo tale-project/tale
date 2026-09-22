@@ -203,7 +203,10 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
             const Icon = ICONS[option];
             const isActive = theme === option;
             return (
-              <li key={option}>
+              // `role="none"`: see the note in `language-switcher.tsx` —
+              // a listitem between `menu` and `menuitemradio` breaks the
+              // required parent/child pairing.
+              <li key={option} role="none">
                 <button
                   type="button"
                   role="menuitemradio"
