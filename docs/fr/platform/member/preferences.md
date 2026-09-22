@@ -31,23 +31,21 @@ Pour restreindre une liste à certains travaux, utilise son filtre **Équipes** 
 
 Les propriétaires et les admins gèrent les membres dans [Équipes](/fr/platform/admin/teams) ; la section y renvoie pour eux.
 
-## Comprendre la page Personnalisation
+## Définir des instructions personnalisées pour l’assistant de chat
 
-Ouvre **Paramètres > Personnalisation** pour consulter **Instructions personnalisées** et **Souvenirs**. Les interrupteurs peuvent suivre les valeurs de l’organisation ou enregistrer un choix personnel. Les instructions enregistrées et les listes de souvenirs appartiennent à tes préférences.
+Ouvre **Paramètres > Personnalisation**. Les **Instructions personnalisées** sont des instructions permanentes que l’assistant de chat suit dans chacune de ses réponses, par exemple un ton préféré, un langage de programmation par défaut ou le niveau de détail souhaité. L’interrupteur peut suivre la valeur par défaut de l’organisation ou enregistrer ton propre choix ; l’indication située en dessous précise ce qui s’applique. Le champ de texte apparaît tant que la fonction est activée. Saisis tes instructions, puis clique sur **Enregistrer** dans l’en-tête de la page.
 
-<Frame caption="La page Personnalisation contient les instructions personnelles enregistrées et les commandes des souvenirs.">
+<Frame caption="La page Personnalisation contient tes instructions personnalisées et l’interrupteur qui les active.">
 
-![La page Personnalisation affiche un éditeur d’instructions personnalisées et une section Souvenirs avec les suggestions en attente et les entrées enregistrées.](/images/platform/settings-preferences.webp)
+![La page Personnalisation affiche l’interrupteur des instructions personnalisées et son champ de texte.](/images/platform/settings-preferences.webp)
 
 </Frame>
 
 <Note>
 
-L’assistant de chat actuel n’utilise ni ces instructions personnelles ni les outils de souvenirs dans ses réponses. Enregistrer une préférence ici ne donne donc pas de contexte durable au chat. Écris la contrainte dans ton message ou utilise **Général > Instructions** dans le projet pour un contexte commun à ses chats.
+Tes instructions ne remplacent jamais les instructions obligatoires de l’organisation ni **Général > Instructions** d’un projet ; en cas de conflit, celles-ci prévalent. Désactiver l’interrupteur conserve le texte pour plus tard sans l’appliquer.
 
 </Note>
-
-Si des souvenirs existent déjà, examine les suggestions en attente et ne garde que les entrées souhaitées. Supprime un souvenir lorsqu’il ne doit plus être conservé. Sa présence dans la liste ne prouve pas qu’un chat l’a consulté.
 
 ## Consulter tes limites d’utilisation {#usage-limits}
 

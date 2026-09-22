@@ -31,23 +31,21 @@ Um eine Liste auf bestimmte Arbeit einzugrenzen, nutze ihren Filter **Teams**: *
 
 Inhaber und Admins verwalten die Mitgliedschaften unter [Teams](/de/platform/admin/teams); der Abschnitt verlinkt für sie dorthin.
 
-## Die Personalisierung einordnen
+## Benutzerdefinierte Anweisungen für den Chat-Assistenten festlegen
 
-Unter **Einstellungen > Personalisierung** stehen **Benutzerdefinierte Anweisungen** und **Erinnerungen**. Die Schalter können dem Organisationsstandard folgen oder eine persönliche Auswahl speichern. Gespeicherte Anweisungen und Erinnerungslisten gehören zu deinen Einstellungen.
+Öffne **Einstellungen > Personalisierung**. **Benutzerdefinierte Anweisungen** sind feste Anweisungen, die der Chat-Assistent in jeder Antwort an dich befolgt, etwa ein bevorzugter Ton, eine Standard-Programmiersprache oder wie ausführlich du Antworten möchtest. Der Schalter kann dem Organisationsstandard folgen oder deine eigene Wahl speichern; der Hinweis darunter sagt, was gerade gilt. Das Textfeld erscheint, solange die Funktion aktiv ist. Gib deine Anweisungen ein und klicke in der Kopfzeile auf **Speichern**.
 
-<Frame caption="Die Personalisierung enthält gespeicherte persönliche Anweisungen und die Verwaltung von Erinnerungen.">
+<Frame caption="Die Personalisierung enthält deine benutzerdefinierten Anweisungen und den Schalter, der sie aktiviert.">
 
-![Die Seite Personalisierung zeigt einen Editor für benutzerdefinierte Anweisungen und einen Erinnerungsbereich mit ausstehenden und gespeicherten Einträgen.](/images/platform/settings-preferences.webp)
+![Die Seite Personalisierung zeigt den Schalter für benutzerdefinierte Anweisungen und das zugehörige Textfeld.](/images/platform/settings-preferences.webp)
 
 </Frame>
 
 <Note>
 
-Der aktuelle Chat-Assistent verwendet diese persönlichen Anweisungen und Erinnerungswerkzeuge nicht für seine Antworten. Eine gespeicherte Einstellung gibt dem Chat deshalb keinen dauerhaften Kontext. Schreibe Anforderungen in deine Nachricht oder nutze **Allgemein > Anweisungen** im Projekt für Kontext, der in dessen Chats gelten soll.
+Deine Anweisungen überschreiben weder die verbindlichen Anweisungen der Organisation noch **Allgemein > Anweisungen** eines Projekts; bei einem Widerspruch haben diese Vorrang. Schaltest du die Funktion aus, bleibt der Text für später erhalten, ohne angewendet zu werden.
 
 </Note>
-
-Falls bereits Erinnerungen vorhanden sind, prüfe ausstehende Vorschläge und behalte nur die gewünschten Einträge. Lösche gespeicherte Einträge, die nicht länger aufbewahrt werden sollen. Ein vorhandener Eintrag belegt nicht, dass ein Chat ihn gelesen hat.
 
 ## Nutzungslimits prüfen {#usage-limits}
 

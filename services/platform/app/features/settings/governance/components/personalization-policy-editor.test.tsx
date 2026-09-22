@@ -83,14 +83,16 @@ describe('PersonalizationPolicyEditor', () => {
     it('renders the real switches (in the a11y tree)', () => {
       setLoaded();
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
-      // One switch per personalization policy toggle.
-      expect(screen.getAllByRole('switch')).toHaveLength(2);
+      // The one personalization policy the app offers a default for: custom
+      // instructions. Memories have no switch while the feature is undecided.
+      expect(screen.getAllByRole('switch')).toHaveLength(1);
+      expect(screen.queryByText(/memor/i)).not.toBeInTheDocument();
     });
 
-    it('renders the section headings (static text, always real)', () => {
+    it('renders the section heading (static text, always real)', () => {
       setLoaded();
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
-      expect(screen.getAllByRole('heading')).toHaveLength(2);
+      expect(screen.getAllByRole('heading')).toHaveLength(1);
     });
 
     it('is not marked busy once loaded', () => {
@@ -163,11 +165,11 @@ describe('PersonalizationPolicyEditor', () => {
   });
 
   describe('loading state (skeletonized)', () => {
-    it('exposes a busy/status region per toggle', () => {
+    it('exposes a busy/status region for the toggle', () => {
       setLoading();
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
       const regions = screen.getAllByRole('status');
-      expect(regions).toHaveLength(2);
+      expect(regions).toHaveLength(1);
       for (const region of regions) {
         expect(region).toHaveAttribute('aria-busy', 'true');
       }
@@ -180,10 +182,10 @@ describe('PersonalizationPolicyEditor', () => {
       expect(screen.queryAllByRole('switch')).toHaveLength(0);
     });
 
-    it('keeps the real section headings while loading (no gray bars)', () => {
+    it('keeps the real section heading while loading (no gray bars)', () => {
       setLoading();
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
-      expect(screen.getAllByRole('heading')).toHaveLength(2);
+      expect(screen.getAllByRole('heading')).toHaveLength(1);
     });
   });
 });

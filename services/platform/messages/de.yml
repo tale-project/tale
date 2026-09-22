@@ -3071,11 +3071,6 @@ governance:
       description: Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle
         Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich
         explizit dagegen entscheiden, behalten ihre Wahl.
-    memories:
-      title: Erinnerungs-Standard
-      description: Wenn aktiviert, sind Erinnerungen für alle Mitglieder dieser
-        Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen
-        entscheiden, behalten ihre Wahl.
   pii:
     title: PII-Schutz
     description: Personenbezogene Daten erkennen und maskieren oder blockieren,
@@ -4187,7 +4182,7 @@ metadata:
     description: deine Kontoeinstellungen verwalten.
   personalization:
     title: Personalisierung
-    description: Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken.
+    description: Feste Anweisungen, die der Chat-Assistent für dich befolgt.
   notificationPreferences:
     title: Benachrichtigungen
     description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
@@ -4484,33 +4479,15 @@ personalization:
       overridingOrgDefault: Überschreibt den Organisations-Standard ({state}).
     customInstructionsToggle:
       label: Benutzerdefinierte Anweisungen
-      description: "Speichere Einstellungen für dein Konto. Chatantworten nutzen diese Anweisungen derzeit nicht. Für Projektchats gelten die Anweisungen des Projekts."
-    memoriesToggle:
-      label: Erinnerungen
-      description: "Verwalte gespeicherte Erinnerungen für dein Konto. Der Chat-Assistent speichert oder lädt Erinnerungen derzeit nicht automatisch."
+      description: "Feste Anweisungen, die der Chat-Assistent in jeder Antwort an dich befolgt. In einem Projektchat gelten sie zusätzlich zu den Anweisungen des Projekts."
     customInstructions:
       title: Benutzerdefinierte Anweisungen
       placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
-    memories:
-      title: Gespeicherte Erinnerungen
-      empty: "Keine gespeicherten Erinnerungen."
-      delete: Löschen
-      deleteLabel: 'Erinnerung löschen: {content}'
-    pending:
-      title: Ausstehende Vorschläge
-      empty: Keine ausstehenden Vorschläge.
-      save: Speichern
-      saveLabel: 'Vorschlag speichern: {content}'
-      discard: Verwerfen
-      discardLabel: 'Vorschlag verwerfen: {content}'
   errors:
     saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
-    memorySaved: Erinnerung gespeichert.
-    memoryDiscarded: Vorschlag verworfen.
-    memoryDeleted: Erinnerung gelöscht.
 piiConfigPanel:
   modeLabel: Modus
   modeTokenize: Tokenisieren

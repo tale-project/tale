@@ -13,7 +13,12 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
-type PolicyType = 'custom_instructions' | 'user_memories';
+// The org default for the one personalization feature the app offers. The
+// `user_memories` policy still exists in the governance schema (a policy file
+// an org may carry), but no switch reads it while chat memories stay an open
+// product decision — offering a default for a feature nobody can turn on
+// would be a promise the app cannot keep.
+type PolicyType = 'custom_instructions';
 
 interface PersonalizationPolicyToggleProps {
   organizationId: string;
@@ -93,7 +98,7 @@ function PersonalizationPolicyToggle({
     <Skeletonize loading={isLoading} label={t(titleKey)}>
       <SettingsSection
         // Always a later chapter on Policies & limits (after Budgets / Upload /
-        // Retention / Feature flags) — both toggles get the shared divider.
+        // Retention / Feature flags) — the toggle gets the shared divider.
         title={t(titleKey)}
         description={t(descriptionKey)}
         action={
@@ -117,19 +122,11 @@ export function PersonalizationPolicyEditor({
   organizationId,
 }: PersonalizationPolicyEditorProps) {
   return (
-    <>
-      <PersonalizationPolicyToggle
-        organizationId={organizationId}
-        policyType="custom_instructions"
-        titleKey="personalization.customInstructions.title"
-        descriptionKey="personalization.customInstructions.description"
-      />
-      <PersonalizationPolicyToggle
-        organizationId={organizationId}
-        policyType="user_memories"
-        titleKey="personalization.memories.title"
-        descriptionKey="personalization.memories.description"
-      />
-    </>
+    <PersonalizationPolicyToggle
+      organizationId={organizationId}
+      policyType="custom_instructions"
+      titleKey="personalization.customInstructions.title"
+      descriptionKey="personalization.customInstructions.description"
+    />
   );
 }

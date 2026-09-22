@@ -16,7 +16,6 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 let preferences: {
   customInstructions?: string;
   customInstructionsEnabled?: boolean;
-  memoriesEnabled?: boolean;
 } | null = null;
 let policyEnabled = false;
 
@@ -32,33 +31,14 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
 }));
 
 const setCustomInstructionsEnabled = vi.fn().mockResolvedValue(undefined);
-const setMemoriesEnabled = vi.fn().mockResolvedValue(undefined);
 const upsert = vi.fn().mockResolvedValue(undefined);
-const reviewMemory = vi.fn().mockResolvedValue(true);
-const deleteMemory = vi.fn().mockResolvedValue(true);
 
 vi.mock('../hooks/mutations', () => ({
   useSetCustomInstructionsEnabled: () => ({
     mutateAsync: setCustomInstructionsEnabled,
     isPending: false,
   }),
-  useSetMemoriesEnabled: () => ({
-    mutateAsync: setMemoriesEnabled,
-    isPending: false,
-  }),
   useUpsertMyPreferences: () => ({ mutateAsync: upsert, isPending: false }),
-  useReviewMemory: () => ({ mutateAsync: reviewMemory, isPending: false }),
-  useDeleteMemory: () => ({ mutateAsync: deleteMemory, isPending: false }),
-}));
-
-// The memories read: a proposal waiting and a memory already saved.
-let memories: {
-  pending: { id: string; content: string }[];
-  approved: { id: string; content: string }[];
-} = { pending: [], approved: [] };
-
-vi.mock('@/app/features/chat/data/chat-backend', () => ({
-  useChatMemories: () => ({ status: 'ready', data: memories }),
 }));
 
 import { PreferencesSettings } from './preferences-settings';
@@ -70,17 +50,17 @@ function renderPage() {
 beforeEach(() => {
   preferences = null;
   policyEnabled = false;
-  memories = { pending: [], approved: [] };
   vi.clearAllMocks();
 });
 
 describe('PreferencesSettings', () => {
-  it('offers no voice-output entry — reading aloud is a composer mode', () => {
-    preferences = { customInstructionsEnabled: true, memoriesEnabled: true };
+  it('offers exactly one switch — no voice output (a composer mode), no memories (undecided)', () => {
+    preferences = { customInstructionsEnabled: true };
     renderPage();
 
     expect(screen.queryByText(/voice output/i)).toBeNull();
-    expect(screen.getAllByRole('switch')).toHaveLength(2);
+    expect(screen.queryByText(/memor/i)).toBeNull();
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
   });
 
   it('renders the custom-instructions field inline under its own section', () => {
@@ -141,12 +121,14 @@ describe('PreferencesSettings', () => {
   });
 
   it('turns the feature on through its section switch', async () => {
-    preferences = { memoriesEnabled: false };
+    preferences = { customInstructionsEnabled: false };
     const { user } = renderPage();
 
-    await user.click(screen.getByRole('switch', { name: 'Memories' }));
+    await user.click(
+      screen.getByRole('switch', { name: 'Custom instructions' }),
+    );
 
-    expect(setMemoriesEnabled).toHaveBeenCalledWith({
+    expect(setCustomInstructionsEnabled).toHaveBeenCalledWith({
       organizationId: 'org-1',
       enabled: true,
     });
@@ -182,67 +164,10 @@ describe('PreferencesSettings', () => {
     });
   });
 
-  it('renders the memory lists inline under the memories section', () => {
-    preferences = { memoriesEnabled: true };
-    renderPage();
-
-    expect(screen.getByText('Pending suggestions')).toBeInTheDocument();
-    expect(screen.getAllByText('Saved memories').length).toBeGreaterThan(0);
-  });
-
-  it('saves or discards a pending suggestion — the person decides', async () => {
-    preferences = { memoriesEnabled: true };
-    memories = {
-      pending: [{ id: 'mem_1', content: 'Prefers metric units' }],
-      approved: [],
-    };
-    const { user } = renderPage();
-
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Save suggestion: Prefers metric units',
-      }),
-    );
-    expect(reviewMemory).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      memoryId: 'mem_1',
-      decision: 'approved',
-    });
-
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Discard suggestion: Prefers metric units',
-      }),
-    );
-    expect(reviewMemory).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      memoryId: 'mem_1',
-      decision: 'rejected',
-    });
-  });
-
-  it('deletes a saved memory from its row', async () => {
-    preferences = { memoriesEnabled: true };
-    memories = {
-      pending: [],
-      approved: [{ id: 'mem_2', content: 'Works in Berlin' }],
-    };
-    const { user } = renderPage();
-
-    await user.click(
-      screen.getByRole('button', { name: 'Delete memory: Works in Berlin' }),
-    );
-    expect(deleteMemory).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      memoryId: 'mem_2',
-    });
-  });
-
   it('passes an axe audit', async () => {
-    preferences = { customInstructionsEnabled: true, memoriesEnabled: true };
-    memories = {
-      pending: [{ id: 'mem_1', content: 'Prefers metric units' }],
-      approved: [{ id: 'mem_2', content: 'Works in Berlin' }],
+    preferences = {
+      customInstructionsEnabled: true,
+      customInstructions: 'Be terse.',
     };
     const { container } = renderPage();
     await waitFor(() => checkAccessibility(container));

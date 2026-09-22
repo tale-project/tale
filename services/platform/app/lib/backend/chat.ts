@@ -831,18 +831,6 @@ export async function transcribeDictationRequest(args: {
 
 // ------------------------------------------------------- chat satellites
 
-/** The caller's memories (pending + approved), the preferences page read. */
-export function chatMemoriesQuery(organizationId: string) {
-  return queryOptions({
-    queryKey: backendKey(organizationId, 'chat_memory', 'list'),
-    queryFn: ({ signal }) =>
-      backendFetch<{
-        pending: { id: string; content: string }[];
-        approved: { id: string; content: string }[];
-      }>('/chat/memories', { signal, orgId: organizationId }),
-  });
-}
-
 /** The caller's per-org preferences row (chat model default, etc.). */
 export function myPreferencesQuery(organizationId: string) {
   return queryOptions({
