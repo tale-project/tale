@@ -422,6 +422,9 @@ export async function ingestEmails(
     connectorSlug: string;
     emails: unknown;
     accountEmail?: string;
+    /** The credential this batch was fetched with, so each message records
+     *  the mailbox that carried it. */
+    credentialId?: string;
     status?: 'open' | 'closed' | 'archived' | 'spam';
   },
 ): Promise<IngestOutcome> {
@@ -429,6 +432,9 @@ export async function ingestEmails(
     organizationId: args.organizationId,
     emails: args.emails,
     connectorName: args.connectorSlug,
+    ...(args.credentialId !== undefined
+      ? { credentialId: args.credentialId }
+      : {}),
     ...(args.accountEmail !== undefined
       ? { accountEmail: args.accountEmail }
       : {}),
@@ -444,6 +450,8 @@ export async function ingestSentEmails(
     connectorSlug: string;
     emails: unknown;
     accountEmail?: string;
+    /** The credential this batch was fetched with. */
+    credentialId?: string;
     status?: 'open' | 'closed' | 'archived' | 'spam';
   },
 ): Promise<IngestOutcome> {
@@ -451,6 +459,9 @@ export async function ingestSentEmails(
     organizationId: args.organizationId,
     emails: args.emails,
     connectorName: args.connectorSlug,
+    ...(args.credentialId !== undefined
+      ? { credentialId: args.credentialId }
+      : {}),
     ...(args.accountEmail !== undefined
       ? { accountEmail: args.accountEmail }
       : {}),
@@ -597,6 +608,9 @@ async function syncOneMailbox(
     emails: inboundEmails,
     status: 'open',
     ...(accountEmail !== undefined ? { accountEmail } : {}),
+    ...(args.credentialRef !== undefined
+      ? { credentialId: args.credentialRef }
+      : {}),
   });
 
   let listed = inboundListed.length;
@@ -631,6 +645,9 @@ async function syncOneMailbox(
       emails: sentEmails,
       status: 'open',
       ...(accountEmail !== undefined ? { accountEmail } : {}),
+      ...(args.credentialRef !== undefined
+        ? { credentialId: args.credentialRef }
+        : {}),
     });
     // Advance the outbound watermark to the newest sent message this pass
     // INGESTED, not the newest it fetched — the fetch may carry more than one

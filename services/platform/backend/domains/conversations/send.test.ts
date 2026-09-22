@@ -39,6 +39,7 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 import {
   composeEmailConversation,
   discardOutboundMessage,
+  replyToConversation,
   resolveSentExternalMessageId,
   runSendMessageJob,
   undoSendMessage,
@@ -57,6 +58,7 @@ const QUEUED_ROW: ConversationMessageRow = {
   deliveryState: 'queued',
   retryCount: null,
   connectorName: 'imap-smtp',
+  credentialId: null,
   content: 'On its way.',
   sentAt: null,
   deliveredAt: null,
@@ -462,5 +464,129 @@ describe('resolveSentExternalMessageId', () => {
     });
     expect(id).toBe('sent-7@mail.example.com');
     expect(runConnectorAction).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Which MAILBOX a reply leaves from.
+ *
+ * `connector_name` names the connector, never the account, and an
+ * organization may hold several credentials on one connector. Without a
+ * credential on the run the resolver falls through to the connector's
+ * `is_default`, so a thread received on one mailbox could be answered from
+ * another. The reply carries the credential recorded on the newest inbound
+ * message; a thread with none keeps the old default-credential behaviour.
+ */
+describe('replyToConversation — the mailbox', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const CONVERSATION = 'FROM app.conversations c';
+  const CONVERSATION_ROW = 'FROM app.conversations WHERE id';
+  const CARRIED = 'AND credential_id IS NOT NULL';
+  /** The row `sendMessageViaConnectorInTx` re-reads inside the transaction. */
+  const ROW = { id: 'c1', organizationId: 'o1', metadata: null };
+  const EMAIL_ROW = {
+    organizationId: 'o1',
+    connectorName: 'imap-smtp',
+    channel: 'email',
+    subject: 'Order 42',
+    contactEmail: 'carla@ext.test',
+  };
+  const REPLY = {
+    conversationId: 'c1',
+    organizationId: 'o1',
+    content: '<p>On its way.</p>',
+    actor: { userId: 'u1' },
+  };
+
+  function insertedCredential(statements: Statement[]): unknown {
+    const insert = statements.find((st) =>
+      st.text.includes('INSERT INTO app.conversation_messages'),
+    );
+    // `credential_id` is the 4th bound value on the outbound insert:
+    // org, conversation, connector_name, credential_id.
+    return insert?.values[3];
+  }
+
+  it('replies through the mailbox the newest inbound message recorded', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [{ credentialId: 'cred-b' }],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBe('cred-b');
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ credentialId: 'cred-b' });
+  });
+
+  it('falls back to the default credential when no message recorded one', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBeNull();
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).not.toHaveProperty('credentialId');
+  });
+
+  it('asks only for INBOUND credentials — an outbound row names where we sent, not where they wrote', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [{ credentialId: 'cred-b' }],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    const lookup = statements.find((st) => st.text.includes(CARRIED));
+    expect(lookup?.text).toContain("direction = 'inbound'");
+  });
+});
+
+describe('runSendMessageJob — the credential', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sends through the recorded credential rather than the connector default', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+
+    await runSendMessageJob(sql, { ...JOB_PAYLOAD, credentialId: 'cred-b' });
+
+    expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
+      credentialRef: 'cred-b',
+    });
+  });
+
+  it('leaves the credential unset when the payload carries none', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty(
+      'credentialRef',
+    );
   });
 });

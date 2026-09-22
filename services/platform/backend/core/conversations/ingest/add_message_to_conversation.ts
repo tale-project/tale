@@ -19,6 +19,9 @@ export async function addMessageToConversation(
   isCustomer: boolean,
   status: 'delivered' | 'sent',
   connectorName?: string,
+  /** The mailbox this arrived at — the sync fans out one credential at a
+   *  time, so it knows; other callers do not and leave it unset. */
+  credentialId?: string,
 ) {
   const attachments = attachmentsForMetadata(email.attachments);
 
@@ -36,6 +39,7 @@ export async function addMessageToConversation(
       ...emailStamps(email.date, status === 'delivered'),
       ...(attachments?.length ? { attachments } : {}),
       ...(connectorName ? { connectorName } : {}),
+      ...(credentialId ? { credentialId } : {}),
     },
   );
 }

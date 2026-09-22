@@ -14,6 +14,7 @@ export function buildInitialMessage(
   isCustomer: boolean,
   status: 'delivered' | 'sent',
   connectorName?: string,
+  credentialId?: string,
 ) {
   const attachments = attachmentsForMetadata(email.attachments);
 
@@ -27,5 +28,6 @@ export function buildInitialMessage(
     ...emailStamps(email.date, status === 'delivered'),
     ...(attachments?.length ? { attachments } : {}),
     ...(connectorName ? { connectorName } : {}),
+    ...(credentialId ? { credentialId } : {}),
   };
 }

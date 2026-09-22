@@ -91,6 +91,8 @@ export async function createConversationFromEmail(
     type?: string;
     accountEmail?: string; // Fallback when emails lack direction field
     connectorName?: string;
+    /** The mailbox this batch was fetched from. */
+    credentialId?: string;
   },
 ) {
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
@@ -246,6 +248,7 @@ export async function createConversationFromEmail(
         isCustomer,
         'delivered',
         params.connectorName,
+        params.credentialId,
       );
 
       lastConversationId = targetConversationId;
@@ -305,6 +308,7 @@ export async function createConversationFromEmail(
           isFromCustomer,
           'delivered',
           params.connectorName,
+          params.credentialId,
         ),
         ...(params.connectorName
           ? { connectorName: params.connectorName }

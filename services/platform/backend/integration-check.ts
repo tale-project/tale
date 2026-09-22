@@ -23146,6 +23146,117 @@ async function checkConnectorCredentials(
  * bulk status verbs with the 0.4 metadata stamps, read-marker, and the
  * cascade delete.
  */
+/**
+ * Which MAILBOX a reply leaves from (migration 0113).
+ *
+ * `connector_name` names the connector, never the account, and an
+ * organization may hold several credentials on one connector. Before 0113 the
+ * send resolved no credential and fell through to the connector's
+ * `is_default`, so a thread received on mailbox B could be answered from
+ * mailbox A. Each message now records the credential that carried it.
+ *
+ * Also proves the FK degrades rather than destroys: removing a mailbox must
+ * keep the correspondence that came through it, with the message falling back
+ * to the default-credential behaviour it had before the column existed.
+ */
+async function checkConversationReplyMailbox(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+
+  const credential = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.connector_credentials (
+        org_id, connector_slug, auth_method, name, encrypted_data, status,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, 'imap-smtp', 'basic', ${name}, ${sql.json({})}, 'active',
+        'itest', ${Date.now()}, ${Date.now()}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const mailboxA = await credential('mailbox-a');
+  const mailboxB = await credential('mailbox-b');
+
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Mailbox Customer', 'mailbox-customer@inbox.test',
+            'api_import', ${Date.now()}, ${Date.now()})
+    RETURNING id
+  `;
+  const conversationId = await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      contactId: contactRows[0]?.id ?? '',
+      subject: 'Two mailboxes, one connector',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    }),
+  );
+  // Older mail on A, newer on B: the reply must follow where they write NOW.
+  for (const [credentialId, at] of [
+    [mailboxA, Date.now() - 60_000],
+    [mailboxB, Date.now() - 1_000],
+  ] as const) {
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'customer@inbox.test',
+        content: 'Where is my order?',
+        isCustomer: true,
+        connectorName: 'imap-smtp',
+        credentialId,
+        sentAt: at,
+      }),
+    );
+  }
+
+  // Drive the REAL reply path, not a copy of its query: a change to
+  // `replyToConversation` must be able to fail this.
+  const { replyToConversation } =
+    await import('./domains/conversations/send.ts');
+  const replyId = await replyToConversation(sql, {
+    conversationId,
+    organizationId: orgId,
+    content: '<p>On its way.</p>',
+    actor: { userId: 'itest-user' },
+  });
+  const queued = await sql<{ credentialId: string | null }[]>`
+    SELECT credential_id AS "credentialId"
+    FROM app.conversation_messages WHERE id = ${replyId}
+  `;
+  record(
+    'conversation reply mailbox — newest inbound credential wins',
+    queued[0]?.credentialId === mailboxB,
+    `queued reply carries=${queued[0]?.credentialId ?? 'none'} ` +
+      `(want mailbox-b ${mailboxB}, not mailbox-a ${mailboxA})`,
+  );
+
+  // Removing the mailbox keeps the mail and degrades to the default.
+  await sql`DELETE FROM app.connector_credentials WHERE id = ${mailboxB}`;
+  const survivors = await sql<{ id: string; credentialId: string | null }[]>`
+    SELECT id, credential_id AS "credentialId"
+    FROM app.conversation_messages
+    WHERE conversation_id = ${conversationId}
+  `;
+  // Two inbound plus the queued reply; deleting mailbox B nulls the inbound
+  // row it carried AND the reply it was about to leave through.
+  const orphaned = survivors.filter((m) => m.credentialId === null).length;
+  record(
+    'conversation reply mailbox — deleting a mailbox keeps its mail',
+    survivors.length === 3 && orphaned === 2,
+    `messages=${survivors.length} (want 3), nulled=${orphaned} (want 2)`,
+  );
+}
+
 async function checkConversations(
   sql: Sql,
   base: string,
@@ -52104,6 +52215,10 @@ async function main(): Promise<void> {
       [
         'checkWorkflowTurnReattach',
         () => checkWorkflowTurnReattach(sql, authCtx),
+      ],
+      [
+        'checkConversationReplyMailbox',
+        () => checkConversationReplyMailbox(sql, { orgId: authCtx.orgId }),
       ],
       [
         'checkNativeIdentity',

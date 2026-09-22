@@ -162,6 +162,10 @@ export interface TaskPayloads {
     organizationId: string;
     messageId: string;
     connectorName: string;
+    /** The credential that received the thread, so the reply leaves from the
+     *  same mailbox. Absent for a thread whose messages predate 0113, which
+     *  falls back to the connector's default credential. */
+    credentialId?: string;
     to: string[];
     cc?: string[];
     subject: string;

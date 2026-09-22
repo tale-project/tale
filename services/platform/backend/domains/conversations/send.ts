@@ -179,6 +179,9 @@ export interface SendMessageViaConnectorArgs {
   conversationId: string;
   organizationId: string;
   connectorName: string;
+  /** The mailbox to send through. Unset falls back to the connector's
+   *  default credential, which is what every send did before 0113. */
+  credentialId?: string;
   content: string;
   to: string[];
   cc?: string[];
@@ -282,12 +285,14 @@ export async function sendMessageViaConnectorInTx(
 
   const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.conversation_messages (
-        org_id, conversation_id, connector_name, channel, direction,
+        org_id, conversation_id, connector_name, credential_id, channel,
+        direction,
         delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
         created_at_ms, status_changed_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.conversationId},
-        ${args.connectorName}, 'email', 'outbound', 'queued',
+        ${args.connectorName}, ${args.credentialId ?? null},
+        'email', 'outbound', 'queued',
         ${args.content}, ${now}, ${now},
         ${tx.json(toJson(messageMetadata))}, ${now}, ${now}
       )
@@ -304,6 +309,9 @@ export async function sendMessageViaConnectorInTx(
       organizationId: args.organizationId,
       messageId,
       connectorName: args.connectorName,
+      ...(args.credentialId !== undefined
+        ? { credentialId: args.credentialId }
+        : {}),
       to: args.to,
       ...(args.cc !== undefined ? { cc: args.cc } : {}),
       subject: args.subject,
@@ -458,12 +466,32 @@ export async function replyToConversation(
       409,
     );
   }
+  // Reply from the mailbox that received the thread. `connector_name` names
+  // only the connector, and an organization may hold several credentials on
+  // one connector, so without this the send resolves the `is_default`
+  // credential and can answer from a mailbox the customer never wrote to.
+  // The newest inbound message wins: a thread moved to another mailbox
+  // should reply from where it now arrives. Absent on threads whose messages
+  // predate 0113, which keep the default-credential behaviour.
+  const carried = await sql<{ credentialId: string | null }[]>`
+    SELECT credential_id AS "credentialId"
+    FROM app.conversation_messages
+    WHERE conversation_id = ${args.conversationId}
+      AND org_id = ${args.organizationId}
+      AND direction = 'inbound'
+      AND credential_id IS NOT NULL
+    ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC, seq DESC
+    LIMIT 1
+  `;
+  const credentialId = carried[0]?.credentialId ?? undefined;
+
   const subject = buildReplySubject(row.subject ?? undefined);
   const { html, text } = splitHtmlText(args.content);
   return sendMessageViaConnector(sql, {
     conversationId: args.conversationId,
     organizationId: args.organizationId,
     connectorName: row.connectorName,
+    ...(credentialId !== undefined ? { credentialId } : {}),
     content: args.content,
     to: [row.contactEmail],
     subject,
@@ -1149,6 +1177,12 @@ export async function runSendMessageJob(
       action,
       input,
       mode: 'live',
+      // Without this the resolver falls through to the connector's
+      // `is_default` credential, so a thread received on one mailbox could be
+      // answered from another.
+      ...(payload.credentialId !== undefined
+        ? { credentialRef: payload.credentialId }
+        : {}),
       caller: { kind: 'system', reason: 'conversation email reply' },
     });
     if (result.status !== 'ok') {

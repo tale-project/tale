@@ -93,6 +93,9 @@ export interface ConversationMessageRow {
   deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
   retryCount: number | null;
   connectorName: string | null;
+  /** The credential that carried this message; NULL for rows stamped before
+   *  0113, which resolve through the connector's default credential. */
+  credentialId: string | null;
   content: string;
   sentAt: number | null;
   deliveredAt: number | null;
@@ -104,7 +107,8 @@ export const MESSAGE_COLUMNS = `
   id, org_id AS "organizationId", conversation_id AS "conversationId",
   channel, direction, external_message_id AS "externalMessageId",
   delivery_state AS "deliveryState", retry_count AS "retryCount",
-  connector_name AS "connectorName", content,
+  connector_name AS "connectorName", credential_id AS "credentialId",
+  content,
   sent_at_ms::float8 AS "sentAt", delivered_at_ms::float8 AS "deliveredAt",
   metadata, created_at_ms::float8 AS "createdAt"
 `;
@@ -257,6 +261,9 @@ export interface AddMessageArgs {
   sentAt?: number;
   deliveredAt?: number;
   connectorName?: string;
+  /** The credential this message came through, when the caller knows it —
+   *  the mail sync does, because it fans out one credential at a time. */
+  credentialId?: string;
 }
 
 const DELIVERY_STATES = new Set(['queued', 'sent', 'delivered', 'failed']);
@@ -318,13 +325,15 @@ export async function addMessageToConversation(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.conversation_messages (
       org_id, conversation_id, channel, direction, external_message_id,
-      delivery_state, connector_name, content, sent_at_ms, delivered_at_ms,
+      delivery_state, connector_name, credential_id, content,
+      sent_at_ms, delivered_at_ms,
       metadata, created_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.conversationId},
       ${conversation.channel ?? 'unknown'}, ${direction},
       ${args.externalMessageId ?? null}, ${deliveryState},
-      ${args.connectorName ?? null}, ${args.content},
+      ${args.connectorName ?? null}, ${args.credentialId ?? null},
+      ${args.content},
       ${args.sentAt ?? null}, ${deliveredAt ?? null},
       ${tx.json(toJson(messageMetadata))}, ${now}
     )
