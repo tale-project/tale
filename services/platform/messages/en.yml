@@ -5155,10 +5155,10 @@ settings:
       description: Archive your chats or move them to Trash in this organization.
       archiveAll: Archive all chats
       deleteAll: Delete all chats
-      archiveConfirm: 'Archive all your unarchived chats in this organization, including project chats. You can unarchive them later. Chats under legal hold stay unchanged.'
-      deleteConfirm: 'Move all your chats in this organization to Trash, including archived and project chats. They can be restored during the retention grace period. Chats under legal hold or with a running reply stay unchanged.'
-      result: 'Updated {changed} chats; {failed} could not be changed.'
-      failed: 'Could not update your chats. Try again.'
+      archiveConfirm: "Archive all your unarchived chats in this organization, including project chats. You can unarchive them later. Chats under legal hold stay unchanged."
+      deleteConfirm: "Move all your chats in this organization to Trash, including archived and project chats. They can be restored during the retention grace period. Chats under legal hold or with a running reply stay unchanged."
+      result: "Updated {changed} chats; {failed} could not be changed."
+      failed: "Could not update your chats. Try again."
   usage:
     limits:
       title: Usage limits
@@ -5374,9 +5374,9 @@ settings:
         '{connector} has no OAuth app to connect against yet. Configure one
         in the OAuth apps section below, then come back to connect.'
       oauthAppMissingDeployment:
-        "{connector} has no OAuth app to connect against yet. Its app is set
-        up by the deployment operator, not in this organization's OAuth apps
-        — ask your operator to configure it."
+        '{connector} has no OAuth app to connect against yet. Its app is set
+        up by the deployment operator, not in this organization''s OAuth apps
+        — ask your operator to configure it.'
     credential:
       disabled: Disabled
       needsReauth: Reconnect needed
@@ -5564,8 +5564,7 @@ settings:
       tokenFailed: Couldn't generate SCIM token
     trustedHeaders:
       section: Trusted headers
-      help:
-        Let an application that already signs its users in hand them into this
+      help: Let an application that already signs its users in hand them into this
         organization through its reverse proxy. On every hand-off the proxy
         presents one of the keys below together with the identity headers.
       enabled: Enabled
@@ -5573,16 +5572,13 @@ settings:
       toggleLabel: Accept sign-ins from a trusted proxy
       toggleHelp: Off refuses every key of this organization without revoking any of them.
       maxRoleLabel: Highest role a proxy may assert
-      maxRoleHelp:
-        The role header is capped at this role. Owner can never be asserted
+      maxRoleHelp: The role header is capped at this role. Owner can never be asserted
         through a proxy.
       endpointLabel: Hand-off URL
-      endpointHelp:
-        Point the proxy's sign-in at this address. It sends the key in the key
+      endpointHelp: Point the proxy's sign-in at this address. It sends the key in the key
         header, plus the identity headers.
       headersLabel: Header names
-      headersHelp:
-        The headers this deployment reads. The operator renames them with the
+      headersHelp: The headers this deployment reads. The operator renames them with the
         TRUSTED_*_HEADER variables.
       headerKey: Key
       headerEmail: Email
@@ -5590,8 +5586,7 @@ settings:
       headerRole: Role
       headerTeams: Teams
       keysTitle: Keys
-      keysHelp:
-        A key is shown once, when you create it. Revoking a key does not end the
+      keysHelp: A key is shown once, when you create it. Revoking a key does not end the
         sessions it started.
       noKeys: No keys yet. Create one and give it to the proxy.
       createKey: Create key
@@ -5602,20 +5597,17 @@ settings:
       keyCreatedSendAs: The label is the header the proxy sends it in on the hand-off request.
       revoke: Revoke
       revokeTitle: Revoke this key?
-      revokeDescription:
-        The proxy holding “{name}” can no longer sign anyone in. Sessions
+      revokeDescription: The proxy holding “{name}” can no longer sign anyone in. Sessions
         it already started stay signed in.
       revoked: Key revoked
       createdAt: Created
       lastUsed: Last used
       neverUsed: Never used
-      limitReached:
-        This organization holds the maximum of {max} keys. Revoke one to create
+      limitReached: This organization holds the maximum of {max} keys. Revoke one to create
         another.
     embedding:
       section: Embedding
-      help:
-        Let another web application show this organization's pages inside a frame.
+      help: Let another web application show this organization's pages inside a frame.
         Tale refuses every frame unless the surrounding page's origin is listed here.
       enabled: Enabled
       disabled: Disabled
@@ -5624,15 +5616,13 @@ settings:
       originsLabel: Allowed origins
       originsHelp: One origin per line, such as https://app.example.com. At most {max}.
       originsPlaceholder: https://app.example.com
-      invalidOrigin:
-        Enter https origins only, one per line. Plain http is accepted for
+      invalidOrigin: Enter https origins only, one per line. Plain http is accepted for
         localhost.
       tooMany: At most {max} origins.
       save: Save origins
       saved: Embedding settings saved
       saveFailed: Couldn't save the embedding settings
-      sameSiteNote:
-        A frame receives the signed-in session only when the surrounding page
+      sameSiteNote: A frame receives the signed-in session only when the surrounding page
         is on the same site as Tale, for example a subdomain of the host or Tale served
         through the host's own domain.
     disable: Disable sign-in
@@ -5976,8 +5966,8 @@ settings:
       resultValidTitle: Chain verified
       resultValidBody: '{count, plural, one {Checked # entry} other {Checked #
         entries}} — no tampering detected.'
-      truncatedNote: 'Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range.'
-      unsignedScrubNote: '{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history.'
+      truncatedNote: "Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range."
+      unsignedScrubNote: "{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history."
       brokenTitle: Chain integrity broken
       brokenBody:
         The hash chain does not match at the entry below. Preserve this
