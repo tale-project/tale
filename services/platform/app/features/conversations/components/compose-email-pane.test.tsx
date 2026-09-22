@@ -76,9 +76,14 @@ vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 
-function renderPane(role: string) {
+const abilities = {
+  admin: defineAbilityFor('admin'),
+  member: defineAbilityFor('member'),
+} as const;
+
+function renderPane(role: keyof typeof abilities) {
   return render(
-    <AbilityContext.Provider value={defineAbilityFor(role)}>
+    <AbilityContext.Provider value={abilities[role]}>
       <ComposeEmailPane organizationId="org-1" onClose={vi.fn()} />
     </AbilityContext.Provider>,
   );
