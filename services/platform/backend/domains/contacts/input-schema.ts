@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import { dataSourceSchema } from '../../../lib/shared/schemas/common.ts';
+import {
+  CONTACT_PHONE_PATTERN,
+  dataSourceSchema,
+} from '../../../lib/shared/schemas/common.ts';
 import { boundedJsonObject } from '../../../lib/shared/utils/json-bounds.ts';
 
 /**
@@ -44,6 +47,13 @@ export const contactEmailSchema = z
     `the part before "@" must be at most ${CONTACT_EMAIL_LOCAL_PART_MAX} characters`,
   );
 
+/** Digits and phone punctuation only (`+`, spaces, dashes, parentheses, dots). */
+export const contactPhoneSchema = z
+  .string()
+  .trim()
+  .max(CONTACT_PHONE_MAX)
+  .regex(CONTACT_PHONE_PATTERN);
+
 /** A blank string where a client means "none" (`email: ""` from a CSV-shaped
  * source) reads as the field left out, not as a malformed value. */
 const blankAsAbsent = (value: unknown): unknown =>
@@ -52,10 +62,7 @@ const blankAsAbsent = (value: unknown): unknown =>
 export const contactFieldsShape = {
   name: z.string().trim().max(CONTACT_NAME_MAX).nullable().optional(),
   email: z.preprocess(blankAsAbsent, contactEmailSchema.nullable().optional()),
-  phone: z.preprocess(
-    blankAsAbsent,
-    z.string().trim().max(CONTACT_PHONE_MAX).nullable().optional(),
-  ),
+  phone: z.preprocess(blankAsAbsent, contactPhoneSchema.nullable().optional()),
   externalId: z
     .union([z.string().trim().max(CONTACT_EXTERNAL_ID_MAX), z.int()])
     .nullable()

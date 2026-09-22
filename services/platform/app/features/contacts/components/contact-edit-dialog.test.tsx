@@ -109,6 +109,31 @@ describe('ContactEditDialog', () => {
     });
   });
 
+  it('strips letters from the phone field as they are typed', async () => {
+    const onClose = vi.fn();
+    const { user } = render(
+      <ContactEditDialog
+        contact={makeContact({ name: 'John' })}
+        isOpen={true}
+        onClose={onClose}
+      />,
+    );
+
+    const phoneInput = screen.getByDisplayValue('+1-555-0100');
+    await user.clear(phoneInput);
+    await user.type(phoneInput, '00kkkk');
+
+    expect(phoneInput).toHaveValue('00');
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '00' }),
+      );
+    });
+  });
+
   it('shows a visible, localized inline error when a required field is emptied', async () => {
     const onClose = vi.fn();
     const { user } = render(

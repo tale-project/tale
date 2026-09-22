@@ -58,8 +58,20 @@ export function ContactFormFields({
 
       <Input
         id="phone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
         label={tContacts('phone')}
-        {...register('phone')}
+        {...register('phone', {
+          // Keep the field typed as a phone number while still allowing the
+          // punctuation people paste (`+`, spaces, dashes, parentheses, dots).
+          onChange: (event) => {
+            event.target.value = event.target.value.replace(
+              /[^\d+().\s\-]/g,
+              '',
+            );
+          },
+        })}
         disabled={disabled}
         errorMessage={errors.phone?.message}
       />
