@@ -331,10 +331,6 @@ default means deleting the override and fixing what surfaces:
   refusing every delivery reads as never called (2026-09, round i). The reference says so.
   Paying it down means a `delivery_refused` skip reason stamped from the webhook door beside
   `start_refused`.
-- **MCP `run_deployed` keys its idempotency apart from `start_run` and REST** — one key shared
-  across them hard-fails `IDEMPOTENCY_KEY_REUSED` both ways and never answers the `duplicate`
-  marker its schema documents (2026-09, round i). Paying it down means one ledger namespace
-  for the three doors and the marker on the reply.
 - **A page is fetched three to four times a scan** — the plain probe, the render pass and, for
   the homepage, a create-time metadata probe. The robots parser now honours group selection by
   product token (`User-agent: TaleBot` > `*`), `Allow` with longest-match precedence, `$`

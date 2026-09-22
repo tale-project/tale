@@ -447,12 +447,17 @@ async function runDeployedDurably(
     await sleep(pollMs);
     run = await store.getRun(started.runId);
   }
+  // The ledger's answer rides every shape: a repeated key names the run the
+  // first attempt started and starts nothing — the caller must be able to
+  // tell that from a fresh start, as it can on start_run and REST.
+  const duplicate = started.duplicate === true ? { duplicate: true } : {};
   if (run?.finishedAt === undefined) {
     return {
       runId: started.runId,
       version: started.version,
       mode: 'live',
       status: run?.status ?? 'queued',
+      ...duplicate,
       note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId} for its status, output, trace and effects`,
     };
   }
@@ -461,6 +466,7 @@ async function runDeployedDurably(
     version: run.version,
     mode: 'live',
     status: run.status,
+    ...duplicate,
     ...(run.output !== undefined && { output: run.output }),
     ...(run.detail !== undefined && { error: { message: run.detail } }),
     trace: run.trace ?? [],
