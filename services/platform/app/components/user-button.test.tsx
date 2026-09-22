@@ -302,6 +302,19 @@ describe('UserButton', () => {
       return { ...result, menu };
     }
 
+    it('truncates the account name and email instead of overflowing the menu', async () => {
+      const { menu } = await openMenu();
+
+      // The menu is a fixed `w-64`; an unbreakable long name used to run past
+      // it with `text-overflow: clip` and no ellipsis (RESP-B3).
+      const [name] = within(menu).getAllByText('John Doe');
+      expect(name).toHaveClass('truncate');
+      expect(name?.parentElement).toHaveClass('truncate');
+      const [email] = within(menu).getAllByText('john@example.com');
+      expect(email).toHaveClass('truncate');
+      expect(email?.parentElement).toHaveClass('truncate');
+    });
+
     it('renders the account, preference, and session items', async () => {
       // The teams row renders once the caller's teams have loaded.
       mockTeams = { teams: TWO_TEAMS, isLoading: false };
