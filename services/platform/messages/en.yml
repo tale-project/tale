@@ -2277,7 +2277,6 @@ documents:
     toast:
       documentIdRequired: Document ID is required for retry
       indexingStarted: Indexing started
-      indexingQueued: Indexing queued
       retryFailed: Retry failed
       retryFailedDescription: Couldn't retry RAG indexing
       unexpectedError: Couldn't finish that action. Try again.

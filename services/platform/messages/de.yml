@@ -2368,7 +2368,6 @@ documents:
     toast:
       documentIdRequired: Dokument-ID ist für den erneuten Versuch erforderlich
       indexingStarted: Indexierung gestartet
-      indexingQueued: Indexierung in die Warteschlange gestellt
       retryFailed: Erneuter Versuch fehlgeschlagen
       retryFailedDescription: RAG-Indexierung konnte nicht erneut gestartet werden
       unexpectedError: Etwas ist schiefgelaufen
