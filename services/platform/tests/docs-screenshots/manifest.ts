@@ -921,16 +921,18 @@ export const SHOTS: readonly Shot[] = [
     sanitize: replaceRigOrigin,
   },
   {
-    // Settings > Preferences — the custom-instructions and memories sections,
-    // each with its own toggle over the org default: the per-user layer.
+    // Settings > Preferences — the custom-instructions section with its
+    // toggle over the org default: the per-user layer the chat prompt reads.
     name: 'settings-preferences',
     section: 'platform',
     route: '/dashboard/:orgId/settings/personalization',
-    // Gate on the Memories list's resolved empty state — the LAST thing on
-    // this page to settle: the memories query answers after the preferences
-    // do, and until it does the list reads "backend unavailable", not empty.
+    // Gate on the instructions field: it exists only once the preferences
+    // read has answered AND the feature is on (the seed turns it on and
+    // writes the text), so its presence is the page's settled state.
     readyWhen: (page) =>
-      page.getByText(t('personalization.page.memories.empty')).first(),
+      page.getByRole('textbox', {
+        name: t('personalization.page.customInstructions.title'),
+      }),
   },
   {
     // Settings > Usage — the reader's standing under every budget cap that

@@ -39,7 +39,6 @@ import { useCallback, useContext, useEffect, useMemo } from 'react';
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
   fileStatusesQuery,
-  chatMemoriesQuery,
   myPreferencesQuery,
   chatProjectsQuery,
   holdTargetsQuery,
@@ -172,8 +171,6 @@ const HTTP_READS: Record<
       String(args.organizationId),
       typeof args.threadId === 'string' ? args.threadId : undefined,
     ),
-  'chat/memories:listMemories': (args) =>
-    chatMemoriesQuery(String(args.organizationId)),
   'user_preferences/queries:getMyPreferences': (args) =>
     myPreferencesQuery(String(args.organizationId)),
   'projects/queries:listProjects': (args) =>
@@ -1129,15 +1126,4 @@ export function useThreadReasoningEffort(organizationId: string): {
   );
 
   return { available: true, save };
-}
-
-/**
- * The memories the preferences page reviews. `pending` are proposals the model
- * made via `memory.save`; `approved` are the ones the user accepted.
- */
-export function useChatMemories(organizationId: string): ChatQuery<{
-  readonly pending: readonly { id: string; content: string }[];
-  readonly approved: readonly { id: string; content: string }[];
-}> {
-  return useChatQuery('chat/memories:listMemories', { organizationId });
 }

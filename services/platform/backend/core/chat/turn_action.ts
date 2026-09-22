@@ -69,6 +69,7 @@ import {
   createChatToolExecutor,
   type ChatToolContext,
 } from './assistant_tools';
+import { readCustomInstructions } from './custom_instructions';
 import {
   buildTurnGuardrails,
   mandatoryInstructionsFor,
@@ -1214,6 +1215,14 @@ export async function executeTurn(
   // the system prompt. Read here so a policy file is one wall-clock slot,
   // not four serial ones.
   const pendingPolicies = settled(readTurnPolicies(ctx, args.organizationId));
+  // The person's own standing instructions, already gated by their toggle
+  // over the org default (a failed read degrades to none inside the helper).
+  const pendingCustomInstructions = settled(
+    readCustomInstructions(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    }),
+  );
 
   // Verdicts in the serial order the reads used to run, so refusal
   // precedence is unchanged. The model-access policy holds at the boundary,
@@ -1268,6 +1277,7 @@ export async function executeTurn(
   const resolved = unwrap(await pendingResolved);
   const policies = unwrap(await pendingPolicies);
   const mandatoryInstructions = mandatoryInstructionsFor(policies);
+  const customInstructions = unwrap(await pendingCustomInstructions);
 
   // The credential and endpoint are resolved HERE, ahead of the history
   // read and of any row being written: a disabled, deleted, rotated or
@@ -1423,9 +1433,11 @@ export async function executeTurn(
     history,
     // The one persona the chat page talks to — hardcoded, never a config
     // file — and the docs block for its fixed tool loadout. The org's
-    // mandatory instructions, when the policy carries any, come first.
+    // mandatory instructions, when the policy carries any, come first; the
+    // person's own custom instructions ride behind the cache breakpoint.
     agent: CHAT_ASSISTANT,
     ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
+    ...(customInstructions !== undefined ? { customInstructions } : {}),
     toolDocs: CHAT_TOOL_DOCS,
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,

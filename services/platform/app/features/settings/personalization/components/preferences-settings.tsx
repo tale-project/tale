@@ -1,34 +1,36 @@
 'use client';
 
 /**
- * User preferences — the two personalization features, each as one section
- * that owns both its switch and its fields.
+ * User preferences — the custom-instructions feature as one section that owns
+ * both its switch and its field.
  *
  * The switch lives in the section header (unlabelled — the section title
- * names the feature; the switch carries an aria-label) and the fields live in
- * the section body. Turning a feature off HIDES that section's body — a
+ * names the feature; the switch carries an aria-label) and the field lives in
+ * the section body. Turning the feature off HIDES the section's body — a
  * disabled field reads as broken, and the stored value is still there when the
  * feature comes back on. The custom-instructions text saves through the
- * settings header's global Save/Discard cluster; only the enable switches save
+ * settings header's global Save/Discard cluster; only the enable switch saves
  * instantly.
  *
- * Reading replies aloud is NOT here. It is a property of the message being
- * sent, so it lives in the composer's mode menu; duplicating it as a stored
- * preference would give the same behaviour two sources of truth.
+ * Memories are NOT here. The backend keeps its store and approval gate
+ * (`domains/chat/memories.ts`), but nothing proposes a memory today, and
+ * whether the chat assistant should keep any is an open product decision —
+ * so the page shows no switch that would promise one.
+ *
+ * Reading replies aloud is NOT here either. It is a property of the message
+ * being sent, so it lives in the composer's mode menu; duplicating it as a
+ * stored preference would give the same behaviour two sources of truth.
  */
 
-import { Button } from '@tale/ui/button';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
-import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { z } from 'zod';
 
-import { useChatMemories } from '@/app/features/chat/data/chat-backend';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
@@ -37,10 +39,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
-  useDeleteMemory,
-  useReviewMemory,
   useSetCustomInstructionsEnabled,
-  useSetMemoriesEnabled,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
 
@@ -50,7 +49,9 @@ const CUSTOM_INSTRUCTIONS_MAX_CHARS = 5000;
 /**
  * A feature is on when the user said so, and follows the org's default when
  * they have not. Both states are shown, so "on" and "on because your org says
- * so" never look the same.
+ * so" never look the same. The chat turn resolves the same cascade server-side
+ * (`getEffectiveCustomInstructions`), so what the switch says is what the
+ * assistant does.
  */
 interface FeatureGate {
   readonly orgDefaultOn: boolean;
@@ -89,18 +90,10 @@ export function PreferencesSettings({
     organizationId,
     'custom_instructions',
   );
-  const { data: memoriesPolicy } = useGovernancePolicy(
-    organizationId,
-    'user_memories',
-  );
 
   const instructionsGate = resolveGate(
     prefs?.customInstructionsEnabled,
     policyEnabled(instructionsPolicy?.config),
-  );
-  const memoriesGate = resolveGate(
-    prefs?.memoriesEnabled,
-    policyEnabled(memoriesPolicy?.config),
   );
 
   return (
@@ -112,7 +105,6 @@ export function PreferencesSettings({
           loading={prefsLoading}
           savedInstructions={prefs?.customInstructions ?? ''}
         />
-        <MemoriesSection organizationId={organizationId} gate={memoriesGate} />
       </SettingsPage>
     </Skeletonize>
   );
@@ -249,181 +241,5 @@ function CustomInstructionsSection({
         </form>
       )}
     </SettingsSection>
-  );
-}
-
-function MemoriesSection({
-  organizationId,
-  gate,
-}: {
-  organizationId: string;
-  gate: FeatureGate;
-}) {
-  const { t } = useT('personalization');
-  const { toast } = useToast();
-  const { mutateAsync: setEnabled, isPending } = useSetMemoriesEnabled();
-  const memories = useChatMemories(organizationId);
-  const { mutateAsync: review, isPending: reviewing } = useReviewMemory();
-  const { mutateAsync: remove, isPending: removing } = useDeleteMemory();
-
-  const settle = async (
-    memoryId: string,
-    decision: 'approved' | 'rejected',
-  ): Promise<void> => {
-    try {
-      await review({ organizationId, memoryId, decision });
-      toast({
-        title:
-          decision === 'approved'
-            ? t('toasts.memorySaved')
-            : t('toasts.memoryDiscarded'),
-      });
-    } catch (error) {
-      console.error('[personalization] memory review failed', error);
-      toast({ title: t('errors.saveFailed'), variant: 'destructive' });
-    }
-  };
-  const forget = async (memoryId: string): Promise<void> => {
-    try {
-      await remove({ organizationId, memoryId });
-      toast({ title: t('toasts.memoryDeleted') });
-    } catch (error) {
-      console.error('[personalization] memory delete failed', error);
-      toast({ title: t('errors.saveFailed'), variant: 'destructive' });
-    }
-  };
-
-  const description = useGateHint(gate, t('page.memoriesToggle.description'));
-
-  return (
-    <SettingsSection
-      title={t('page.memoriesToggle.label')}
-      description={description}
-      action={
-        <Switch
-          aria-label={t('page.memoriesToggle.label')}
-          checked={gate.effective}
-          disabled={isPending}
-          onCheckedChange={async (next) => {
-            try {
-              await setEnabled({ organizationId, enabled: next });
-              toast({ title: t('toasts.preferencesUpdated') });
-            } catch (error) {
-              console.error('[personalization] toggle failed', error);
-            }
-          }}
-        />
-      }
-    >
-      {/* Same rule as every other section toggle: off means the section's
-          content is gone, not shown-but-inert. */}
-      {gate.effective && (
-        <Stack gap={6}>
-          <MemoryList
-            title={t('page.pending.title')}
-            empty={t('page.pending.empty')}
-            entries={
-              memories.status === 'ready' ? memories.data.pending : undefined
-            }
-            actions={(entry) => (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={reviewing}
-                  aria-label={t('page.pending.saveLabel', {
-                    content: entry.content,
-                  })}
-                  onClick={() => settle(entry.id, 'approved')}
-                >
-                  {t('page.pending.save')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={reviewing}
-                  aria-label={t('page.pending.discardLabel', {
-                    content: entry.content,
-                  })}
-                  onClick={() => settle(entry.id, 'rejected')}
-                >
-                  {t('page.pending.discard')}
-                </Button>
-              </>
-            )}
-          />
-          <MemoryList
-            title={t('page.memories.title')}
-            empty={t('page.memories.empty')}
-            entries={
-              memories.status === 'ready' ? memories.data.approved : undefined
-            }
-            actions={(entry) => (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={removing}
-                aria-label={t('page.memories.deleteLabel', {
-                  content: entry.content,
-                })}
-                onClick={() => forget(entry.id)}
-              >
-                {t('page.memories.delete')}
-              </Button>
-            )}
-          />
-        </Stack>
-      )}
-    </SettingsSection>
-  );
-}
-
-/**
- * One memory list under a plain label. `entries` is `undefined` while the
- * memories backend has not answered — the list says nothing has loaded rather
- * than claiming the user has no memories. Each row carries the controls that
- * settle it (`actions`): a suggestion is saved or discarded, a saved memory
- * deleted — the person decides, the model only proposes.
- */
-function MemoryList({
-  title,
-  empty,
-  entries,
-  actions,
-}: {
-  title: string;
-  empty: string;
-  entries?: readonly { id: string; content: string }[];
-  actions: (entry: { id: string; content: string }) => ReactNode;
-}) {
-  const { t: tChat } = useT('chat');
-
-  return (
-    <Stack gap={2}>
-      <Text className="text-sm font-medium">{title}</Text>
-      {entries === undefined ? (
-        <Text variant="muted" className="text-sm">
-          {tChat('backendUnavailable.title')}
-        </Text>
-      ) : entries.length === 0 ? (
-        <Text variant="muted" className="text-sm">
-          {empty}
-        </Text>
-      ) : (
-        <ul className="divide-border divide-y">
-          {entries.map((entry) => (
-            <li key={entry.id} className="flex items-start gap-3 py-2">
-              <Text className="flex-1">{entry.content}</Text>
-              <div className="flex shrink-0 items-center gap-1">
-                {actions(entry)}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Stack>
   );
 }

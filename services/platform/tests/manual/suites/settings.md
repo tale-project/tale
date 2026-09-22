@@ -122,17 +122,17 @@ any toggled setting after the run.
   per-dialog keys were consolidated in #2897) stating the consequence before
   anything happens; cancelling changes nothing (chat list unchanged after
   reload)
-- [ ] `SET-F6` · **Preference toggles** —
+- [ ] `SET-F6` · **Preference toggle** —
   `/dashboard/{org}/settings/personalization` (heading **User preferences**,
   `personalization.page.title`) → flip the **Custom instructions** toggle
-  (`personalization.page.customInstructionsToggle.label`) and the **Memories**
-  toggle (`personalization.page.memoriesToggle.label`) → Each flip saves
+  (`personalization.page.customInstructionsToggle.label`) → The flip saves
   immediately — toast **Preferences updated.**
   (`personalization.toasts.preferencesUpdated`) — and persists across reload;
-  each section's description carries the org-default hint
+  the section's description carries the org-default hint
   (`personalization.page.enable.followingOrgDefault` /
-  `…overridingOrgDefault`); theme and language are **not** on this page
-  (SET-F11)
+  `…overridingOrgDefault`); it is the page's ONLY toggle — no Memories switch
+  (retired with SET-F8, the feature is undecided); theme and language are
+  **not** on this page (SET-F11)
 - [ ] `SET-F7` · **Custom instructions text** — With the toggle on, type into
   the instructions field
   (`personalization.page.customInstructions.placeholder`) → header **Save** →
@@ -140,13 +140,13 @@ any toggled setting after the run.
   cluster (Saved flash, no toast); the text survives a reload; the field shows
   a character counter and text over the limit shows the inline error
   (`personalization.errors.tooLong`)
-- [ ] `SET-F8` · **Memories & pending sections** — Same page → **Saved
-  memories** (`personalization.page.memories.title`) and **Pending
-  suggestions** (`personalization.page.pending.title`) → With no data both
-  render their empty lines (`personalization.page.memories.empty` /
-  `personalization.page.pending.empty`); with the chat backend down the
-  memories area shows **Chat isn't connected yet**
-  (`chat.backendUnavailable.title`) instead of crashing.
+- [ ] `SET-F8` · **~~Memories & pending sections~~ (retired)** → The
+  memories section left the preferences page when custom instructions were
+  wired into chat: nothing ever proposed a memory, and whether the chat
+  assistant should keep any is an open product decision (knowledge entries
+  and the sandbox agent's own memory already cover the need). The page
+  carries the custom-instructions section only (SET-F6, SET-F7); the backend
+  store and its approval gate stay, unreachable from the UI.
 - [ ] `SET-F9` · **Notification preferences** —
   `/dashboard/{org}/settings/notifications` → flip e.g. **Task assigned to
   me** (`notificationPreferences.fields.taskAssigned.label`); inspect **Review
@@ -473,7 +473,7 @@ any toggled setting after the run.
   (`settings.account.teams.title`) show the created name, then the new name,
   then drop it, without a reload.
 - [ ] `SET-F42` · **Your teams on the account page** —
-  `/dashboard/{org}/settings/account#teams` as a member of two teams, then as
+  `/dashboard/{org}/settings/account` (its `#teams` anchor) as a member of two teams, then as
   an account in none, then as an owner → The **Your teams** section
   (`settings.account.teams.title`, its description
   `settings.account.teams.description`) lists each team as a badge; the

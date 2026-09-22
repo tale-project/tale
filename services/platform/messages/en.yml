@@ -2958,11 +2958,6 @@ governance:
       description:
         When on, every member of this organization has custom instructions
         enabled by default. Members who explicitly opt out keep their choice.
-    memories:
-      title: Memories default
-      description:
-        When on, every member of this organization has memories enabled by
-        default. Members who explicitly opt out keep their choice.
   pii:
     title: PII protection
     description: Detect and mask or block personal data before sending to AI models.
@@ -4029,7 +4024,7 @@ metadata:
     description: Manage your account settings.
   personalization:
     title: Personalization
-    description: Help the assistant remember things about you across chats.
+    description: Standing instructions the chat assistant follows for you.
   notificationPreferences:
     title: Notifications
     description: Choose which events send you a notification.
@@ -4320,33 +4315,15 @@ personalization:
       overridingOrgDefault: Overriding organization default ({state}).
     customInstructionsToggle:
       label: Custom instructions
-      description: "Save preferences for your account. Chat replies do not currently use these instructions. Use project Instructions for project chats."
-    memoriesToggle:
-      label: Memories
-      description: "Manage stored memories for your account. The chat assistant does not currently save or retrieve memories automatically."
+      description: "Standing instructions the chat assistant follows in every reply to you. In a project chat they apply alongside the project's instructions."
     customInstructions:
       title: Custom instructions
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
-    memories:
-      title: Saved memories
-      empty: "No saved memories."
-      delete: Delete
-      deleteLabel: 'Delete memory: {content}'
-    pending:
-      title: Pending suggestions
-      empty: No suggestions waiting.
-      save: Save
-      saveLabel: 'Save suggestion: {content}'
-      discard: Discard
-      discardLabel: 'Discard suggestion: {content}'
   errors:
     saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
-    memorySaved: Memory saved.
-    memoryDiscarded: Suggestion discarded.
-    memoryDeleted: Memory deleted.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize

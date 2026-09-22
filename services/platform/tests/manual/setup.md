@@ -244,7 +244,7 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/contacts`                           | list or empty state                                      |
 | `/dashboard/{org}/websites`                           | list or empty state                                      |
 | `/dashboard/{org}/settings/account`                   | profile + security                                       |
-| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories)         |
+| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions)                   |
 | `/dashboard/{org}/settings/notifications`             | notification preferences                                 |
 | `/dashboard/{org}/settings/organization`              | org details                                              |
 | `/dashboard/{org}/settings/teams`                     | teams list                                               |

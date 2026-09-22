@@ -356,6 +356,7 @@ interface HandlerNames {
   user_preferences: FunctionRef & {
     queries: FunctionRef & {
       getChatModelInternal: FunctionRef;
+      getCustomInstructionsInternal: FunctionRef;
     };
   };
   video_links: FunctionRef & {

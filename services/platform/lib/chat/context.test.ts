@@ -48,7 +48,10 @@ describe('assembleContext', () => {
     // Every optional block present, so the assembled list is the whole
     // contract rather than a subsequence of it.
     const result = assembleContext(
-      input({ project: { name: 'Growth', instructions: 'Ship weekly.' } }),
+      input({
+        project: { name: 'Growth', instructions: 'Ship weekly.' },
+        customInstructions: 'Reply tersely.',
+      }),
     );
 
     expect(result.blocks.map((block) => block.id)).toEqual([
@@ -381,6 +384,75 @@ describe('assembleContext — overflow', () => {
 
     expect(result.truncation?.droppedMessages).toBe(2);
     expect(result.messages.slice(1)).toEqual(history.slice(2));
+  });
+});
+
+/**
+ * The person's own standing instructions are the one per-person block. The
+ * load-bearing placement is the opposite of the project's: they sit AFTER the
+ * cache breakpoint, so the prefix a provider caches stays byte-identical for
+ * every user of the agent, and a person turning their instructions on or off
+ * never invalidates anyone else's cache.
+ */
+describe('assembleContext — custom instructions', () => {
+  it('omits the block when the person has none, or only whitespace', () => {
+    for (const customInstructions of [undefined, '', '   \n']) {
+      const result = assembleContext(input({ customInstructions }));
+      expect(result.blocks.map((block) => block.id)).not.toContain(
+        'custom-instructions',
+      );
+      expect(result.system).not.toContain('Standing instructions');
+    }
+  });
+
+  it('rides the volatile suffix after the clock, never the cached prefix', () => {
+    const result = assembleContext(
+      input({ customInstructions: 'Reply tersely.' }),
+    );
+    const ids = result.blocks.map((block) => block.id);
+    expect(ids.indexOf('custom-instructions')).toBeGreaterThan(
+      result.cacheBreakpointIndex,
+    );
+    expect(ids.indexOf('custom-instructions')).toBeGreaterThan(
+      ids.indexOf('runtime-directives'),
+    );
+    expect(result.stablePrefix).not.toContain('Reply tersely.');
+    expect(result.volatileSuffix).toContain('Reply tersely.');
+    expect(result.system).toBe(
+      `${result.stablePrefix}\n\n${result.volatileSuffix}`,
+    );
+  });
+
+  it('leaves the cached prefix byte-identical with and without them', () => {
+    const without = assembleContext(input());
+    const withThem = assembleContext(
+      input({ customInstructions: 'Reply tersely.' }),
+    );
+    expect(withThem.stablePrefix).toBe(without.stablePrefix);
+    expect(withThem.cacheBreakpointIndex).toBe(without.cacheBreakpointIndex);
+  });
+
+  it('frames them as the person’s own voice, ranked below the org and project', () => {
+    const result = assembleContext(
+      input({ customInstructions: '  Reply tersely.\n' }),
+    );
+    const block = result.blocks.find((b) => b.id === 'custom-instructions');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toContain(
+      'Standing instructions from the person you are talking to',
+    );
+    expect(text).toContain('those take precedence');
+    expect(text.endsWith('Reply tersely.')).toBe(true);
+  });
+
+  it('is skipped on a sub-agent turn, like the org’s instructions', () => {
+    const result = assembleContext(
+      input({ isSubAgentTurn: true, customInstructions: 'Reply tersely.' }),
+    );
+    expect(result.blocks.map((block) => block.id)).not.toContain(
+      'custom-instructions',
+    );
+    expect(result.system).not.toContain('Reply tersely.');
   });
 });
 

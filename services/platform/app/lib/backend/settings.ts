@@ -927,18 +927,6 @@ function invalidateMembers(
   });
 }
 
-function invalidateChatMemories(
-  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
-  args: Record<string, unknown>,
-  ctx: AdapterContext,
-): void {
-  const orgId = orgOf(args, ctx);
-  if (orgId === undefined) return;
-  void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'chat_memory'),
-  });
-}
-
 function invalidateUserPrefs(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
@@ -1155,36 +1143,6 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         body: { completed: args.completed !== false },
       }).then(() => null),
     invalidate: invalidateUserPrefs,
-  },
-  'user_preferences/mutations:setMemoriesEnabled': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>('/user-preferences/memories-enabled', {
-        orgId: requireOrg(args, ctx),
-        body: { enabled: args.enabled === true },
-      }).then(() => null),
-    invalidate: invalidateUserPrefs,
-  },
-  // The memories the preferences page reviews: the model proposes, the
-  // person settles — save (approve) or discard (reject) a suggestion, and
-  // delete a saved memory. Both refresh the page's memory lists.
-  'chat/memories:reviewMemory': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
-        `/chat/memories/${encodeURIComponent(String(args.memoryId))}/review`,
-        {
-          orgId: requireOrg(args, ctx),
-          body: { decision: args.decision },
-        },
-      ).then((body) => body.ok),
-    invalidate: invalidateChatMemories,
-  },
-  'chat/memories:deleteMemory': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
-        `/chat/memories/${encodeURIComponent(String(args.memoryId))}`,
-        { method: 'DELETE', orgId: requireOrg(args, ctx) },
-      ).then((body) => body.ok),
-    invalidate: invalidateChatMemories,
   },
   'user_preferences/mutations:setCustomInstructionsEnabled': {
     run: (args, ctx) =>

@@ -61,7 +61,7 @@ Pour les déploiements autohébergés, la [configuration de rétention](/fr/self
 
 Les contrôles comprennent les limites de fenêtre de contexte par portée et le commutateur de sortie vocale pour l’organisation. Une limite de contexte détermine la quantité de contexte transmise à une réponse d’IA ; elle diffère d’un budget. Une limite inférieure à 200 000 tokens s’applique aussi aux exécutions d’agents Claude Code, selon la limite de la personne qui a lancé l’exécution : l’agent condense sa conversation en un résumé avant qu’elle ne dépasse la limite, et Claude Code traite toute limite inférieure à 100 000 tokens comme 100 000. Désactiver la sortie vocale empêche les membres de l’activer par leurs réglages personnels ou leurs conversations.
 
-Les commutateurs par défaut des instructions personnalisées et des souvenirs enregistrent des valeurs d’organisation. Leur présence ne signifie pas que les instructions personnelles ou la création de souvenirs sont déjà actives dans le chat. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
+Le commutateur par défaut des instructions personnalisées enregistre la valeur d’organisation pour les instructions personnelles des membres : tant qu’il est activé, les instructions personnalisées de chaque membre s’appliquent à ses réponses de chat, sauf si le membre a désactivé la fonction lui-même sous **Paramètres > Personnalisation**. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
 
 ## Afficher un avis de confidentialité dans le chat
 

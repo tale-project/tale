@@ -13,11 +13,6 @@ export interface UserPreferencesContract {
     args: { organizationId: string; enabled: boolean };
     returns: string;
   };
-  'user_preferences/mutations:setMemoriesEnabled': {
-    kind: 'mutation';
-    args: { organizationId: string; enabled: boolean };
-    returns: string;
-  };
   'user_preferences/mutations:setOnboardingCompleted': {
     kind: 'mutation';
     args: { organizationId: string; completed: boolean };

@@ -24,7 +24,6 @@ export const Route = createFileRoute(
       'retention_policy',
       'feature_flags',
       'custom_instructions',
-      'user_memories',
       'voice_output',
       'data_classification_notice',
       'conversation_routing',

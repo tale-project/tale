@@ -31,23 +31,21 @@ To narrow a list to certain work, use its **Teams** filter: **Organization-wide*
 
 Owners and Admins manage membership under [Teams](/platform/admin/teams); the section links there for them.
 
-## Understand the Preferences page
+## Set custom instructions for the chat assistant
 
-Open **Settings > Preferences** to view **Custom instructions** and **Memories**. The switches can follow organization defaults or store a personal choice. Saved instructions and memory lists belong to your preferences.
+Open **Settings > Preferences**. **Custom instructions** are standing instructions the chat assistant follows in every reply to you, such as a preferred tone, a default programming language, or how much detail you want. The switch can follow the organization default or store your own choice; the hint under it says which applies. The text field appears while the feature is on. Type your instructions and click **Save** in the page header.
 
-<Frame caption="Preferences contains stored personal instructions and memory controls.">
+<Frame caption="Preferences holds your custom instructions and the switch that turns them on.">
 
-![The Preferences page shows a Custom instructions editor and a Memories section with pending and saved-memory lists.](/images/platform/settings-preferences.webp)
+![The Preferences page shows the Custom instructions switch and its text field.](/images/platform/settings-preferences.webp)
 
 </Frame>
 
 <Note>
 
-The current chat assistant does not use these personal instructions or memory tools in its replies. Saving a preference here is not a way to give chat lasting context. Put the requirement in your message, or use the project’s **General > Instructions** field for context shared by its chats.
+Your instructions never override the organization’s mandatory instructions or a project’s **General > Instructions**; where they conflict, those take precedence. Turning the switch off keeps the text for later without applying it.
 
 </Note>
-
-If memory entries already exist, review pending suggestions and keep only those you want stored. Delete a saved entry when it should no longer be retained. Do not treat the presence of an entry as evidence that a chat has read it.
 
 ## Check your usage limits {#usage-limits}
 
