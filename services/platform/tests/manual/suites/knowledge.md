@@ -328,6 +328,20 @@ records and delete them after.
   (PROJ-F23) reads the same way. Delete one of the three teams in Settings →
   the row it tagged reads `documents.teamTags.unknownTeam` rather than
   dropping the team and reading as unrestricted.
+- [ ] `KNOW-F22` · **Embedding failures end honestly** — With an embedding
+  model configured, provoke each of these and watch the row's **RAG status**
+  and the dialog: (a) a wrong **Base URL** (a provider's native endpoint
+  pasted where its OpenAI-compatible base belongs) → **Failed** with the
+  provider sentence (`…could not serve the request; indexing is retried
+  automatically`), and once the job's retries run out the row STAYS
+  **Failed** with that sentence — it never flips to **Indexing** with no job
+  behind it; (b) a model that answers another vector width than **Vector
+  width** states → **Failed** at once, naming both widths and pointing at
+  Settings → Data residency → Embedding model, with no further retries;
+  (c) a provider that caps the texts per request (DashScope-compatible
+  gateways: 10 or 25) → a document with more chunks than the cap still
+  indexes to **Indexed**, the platform log noting the cap it learned.
+
 
 ## Boundary & error tests
 

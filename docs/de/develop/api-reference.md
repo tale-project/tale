@@ -396,7 +396,7 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 | --- | --- |
 | `unsupported`: `unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed` | Ersetze die Quelle oder exportiere sie in einem unterstützten Format. Bei `not_text` brauchst du tatsächlichen UTF-8-Text. `malformed` bezeichnet derzeit ein unlesbares PDF; beschädigte Office-Dateien können stattdessen `indexer_error` liefern. Die Retry-Route überspringt dauerhafte Codes auch bei älteren Zeilen mit Status `failed`. |
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | Der Hintergrundauftrag wiederholt diese Fehler. Prüfe den Status, bevor du selbst erneut anstößt. |
-| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. |
+| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. `embedding_provider_refused` deckt auch ein Modell ab, das Vektoren mit einer anderen Breite liefert, als die Einstellungen angeben; das Speichern korrigierter Embedding-Einstellungen stellt jedes Dokument, das am Embedding-Modell gescheitert ist, erneut in die Warteschlange. |
 | `failed`: `secret_detected`, `pii_blocked` | Korrigiere die Quelle oder die freigegebene Inhaltsrichtlinie der Organisation vor dem nächsten Versuch. |
 
 ## Benachrichtigungen eines Mitglieds spiegeln

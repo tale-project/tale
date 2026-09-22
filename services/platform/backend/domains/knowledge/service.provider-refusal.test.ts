@@ -4,8 +4,12 @@ import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EmbeddingDimensionMismatch } from '../../core/knowledge/dimensions.ts';
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
-import { RAG_ERROR_EMBEDDING_PROVIDER_REFUSED } from '../../core/knowledge/rag_error_codes.ts';
+import {
+  RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+  RAG_ERROR_EMBEDDING_UPSTREAM,
+} from '../../core/knowledge/rag_error_codes.ts';
 import { indexUploadedFile } from './service.ts';
 
 /**
@@ -17,8 +21,12 @@ import { indexUploadedFile } from './service.ts';
  * retries are for.
  */
 
+const { markCorpusIndexingFailed } = vi.hoisted(() => ({
+  markCorpusIndexingFailed: vi.fn(async () => undefined),
+}));
 vi.mock('../../core/knowledge/indexing.ts', () => ({
   indexWholeDocument: vi.fn(),
+  markCorpusIndexingFailed,
 }));
 vi.mock('../../core/knowledge/embedding.ts', async (importOriginal) => ({
   ...(await importOriginal<
@@ -112,6 +120,7 @@ const providerError = (status: number, body: Record<string, unknown>) =>
 
 beforeEach(() => {
   vi.mocked(indexWholeDocument).mockReset();
+  markCorpusIndexingFailed.mockClear();
 });
 
 describe('indexUploadedFile — provider refusals', () => {
@@ -145,8 +154,40 @@ describe('indexUploadedFile — provider refusals', () => {
       expect(write).toContain('failed');
       expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
       expect(indexWholeDocument).toHaveBeenCalledTimes(1);
+      // The corpus row carries the same verdict, so the RAG watchdog reads a
+      // finished chain — not a live one it would "revive" to running.
+      expect(markCorpusIndexingFailed).toHaveBeenCalledWith(
+        expect.anything(),
+        'acme',
+        's3:org-1/blob-1',
+        expect.stringContaining('refused'),
+      );
     },
   );
+
+  // A model that answers another width than the settings state — a provider
+  // that ignores the requested `dimensions` — answers every retry the same
+  // way; the job used to retry five times and report "the platform's side".
+  it('ends the job on a vector-width mismatch with both widths on the file', async () => {
+    vi.mocked(indexWholeDocument).mockRejectedValue(
+      new EmbeddingDimensionMismatch(1536, 1024, 'the embedding model "flash"'),
+    );
+    const log: Query[] = [];
+
+    await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
+      undefined,
+    );
+
+    const write = lastStatusWrite(log);
+    expect(write).toContain('failed');
+    expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+    const prose = write.find(
+      (value) => typeof value === 'string' && value.includes('1024'),
+    );
+    expect(prose).toContain('1536');
+    expect(prose).toContain('Settings → Data residency → Embedding model');
+    expect(markCorpusIndexingFailed).toHaveBeenCalledTimes(1);
+  });
 
   it('keeps throwing on a transient provider failure — that is what the retries are for', async () => {
     vi.mocked(indexWholeDocument).mockRejectedValue(
@@ -160,6 +201,15 @@ describe('indexUploadedFile — provider refusals', () => {
 
     const write = lastStatusWrite(log);
     expect(write).toContain('failed');
+    expect(write).toContain(RAG_ERROR_EMBEDDING_UPSTREAM);
     expect(write).not.toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+    // Recorded on the corpus row too: once the job's retries run out, the
+    // watchdog must read a finished chain, not revive the file to running.
+    expect(markCorpusIndexingFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      's3:org-1/blob-1',
+      expect.stringContaining('retried automatically'),
+    );
   });
 });

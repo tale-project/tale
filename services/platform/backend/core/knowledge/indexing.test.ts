@@ -8,7 +8,11 @@ import { chunkDocument } from '../../../lib/knowledge/chunking';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { Embedder } from './embedding';
-import { indexDocument, indexWholeDocument } from './indexing';
+import {
+  indexDocument,
+  indexWholeDocument,
+  markCorpusIndexingFailed,
+} from './indexing';
 import { applyPiiPolicyForIndexing } from './pii_gate';
 
 // Passthrough spies: every suite below runs the real functions; the
@@ -216,6 +220,24 @@ describe('a credential never reaches the corpus', () => {
       bytes: new TextEncoder().encode('-----BEGIN RSA PRIVATE KEY-----\n'),
     });
     expect(db.statements.join('\n')).toContain("'failed'");
+  });
+
+  // The indexing job's own catch classifies a thrown failure (a provider
+  // refusal, the wrong vector width, the retries running out) and records
+  // it here as well: a corpus row left at `processing` read to the RAG
+  // watchdog as a live chain, which then "revived" the file to running
+  // with no job behind it.
+  it('lets the caller record a classified failure on the document row', async () => {
+    const db = fakeDb();
+    await markCorpusIndexingFailed(
+      db.sql,
+      ARGS.orgSlug,
+      ARGS.fileId,
+      'The provider could not serve the request; indexing is retried automatically.',
+    );
+    const statement = db.statements.join('\n');
+    expect(statement).toContain('INSERT INTO private_knowledge.documents');
+    expect(statement).toContain("status = 'failed'");
   });
 
   it('indexes a file that only talks about credentials', async () => {
