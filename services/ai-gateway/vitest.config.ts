@@ -6,6 +6,9 @@ import { defineConfig } from 'vitest/config';
 // server and needs node builtins, while the panel's components need a DOM.
 export default defineConfig({
   plugins: [viteReact(), yamlImports()],
+  // The same `@/…` resolution the app is built with, so a test imports a
+  // module by the path its callers use rather than by a relative one.
+  resolve: { tsconfigPaths: true },
   test: {
     projects: [
       {

@@ -19,7 +19,7 @@ one that serves the whole pool.
 | **cc-gateway's wire shape** | `{"tokens": [{ id, label, account_email, status, access_token, expires_at, scopes }]}` — a broker mapping written against the retired cc-gateway reads this one unchanged |
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
 | **Always-fresh tokens** | A background pass refreshes each access token ahead of its expiry, so an account stays usable as long as its refresh token does |
-| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars, each saying when it rolls over |
+| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars, beside a grey one counting that window down to its rollover |
 | **Encrypted at rest** | AES-256-GCM under `AI_GATEWAY_ENCRYPTION_KEY`; a tampered store fails loudly rather than decrypting to something plausible |
 | **One lock, on the tokens** | The token endpoints are behind an API key. The panel has no login of its own — whatever fronts this service decides who reaches it |
 

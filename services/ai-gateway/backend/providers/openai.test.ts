@@ -159,6 +159,7 @@ describe('parseOpenAiUsage', () => {
         label: null,
         utilization: 36,
         resetsAt: '2026-09-29T13:22:20.000Z',
+        windowSeconds: 604_800,
       },
     ]);
   });
@@ -188,12 +189,14 @@ describe('parseOpenAiUsage', () => {
         label: null,
         utilization: 20,
         resetsAt: '2026-09-21T10:30:00.000Z',
+        windowSeconds: 18_000,
       },
       {
         kind: 'weekly',
         label: null,
         utilization: 55,
         resetsAt: '2026-09-25T00:00:00.000Z',
+        windowSeconds: 604_800,
       },
     ]);
   });
@@ -210,6 +213,15 @@ describe('parseOpenAiUsage', () => {
     );
     expect(windows.map((window) => window.kind)).toEqual(['session', 'weekly']);
     expect(windows[0]?.utilization).toBe(20);
+  });
+
+  it('leaves a window the vendor did not measure unmeasured', () => {
+    const windows = parseOpenAiUsage(
+      { rate_limit: { primary_window: { used_percent: 7 } } },
+      now,
+    );
+    expect(windows[0]?.windowSeconds).toBeNull();
+    expect(windows[0]?.kind).toBe('weekly');
   });
 
   it('calls a lone multi-day window weekly', () => {

@@ -15,6 +15,7 @@ accounts:
     account: Konto
     status: Status
     usage: Verbrauch
+    resets: Verbleibend
     validUntil: Gültig bis
     actions: Zeilenaktionen
   empty:
@@ -46,6 +47,7 @@ usage:
   unread: Noch kein Verbrauch gelesen
   spent: '{percent} % verbraucht'
   resets: Setzt sich {when} zurück
+  untilReset: '{window}: verbleibende Zeit bis zur Zurücksetzung'
 addAccount:
   title: Konto hinzufügen
   reauthenticateTitle: '{label} neu anmelden'

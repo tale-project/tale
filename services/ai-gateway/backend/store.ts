@@ -34,6 +34,10 @@ const usageWindowSchema = z.object({
   label: z.string().nullable(),
   utilization: z.number().nullable(),
   resetsAt: z.string().nullable(),
+  // Defaulted rather than required: a document written before the panel drew
+  // the countdown has readings with no length on them, and the next refresh
+  // pass replaces each one anyway.
+  windowSeconds: z.number().nullable().default(null),
 });
 
 const accountSchema = z.object({

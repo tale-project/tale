@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
 import { PanelHeader } from './panel-header';
 import { ProviderMark } from './provider-mark';
+import { ResetsCell } from './resets-cell';
 import { StatusCell } from './status-cell';
 import { UsageCell } from './usage-cell';
 
@@ -158,14 +159,26 @@ export function AccountsScreen({
       {
         id: 'usage',
         header: t('columns.usage'),
-        // Two or three bar rows, each a window's name, its bar, the figure
-        // `ProgressBar` prints beside it and when that window rolls over.
-        // The reset phrase is the widest part in German and French, so this
-        // is the column that had to grow for it.
-        size: 380,
+        // Two or three bar rows, each a window's name, its bar and the figure
+        // `ProgressBar` prints beside it.
+        size: 240,
         meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <UsageCell windows={row.original.usage?.windows ?? []} />
+        ),
+      },
+      {
+        id: 'resets',
+        header: t('columns.resets'),
+        // The same windows as its neighbour, on the same rows — the two cells
+        // agree on which ones they draw and on their vertical rhythm, so the
+        // clock for a window sits beside the spend for that window. Sized for
+        // the widest distance any of the three languages prints ("quelques
+        // secondes") next to a bar still worth looking at.
+        size: 190,
+        meta: { skeleton: { type: 'text', lines: 2 } },
+        cell: ({ row }) => (
+          <ResetsCell windows={row.original.usage?.windows ?? []} />
         ),
       },
       {

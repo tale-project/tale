@@ -99,15 +99,25 @@ in the pool**, so they run before the removals.
   quarters spent, one at or past three quarters, and one at the ceiling** →
   the three bars read accent, orange and red in that order. A full bar never
   reads as green: a spent plan is not a completed task.
-- [ ] `ACCT-26` · **Hover a usage bar** → the tooltip names the percentage and
-  the exact instant the window resets — the date and the hour, in the panel's
-  language. The figure beside the bar matches the percentage, and the instant
-  is the one the row's own phrase is counting down to.
-- [ ] `ACCT-30` · **Read a row's windows without touching the mouse** → each
-  one says when it rolls over beside its bar ("Resets in 5 days"), and the two
-  Anthropic windows resetting together say the same thing. Switch to German and
-  French: the phrase is longer, the bars shorten to let it through, and nothing
-  is cut off in any of the three.
+- [ ] `ACCT-26` · **Hover a usage bar, then the grey bar beside it** → the
+  first names the percentage, the second the exact instant that window
+  resets — the date and the hour, in the panel's language, and the instant the
+  row's own figure is counting down to.
+- [ ] `ACCT-30` · **Read the Resets in column without touching the mouse** →
+  every window says how long it still has ("5 days", "an hour") on the same row
+  as its own usage bar, and never in a different order than the Usage column
+  lists them. The two Anthropic windows that roll over together say the same
+  thing.
+- [ ] `ACCT-31` · **Compare the two bars on one row** → the grey one fills
+  toward the rollover the way the coloured one fills toward the cap, so an
+  account spending its plan faster than the clock reads as a coloured bar ahead
+  of its grey one. A window the vendor gave no rollover for leaves the grey
+  track empty rather than drawing a fraction of nothing.
+- [ ] `ACCT-32` · **Read the Resets in column in each language** → the heading
+  and the figure agree grammatically in all three: the English heading finishes
+  in the cell ("Resets in" · "5 days"), and the German and French headings name
+  the time remaining instead, because a bare German distance is nominative and
+  will not sit behind a preposition.
 
 ### Staying fresh
 

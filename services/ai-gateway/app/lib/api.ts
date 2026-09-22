@@ -29,6 +29,8 @@ export interface UsageWindow {
   label: string | null;
   utilization: number | null;
   resetsAt: string | null;
+  /** How long the window runs; what the countdown bar is a fraction of. */
+  windowSeconds: number | null;
 }
 
 export interface AccountView {

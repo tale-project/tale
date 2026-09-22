@@ -38,8 +38,8 @@ export function isProviderId(value: unknown): value is ProviderId {
  * One rate-limit window a provider reports for an account.
  *
  * Vendors disagree on names and shapes — Anthropic answers `five_hour` and
- * `seven_day` plus per-model entries, OpenAI answers a `primary` and a
- * `secondary` window measured in minutes — so each module maps its own vendor
+ * `seven_day` plus per-model entries, OpenAI a `primary_window` and a
+ * `secondary_window` measured in seconds — so each module maps its own vendor
  * payload onto these three kinds. The panel translates `session` and `weekly`;
  * a `scoped` window carries the vendor's own name for the thing it caps.
  */
@@ -51,6 +51,14 @@ export interface UsageWindow {
   utilization: number | null;
   /** ISO-8601 instant the window rolls over, or null when the vendor omits it. */
   resetsAt: string | null;
+  /**
+   * How long the window runs, in seconds. OpenAI reports it outright;
+   * Anthropic names it in the key it answers under (`five_hour`, `seven_day`)
+   * and in a per-model limit's `group`. Null when neither says — the panel
+   * needs it to draw how far through the window the clock already is, and
+   * without it there is nothing honest to draw.
+   */
+  windowSeconds: number | null;
 }
 
 /** A token pair as this gateway stores it, whatever the vendor called it. */

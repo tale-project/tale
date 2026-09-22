@@ -241,12 +241,17 @@ export function parseOpenAiUsage(
     .filter((entry): entry is Record<string, unknown> => entry !== null);
   if (entries.length === 0) return [];
 
-  const secondsOf = (entry: Record<string, unknown>): number => {
+  const lengthOf = (entry: Record<string, unknown>): number | null => {
     const seconds = entry['limit_window_seconds'];
     return typeof seconds === 'number' && Number.isFinite(seconds)
       ? seconds
-      : Number.POSITIVE_INFINITY;
+      : null;
   };
+  // An unmeasured window sorts last and reads as the plan cap: the session one
+  // is the short window, and a vendor that stopped saying how long it is has
+  // taken away the only thing that could prove otherwise.
+  const secondsOf = (entry: Record<string, unknown>): number =>
+    lengthOf(entry) ?? Number.POSITIVE_INFINITY;
   // A day is the boundary the two windows sit either side of — five hours
   // against seven days — so it is what separates a session cap from a plan one.
   const weeklyThresholdSeconds = 24 * 60 * 60;
@@ -262,5 +267,6 @@ export function parseOpenAiUsage(
     resetsAt:
       toIsoInstant(entry['reset_at']) ??
       resetsAtFromSeconds(entry['reset_after_seconds'], now),
+    windowSeconds: lengthOf(entry),
   }));
 }

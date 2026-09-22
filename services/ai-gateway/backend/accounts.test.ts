@@ -22,7 +22,13 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
 } {
   const state = {
     usage: [
-      { kind: 'session', label: null, utilization: 10, resetsAt: null },
+      {
+        kind: 'session',
+        label: null,
+        utilization: 10,
+        resetsAt: null,
+        windowSeconds: null,
+      },
     ] as UsageWindow[],
     refusals: {} as { refresh?: boolean; usage?: boolean; exchange?: boolean },
     refreshCount: 0,
