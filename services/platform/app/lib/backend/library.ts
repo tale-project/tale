@@ -126,7 +126,10 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
               ? { visibility: args.visibility }
               : {}),
             ...(Array.isArray(args.teams) ? { teams: args.teams } : {}),
-            ...(typeof args.icon === 'string' ? { icon: args.icon } : {}),
+            // `null` reaches the door as-is: it is the clear.
+            ...(typeof args.icon === 'string' || args.icon === null
+              ? { icon: args.icon }
+              : {}),
             ...(Array.isArray(args.labels) ? { labels: args.labels } : {}),
           },
         },
