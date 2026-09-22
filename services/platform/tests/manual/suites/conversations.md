@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 35 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 36 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -289,6 +289,18 @@ rows lead with the subject.
   and the next reply falls back to the default connector credential rather than
   failing.
 
+- [ ] `CONV-F17` · **Unassign by picking the assignee again** — On a
+  conversation queued to a team AND claimed by a person, as an owner, open the
+  reading pane's assignee picker and choose the claimed person's row again →
+  The person clears and the team chip stays. Choose the team's row again → The
+  team clears and the person stays. With both cleared the trigger reads
+  **Assign** (`conversations.header.assign`), the footer **Unassign**
+  (`conversations.header.unassign`) and **Remove team**
+  (`conversations.header.unassignTeam`) still clear each dimension on their
+  own, and the conversation leaves every non-administrator's Inbox. In
+  **Compose**, re-picking the queued team clears it the same way; re-picking
+  the draft's own person does NOT, because a draft always keeps an owner.
+
 ## Boundary & error tests
 
 - [ ] `CONV-B1` · **Search with no matches** — Type a term matching nothing in
@@ -348,6 +360,14 @@ rows lead with the subject.
   `aria-activedescendant`, and Enter-activatable. The dialog it opens traps
   focus; closing it with **Save** or **Cancel** returns focus to the **To**
   trigger, never to `<body>`. The whole flow completes with no pointer.
+
+- [ ] `CONV-A7` · **Assignee picker selection** → In the reading pane's
+  assignee picker, the assigned person's row and the assigned team's row carry
+  `aria-selected="true"` and every other row `"false"`, so a screen reader
+  names the current assignment without relying on the check glyph. Each
+  assigned row also announces `conversations.header.reclickToUnassign`.
+  Arrowing to an assigned row and pressing Enter clears that dimension, and
+  focus returns to the trigger, whose label has changed.
 
 ## Performance
 
