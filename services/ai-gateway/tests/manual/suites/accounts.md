@@ -100,7 +100,14 @@ in the pool**, so they run before the removals.
   the three bars read accent, orange and red in that order. A full bar never
   reads as green: a spent plan is not a completed task.
 - [ ] `ACCT-26` · **Hover a usage bar** → the tooltip names the percentage and
-  when the window resets; the figure beside the bar matches it.
+  the exact instant the window resets — the date and the hour, in the panel's
+  language. The figure beside the bar matches the percentage, and the instant
+  is the one the row's own phrase is counting down to.
+- [ ] `ACCT-30` · **Read a row's windows without touching the mouse** → each
+  one says when it rolls over beside its bar ("Resets in 5 days"), and the two
+  Anthropic windows resetting together say the same thing. Switch to German and
+  French: the phrase is longer, the bars shorten to let it through, and nothing
+  is cut off in any of the three.
 
 ### Staying fresh
 

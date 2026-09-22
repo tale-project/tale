@@ -67,5 +67,5 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
   `22. Oktober 2026 06:25`, an English one `October 22, 2026 6:25 AM`.
 - [ ] `SMOKE-17` · **Read the whole screen in each language** → every value
   follows that language, not only the labels: the date order, the 12- or
-  24-hour clock, the relative reset time in a usage tooltip, the space before
+  24-hour clock, the relative reset time beside a usage bar, the space before
   a `%` (none in English, one in German and French), and the count footer.

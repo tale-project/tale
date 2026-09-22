@@ -158,8 +158,11 @@ export function AccountsScreen({
       {
         id: 'usage',
         header: t('columns.usage'),
-        // Two or three bar rows, each a 64px name + the bar + a 40px figure.
-        size: 300,
+        // Two or three bar rows, each a window's name, its bar, the figure
+        // `ProgressBar` prints beside it and when that window rolls over.
+        // The reset phrase is the widest part in German and French, so this
+        // is the column that had to grow for it.
+        size: 380,
         meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <UsageCell windows={row.original.usage?.windows ?? []} />
