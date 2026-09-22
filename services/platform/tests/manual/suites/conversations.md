@@ -192,8 +192,13 @@ rows lead with the subject.
   (`conversations.editor.generateImprovement`) → The **Message improvement
   preview** dialog (`conversations.improvement.title`) shows Original vs
   Improved; **Accept changes** replaces the draft, **Reject** keeps it
-  (`conversations.improvement.accept` / `.reject`); failure toasts
-  `conversations.editor.improveFailed`
+  (`conversations.improvement.accept` / `.reject`). The rewrite is a real
+  bounded model call on the writer's chat model (or the first servable
+  direct model) — check Usage books it under the `inbox-improve` agent. With
+  no AI provider connected, the toast reads
+  `conversations.editor.improveFailed` with
+  `conversations.editor.improveUnavailable`; any other failure toasts
+  `conversations.editor.improveFailed` with the door's reason.
 - [ ] `CONV-F9` · **Status transition (single)** — Open a conversation →
   **More actions** (`conversations.header.moreActions`) → **Close
   conversation** (`conversations.header.closeConversation`); reopen via

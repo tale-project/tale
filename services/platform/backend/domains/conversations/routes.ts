@@ -9,6 +9,11 @@ import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
+  IMPROVE_MAX_INPUT_CHARS,
+  IMPROVE_MAX_INSTRUCTION_CHARS,
+  improveConversationMessage,
+} from './improve.ts';
+import {
   bulkReplyToConversations,
   composeEmailConversation,
   discardOutboundMessage,
@@ -281,6 +286,33 @@ export function createConversationRoutes(deps: {
         }),
       );
       return c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The composer's AI rewrite: nothing is stored, the caller shows the
+  // rewrite beside the draft and the person accepts or rejects it.
+  app.post('/improve', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
+    const body = z
+      .object({
+        originalMessage: z.string().min(1).max(IMPROVE_MAX_INPUT_CHARS),
+        instruction: z.string().max(IMPROVE_MAX_INSTRUCTION_CHARS).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      return c.json(
+        await improveConversationMessage(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId: c.get('sessionBundle').user.id,
+          originalMessage: body.data.originalMessage,
+          ...(body.data.instruction !== undefined
+            ? { instruction: body.data.instruction }
+            : {}),
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }

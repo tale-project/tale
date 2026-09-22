@@ -1685,6 +1685,7 @@ conversations:
   editor:
     noContent: No content to improve
     improveFailed: Couldn't improve content. Try again.
+    improveUnavailable: No AI provider can rewrite messages yet — connect one under Settings › AI providers.
     sendFailed: Couldn't send message. Try again.
     backToEditor: Back to editor
     improving: Improving...

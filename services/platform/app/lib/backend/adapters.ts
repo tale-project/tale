@@ -36,7 +36,6 @@ import {
   automationWriteAdapters,
 } from './automations';
 import {
-  conversationOfflineWriteAdapters,
   conversationReadAdapters,
   conversationWriteAdapters,
 } from './conversations';
@@ -206,7 +205,6 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...adminWriteAdapters,
   ...automationWriteAdapters,
   ...conversationWriteAdapters,
-  ...conversationOfflineWriteAdapters,
   ...libraryWriteAdapters,
   ...engagementWriteAdapters,
   ...documentWriteAdapters,

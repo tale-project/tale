@@ -20,7 +20,7 @@ export interface ConversationsContract {
       organizationId: string;
       originalMessage: string;
     };
-    returns: { improvedMessage: string; error?: string };
+    returns: { improvedMessage: string };
   };
   'conversations/mutations:assignConversation': {
     kind: 'mutation';

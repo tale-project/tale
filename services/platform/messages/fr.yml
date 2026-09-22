@@ -1759,6 +1759,7 @@ conversations:
   editor:
     noContent: Aucun contenu à améliorer
     improveFailed: Impossible d'améliorer le contenu. Réessaie.
+    improveUnavailable: Aucun fournisseur d'IA ne peut encore réécrire les messages — connecte-en un dans Paramètres › Fournisseurs d'IA.
     sendFailed: Impossible d'envoyer le message. Réessaie.
     backToEditor: Retour à l'éditeur
     improving: Amélioration...

@@ -1751,6 +1751,7 @@ conversations:
   editor:
     noContent: Kein Inhalt zum Verbessern
     improveFailed: Inhalt konnte nicht verbessert werden. Versuch es erneut.
+    improveUnavailable: Noch kein KI-Anbieter kann Nachrichten umschreiben — verbinde einen unter Einstellungen › KI-Anbieter.
     sendFailed: Nachricht konnte nicht gesendet werden. Versuch es erneut.
     backToEditor: Zurück zum Editor
     improving: Wird verbessert...
