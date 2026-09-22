@@ -7,6 +7,15 @@ import { render, screen } from '@/tests/utils/render';
 
 // The queue chip resolves a team id through the org's team directory; the
 // list under test carries no team queues, so an empty directory is enough.
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  // The row names its channel through the connector directory; these tests
+  // render without a query provider.
+  useConnectorTitles: () => ({
+    titleOf: (slug: string) => (slug === 'gmail' ? 'Gmail' : undefined),
+  }),
+}));
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeamNames: () => ({
     nameOf: () => undefined,

@@ -1784,9 +1784,7 @@ conversations:
     notFound: Konversation nicht gefunden
     noMessages: Noch keine Nachrichten
     invalidFileAttachment: Ungültiger Dateianhang
-    defaultSubject: 'Re: Konversation'
     contactEmailNotFound: 'E-Mail kann nicht gesendet werden: Kontakt-E-Mail nicht gefunden'
-    replySubjectPrefix: 'Re: {subject}'
     loadFailed: Konversation konnte nicht geladen werden
     loadFailedDescription: Beim Laden dieser Konversation ist ein Fehler aufgetreten.
     tryAgain: Erneut versuchen

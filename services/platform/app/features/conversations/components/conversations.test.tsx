@@ -30,6 +30,15 @@ let myTeams: Array<{ id: string; name: string }> = [];
 let isAdmin = true;
 let currentUserId: string | undefined = 'user-me';
 
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  // The row names its channel through the connector directory; these tests
+  // render without a query provider.
+  useConnectorTitles: () => ({
+    titleOf: (slug: string) => (slug === 'gmail' ? 'Gmail' : undefined),
+  }),
+}));
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: myTeams, isLoading: false }),
   useTeamDirectory: () => ({

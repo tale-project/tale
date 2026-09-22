@@ -24,6 +24,12 @@ export interface MessageEditorProps {
   messageId?: string;
   businessId?: string;
   conversationId?: string;
+  /**
+   * Where this reply leaves from, already localized — the server derives the
+   * route from the conversation, so the composer states it rather than
+   * choosing it. Absent when the thread names no channel.
+   */
+  replyDestination?: string;
   onConversationResolved?: () => void;
   pendingMessage?: Pick<ConversationMessage, 'id' | 'content'>;
   /**

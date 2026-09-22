@@ -113,6 +113,13 @@ export interface ConversationsContract {
     args: { messageId: string };
     returns: null;
   };
+  /**
+   * Reply on an existing conversation. `POST /conversations/:id/reply` takes
+   * the content and derives everything else from the conversation — the
+   * connector or API source, the recipient, the subject, the threading
+   * headers — so this carries no envelope. It used to declare one, which the
+   * adapter dropped, inviting callers to believe they chose the route.
+   */
   'conversations/mutations:sendMessageViaConnector': {
     kind: 'mutation';
     args: {
@@ -122,18 +129,10 @@ export interface ConversationsContract {
         size: number;
         contentType: string;
       }>;
-      text?: string;
-      cc?: string[];
-      html?: string;
-      inReplyTo?: string;
-      references?: string[];
       sourceMarkdown?: string;
       organizationId: string;
       content: string;
-      connectorName: string;
       conversationId: string;
-      subject: string;
-      to: string[];
     };
     returns: string;
   };

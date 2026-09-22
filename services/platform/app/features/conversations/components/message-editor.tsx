@@ -55,6 +55,7 @@ function MilkdownEditorInner({
   hasMessageHistory = false,
   onMessageSent,
   organizationId,
+  replyDestination,
 }: MilkdownEditorInnerProps) {
   const { t: tConversations } = useT('conversations');
   const { user } = useAuth();
@@ -400,6 +401,7 @@ function MilkdownEditorInner({
         />
 
         <EditorActionBar
+          {...(replyDestination !== undefined ? { replyDestination } : {})}
           disabled={disabled}
           isLoading={isLoading}
           isImproveMode={isImproveMode}

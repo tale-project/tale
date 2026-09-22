@@ -1792,9 +1792,7 @@ conversations:
     notFound: Conversation introuvable
     noMessages: Aucun message pour l'instant
     invalidFileAttachment: Pièce jointe de fichier invalide
-    defaultSubject: 'Re : Conversation'
     contactEmailNotFound: "Impossible d'envoyer l'email : adresse email du contact introuvable"
-    replySubjectPrefix: 'Re : {subject}'
     loadFailed: Échec du chargement de la conversation
     loadFailedDescription: Une erreur s'est produite lors du chargement de cette conversation.
     tryAgain: Réessayer
