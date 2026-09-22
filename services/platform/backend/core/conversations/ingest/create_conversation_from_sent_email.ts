@@ -97,6 +97,8 @@ export async function createConversationFromSentEmail(
     accountEmail?: string;
     type?: string;
     connectorName?: string;
+    /** The mailbox this batch was fetched from. */
+    credentialId?: string;
   },
 ) {
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
@@ -227,6 +229,7 @@ export async function createConversationFromSentEmail(
         isCustomer,
         'delivered',
         params.connectorName,
+        params.credentialId,
       );
 
       lastConversationId = targetConversationId;
@@ -287,6 +290,7 @@ export async function createConversationFromSentEmail(
           isFromCustomer,
           'delivered',
           params.connectorName,
+          params.credentialId,
         ),
         ...(params.connectorName
           ? { connectorName: params.connectorName }

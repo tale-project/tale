@@ -221,6 +221,7 @@ export function conversationShimHandlers(
               sentAt: z.number().optional(),
               deliveredAt: z.number().optional(),
               connectorName: z.string().optional(),
+              credentialId: z.string().optional(),
             })
             .loose(),
         })
@@ -259,6 +260,9 @@ export function conversationShimHandlers(
                   connectorName:
                     initialMessage.connectorName ?? args.connectorName,
                 }
+              : {}),
+            ...(initialMessage.credentialId !== undefined
+              ? { credentialId: initialMessage.credentialId }
               : {}),
           });
           // Address routing (governance feature): auto-assign a NEW inbound
@@ -305,6 +309,7 @@ export function conversationShimHandlers(
           sentAt: z.number().optional(),
           deliveredAt: z.number().optional(),
           connectorName: z.string().optional(),
+          credentialId: z.string().optional(),
         })
         .parse(raw);
       try {
@@ -329,6 +334,9 @@ export function conversationShimHandlers(
               : {}),
             ...(args.connectorName !== undefined
               ? { connectorName: args.connectorName }
+              : {}),
+            ...(args.credentialId !== undefined
+              ? { credentialId: args.credentialId }
               : {}),
           }),
         );

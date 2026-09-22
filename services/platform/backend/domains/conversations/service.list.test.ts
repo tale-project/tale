@@ -126,6 +126,7 @@ function message(
     deliveryState: 'delivered',
     retryCount: null,
     connectorName: 'imap-smtp',
+    credentialId: null,
     content,
     sentAt: 1_000,
     deliveredAt: null,
