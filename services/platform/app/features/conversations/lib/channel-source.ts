@@ -55,3 +55,34 @@ export function channelSourceOf(
   if (slug === undefined) return { lane: 'unknown' };
   return { lane: 'email', slug, label: titleOf(slug) ?? slug };
 }
+
+export interface ChannelOption {
+  /** What the server filters on: `connectorName`. */
+  value: string;
+  label: string;
+}
+
+/**
+ * Every lane a thread can arrive on, for the Inbox's channel facet.
+ *
+ * Email connectors are named by their title. An API source names itself —
+ * the integration chose the slug and there is no catalog to read it from.
+ * A source that collides with a connector slug is dropped rather than
+ * listed twice: one slug is one lane on the server's filter.
+ */
+export function channelOptionsOf(
+  connectors: ReadonlyArray<{ slug: string; title: string }>,
+  apiSources: readonly string[],
+): ChannelOption[] {
+  const options = connectors.map((connector) => ({
+    value: connector.slug,
+    label: connector.title,
+  }));
+  const seen = new Set(options.map((option) => option.value));
+  for (const source of apiSources) {
+    if (seen.has(source)) continue;
+    seen.add(source);
+    options.push({ value: source, label: source });
+  }
+  return options;
+}

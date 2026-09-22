@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { channelSourceOf } from './channel-source';
+import { channelOptionsOf, channelSourceOf } from './channel-source';
 
 const TITLES: Record<string, string> = { gmail: 'Gmail' };
 const titleOf = (slug: string): string | undefined => TITLES[slug];
@@ -53,5 +53,42 @@ describe('channelSourceOf', () => {
       slug: 'gmail',
       label: 'Gmail',
     });
+  });
+});
+
+describe('channelOptionsOf', () => {
+  const connectors = [
+    { slug: 'gmail', title: 'Gmail' },
+    { slug: 'imap-smtp', title: 'IMAP / SMTP Mailbox' },
+  ];
+
+  it('lists email connectors by title and API sources by slug', () => {
+    expect(channelOptionsOf(connectors, ['helpdesk'])).toEqual([
+      { value: 'gmail', label: 'Gmail' },
+      { value: 'imap-smtp', label: 'IMAP / SMTP Mailbox' },
+      { value: 'helpdesk', label: 'helpdesk' },
+    ]);
+  });
+
+  // One slug is one lane on the server's `connectorName` filter, so a source
+  // that shadows a connector must not produce two rows that filter alike.
+  it('drops an API source that collides with a connector slug', () => {
+    expect(channelOptionsOf(connectors, ['gmail', 'helpdesk'])).toEqual([
+      { value: 'gmail', label: 'Gmail' },
+      { value: 'imap-smtp', label: 'IMAP / SMTP Mailbox' },
+      { value: 'helpdesk', label: 'helpdesk' },
+    ]);
+  });
+
+  it('dedupes repeated API sources', () => {
+    expect(channelOptionsOf([], ['helpdesk', 'helpdesk'])).toEqual([
+      { value: 'helpdesk', label: 'helpdesk' },
+    ]);
+  });
+
+  // The facet is guarded on a non-empty list, so an org with neither keeps
+  // the control hidden rather than offering an empty menu.
+  it('returns nothing when the org has no channel at all', () => {
+    expect(channelOptionsOf([], [])).toEqual([]);
   });
 });
