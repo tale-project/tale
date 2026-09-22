@@ -34,6 +34,8 @@ A string `label` gets the shared label style and truncation. Pass a node instead
 
 Pair the column with `tableIconCellSkeleton()` — `{ lines: 2 }` when the cell renders a caption. It reserves the tile's footprint rather than the skeleton's bare-icon default, so rows do not jump when the data arrives.
 
+Reach for it in any column that leads with a glyph, not only the first one. A secondary column that frames its own mark — an audience, an owner, a state — sits its text a few pixels off the row's name; the same cell keeps the whole row on one offset. Pass `label` a node when the content is chips rather than a name.
+
 ## Wire search to the rows
 
 <Demo name="data-table/with-search" />

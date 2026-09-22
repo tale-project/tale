@@ -229,9 +229,11 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-F23` · **Audience in the list** — With an org-wide project, one
   scoped to two teams and one scoped to three → The **Sharing** column
   (`projects.list.columnSharing`) reads `projects.list.sharingOrgWide` with a
-  globe for the first, two team NAMES (never ids) for the second, and two
-  names plus `+1` (`projects.list.sharingMoreTeams`) for the third with every
-  name in the cell's title; the column's filter offers
+  globe for the first, one team NAME (never an id) in a chip plus `+1`
+  (`projects.list.sharingMoreTeams`) for the second, and one name plus `+2`
+  for the third with every name in the cell's title; the cell is the one the
+  documents list's **Teams** column uses (KNOW-F21), so the glyph and the text
+  beside it sit on the same offset on both screens; the column's filter offers
   `projects.list.sharingOrgWide`, **My teams** (`projects.list.filterMyTeams`,
   only for a caller in ≥1 team) and each team by name, lands in the URL as
   `?teams=…` and survives a reload.

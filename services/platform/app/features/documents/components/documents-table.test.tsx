@@ -49,7 +49,11 @@ vi.mock('@tale/ui/use-debounce', () => ({
 // expands "My teams" from the viewer's own memberships.
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
-  useTeamDirectory: () => ({ teams: [], isLoading: false }),
+  useTeamNames: () => ({
+    teams: [],
+    nameOf: () => undefined,
+    isLoading: false,
+  }),
 }));
 
 const paginatedMock = vi.hoisted(() => ({
