@@ -240,7 +240,12 @@ loaded, and reads **No teams** for an account in none.
   (children keep rendering below the overlay). With the backend stopped
   instead, the overlay reads **Can't reach Tale**
   (`connectivity.backendTitle`) with a **Try again** button
-  (`connectivity.retry`)
+  (`connectivity.retry`). Press **Try again** with the backend still stopped →
+  the document performs a FULL reload (the browser's load indicator runs, the
+  tab re-navigates), and the service worker's precached offline shell keeps
+  the user inside Tale — never the browser's own "site can't be reached" page.
+  Start the backend, press **Try again** → the reloaded page comes back
+  signed in on the same URL.
 
 - [ ] `NAV-B7` · **A project that is gone** — Open a project, then in a
   second session **delete it**. Back in the first session, reload that
