@@ -234,7 +234,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   matching thread is listed under Chats (no match: `chat.searchPalette.noResults`);
   selecting it navigates to `/dashboard/{org}/chat/{threadId}`. The same
   palette stays open; **Everything** also covers projects, tasks, documents,
-  and contacts (`dialogs.search.title`).
+  and contacts (`dialogs.search.title`). A body saved on an edit branch
+  (‹2/2› after **Edit message** `chat.editMessage` → **Send** `chat.editSend`)
+  is found too, listed once, under the conversation's own URL.
 - [ ] `CHAT-F31` · **Move to project** — Thread-row menu → **Move to
   project…** (`chat.moveToProject`) → pick a project (create one first via
   **New project** `chat.newProject` if none) → The thread relocates under the

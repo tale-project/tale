@@ -37,6 +37,7 @@ vi.mock('../../auth/membership.ts', () => ({
 import {
   getSharedThread,
   moveThreadToProject,
+  searchChats,
   setThreadArchived,
   unshareThread,
   trashThread,
@@ -81,7 +82,12 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
   statements: Statement[];
 } {
   const statements: Statement[] = [];
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const tag = (
+    strings: TemplateStringsArray | readonly unknown[],
+    ...values: unknown[]
+  ) => {
+    // `sql([...])` builds an `IN (...)` fragment; keep the list as a value.
+    if (!('raw' in strings)) return { list: strings };
     const statement = { text: strings.join('?'), values };
     statements.push(statement);
     return Promise.resolve(answer(statement) ?? []);
@@ -476,5 +482,72 @@ describe('moveThreadToProject', () => {
       previousState: { threadId: 'thread_1', projectId: null },
       newState: { threadId: 'thread_1', projectId: 'project_b' },
     });
+  });
+});
+
+/**
+ * The palette search reads the transcript the user reads: an edit or
+ * regenerate lands on a HIDDEN sibling that never graduates, so the message
+ * window is ranked per ROOT across every live thread of its lineage and a
+ * hit is reported under the root. A settled Arena loser (archived) drops
+ * out through the same predicate.
+ */
+describe('searchChats lineage', () => {
+  const ROOT = { id: 'thread_1', title: 'Launch plan', updatedAt: 5 };
+
+  it('joins the metadata and scopes the message window by branch root, live threads only', async () => {
+    const { sql, statements } = fakeSql(({ text }) => {
+      if (text.includes('FROM app.threads t')) return [ROOT];
+      if (text.includes('FROM app.messages m')) {
+        return [
+          { threadId: 'thread_1', text: 'edited on the branch', rank: 1 },
+        ];
+      }
+      return [];
+    });
+    const hits = await searchChats(sql, 'org_1', 'user_1', 'edited branch');
+    expect(hits).toEqual([
+      {
+        threadId: 'thread_1',
+        title: 'Launch plan',
+        snippet: 'edited on the branch',
+        updatedAt: 5,
+      },
+    ]);
+    const roots = statements.find(({ text }) =>
+      text.includes('FROM app.threads t'),
+    );
+    expect(roots?.text).toContain('tm.hidden IS NOT true');
+    const messages = statements.find(({ text }) =>
+      text.includes('FROM app.messages m'),
+    );
+    expect(messages).toBeDefined();
+    const read = messages?.text ?? '';
+    expect(read).toContain(
+      'JOIN app.thread_metadata tm ON tm.thread_id = m.thread_id',
+    );
+    expect(read).toContain(
+      'PARTITION BY coalesce(tm.branch_root_id, m.thread_id)',
+    );
+    // Root rows carry a NULL branch_root_id; siblings name the root — both
+    // halves of the predicate keep their index.
+    expect(read).toContain('WHERE (tm.branch_root_id IN ?');
+    expect(read).toContain(
+      'OR (tm.branch_root_id IS NULL AND m.thread_id IN ?',
+    );
+    expect(read).toContain("tm.status = 'active' AND tm.archived = false");
+    expect(read).not.toContain('tm.hidden');
+    // The scan list feeds the IN (...) of the lineage predicate.
+    expect(messages?.values).toContainEqual({ list: ['thread_1'] });
+  });
+
+  it('reads no messages when the caller has no live root', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await expect(
+      searchChats(sql, 'org_1', 'user_1', 'anything'),
+    ).resolves.toEqual([]);
+    expect(
+      statements.some(({ text }) => text.includes('FROM app.messages m')),
+    ).toBe(false);
   });
 });
