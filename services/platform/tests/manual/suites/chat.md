@@ -331,6 +331,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   message → the reply no longer follows it; in a project chat both the
   project's **Instructions** and the personal ones apply, and an org
   **Custom instructions** guardrail (governance.md) still wins a conflict.
+- [ ] `CHAT-F43` · **An arena send snaps like a normal send** — In an arena
+  pair (CHAT-F24) with a few rounds of long replies, scroll both columns to
+  the bottom and send a short prompt → The prompt shows in both columns the
+  moment you press Send, each column glides it to just under its header, and
+  both replies stream beneath it in view — no dragging the scrollbar; the
+  prompt appears once per column (never a second copy when the reply
+  arrives), and the verdict buttons stay unavailable until both replies
+  finish.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
