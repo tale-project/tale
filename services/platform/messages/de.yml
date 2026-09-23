@@ -1950,7 +1950,6 @@ dialogs:
   toSend: zum Senden
   contactInfo:
     title: Kontaktdetails
-    description: Alle Informationen zu diesem Kontakt anzeigen
     contactId: Kontakt-ID
   selectConversation: Konversation auswählen
 documents:
@@ -4106,7 +4105,6 @@ knowledgeEntries:
   addEntry: Wissenseintrag hinzufügen
   addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
   editEntry: Wissenseintrag bearbeiten
-  editDescription: Informationen zum Wissenseintrag aktualisieren.
   adding: Wird hinzugefügt...
   saving: Wird gespeichert...
   topic: Thema
@@ -4142,7 +4140,6 @@ knowledgeEntries:
     warning: Agenten finden den Eintrag danach nicht mehr in der Wissensdatenbank.
   viewDialog:
     title: Details zum Wissenseintrag
-    description: Alle Informationen zu diesem Wissenseintrag anzeigen
     updated: Aktualisiert
     entryId: Eintrags-ID
     history: Versionsverlauf
@@ -4715,7 +4712,6 @@ products:
     warning: Alle zugehörigen Beziehungen und Daten werden dauerhaft entfernt.
   view:
     title: Produktdetails
-    description: Alle Informationen zu diesem Produkt anzeigen
     labels:
       price: Preis
       stock: Bestand
@@ -7231,7 +7227,6 @@ websites:
     scanInterval: Scan-Intervall
     lastScanned: Zuletzt gescannt
     notScannedYet: Noch nicht gescannt
-    description: Alle Informationen zu dieser Website anzeigen
     descriptionField: Beschreibung
     created: Erstellt
     websiteId: Website-ID
@@ -7256,7 +7251,6 @@ websites:
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
-    noPagesDescription: Starte einen Scan für diese Website — gecrawlte Seiten erscheinen hier.
     loadMore: Mehr laden
     wordCount: '{count} Wörter'
     chunks: '{count} Chunks'

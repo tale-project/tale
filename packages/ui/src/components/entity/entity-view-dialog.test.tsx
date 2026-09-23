@@ -87,9 +87,7 @@ describe('EntityViewDialog', () => {
         name="Sarah Johnson"
       />,
     );
-    await user.click(
-      screen.getByRole('button', { name: 'Close', exact: true }),
-    );
+    await user.click(screen.getByRole('button', { name: /^Close$/ }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

@@ -1956,7 +1956,6 @@ dialogs:
   toSend: pour envoyer
   contactInfo:
     title: Détails du contact
-    description: Voir toutes les informations sur ce contact
     contactId: ID du contact
   selectConversation: Sélectionner la conversation
 documents:
@@ -4169,7 +4168,6 @@ knowledgeEntries:
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
   editEntry: Modifier l'entrée de connaissances
-  editDescription: Mettre à jour les informations de l'entrée de connaissances.
   adding: Ajout en cours...
   saving: Enregistrement...
   topic: Sujet
@@ -4204,7 +4202,6 @@ knowledgeEntries:
     warning: Les agents ne pourront plus retrouver cette entrée dans la base de connaissances.
   viewDialog:
     title: Détails de l'entrée de connaissances
-    description: Voir toutes les informations sur cette entrée de connaissances
     updated: Mis à jour
     entryId: ID de l'entrée
     history: Historique des versions
@@ -4785,7 +4782,6 @@ products:
     warning: Toutes les relations et données associées seront définitivement supprimées.
   view:
     title: Détails du produit
-    description: Voir toutes les informations sur ce produit
     labels:
       price: Prix
       stock: Stock
@@ -7328,7 +7324,6 @@ websites:
     scanInterval: Intervalle d'analyse
     lastScanned: Dernière analyse
     notScannedYet: Pas encore analysé
-    description: Voir toutes les informations sur ce site web
     descriptionField: Description
     created: Créé
     websiteId: ID du site web
@@ -7352,7 +7347,6 @@ websites:
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment
-    noPagesDescription: Lance un scan de ce site — les pages explorées apparaissent ici.
     loadMore: Charger plus
     wordCount: '{count} mots'
     chunks: '{count} fragments'
