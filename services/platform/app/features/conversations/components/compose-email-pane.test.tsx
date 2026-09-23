@@ -84,7 +84,11 @@ const abilities = {
 function renderPane(role: keyof typeof abilities) {
   return render(
     <AbilityContext.Provider value={abilities[role]}>
-      <ComposeEmailPane organizationId="org-1" onClose={vi.fn()} />
+      <ComposeEmailPane
+        organizationId="org-1"
+        onClose={vi.fn()}
+        onSent={vi.fn()}
+      />
     </AbilityContext.Provider>,
   );
 }
