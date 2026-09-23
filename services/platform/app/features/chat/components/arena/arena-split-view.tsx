@@ -20,7 +20,7 @@ import {
   type ArenaSettledReply,
 } from '../../hooks/use-arena-voice';
 import type { ComposerModelOption } from '../../types';
-import { ArenaColumn } from './arena-column';
+import { ArenaColumn, type ArenaRound } from './arena-column';
 import { ArenaModelPicker } from './arena-model-picker';
 import { ArenaVerdictBar } from './arena-verdict-bar';
 
@@ -38,6 +38,9 @@ interface ArenaSplitViewProps {
   onModelBChange: (modelId: string, providerSlug: string) => void;
   /** Either column is still answering. */
   generating: boolean;
+  /** The prompt just fanned into both columns, until the pair's turn
+   * resolves — each column shows it as its own optimistic send. */
+  round?: ArenaRound;
   /** When the pair formed (epoch ms) — a verdict needs a reply in each
    * column written after it, not the history copied at pairing. */
   pairCreatedAt?: number;
@@ -58,6 +61,7 @@ export function ArenaSplitView({
   modelBId,
   onModelBChange,
   generating,
+  round,
   pairCreatedAt,
   voiceEnabled,
   onVerdict,
@@ -99,6 +103,7 @@ export function ArenaSplitView({
             ? { judgedSince: pairCreatedAt }
             : {})}
           onJudgeableChange={setJudgeableA}
+          round={round}
           headerExtra={
             <ArenaModelPicker
               models={models}
@@ -116,6 +121,7 @@ export function ArenaSplitView({
             ? { judgedSince: pairCreatedAt }
             : {})}
           onJudgeableChange={setJudgeableB}
+          round={round}
           headerExtra={
             <ArenaModelPicker
               models={models}

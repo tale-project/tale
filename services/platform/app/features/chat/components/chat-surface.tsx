@@ -137,6 +137,7 @@ import {
   turnNamedFailureToastContent,
 } from '../utils/turn-error-toast';
 import { ArchivedBanner } from './archived-banner';
+import type { ArenaRound } from './arena/arena-column';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
@@ -287,6 +288,12 @@ function ChatSurfaceInner({
   // each send (true = instant, for the first message; 'smooth' = the
   // retargeting glide for follow-ups and edits).
   const scrollIntentRef = useRef<boolean | 'smooth'>(false);
+  // The arena twin of the overlay: the prompt fanned into both columns, from
+  // Send until the pair's turn resolves. Each column makes it its own
+  // optimistic send and snaps it to the top (see ArenaColumn).
+  const [arenaRound, setArenaRound] = useState<
+    (ArenaRound & { readonly threadId: string }) | null
+  >(null);
   // Arena pair first: while a pair is live the columns own their thread
   // views, and the surface's own view (below) steps aside entirely.
   const arenaPair = useArenaPair(organizationId, viewThreadId);
@@ -661,6 +668,11 @@ function ChatSurfaceInner({
   );
   const arenaBusyB =
     generationB.status === 'ready' && generationB.data !== null;
+  // The round in flight, while it belongs to the pair on screen.
+  const openArenaRound =
+    arenaRound !== null && arenaRound.threadId === viewThreadId
+      ? arenaRound
+      : undefined;
 
   // Hydrate the effort pick from the open thread once its row loads. The
   // pick LIVES on the thread. The chat layout keeps this surface mounted
@@ -1137,6 +1149,8 @@ function ChatSurfaceInner({
         return;
       }
       const modelIdA = selection.modelId;
+      const sentAt = Date.now();
+      setArenaRound({ text, sentAt, threadId: viewThreadId });
       void arenaActions
         .startTurn({
           threadId: viewThreadId,
@@ -1157,6 +1171,11 @@ function ChatSurfaceInner({
           locale,
         })
         .then(({ a, b }) => {
+          // Both sides settled: the real rows (or the refusal) replace the
+          // overlay in each column.
+          setArenaRound((previous) =>
+            previous !== null && previous.sentAt === sentAt ? null : previous,
+          );
           const failed = [a, b].find((side) => side.status === 'refused');
           if (failed === undefined) return;
           // The composer cleared on submit; a refusal that wrote nothing
@@ -1957,7 +1976,10 @@ function ChatSurfaceInner({
               onModelBChange={(id, providerSlug) =>
                 setArenaModelB({ id, providerSlug })
               }
-              generating={generationInFlight || arenaBusyB}
+              generating={
+                generationInFlight || arenaBusyB || openArenaRound !== undefined
+              }
+              round={openArenaRound}
               voiceEnabled={voiceEnabled && speakAvailable}
               onVerdict={(verdict) => void handleArenaSettle(verdict)}
               onExit={() => void handleArenaSettle(undefined)}
