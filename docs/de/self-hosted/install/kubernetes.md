@@ -209,7 +209,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: minio
-          image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+          image: ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z
           args: ['server', '/data', '--address', ':9000', '--console-address', ':9001']
           env:
             - name: MINIO_ROOT_USER
