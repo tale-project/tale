@@ -199,9 +199,7 @@ export function FormDialog({
       customHeader={customHeader}
       restoreFocusRef={restoreFocusRef}
     >
-      {/* The form fills the body and the actions take up the slack above
-          them, so a dialog with a minimum height (the `entity` size) keeps
-          its actions on the bottom edge instead of mid-dialog. */}
+      {/* Keep actions after the fields, including in caller-sized forms. */}
       <form
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col gap-4"

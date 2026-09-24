@@ -11,7 +11,6 @@ import {
   EntityViewSection,
 } from '@tale/ui/entity/entity-view-dialog';
 import { Heading } from '@tale/ui/heading';
-import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -156,11 +155,16 @@ function PageRow({
 
   const handleToggle = useCallback(
     (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-      if (e.currentTarget.open && chunks === null && !isPending) {
+      if (
+        e.currentTarget.open &&
+        page.chunks_count > 0 &&
+        chunks === null &&
+        !isPending
+      ) {
         fetchChunks({ websiteId, url: page.url });
       }
     },
-    [chunks, isPending, fetchChunks, websiteId, page.url],
+    [chunks, isPending, fetchChunks, websiteId, page.url, page.chunks_count],
   );
 
   const failedCaption = pageFailureCaption(page, t);
@@ -168,94 +172,88 @@ function PageRow({
 
   const summary = (
     <Stack gap={1} className="min-w-0 flex-1">
-      <Heading level={4} size="sm" weight="medium" className="wrap-anywhere">
-        <SkeletonBox>
-          <a
-            href={page.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {label}
-          </a>
-        </SkeletonBox>
-      </Heading>
-      {page.title ? (
-        <Text variant="caption">
-          <a
-            href={page.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wrap-anywhere hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SkeletonBox>{page.url}</SkeletonBox>
-          </a>
+      <Row gap={2} justify="between" align="start">
+        <Text className="min-w-0 wrap-anywhere">
+          <SkeletonBox>
+            <a
+              href={page.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {label}
+            </a>
+          </SkeletonBox>
         </Text>
-      ) : null}
-      <Row gap={3} wrap className="text-muted-foreground text-xs">
-        {failedCaption === null ? (
-          <>
-            <span>
-              <SkeletonBox>
-                {t('pagesDialog.wordCount', { count: page.word_count })}
-              </SkeletonBox>
-            </span>
-            <span>
-              <SkeletonBox>
-                {t('pagesDialog.chunks', { count: page.chunks_count })}
-              </SkeletonBox>
-            </span>
-          </>
-        ) : (
-          <Badge variant="destructive">{t('pagesDialog.failed')}</Badge>
-        )}
-        {page.last_crawled_at && (
-          <span>
-            {t('pagesDialog.lastCrawled', {
-              date: formatDate(page.last_crawled_at),
-            })}
-          </span>
-        )}
+        {failedCaption !== null ? (
+          <Text variant="caption" className="text-destructive shrink-0">
+            {t('pagesDialog.failed')}
+          </Text>
+        ) : null}
       </Row>
-      {failedCaption !== null && (
+      {failedCaption !== null ? (
         <Text
           variant="caption"
-          className="text-muted-foreground wrap-anywhere"
+          className="wrap-anywhere"
           title={page.last_error ?? undefined}
         >
           {failedCaption}
         </Text>
-      )}
+      ) : page.title ? (
+        <Text variant="caption" className="wrap-anywhere">
+          {page.url}
+        </Text>
+      ) : null}
     </Stack>
   );
 
   return (
-    <BorderedSection>
-      <CollapsibleDetails summary={summary} onToggle={handleToggle}>
-        <Stack gap={2} className="mt-3">
-          {isPending && (
-            <Row gap={0} justify="center" className="py-2">
-              <Spinner size="sm" />
-            </Row>
-          )}
-          {chunks?.length === 0 && (
-            <Text variant="muted">{t('pagesDialog.noChunks')}</Text>
-          )}
-          {chunks?.map((chunk) => (
-            <div key={chunk.chunk_index} className="bg-muted/50 rounded-md p-3">
-              <Text variant="caption" className="mb-1 block font-medium">
-                {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
-              </Text>
-              <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
-                {chunk.chunk_content}
-              </Text>
-            </div>
-          ))}
-        </Stack>
-      </CollapsibleDetails>
-    </BorderedSection>
+    <CollapsibleDetails
+      summary={summary}
+      onToggle={handleToggle}
+      className="border-border border-b py-3 last:border-0 last:pb-0"
+    >
+      <Stack gap={2} className="mt-3 pl-5">
+        <Row gap={3} wrap className="text-muted-foreground text-xs">
+          {failedCaption === null ? (
+            <>
+              <span>
+                {t('pagesDialog.wordCount', { count: page.word_count })}
+              </span>
+              <span>
+                {t('pagesDialog.chunks', { count: page.chunks_count })}
+              </span>
+            </>
+          ) : null}
+          {page.last_crawled_at ? (
+            <span>
+              {t('pagesDialog.lastCrawled', {
+                date: formatDate(page.last_crawled_at),
+              })}
+            </span>
+          ) : null}
+        </Row>
+        {isPending && (
+          <Row gap={0} justify="center" className="py-2">
+            <Spinner size="sm" />
+          </Row>
+        )}
+        {chunks?.length === 0 && (
+          <Text variant="muted">{t('pagesDialog.noChunks')}</Text>
+        )}
+        {chunks?.map((chunk) => (
+          <div key={chunk.chunk_index} className="bg-muted/50 rounded-md p-3">
+            <Text variant="caption" className="mb-1 block font-medium">
+              {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
+            </Text>
+            <Text className="max-h-48 overflow-y-auto text-sm wrap-anywhere whitespace-pre-wrap">
+              {chunk.chunk_content}
+            </Text>
+          </div>
+        ))}
+      </Stack>
+    </CollapsibleDetails>
   );
 }
 
@@ -443,6 +441,14 @@ export function WebsiteViewDialog({
 
   const facts = useMemo<StatGridItem[]>(
     () => [
+      ...(website.title
+        ? [
+            {
+              label: t('viewDialog.nameField'),
+              value: <Text>{website.title}</Text>,
+            },
+          ]
+        : []),
       {
         label: t('viewDialog.scanInterval'),
         value: (
@@ -466,6 +472,17 @@ export function WebsiteViewDialog({
         value: (
           <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>
         ),
+      },
+      {
+        label: t('viewDialog.websiteId'),
+        value: (
+          <CopyableField
+            value={website._id}
+            className="min-w-0"
+            inputClassName="border-0 bg-transparent px-0 py-0 [&>span]:text-sm"
+          />
+        ),
+        colSpan: 2 as const,
       },
       ...(statusNotice
         ? [
@@ -497,11 +514,6 @@ export function WebsiteViewDialog({
             },
           ]
         : []),
-      {
-        label: t('viewDialog.websiteId'),
-        value: <CopyableField value={website._id} />,
-        colSpan: 2,
-      },
     ],
     [website, t, formatDate, scanIntervals, statusNotice, paused],
   );
@@ -515,9 +527,7 @@ export function WebsiteViewDialog({
         if (!open) onClose();
       }}
       title={t('viewDialog.title')}
-      description={t('viewDialog.description')}
       name={website.domain}
-      summary={website.title}
       icon={Globe}
       badges={
         paused ? (
@@ -568,13 +578,16 @@ export function WebsiteViewDialog({
       restoreFocusRef={restoreFocusRef}
     >
       {hollowScan ? (
-        <div title={lastSyncError ?? undefined}>
-          <EmptyState
-            title={t(scanErrorMessageKey(scanErrorKind))}
-            description={t(scanEmptyMessageKey(scanErrorKind))}
-            className="py-6"
-          />
-        </div>
+        <Stack
+          gap={1}
+          className="bg-muted/50 rounded-lg p-3"
+          title={lastSyncError ?? undefined}
+        >
+          <Heading level={3} size="sm" weight="medium">
+            {t(scanErrorMessageKey(scanErrorKind))}
+          </Heading>
+          <Text variant="muted">{t(scanEmptyMessageKey(scanErrorKind))}</Text>
+        </Stack>
       ) : (
         <EntityViewSection
           title={t('pagesDialog.title')}
@@ -586,7 +599,9 @@ export function WebsiteViewDialog({
             </>
           }
         >
-          {lastSyncError !== null && !paused ? (
+          {lastSyncError !== null &&
+          !paused &&
+          !pages.some((page) => pageFailureCaption(page, t) !== null) ? (
             <Text
               variant="caption"
               className="text-muted-foreground"
@@ -595,24 +610,17 @@ export function WebsiteViewDialog({
               {t(scanErrorMessageKey(scanErrorKind))}
             </Text>
           ) : null}
-          <Row gap={2}>
+          {indexedPageCount(website) > 0 ? (
             <SearchInput
               value={searchQuery}
               onChange={handleSearchChange}
               onKeyDown={handleSearchKeyDown}
               placeholder={t('pagesDialog.searchPlaceholder')}
               aria-label={t('pagesDialog.searchPlaceholder')}
-              wrapperClassName="flex-1"
+              wrapperClassName="w-full"
               className="max-w-none"
             />
-            <IconButton
-              icon={SearchIcon}
-              variant="secondary"
-              onClick={triggerSearch}
-              disabled={!searchQuery.trim() || isSearching}
-              aria-label={t('pagesDialog.searchPlaceholder')}
-            />
-          </Row>
+          ) : null}
 
           {isSearchMode ? (
             <Stack gap={2}>
@@ -640,11 +648,7 @@ export function WebsiteViewDialog({
           ) : (
             <Stack gap={2}>
               {!isFirstLoad && pages.length === 0 && (
-                <EmptyState
-                  icon={FileText}
-                  title={t('pagesDialog.noPages')}
-                  description={t('pagesDialog.noPagesDescription')}
-                />
+                <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
               )}
 
               <Skeletonize loading={isFirstLoad && isPending}>

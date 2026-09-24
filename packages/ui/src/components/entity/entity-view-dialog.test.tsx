@@ -43,6 +43,7 @@ describe('EntityViewDialog', () => {
         summary="Example Domain"
         badges={<span>Active</span>}
         icon={Globe}
+        identifier={{ label: 'Website ID', value: 'website-123' }}
         facts={[
           { label: 'Scan interval', value: 'Every 1 day' },
           { label: 'Description', value: 'A test site', colSpan: 2 },
@@ -67,6 +68,27 @@ describe('EntityViewDialog', () => {
     });
     expect(within(section).getByText('3 indexed')).toBeInTheDocument();
     expect(within(section).getByText('Page list')).toBeInTheDocument();
+    const identifier = within(dialog).getByRole('button', {
+      name: 'website-123',
+    });
+    expect(
+      section.compareDocumentPosition(identifier) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('closes from the labelled header control', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <EntityViewDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Contact details"
+        name="Sarah Johnson"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /^Close$/ }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('uses the shared record measure', () => {
@@ -79,7 +101,7 @@ describe('EntityViewDialog', () => {
       />,
     );
 
-    expect(screen.getByRole('dialog')).toHaveClass('md:max-w-md');
+    expect(screen.getByRole('dialog')).toHaveClass('md:max-w-lg');
   });
 
   it('hands the frame to the edit dialog and returns on cancel', async () => {

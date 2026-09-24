@@ -1,4 +1,5 @@
 import { FileIcon, ImageIcon, MusicIcon, VideoIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import type { Message as ConversationMessage } from '../../types';
 
@@ -11,6 +12,12 @@ export interface AttachedFile {
 export interface MessageEditorProps {
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Explains why send is soft-disabled (hover + focus tooltip). Used when the
+   * compose surface blocks send for a setup reason (no email connector) or
+   * incomplete fields — not for the editor's own empty-body gate.
+   */
+  sendDisabledReason?: ReactNode;
   onSave?: (
     message: string,
     attachments?: AttachedFile[],

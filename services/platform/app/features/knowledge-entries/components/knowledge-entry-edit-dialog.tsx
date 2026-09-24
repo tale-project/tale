@@ -109,7 +109,6 @@ export function KnowledgeEntryEditDialog({
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={t('editEntry')}
-      description={t('editDescription')}
       submittingText={t('saving')}
       isSubmitting={isPending}
       isDirty={isDirty}
@@ -133,7 +132,7 @@ export function KnowledgeEntryEditDialog({
         label={t('content')}
         placeholder={t('contentPlaceholder')}
         required
-        rows={8}
+        rows={4}
         {...register('content')}
         disabled={isPending}
         errorMessage={errors.content?.message}

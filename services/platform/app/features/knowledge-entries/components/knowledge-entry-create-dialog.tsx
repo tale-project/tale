@@ -124,7 +124,7 @@ export function KnowledgeEntryCreateDialog({
         label={t('content')}
         placeholder={t('contentPlaceholder')}
         required
-        rows={8}
+        rows={4}
         {...register('content')}
         disabled={isPending}
         errorMessage={errors.content?.message}

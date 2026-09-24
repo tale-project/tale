@@ -1,13 +1,14 @@
 'use client';
 
+import { CopyableField } from '@tale/ui/copyable-field';
 import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Heading } from '@tale/ui/heading';
+import { useT } from '@tale/ui/i18n/client';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
-import { Separator } from '@tale/ui/separator';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
-import { Pencil, type LucideIcon } from 'lucide-react';
+import { Pencil, X, type LucideIcon } from 'lucide-react';
 import {
   type ReactNode,
   type RefObject,
@@ -53,13 +54,13 @@ export interface EntityViewDialogProps {
   description?: ReactNode;
   /** The record's name — the heading of its identity block */
   name: ReactNode;
-  /** A short muted summary under the name, clamped to two lines */
+  /** A short muted summary under the name */
   summary?: ReactNode;
-  /** Status badges under the summary */
+  /** Status badges alongside the record name */
   badges?: ReactNode;
   /** An image that identifies the record (a product photo) … */
   media?: ReactNode;
-  /** … or an icon drawn in the shared tile when the record has no image */
+  /** … or a small icon beside the name when the record has no image */
   icon?: LucideIcon;
   /**
    * The record's edit dialog. Adds an Edit button to the header that hands
@@ -69,8 +70,12 @@ export interface EntityViewDialogProps {
   edit?: EntityViewEdit;
   /** Further header shortcuts, after Edit — the row menu's other verbs */
   actions?: EntityViewAction[];
-  /** Key facts in the two-column grid; long values span both columns */
+  /** Key facts in aligned metadata rows; long values use the full width */
   facts?: StatGridItem[];
+  /** Primary reading content, before supporting metadata. */
+  content?: ReactNode;
+  /** Quiet copyable identifier, rendered after all record content. */
+  identifier?: { label: string; value: string };
   /** Sections below the facts — wrap each in `EntityViewSection` */
   children?: ReactNode;
   /**
@@ -80,25 +85,12 @@ export interface EntityViewDialogProps {
   restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
-/** The square tile that stands in for a record image. */
-function EntityViewIconTile({ icon: Icon }: { icon: LucideIcon }) {
-  return (
-    <Row
-      gap={0}
-      justify="center"
-      className="bg-muted size-16 shrink-0 rounded-lg"
-    >
-      <Icon className="text-muted-foreground size-6" aria-hidden="true" />
-    </Row>
-  );
-}
-
 /**
  * Read-only details of one knowledge record — a product, contact, website, or
  * knowledge entry — in the layout every record shares: an identity block
  * (image or icon, name, summary, badges), the key facts, then any sections of
- * its own. The dialog uses the `entity` measure, the same frame as the
- * record's create and edit dialogs.
+ * its own. Details use a comfortable reading width and grow with their content
+ * without reserving empty space below short records.
  *
  * @example
  * ```tsx
@@ -138,9 +130,12 @@ export function EntityViewDialog({
   edit,
   actions,
   facts,
+  identifier,
+  content,
   children,
   restoreFocusRef,
 }: EntityViewDialogProps) {
+  const { t } = useT('common');
   // While the edit dialog is up the details step aside rather than stacking
   // two modals. Cancelling the edit brings them back; saving closes both, so
   // the details never reopen on values the save has just made stale — some
@@ -169,8 +164,7 @@ export function EntityViewDialog({
     ...(actions ?? []).filter((action) => action.visible !== false),
   ];
 
-  const identityMedia =
-    media ?? (icon ? <EntityViewIconTile icon={icon} /> : null);
+  const Icon = icon;
 
   return (
     <>
@@ -179,52 +173,78 @@ export function EntityViewDialog({
         onOpenChange={onOpenChange}
         title={title}
         description={description}
-        size="entity"
+        size="lg"
+        className="gap-6 overflow-hidden"
         restoreFocusRef={restoreFocusRef}
-        headerActions={
-          headerButtons.length > 0 ? (
-            <Row gap={1}>
+        customHeader={
+          <Row gap={3} align="start">
+            {media}
+            {!media && Icon ? (
+              <Icon
+                className="text-muted-foreground mt-1 size-5 shrink-0"
+                aria-hidden="true"
+              />
+            ) : null}
+            <Stack gap={2} className="min-w-0 flex-1">
+              <Row gap={2} wrap>
+                <Heading level={3} size="lg" className="min-w-0 wrap-anywhere">
+                  {name}
+                </Heading>
+                {badges ? (
+                  <Row gap={1} wrap>
+                    {badges}
+                  </Row>
+                ) : null}
+              </Row>
+              {summary ? (
+                <Text variant="muted" className="wrap-anywhere">
+                  {summary}
+                </Text>
+              ) : null}
+              {description ? <Text variant="muted">{description}</Text> : null}
+            </Stack>
+            <Row gap={1} className="-mt-1 -mr-1 shrink-0">
               {headerButtons.map((action) => (
                 <IconButton
                   key={action.key}
                   icon={action.icon}
+                  size="sm"
                   aria-label={action.label}
                   onClick={action.onClick}
                   disabled={action.disabled}
                 />
               ))}
+              <IconButton
+                icon={X}
+                size="sm"
+                aria-label={t('aria.close')}
+                onClick={() => onOpenChange(false)}
+              />
             </Row>
-          ) : undefined
+          </Row>
         }
       >
-        <Stack gap={4}>
-          <Row gap={4} align="start">
-            {identityMedia}
-            <Stack gap={1} className="min-w-0 flex-1">
-              <Heading level={3} className="wrap-anywhere">
-                {name}
-              </Heading>
-              {summary ? (
-                <Text variant="muted" className="line-clamp-2">
-                  {summary}
-                </Text>
-              ) : null}
-              {badges ? (
-                <Row gap={2} wrap className="mt-1">
-                  {badges}
-                </Row>
-              ) : null}
-            </Stack>
-          </Row>
+        <Stack gap={6}>
+          {content}
 
           {facts && facts.length > 0 ? (
-            <>
-              <Separator />
-              <StatGrid items={facts} />
-            </>
+            <StatGrid items={facts} layout="rows" />
           ) : null}
 
           {children}
+
+          {identifier ? (
+            <Row gap={3} className="pt-1" align="center">
+              <Text variant="caption" className="shrink-0">
+                {identifier.label}
+              </Text>
+              <CopyableField
+                value={identifier.value}
+                className="min-w-0 flex-1"
+                inputClassName="border-0 bg-transparent px-1 py-1.5 [&>span]:text-xs"
+              />
+            </Row>
+          ) : null}
         </Stack>
       </ViewDialog>
 
@@ -262,8 +282,7 @@ export function EntityViewSection({
 
   return (
     <Stack as="section" gap={3} aria-labelledby={headingId}>
-      <Separator />
-      <Row gap={2} justify="between">
+      <Row gap={2} justify="between" wrap>
         <Heading id={headingId} level={3} size="sm">
           {title}
         </Heading>

@@ -10,7 +10,7 @@ import {
   Send,
   WandSparklesIcon,
 } from 'lucide-react';
-import { memo, useRef } from 'react';
+import { memo, useRef, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -19,6 +19,7 @@ import { getFileType } from './types';
 
 interface EditorActionBarProps {
   disabled: boolean;
+  sendDisabledReason?: ReactNode;
   isLoading: boolean;
   isImproveMode: boolean;
   isImproving: boolean;
@@ -34,6 +35,7 @@ interface EditorActionBarProps {
 
 export const EditorActionBar = memo(function EditorActionBar({
   disabled,
+  sendDisabledReason,
   isLoading,
   isImproveMode,
   isImproving,
@@ -123,6 +125,7 @@ export const EditorActionBar = memo(function EditorActionBar({
             isImproving ||
             isSending
           }
+          disabledReason={disabled ? sendDisabledReason : undefined}
           className="rounded-full"
         >
           {isSending ? (

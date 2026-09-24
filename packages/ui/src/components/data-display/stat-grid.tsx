@@ -29,20 +29,31 @@ export interface StatGridItem {
 interface StatGridProps extends VariantProps<typeof statGridVariants> {
   items: StatGridItem[];
   className?: string;
+  /** Aligned metadata rows; spanning items remain full-width reading blocks. */
+  layout?: 'grid' | 'rows';
 }
 
 export const StatGrid = memo(function StatGrid({
   items,
   cols,
   className,
+  layout = 'grid',
 }: StatGridProps) {
   return (
-    <dl className={cn(statGridVariants({ cols }), className)}>
+    <dl
+      className={cn(
+        layout === 'rows'
+          ? 'grid grid-cols-1 gap-3'
+          : statGridVariants({ cols }),
+        className,
+      )}
+    >
       {items.map((item, index) => (
         <StatItem
           key={`${index}-${item.label}`}
           label={item.label}
-          colSpan={item.colSpan}
+          colSpan={layout === 'grid' ? item.colSpan : undefined}
+          layout={layout === 'rows' && item.colSpan !== 2 ? 'row' : 'stack'}
         >
           {item.value}
         </StatItem>

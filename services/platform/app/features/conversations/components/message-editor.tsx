@@ -47,6 +47,7 @@ interface MilkdownEditorInnerProps extends MessageEditorProps {
 function MilkdownEditorInner({
   placeholder,
   disabled = false,
+  sendDisabledReason,
   onSave,
   messageId,
   conversationId: _conversationId,
@@ -403,6 +404,7 @@ function MilkdownEditorInner({
         <EditorActionBar
           {...(replyDestination !== undefined ? { replyDestination } : {})}
           disabled={disabled}
+          sendDisabledReason={sendDisabledReason}
           isLoading={isLoading}
           isImproveMode={isImproveMode}
           isImproving={isImproving}

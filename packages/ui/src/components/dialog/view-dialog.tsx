@@ -23,6 +23,8 @@ export interface ViewDialogProps {
   className?: string;
   /** Hide the close button */
   hideClose?: boolean;
+  /** Custom identity header; supply a labelled close control. */
+  customHeader?: React.ReactNode;
   /** Custom footer content */
   customFooter?: React.ReactNode;
   /** Dialog size variant */
@@ -67,6 +69,7 @@ export function ViewDialog({
   className,
   hideClose = false,
   customFooter,
+  customHeader,
   size,
   headerActions,
   headerActionsPlacement,
@@ -86,6 +89,7 @@ export function ViewDialog({
       title={title}
       description={description}
       footer={customFooter}
+      customHeader={customHeader}
       hideClose={hideClose}
       className={cn('max-h-[90vh] overflow-y-auto', className)}
       size={size}

@@ -10,6 +10,7 @@ interface StatItemProps {
   children: ReactNode;
   colSpan?: 1 | 2;
   className?: string;
+  layout?: 'stack' | 'row';
 }
 
 export function StatItem({
@@ -17,11 +18,14 @@ export function StatItem({
   children,
   colSpan,
   className,
+  layout = 'stack',
 }: StatItemProps) {
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-col',
+        layout === 'row'
+          ? 'grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-baseline gap-x-4 gap-y-1'
+          : 'flex min-w-0 flex-col',
         colSpan === 2 && 'col-span-2',
         className,
       )}
@@ -33,7 +37,7 @@ export function StatItem({
       </dt>
       {/* Wrap at spaces first; only an unbroken run (a URL, an id) breaks
           mid-word — `break-all` split dates like "8:54" across lines. */}
-      <dd className="wrap-anywhere">{children}</dd>
+      <dd className="min-w-0 wrap-anywhere">{children}</dd>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { CopyableField } from '@tale/ui/copyable-field';
 import { EntityViewDialog } from '@tale/ui/entity/entity-view-dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import type { StatGridItem } from '@tale/ui/stat-grid';
@@ -44,6 +43,7 @@ export function ContactViewDialog({
 }: ContactViewDialogProps) {
   const { t: tDialogs } = useT('dialogs');
   const { t: tCommon } = useT('common');
+  const { t: tContacts } = useT('contacts');
   const { t: tConversations } = useT('conversations');
   const { formatDate } = useFormatDate();
   const navigate = useNavigate();
@@ -54,6 +54,14 @@ export function ContactViewDialog({
 
   const facts = useMemo<StatGridItem[]>(
     () => [
+      ...(contact.email
+        ? [
+            {
+              label: tContacts('email'),
+              value: <Text>{contact.email}</Text>,
+            },
+          ]
+        : []),
       ...(contact.phone
         ? [
             {
@@ -136,13 +144,8 @@ export function ContactViewDialog({
             },
           ]
         : []),
-      {
-        label: tDialogs('contactInfo.contactId'),
-        value: <CopyableField value={contact._id} />,
-        colSpan: 2,
-      },
     ],
-    [contact, tCommon, tDialogs, formatDate, notAvailable],
+    [contact, tCommon, tContacts, formatDate, notAvailable],
   );
 
   return (
@@ -152,9 +155,7 @@ export function ContactViewDialog({
         if (!open) onClose();
       }}
       title={tDialogs('contactInfo.title')}
-      description={tDialogs('contactInfo.description')}
       name={contact.name || contact.email || notAvailable}
-      summary={contact.name ? contact.email : undefined}
       icon={User}
       edit={
         canEdit
@@ -190,6 +191,10 @@ export function ContactViewDialog({
           visible: canEmailContact(contact),
         },
       ]}
+      identifier={{
+        label: tDialogs('contactInfo.contactId'),
+        value: contact._id,
+      }}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
     />

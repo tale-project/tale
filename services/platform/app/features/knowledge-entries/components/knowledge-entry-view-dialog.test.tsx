@@ -82,6 +82,9 @@ describe('KnowledgeEntryViewDialog', () => {
       within(dialog).getByRole('heading', { name: 'Shipping times' }),
     ).toBeInTheDocument();
     expect(within(dialog).getByText('Manual')).toBeInTheDocument();
+    expect(
+      within(dialog).getAllByText('Orders over CHF 100 ship free.'),
+    ).toHaveLength(1);
     expect(within(dialog).getByText('entry-2')).toBeInTheDocument();
     expect(
       within(dialog).queryByRole('region', { name: 'Version history' }),
