@@ -22,7 +22,7 @@ import { z } from 'zod';
 
 import { isRecord } from './providers/oauth';
 import { PROVIDER_IDS } from './providers/types';
-import type { ProviderId, UsageWindow } from './providers/types';
+import type { ProviderId, Subscription, UsageWindow } from './providers/types';
 
 /** Only the owner may read a file of subscription credentials. */
 const FILE_MODE = 0o600;
@@ -40,13 +40,27 @@ const usageWindowSchema = z.object({
   windowSeconds: z.number().nullable().default(null),
 });
 
+const subscriptionSchema = z.object({
+  plan: z.string().min(1),
+  tier: z.string().nullable(),
+});
+
 const accountSchema = z.object({
   id: z.string().min(1),
   provider: z.enum(PROVIDER_IDS),
   label: z.string(),
   accountEmail: z.string().nullable(),
   accountId: z.string().nullable(),
-  plan: z.string().nullable(),
+  // A document written before the plan had a column of its own carries a
+  // `plan` string instead — for an Anthropic account, the organization's
+  // NAME. It reads as null whatever it held, and the next pass reads the
+  // subscription afresh, so no row keeps showing an org name as its plan.
+  // It is still WRITTEN, as null: 0.5.53 and earlier require the key, so a
+  // document without it would leave a rolled-back gateway reading nothing.
+  plan: z.unknown().transform(() => null),
+  subscription: subscriptionSchema.nullable().default(null),
+  /** When the vendor was last asked who the account is and what it pays for. */
+  identityCheckedAt: z.string().nullable().default(null),
   /** Sealed by `backend/crypto.ts`; never a bare token. */
   accessToken: z.string(),
   refreshToken: z.string(),
@@ -55,19 +69,59 @@ const accountSchema = z.object({
   status: z.enum(['active', 'expired', 'error']),
   createdAt: z.string(),
   lastRefreshedAt: z.string().nullable(),
+  /**
+   * The last reading the vendor actually gave, and when it gave it. A failed
+   * read leaves both alone, so `checkedAt` is always the age of the figures —
+   * never a timestamp that makes an old reading look current.
+   */
   usage: z
     .object({ windows: z.array(usageWindowSchema), checkedAt: z.string() })
     .nullable(),
+  /**
+   * When a usage read was last attempted, succeeded or not — what the polling
+   * floor counts from, so a vendor that keeps failing is not asked on every
+   * pass. Null in a document from before the two were apart; the floor then
+   * counts from the reading.
+   */
+  usageAttemptedAt: z.string().nullable().default(null),
 });
 
+/**
+ * An authorization somebody started, from the moment it is begun until well
+ * after it finished.
+ *
+ * It outlives its completion on purpose: the automatic flows finish without
+ * the panel — the gateway polls a device code, or the vendor redirects to
+ * `/callback` — so the panel learns the outcome by asking after this entry.
+ * `phase` is what keeps one authorization from minting two accounts: only an
+ * `open` entry can be claimed, and claiming it is one atomic step.
+ *
+ * Every field past the original five is defaulted, so a document written
+ * before the automatic flows reads as the paste flow it was.
+ */
 const pendingSchema = z.object({
   state: z.string().min(1),
   provider: z.enum(PROVIDER_IDS),
-  codeVerifier: z.string().min(1),
-  redirectUri: z.string().min(1),
   /** Set when completing this flow re-authenticates an existing account. */
   targetAccountId: z.string().nullable(),
   createdAt: z.string(),
+  flow: z.enum(['device', 'redirect', 'paste']).default('paste'),
+  /** A name typed for the account; a flow that finishes alone still has it. */
+  label: z.string().nullable().default(null),
+  /** PKCE verifier and redirect, for a flow whose code comes back to us. */
+  codeVerifier: z.string().default(''),
+  redirectUri: z.string().default(''),
+  /** The vendor's handle for a device code — sealed, as it opens a grant. */
+  deviceAuthId: z.string().nullable().default(null),
+  userCode: z.string().nullable().default(null),
+  pollIntervalSeconds: z.number().nullable().default(null),
+  /** When the vendor stops accepting the device code. */
+  expiresAt: z.string().nullable().default(null),
+  phase: z.enum(['open', 'claimed', 'connected', 'failed']).default('open'),
+  /** The account a finished authorization connected. */
+  accountId: z.string().nullable().default(null),
+  /** Why a finished authorization failed, as the panel's error code. */
+  failure: z.string().nullable().default(null),
 });
 
 const documentSchema = z.object({
@@ -94,11 +148,36 @@ export interface AccountStore {
   getAccount(id: string): Promise<StoredAccount | null>;
   /** Insert or replace an account, keyed by id. */
   putAccount(account: StoredAccount): Promise<void>;
+  /**
+   * Change one account as it is stored now: `change` edits the current row
+   * in place. Every write after an account exists goes through here, so two
+   * passes that each read the row earlier cannot overwrite each other's
+   * fields — a rotated refresh token above all, which is lost for good once
+   * an older copy lands on top of it. Answers the row as written, or null
+   * when it is gone, which a late write must never bring back.
+   */
+  updateAccount(
+    id: string,
+    change: (account: StoredAccount) => void,
+  ): Promise<StoredAccount | null>;
   deleteAccount(id: string): Promise<boolean>;
   addPending(pending: PendingAuthorization): Promise<void>;
-  /** Read and consume a pending authorization; one-time by construction. */
-  takePending(state: string): Promise<PendingAuthorization | null>;
-  /** Drop authorizations nobody completed. Returns how many went. */
+  getPending(state: string): Promise<PendingAuthorization | null>;
+  /**
+   * Take an `open` authorization for completion, marking it `claimed` in the
+   * same step: one-time by construction, so a replayed paste or a second
+   * device poll that raced the first cannot finish it again. Null when it is
+   * gone or no longer open.
+   */
+  claimPending(state: string): Promise<PendingAuthorization | null>;
+  /** Record how a claimed authorization ended. */
+  settlePending(
+    state: string,
+    outcome:
+      | { phase: 'connected'; accountId: string }
+      | { phase: 'failed'; failure: string },
+  ): Promise<void>;
+  /** Drop authorizations older than `maxAgeMs`. Returns how many went. */
   prunePending(maxAgeMs: number, now?: Date): Promise<number>;
 }
 
@@ -196,6 +275,15 @@ export function createFileAccountStore(
       });
     },
 
+    updateAccount(id, change) {
+      return mutate((document) => {
+        const account = document.accounts.find((row) => row.id === id);
+        if (!account) return null;
+        change(account);
+        return structuredClone(account);
+      });
+    },
+
     deleteAccount(id) {
       return mutate((document) => {
         const index = document.accounts.findIndex(
@@ -213,53 +301,110 @@ export function createFileAccountStore(
       });
     },
 
-    takePending(state) {
+    async getPending(state) {
+      return findPending(await read(), state);
+    },
+
+    claimPending(state) {
+      return mutate((document) => claimIn(document, state));
+    },
+
+    settlePending(state, outcome) {
       return mutate((document) => {
-        const index = document.pending.findIndex(
-          (entry) => entry.state === state,
-        );
-        if (index === -1) return null;
-        const [taken] = document.pending.splice(index, 1);
-        return taken ?? null;
+        settleIn(document, state, outcome);
       });
     },
 
     prunePending(maxAgeMs, now = new Date()) {
-      return mutate((document) => {
-        const cutoff = now.getTime() - maxAgeMs;
-        const before = document.pending.length;
-        document.pending = document.pending.filter((entry) => {
-          const created = new Date(entry.createdAt).getTime();
-          return Number.isFinite(created) && created >= cutoff;
-        });
-        return before - document.pending.length;
-      });
+      return mutate((document) => pruneIn(document, maxAgeMs, now));
     },
   };
 }
 
-/** An in-memory store, for tests and for a read-only smoke run. */
+/*
+ * The pending-authorization rules, written once over a document so the file
+ * store (inside its serialized mutation) and the memory store cannot drift
+ * apart on what "one-time" means.
+ */
+
+function findPending(
+  document: StoreDocument,
+  state: string,
+): PendingAuthorization | null {
+  const entry = document.pending.find((pending) => pending.state === state);
+  return entry ? structuredClone(entry) : null;
+}
+
+function claimIn(
+  document: StoreDocument,
+  state: string,
+): PendingAuthorization | null {
+  const entry = document.pending.find((pending) => pending.state === state);
+  if (!entry || entry.phase !== 'open') return null;
+  entry.phase = 'claimed';
+  return structuredClone(entry);
+}
+
+function settleIn(
+  document: StoreDocument,
+  state: string,
+  outcome:
+    | { phase: 'connected'; accountId: string }
+    | { phase: 'failed'; failure: string },
+): void {
+  const entry = document.pending.find((pending) => pending.state === state);
+  if (!entry) return;
+  entry.phase = outcome.phase;
+  if (outcome.phase === 'connected') entry.accountId = outcome.accountId;
+  else entry.failure = outcome.failure;
+}
+
+function pruneIn(document: StoreDocument, maxAgeMs: number, now: Date): number {
+  const cutoff = now.getTime() - maxAgeMs;
+  const before = document.pending.length;
+  document.pending = document.pending.filter((entry) => {
+    const created = new Date(entry.createdAt).getTime();
+    return Number.isFinite(created) && created >= cutoff;
+  });
+  return before - document.pending.length;
+}
+
+/**
+ * An in-memory store, for tests and for a read-only smoke run.
+ *
+ * Rows go in and come out as copies, the way the file store's reads are fresh
+ * parses: a caller holding an account it read earlier has a copy that goes
+ * stale, exactly as it would against the document — which is what lets a
+ * test catch a write that lands an old copy over a newer row.
+ */
 export function createMemoryAccountStore(): AccountStore {
   const document: StoreDocument = structuredClone(EMPTY);
 
   return {
     listAccounts: () =>
       Promise.resolve(
-        [...document.accounts].sort((a, b) =>
+        structuredClone(document.accounts).sort((a, b) =>
           a.createdAt.localeCompare(b.createdAt),
         ),
       ),
-    getAccount: (id) =>
-      Promise.resolve(
-        document.accounts.find((account) => account.id === id) ?? null,
-      ),
+    getAccount: (id) => {
+      const account = document.accounts.find((row) => row.id === id);
+      return Promise.resolve(account ? structuredClone(account) : null);
+    },
     putAccount: (account) => {
+      const copy = structuredClone(account);
       const index = document.accounts.findIndex(
         (existing) => existing.id === account.id,
       );
-      if (index === -1) document.accounts.push(account);
-      else document.accounts[index] = account;
+      if (index === -1) document.accounts.push(copy);
+      else document.accounts[index] = copy;
       return Promise.resolve();
+    },
+    updateAccount: (id, change) => {
+      const account = document.accounts.find((row) => row.id === id);
+      if (!account) return Promise.resolve(null);
+      change(account);
+      return Promise.resolve(structuredClone(account));
     },
     deleteAccount: (id) => {
       const index = document.accounts.findIndex((account) => account.id === id);
@@ -268,26 +413,17 @@ export function createMemoryAccountStore(): AccountStore {
       return Promise.resolve(true);
     },
     addPending: (pending) => {
-      document.pending.push(pending);
+      document.pending.push(structuredClone(pending));
       return Promise.resolve();
     },
-    takePending: (state) => {
-      const index = document.pending.findIndex(
-        (entry) => entry.state === state,
-      );
-      if (index === -1) return Promise.resolve(null);
-      const [taken] = document.pending.splice(index, 1);
-      return Promise.resolve(taken ?? null);
+    getPending: (state) => Promise.resolve(findPending(document, state)),
+    claimPending: (state) => Promise.resolve(claimIn(document, state)),
+    settlePending: (state, outcome) => {
+      settleIn(document, state, outcome);
+      return Promise.resolve();
     },
-    prunePending: (maxAgeMs, now = new Date()) => {
-      const cutoff = now.getTime() - maxAgeMs;
-      const before = document.pending.length;
-      document.pending = document.pending.filter((entry) => {
-        const created = new Date(entry.createdAt).getTime();
-        return Number.isFinite(created) && created >= cutoff;
-      });
-      return Promise.resolve(before - document.pending.length);
-    },
+    prunePending: (maxAgeMs, now = new Date()) =>
+      Promise.resolve(pruneIn(document, maxAgeMs, now)),
   };
 }
 
@@ -297,13 +433,36 @@ export interface AccountView {
   provider: ProviderId;
   label: string;
   accountEmail: string | null;
-  plan: string | null;
+  subscription: Subscription | null;
   status: AccountStatus;
   expiresAt: string | null;
   scopes: string | null;
   createdAt: string;
   lastRefreshedAt: string | null;
-  usage: { windows: UsageWindow[]; checkedAt: string } | null;
+  /**
+   * The last reading, when it was read, and whether it is stale: the latest
+   * attempt to read it failed, or the account cannot be read at all until it
+   * is signed in again. A stale reading is still the best figure there is,
+   * so it is shown — as what it is.
+   */
+  usage: {
+    windows: UsageWindow[];
+    checkedAt: string;
+    stale: boolean;
+  } | null;
+}
+
+/** Whether an account's figures are older than its latest try at them. */
+function readingIsStale(account: StoredAccount): boolean {
+  if (!account.usage) return false;
+  if (account.status === 'expired') return true;
+  const attempted = account.usageAttemptedAt
+    ? new Date(account.usageAttemptedAt).getTime()
+    : Number.NaN;
+  const read = new Date(account.usage.checkedAt).getTime();
+  return (
+    Number.isFinite(attempted) && Number.isFinite(read) && attempted > read
+  );
 }
 
 export function toAccountView(account: StoredAccount): AccountView {
@@ -312,12 +471,14 @@ export function toAccountView(account: StoredAccount): AccountView {
     provider: account.provider,
     label: account.label,
     accountEmail: account.accountEmail,
-    plan: account.plan,
+    subscription: account.subscription,
     status: account.status,
     expiresAt: account.expiresAt,
     scopes: account.scopes,
     createdAt: account.createdAt,
     lastRefreshedAt: account.lastRefreshedAt,
-    usage: account.usage,
+    usage: account.usage
+      ? { ...account.usage, stale: readingIsStale(account) }
+      : null,
   };
 }

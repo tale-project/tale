@@ -2,12 +2,15 @@
  * OpenAI — a ChatGPT Plus/Pro subscription, reached through the public OAuth
  * client the Codex CLI ships with.
  *
- * Unlike Anthropic's console flow there is no page that prints the code:
- * consent redirects the browser to the CLI's loopback callback
+ * An account connects through the client's device sign-in by default: the
+ * person enters a one-time code on OpenAI's own page and this gateway polls
+ * for the grant, so nothing has to come back through the browser. The
+ * browser flow remains for a workspace that does not allow device sign-in;
+ * its consent redirects to the CLI's loopback callback
  * (`http://localhost:1455/auth/callback`), which answers only when Codex is
- * the thing listening. The panel therefore asks for the whole address bar and
- * reads `code` and `state` out of the query — a redirect the browser could not
- * load still carries both.
+ * the thing listening, so the panel asks for the whole address bar and reads
+ * `code` and `state` out of the query — a redirect the browser could not load
+ * still carries both.
  *
  * Identity rides along in the `id_token`: the account's e-mail, and under the
  * `https://api.openai.com/auth` claim the `chatgpt_account_id` that later
@@ -24,6 +27,7 @@ import {
   readString,
   resetsAtFromSeconds,
   toIsoInstant,
+  tokenFailureCode,
   toUtilization,
 } from './oauth';
 import {
@@ -33,6 +37,7 @@ import {
   type Provider,
   type ProviderExchange,
   type ProviderIdentity,
+  type UsageReading,
   type UsageWindow,
 } from './types';
 
@@ -41,6 +46,14 @@ const TOKEN_URL = 'https://auth.openai.com/oauth/token';
 /** The loopback the Codex client is registered for. */
 const REDIRECT_URI = 'http://localhost:1455/auth/callback';
 const USAGE_URL = 'https://chatgpt.com/backend-api/codex/usage';
+/**
+ * The device-code sign-in `codex login --device-auth` runs: the code is asked
+ * for and polled at the accounts API, entered by the person on the Codex
+ * device page, and exchanged against the device callback as its redirect.
+ */
+const DEVICE_API_BASE = 'https://auth.openai.com/api/accounts';
+const DEVICE_VERIFICATION_URL = 'https://auth.openai.com/codex/device';
+const DEVICE_REDIRECT_URI = 'https://auth.openai.com/deviceauth/callback';
 const SCOPES = 'openid profile email offline_access';
 /** The namespace OpenAI puts its own claims under in the id_token. */
 const AUTH_CLAIM = 'https://api.openai.com/auth';
@@ -85,7 +98,7 @@ export function createOpenAiProvider(
     if (!response.ok) {
       throw new ProviderError(
         'openai',
-        code,
+        tokenFailureCode(code, response.status),
         `The OpenAI token endpoint answered ${response.status}.`,
       );
     }
@@ -117,14 +130,81 @@ export function createOpenAiProvider(
     };
   }
 
+  /** A device-authorization call; OpenAI's endpoints take a JSON body. */
+  function postDevice(path: string, body: Record<string, string>) {
+    return doFetch(`${DEVICE_API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Ask for a one-time code — the first half of `codex login --device-auth`.
+   * The person enters it on OpenAI's own page; nothing comes back through
+   * the browser, which is what lets a gateway that no browser can redirect to
+   * connect an account at all.
+   */
+  async function beginDeviceAuthorization(): Promise<AuthorizationRequest> {
+    let response: Response;
+    try {
+      response = await postDevice('/deviceauth/usercode', {
+        client_id: clientId,
+      });
+    } catch (error) {
+      throw new ProviderError(
+        'openai',
+        'authorization_failed',
+        'The OpenAI device sign-in could not be reached.',
+        { cause: error },
+      );
+    }
+    if (!response.ok) {
+      throw new ProviderError(
+        'openai',
+        'authorization_failed',
+        `The OpenAI device sign-in answered ${response.status}.`,
+      );
+    }
+    const data = await readJsonRecord(response);
+    const deviceAuthId = readString(data, 'device_auth_id');
+    const userCode = readString(data, 'user_code');
+    if (!deviceAuthId || !userCode) {
+      throw new ProviderError(
+        'openai',
+        'authorization_failed',
+        'The OpenAI device sign-in answered without a code.',
+      );
+    }
+    // The interval arrives as a string ("5"); Codex falls back to five too.
+    const interval = Number(data['interval']);
+    return {
+      flow: 'device',
+      verificationUrl: DEVICE_VERIFICATION_URL,
+      userCode,
+      deviceAuthId,
+      intervalSeconds: Number.isFinite(interval) && interval > 0 ? interval : 5,
+      expiresAt: toIsoInstant(data['expires_at']),
+    };
+  }
+
   return {
     id: 'openai',
-    callbackStyle: 'redirect-url',
     cliCommand(accessToken) {
       return `CODEX_ACCESS_TOKEN=${accessToken} codex`;
     },
 
-    beginAuthorization(state): AuthorizationRequest {
+    /**
+     * The device flow unless the browser one is asked for. The browser flow
+     * redirects to Codex's own loopback (`localhost:1455`), which answers only
+     * when Codex is the thing listening — so it always ends with the person
+     * copying the address bar back — while the device flow finishes on its
+     * own wherever the gateway runs. The browser flow stays for an account
+     * whose workspace does not allow device sign-in.
+     */
+    async beginAuthorization(state, { preferBrowser }) {
+      if (!preferBrowser) return beginDeviceAuthorization();
+
       const { verifier, challenge } = generatePkce();
       const params = new URLSearchParams({
         client_id: clientId,
@@ -141,9 +221,50 @@ export function createOpenAiProvider(
         state,
       });
       return {
+        flow: 'paste',
         authorizeUrl: `${AUTHORIZE_URL}?${params.toString()}`,
         codeVerifier: verifier,
         redirectUri: REDIRECT_URI,
+        pasteStyle: 'redirect-url',
+      };
+    },
+
+    /**
+     * The second half of the device flow: has the person approved the code?
+     *
+     * OpenAI answers 403 (`deviceauth_authorization_pending`) — or 404 — until
+     * they do, then 200 with an authorization code and the PKCE pair OpenAI
+     * made for it, which exchange like any other code against the device
+     * callback as the redirect. Any other answer is a refusal. A poll that
+     * cannot reach OpenAI is still pending: the next one may.
+     */
+    async pollDeviceAuthorization({ deviceAuthId, userCode }) {
+      let response: Response;
+      try {
+        response = await postDevice('/deviceauth/token', {
+          device_auth_id: deviceAuthId,
+          user_code: userCode,
+        });
+      } catch (error) {
+        console.warn(
+          '[ai-gateway] the OpenAI device poll could not be sent:',
+          error instanceof Error ? error.message : error,
+        );
+        return { status: 'pending' };
+      }
+      if (response.status === 403 || response.status === 404) {
+        return { status: 'pending' };
+      }
+      if (!response.ok) return { status: 'refused' };
+      const data = await readJsonRecord(response);
+      const code = readString(data, 'authorization_code');
+      const codeVerifier = readString(data, 'code_verifier');
+      if (!code || !codeVerifier) return { status: 'refused' };
+      return {
+        status: 'approved',
+        code,
+        codeVerifier,
+        redirectUri: DEVICE_REDIRECT_URI,
       };
     },
 
@@ -176,7 +297,7 @@ export function createOpenAiProvider(
       return toExchange(data, refreshToken);
     },
 
-    async fetchUsage({ accessToken, accountId }): Promise<UsageWindow[]> {
+    async fetchUsage({ accessToken, accountId }): Promise<UsageReading> {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -201,9 +322,21 @@ export function createOpenAiProvider(
           `The OpenAI usage endpoint answered ${response.status}.`,
         );
       }
-      return parseOpenAiUsage(await readJsonRecord(response));
+      const data = await readJsonRecord(response);
+      return {
+        windows: parseOpenAiUsage(data),
+        subscription: subscriptionFromPlanType(readString(data, 'plan_type')),
+      };
     },
   };
+}
+
+/**
+ * ChatGPT's plan id — `plus`, `pro`, `prolite`, `business` … — as a
+ * subscription. ChatGPT sells no multiples within a plan, so there is no tier.
+ */
+function subscriptionFromPlanType(planType: string | null) {
+  return planType ? { plan: planType, tier: null } : null;
 }
 
 /** Read the account's identity out of the id_token OpenAI just issued. */
@@ -213,7 +346,9 @@ export function identityFromIdToken(idToken: string): ProviderIdentity {
   return {
     email: readString(claims, 'email'),
     accountId: readString(auth, 'chatgpt_account_id'),
-    plan: readString(auth, 'chatgpt_plan_type'),
+    subscription: subscriptionFromPlanType(
+      readString(auth, 'chatgpt_plan_type'),
+    ),
   };
 }
 

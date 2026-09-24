@@ -1,5 +1,5 @@
 # =============================================================================
-# Tale AI Gateway (subscription credential pool) — Standalone Docker Compose
+# AI Gateway (subscription credential pool) — Standalone Docker Compose
 # =============================================================================
 # The gateway runs independently of the platform stack and has its own
 # environment file at services/ai-gateway/.env.example.

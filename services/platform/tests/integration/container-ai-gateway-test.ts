@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // =============================================================================
-// Tale AI Gateway — Container test
+// AI Gateway — Container test
 // =============================================================================
 // Builds, validates, and smoke-tests the subscription credential gateway
 // (services/ai-gateway) using its standalone compose files

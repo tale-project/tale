@@ -1,4 +1,4 @@
-# Tale Ai-gateway Dockerfile — Vite SPA, no backend coupling
+# AI Gateway Dockerfile — the Vite panel, served by the Bun server that also runs the gateway
 ARG VERSION=dev
 
 FROM oven/bun:1.3.12 AS bun-bin

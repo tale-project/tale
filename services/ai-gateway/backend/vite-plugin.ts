@@ -69,7 +69,10 @@ export function gatewayApi(): Plugin {
 
       server.middlewares.use((incoming, outgoing, next) => {
         const path = (incoming.url ?? '/').split('?')[0] ?? '/';
-        if (!path.startsWith('/api/')) {
+        // The API, and the one route outside it: `/callback`, where a
+        // vendor's loopback redirect lands — which a dev server on localhost
+        // is exactly the gateway for.
+        if (!path.startsWith('/api/') && path !== '/callback') {
           next();
           return;
         }

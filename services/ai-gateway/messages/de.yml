@@ -13,6 +13,7 @@ accounts:
   loadFailed: Die Kontenliste konnte nicht gelesen werden.
   columns:
     account: Konto
+    plan: Tarif
     status: Status
     usage: Verbrauch
     resets: Verbleibend
@@ -22,6 +23,7 @@ accounts:
     title: Noch keine Konten
     description: Füge ein Claude- oder ChatGPT-Konto hinzu. Das Gateway hält dessen Token danach frisch und gibt es aus.
   noExpiry: Kein Ablauf
+  planUnknown: Noch nicht gelesen
   actions:
     menu: Kontoaktionen
     reauthenticate: Neu anmelden
@@ -46,6 +48,7 @@ usage:
   weekly: Woche
   unread: Noch kein Verbrauch gelesen
   spent: '{percent} % verbraucht'
+  spentAsOf: '{percent} % verbraucht, gelesen {when}'
   resets: Setzt sich {when} zurück
   untilReset: '{window}: verbleibende Zeit bis zur Zurücksetzung'
 addAccount:
@@ -67,9 +70,18 @@ addAccount:
   resultHintRedirectUrl: Der Browser landet auf einer localhost-Adresse, die möglicherweise nicht lädt. Kopiere die ganze Adresszeile und füge sie hier ein.
   resultLabel: Freigabe-Ergebnis
   connected: '{label} ist verbunden.'
+  deviceDescription: Öffne die Anmeldeseite in einem Browser, der beim gewünschten Konto angemeldet ist, und gib dort den Code unten ein.
+  deviceOpen: Anmeldeseite öffnen
+  deviceCodeLabel: Einmalcode
+  deviceWaiting: Warte auf deine Freigabe. Dieses Fenster schließt sich danach von selbst.
+  deviceBrowser: Stattdessen über den Browser anmelden
+  startAgain: Neu starten
   errors:
     unknown_state: Diese Freigabe ist abgelaufen. Starte sie neu.
     missing_code: Im eingefügten Text war kein Freigabe-Code zu finden.
     state_mismatch: Dieser Wert gehört zu einer anderen Freigabe.
     exchange_failed: Der Anbieter hat den Code abgelehnt. Führe die Freigabe erneut aus.
+    expired: Der Code ist abgelaufen, bevor er freigegeben wurde. Starte neu, um einen neuen zu erhalten.
+    denied: Die Anmeldung wurde abgelehnt. Starte neu, um es noch einmal zu versuchen.
+    unavailable: Der Anbieter ist nicht erreichbar. Versuche es gleich noch einmal.
     failed: Das Konto konnte nicht verbunden werden.

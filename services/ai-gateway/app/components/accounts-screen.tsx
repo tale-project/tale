@@ -1,4 +1,3 @@
-import { Badge } from '@tale/ui/badge';
 import { ContentArea } from '@tale/ui/content-area';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
@@ -13,6 +12,7 @@ import { PageLayout } from '@tale/ui/page-layout';
 import { SkipLink } from '@tale/ui/skip-link';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
@@ -23,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
 import { PanelHeader } from './panel-header';
+import { PlanCell } from './plan-cell';
 import { ProviderMark } from './provider-mark';
 import { ResetsCell } from './resets-cell';
 import { StatusCell } from './status-cell';
@@ -59,7 +60,6 @@ export function AccountsScreen({
   const { locale } = useFormatDate();
   const { toast } = useToast();
 
-  const [query, setQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dialog, setDialog] = useState<AddAccountTarget | null>(null);
@@ -107,23 +107,16 @@ export function AccountsScreen({
         id: 'account',
         accessorFn: (account) => account.label,
         header: t('columns.account'),
-        // The one column that grows: a name, a plan badge and a caption
-        // carrying the provider plus an e-mail address need every pixel the
-        // fixed siblings leave over. `size` is its readable floor, not its
-        // width — it is what the table's min-width is summed from.
-        size: 360,
+        // The widest share: a name, and a caption carrying the provider plus
+        // an e-mail address. No column here is the flex one, so every `size`
+        // is a proportion of the width the table gets — and together they
+        // are the min-width it is summed from.
+        size: 300,
         meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {
-          const { accountEmail, label, plan, provider } = row.original;
+          const { accountEmail, label, provider } = row.original;
           return (
             <TableIconCell
-              // `outline` rather than a colour variant: it is the only
-              // Badge surface built from theme tokens, so the plan chip
-              // follows the page into dark mode (`slate` and its
-              // siblings are fixed light tints — see the shared Badge).
-              badges={
-                plan ? <Badge variant="outline">{plan}</Badge> : undefined
-              }
               // The mark is the only other thing naming the provider, and it
               // is decorative — so the caption carries that name in text, plus
               // the address whenever the label is not already it.
@@ -141,14 +134,29 @@ export function AccountsScreen({
         },
       },
       {
+        id: 'plan',
+        accessorFn: (account) => account.subscription?.plan ?? null,
+        header: t('columns.plan'),
+        // One chip — "Max 20x", "Pro Lite", "Enterprise" — and the longest of
+        // those plus the chip's own padding is what this is sized for.
+        size: 120,
+        meta: { skeleton: { type: 'badge' } },
+        cell: ({ row }) => (
+          <PlanCell
+            provider={row.original.provider}
+            subscription={row.original.subscription}
+          />
+        ),
+      },
+      {
         id: 'status',
         accessorFn: (account) => account.status,
         header: t('columns.status'),
-        // A glyph and one short phrase. Sized for the English and German
-        // labels on one line; the longest French one ("Réautorisation
-        // nécessaire") wraps to two, which the row already has room for —
-        // a wider column would be empty gutter on every other row.
-        size: 150,
+        // A glyph and one short phrase. Sized so the common labels sit on one
+        // line; the longest ("Letzter Aufruf fehlgeschlagen", "Réautorisation
+        // nécessaire") wrap to two, which the row already has room for — a
+        // wider column would be empty gutter on every other row.
+        size: 170,
         // `icon-text`: the loaded cell is a glyph plus one phrase, not a pill.
         meta: {
           className: 'overflow-hidden',
@@ -159,23 +167,24 @@ export function AccountsScreen({
       {
         id: 'usage',
         header: t('columns.usage'),
-        // Two or three bar rows, each a window's name, its bar and the figure
-        // `ProgressBar` prints beside it.
-        size: 240,
+        // Two or three bar rows, each a window's name (4rem), a fixed-length
+        // bar and the figure `ProgressBar` prints beside it (9.5rem together):
+        // 224px of content plus the cell's own padding, which is what this
+        // column needs at the table's narrowest.
+        size: 250,
         meta: { skeleton: { type: 'text', lines: 2 } },
-        cell: ({ row }) => (
-          <UsageCell windows={row.original.usage?.windows ?? []} />
-        ),
+        cell: ({ row }) => <UsageCell usage={row.original.usage} />,
       },
       {
         id: 'resets',
         header: t('columns.resets'),
         // The same windows as its neighbour, on the same rows — the two cells
         // agree on which ones they draw and on their vertical rhythm, so the
-        // clock for a window sits beside the spend for that window. Sized for
-        // the widest distance any of the three languages prints ("quelques
-        // secondes") next to a bar still worth looking at.
-        size: 190,
+        // clock for a window sits beside the spend for that window. A short
+        // bar (2.5rem) and the distance: the common ones ("5 hours",
+        // "2 Tage") fit whole at the narrowest, and the rare longest
+        // ("quelques secondes", the last minute) truncates onto `title`.
+        size: 160,
         meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <ResetsCell windows={row.original.usage?.windows ?? []} />
@@ -292,8 +301,9 @@ export function AccountsScreen({
   }, []);
 
   /**
-   * What the table shows: the pool narrowed by the search box and the two
-   * facets, then ordered.
+   * The pool narrowed by the two facets, then ordered — the set the search
+   * box and the count footer work on, the way Projects hands its list the
+   * rows its team facet leaves.
    *
    * The order is the pool's own shape rather than an alphabet — vendors in
    * the catalog's order, and inside a vendor the accounts by address. An
@@ -304,7 +314,6 @@ export function AccountsScreen({
    * reader's own locale, so an umlaut sorts where that reader expects it.
    */
   const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     const matches = accounts.filter((account) => {
       if (
         providerFilter.length > 0 &&
@@ -312,15 +321,7 @@ export function AccountsScreen({
       ) {
         return false;
       }
-      if (statusFilter.length > 0 && !statusFilter.includes(account.status)) {
-        return false;
-      }
-      if (!needle) return true;
-      return [
-        account.label,
-        account.accountEmail ?? '',
-        tProviders(account.provider),
-      ].some((value) => value.toLowerCase().includes(needle));
+      return statusFilter.length === 0 || statusFilter.includes(account.status);
     });
 
     const providerRank = (id: ProviderId) => {
@@ -339,15 +340,33 @@ export function AccountsScreen({
         { sensitivity: 'base' },
       );
     });
-  }, [
-    accounts,
-    locale,
-    providerFilter,
-    providers,
-    query,
-    statusFilter,
-    tProviders,
-  ]);
+  }, [accounts, locale, providerFilter, providers, statusFilter]);
+
+  /**
+   * Search, the row window and the count footer — the list page's shared
+   * state, so this table pages and counts exactly the way Projects and
+   * Automations do: the rows scroll inside the frame, more load as the reader
+   * nears the end, and the frame closes on "Showing all N accounts" (or
+   * "N of M" while a search narrows it). The provider rides as a searched
+   * value too, so "claude" or "chatgpt" finds a vendor's accounts by the name
+   * the reader sees rather than by the id the row carries.
+   */
+  const list = useListPage<AccountView>({
+    dataSource: { type: 'query', data: isLoading ? undefined : rows },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    search: {
+      fields: [
+        'label',
+        'accountEmail',
+        (account) => tProviders(account.provider),
+      ],
+      placeholder: t('searchPlaceholder'),
+    },
+    filters: { configs: filterConfigs, onClear: clearFilters },
+    getRowId: (account) => account.id,
+    approxRowCount: accounts.length || undefined,
+    entityLabel: { one: t('entity.one'), other: t('entity.other') },
+  });
 
   return (
     <>
@@ -366,40 +385,26 @@ export function AccountsScreen({
         <PageLayout>
           <ContentArea variant="list">
             <DataTable
+              // The page inset comes from `ContentArea variant="list"`, which
+              // also bounds the height this sticky frame fills — so the
+              // toolbar and the header row stay put and only the rows scroll,
+              // and a short pool gets a frame that hugs its rows.
+              stickyLayout
+              {...list.tableProps}
               addAction={{
                 icon: Plus,
                 label: t('add'),
                 onClick: () => setDialog({ account: null }),
               }}
-              approxRowCount={accounts.length || undefined}
               caption={t('caption')}
               columns={columns}
-              data={rows}
               emptyState={{
                 description: t('empty.description'),
                 icon: KeyRound,
                 title: t('empty.title'),
               }}
               error={loadError}
-              filters={filterConfigs}
-              // This screen IS the panel — nothing sits below the table — so
-              // the frame keeps the whole height and the count footer stays on
-              // the bottom edge whether the pool holds one account or fifty.
-              fillHeight
-              getRowId={(account) => account.id}
-              isLoading={isLoading}
-              onClearFilters={clearFilters}
               onRetry={onReload}
-              pagination={{
-                clientSide: true,
-                entityLabel: { one: t('entity.one'), other: t('entity.other') },
-              }}
-              search={{
-                value: query,
-                onChange: setQuery,
-                placeholder: t('searchPlaceholder'),
-              }}
-              stickyLayout
             />
           </ContentArea>
         </PageLayout>

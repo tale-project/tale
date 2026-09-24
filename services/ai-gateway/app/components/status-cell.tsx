@@ -47,7 +47,10 @@ export function StatusCell({ status }: { status: AccountStatus }) {
             body text they do not reach the 4.5:1 that 1.4.3 asks for
             (`text-destructive` measures 3.66:1 on the row surface). */}
         <Icon aria-hidden className={cn('size-4 shrink-0', tone)} />
-        <span className="sr-only md:not-sr-only md:truncate">{label}</span>
+        {/* Wraps rather than truncates: the longest labels ("Letzter Aufruf
+            fehlgeschlagen", "Réautorisation nécessaire") take a second line,
+            which every row has room for, instead of losing their end. */}
+        <span className="sr-only md:not-sr-only md:line-clamp-2">{label}</span>
       </span>
     </Tooltip>
   );

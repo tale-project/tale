@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UsageWindow } from '@/app/lib/api';
-import { readableWindows, windowElapsedPercent } from '@/app/lib/usage-windows';
+import {
+  readableWindows,
+  resetsSoon,
+  windowElapsedPercent,
+} from '@/app/lib/usage-windows';
 
 const NOW = Date.parse('2026-09-22T12:00:00.000Z');
 const FIVE_HOURS = 5 * 60 * 60;
@@ -58,5 +62,31 @@ describe('windowElapsedPercent', () => {
     expect(
       windowElapsedPercent(window({ resetsAt: 'not a date' }), NOW),
     ).toBeNull();
+  });
+});
+
+describe('resetsSoon', () => {
+  it('points out a rollover inside the hour', () => {
+    expect(
+      resetsSoon(window({ resetsAt: '2026-09-22T12:25:00.000Z' }), NOW),
+    ).toBe(true);
+  });
+
+  it('leaves one an hour or more away alone', () => {
+    expect(
+      resetsSoon(window({ resetsAt: '2026-09-22T13:00:00.000Z' }), NOW),
+    ).toBe(false);
+    expect(resetsSoon(window(), NOW)).toBe(false);
+  });
+
+  it('does not call a rollover that has passed soon', () => {
+    // The reading predates it; the next read replaces the window.
+    expect(
+      resetsSoon(window({ resetsAt: '2026-09-22T11:59:00.000Z' }), NOW),
+    ).toBe(false);
+  });
+
+  it('says nothing about a window with no rollover', () => {
+    expect(resetsSoon(window({ resetsAt: null }), NOW)).toBe(false);
   });
 });

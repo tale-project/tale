@@ -1,11 +1,14 @@
+import { cn } from '@tale/ui/cn';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { TimerReset } from 'lucide-react';
 import { Fragment } from 'react';
 
 import type { UsageWindow } from '@/app/lib/api';
 import {
   readableWindows,
+  resetsSoon,
   windowElapsedPercent,
   windowKey,
   windowName,
@@ -24,11 +27,16 @@ const NO_ROLLOVER = '—';
  * tooltip and on `title`, the short-in-the-row / full-on-hover split every
  * platform date cell uses.
  *
- * Beside it, the same window drawn as time rather than spend: a grey bar
- * filling toward the rollover the way the usage bar fills toward the cap. Read
- * across the two, an account burning its plan faster than the clock is one
- * whose coloured bar is ahead of its grey one. Grey rather than a status
- * colour on purpose — a window running out is not a warning, it is a clock.
+ * Beside it, the same window drawn as time rather than spend: a short grey
+ * bar filling toward the rollover the way the usage bar fills toward the cap.
+ * It is a glance, not a measurement — the distance beside it is the figure —
+ * so it is a fraction of the usage bar's length. Grey on purpose: a window
+ * running out is not a warning, it is a clock.
+ *
+ * The one reset that does get colour is one within the hour: a spent window
+ * coming back in twenty minutes is an account about to be usable again. Its
+ * bar and distance turn to the success tint, the distance is set in medium
+ * weight, and a timer glyph leads it — so the cue does not rest on colour.
  */
 export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
   const { t } = useT('usage');
@@ -41,10 +49,11 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
   if (readable.length === 0) return null;
 
   return (
-    <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 py-1">
+    <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5 py-1">
       {readable.map((window, index) => {
         const name = windowName(window, t);
         const elapsed = windowElapsedPercent(window, now);
+        const soon = resetsSoon(window, now);
         const until = window.resetsAt
           ? formatRelative(window.resetsAt, { withoutSuffix: true })
           : null;
@@ -59,8 +68,10 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
               <span />
             ) : (
               <ProgressBar
-                className="min-w-0"
-                indicatorClassName="bg-muted-foreground/70"
+                className="w-10"
+                indicatorClassName={
+                  soon ? 'bg-success' : 'bg-muted-foreground/70'
+                }
                 label={t('untilReset', { window: name })}
                 max={100}
                 tooltipContent={exact}
@@ -69,11 +80,17 @@ export function ResetsCell({ windows }: { windows: UsageWindow[] }) {
               />
             )}
             <Text
-              className="w-24 shrink-0 truncate text-right"
+              className={cn(
+                'flex min-w-0 items-center gap-1',
+                soon && 'text-success font-medium',
+              )}
               title={exact ?? undefined}
               variant="caption"
             >
-              {until ?? NO_ROLLOVER}
+              {soon ? (
+                <TimerReset aria-hidden className="size-3 shrink-0" />
+              ) : null}
+              <span className="truncate">{until ?? NO_ROLLOVER}</span>
             </Text>
           </Fragment>
         );

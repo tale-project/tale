@@ -2,10 +2,11 @@
  * Anthropic — a Claude Pro/Max subscription, reached through the public OAuth
  * client Claude Code itself uses.
  *
- * The flow is the CLI's "manual" variant: the browser goes to claude.ai, and
- * after consent Anthropic's console callback page DISPLAYS the result instead
- * of redirecting anywhere this gateway could listen. The person copies that
- * `code#state` pair back into the panel.
+ * The client redirects only to a loopback address or to Anthropic's console
+ * page that DISPLAYS the result. So a gateway the browser reaches on a
+ * loopback address takes consent straight back on its own `/callback`, and
+ * one reached anywhere else asks the person to copy that `code#state` pair
+ * back into the panel — the CLI's "manual" variant.
  *
  * The usage endpoint is the one behind Claude Code's `/usage` command. It
  * insists on the `claude-code/<version>` User-Agent — without it the request
@@ -22,6 +23,7 @@ import {
   readObject,
   readString,
   toIsoInstant,
+  tokenFailureCode,
   toUtilization,
 } from './oauth';
 import {
@@ -31,6 +33,8 @@ import {
   type Provider,
   type ProviderExchange,
   type ProviderIdentity,
+  type Subscription,
+  type UsageReading,
   type UsageWindow,
 } from './types';
 
@@ -105,7 +109,7 @@ export function createAnthropicProvider(
     if (!response.ok) {
       throw new ProviderError(
         'anthropic',
-        code,
+        tokenFailureCode(code, response.status),
         `The Anthropic token endpoint answered ${response.status}.`,
       );
     }
@@ -125,7 +129,6 @@ export function createAnthropicProvider(
       );
     }
     const account = readObject(data, 'account');
-    const organization = readObject(data, 'organization');
     return {
       tokens: {
         accessToken,
@@ -138,36 +141,54 @@ export function createAnthropicProvider(
         email:
           readString(account, 'email_address') ?? readString(account, 'email'),
         accountId: null,
-        plan: readString(organization, 'name'),
+        // The token answer names the organization — "you@example.com's
+        // Organization" — not what it subscribes to. Only the profile says
+        // that, so the plan waits for `fetchIdentity`.
+        subscription: null,
       },
     };
   }
 
   return {
     id: 'anthropic',
-    callbackStyle: 'code',
     cliCommand(accessToken) {
       return `ANTHROPIC_AUTH_TOKEN=${accessToken} claude`;
     },
 
-    beginAuthorization(state): AuthorizationRequest {
+    /**
+     * Claude Code's client redirects to two kinds of address: a loopback
+     * `http://localhost:<any port>/callback` — the client's metadata lists
+     * `http://localhost/callback`, and RFC 8252 lets the port vary — or the
+     * console page that prints the code. So when the browser reaches this
+     * gateway on a loopback address, consent comes straight back to its own
+     * `/callback` and finishes there; anywhere else the page prints the code
+     * and the person pastes it. Anthropic offers no device flow for a
+     * subscription, so there is no third way.
+     */
+    beginAuthorization(
+      state,
+      { loopbackRedirectUri },
+    ): Promise<AuthorizationRequest> {
       const { verifier, challenge } = generatePkce();
+      const redirectUri = loopbackRedirectUri ?? REDIRECT_URI;
       const params = new URLSearchParams({
-        // Asks for the copy-the-code flow rather than a redirect.
+        // Claude Code sends this whichever way the code comes back.
         code: 'true',
         client_id: clientId,
         response_type: 'code',
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
         scope: SCOPES,
         code_challenge: challenge,
         code_challenge_method: 'S256',
         state,
       });
-      return {
+      return Promise.resolve({
+        flow: loopbackRedirectUri ? 'redirect' : 'paste',
         authorizeUrl: `${AUTHORIZE_URL}?${params.toString()}`,
         codeVerifier: verifier,
-        redirectUri: REDIRECT_URI,
-      };
+        redirectUri,
+        pasteStyle: 'code',
+      });
     },
 
     parseCallback: parseAuthorizationCallback,
@@ -223,16 +244,17 @@ export function createAnthropicProvider(
       }
       const data = await readJsonRecord(response);
       const account = readObject(data, 'account');
-      const organization = readObject(data, 'organization');
       return {
         email:
           readString(account, 'email') ?? readString(account, 'email_address'),
         accountId: null,
-        plan: readString(organization, 'name'),
+        subscription: subscriptionFromOrganization(
+          readObject(data, 'organization'),
+        ),
       };
     },
 
-    async fetchUsage({ accessToken }): Promise<UsageWindow[]> {
+    async fetchUsage({ accessToken }): Promise<UsageReading> {
       let response: Response;
       try {
         response = await doFetch(USAGE_URL, { headers: headers(accessToken) });
@@ -251,18 +273,82 @@ export function createAnthropicProvider(
           `The Anthropic usage endpoint answered ${response.status}.`,
         );
       }
-      return parseAnthropicUsage(await readJsonRecord(response));
+      const data = await readJsonRecord(response);
+      if (!carriesReading(data)) {
+        throw new ProviderError(
+          'anthropic',
+          'usage_failed',
+          'The Anthropic usage endpoint answered without a reading.',
+        );
+      }
+      return {
+        windows: parseAnthropicUsage(data),
+        // The usage answer carries no plan; the profile is where it lives.
+        subscription: null,
+      };
     },
   };
 }
 
 /**
- * Map Anthropic's usage payload onto the shared windows.
+ * The plan behind an account, read off the profile's `organization`.
+ *
+ * `organization_type` is the plan — `claude_max`, `claude_pro`, `claude_team`,
+ * `claude_enterprise`, the same four Claude Code maps onto its subscription
+ * types — and the product prefix is dropped because the vendor column already
+ * says whose plan it is. `rate_limit_tier` carries the multiple a Max plan is
+ * sold at as its suffix (`default_claude_max_20x`); a tier naming none, such
+ * as a Pro plan's, is no multiple at all.
+ */
+export function subscriptionFromOrganization(
+  organization: Record<string, unknown> | null,
+): Subscription | null {
+  const type = readString(organization, 'organization_type');
+  if (!type) return null;
+  const multiple = /_(\d+x)$/.exec(
+    readString(organization, 'rate_limit_tier') ?? '',
+  );
+  return { plan: type.replace(/^claude_/, ''), tier: multiple?.[1] ?? null };
+}
+
+/**
+ * The keys a usage reading is made of — the list Claude Code checks an answer
+ * against before it believes one.
+ */
+const READING_KEYS = [
+  'five_hour',
+  'seven_day',
+  'seven_day_oauth_apps',
+  'seven_day_opus',
+  'seven_day_sonnet',
+  'cinder_cove',
+  'extra_usage',
+  'limits',
+] as const;
+
+/**
+ * Whether a 200 carries a reading at all.
+ *
+ * A rate-limited read is not always a 429: the endpoint can answer 200 with
+ * `{"error": {"type": "rate_limit_error"}}` and no window in it. Mapped as it
+ * stood, that answer replaced a good reading with an empty one; it is a
+ * failed read, and the last reading stands.
+ */
+function carriesReading(data: Record<string, unknown>): boolean {
+  return READING_KEYS.some((key) => key in data);
+}
+
+/**
+ * Map Anthropic's usage payload onto the shared windows — the same rows
+ * Claude Code's `/usage` draws from it.
  *
  * `five_hour` and `seven_day` are the general caps every model shares.
  * Per-model caps are not top-level keys: they arrive in `limits` as entries
  * tagged with `scope.model.display_name`, and they report `percent` where the
- * general windows report `utilization`.
+ * general windows report `utilization`. Only a `weekly_scoped` entry is one:
+ * Claude Code classifies a row on its `kind`, never on its label, and an entry
+ * of another kind that happened to name a model would land beside the weekly
+ * one under the same name ("Fable" twice, with two figures).
  */
 export function parseAnthropicUsage(
   data: Record<string, unknown>,
@@ -295,36 +381,22 @@ export function parseAnthropicUsage(
   if (Array.isArray(limits)) {
     for (const entry of limits) {
       if (!isRecord(entry)) continue;
-      const limit = entry;
-      const model = readObject(readObject(limit, 'scope'), 'model');
+      if (readString(entry, 'kind') !== 'weekly_scoped') continue;
+      const model = readObject(readObject(entry, 'scope'), 'model');
       const name = readString(model, 'display_name');
       if (!name) continue;
       windows.push({
         kind: 'scoped',
         label: name,
         utilization: toUtilization(
-          limit['percent'] ?? limit['utilization'] ?? null,
+          entry['percent'] ?? entry['utilization'] ?? null,
         ),
-        resetsAt: toIsoInstant(limit['resets_at']),
-        windowSeconds: scopedWindowSeconds(limit),
+        resetsAt: toIsoInstant(entry['resets_at']),
+        // `weekly_scoped` names its length: the week the plan cap runs over.
+        windowSeconds: SEVEN_DAY_SECONDS,
       });
     }
   }
 
   return windows;
-}
-
-/**
- * How long a per-model limit's window runs.
- *
- * The entry says which family it belongs to rather than how long it is:
- * `group` is `session` or `weekly`, and `kind` repeats it with the scope
- * attached (`weekly_scoped`). Either is enough; a family neither names is left
- * unmeasured rather than guessed at.
- */
-function scopedWindowSeconds(limit: Record<string, unknown>): number | null {
-  const family = readString(limit, 'group') ?? readString(limit, 'kind') ?? '';
-  if (family.startsWith('session')) return FIVE_HOUR_SECONDS;
-  if (family.startsWith('weekly')) return SEVEN_DAY_SECONDS;
-  return null;
 }

@@ -44,10 +44,16 @@ Intentional behaviours that look surprising but are correct by design.
   different things: `error` says the last call did not work and the account is
   still being retried; `expired` says the refresh token is spent and only a
   human can fix it.
-- **The OpenAI flow sends you to an address that does not load.** The Codex
-  OAuth client is registered for `http://localhost:1455/auth/callback`, which
-  answers only when Codex itself is listening. The code is in the address bar
-  either way, which is what the panel asks for.
+- **The OpenAI browser flow sends you to an address that does not load.** Only
+  the fallback does ("Sign in through the browser instead"): the Codex OAuth
+  client is registered for `http://localhost:1455/auth/callback`, which answers
+  only when Codex itself is listening. The code is in the address bar either
+  way, which is what the panel asks for.
+- **Claude still asks for a pasted code on the fleet's panel.** Anthropic's
+  client redirects only to a loopback address, and there is no device sign-in
+  for a subscription, so a panel reached at a public address cannot receive
+  the consent. Only a panel opened on localhost — a local run, or an SSH tunnel
+  to the gateway's port — comes back on its own.
 - **Development prints four secrets on startup.** They are generated per
   process and never written to disk, so the banner is the only place to read
   them. Production generates nothing and refuses to boot without them.

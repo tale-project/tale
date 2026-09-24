@@ -13,6 +13,7 @@ accounts:
   loadFailed: La liste des comptes n’a pas pu être lue.
   columns:
     account: Compte
+    plan: Forfait
     status: État
     usage: Consommation
     resets: Temps restant
@@ -22,6 +23,7 @@ accounts:
     title: Aucun compte pour l’instant
     description: Ajoute un compte Claude ou ChatGPT. La passerelle garde ensuite son jeton valide et le distribue.
   noExpiry: Sans expiration
+  planUnknown: Pas encore lu
   actions:
     menu: Actions du compte
     reauthenticate: Réautoriser
@@ -46,6 +48,7 @@ usage:
   weekly: Semaine
   unread: Aucune consommation lue pour l’instant
   spent: '{percent} % consommés'
+  spentAsOf: '{percent} % consommés, lu {when}'
   resets: Réinitialisation {when}
   untilReset: '{window} : temps restant avant la réinitialisation'
 addAccount:
@@ -67,9 +70,18 @@ addAccount:
   resultHintRedirectUrl: Le navigateur atterrit sur une adresse localhost qui ne se chargera peut-être pas. Copie toute la barre d’adresse et colle-la ici.
   resultLabel: Résultat de l’autorisation
   connected: '{label} est connecté.'
+  deviceDescription: Ouvre la page de connexion dans un navigateur connecté au compte que tu veux ajouter, puis saisis-y le code ci-dessous.
+  deviceOpen: Ouvrir la page de connexion
+  deviceCodeLabel: Code à usage unique
+  deviceWaiting: En attente de ton autorisation. Cette fenêtre se ferme d’elle-même une fois la demande autorisée.
+  deviceBrowser: Passer plutôt par le navigateur
+  startAgain: Recommencer
   errors:
     unknown_state: Cette autorisation a expiré. Relance-la.
     missing_code: Aucun code d’autorisation dans ce que tu as collé.
     state_mismatch: Cette valeur appartient à une autre autorisation.
     exchange_failed: Le fournisseur a refusé le code. Relance l’autorisation.
+    expired: Ce code a expiré avant d’être autorisé. Recommence pour en obtenir un nouveau.
+    denied: La connexion a été refusée. Recommence pour réessayer.
+    unavailable: Le fournisseur est injoignable. Réessaie dans un instant.
     failed: Le compte n’a pas pu être connecté.

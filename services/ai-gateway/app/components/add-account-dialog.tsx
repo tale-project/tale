@@ -7,7 +7,8 @@ import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useToast } from '@tale/ui/use-toast';
-import { useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
+import { useEffect, useEffectEvent, useState } from 'react';
 
 import {
   ApiError,
@@ -17,7 +18,11 @@ import {
   type AuthorizationStart,
   type ProviderId,
 } from '@/app/lib/api';
+import { authorizationErrorKey } from '@/app/lib/authorization-errors';
+import { leaveFor } from '@/app/lib/leave-for';
 import { useT } from '@/lib/i18n/client';
+
+import { ProviderMark } from './provider-mark';
 
 export interface AddAccountTarget {
   /** Re-authenticating an existing account rather than adding a new one. */
@@ -33,15 +38,26 @@ interface AddAccountDialogProps {
   onConnected: (account: AccountView) => void;
 }
 
+/** The fastest this panel asks after a device code, whatever the vendor says. */
+const MIN_POLL_MS = 2000;
+
 /**
- * Two steps, because an OAuth consent happens in a browser this panel does
- * not control: pick the subscription, then carry the result back by hand.
- * What "the result" looks like differs per provider — Anthropic's console
- * prints a code, OpenAI redirects to a loopback address that may not load —
- * so the second step asks for whichever one the provider named.
+ * Pick the subscription, then approve it at the vendor. How the grant comes
+ * back depends on what the vendor allows from where the gateway runs, and the
+ * gateway picks it:
  *
- * Re-authenticating skips the first step: the provider is already known and
- * the new tokens land on the existing row.
+ * - a device code (ChatGPT): the person enters a one-time code on the
+ *   vendor's page, and the gateway finishes the moment it is approved — this
+ *   dialog only waits, and closes on its own;
+ * - a redirect (Claude, when the gateway is reached on a loopback address):
+ *   the page goes to the vendor and comes straight back to the gateway, whose
+ *   panel then says how it went;
+ * - a paste (Claude anywhere else, or ChatGPT's browser fallback): the
+ *   vendor's page shows a code, or lands on an address that will not load,
+ *   and the person carries that back by hand.
+ *
+ * Re-authenticating skips the choice: the provider is already known and the
+ * new tokens land on the existing row.
  */
 export function AddAccountDialog({
   open,
@@ -70,7 +86,8 @@ export function AddAccountDialog({
    * Closing always discards the attempt. A half-finished authorization must
    * not carry its state, its pasted value or its error into the next one —
    * and doing it here, in the event that causes it, keeps the reset out of
-   * an effect that would fire a second render on every open.
+   * an effect that would fire a second render on every open. Closing also
+   * ends the wait on a device code: the effect that polls for it stops.
    */
   function changeOpen(next: boolean) {
     if (!next) {
@@ -84,32 +101,42 @@ export function AddAccountDialog({
     onOpenChange(next);
   }
 
-  function describe(cause: unknown, fallback: string): string {
-    if (cause instanceof ApiError) {
-      const known = [
-        'unknown_state',
-        'missing_code',
-        'state_mismatch',
-        'exchange_failed',
-      ];
-      if (known.includes(cause.code)) return t(`errors.${cause.code}`);
-    }
-    return fallback;
+  function describe(cause: unknown): string {
+    return t(
+      authorizationErrorKey(cause instanceof ApiError ? cause.code : 'failed'),
+    );
   }
 
-  async function beginAuthorization() {
+  function finished(account: AccountView) {
+    onConnected(account);
+    toast({
+      title: t('connected', { label: account.label }),
+      variant: 'success',
+    });
+    changeOpen(false);
+  }
+
+  async function beginAuthorization(method?: 'browser') {
     if (!provider) return;
     setBusy(true);
     setError(null);
     try {
-      setStart(
-        await gatewayApi.authorize({
-          provider,
-          accountId: target.account?.id ?? null,
-        }),
-      );
+      const next = await gatewayApi.authorize({
+        provider,
+        accountId: target.account?.id ?? null,
+        label: label.trim() || null,
+        method,
+      });
+      if (next.flow === 'redirect') {
+        // Straight to the vendor and back: the gateway finishes the sign-in
+        // on its own `/callback`, and the panel it lands on says how it went.
+        leaveFor(next.authorizeUrl);
+        return;
+      }
+      setPasted('');
+      setStart(next);
     } catch (cause) {
-      setError(describe(cause, t('errors.failed')));
+      setError(describe(cause));
     } finally {
       setBusy(false);
     }
@@ -120,20 +147,78 @@ export function AddAccountDialog({
     setBusy(true);
     setError(null);
     try {
-      const account = await gatewayApi.complete({
-        state: start.state,
-        pasted,
-        label: label.trim() || null,
-      });
-      onConnected(account);
-      toast({ description: t('connected', { label: account.label }) });
-      changeOpen(false);
+      finished(await gatewayApi.complete({ state: start.state, pasted }));
     } catch (cause) {
-      setError(describe(cause, t('errors.failed')));
+      setError(describe(cause));
     } finally {
       setBusy(false);
     }
   }
+
+  // The callbacks the device wait reports into, read fresh on every report
+  // without restarting the wait each time the dialog re-renders.
+  const onDeviceConnected = useEffectEvent((account: AccountView) => {
+    finished(account);
+  });
+  const onDeviceFailed = useEffectEvent((code: string) => {
+    setError(t(authorizationErrorKey(code)));
+  });
+
+  const deviceState = start?.flow === 'device' ? start.state : null;
+  const pollMs =
+    start?.flow === 'device'
+      ? Math.max(MIN_POLL_MS, start.pollIntervalSeconds * 1000)
+      : 0;
+  const waiting = deviceState !== null && error === null;
+
+  /**
+   * Wait on a device code: ask the gateway where it stands at the pace the
+   * vendor set — the gateway asks the vendor, and finishes the sign-in the
+   * moment it is approved — and ask at once when the person returns to this
+   * tab, the likeliest moment the code was just approved in another.
+   */
+  useEffect(() => {
+    if (!deviceState || !waiting) return undefined;
+    let stopped = false;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const check = async () => {
+      if (stopped || running) return;
+      running = true;
+      clearTimeout(timer);
+      try {
+        const status = await gatewayApi.authorizationStatus(deviceState);
+        if (stopped) return;
+        if (status.status === 'connected') {
+          onDeviceConnected(status.account);
+          return;
+        }
+        if (status.status === 'failed') {
+          onDeviceFailed(status.code);
+          return;
+        }
+      } catch (cause) {
+        // A panel that lost the gateway for a moment keeps waiting; the
+        // sign-in itself is the vendor's and has not gone anywhere.
+        console.warn('[ai-gateway] asking after the sign-in failed:', cause);
+      } finally {
+        running = false;
+      }
+      if (!stopped) timer = setTimeout(() => void check(), pollMs);
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check();
+    };
+    timer = setTimeout(() => void check(), pollMs);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [deviceState, pollMs, waiting]);
 
   const title = target.account
     ? t('reauthenticateTitle', { label: target.account.label })
@@ -150,7 +235,7 @@ export function AddAccountDialog({
           >
             {t('cancel')}
           </Button>
-          {start ? (
+          {start?.flow === 'paste' ? (
             <Button
               disabled={busy || pasted.trim().length === 0}
               onClick={() => void connect()}
@@ -158,6 +243,16 @@ export function AddAccountDialog({
             >
               {t('connect')}
             </Button>
+          ) : start?.flow === 'device' ? (
+            error ? (
+              <Button
+                disabled={busy}
+                onClick={() => void beginAuthorization()}
+                type="button"
+              >
+                {t('startAgain')}
+              </Button>
+            ) : null
           ) : (
             <Button
               disabled={busy || !provider}
@@ -174,7 +269,48 @@ export function AddAccountDialog({
       title={title}
     >
       <div className="flex flex-col gap-5">
-        {start ? (
+        {start?.flow === 'device' ? (
+          <>
+            <section className="flex flex-col gap-2">
+              <Text variant="label">{t('approveHeading')}</Text>
+              <Text variant="muted">{t('deviceDescription')}</Text>
+              <ExternalLink href={start.verificationUrl}>
+                {t('deviceOpen')}
+              </ExternalLink>
+            </section>
+            <CopyableField
+              label={t('deviceCodeLabel')}
+              mono
+              value={start.userCode}
+            />
+            {/* One live line: it announces the wait once, and the error
+                that ends it, without re-reading the steps above. */}
+            <div aria-live="polite" className="min-h-5" role="status">
+              {error ? (
+                <Text variant="error">{error}</Text>
+              ) : (
+                <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                  {/* Decorative: the words beside it say what is going on,
+                      and a second status inside this one would say it twice. */}
+                  <LoaderCircle
+                    aria-hidden
+                    className="size-4 shrink-0 animate-spin motion-reduce:animate-none"
+                  />
+                  {t('deviceWaiting')}
+                </span>
+              )}
+            </div>
+            <Button
+              className="self-start"
+              disabled={busy}
+              onClick={() => void beginAuthorization('browser')}
+              type="button"
+              variant="link"
+            >
+              {t('deviceBrowser')}
+            </Button>
+          </>
+        ) : start?.flow === 'paste' ? (
           <>
             <section className="flex flex-col gap-2">
               <Text variant="label">{t('approveHeading')}</Text>
@@ -194,7 +330,7 @@ export function AddAccountDialog({
                 autoFocus
                 errorMessage={error ?? undefined}
                 description={
-                  start.callbackStyle === 'code'
+                  start.pasteStyle === 'code'
                     ? t('resultHintCode')
                     : t('resultHintRedirectUrl')
                 }
@@ -214,9 +350,13 @@ export function AddAccountDialog({
               onValueChange={(value) => {
                 if (isProviderId(value)) setChosenProvider(value);
               }}
+              // The vendor's mark beside its name, in the list and in the
+              // closed control alike — the same marks the table rows lead
+              // with, so the choice reads the way the pool does.
               options={providers.map((id) => ({
                 value: id,
                 label: tProviders(id),
+                icon: <ProviderMark className="size-4" provider={id} />,
               }))}
               value={provider ?? ''}
             />

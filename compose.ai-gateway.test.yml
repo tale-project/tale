@@ -1,5 +1,5 @@
 # =============================================================================
-# Tale AI Gateway — Container test overrides
+# AI Gateway — Container test overrides
 # =============================================================================
 # Override compose.ai-gateway.yml with a non-conflicting port and the test env
 # file, which carries the two secrets the gateway refuses to boot without.

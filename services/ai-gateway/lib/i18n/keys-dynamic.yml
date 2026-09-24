@@ -15,5 +15,8 @@ entries:
   # One key per usage-window kind the providers normalize onto.
   - usage.session
   - usage.weekly
+  # One key per vendor plan id, chosen by the row's `subscription.plan`; an
+  # id the catalog does not name falls back to the id itself.
+  - accounts.plans
   # One key per backend error code, chosen by what the API answered.
   - addAccount.errors

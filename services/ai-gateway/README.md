@@ -18,8 +18,10 @@ one that serves the whole pool.
 | **One endpoint per vendor** | `GET /api/tokens/anthropic` and `GET /api/tokens/openai` answer with that vendor's access tokens, expiries and statuses; `GET /api/tokens` serves the whole pool |
 | **cc-gateway's wire shape** | `{"tokens": [{ id, label, account_email, status, access_token, expires_at, scopes }]}` — a broker mapping written against the retired cc-gateway reads this one unchanged |
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
+| **Connects on its own** | A ChatGPT account connects through OpenAI's device sign-in, and a Claude account — when the panel is opened on localhost — through a redirect straight back to the gateway; there is no code to carry back |
 | **Always-fresh tokens** | A background pass refreshes each access token ahead of its expiry, so an account stays usable as long as its refresh token does |
-| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars, beside a grey one counting that window down to its rollover |
+| **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars coloured by how much is spent (green, yellow from half, orange from three quarters, red at the ceiling), beside a short grey one counting the window down to its rollover, which turns green when that is within the hour |
+| **The plan, named** | Each account's plan as its vendor sells it — Max 20x, Pro, Plus, Pro Lite — read from Anthropic's profile and from ChatGPT's own usage answer |
 | **Encrypted at rest** | AES-256-GCM under `AI_GATEWAY_ENCRYPTION_KEY`; a tampered store fails loudly rather than decrypting to something plausible |
 | **One lock, on the tokens** | The token endpoints are behind an API key. The panel has no login of its own — whatever fronts this service decides who reaches it |
 
@@ -57,17 +59,25 @@ pool is open to whoever finds it.
 
 ## Add an account
 
-Open the panel and choose **Add account**. Each provider's consent
-happens in a browser this service does not control, so the second step asks for
-what the browser gave back:
+Open the panel and choose **Add account**. Each provider's consent happens on
+the vendor's own page; how it gets back to the gateway depends on what the
+vendor allows from where you opened the panel:
 
-| Provider | What you paste back |
-| --- | --- |
-| **Anthropic (Claude)** | The code Anthropic's console callback page prints after you approve |
-| **OpenAI (ChatGPT)** | The whole address the browser landed on — the Codex client redirects to `http://localhost:1455/auth/callback`, which will not load unless Codex is listening, and the address bar still carries the code |
+| Provider | Panel opened on | What happens after you approve |
+| --- | --- | --- |
+| **OpenAI (ChatGPT)** | anywhere | Nothing more to do. The dialog shows a one-time code and a link to OpenAI's sign-in page; enter the code there and approve, and the gateway connects the account on its own — the device sign-in `codex login --device-auth` uses |
+| **Anthropic (Claude)** | `localhost` | Nothing more to do. The page goes to Anthropic and comes straight back to the gateway's own `/callback`, which connects the account |
+| **Anthropic (Claude)** | any other address | Paste the code Anthropic's console page prints. Anthropic's client redirects only to a loopback address and has no device sign-in for a subscription, so nothing can come back to a public host by itself |
 
-Both flows are the public OAuth client each vendor's own CLI uses, with a PKCE
-S256 challenge.
+To get the automatic Claude flow on a remote gateway, open its panel through
+an SSH tunnel to the gateway's port (`ssh -L 3004:localhost:<port> <host>`,
+then `http://localhost:3004`). OpenAI's browser flow stays behind **Sign in
+through the browser instead** for a workspace that does not allow device
+sign-in; it ends on `http://localhost:1455/auth/callback`, which will not load
+unless Codex is listening, so you paste the whole address bar.
+
+Every flow is the public OAuth client each vendor's own CLI uses, with a PKCE
+S256 challenge. Closing the dialog abandons the attempt.
 
 ## Use the tokens
 
@@ -126,8 +136,10 @@ refreshes only that vendor's accounts.
 | `GET` | `/` | none | The panel |
 | `GET` | `/api/providers` | none | The providers an account can be added for |
 | `GET` | `/api/accounts` | none | The pool, without any credential |
-| `POST` | `/api/accounts/authorize` | none | Start an authorization; answers the URL to open |
-| `POST` | `/api/accounts/complete` | none | Finish one with what the browser gave back |
+| `POST` | `/api/accounts/authorize` | none | Start an authorization; answers how it comes back (`device`, `redirect` or `paste`) and what to show meanwhile |
+| `GET` | `/api/accounts/authorize/{state}` | none | Where an authorization stands; for a device code, also asks the vendor whether it was approved |
+| `POST` | `/api/accounts/complete` | none | Finish a paste flow with what the browser gave back |
+| `GET` | `/callback` | none | Where a vendor's loopback redirect lands; finishes the grant and sends the browser back to the panel |
 | `GET` | `/api/accounts/{id}/command` | none | A ready-to-run CLI command for that account |
 | `DELETE` | `/api/accounts/{id}` | none | Remove an account |
 | `GET` | `/api/tokens/{provider}` | API key | One vendor's tokens, in cc-gateway's shape |
@@ -174,10 +186,11 @@ its `/api/tokens/<id>` endpoint comes with the id. A new id needs a
 
 The panel is one screen in the documentation frame's chrome: an `h-13` header
 strip carrying the Tale mark, the service's name and the language / theme /
-repository cluster, over a single full-height account table. Language is a
-stored preference here, not a path segment — the panel ships as one
-untranslated tree — so the shared `LanguageSwitcher` runs in its state-driven
-mode.
+repository cluster, over one account table built as a list page — the same
+`useListPage` state Projects and Automations run on, so it scrolls, loads and
+counts its rows the way they do. Language is a stored preference here, not a
+path segment — the panel ships as one untranslated tree — so the shared
+`LanguageSwitcher` runs in its state-driven mode.
 
 ## Develop
 

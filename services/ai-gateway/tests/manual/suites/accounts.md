@@ -27,22 +27,47 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
 
 ### Adding an account
 
-- [ ] `ACCT-1` · **Add account → Anthropic (Claude) → Continue** → step two
-  names the Anthropic authorization URL, and its hint asks for the code the
-  page prints.
+- [ ] `ACCT-1` · **On a panel reached at any address but localhost — the
+  fleet's own, or a dev server opened from another machine: Add account →
+  Anthropic (Claude) → Continue** → step two names the Anthropic authorization
+  URL, and its hint asks for the code the page prints: Anthropic redirects
+  nowhere this gateway could listen.
 - [ ] `ACCT-2` · **Open that URL, approve, copy the value the console page
   shows, paste it, Connect** → the dialog closes, a toast names the account,
   and a row appears carrying the Claude mark, the account's own e-mail, its
-  plan badge, **Active**, and usage bars that are already populated — not
-  "No usage read yet".
-- [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → the hint now
-  asks for the whole address bar instead, because that flow redirects to a
-  loopback URL that will not load.
-- [ ] `ACCT-4` · **Approve in the browser, copy the entire failed
-  `localhost:1455` address, paste it, Connect** → the row appears the same way,
-  with the OpenAI mark, its own plan badge and populated usage bars. Every
-  ChatGPT plan publishes at least its weekly window, so "No usage read yet" on
-  a freshly connected OpenAI row is a defect, not an empty plan.
+  plan in the Plan column, **Active**, and usage bars that are already
+  populated — not "No usage read yet".
+- [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → no paste
+  step: the dialog shows a one-time code with a copy button, a link to
+  OpenAI's sign-in page, and one line saying it is waiting for your approval.
+- [ ] `ACCT-4` · **Open that page, sign in, enter the code, approve** → within
+  a few seconds, without touching the panel again, the dialog closes, a toast
+  names the account, and the row appears with the OpenAI mark, its own plan
+  and populated usage bars. Every ChatGPT plan publishes at least its weekly
+  window, so "No usage read yet" on a freshly connected OpenAI row is a
+  defect, not an empty plan.
+- [ ] `ACCT-39` · **On a panel opened at `http://localhost:3004`: Add account
+  → Anthropic (Claude) → Continue, then approve at Anthropic** → the page goes
+  to Anthropic and comes straight back to the panel by itself: a toast names
+  the account and its row is there. No code to copy, no second tab, and the
+  address bar ends on `/` with no `authorization` left in it.
+- [ ] `ACCT-40` · **Start the flow of `ACCT-39` and decline at Anthropic** →
+  back on the panel, a toast says the sign-in was declined, and no row
+  appears.
+- [ ] `ACCT-41` · **In the OpenAI device step, choose "Sign in through the
+  browser instead"** → the browser flow's paste step, whose hint asks for the
+  whole address bar; approving and pasting the `localhost:1455` address the
+  browser lands on connects the account.
+- [ ] `ACCT-42` · **Leave a device code unapproved until it runs out (15
+  minutes)** → the waiting line turns into "That code ran out before it was
+  approved", and **Start again** issues a fresh code.
+- [ ] `ACCT-43` · **In a paste step, paste something with no code in it, then
+  the right value** → the first is refused ("No authorization code was
+  found"), and the second still connects: a mistyped paste does not spend the
+  attempt.
+- [ ] `ACCT-44` · **Close the dialog while it waits on a device code, then
+  approve that code at OpenAI anyway** → nothing is added: closing the dialog
+  ends the attempt, the way it does for every other flow (`ACCT-6`).
 - [ ] `ACCT-5` · **Add an account and type a name in step one** → the row
   carries that name, and its caption still shows the provider and the account's
   address, so the identity is not lost behind the label.
@@ -51,6 +76,10 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
   the abandoned attempt.
 - [ ] `ACCT-7` · **Paste the same authorization value a second time** → refused
   with "that authorization expired", not silently accepted into a duplicate row.
+- [ ] `ACCT-33` · **Add account → open the Provider picker** → each vendor is
+  listed with its own mark beside its name — the mark its rows carry in the
+  table — and the closed picker keeps the chosen vendor's mark. A screen
+  reader still hears only the vendor's name.
 
 ### Handing tokens out
 
@@ -95,10 +124,16 @@ in the pool**, so they run before the removals.
 
 ### Reading a plan at a glance
 
-- [ ] `ACCT-25` · **Find an account whose session window is under three
-  quarters spent, one at or past three quarters, and one at the ceiling** →
-  the three bars read accent, orange and red in that order. A full bar never
-  reads as green: a spent plan is not a completed task.
+- [ ] `ACCT-34` · **Read the Plan column with a Claude and a ChatGPT account in
+  the pool** → each row names the plan its vendor sells it as — "Max 20x",
+  "Max 5x", "Pro", "Plus", "Pro Lite" — and never an organization's name. The
+  names read the same in every language. A row whose plan has not been read
+  yet shows a dash, and a screen reader hears "Not read yet" for it.
+- [ ] `ACCT-25` · **Find windows under half spent, at half, at three quarters,
+  at 95 % and at the ceiling** → green, yellow, orange, an orange bar running
+  into red at its tip, and red, in that order. A full bar never reads as
+  green: a spent plan is not a completed task. A window at 99.6 % reads
+  99 % and orange-into-red, not 100 % and red.
 - [ ] `ACCT-26` · **Hover a usage bar, then the grey bar beside it** → the
   first names the percentage, the second the exact instant that window
   resets — the date and the hour, in the panel's language, and the instant the
@@ -108,11 +143,20 @@ in the pool**, so they run before the removals.
   as its own usage bar, and never in a different order than the Usage column
   lists them. The two Anthropic windows that roll over together say the same
   thing.
-- [ ] `ACCT-31` · **Compare the two bars on one row** → the grey one fills
-  toward the rollover the way the coloured one fills toward the cap, so an
-  account spending its plan faster than the clock reads as a coloured bar ahead
-  of its grey one. A window the vendor gave no rollover for leaves the grey
-  track empty rather than drawing a fraction of nothing.
+- [ ] `ACCT-31` · **Compare the two bars on one row** → the grey one, less
+  than half as long, fills toward the rollover the way the coloured one fills
+  toward the cap, so an account spending its plan faster than the clock reads
+  as a coloured bar further along than its grey one. A window the vendor gave
+  no rollover for leaves the grey track empty rather than drawing a fraction
+  of nothing.
+- [ ] `ACCT-35` · **Find a window that rolls over within the hour** → its
+  distance ("25 minutes") reads in green and medium weight behind a timer
+  glyph, and its clock bar turns green; a window an hour or more away stays
+  grey. The cue survives without colour: the glyph and the weight still set
+  it apart in grayscale.
+- [ ] `ACCT-36` · **Widen and narrow the window between 1280 and 1920 px** →
+  every usage bar keeps one length in every row and at every width, and every
+  clock bar keeps its own shorter one; only the space around them changes.
 - [ ] `ACCT-32` · **Read the Resets in column in each language** → the heading
   and the figure agree grammatically in all three: the English heading finishes
   in the cell ("Resets in" · "5 days"), and the German and French headings name
@@ -121,6 +165,15 @@ in the pool**, so they run before the removals.
 
 ### Staying fresh
 
+- [ ] `ACCT-37` · **Read a Claude row's Usage column beside Claude Code's
+  `/usage` for the same account, within a few minutes** → Session, Weekly and
+  each per-model week (Fable) carry the figures `/usage` prints, rounded down
+  the same way, and no per-model cap appears twice.
+- [ ] `ACCT-38` · **Make one account's usage read fail — block its vendor's
+  host, or revoke the token at the vendor — and wait a refresh pass** → the
+  row reads "Last call failed" and its bars stay, dimmed; hovering one says
+  when the figures were read ("read 12 minutes ago"). Unblock it and the next
+  pass brings the bars back to full colour with fresh figures.
 - [ ] `ACCT-12` · **Leave the panel open past the refresh interval** → the
   usage figures move on their own, and the reset countdowns stay consistent
   with the wall clock rather than drifting by your UTC offset (`ACCT-12`).
@@ -128,9 +181,10 @@ in the pool**, so they run before the removals.
   both accounts are still there, still Active: the document on disk survived,
   and the stored tokens decrypt.
 - [ ] `ACCT-14` · **Restart the server with a different
-  `AI_GATEWAY_ENCRYPTION_KEY` and reload** → the panel does not pretend: the
-  rows show a failure rather than empty usage bars, and nothing crashes the
-  process.
+  `AI_GATEWAY_ENCRYPTION_KEY` and reload** → the panel does not pretend: every
+  row reads as failing — its bars dimmed, with the time they were read — and
+  once its token is due, "Needs reauthentication"; no row shows empty or
+  current-looking bars, and nothing crashes the process.
 - [ ] `ACCT-15` · **Row menu → Reauthenticate on one row, complete the flow** →
   the same row is updated in place; the pool does not grow, and the account's
   usage history stays with it.
