@@ -176,12 +176,21 @@ async function stampVisited(
 async function reconcilePass(
   sql: Sql,
   spawner: WatchdogSpawner,
-  args: { batch: number; now: number },
+  args: { batch: number; now: number; organizationId?: string },
 ): Promise<number> {
+  // Compute-holding rows ONLY. A `stopped` row is hibernated: its container
+  // is gone BY DESIGN (idle reaper, capacity reclaim) while its workspace
+  // waits for the next turn, so the spawner's 404 for it is the expected
+  // answer, not a phantom to heal. Settling it as destroyed strands the
+  // standing workspace — the next turn mints a fresh incarnation and the
+  // harness conversation no longer binds — which is how the Sandboxes page
+  // used to empty itself on every open (its probe walked every live row).
+  const scope = args.organizationId ?? null;
   const candidates = await sql<Candidate[]>`
     SELECT id, session_id AS "sessionId", org_id AS "orgId"
     FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
+      AND (${scope}::text IS NULL OR org_id = ${scope})
     ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
     LIMIT ${args.batch}
   `;
@@ -204,6 +213,26 @@ async function reconcilePass(
   }
   await stampVisited(sql, candidates, args.now);
   return healed;
+}
+
+/**
+ * The Sandboxes page's mount-time probe (the 0.4 `reconcileOrgSessions`):
+ * the SAME fair, compute-holding-only pass the sweep runs, scoped to one
+ * organization and stamped like a sweep tick. One implementation, so the
+ * page can never heal a row the sweep would leave alone — a hibernated
+ * project workspace stays listed until someone destroys it.
+ */
+export async function reconcileOrgSessions(
+  sql: Sql,
+  organizationId: string,
+  spawner: WatchdogSpawner = DEFAULT_SPAWNER,
+): Promise<{ healed: number }> {
+  const healed = await reconcilePass(sql, spawner, {
+    batch: 25,
+    now: Date.now(),
+    organizationId,
+  });
+  return { healed };
 }
 
 /**

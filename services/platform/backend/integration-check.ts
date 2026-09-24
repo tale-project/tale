@@ -49489,6 +49489,62 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
+  // to the org. A hibernated (`stopped`) project workspace is never a
+  // candidate, so the spawner's 404 for it (container reaped by design)
+  // cannot settle it as destroyed — the page used to empty itself of idle
+  // workspaces on every open — while a genuine phantom (compute-holding
+  // row, container gone) still heals. The pass is walked until the phantom
+  // has been probed: the fair rotation may need more than one batch when
+  // earlier lanes left never-visited compute-holding rows in this org.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-org-hibernated', 'stopped', 'project_agent',
+       'itest-wd-agent-idle', 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-phantom', 'active', 'project_agent',
+       'itest-wd-agent-gone', 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const orgProbed: string[] = [];
+  const orgSpawner = {
+    isAlive: (sessionId: string): Promise<boolean> => {
+      orgProbed.push(sessionId);
+      return Promise.resolve(sessionId !== 'wd-org-phantom');
+    },
+    destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
+      Promise.resolve({ destroyed: false, busy: false }),
+  };
+  let orgHealed = 0;
+  let orgPasses = 0;
+  while (!orgProbed.includes('wd-org-phantom') && orgPasses < 8) {
+    const pass = await sandboxWatchdogs.reconcileOrgSessions(
+      sql,
+      orgId,
+      orgSpawner,
+    );
+    orgHealed += pass.healed;
+    orgPasses += 1;
+  }
+  const orgRows = await sql<{ sessionId: string; status: string }[]>`
+    SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-org-%'
+  `;
+  const orgStatusOf = (sessionId: string): string | undefined =>
+    orgRows.find((r) => r.sessionId === sessionId)?.status;
+  record(
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals',
+    !orgProbed.includes('wd-org-hibernated') &&
+      orgStatusOf('wd-org-hibernated') === 'stopped' &&
+      orgProbed.includes('wd-org-phantom') &&
+      orgStatusOf('wd-org-phantom') === 'destroyed' &&
+      orgHealed === 1,
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed}`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`

@@ -7799,6 +7799,8 @@ sandboxes:
   empty:
     title: Noch keine Arbeitsbereiche
     description:
-      Arbeitsbereiche erscheinen, sobald ein Projekt-Agent oder Workflow läuft.
-      Die Kapazitätszahlen oben enthalten auch temporäre Crawler-Sitzungen.
+      Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe
+      und bleibt auch im Leerlauf aufgeführt. Der Arbeitsbereich eines Workflow-Laufs
+      wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
+      enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.

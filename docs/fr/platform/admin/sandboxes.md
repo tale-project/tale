@@ -51,7 +51,7 @@ Les mesures s’actualisent toutes les 15 secondes. **Actualiser** demande une n
 
 ## Distinguer allocation et environnement inactif
 
-Les Propriétaires et Admins peuvent examiner les espaces de travail. Chaque ligne identifie l’agent ou l’exécution, l’état de l’environnement, celui de l’allocation et les tâches en cours. Ces états répondent à des questions différentes : un conteneur peut rester actif pour être réutilisé après avoir libéré sa place dans l’organisation.
+Les Propriétaires et Admins peuvent examiner les espaces de travail. Chaque ligne identifie l’agent ou l’exécution, l’état de l’environnement, celui de l’allocation et les tâches en cours. Ces états répondent à des questions différentes : un conteneur peut rester actif pour être réutilisé après avoir libéré sa place dans l’organisation. L’espace de travail d’un agent de projet reste affiché tant que l’agent est inactif, avec l’état **Arrêtée** et **Quota libéré**, et ne disparaît que lorsque tu le supprimes. L’espace d’une exécution de workflow est récupéré peu après la fin de l’exécution.
 
 Les dépenses additionnent le coût mesuré des échanges terminés. Un échange en cours est ajouté lorsqu’il se termine. Les environnements temporaires du crawler comptent dans la capacité même sans ligne d’espace de travail permanent.
 

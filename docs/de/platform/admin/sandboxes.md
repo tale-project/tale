@@ -51,7 +51,7 @@ Die Werte aktualisieren sich alle 15 Sekunden. Mit **Aktualisieren** forderst du
 
 ## Belegte und inaktive Workspaces unterscheiden
 
-Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zugehörigen Agenten oder Workflow-Lauf, Laufzeitstatus, Belegungsstatus und laufende Aufgaben. Die Zustände beantworten unterschiedliche Fragen: Ein Container kann für die Wiederverwendung weiterlaufen, obwohl er seinen Organisationsplatz bereits freigegeben hat.
+Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zugehörigen Agenten oder Workflow-Lauf, Laufzeitstatus, Belegungsstatus und laufende Aufgaben. Die Zustände beantworten unterschiedliche Fragen: Ein Container kann für die Wiederverwendung weiterlaufen, obwohl er seinen Organisationsplatz bereits freigegeben hat. Der Arbeitsbereich eines Projekt-Agenten bleibt auch im Leerlauf aufgeführt, als **Gestoppt** mit **Kontingent freigegeben**, und verschwindet erst, wenn du ihn löschst. Der Arbeitsbereich eines Workflow-Laufs wird kurz nach dem Ende des Laufs zurückgefordert.
 
 Die Ausgaben enthalten die gemessenen Kosten abgeschlossener Durchläufe. Ein noch laufender Durchlauf wird nach seinem Ende eingerechnet. Vorübergehende Crawler-Umgebungen zählen zur Kapazität, auch ohne eigene dauerhafte Workspace-Zeile.
 
