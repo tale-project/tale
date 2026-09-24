@@ -1,5 +1,5 @@
 {
-  "name": "Tale AI Gateway",
+  "name": "AI Gateway",
   "short_name": "AI Gateway",
   "description": "Multi-provider AI subscription credential gateway",
   "start_url": "/",

@@ -3,7 +3,7 @@
 # interface, so this service's own name and the repository button's accessible
 # name belong here.
 panel:
-  title: Tale AI Gateway
+  title: AI Gateway
   github: GitHub
 accounts:
   # The vendors' own plan names. Product names, like the brands above, so
