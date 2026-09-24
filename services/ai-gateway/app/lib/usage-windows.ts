@@ -43,6 +43,25 @@ export function windowName(window: UsageWindow, t: TFunction): string {
   return t(window.kind === 'session' ? 'session' : 'weekly');
 }
 
+/** Within this of its rollover, a window's reset is close enough to point out. */
+const RESET_SOON_MS = 60 * 60 * 1000;
+
+/**
+ * Whether a window rolls over within the hour.
+ *
+ * The one reset worth a second look: a spent window that comes back in twenty
+ * minutes is an account about to be usable again. A rollover already behind
+ * `now` is not "soon" — the reading predates it, and the next read replaces
+ * it.
+ */
+export function resetsSoon(window: UsageWindow, now: number): boolean {
+  if (!window.resetsAt) return false;
+  const remaining = new Date(window.resetsAt).getTime() - now;
+  return (
+    Number.isFinite(remaining) && remaining > 0 && remaining < RESET_SOON_MS
+  );
+}
+
 /**
  * How far through its window the clock already is, 0–100, or null.
  *

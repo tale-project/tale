@@ -167,9 +167,11 @@ export function AccountsScreen({
       {
         id: 'usage',
         header: t('columns.usage'),
-        // Two or three bar rows, each a window's name, its bar and the figure
-        // `ProgressBar` prints beside it.
-        size: 240,
+        // Two or three bar rows, each a window's name (4rem), a fixed-length
+        // bar and the figure `ProgressBar` prints beside it (9.5rem together):
+        // 224px of content plus the cell's own padding, which is what this
+        // column needs at the table's narrowest.
+        size: 250,
         meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <UsageCell windows={row.original.usage?.windows ?? []} />
@@ -180,10 +182,11 @@ export function AccountsScreen({
         header: t('columns.resets'),
         // The same windows as its neighbour, on the same rows — the two cells
         // agree on which ones they draw and on their vertical rhythm, so the
-        // clock for a window sits beside the spend for that window. Sized for
-        // the widest distance any of the three languages prints ("quelques
-        // secondes") next to a bar still worth looking at.
-        size: 190,
+        // clock for a window sits beside the spend for that window. A short
+        // bar (2.5rem) and the distance: the common ones ("5 hours",
+        // "2 Tage") fit whole at the narrowest, and the rare longest
+        // ("quelques secondes", the last minute) truncates onto `title`.
+        size: 160,
         meta: { skeleton: { type: 'text', lines: 2 } },
         cell: ({ row }) => (
           <ResetsCell windows={row.original.usage?.windows ?? []} />

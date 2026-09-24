@@ -104,11 +104,11 @@ in the pool**, so they run before the removals.
   "Max 5x", "Pro", "Plus", "Pro Lite" — and never an organization's name. The
   names read the same in every language. A row whose plan has not been read
   yet shows a dash, and a screen reader hears "Not read yet" for it.
-
-- [ ] `ACCT-25` · **Find an account whose session window is under three
-  quarters spent, one at or past three quarters, and one at the ceiling** →
-  the three bars read accent, orange and red in that order. A full bar never
-  reads as green: a spent plan is not a completed task.
+- [ ] `ACCT-25` · **Find windows under half spent, at half, at three quarters,
+  at 95 % and at the ceiling** → green, yellow, orange, an orange bar running
+  into red at its tip, and red, in that order. A full bar never reads as
+  green: a spent plan is not a completed task. A window at 99.6 % reads
+  99 % and orange-into-red, not 100 % and red.
 - [ ] `ACCT-26` · **Hover a usage bar, then the grey bar beside it** → the
   first names the percentage, the second the exact instant that window
   resets — the date and the hour, in the panel's language, and the instant the
@@ -118,11 +118,20 @@ in the pool**, so they run before the removals.
   as its own usage bar, and never in a different order than the Usage column
   lists them. The two Anthropic windows that roll over together say the same
   thing.
-- [ ] `ACCT-31` · **Compare the two bars on one row** → the grey one fills
-  toward the rollover the way the coloured one fills toward the cap, so an
-  account spending its plan faster than the clock reads as a coloured bar ahead
-  of its grey one. A window the vendor gave no rollover for leaves the grey
-  track empty rather than drawing a fraction of nothing.
+- [ ] `ACCT-31` · **Compare the two bars on one row** → the grey one, less
+  than half as long, fills toward the rollover the way the coloured one fills
+  toward the cap, so an account spending its plan faster than the clock reads
+  as a coloured bar further along than its grey one. A window the vendor gave
+  no rollover for leaves the grey track empty rather than drawing a fraction
+  of nothing.
+- [ ] `ACCT-35` · **Find a window that rolls over within the hour** → its
+  distance ("25 minutes") reads in green and medium weight behind a timer
+  glyph, and its clock bar turns green; a window an hour or more away stays
+  grey. The cue survives without colour: the glyph and the weight still set
+  it apart in grayscale.
+- [ ] `ACCT-36` · **Widen and narrow the window between 1280 and 1920 px** →
+  every usage bar keeps one length in every row and at every width, and every
+  clock bar keeps its own shorter one; only the space around them changes.
 - [ ] `ACCT-32` · **Read the Resets in column in each language** → the heading
   and the figure agree grammatically in all three: the English heading finishes
   in the cell ("Resets in" · "5 days"), and the German and French headings name
