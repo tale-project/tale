@@ -360,8 +360,16 @@ services:
   #
   # Internal-only: blobs reach the browser through presigned URLs the backend
   # signs and the proxy forwards, never by exposing the store itself.
+  #
+  # The image is MinIO's own release, rebuilt: MinIO archived its community
+  # edition and withdrew the free images from Docker Hub (2026-09-11) and
+  # quay.io (2026-09-24), so tale-project/ops rebuilds Dockerfile.release
+  # for this release from the GitHub release assets — the same binaries,
+  # verified against MinIO's minisign key — and publishes it under the
+  # upstream tag (ops: .github/images/minio). The tag is never rebuilt in
+  # place; `object-store` in tools/cli THIRD_PARTY_IMAGES is the one pin.
   object-store:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z
     pull_policy: missing
 
     container_name: tale-object-store

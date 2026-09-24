@@ -43,13 +43,13 @@ docker run -d --name dr-kdb -p 5599:5432 -e POSTGRES_PASSWORD=drtest \
 # External object storage (MinIO) + a bucket
 docker run -d --name dr-minio -p 9100:9000 \
   -e MINIO_ROOT_USER=testkey -e MINIO_ROOT_PASSWORD=testsecret123 \
-  quay.io/minio/minio server /data
-docker run --rm --network host --entrypoint sh quay.io/minio/mc -c \
+  ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z server /data
+docker run --rm --network host --entrypoint sh ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z -c \
   'mc alias set t http://127.0.0.1:9100 testkey testsecret123 && mc mb -p t/org-blobs'
 ```
 
 To inspect the bucket during the run: `docker run --rm --network host
---entrypoint sh quay.io/minio/mc -c 'mc alias set t http://127.0.0.1:9100 testkey
+--entrypoint sh ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z -c 'mc alias set t http://127.0.0.1:9100 testkey
 testsecret123 && mc ls --recursive t/org-blobs'`
 
 > **Agent note**: the JSON config path is the source of truth

@@ -30,7 +30,7 @@ Définis `VERSION` dans le `.env` de Compose avec la release Tale examinée et t
 | `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
 | `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
 | `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
-| `object-store` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` |
+| `object-store` | `ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
 Les sessions utilisent aussi `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`. Définis `SANDBOX_RUNTIME_IMAGE` sur le spawner et télécharge-la avant le démarrage. Le tag local de développement par défaut ne suffit pas sur un hôte qui ne l’a jamais construite. Si tu actives Docker dans les conteneurs ou le cache de build partagé, prépare aussi les images compatibles de la [référence d’environnement](/fr/self-hosted/configuration/environment-reference).
