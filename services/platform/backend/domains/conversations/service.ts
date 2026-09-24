@@ -22,7 +22,7 @@ import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   resolveHeldThreadCredential,
   resolveThreadCredentials,
-} from './thread_mailbox.ts';
+} from './thread-mailbox.ts';
 
 /**
  * Conversations — the shared Inbox core, the 0.5 twin of

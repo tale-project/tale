@@ -38,7 +38,7 @@ import {
   type ConversationMessageRow,
   type ConversationRow,
 } from './service.ts';
-import { resolveThreadCredentials } from './thread_mailbox.ts';
+import { resolveThreadCredentials } from './thread-mailbox.ts';
 
 /**
  * The outbound send surface — the 0.5 twin of the 0.4 send lane
