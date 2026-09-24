@@ -21,9 +21,13 @@ import { completePendingDraftInTx } from './draft.ts';
 import { applyConversationRouting } from './routing.ts';
 import {
   addMessageToConversation,
+  CONVERSATION_COLUMNS,
   ConversationError,
   createConversation,
   viewerCanWrite,
+  viewerIsAdmin,
+  writeConversationTeam,
+  type ConversationRow,
   type ConversationViewer,
 } from './service.ts';
 
@@ -993,6 +997,83 @@ export async function acknowledgeApiDelivery(
     await tx`UPDATE app.conversation_messages SET delivery_state = 'delivered', sent_at_ms = coalesce(sent_at_ms, ${now}), delivered_at_ms = coalesce(delivered_at_ms, ${now}), metadata = coalesce(metadata, '{}'::jsonb) - 'error' - 'errorCode' WHERE id = ${messageId} AND org_id = ${viewer.organizationId}`;
     await hint(tx, viewer.organizationId, row.conversationId);
     return { ok: true };
+  });
+}
+
+/**
+ * Queue a mirrored conversation to a team, or clear its team (`teamId:
+ * null`) — so an integration can route what it mirrors. Keyed like every
+ * mirror route, by the source and the source's own id, and scoped to the key
+ * user who owns the mirror. Admin and owner keys only: the Inbox's own rule
+ * for who may assign. The write is the Inbox's (`writeConversationTeam`):
+ * the team must belong to the organization, an unchanged team is a no-op,
+ * and the change is audited as the key user and announced to the team.
+ */
+export async function assignApiConversationTeam(
+  sql: Sql,
+  viewer: ConversationViewer,
+  input: { source: string; externalId: string; teamId: string | null },
+): Promise<{ conversationId: string; assigneeTeamId: string | null }> {
+  if (!viewerIsAdmin(viewer.role)) {
+    throw new ConversationError(
+      'ROLE_FORBIDDEN',
+      'Only admins and owners can assign conversations',
+      403,
+    );
+  }
+  const notFound = () =>
+    new ConversationError(
+      'CONVERSATION_NOT_FOUND',
+      `No conversation is mirrored under source "${input.source}" with externalId "${input.externalId}"`,
+      404,
+    );
+  return sql.begin(async (tx) => {
+    const bindings = await tx<
+      { conversationId: string; ownerUserId: string }[]
+    >`
+      SELECT conversation_id AS "conversationId",
+             owner_user_id AS "ownerUserId"
+      FROM app.conversation_api_bindings
+      WHERE org_id = ${viewer.organizationId}
+        AND source = ${input.source} AND external_id = ${input.externalId}
+      LIMIT 1
+    `;
+    const binding = bindings[0];
+    if (!binding) throw notFound();
+    if (binding.ownerUserId !== viewer.userId) {
+      throw new ConversationError(
+        'INTEGRATION_NOT_OWNED',
+        'This integration belongs to another service user',
+        403,
+      );
+    }
+    const rows = await tx<ConversationRow[]>`
+      SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
+      WHERE id = ${binding.conversationId}
+        AND org_id = ${viewer.organizationId}
+      FOR UPDATE
+    `;
+    const conversation = rows[0];
+    if (!conversation) throw notFound();
+    try {
+      await writeConversationTeam(tx, conversation, input.teamId, {
+        type: 'user',
+        userId: viewer.userId,
+      });
+    } catch (error) {
+      if (
+        error instanceof ConversationError &&
+        error.code === 'team_not_in_org'
+      ) {
+        throw new ConversationError(
+          'TEAM_NOT_IN_ORG',
+          'That team does not belong to this organization',
+          400,
+        );
+      }
+      throw error;
+    }
+    return { conversationId: conversation.id, assigneeTeamId: input.teamId };
   });
 }
 

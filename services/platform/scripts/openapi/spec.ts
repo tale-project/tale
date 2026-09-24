@@ -1226,6 +1226,55 @@ export function buildSpec(): Json {
       },
     },
   };
+  paths['/api/v1/conversations/assignment'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'assignConversationTeam',
+      summary: 'Queue a mirrored conversation to a team',
+      description:
+        'Sets the team a conversation this key user mirrored is queued to, or clears it with `teamId: null` — the team’s members can then open it in the Inbox, and each of them is notified. The conversation is named like every mirror route, by `source` and its `externalId`; team ids come from `GET /api/v1/teams`. Admin and owner keys only — the Inbox’s own rule for who may assign; an editor key answers 403 `ROLE_FORBIDDEN` and can route by a governance rule for its source instead. A team outside the organization answers 400 `TEAM_NOT_IN_ORG`; a mirror no snapshot created answers 404 `CONVERSATION_NOT_FOUND`, one another service user owns 403 `INTEGRATION_NOT_OWNED`. Setting the team it already has changes nothing. The person assignee is not touched. Unknown keys are refused.',
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['source', 'externalId', 'teamId'],
+        additionalProperties: false,
+        properties: {
+          source: { type: 'string', pattern: API_SOURCE_PATTERN.source },
+          externalId: {
+            type: 'string',
+            minLength: 1,
+            maxLength: API_EXTERNAL_ID_MAX_LENGTH,
+          },
+          teamId: nullable({
+            type: 'string',
+            minLength: 1,
+            maxLength: 128,
+            description:
+              'A team id from `GET /api/v1/teams`; `null` clears the team',
+          }),
+        },
+      }),
+      responses: {
+        '200': jsonResponse('The conversation’s team as it now stands', {
+          type: 'object',
+          required: ['conversationId', 'assigneeTeamId'],
+          properties: {
+            conversationId: str,
+            assigneeTeamId: nullable(str),
+          },
+        }),
+        ...standardErrors,
+        '400': errorResponse(
+          'Invalid body (`INVALID_BODY`), or a team outside this organization (`TEAM_NOT_IN_ORG`)',
+        ),
+        '403': errorResponse(
+          'A role below admin (`ROLE_FORBIDDEN`), or an integration another service user owns (`INTEGRATION_NOT_OWNED`)',
+        ),
+        '404': errorResponse(
+          'No conversation is mirrored under that `source` and `externalId` (`CONVERSATION_NOT_FOUND`)',
+        ),
+      },
+    },
+  };
   paths['/api/v1/conversations'] = {
     get: {
       ...conversationOperation,
