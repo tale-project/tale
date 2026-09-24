@@ -23191,6 +23191,310 @@ async function checkConnectorCredentials(
  * cascade delete.
  */
 /**
+ * The Inbox filter for one mailbox lists exactly the threads the Inbox names
+ * as that mailbox (the resolver, `thread-mailbox.ts`), and its count tiles
+ * agree. The filter repeats the resolver's rule in SQL, so the two are checked
+ * against each other on real Postgres, one mailbox at a time, over fixtures
+ * that exercise every branch: an inbound stamp, an inbound stamp with a newer
+ * outbound one, an outbound-only stamp, a legacy thread matched by address
+ * (mixed case, and by the sender on outbound mail), an address two mailboxes
+ * share, a disabled mailbox, and an API thread on the same connector slug.
+ * A second matrix compares the SQL address with `mailboxSideAddress`.
+ */
+async function checkInboxMailboxFilter(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const {
+    addMessageToConversation,
+    countConversationsByStatus,
+    createConversation,
+    listConversationMessages,
+    listConversationsPage,
+    loadVisibleConversation,
+    projectConversationForView,
+  } = await import('./domains/conversations/service.ts');
+  const { mailboxSideAddressSql, resolveThreadCredentials } =
+    await import('./domains/conversations/thread-mailbox.ts');
+  const { mailboxSideAddress } =
+    await import('../lib/shared/conversations/reply-from.ts');
+  const { toJson } = await import('./db/sql.ts');
+
+  // A slug of its own, so no other lane's thread can land in these sets.
+  const slug = 'itest-mailbox-filter';
+  const mailbox = async (
+    name: string,
+    status: string,
+    fromAddress: string,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.connector_credentials (
+        org_id, connector_slug, auth_method, name, encrypted_data, config,
+        status, created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${slug}, 'basic', ${name}, ${sql.json({})},
+        ${sql.json({ fromAddress })}, ${status}, 'itest', ${Date.now()},
+        ${Date.now()}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const mbX = await mailbox('filter-x', 'active', 'desk-x@filter.test');
+  const mbY = await mailbox('filter-y', 'active', 'desk-y@filter.test');
+  const mbZ = await mailbox('filter-z', 'active', 'shared@filter.test');
+  const mbW = await mailbox('filter-w', 'active', 'Shared@Filter.test');
+  const mbD = await mailbox('filter-d', 'disabled', 'desk-d@filter.test');
+
+  const contacts = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Filter Customer', 'filter-customer@ext.test',
+            'api_import', ${Date.now()}, ${Date.now()})
+    RETURNING id
+  `;
+  const contactId = contacts[0]?.id ?? '';
+  const thread = async (args: {
+    subject: string;
+    channel?: string;
+    direction: 'inbound' | 'outbound';
+    metadata?: Record<string, unknown>;
+    messages: { inbound: boolean; credentialId?: string; at: number }[];
+  }): Promise<string> => {
+    const id = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject: args.subject,
+        channel: args.channel ?? 'email',
+        direction: args.direction,
+        connectorName: slug,
+        ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+      }),
+    );
+    for (const message of args.messages) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId: id,
+          organizationId: orgId,
+          sender: 'filter-customer@ext.test',
+          content: args.subject,
+          isCustomer: message.inbound,
+          connectorName: slug,
+          ...(message.credentialId !== undefined
+            ? { credentialId: message.credentialId }
+            : {}),
+          sentAt: message.at,
+        }),
+      );
+    }
+    return id;
+  };
+  const now = Date.now();
+  const threads = {
+    inboundX: await thread({
+      subject: 'inbound stamp x',
+      direction: 'inbound',
+      messages: [{ inbound: true, credentialId: mbX, at: now - 9000 }],
+    }),
+    inboundYThenOutboundX: await thread({
+      subject: 'inbound y, newer outbound x',
+      direction: 'inbound',
+      messages: [
+        { inbound: true, credentialId: mbY, at: now - 8000 },
+        { inbound: false, credentialId: mbX, at: now - 7000 },
+      ],
+    }),
+    outboundOnlyX: await thread({
+      subject: 'outbound-only stamp x',
+      direction: 'outbound',
+      messages: [{ inbound: false, credentialId: mbX, at: now - 6000 }],
+    }),
+    legacyToX: await thread({
+      subject: 'legacy, written to x',
+      direction: 'inbound',
+      metadata: { to: [{ address: ' Desk-X@Filter.test ' }] },
+      messages: [{ inbound: true, at: now - 5000 }],
+    }),
+    legacySentFromX: await thread({
+      subject: 'legacy, sent from x',
+      direction: 'outbound',
+      metadata: {
+        from: [{ address: 'desk-x@filter.test' }],
+        to: [{ address: 'filter-customer@ext.test' }],
+      },
+      messages: [{ inbound: false, at: now - 4000 }],
+    }),
+    legacyShared: await thread({
+      subject: 'legacy, shared address',
+      direction: 'inbound',
+      metadata: { to: [{ address: 'shared@filter.test' }] },
+      messages: [{ inbound: true, at: now - 3000 }],
+    }),
+    legacyToDisabled: await thread({
+      subject: 'legacy, written to d',
+      direction: 'inbound',
+      metadata: { to: [{ address: 'desk-d@filter.test' }] },
+      messages: [{ inbound: true, at: now - 2000 }],
+    }),
+    stampedDisabled: await thread({
+      subject: 'inbound stamp d',
+      direction: 'inbound',
+      messages: [{ inbound: true, credentialId: mbD, at: now - 1000 }],
+    }),
+    apiToX: await thread({
+      subject: 'api thread',
+      channel: 'api',
+      direction: 'inbound',
+      metadata: { to: [{ address: 'desk-x@filter.test' }] },
+      messages: [{ inbound: true, at: now - 500 }],
+    }),
+  };
+  const nameOf = new Map(Object.entries(threads).map(([k, v]) => [v, k]));
+  const names = (ids: Iterable<string>) =>
+    [...ids]
+      .map((id) => nameOf.get(id) ?? `other:${id}`)
+      .sort()
+      .join(',');
+
+  const adminView = {
+    organizationId: orgId,
+    userId: 'itest-admin',
+    role: 'admin',
+  };
+  const rows = await sql<
+    {
+      id: string;
+      channel: string | null;
+      connectorName: string | null;
+      direction: 'inbound' | 'outbound' | null;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT id, channel, connector_name AS "connectorName", direction, metadata
+    FROM app.conversations
+    WHERE org_id = ${orgId} AND id = ANY(${Object.values(threads)})
+  `;
+  const placed = await resolveThreadCredentials(sql, orgId, rows);
+  const detailPlaced = new Map<string, unknown>();
+  for (const id of Object.values(threads)) {
+    const row = await loadVisibleConversation(sql, adminView, id);
+    const item = await projectConversationForView(
+      sql,
+      row,
+      await listConversationMessages(sql, id),
+      null,
+    );
+    detailPlaced.set(id, item.credentialId);
+  }
+
+  const expected: Record<string, string> = {
+    [mbX]: 'inboundX,legacySentFromX,legacyToX,outboundOnlyX',
+    [mbY]: 'inboundYThenOutboundX',
+    [mbZ]: '',
+    [mbW]: '',
+    [mbD]: 'stampedDisabled',
+  };
+  const report: string[] = [];
+  let agree = true;
+  for (const [credentialId, want] of Object.entries(expected)) {
+    const listed = await listConversationsPage(sql, adminView, {
+      credentialId,
+      cursor: null,
+      limit: 100,
+    });
+    const counted = Object.values(
+      await countConversationsByStatus(sql, adminView, { credentialId }),
+    ).reduce((sum, n) => sum + n, 0);
+    const listIds = names(listed.page.map((row) => row.id));
+    const resolverIds = names(
+      [...placed].filter(([, c]) => c === credentialId).map(([id]) => id),
+    );
+    const detailIds = names(
+      [...detailPlaced].filter(([, c]) => c === credentialId).map(([id]) => id),
+    );
+    const ok =
+      listIds === want &&
+      resolverIds === want &&
+      detailIds === want &&
+      counted === (want === '' ? 0 : want.split(',').length);
+    agree &&= ok;
+    report.push(
+      `${ok ? 'ok' : 'MISMATCH'} list=[${listIds}] resolver=[${resolverIds}] detail=[${detailIds}] count=${counted} want=[${want}]`,
+    );
+  }
+  record(
+    'inbox mailbox filter lists exactly what the resolver names, and counts it',
+    agree,
+    report.join('; '),
+  );
+
+  // The SQL address against `mailboxSideAddress`, normalized alike.
+  const cases: {
+    direction: 'inbound' | 'outbound' | null;
+    metadata: Record<string, unknown> | null;
+  }[] = [
+    {
+      direction: 'outbound',
+      metadata: {
+        from: [{ address: ' Desk@X.test ' }],
+        to: [{ address: 'c@y.test' }],
+      },
+    },
+    { direction: 'outbound', metadata: { to: [{ address: 'Only@To.test' }] } },
+    {
+      direction: 'outbound',
+      metadata: {
+        from: { address: 'object@x.test' },
+        to: [{ address: 'fallback@x.test' }],
+      },
+    },
+    {
+      direction: 'inbound',
+      metadata: {
+        from: [{ address: 'ignored@x.test' }],
+        to: [{ address: '\tTab@X.test\n' }],
+      },
+    },
+    { direction: 'inbound', metadata: { to: ['plain@x.test'] } },
+    { direction: 'inbound', metadata: { to: [{ address: '' }] } },
+    { direction: 'inbound', metadata: null },
+    { direction: null, metadata: { to: [{ address: 'NoDir@X.test' }] } },
+  ];
+  const mismatches: string[] = [];
+  for (const entry of cases) {
+    const got = await sql<{ address: string | null }[]>`
+      SELECT ${mailboxSideAddressSql(sql)} AS address
+      FROM (VALUES (
+        ${entry.direction}::text,
+        ${entry.metadata === null ? null : sql.json(toJson(entry.metadata))}::jsonb
+      )) AS conversations(direction, metadata)
+    `;
+    const sqlAddress = got[0]?.address || null;
+    const jsAddress =
+      mailboxSideAddress(
+        entry.metadata ?? undefined,
+        entry.direction ?? undefined,
+      )
+        ?.trim()
+        .toLowerCase() || null;
+    if (sqlAddress !== jsAddress) {
+      mismatches.push(
+        `${JSON.stringify(entry)} sql=${sqlAddress} js=${jsAddress}`,
+      );
+    }
+  }
+  record(
+    'inbox mailbox filter reads the same address as mailboxSideAddress',
+    mismatches.length === 0,
+    mismatches.length === 0
+      ? `${cases.length} envelopes agree`
+      : mismatches.join('; '),
+  );
+}
+
+/**
  * Which MAILBOX a reply leaves from (migration 0113).
  *
  * `connector_name` names the connector, never the account, and an
@@ -52560,6 +52864,10 @@ async function main(): Promise<void> {
       [
         'checkConversationReplyMailbox',
         () => checkConversationReplyMailbox(sql, { orgId: authCtx.orgId }),
+      ],
+      [
+        'checkInboxMailboxFilter',
+        () => checkInboxMailboxFilter(sql, { orgId: authCtx.orgId }),
       ],
       [
         'checkNativeIdentity',

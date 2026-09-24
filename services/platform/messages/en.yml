@@ -1764,6 +1764,7 @@ conversations:
     readStatus: Read status
     channel: Channel
     allChannels: All channels
+    mailboxInactive: '{name} (inactive)'
     assignee: Assignee
     assigneeMe: Assigned to me
     assigneeMyTeams: My teams

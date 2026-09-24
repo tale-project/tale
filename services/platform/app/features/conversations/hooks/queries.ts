@@ -19,6 +19,9 @@ interface ListConversationsPaginatedArgs {
   /** Filter to one connected inbox provider (e.g. `gmail`) — the Inbox
    *  toolbar's channel filter. */
   connectorName?: string;
+  /** Filter to one mailbox (connector credential) of a connector that holds
+   *  several. */
+  credentialId?: string;
   initialNumItems: number;
 }
 

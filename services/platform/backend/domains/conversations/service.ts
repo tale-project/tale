@@ -20,7 +20,9 @@ import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 import {
+  mailboxFilterSql,
   resolveHeldThreadCredential,
+  resolveMailboxFilter,
   resolveThreadCredentials,
 } from './thread-mailbox.ts';
 
@@ -528,6 +530,9 @@ export async function listConversationsPage(
     priority?: string;
     channel?: string;
     connectorName?: string;
+    /** One mailbox (connector credential): only the threads the Inbox names
+     *  as that mailbox. */
+    credentialId?: string;
     contactId?: string;
     cursor: string | null;
     limit: number;
@@ -550,10 +555,19 @@ export async function listConversationsPage(
     }
   }
   const scope = await resolveAssignmentScope(sql, viewer);
+  const mailbox = await resolveMailboxPredicate(
+    sql,
+    viewer.organizationId,
+    options.credentialId,
+  );
+  if (mailbox === null) {
+    return { page: [], items: [], isDone: true, continueCursor: '' };
+  }
   const rows = await sql<ConversationRow[]>`
     SELECT ${sql.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
     WHERE org_id = ${viewer.organizationId}
       ${scope.predicate}
+      ${mailbox.predicate}
       AND (${options.status ?? null}::text IS NULL
         OR status = ${options.status ?? null})
       AND (${options.priority ?? null}::text IS NULL
@@ -649,6 +663,32 @@ export async function listConversationsPage(
   };
 }
 
+/** What the Inbox doors narrow by, besides status: the connector, and
+ *  within it one mailbox. */
+export interface InboxSourceFilter {
+  connectorName?: string;
+  credentialId?: string;
+}
+
+/**
+ * The mailbox half of an Inbox door's filter — ONE fragment
+ * (`mailboxFilterSql`) the list and both count doors interpolate, so a tile
+ * counts exactly what its filtered tab lists. Wrapped for the same reason as
+ * {@link resolveAssignmentScope}. `null` when the organization has no such
+ * mailbox: the door then answers nothing without reading a conversation.
+ */
+async function resolveMailboxPredicate(
+  sql: Sql,
+  organizationId: string,
+  credentialId: string | undefined,
+) {
+  if (credentialId === undefined) return { predicate: sql`` };
+  const mailbox = await resolveMailboxFilter(sql, organizationId, credentialId);
+  return mailbox === null
+    ? null
+    : { predicate: mailboxFilterSql(sql, mailbox) };
+}
+
 /**
  * The scope every Inbox door filters by — the list and both count doors.
  *
@@ -698,15 +738,23 @@ async function resolveAssignmentScope(sql: Sql, viewer: ConversationViewer) {
 export async function countConversationsByStatus(
   sql: Sql,
   viewer: ConversationViewer,
-  connectorName?: string,
+  filter: InboxSourceFilter = {},
 ): Promise<Record<string, number>> {
+  const { connectorName } = filter;
   const scope = await resolveAssignmentScope(sql, viewer);
+  const mailbox = await resolveMailboxPredicate(
+    sql,
+    viewer.organizationId,
+    filter.credentialId,
+  );
+  if (mailbox === null) return {};
   const rows = await sql<{ status: string | null; count: string }[]>`
     SELECT status, count(*)::text AS count FROM app.conversations
     WHERE org_id = ${viewer.organizationId}
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
       ${scope.predicate}
+      ${mailbox.predicate}
     GROUP BY status
   `;
   const out: Record<string, number> = {};
@@ -722,15 +770,23 @@ export async function countConversationsByStatus(
 export async function countUnreadConversations(
   sql: Sql,
   viewer: ConversationViewer,
-  connectorName?: string,
+  filter: InboxSourceFilter = {},
 ): Promise<number> {
+  const { connectorName } = filter;
   const scope = await resolveAssignmentScope(sql, viewer);
+  const mailbox = await resolveMailboxPredicate(
+    sql,
+    viewer.organizationId,
+    filter.credentialId,
+  );
+  if (mailbox === null) return 0;
   const rows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.conversations
     WHERE org_id = ${viewer.organizationId} AND status = 'open'
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
       ${scope.predicate}
+      ${mailbox.predicate}
       AND CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number'
             THEN (metadata->>'unread_count')::numeric > 0
             ELSE false END

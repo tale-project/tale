@@ -10,11 +10,17 @@ import {
   useApproxConversationCountByStatus,
   useEmailConnectors,
   useListConversationsPaginated,
+  useMailboxes,
 } from '@/app/features/conversations/hooks/queries';
-import { channelOptionsOf } from '@/app/features/conversations/lib/channel-source';
+import {
+  channelFilterOf,
+  channelOptionsOf,
+  mailboxOptionValue,
+} from '@/app/features/conversations/lib/channel-source';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ConversationRow } from '@/app/lib/backend/contract/docs';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
+import { useT } from '@/lib/i18n/client';
 
 const INITIAL_NUM_ITEMS = 30;
 
@@ -38,6 +44,9 @@ const searchSchema = z.object({
   conversation: z.string().optional(),
   /** Channel filter: an inbox provider's connector slug (e.g. `gmail`). */
   channel: z.string().optional(),
+  /** Channel filter narrowed to one mailbox (a connector credential id), for
+   *  a connector that holds several. */
+  mailbox: z.string().optional(),
   /**
    * Assignee filter: a comma-separated list of user ids, team ids and the
    * `__me__` / `__unassigned__` / `__my-teams__` sentinels. In the URL so a
@@ -83,26 +92,34 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
  * The Inbox's channel-filter options: every lane a thread can arrive on.
  *
  * Email connectors come from the installed inbox automations' required
- * connectors, named by their credential's title. API sources come from the
- * threads themselves — an integration names its own source slug, so there is
- * no catalog to read it from.
+ * connectors, named by their credential's title; a connector holding several
+ * mailboxes lists each of them instead. API sources come from the threads
+ * themselves — an integration names its own source slug, so there is no
+ * catalog to read it from.
  *
- * The value is what the server filters on (`connectorName`), so the two
- * namespaces share one list without colliding: a slug identifies one lane.
+ * The value is what the server filters on (`connectorName`, or one mailbox's
+ * credential), so the namespaces share one list without colliding.
  */
 function useChannelOptions(
   organizationId: string,
 ): Array<{ value: string; label: string }> {
+  const { t } = useT('conversations');
   const { emailConnectors } = useEmailConnectors(organizationId);
+  const { mailboxes } = useMailboxes();
   const { data: apiSources } = useBackendQuery(
     'conversations/queries:apiSources',
     organizationId ? { organizationId } : 'skip',
   );
 
   return useMemo(() => {
-    const options = channelOptionsOf(emailConnectors, apiSources ?? []);
+    const options = channelOptionsOf(
+      emailConnectors,
+      apiSources ?? [],
+      mailboxes,
+      (name) => t('filter.mailboxInactive', { name }),
+    );
     return options.length === 0 ? EMPTY_CHANNEL_OPTIONS : options;
-  }, [emailConnectors, apiSources]);
+  }, [emailConnectors, apiSources, mailboxes, t]);
 }
 
 // Stable identity so downstream memos don't re-run every render.
@@ -114,6 +131,7 @@ function ConversationsStatusPage() {
     search,
     conversation,
     channel,
+    mailbox,
     assignee,
     read,
     compose,
@@ -144,8 +162,10 @@ function ConversationsStatusPage() {
     organizationId,
     status: mappedStatus,
     // The channel filter is server-side: the slug rides the `channel` search
-    // param and lands on the query's `connectorName` arg.
+    // param and lands on the query's `connectorName` arg; one mailbox rides
+    // `mailbox` and lands on `credentialId`.
     ...(channel !== undefined && { connectorName: channel }),
+    ...(mailbox !== undefined && { credentialId: mailbox }),
     initialNumItems: INITIAL_NUM_ITEMS,
   });
 
@@ -155,7 +175,10 @@ function ConversationsStatusPage() {
       void navigate({
         to: '/dashboard/$id/conversations/$status',
         params: { id: organizationId, status },
-        search: (prev) => ({ ...prev, channel: value }),
+        search: (prev) => {
+          const filter = channelFilterOf(value);
+          return { ...prev, channel: filter.channel, mailbox: filter.mailbox };
+        },
         replace: true,
       });
     },
@@ -209,7 +232,7 @@ function ConversationsStatusPage() {
       totalConversationCount={totalConversationCount}
       channelFilter={{
         options: channelOptions,
-        value: channel,
+        value: mailbox !== undefined ? mailboxOptionValue(mailbox) : channel,
         onChange: handleChannelChange,
       }}
       assigneeFilter={assigneeFilter}

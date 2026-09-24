@@ -1838,6 +1838,7 @@ conversations:
     readStatus: Statut de lecture
     channel: Canal
     allChannels: Tous les canaux
+    mailboxInactive: '{name} (inactive)'
     assignee: Responsable
     assigneeMe: Assignées à moi
     assigneeMyTeams: Mes équipes

@@ -1829,6 +1829,7 @@ conversations:
     readStatus: Lesestatus
     channel: Kanal
     allChannels: Alle Kanäle
+    mailboxInactive: '{name} (inaktiv)'
     assignee: Zuständig
     assigneeMe: Mir zugewiesen
     assigneeMyTeams: Meine Teams

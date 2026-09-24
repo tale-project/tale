@@ -115,6 +115,12 @@ function connectorFilter<E extends OrgEnv>(c: Context<E>): string | undefined {
   return value !== undefined && value !== '' ? value : undefined;
 }
 
+/** `?credentialId=`: one mailbox. An id no mailbox carries lists nothing. */
+function mailboxFilter<E extends OrgEnv>(c: Context<E>): string | undefined {
+  const value = c.req.query('credentialId');
+  return value !== undefined && value !== '' ? value.slice(0, 128) : undefined;
+}
+
 export function createConversationRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -153,6 +159,9 @@ export function createConversationRoutes(deps: {
       ...(connectorFilter(c) !== undefined
         ? { connectorName: connectorFilter(c) ?? '' }
         : {}),
+      ...(mailboxFilter(c) !== undefined
+        ? { credentialId: mailboxFilter(c) ?? '' }
+        : {}),
       ...(c.req.query('contactId') !== undefined
         ? { contactId: c.req.query('contactId') ?? '' }
         : {}),
@@ -165,14 +174,15 @@ export function createConversationRoutes(deps: {
   });
 
   app.get('/counts', async (c) => {
-    const connector = connectorFilter(c);
+    const connectorName = connectorFilter(c);
+    const credentialId = mailboxFilter(c);
+    const filter = {
+      ...(connectorName !== undefined ? { connectorName } : {}),
+      ...(credentialId !== undefined ? { credentialId } : {}),
+    };
     return c.json({
-      byStatus: await countConversationsByStatus(
-        deps.sql,
-        viewer(c),
-        connector,
-      ),
-      unread: await countUnreadConversations(deps.sql, viewer(c), connector),
+      byStatus: await countConversationsByStatus(deps.sql, viewer(c), filter),
+      unread: await countUnreadConversations(deps.sql, viewer(c), filter),
     });
   });
 

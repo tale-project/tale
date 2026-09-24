@@ -345,7 +345,8 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
       qsOf('status') +
       qsOf('priority') +
       qsOf('channel') +
-      qsOf('connectorName');
+      qsOf('connectorName') +
+      qsOf('credentialId');
     return {
       queryKey: backendKey(
         orgId,
@@ -355,6 +356,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
         keyPart(args.priority),
         keyPart(args.channel),
         keyPart(args.connectorName),
+        keyPart(args.credentialId),
       ),
       fetchPage: (cursor, numItems) =>
         // `items` is the row PROJECTED into the shape the Inbox reads (the

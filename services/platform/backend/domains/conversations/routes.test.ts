@@ -232,12 +232,32 @@ describe('conversations route — connector filter wire contract', () => {
     expect(countConversationsByStatus).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: 'o1', userId: 'u1', role: 'admin' },
-      'imap-smtp',
+      { connectorName: 'imap-smtp' },
     );
     expect(countUnreadConversations).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: 'o1', userId: 'u1', role: 'admin' },
-      'imap-smtp',
+      { connectorName: 'imap-smtp' },
+    );
+  });
+
+  it('GET /counts and GET / filter on one mailbox', async () => {
+    await makeApp().request('/counts?orgId=o1&credentialId=cred-b');
+    expect(countConversationsByStatus).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { credentialId: 'cred-b' },
+    );
+    expect(countUnreadConversations).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { credentialId: 'cred-b' },
+    );
+    await makeApp().request('/?orgId=o1&credentialId=cred-b');
+    expect(listConversationsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ credentialId: 'cred-b' }),
     );
   });
 
@@ -249,12 +269,12 @@ describe('conversations route — connector filter wire contract', () => {
       expect(countConversationsByStatus).toHaveBeenCalledWith(
         expect.anything(),
         { organizationId: 'o1', userId: 'u1', role: 'member' },
-        undefined,
+        {},
       );
       expect(countUnreadConversations).toHaveBeenCalledWith(
         expect.anything(),
         { organizationId: 'o1', userId: 'u1', role: 'member' },
-        undefined,
+        {},
       );
     } finally {
       viewerRole.current = previousRole;

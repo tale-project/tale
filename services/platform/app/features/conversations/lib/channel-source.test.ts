@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  channelFilterOf,
   channelOptionsOf,
   channelSourceOf,
+  mailboxOptionValue,
   type MailboxEntry,
 } from './channel-source';
 
@@ -191,5 +193,60 @@ describe('channelOptionsOf', () => {
   // the control hidden rather than offering an empty menu.
   it('returns nothing when the org has no channel at all', () => {
     expect(channelOptionsOf([], [])).toEqual([]);
+  });
+});
+
+/**
+ * One connector, two mailboxes: the filter lists each, so General Support's
+ * threads can be seen without Recruitment Support's. A connector with one
+ * mailbox stays one entry — its mailbox and its connector are the same lane.
+ */
+describe('channelOptionsOf with several mailboxes on one connector', () => {
+  const connectors = [
+    { slug: 'imap-smtp', title: 'General Support' },
+    { slug: 'imap-smtp', title: 'Recruitment Support' },
+    { slug: 'gmail', title: 'Gmail' },
+  ];
+  const inactive = (name: string) => `${name} (inactive)`;
+
+  it('lists each mailbox of a connector that holds several, by name', () => {
+    expect(
+      channelOptionsOf(
+        connectors,
+        ['helpdesk'],
+        [GENERAL, { ...RECRUITMENT, status: 'disabled' }, GMAIL],
+        inactive,
+      ),
+    ).toEqual([
+      { value: 'mailbox:cred-general', label: 'General Support' },
+      {
+        value: 'mailbox:cred-recruitment',
+        label: 'Recruitment Support (inactive)',
+      },
+      { value: 'gmail', label: 'Gmail' },
+      { value: 'helpdesk', label: 'helpdesk' },
+    ]);
+  });
+
+  it('keeps a connector with one mailbox as one connector entry', () => {
+    expect(
+      channelOptionsOf(
+        [{ slug: 'imap-smtp', title: 'General Support' }],
+        [],
+        [GENERAL],
+        inactive,
+      ),
+    ).toEqual([{ value: 'imap-smtp', label: 'General Support' }]);
+  });
+});
+
+describe('channelFilterOf', () => {
+  it('reads a mailbox entry as one mailbox, anything else as a connector', () => {
+    expect(channelFilterOf(mailboxOptionValue('cred-general'))).toEqual({
+      mailbox: 'cred-general',
+    });
+    expect(channelFilterOf('gmail')).toEqual({ channel: 'gmail' });
+    expect(channelFilterOf(undefined)).toEqual({});
+    expect(channelFilterOf('')).toEqual({});
   });
 });
