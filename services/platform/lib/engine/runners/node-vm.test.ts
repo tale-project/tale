@@ -179,3 +179,63 @@ describe('nodeVmRunner — the fault boundary (a supervised child process)', () 
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe('nodeVmRunner — the deadline charges the evaluation, nothing around it', () => {
+  // The short grace of the fault-boundary suite: a millisecond charged to
+  // the wrong party shows up as a kill here.
+  const runner = nodeVmRunner({ killGraceMs: 100 });
+  const busyHost = (ms: number): void => {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      // stall the host event loop on purpose
+    }
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a large scope loads on its own budget, never on the expression’s', async () => {
+    // Every prior node output rides along with each expression, and one
+    // quarter's document extractions are this big. The expression itself is
+    // a lookup; its budget must not pay for shipping and parsing the rest.
+    const big = Array.from({ length: 300_000 }, (_, i) => ({
+      id: i,
+      text: 'x'.repeat(48),
+    }));
+    await expect(
+      runner.evalExpr('small.v', { small: { v: 7 }, big }, { timeoutMs: 100 }),
+    ).resolves.toBe(7);
+  });
+
+  it('a host event-loop stall after the child answered does not kill it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runner.evalExpr('1', {}, LIMITS); // the process is up and acked
+    const pending = runner.evalExpr(
+      '(() => { const until = Date.now() + 80; while (Date.now() < until) {} return "done"; })()',
+      {},
+      { timeoutMs: 200 },
+    );
+    // The `started` ack has been processed and the deadline (200 + 100) is
+    // armed; the answer lands in the pipe ~80ms in. Then the host is busy in
+    // an I/O-phase callback for longer than the deadline — as a worker
+    // process is when it clones a big scope or handles a database result.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise<void>((resolve) => {
+      setImmediate(() => {
+        busyHost(600);
+        resolve();
+      });
+    });
+    await expect(pending).resolves.toBe('done');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('a `__proto__` key in the data is a key, not a prototype', async () => {
+    const o: unknown = JSON.parse('{"__proto__": {"x": 1}, "own": 2}');
+    // `o.x` is undefined — null once it crosses back as JSON.
+    await expect(
+      runner.evalExpr('[o.x, o.own, Object.keys(o).length]', { o }, LIMITS),
+    ).resolves.toEqual([null, 2, 2]);
+  });
+});

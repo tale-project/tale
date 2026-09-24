@@ -49,49 +49,93 @@ function send(message: unknown): void {
   if (process.send !== undefined) process.send(message);
 }
 
+/**
+ * How long loading a scope into its context may take. A scope is
+ * engine-produced JSON — never authored code — so this bounds a linear parse
+ * whose only other limit is the heap cap. It is deliberately NOT the
+ * evaluation's own budget: a scope carries every prior node output, and an
+ * expression that reads one field of it must not pay for parsing the rest.
+ */
+const SCOPE_LOAD_TIMEOUT_MS = 10_000;
+
 /** A fresh context per evaluation: nothing survives from one body to the
  * next, and authored code finds no host globals. */
 function newContext(request: EvalRequest): vm.Context {
-  const context = vm.createContext(Object.create(null), {
+  const sandbox: Record<string, unknown> = Object.create(null);
+  const context = vm.createContext(sandbox, {
     codeGeneration: { strings: false, wasm: false },
   });
-  // Defined via the context object so the scope itself is data the script
-  // reads, not a host binding.
-  vm.runInContext(`__scope = ${request.scopeJson}`, context, {
-    timeout: request.timeoutMs,
-  });
+  // The scope crosses as a primitive string and is parsed INSIDE the
+  // context, so its objects belong to the context's realm and the scope is
+  // data the script reads, not a host binding. JSON.parse is also what the
+  // data-only convention means: a `"__proto__"` key stays a key, where
+  // compiling the JSON as an object literal would have set a prototype.
+  sandbox.__scopeJson = request.scopeJson;
+  try {
+    vm.runInContext('__scope = JSON.parse(__scopeJson)', context, {
+      timeout: SCOPE_LOAD_TIMEOUT_MS,
+    });
+  } catch (error) {
+    const mb = (request.scopeJson.length / 1_048_576).toFixed(1);
+    throw new Error(
+      `the evaluation scope (${mb} MB of JSON) could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  } finally {
+    delete sandbox.__scopeJson;
+  }
   return context;
 }
 
-function runSync(request: EvalRequest): string | null {
-  const out: unknown = new vm.Script(request.source).runInContext(
-    newContext(request),
-    { timeout: request.timeoutMs },
-  );
+function runSync(request: EvalRequest, context: vm.Context): string | null {
+  const out: unknown = new vm.Script(request.source).runInContext(context, {
+    timeout: request.timeoutMs,
+  });
   return typeof out === 'string' ? out : null;
 }
 
 /** The `timeout` option only bounds synchronous execution; a body parked in
  * `await` is what the parent's deadline kill is for. */
-async function runAsync(request: EvalRequest): Promise<string | null> {
-  const pending: unknown = new vm.Script(request.source).runInContext(
-    newContext(request),
-    { timeout: request.timeoutMs },
-  );
+async function runAsync(
+  request: EvalRequest,
+  context: vm.Context,
+): Promise<string | null> {
+  const pending: unknown = new vm.Script(request.source).runInContext(context, {
+    timeout: request.timeoutMs,
+  });
   const out: unknown = await pending;
   return typeof out === 'string' ? out : null;
 }
 
 process.on('message', (raw: unknown) => {
   if (!isEvalRequest(raw)) return;
-  // The ack starts the parent's deadline clock: queued behind a busy body,
-  // a request is not yet running and must not be charged for the wait.
-  send({ id: raw.id, started: true });
   void (async () => {
+    let context: vm.Context;
     try {
-      const valueJson = raw.async ? await runAsync(raw) : runSync(raw);
+      context = newContext(raw);
+    } catch (error) {
+      send({
+        id: raw.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    // The ack starts the parent's deadline clock, so it leaves once the scope
+    // is in place and only the authored code remains: queued behind a busy
+    // body, or behind its own scope's parse, a request is not yet running
+    // and must not be charged for the wait.
+    send({ id: raw.id, started: true });
+    try {
+      const valueJson = raw.async
+        ? await runAsync(raw, context)
+        : runSync(raw, context);
+      // `finished` stops that clock before the answer ships: an answer can be
+      // large, and a deadline must never fire on bytes still in transit.
+      send({ id: raw.id, finished: true });
       send({ id: raw.id, ok: true, valueJson });
     } catch (error) {
+      send({ id: raw.id, finished: true });
       send({
         id: raw.id,
         ok: false,

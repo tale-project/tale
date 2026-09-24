@@ -93,6 +93,67 @@ describe('evalCondition', () => {
   });
 });
 
+describe('the scope handed to the runner', () => {
+  let seen: Record<string, unknown> | undefined;
+  const scope = {
+    input: { n: 1 },
+    nodes: { a: { output: 1 }, b: { output: 2 }, c: { output: 3 } },
+    item: 'i',
+  };
+
+  beforeEach(() => {
+    seen = undefined;
+    setCodeRunner({
+      async evalExpr(_expr, s) {
+        seen = s;
+        return 1;
+      },
+      async runBody(_code, s) {
+        seen = s;
+        return 1;
+      },
+      async checkExpr() {
+        return null;
+      },
+      async checkBody() {
+        return null;
+      },
+      kind: () => 'recording',
+    });
+  });
+
+  it('carries only the nodes the expression names, and everything else whole', async () => {
+    await evalTemplates('{{ nodes.a.output + nodes["b"].output }}', scope);
+    expect(seen).toEqual({
+      input: { n: 1 },
+      nodes: { a: { output: 1 }, b: { output: 2 } },
+      item: 'i',
+    });
+  });
+
+  it('keeps every node when `nodes` is used any other way', async () => {
+    await evalTemplates(
+      '{{ (() => { const id = "c"; return nodes[id].output; })() }}',
+      scope,
+    );
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a', 'b', 'c']);
+    await evalTemplates('{{ Object.keys(nodes).length }}', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['a', 'b', 'c']);
+  });
+
+  it('each expression of one string gets its own', async () => {
+    await evalTemplates('{{ nodes.a.output }} and {{ nodes.c.output }}', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['c']);
+  });
+
+  it('conditions and transform bodies are pruned the same way', async () => {
+    await evalCondition('nodes.b.output === 2', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['b']);
+    await runCode('return nodes.c.output;', scope);
+    expect(Object.keys(seen?.nodes ?? {})).toEqual(['c']);
+  });
+});
+
 describe('runCode (transform bodies)', () => {
   it('runs a body with input in scope and returns its value', async () => {
     await expect(
