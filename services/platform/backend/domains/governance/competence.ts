@@ -1,5 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  competenceRecordStatus,
+  PLATFORM_CAPABILITIES,
+  PLATFORM_CAPABILITY_PREFIX,
+  type PlatformCapability,
+} from '../../../lib/shared/competences';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
@@ -37,30 +43,13 @@ const COMPETENCE_EVIDENCE_MAX = 2000;
 /** A member holds a handful of competences; the cap bounds a bad org. */
 const COMPETENCE_SCAN_CAP = 200;
 
-/**
- * The reserved namespace: a slug under it names a platform capability,
- * never an organization's own qualification. A grant matches it without
- * regard to case, so `TALE:…` cannot pose as a capability it does not
- * confer. `removeMembershipCascade` (auth/membership.ts) revokes the live
- * grants under it by this same prefix.
- */
-export const PLATFORM_CAPABILITY_PREFIX = 'tale:';
-
-/**
- * Every platform capability the register can carry — a closed set: a grant
- * under the reserved namespace naming anything else is refused
- * (`COMPETENCE_CAPABILITY_UNKNOWN`). A slug joins it together with the door
- * that checks it through `holdsCapability`.
- */
-export const PLATFORM_CAPABILITIES = [
-  'tale:notifications.export',
-  /** The REST door may act FOR another verified member the request names
-   * (`actor` on a run's ask answer and a task's review decision —
-   * `rest/actor.ts`), so a relayed gesture carries the person, not the key. */
-  'tale:rest.act-as',
-] as const;
-
-export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
+// The reserved namespace and its closed set live in `lib/shared` so the
+// governance screen offers exactly what this register accepts.
+export {
+  PLATFORM_CAPABILITIES,
+  PLATFORM_CAPABILITY_PREFIX,
+  type PlatformCapability,
+};
 
 const KNOWN_PLATFORM_CAPABILITIES: ReadonlySet<string> = new Set(
   PLATFORM_CAPABILITIES,
@@ -100,9 +89,7 @@ export function isCompetenceRecordActive(
   record: { expiresAt: number | null; revokedAt: number | null },
   now: number,
 ): boolean {
-  if (record.revokedAt !== null) return false;
-  if (record.expiresAt !== null && record.expiresAt <= now) return false;
-  return true;
+  return competenceRecordStatus(record, now) === 'active';
 }
 
 /**
