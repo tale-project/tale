@@ -33,12 +33,21 @@ export interface UsageWindow {
   windowSeconds: number | null;
 }
 
+/**
+ * The plan an account runs on, in its vendor's own ids (`max`, `prolite`);
+ * `tier` is the multiple a plan is sold at (`20x`), when it has one.
+ */
+export interface Subscription {
+  plan: string;
+  tier: string | null;
+}
+
 export interface AccountView {
   id: string;
   provider: ProviderId;
   label: string;
   accountEmail: string | null;
-  plan: string | null;
+  subscription: Subscription | null;
   status: AccountStatus;
   expiresAt: string | null;
   scopes: string | null;

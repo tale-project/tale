@@ -13,6 +13,7 @@ accounts:
   loadFailed: Die Kontenliste konnte nicht gelesen werden.
   columns:
     account: Konto
+    plan: Tarif
     status: Status
     usage: Verbrauch
     resets: Verbleibend
@@ -22,6 +23,7 @@ accounts:
     title: Noch keine Konten
     description: Füge ein Claude- oder ChatGPT-Konto hinzu. Das Gateway hält dessen Token danach frisch und gibt es aus.
   noExpiry: Kein Ablauf
+  planUnknown: Noch nicht gelesen
   actions:
     menu: Kontoaktionen
     reauthenticate: Neu anmelden

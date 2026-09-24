@@ -33,6 +33,7 @@ import {
   type Provider,
   type ProviderExchange,
   type ProviderIdentity,
+  type UsageReading,
   type UsageWindow,
 } from './types';
 
@@ -176,7 +177,7 @@ export function createOpenAiProvider(
       return toExchange(data, refreshToken);
     },
 
-    async fetchUsage({ accessToken, accountId }): Promise<UsageWindow[]> {
+    async fetchUsage({ accessToken, accountId }): Promise<UsageReading> {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -201,9 +202,21 @@ export function createOpenAiProvider(
           `The OpenAI usage endpoint answered ${response.status}.`,
         );
       }
-      return parseOpenAiUsage(await readJsonRecord(response));
+      const data = await readJsonRecord(response);
+      return {
+        windows: parseOpenAiUsage(data),
+        subscription: subscriptionFromPlanType(readString(data, 'plan_type')),
+      };
     },
   };
+}
+
+/**
+ * ChatGPT's plan id — `plus`, `pro`, `prolite`, `business` … — as a
+ * subscription. ChatGPT sells no multiples within a plan, so there is no tier.
+ */
+function subscriptionFromPlanType(planType: string | null) {
+  return planType ? { plan: planType, tier: null } : null;
 }
 
 /** Read the account's identity out of the id_token OpenAI just issued. */
@@ -213,7 +226,9 @@ export function identityFromIdToken(idToken: string): ProviderIdentity {
   return {
     email: readString(claims, 'email'),
     accountId: readString(auth, 'chatgpt_account_id'),
-    plan: readString(auth, 'chatgpt_plan_type'),
+    subscription: subscriptionFromPlanType(
+      readString(auth, 'chatgpt_plan_type'),
+    ),
   };
 }
 

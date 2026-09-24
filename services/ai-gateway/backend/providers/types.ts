@@ -70,6 +70,18 @@ export interface ProviderTokens {
   scopes: string | null;
 }
 
+/**
+ * The subscription an account runs on, in the vendor's own ids — `max`,
+ * `pro`, `plus`, `prolite` — never a rendering of them. The panel owns how a
+ * plan reads, and an id it has no name for still says something true.
+ */
+export interface Subscription {
+  /** The vendor's id for the plan. */
+  plan: string;
+  /** The usage multiple the plan is sold at (`20x` on a Max plan), or null. */
+  tier: string | null;
+}
+
 /** Who a credential belongs to, as far as the provider will say. */
 export interface ProviderIdentity {
   email: string | null;
@@ -78,8 +90,18 @@ export interface ProviderIdentity {
    * OpenAI's `chatgpt_account_id` rides its usage request as a header.
    */
   accountId: string | null;
-  /** The subscription tier, when the vendor reports one. */
-  plan: string | null;
+  /** The plan behind the account, when the vendor reports one. */
+  subscription: Subscription | null;
+}
+
+/**
+ * One usage read: the windows, plus the plan they are measured against when
+ * the answer names it — ChatGPT's does (`plan_type`), so a plan change shows
+ * on the next read rather than on the next token refresh.
+ */
+export interface UsageReading {
+  windows: UsageWindow[];
+  subscription: Subscription | null;
 }
 
 /** What a stored account hands a provider call. */
@@ -138,7 +160,7 @@ export interface Provider {
   refresh(refreshToken: string): Promise<ProviderExchange>;
   /** Only where identity needs a call of its own; OpenAI reads its id_token. */
   fetchIdentity?(credential: ProviderCredential): Promise<ProviderIdentity>;
-  fetchUsage(credential: ProviderCredential): Promise<UsageWindow[]>;
+  fetchUsage(credential: ProviderCredential): Promise<UsageReading>;
 }
 
 /** A provider call that failed in a way the panel should name. */

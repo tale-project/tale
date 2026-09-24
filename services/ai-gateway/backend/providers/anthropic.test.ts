@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAnthropicProvider, parseAnthropicUsage } from './anthropic';
+import {
+  createAnthropicProvider,
+  parseAnthropicUsage,
+  subscriptionFromOrganization,
+} from './anthropic';
 import { stubFetch, jsonResponse as json } from './testing';
 import { ProviderError } from './types';
 
@@ -63,10 +67,12 @@ describe('exchangeCode', () => {
     expect(exchange.tokens.accessToken).toBe('access-1');
     expect(exchange.tokens.refreshToken).toBe('refresh-1');
     expect(exchange.tokens.expiresAt).not.toBeNull();
+    // The token answer names the organization, which is not a plan: the
+    // plan column once showed "Acme" (or "you@example.com's Organization").
     expect(exchange.identity).toEqual({
       email: 'you@example.com',
       accountId: null,
-      plan: 'Acme',
+      subscription: null,
     });
   });
 
@@ -113,9 +119,15 @@ describe('refresh', () => {
 describe('fetchIdentity', () => {
   it('asks the profile endpoint with the claude-code user agent', async () => {
     const { fetchImpl, calls } = stubFetch(() =>
+      // The fields the profile endpoint answers with for a Max account.
       json({
-        account: { email: 'you@example.com' },
-        organization: { name: 'Acme' },
+        account: { email: 'you@example.com', has_claude_max: true },
+        organization: {
+          name: "you@example.com's Organization",
+          organization_type: 'claude_max',
+          rate_limit_tier: 'default_claude_max_20x',
+          subscription_status: 'active',
+        },
       }),
     );
     const provider = createAnthropicProvider({
@@ -136,12 +148,59 @@ describe('fetchIdentity', () => {
     expect(identity).toEqual({
       email: 'you@example.com',
       accountId: null,
-      plan: 'Acme',
+      subscription: { plan: 'max', tier: '20x' },
     });
   });
 });
 
+describe('subscriptionFromOrganization', () => {
+  it('reads the plan without the product prefix, and the multiple it is sold at', () => {
+    expect(
+      subscriptionFromOrganization({
+        organization_type: 'claude_max',
+        rate_limit_tier: 'default_claude_max_5x',
+      }),
+    ).toEqual({ plan: 'max', tier: '5x' });
+  });
+
+  it('reads no multiple from a tier that names none', () => {
+    expect(
+      subscriptionFromOrganization({
+        organization_type: 'claude_pro',
+        rate_limit_tier: 'default_claude_ai',
+      }),
+    ).toEqual({ plan: 'pro', tier: null });
+    expect(
+      subscriptionFromOrganization({ organization_type: 'claude_team' }),
+    ).toEqual({ plan: 'team', tier: null });
+  });
+
+  it('keeps a plan it has no name for, rather than dropping it', () => {
+    expect(
+      subscriptionFromOrganization({ organization_type: 'claude_edu_plus' }),
+    ).toEqual({ plan: 'edu_plus', tier: null });
+  });
+
+  it('answers null when the profile names no plan at all', () => {
+    expect(subscriptionFromOrganization({ name: 'Acme' })).toBeNull();
+    expect(subscriptionFromOrganization(null)).toBeNull();
+  });
+});
+
 describe('fetchUsage', () => {
+  it('answers the windows, and no plan — the usage answer carries none', async () => {
+    const { fetchImpl } = stubFetch(() =>
+      json({ five_hour: { utilization: 42, resets_at: null } }),
+    );
+    const provider = createAnthropicProvider({ fetchImpl });
+    const reading = await provider.fetchUsage({
+      accessToken: 'access-1',
+      accountId: null,
+    });
+    expect(reading.windows.map((window) => window.kind)).toEqual(['session']);
+    expect(reading.subscription).toBeNull();
+  });
+
   it('reports an unreachable endpoint as a provider failure', async () => {
     const { fetchImpl } = stubFetch(() => json({}, 429));
     const provider = createAnthropicProvider({ fetchImpl });

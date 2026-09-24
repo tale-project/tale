@@ -1,4 +1,3 @@
-import { Badge } from '@tale/ui/badge';
 import { ContentArea } from '@tale/ui/content-area';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
@@ -24,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
 import { PanelHeader } from './panel-header';
+import { PlanCell } from './plan-cell';
 import { ProviderMark } from './provider-mark';
 import { ResetsCell } from './resets-cell';
 import { StatusCell } from './status-cell';
@@ -107,23 +107,16 @@ export function AccountsScreen({
         id: 'account',
         accessorFn: (account) => account.label,
         header: t('columns.account'),
-        // The one column that grows: a name, a plan badge and a caption
-        // carrying the provider plus an e-mail address need every pixel the
-        // fixed siblings leave over. `size` is its readable floor, not its
-        // width — it is what the table's min-width is summed from.
-        size: 360,
+        // The widest share: a name, and a caption carrying the provider plus
+        // an e-mail address. No column here is the flex one, so every `size`
+        // is a proportion of the width the table gets — and together they
+        // are the min-width it is summed from.
+        size: 320,
         meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {
-          const { accountEmail, label, plan, provider } = row.original;
+          const { accountEmail, label, provider } = row.original;
           return (
             <TableIconCell
-              // `outline` rather than a colour variant: it is the only
-              // Badge surface built from theme tokens, so the plan chip
-              // follows the page into dark mode (`slate` and its
-              // siblings are fixed light tints — see the shared Badge).
-              badges={
-                plan ? <Badge variant="outline">{plan}</Badge> : undefined
-              }
               // The mark is the only other thing naming the provider, and it
               // is decorative — so the caption carries that name in text, plus
               // the address whenever the label is not already it.
@@ -139,6 +132,21 @@ export function AccountsScreen({
             />
           );
         },
+      },
+      {
+        id: 'plan',
+        accessorFn: (account) => account.subscription?.plan ?? null,
+        header: t('columns.plan'),
+        // One chip — "Max 20x", "Pro Lite", "Enterprise" — and the longest of
+        // those plus the chip's own padding is what this is sized for.
+        size: 120,
+        meta: { skeleton: { type: 'badge' } },
+        cell: ({ row }) => (
+          <PlanCell
+            provider={row.original.provider}
+            subscription={row.original.subscription}
+          />
+        ),
       },
       {
         id: 'status',

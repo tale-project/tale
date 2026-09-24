@@ -22,7 +22,7 @@ import { z } from 'zod';
 
 import { isRecord } from './providers/oauth';
 import { PROVIDER_IDS } from './providers/types';
-import type { ProviderId, UsageWindow } from './providers/types';
+import type { ProviderId, Subscription, UsageWindow } from './providers/types';
 
 /** Only the owner may read a file of subscription credentials. */
 const FILE_MODE = 0o600;
@@ -40,13 +40,24 @@ const usageWindowSchema = z.object({
   windowSeconds: z.number().nullable().default(null),
 });
 
+const subscriptionSchema = z.object({
+  plan: z.string().min(1),
+  tier: z.string().nullable(),
+});
+
 const accountSchema = z.object({
   id: z.string().min(1),
   provider: z.enum(PROVIDER_IDS),
   label: z.string(),
   accountEmail: z.string().nullable(),
   accountId: z.string().nullable(),
-  plan: z.string().nullable(),
+  // A document written before the plan had a column of its own carries a
+  // `plan` string instead — for an Anthropic account, the organization's
+  // NAME. The object strips that key on read, and the next pass reads the
+  // subscription afresh, so no row keeps showing an org name as its plan.
+  subscription: subscriptionSchema.nullable().default(null),
+  /** When the vendor was last asked who the account is and what it pays for. */
+  identityCheckedAt: z.string().nullable().default(null),
   /** Sealed by `backend/crypto.ts`; never a bare token. */
   accessToken: z.string(),
   refreshToken: z.string(),
@@ -297,7 +308,7 @@ export interface AccountView {
   provider: ProviderId;
   label: string;
   accountEmail: string | null;
-  plan: string | null;
+  subscription: Subscription | null;
   status: AccountStatus;
   expiresAt: string | null;
   scopes: string | null;
@@ -312,7 +323,7 @@ export function toAccountView(account: StoredAccount): AccountView {
     provider: account.provider,
     label: account.label,
     accountEmail: account.accountEmail,
-    plan: account.plan,
+    subscription: account.subscription,
     status: account.status,
     expiresAt: account.expiresAt,
     scopes: account.scopes,

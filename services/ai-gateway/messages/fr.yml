@@ -13,6 +13,7 @@ accounts:
   loadFailed: La liste des comptes n’a pas pu être lue.
   columns:
     account: Compte
+    plan: Forfait
     status: État
     usage: Consommation
     resets: Temps restant
@@ -22,6 +23,7 @@ accounts:
     title: Aucun compte pour l’instant
     description: Ajoute un compte Claude ou ChatGPT. La passerelle garde ensuite son jeton valide et le distribue.
   noExpiry: Sans expiration
+  planUnknown: Pas encore lu
   actions:
     menu: Actions du compte
     reauthenticate: Réautoriser

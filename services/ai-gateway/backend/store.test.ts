@@ -20,7 +20,8 @@ function account(overrides: Partial<StoredAccount> = {}): StoredAccount {
     label: 'you@example.com',
     accountEmail: 'you@example.com',
     accountId: null,
-    plan: null,
+    subscription: null,
+    identityCheckedAt: null,
     accessToken: 'v1.sealed.access',
     refreshToken: 'v1.sealed.refresh',
     expiresAt: '2026-09-22T10:00:00.000Z',
@@ -156,6 +157,39 @@ describe('createFileAccountStore', () => {
     const raw = await readFile(join(dir, 'accounts.json'), 'utf8');
     expect(JSON.parse(raw)).toMatchObject({ version: 1 });
     expect(raw.endsWith('\n')).toBe(true);
+  });
+
+  it('reads a document from before the plan had its own field', async () => {
+    // What an Anthropic row looked like then: the organization's name in
+    // `plan`, and no subscription, identity clock or countdown length.
+    const legacy = {
+      ...account(),
+      plan: "you@example.com's Organization",
+      subscription: undefined,
+      identityCheckedAt: undefined,
+      usage: {
+        checkedAt: '2026-09-21T10:00:00.000Z',
+        windows: [
+          { kind: 'weekly', label: null, utilization: 57, resetsAt: null },
+        ],
+      },
+    };
+    await writeFile(
+      join(dir, 'accounts.json'),
+      JSON.stringify({ version: 1, accounts: [legacy], pending: [] }),
+      'utf8',
+    );
+
+    const [read] = await store.listAccounts();
+    expect(read).not.toHaveProperty('plan');
+    expect(read?.subscription).toBeNull();
+    expect(read?.identityCheckedAt).toBeNull();
+    expect(read?.usage?.windows[0]?.windowSeconds).toBeNull();
+
+    // The next write leaves no trace of the organization's name behind.
+    await store.putAccount(read ?? account());
+    const raw = await readFile(join(dir, 'accounts.json'), 'utf8');
+    expect(raw).not.toContain('Organization');
   });
 
   it('refuses a document that is not the shape it wrote', async () => {

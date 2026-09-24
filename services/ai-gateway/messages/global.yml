@@ -5,3 +5,25 @@
 panel:
   title: Tale AI Gateway
   github: GitHub
+accounts:
+  # The vendors' own plan names. Product names, like the brands above, so
+  # they read the same in every language; a plan missing here shows as the
+  # vendor's id rather than as a translation of a guess.
+  plans:
+    anthropic:
+      max: Max
+      pro: Pro
+      team: Team
+      enterprise: Enterprise
+    openai:
+      free: Free
+      go: Go
+      plus: Plus
+      pro: Pro
+      prolite: Pro Lite
+      team: Team
+      business: Business
+      enterprise: Enterprise
+      edu: Edu
+    # A plan and the multiple it is sold at: "Max 20x".
+    withTier: '{plan} {tier}'

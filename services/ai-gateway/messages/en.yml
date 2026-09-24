@@ -13,6 +13,7 @@ accounts:
   loadFailed: The account list could not be read.
   columns:
     account: Account
+    plan: Plan
     status: Status
     usage: Usage
     resets: Resets in
@@ -22,6 +23,7 @@ accounts:
     title: No accounts yet
     description: Add a Claude or ChatGPT account. The gateway then keeps its token fresh and hands it out.
   noExpiry: No expiry
+  planUnknown: Not read yet
   actions:
     menu: Account actions
     reauthenticate: Reauthenticate

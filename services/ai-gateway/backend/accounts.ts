@@ -24,6 +24,13 @@ import {
 /** How long an unfinished authorization stays completable. */
 const PENDING_AUTHORIZATION_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * How long what a vendor said about an account — its address, its plan —
+ * stands before the vendor is asked again. A plan changes when someone
+ * upgrades, which should show the same day, not never.
+ */
+const IDENTITY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 export class AccountError extends Error {
   constructor(
     readonly code:
@@ -109,7 +116,7 @@ export function createAccountService(
     if (!identity) return;
     if (identity.email) account.accountEmail = identity.email;
     if (identity.accountId) account.accountId = identity.accountId;
-    if (identity.plan) account.plan = identity.plan;
+    if (identity.subscription) account.subscription = identity.subscription;
   }
 
   function defaultLabel(
@@ -164,12 +171,28 @@ export function createAccountService(
     return account;
   }
 
-  /** Ask the vendor who the credential belongs to, when it takes a call. */
+  /**
+   * Ask the vendor who the credential belongs to and what it subscribes to,
+   * when that takes a call of its own — until both are known, and again once
+   * the answer has aged past `IDENTITY_MAX_AGE_MS`.
+   */
   async function ensureIdentity(
     account: StoredAccount,
   ): Promise<StoredAccount> {
     const provider = providerFor(account);
-    if (account.accountEmail || !provider.fetchIdentity) return account;
+    if (!provider.fetchIdentity) return account;
+    const checkedAt = account.identityCheckedAt
+      ? new Date(account.identityCheckedAt).getTime()
+      : Number.NaN;
+    const known =
+      account.accountEmail !== null && account.subscription !== null;
+    if (
+      known &&
+      Number.isFinite(checkedAt) &&
+      now().getTime() - checkedAt < IDENTITY_MAX_AGE_MS
+    ) {
+      return account;
+    }
     try {
       applyIdentity(
         account,
@@ -178,6 +201,7 @@ export function createAccountService(
           accountId: account.accountId,
         }),
       );
+      account.identityCheckedAt = now().toISOString();
     } catch (error) {
       // Not fatal: the row keeps its label and the next pass tries again.
       console.warn(
@@ -206,7 +230,6 @@ export function createAccountService(
   ): Promise<StoredAccount> {
     let current = await ensureFresh(account);
     if (current.status === 'expired') return current;
-    current = await ensureIdentity(current);
 
     if (!force && current.usage) {
       const checked = new Date(current.usage.checkedAt).getTime();
@@ -219,12 +242,21 @@ export function createAccountService(
       }
     }
 
+    // Inside the floor rather than ahead of it: a profile endpoint that keeps
+    // failing is then retried once per usage read, not on every panel poll.
+    current = await ensureIdentity(current);
+
     try {
-      const windows = await providerFor(current).fetchUsage({
+      const reading = await providerFor(current).fetchUsage({
         accessToken: cipher.open(current.accessToken),
         accountId: current.accountId,
       });
-      current.usage = { windows, checkedAt: now().toISOString() };
+      current.usage = {
+        windows: reading.windows,
+        checkedAt: now().toISOString(),
+      };
+      // The freshest word on the plan, where the usage answer carries one.
+      if (reading.subscription) current.subscription = reading.subscription;
       current.status = 'active';
     } catch (error) {
       // A usage failure says the credential no longer works for inference,
@@ -332,7 +364,8 @@ export function createAccountService(
           label?.trim() || defaultLabel(pending.provider, exchange.identity),
         accountEmail: null,
         accountId: null,
-        plan: null,
+        subscription: null,
+        identityCheckedAt: null,
         accessToken: '',
         refreshToken: '',
         expiresAt: null,

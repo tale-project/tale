@@ -17,7 +17,7 @@ const view: AccountView = {
   provider: 'anthropic',
   label: 'you@example.com',
   accountEmail: 'you@example.com',
-  plan: null,
+  subscription: null,
   status: 'active',
   expiresAt: null,
   scopes: null,

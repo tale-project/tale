@@ -33,14 +33,14 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
 - [ ] `ACCT-2` · **Open that URL, approve, copy the value the console page
   shows, paste it, Connect** → the dialog closes, a toast names the account,
   and a row appears carrying the Claude mark, the account's own e-mail, its
-  plan badge, **Active**, and usage bars that are already populated — not
-  "No usage read yet".
+  plan in the Plan column, **Active**, and usage bars that are already
+  populated — not "No usage read yet".
 - [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → the hint now
   asks for the whole address bar instead, because that flow redirects to a
   loopback URL that will not load.
 - [ ] `ACCT-4` · **Approve in the browser, copy the entire failed
   `localhost:1455` address, paste it, Connect** → the row appears the same way,
-  with the OpenAI mark, its own plan badge and populated usage bars. Every
+  with the OpenAI mark, its own plan and populated usage bars. Every
   ChatGPT plan publishes at least its weekly window, so "No usage read yet" on
   a freshly connected OpenAI row is a defect, not an empty plan.
 - [ ] `ACCT-5` · **Add an account and type a name in step one** → the row
@@ -98,6 +98,12 @@ in the pool**, so they run before the removals.
   search and the filter button still reachable so the reader can undo it.
 
 ### Reading a plan at a glance
+
+- [ ] `ACCT-34` · **Read the Plan column with a Claude and a ChatGPT account in
+  the pool** → each row names the plan its vendor sells it as — "Max 20x",
+  "Max 5x", "Pro", "Plus", "Pro Lite" — and never an organization's name. The
+  names read the same in every language. A row whose plan has not been read
+  yet shows a dash, and a screen reader hears "Not read yet" for it.
 
 - [ ] `ACCT-25` · **Find an account whose session window is under three
   quarters spent, one at or past three quarters, and one at the ceiling** →

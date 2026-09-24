@@ -31,6 +31,8 @@ import {
   type Provider,
   type ProviderExchange,
   type ProviderIdentity,
+  type Subscription,
+  type UsageReading,
   type UsageWindow,
 } from './types';
 
@@ -125,7 +127,6 @@ export function createAnthropicProvider(
       );
     }
     const account = readObject(data, 'account');
-    const organization = readObject(data, 'organization');
     return {
       tokens: {
         accessToken,
@@ -138,7 +139,10 @@ export function createAnthropicProvider(
         email:
           readString(account, 'email_address') ?? readString(account, 'email'),
         accountId: null,
-        plan: readString(organization, 'name'),
+        // The token answer names the organization — "you@example.com's
+        // Organization" — not what it subscribes to. Only the profile says
+        // that, so the plan waits for `fetchIdentity`.
+        subscription: null,
       },
     };
   }
@@ -223,16 +227,17 @@ export function createAnthropicProvider(
       }
       const data = await readJsonRecord(response);
       const account = readObject(data, 'account');
-      const organization = readObject(data, 'organization');
       return {
         email:
           readString(account, 'email') ?? readString(account, 'email_address'),
         accountId: null,
-        plan: readString(organization, 'name'),
+        subscription: subscriptionFromOrganization(
+          readObject(data, 'organization'),
+        ),
       };
     },
 
-    async fetchUsage({ accessToken }): Promise<UsageWindow[]> {
+    async fetchUsage({ accessToken }): Promise<UsageReading> {
       let response: Response;
       try {
         response = await doFetch(USAGE_URL, { headers: headers(accessToken) });
@@ -251,9 +256,34 @@ export function createAnthropicProvider(
           `The Anthropic usage endpoint answered ${response.status}.`,
         );
       }
-      return parseAnthropicUsage(await readJsonRecord(response));
+      return {
+        windows: parseAnthropicUsage(await readJsonRecord(response)),
+        // The usage answer carries no plan; the profile is where it lives.
+        subscription: null,
+      };
     },
   };
+}
+
+/**
+ * The plan behind an account, read off the profile's `organization`.
+ *
+ * `organization_type` is the plan — `claude_max`, `claude_pro`, `claude_team`,
+ * `claude_enterprise`, the same four Claude Code maps onto its subscription
+ * types — and the product prefix is dropped because the vendor column already
+ * says whose plan it is. `rate_limit_tier` carries the multiple a Max plan is
+ * sold at as its suffix (`default_claude_max_20x`); a tier naming none, such
+ * as a Pro plan's, is no multiple at all.
+ */
+export function subscriptionFromOrganization(
+  organization: Record<string, unknown> | null,
+): Subscription | null {
+  const type = readString(organization, 'organization_type');
+  if (!type) return null;
+  const multiple = /_(\d+x)$/.exec(
+    readString(organization, 'rate_limit_tier') ?? '',
+  );
+  return { plan: type.replace(/^claude_/, ''), tier: multiple?.[1] ?? null };
 }
 
 /**

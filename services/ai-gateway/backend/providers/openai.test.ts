@@ -74,7 +74,7 @@ describe('exchangeCode', () => {
     expect(exchange.identity).toEqual({
       email: 'you@example.com',
       accountId: 'acct-1',
-      plan: 'pro',
+      subscription: { plan: 'pro', tier: null },
     });
   });
 
@@ -108,6 +108,33 @@ describe('fetchUsage', () => {
     expect(calls[0]?.headers.get('chatgpt-account-id')).toBe('acct-1');
   });
 
+  it('answers the plan the reading is measured against', async () => {
+    const { fetchImpl } = stubFetch(() =>
+      json({
+        plan_type: 'prolite',
+        rate_limit: {
+          primary_window: { used_percent: 7, limit_window_seconds: 604_800 },
+          secondary_window: null,
+        },
+      }),
+    );
+    const reading = await createOpenAiProvider({ fetchImpl }).fetchUsage({
+      accessToken: 'access-1',
+      accountId: 'acct-1',
+    });
+    expect(reading.subscription).toEqual({ plan: 'prolite', tier: null });
+    expect(reading.windows.map((window) => window.kind)).toEqual(['weekly']);
+  });
+
+  it('answers no plan when the reading names none', async () => {
+    const { fetchImpl } = stubFetch(() => json({}));
+    const reading = await createOpenAiProvider({ fetchImpl }).fetchUsage({
+      accessToken: 'access-1',
+      accountId: null,
+    });
+    expect(reading.subscription).toBeNull();
+  });
+
   it('omits the header when no handle is known yet', async () => {
     const { fetchImpl, calls } = stubFetch(() => json({}));
     await createOpenAiProvider({ fetchImpl }).fetchUsage({
@@ -123,7 +150,7 @@ describe('identityFromIdToken', () => {
     expect(identityFromIdToken(idToken({}))).toEqual({
       email: null,
       accountId: null,
-      plan: null,
+      subscription: null,
     });
   });
 });

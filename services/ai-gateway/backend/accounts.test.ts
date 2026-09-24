@@ -7,6 +7,7 @@ import { createTokenCipher } from './crypto';
 import {
   ProviderError,
   type Provider,
+  type Subscription,
   type UsageWindow,
 } from './providers/types';
 import { createMemoryAccountStore, type AccountStore } from './store';
@@ -16,6 +17,7 @@ const cipher = createTokenCipher(randomBytes(32));
 /** A provider that answers from memory and records what it was asked. */
 function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   usage: UsageWindow[];
+  usagePlan: Subscription | null;
   refusals: { refresh?: boolean; usage?: boolean; exchange?: boolean };
   refreshCount: number;
   identityCount: number;
@@ -30,6 +32,8 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
         windowSeconds: null,
       },
     ] as UsageWindow[],
+    /** The plan a usage answer names, as ChatGPT's does; null like Claude's. */
+    usagePlan: null as Subscription | null,
     refusals: {} as { refresh?: boolean; usage?: boolean; exchange?: boolean },
     refreshCount: 0,
     identityCount: 0,
@@ -59,7 +63,11 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
           expiresAt: '2026-09-21T11:00:00.000Z',
           scopes: 'scope',
         },
-        identity: { email: 'you@example.com', accountId: null, plan: null },
+        identity: {
+          email: 'you@example.com',
+          accountId: null,
+          subscription: null,
+        },
       });
     },
     refresh: () => {
@@ -84,14 +92,17 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
       return Promise.resolve({
         email: 'you@example.com',
         accountId: null,
-        plan: 'Max',
+        subscription: { plan: 'max', tier: '20x' },
       });
     },
     fetchUsage: () => {
       if (state.refusals.usage) {
         return Promise.reject(new ProviderError(id, 'usage_failed', 'refused'));
       }
-      return Promise.resolve(state.usage);
+      return Promise.resolve({
+        windows: state.usage,
+        subscription: state.usagePlan,
+      });
     },
   });
 }
@@ -299,6 +310,34 @@ describe('createAccountService', () => {
     now = new Date('2026-09-21T10:10:00.000Z');
     await service.list();
     expect(anthropic.identityCount).toBe(before);
+  });
+
+  it('reads the plan from the profile, not from the token answer', async () => {
+    // The fake's token answer names no plan, the way Anthropic's names only
+    // the organization; the profile is what says "max" and its multiple.
+    const account = await connect();
+    expect(account.subscription).toEqual({ plan: 'max', tier: '20x' });
+  });
+
+  it('asks again once what it knows about the plan has aged', async () => {
+    await connect();
+    const before = anthropic.identityCount;
+    // Seven hours on: past the six the answer stands for. The token is
+    // refreshed on the way, which the identity read does not depend on.
+    now = new Date('2026-09-21T17:00:00.000Z');
+    await service.list();
+    expect(anthropic.identityCount).toBe(before + 1);
+  });
+
+  it('takes the plan a usage answer names over what it knew', async () => {
+    await connectFor('openai');
+
+    // The subscription changed since it was last read — ChatGPT's usage
+    // answer names the plan it measures against, and that is the fresher.
+    openai.usagePlan = { plan: 'prolite', tier: null };
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const [row] = await service.list();
+    expect(row?.subscription).toEqual({ plan: 'prolite', tier: null });
   });
 
   it('builds the CLI command from a freshly refreshed token', async () => {
