@@ -11,6 +11,8 @@
  * Pure: callers fetch, this projects.
  */
 
+import { getConversationMessageSortTime } from './message-order';
+
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
 
 export interface ProjectableConversation {
@@ -48,6 +50,7 @@ export interface ProjectableMessage {
   content: string;
   deliveryState?: string | null;
   sentAt?: number | null;
+  deliveredAt?: number | null;
   metadata?: Record<string, unknown> | null;
   createdAt: number;
 }
@@ -133,12 +136,23 @@ function projectConversationMessage(
           ? 'Customer'
           : 'Agent',
     content: message.content,
-    // An unsent message has no timestamp of its own — the UI renders the
-    // empty string as "just now" rather than inventing a send time.
-    timestamp:
-      message.sentAt !== null && message.sentAt !== undefined
-        ? new Date(message.sentAt).toISOString()
-        : '',
+    // The same time the thread is ordered by: sent, else delivered, else when
+    // the row was written. A reply still queued for an API app has no send
+    // time until the app acknowledges it, and the thread drops a message
+    // without a timestamp, so an empty one hid the reply, its undo and its
+    // retry until then.
+    timestamp: new Date(
+      getConversationMessageSortTime({
+        _id: message.id,
+        _creationTime: message.createdAt,
+        ...(typeof message.sentAt === 'number'
+          ? { sentAt: message.sentAt }
+          : {}),
+        ...(typeof message.deliveredAt === 'number'
+          ? { deliveredAt: message.deliveredAt }
+          : {}),
+      }),
+    ).toISOString(),
     isCustomer: message.direction === 'inbound',
     status: deliveryState,
     // The undo countdown's source: meaningful only while still queued —

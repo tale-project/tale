@@ -106,6 +106,31 @@ export async function checkConversationApi(
       },
       body: JSON.stringify(body),
     });
+  // The thread as the Inbox renders it: the projected detail item. The
+  // thread drops a message without a timestamp, so a row the database holds
+  // is not proof the reply is on screen.
+  const shown = async (conversation: string, message: string) => {
+    const response = await fetch(
+      `${base}/api/app/conversations/${conversation}?orgId=${ctx.orgId}`,
+      { headers: { cookie: ctx.cookie, origin: base } },
+    );
+    const body = z
+      .object({
+        item: z.object({
+          messages: z.array(
+            z
+              .object({
+                id: z.string(),
+                status: z.string(),
+                timestamp: z.string(),
+              })
+              .loose(),
+          ),
+        }),
+      })
+      .parse(await response.json());
+    return body.item.messages.find((row) => row.id === message);
+  };
   const suffix = randomUUID();
   const externalId = `thread-${suffix}`;
   const externalContactId = `vatplus:client:${suffix}`;
@@ -450,6 +475,14 @@ export async function checkConversationApi(
   const messageId = z
     .object({ messageId: z.string() })
     .parse(await reply.json()).messageId;
+  // Queued for the app and not yet sent, the reply is on screen already,
+  // dated when it was written, so its undo countdown can be reached.
+  const queuedShown = await shown(conversationId, messageId);
+  assert.equal(queuedShown?.status, 'queued');
+  assert.ok(
+    Number.isFinite(Date.parse(queuedShown?.timestamp ?? '')),
+    `queued reply timestamp=${JSON.stringify(queuedShown?.timestamp)}`,
+  );
   const beforeClaim = claimResult.parse(
     await (
       await machine('/conversations/deliveries/claim', { source: 'vatplus' })
@@ -649,6 +682,16 @@ export async function checkConversationApi(
       permanent: true,
     });
   }
+  // A permanently refused reply stays on screen, so Retry/Discard can be
+  // reached.
+  const refusedId = refused[2]?.messageId;
+  assert.ok(refusedId);
+  const refusedShown = await shown(conversationId, refusedId);
+  assert.equal(refusedShown?.status, 'failed');
+  assert.ok(
+    Number.isFinite(Date.parse(refusedShown?.timestamp ?? '')),
+    `failed reply timestamp=${JSON.stringify(refusedShown?.timestamp)}`,
+  );
   const goodId = queued.at(-1);
   assert.ok(goodId);
   const later = await claimApiDeliveries(sql, viewer, 'vatplus', 100);

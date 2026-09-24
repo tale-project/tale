@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 39 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 40 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -327,6 +327,13 @@ rows lead with the subject.
   where mail arrived, written to A's address → It is named A too. Open one
   written to an address neither mailbox has → The header shows the address
   alone, with no mailbox name.
+
+- [ ] `CONV-F22` · **A reply on an API thread shows at once** — On an API-synced
+  thread, send a reply from the Inbox → The bubble appears in the thread
+  straight away with its undo countdown, before the source app has claimed or
+  acknowledged it; **Undo** inside the window removes it. Send another and have
+  the app fail it permanently → The bubble stays, marked not delivered, with
+  **Retry** and **Discard**.
 
 ## Boundary & error tests
 
