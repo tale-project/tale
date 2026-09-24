@@ -12,6 +12,7 @@ import {
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useListPage } from '@tale/ui/use-list-page';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
@@ -26,7 +27,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';

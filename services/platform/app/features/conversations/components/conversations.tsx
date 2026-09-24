@@ -3,6 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
+import { filterByTextSearch } from '@tale/ui/filtering';
 import {
   FilterPanel,
   type FilterConfig,
@@ -33,7 +34,6 @@ import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginat
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
-import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';

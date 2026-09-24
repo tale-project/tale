@@ -2,12 +2,12 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useListPage } from '@tale/ui/use-list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { useListPage } from '@/app/hooks/use-list-page';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';

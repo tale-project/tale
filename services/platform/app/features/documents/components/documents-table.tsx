@@ -3,6 +3,7 @@
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { useDebounce } from '@tale/ui/use-debounce';
+import { useListPage } from '@tale/ui/use-list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
@@ -13,7 +14,6 @@ import {
   useTeamNames,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
-import { useListPage } from '@/app/hooks/use-list-page';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';

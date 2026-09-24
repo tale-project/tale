@@ -1,9 +1,10 @@
+import { filterByTextSearch } from '@tale/ui/filtering';
+
 import {
   audienceMatcher,
   MY_TEAMS_AUDIENCE,
   ORG_WIDE_AUDIENCE,
 } from '@/app/features/settings/teams/lib/audience-filter';
-import { filterByTextSearch } from '@/lib/utils/filtering';
 import type { DocumentItem, RagStatus } from '@/types/documents';
 
 export { MY_TEAMS_AUDIENCE, ORG_WIDE_AUDIENCE };

@@ -9,6 +9,7 @@ import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkArchiveBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
+import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Plus } from 'lucide-react';
@@ -24,7 +25,6 @@ import {
   MY_TEAMS_AUDIENCE,
   ORG_WIDE_AUDIENCE,
 } from '@/app/features/settings/teams/lib/audience-filter';
-import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';

@@ -12,11 +12,11 @@ import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { Stack, HStack } from '@tale/ui/layout';
 import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
 
-import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import { useRemoveMember } from '../hooks/mutations';

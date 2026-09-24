@@ -11,6 +11,7 @@ import {
   TableIconCell,
   tableIconCellSkeleton,
 } from '@tale/ui/data-table/table-icon-cell';
+import { useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -18,7 +19,6 @@ import { useMemo, useRef, useState } from 'react';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useTeamDirectory } from '@/app/features/settings/teams/hooks/queries';
-import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import { useSkills } from '../hooks/queries';
