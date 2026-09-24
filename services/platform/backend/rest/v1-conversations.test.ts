@@ -13,6 +13,10 @@ vi.mock('../domains/audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(),
 }));
 vi.mock('../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+vi.mock('../domains/collab/service.ts', () => ({
+  notifyConversationAssigned: vi.fn(),
+  notifyConversationAssignedTeam: vi.fn(),
+}));
 
 /**
  * The conversations family follows the door's organization rule. The
@@ -567,5 +571,106 @@ describe('GET /conversations/sync — the receipt after a teardown', () => {
           text.includes('AND owner_user_id = $?'),
       ),
     ).toContain('source_deleted AS "sourceDeleted"');
+  });
+});
+
+/**
+ * `POST /conversations/assignment` queues a mirrored conversation to a team.
+ * Admin and owner keys only (the Inbox's rule); the mirror is named by
+ * `source` + `externalId` and must be this key user's; the team must be the
+ * organization's.
+ */
+describe('conversations door — team assignment', () => {
+  const ASSIGN = 'http://localhost/conversations/assignment';
+  const post = (app: Hono<RestEnv>, body: unknown) =>
+    app.request(ASSIGN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const BODY = { source: 'vatplus', externalId: 'x1', teamId: 'team-1' };
+  const CONVERSATION = {
+    id: 'conv-1',
+    organizationId: 'org-1',
+    subject: 'Invoice',
+    status: 'open',
+    assigneeUserId: null,
+    assigneeTeamId: null,
+  };
+  const respond =
+    (options: { owner?: string; teamOrg?: string; binding?: boolean }) =>
+    (text: string): object[] | undefined => {
+      if (text.includes('FROM app.conversation_api_bindings')) {
+        return options.binding === false
+          ? []
+          : [
+              {
+                conversationId: 'conv-1',
+                ownerUserId: options.owner ?? 'user-1',
+              },
+            ];
+      }
+      if (text.includes('FROM app.conversations')) return [CONVERSATION];
+      if (text.includes('FROM "team"')) {
+        return [{ organizationId: options.teamOrg ?? 'org-1' }];
+      }
+      return undefined;
+    };
+
+  it('queues the conversation to the team and answers it', async () => {
+    const { app, queries } = mount(['org-1'], 'admin', respond({}));
+    const res = await post(app, BODY);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      conversationId: 'conv-1',
+      assigneeTeamId: 'team-1',
+    });
+    expect(queries.some((q) => q.includes('SET assignee_team_id'))).toBe(true);
+  });
+
+  it('refuses an editor key: assigning is for admins and owners', async () => {
+    const { app, queries } = mount(['org-1'], 'editor', respond({}));
+    const res = await post(app, BODY);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+    expect(queries.some((q) => q.includes('SET assignee_team_id'))).toBe(false);
+  });
+
+  it('answers 404 CONVERSATION_NOT_FOUND for a mirror no snapshot created', async () => {
+    const { app } = mount(['org-1'], 'admin', respond({ binding: false }));
+    const res = await post(app, BODY);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'CONVERSATION_NOT_FOUND' });
+  });
+
+  it("refuses another service user's mirror", async () => {
+    const { app } = mount(['org-1'], 'admin', respond({ owner: 'user-2' }));
+    const res = await post(app, BODY);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'INTEGRATION_NOT_OWNED' });
+  });
+
+  it('answers 400 TEAM_NOT_IN_ORG for a team from elsewhere', async () => {
+    const { app, queries } = mount(
+      ['org-1'],
+      'admin',
+      respond({ teamOrg: 'org-2' }),
+    );
+    const res = await post(app, BODY);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'TEAM_NOT_IN_ORG' });
+    expect(queries.some((q) => q.includes('SET assignee_team_id'))).toBe(false);
+  });
+
+  it('refuses an unknown key and a missing teamId', async () => {
+    const { app } = mount(['org-1'], 'admin', respond({}));
+    for (const body of [
+      { ...BODY, assigneeUserId: 'u-1' },
+      { source: 'vatplus', externalId: 'x1' },
+    ]) {
+      const res = await post(app, body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    }
   });
 });

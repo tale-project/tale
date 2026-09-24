@@ -10,6 +10,7 @@ import {
 import {
   acknowledgeApiDelivery,
   apiDeliveryAttachment,
+  assignApiConversationTeam,
   apiSnapshotSchema,
   apiSnapshotState,
   apiSourceSchema,
@@ -142,6 +143,26 @@ export function createConversationRestRoutes(deps: {
                 formatKeysetCursor(result.nextCursor.at, result.nextCursor.id),
               ),
       });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+  /**
+   * Queue a mirrored conversation to a team, or clear its team — so an
+   * integration can route what it mirrors. Admin and owner keys only.
+   */
+  app.post('/conversations/assignment', async (c) => {
+    const body = await parseBody(
+      c,
+      z.strictObject({
+        source: apiSourceSchema,
+        externalId: apiExternalIdSchema,
+        teamId: z.string().min(1).max(128).nullable(),
+      }),
+    );
+    if (body instanceof Response) return body;
+    try {
+      return c.json(await assignApiConversationTeam(deps.sql, viewer(c), body));
     } catch (error) {
       return domainErrorResponse(c, error);
     }

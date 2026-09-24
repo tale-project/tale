@@ -8,6 +8,7 @@ import { z } from 'zod';
 import {
   apiSnapshotSchema,
   apiSnapshotState,
+  assignApiConversationTeam,
   claimApiDeliveries,
   failApiDelivery,
   queueApiReply,
@@ -415,6 +416,94 @@ export async function checkConversationApi(
   assert.equal(state.status, 200);
   key = await mint();
   assert.equal((await machine('/conversations/sync', payload)).status, 200);
+
+  // Team assignment through the door: the key user owns this mirror and is
+  // an owner, so it may queue the conversation to a team, and clear it.
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+    VALUES (gen_random_uuid(), 'API Desk', ${ctx.orgId}, ${new Date()})
+    RETURNING "id"
+  `;
+  const apiTeam = teamRows[0]?.id ?? '';
+  const assignResult = z.object({
+    conversationId: z.string(),
+    assigneeTeamId: z.string().nullable(),
+  });
+  const assigned = await machine('/conversations/assignment', {
+    source: 'vatplus',
+    externalId,
+    teamId: apiTeam,
+  });
+  assert.equal(assigned.status, 200);
+  assert.deepEqual(assignResult.parse(await assigned.json()), {
+    conversationId,
+    assigneeTeamId: apiTeam,
+  });
+  const queuedTo = await sql<{ teamId: string | null }[]>`
+    SELECT assignee_team_id AS "teamId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  assert.equal(queuedTo[0]?.teamId, apiTeam);
+  const assignAudit = await sql<{ actorId: string; actorType: string }[]>`
+    SELECT actor_id AS "actorId", actor_type AS "actorType"
+    FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_id = ${conversationId}
+      AND action = 'assign_conversation_team'
+  `;
+  assert.equal(assignAudit.length, 1);
+  assert.equal(assignAudit[0]?.actorId, ctx.userId);
+  assert.equal(assignAudit[0]?.actorType, 'user');
+  const refusal = async (body: unknown) => {
+    const res = await machine('/conversations/assignment', body);
+    const code = z.object({ code: z.string() }).parse(await res.json()).code;
+    return `${res.status}/${code}`;
+  };
+  assert.equal(
+    await refusal({
+      source: 'vatplus',
+      externalId,
+      teamId: 'team-from-nowhere',
+    }),
+    '400/TEAM_NOT_IN_ORG',
+  );
+  assert.equal(
+    await refusal({
+      source: 'vatplus',
+      externalId: 'no-such-thread',
+      teamId: apiTeam,
+    }),
+    '404/CONVERSATION_NOT_FOUND',
+  );
+  assert.equal(
+    await refusal({
+      source: 'vatplus',
+      externalId,
+      teamId: apiTeam,
+      userId: ctx.userId,
+    }),
+    '400/INVALID_BODY',
+  );
+  await assert.rejects(
+    assignApiConversationTeam(
+      sql,
+      { organizationId: ctx.orgId, userId: ctx.userId, role: 'editor' },
+      { source: 'vatplus', externalId, teamId: null },
+    ),
+    /Only admins and owners can assign conversations/,
+  );
+  const cleared = await machine('/conversations/assignment', {
+    source: 'vatplus',
+    externalId,
+    teamId: null,
+  });
+  assert.equal(cleared.status, 200);
+  assert.equal(assignResult.parse(await cleared.json()).assigneeTeamId, null);
+  record(
+    'conversation API team assignment',
+    true,
+    'An owner key queues its mirror to a team and clears it, audited as the key user; a foreign team, an unknown mirror, an unknown key and an editor are refused',
+  );
+
   record(
     'conversation API source isolation and replay',
     true,

@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 44 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 45 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -354,6 +354,14 @@ rows lead with the subject.
   chip names that mailbox remain, `?mailbox=<id>` lands in the URL, and a
   reload keeps the choice. A connector with a single mailbox is still one
   entry that filters by `?channel=<slug>`.
+
+- [ ] `CONV-F26` · **An integration queues its conversation to a team** — With an
+  owner's API key that mirrored an API conversation, call
+  `POST /api/v1/conversations/assignment` with its `source`, `externalId` and a
+  `teamId` from `GET /api/v1/teams` → 200; the Inbox header shows the team
+  chip, the team's members get a notification and can open the thread. Call
+  it again with `teamId: null` → the team chip is gone. The same call with an
+  editor's key → 403 `ROLE_FORBIDDEN`, and nothing changes.
 
 ## Boundary & error tests
 

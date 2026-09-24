@@ -178,5 +178,11 @@
  * the old one instead of leaving it open. Idempotent both ways, write
  * access to an active project, the task itself may be archived (that is
  * what the restore is for), answers the task as it now stands.
+ *
+ * 1.21.0 — 2026-09-24: `POST /api/v1/conversations/assignment`
+ * (`assignConversationTeam`) — queue a mirrored conversation to a team, or
+ * clear it with `teamId: null`, named by `source` and `externalId` like
+ * every mirror route. Admin and owner keys only. New code
+ * `CONVERSATION_NOT_FOUND` (404) for a mirror no snapshot created.
  */
-export const API_CONTRACT_VERSION = '1.20.0';
+export const API_CONTRACT_VERSION = '1.21.0';
