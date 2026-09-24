@@ -70,9 +70,18 @@ addAccount:
   resultHintRedirectUrl: The browser lands on a localhost address that may not load. Copy the whole address bar and paste it here.
   resultLabel: Authorization result
   connected: '{label} is connected.'
+  deviceDescription: Open the sign-in page in a browser signed in to the account you want to add, then enter the code below.
+  deviceOpen: Open the sign-in page
+  deviceCodeLabel: One-time code
+  deviceWaiting: Waiting for your approval. This closes on its own once you approve.
+  deviceBrowser: Sign in through the browser instead
+  startAgain: Start again
   errors:
     unknown_state: That authorization expired. Start it again.
     missing_code: No authorization code was found in what you pasted.
     state_mismatch: That value belongs to a different authorization.
     exchange_failed: The provider refused the code. Run the authorization again.
+    expired: That code ran out before it was approved. Start again for a new one.
+    denied: The sign-in was declined. Start again to try once more.
+    unavailable: The provider could not be reached. Try again in a moment.
     failed: The account could not be connected.

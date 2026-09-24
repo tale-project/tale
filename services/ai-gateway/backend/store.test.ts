@@ -10,6 +10,7 @@ import {
   StoreError,
   toAccountView,
   type AccountStore,
+  type PendingAuthorization,
   type StoredAccount,
 } from './store';
 
@@ -35,6 +36,29 @@ function account(overrides: Partial<StoredAccount> = {}): StoredAccount {
   };
 }
 
+function pending(
+  overrides: Partial<PendingAuthorization> = {},
+): PendingAuthorization {
+  return {
+    state: 'state-1',
+    provider: 'openai',
+    targetAccountId: null,
+    createdAt: '2026-09-21T10:00:00.000Z',
+    flow: 'paste',
+    label: null,
+    codeVerifier: 'verifier',
+    redirectUri: 'http://localhost:1455/auth/callback',
+    deviceAuthId: null,
+    userCode: null,
+    pollIntervalSeconds: null,
+    expiresAt: null,
+    phase: 'open',
+    accountId: null,
+    failure: null,
+    ...overrides,
+  };
+}
+
 describe('createMemoryAccountStore', () => {
   it('behaves like the file store without touching disk', async () => {
     const store = createMemoryAccountStore();
@@ -45,16 +69,9 @@ describe('createMemoryAccountStore', () => {
     expect(await store.listAccounts()).toHaveLength(1);
     expect((await store.getAccount('account-1'))?.label).toBe('renamed');
 
-    await store.addPending({
-      state: 'state-1',
-      provider: 'openai',
-      codeVerifier: 'verifier',
-      redirectUri: 'http://localhost:1455/auth/callback',
-      targetAccountId: null,
-      createdAt: '2026-09-21T10:00:00.000Z',
-    });
-    expect(await store.takePending('state-1')).not.toBeNull();
-    expect(await store.takePending('state-1')).toBeNull();
+    await store.addPending(pending());
+    expect(await store.claimPending('state-1')).not.toBeNull();
+    expect(await store.claimPending('state-1')).toBeNull();
 
     expect(await store.deleteAccount('account-1')).toBe(true);
     expect(await store.deleteAccount('account-1')).toBe(false);
@@ -120,17 +137,50 @@ describe('createFileAccountStore', () => {
     expect(await store.deleteAccount('account-1')).toBe(false);
   });
 
-  it('hands a pending authorization out exactly once', async () => {
-    await store.addPending({
+  it('hands a pending authorization out for completion exactly once', async () => {
+    await store.addPending(pending());
+    const [first, second] = await Promise.all([
+      store.claimPending('state-1'),
+      store.claimPending('state-1'),
+    ]);
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    expect((await store.getPending('state-1'))?.phase).toBe('claimed');
+  });
+
+  it('keeps how an authorization ended, for the panel asking after it', async () => {
+    await store.addPending(pending());
+    await store.claimPending('state-1');
+    await store.settlePending('state-1', {
+      phase: 'connected',
+      accountId: 'account-1',
+    });
+    expect(await store.getPending('state-1')).toMatchObject({
+      phase: 'connected',
+      accountId: 'account-1',
+    });
+    // Finished is not open again: nothing can claim it a second time.
+    expect(await store.claimPending('state-1')).toBeNull();
+  });
+
+  it('reads an authorization from before the automatic flows as a paste one', async () => {
+    const legacy = {
       state: 'state-1',
-      provider: 'openai',
+      provider: 'anthropic',
       codeVerifier: 'verifier',
-      redirectUri: 'http://localhost:1455/auth/callback',
+      redirectUri: 'https://console.anthropic.com/oauth/code/callback',
       targetAccountId: null,
       createdAt: '2026-09-21T10:00:00.000Z',
+    };
+    await writeFile(
+      join(dir, 'accounts.json'),
+      JSON.stringify({ version: 1, accounts: [], pending: [legacy] }),
+      'utf8',
+    );
+    expect(await store.getPending('state-1')).toMatchObject({
+      flow: 'paste',
+      phase: 'open',
+      label: null,
     });
-    expect(await store.takePending('state-1')).not.toBeNull();
-    expect(await store.takePending('state-1')).toBeNull();
   });
 
   it('prunes only the authorizations that aged out', async () => {
@@ -139,18 +189,11 @@ describe('createFileAccountStore', () => {
       ['stale', '2026-09-21T10:00:00.000Z'],
       ['fresh', '2026-09-21T10:55:00.000Z'],
     ] as const) {
-      await store.addPending({
-        state,
-        provider: 'anthropic',
-        codeVerifier: 'verifier',
-        redirectUri: 'https://console.anthropic.com/oauth/code/callback',
-        targetAccountId: null,
-        createdAt,
-      });
+      await store.addPending(pending({ state, createdAt }));
     }
     expect(await store.prunePending(30 * 60 * 1000, now)).toBe(1);
-    expect(await store.takePending('stale')).toBeNull();
-    expect(await store.takePending('fresh')).not.toBeNull();
+    expect(await store.getPending('stale')).toBeNull();
+    expect(await store.getPending('fresh')).not.toBeNull();
   });
 
   it('keeps the file readable and owner-only', async () => {

@@ -67,14 +67,36 @@ export interface AccountView {
 
 export interface ProviderSummary {
   id: ProviderId;
-  callbackStyle: CallbackStyle;
 }
 
-export interface AuthorizationStart {
-  state: string;
-  authorizeUrl: string;
-  callbackStyle: CallbackStyle;
-}
+/**
+ * A started authorization and the way it comes back: `device` finishes on
+ * its own once the person approves the code on the vendor's page; `redirect`
+ * sends the browser to the vendor and straight back to this gateway; `paste`
+ * needs the person to carry the result back by hand.
+ */
+export type AuthorizationStart =
+  | {
+      state: string;
+      flow: 'device';
+      verificationUrl: string;
+      userCode: string;
+      expiresAt: string | null;
+      pollIntervalSeconds: number;
+    }
+  | { state: string; flow: 'redirect'; authorizeUrl: string }
+  | {
+      state: string;
+      flow: 'paste';
+      authorizeUrl: string;
+      pasteStyle: CallbackStyle;
+    };
+
+/** Where a started authorization stands. */
+export type AuthorizationStatus =
+  | { status: 'pending' }
+  | { status: 'connected'; account: AccountView }
+  | { status: 'failed'; code: string };
 
 export class ApiError extends Error {
   constructor(
@@ -139,13 +161,24 @@ export const gatewayApi = {
       (payload) => payload.accounts,
     ),
 
-  authorize: (input: { provider: ProviderId; accountId?: string | null }) =>
+  authorize: (input: {
+    provider: ProviderId;
+    accountId?: string | null;
+    label?: string | null;
+    /** `browser`: the browser flow, even where a device flow is offered. */
+    method?: 'browser';
+  }) =>
     request<AuthorizationStart>('/api/accounts/authorize', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
-  complete: (input: { state: string; pasted: string; label?: string | null }) =>
+  authorizationStatus: (state: string) =>
+    request<AuthorizationStatus>(
+      `/api/accounts/authorize/${encodeURIComponent(state)}`,
+    ),
+
+  complete: (input: { state: string; pasted: string }) =>
     request<{ account: AccountView }>('/api/accounts/complete', {
       method: 'POST',
       body: JSON.stringify(input),

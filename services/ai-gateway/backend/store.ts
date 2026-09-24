@@ -83,14 +83,42 @@ const accountSchema = z.object({
   usageAttemptedAt: z.string().nullable().default(null),
 });
 
+/**
+ * An authorization somebody started, from the moment it is begun until well
+ * after it finished.
+ *
+ * It outlives its completion on purpose: the automatic flows finish without
+ * the panel — the gateway polls a device code, or the vendor redirects to
+ * `/callback` — so the panel learns the outcome by asking after this entry.
+ * `phase` is what keeps one authorization from minting two accounts: only an
+ * `open` entry can be claimed, and claiming it is one atomic step.
+ *
+ * Every field past the original five is defaulted, so a document written
+ * before the automatic flows reads as the paste flow it was.
+ */
 const pendingSchema = z.object({
   state: z.string().min(1),
   provider: z.enum(PROVIDER_IDS),
-  codeVerifier: z.string().min(1),
-  redirectUri: z.string().min(1),
   /** Set when completing this flow re-authenticates an existing account. */
   targetAccountId: z.string().nullable(),
   createdAt: z.string(),
+  flow: z.enum(['device', 'redirect', 'paste']).default('paste'),
+  /** A name typed for the account; a flow that finishes alone still has it. */
+  label: z.string().nullable().default(null),
+  /** PKCE verifier and redirect, for a flow whose code comes back to us. */
+  codeVerifier: z.string().default(''),
+  redirectUri: z.string().default(''),
+  /** The vendor's handle for a device code — sealed, as it opens a grant. */
+  deviceAuthId: z.string().nullable().default(null),
+  userCode: z.string().nullable().default(null),
+  pollIntervalSeconds: z.number().nullable().default(null),
+  /** When the vendor stops accepting the device code. */
+  expiresAt: z.string().nullable().default(null),
+  phase: z.enum(['open', 'claimed', 'connected', 'failed']).default('open'),
+  /** The account a finished authorization connected. */
+  accountId: z.string().nullable().default(null),
+  /** Why a finished authorization failed, as the panel's error code. */
+  failure: z.string().nullable().default(null),
 });
 
 const documentSchema = z.object({
@@ -131,9 +159,22 @@ export interface AccountStore {
   ): Promise<StoredAccount | null>;
   deleteAccount(id: string): Promise<boolean>;
   addPending(pending: PendingAuthorization): Promise<void>;
-  /** Read and consume a pending authorization; one-time by construction. */
-  takePending(state: string): Promise<PendingAuthorization | null>;
-  /** Drop authorizations nobody completed. Returns how many went. */
+  getPending(state: string): Promise<PendingAuthorization | null>;
+  /**
+   * Take an `open` authorization for completion, marking it `claimed` in the
+   * same step: one-time by construction, so a replayed paste or a second
+   * device poll that raced the first cannot finish it again. Null when it is
+   * gone or no longer open.
+   */
+  claimPending(state: string): Promise<PendingAuthorization | null>;
+  /** Record how a claimed authorization ended. */
+  settlePending(
+    state: string,
+    outcome:
+      | { phase: 'connected'; accountId: string }
+      | { phase: 'failed'; failure: string },
+  ): Promise<void>;
+  /** Drop authorizations older than `maxAgeMs`. Returns how many went. */
   prunePending(maxAgeMs: number, now?: Date): Promise<number>;
 }
 
@@ -257,29 +298,72 @@ export function createFileAccountStore(
       });
     },
 
-    takePending(state) {
+    async getPending(state) {
+      return findPending(await read(), state);
+    },
+
+    claimPending(state) {
+      return mutate((document) => claimIn(document, state));
+    },
+
+    settlePending(state, outcome) {
       return mutate((document) => {
-        const index = document.pending.findIndex(
-          (entry) => entry.state === state,
-        );
-        if (index === -1) return null;
-        const [taken] = document.pending.splice(index, 1);
-        return taken ?? null;
+        settleIn(document, state, outcome);
       });
     },
 
     prunePending(maxAgeMs, now = new Date()) {
-      return mutate((document) => {
-        const cutoff = now.getTime() - maxAgeMs;
-        const before = document.pending.length;
-        document.pending = document.pending.filter((entry) => {
-          const created = new Date(entry.createdAt).getTime();
-          return Number.isFinite(created) && created >= cutoff;
-        });
-        return before - document.pending.length;
-      });
+      return mutate((document) => pruneIn(document, maxAgeMs, now));
     },
   };
+}
+
+/*
+ * The pending-authorization rules, written once over a document so the file
+ * store (inside its serialized mutation) and the memory store cannot drift
+ * apart on what "one-time" means.
+ */
+
+function findPending(
+  document: StoreDocument,
+  state: string,
+): PendingAuthorization | null {
+  const entry = document.pending.find((pending) => pending.state === state);
+  return entry ? structuredClone(entry) : null;
+}
+
+function claimIn(
+  document: StoreDocument,
+  state: string,
+): PendingAuthorization | null {
+  const entry = document.pending.find((pending) => pending.state === state);
+  if (!entry || entry.phase !== 'open') return null;
+  entry.phase = 'claimed';
+  return structuredClone(entry);
+}
+
+function settleIn(
+  document: StoreDocument,
+  state: string,
+  outcome:
+    | { phase: 'connected'; accountId: string }
+    | { phase: 'failed'; failure: string },
+): void {
+  const entry = document.pending.find((pending) => pending.state === state);
+  if (!entry) return;
+  entry.phase = outcome.phase;
+  if (outcome.phase === 'connected') entry.accountId = outcome.accountId;
+  else entry.failure = outcome.failure;
+}
+
+function pruneIn(document: StoreDocument, maxAgeMs: number, now: Date): number {
+  const cutoff = now.getTime() - maxAgeMs;
+  const before = document.pending.length;
+  document.pending = document.pending.filter((entry) => {
+    const created = new Date(entry.createdAt).getTime();
+    return Number.isFinite(created) && created >= cutoff;
+  });
+  return before - document.pending.length;
 }
 
 /**
@@ -326,26 +410,17 @@ export function createMemoryAccountStore(): AccountStore {
       return Promise.resolve(true);
     },
     addPending: (pending) => {
-      document.pending.push(pending);
+      document.pending.push(structuredClone(pending));
       return Promise.resolve();
     },
-    takePending: (state) => {
-      const index = document.pending.findIndex(
-        (entry) => entry.state === state,
-      );
-      if (index === -1) return Promise.resolve(null);
-      const [taken] = document.pending.splice(index, 1);
-      return Promise.resolve(taken ?? null);
+    getPending: (state) => Promise.resolve(findPending(document, state)),
+    claimPending: (state) => Promise.resolve(claimIn(document, state)),
+    settlePending: (state, outcome) => {
+      settleIn(document, state, outcome);
+      return Promise.resolve();
     },
-    prunePending: (maxAgeMs, now = new Date()) => {
-      const cutoff = now.getTime() - maxAgeMs;
-      const before = document.pending.length;
-      document.pending = document.pending.filter((entry) => {
-        const created = new Date(entry.createdAt).getTime();
-        return Number.isFinite(created) && created >= cutoff;
-      });
-      return Promise.resolve(before - document.pending.length);
-    },
+    prunePending: (maxAgeMs, now = new Date()) =>
+      Promise.resolve(pruneIn(document, maxAgeMs, now)),
   };
 }
 

@@ -34,14 +34,15 @@ export function createProviderRegistry(
   });
 }
 
-/** The catalog the panel renders as the "add an account" choice. */
+/**
+ * The catalog the panel renders as the "add an account" choice. How each
+ * authorization comes back is decided per attempt — by where the browser
+ * reaches the gateway — so the catalog names the providers and nothing more.
+ */
 export function describeProviders(
   registry: ProviderRegistry,
-): { id: ProviderId; callbackStyle: Provider['callbackStyle'] }[] {
-  return PROVIDER_IDS.map((id) => ({
-    id,
-    callbackStyle: registry[id].callbackStyle,
-  }));
+): { id: ProviderId }[] {
+  return PROVIDER_IDS.filter((id) => id in registry).map((id) => ({ id }));
 }
 
 export type { Provider, ProviderId } from './types';

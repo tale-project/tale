@@ -14,11 +14,62 @@ function idToken(claims: Record<string, unknown>): string {
 }
 
 describe('beginAuthorization', () => {
-  it('builds the Codex loopback authorize URL', () => {
+  it('asks for a device code by default, the way codex login --device-auth does', async () => {
+    // The answer OpenAI gave on 2026-09-24, with its handle shortened.
+    const { fetchImpl, calls } = stubFetch(() =>
+      json({
+        device_auth_id: 'deviceauth_1',
+        user_code: 'VNT9-KLUL5',
+        interval: '5',
+        expires_at: '2026-09-24T16:58:57.478963+00:00',
+      }),
+    );
+    const request = await createOpenAiProvider({
+      clientId: 'app_test',
+      fetchImpl,
+    }).beginAuthorization('state-1', {
+      loopbackRedirectUri: null,
+      preferBrowser: false,
+    });
+
+    expect(calls[0]?.url).toBe(
+      'https://auth.openai.com/api/accounts/deviceauth/usercode',
+    );
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({ client_id: 'app_test' });
+    expect(request).toEqual({
+      flow: 'device',
+      verificationUrl: 'https://auth.openai.com/codex/device',
+      userCode: 'VNT9-KLUL5',
+      deviceAuthId: 'deviceauth_1',
+      intervalSeconds: 5,
+      expiresAt: '2026-09-24T16:58:57.478Z',
+    });
+  });
+
+  it('reports a device sign-in it could not start', async () => {
+    const { fetchImpl } = stubFetch(() => json({}, 404));
+    await expect(
+      createOpenAiProvider({ fetchImpl }).beginAuthorization('state-1', {
+        loopbackRedirectUri: null,
+        preferBrowser: false,
+      }),
+    ).rejects.toBeInstanceOf(ProviderError);
+  });
+
+  it('builds the Codex loopback authorize URL when the browser flow is asked for', async () => {
     const provider = createOpenAiProvider({ clientId: 'app_test' });
-    const { authorizeUrl, redirectUri } =
-      provider.beginAuthorization('state-1');
+    const request = await provider.beginAuthorization('state-1', {
+      loopbackRedirectUri: 'http://localhost:3004/callback',
+      preferBrowser: true,
+    });
+    if (request.flow === 'device') throw new Error('asked for the browser');
+    const { authorizeUrl, redirectUri } = request;
     const url = new URL(authorizeUrl);
+
+    // Codex's client redirects to its own loopback, whatever this gateway's
+    // is, so the address bar still comes back by hand.
+    expect(request.flow).toBe('paste');
+    expect(request.pasteStyle).toBe('redirect-url');
 
     expect(url.origin + url.pathname).toBe(
       'https://auth.openai.com/oauth/authorize',
@@ -32,6 +83,73 @@ describe('beginAuthorization', () => {
     expect(url.searchParams.get('codex_cli_simplified_flow')).toBe('true');
     expect(url.searchParams.get('state')).toBe('state-1');
     expect(redirectUri).toBe('http://localhost:1455/auth/callback');
+  });
+});
+
+describe('pollDeviceAuthorization', () => {
+  const device = { deviceAuthId: 'deviceauth_1', userCode: 'VNT9-KLUL5' };
+
+  it('reads 403 as a code nobody has approved yet', async () => {
+    // What OpenAI answers until the person approves.
+    const { fetchImpl, calls } = stubFetch(() =>
+      json(
+        {
+          error: {
+            message: 'Device authorization is pending. Please try again.',
+            code: 'deviceauth_authorization_pending',
+          },
+        },
+        403,
+      ),
+    );
+    const poll = await createOpenAiProvider({
+      fetchImpl,
+    }).pollDeviceAuthorization?.(device);
+    expect(poll).toEqual({ status: 'pending' });
+    expect(calls[0]?.url).toBe(
+      'https://auth.openai.com/api/accounts/deviceauth/token',
+    );
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({
+      device_auth_id: 'deviceauth_1',
+      user_code: 'VNT9-KLUL5',
+    });
+  });
+
+  it('answers the code to exchange once the person approved it', async () => {
+    const { fetchImpl } = stubFetch(() =>
+      json({
+        authorization_code: 'code-1',
+        code_challenge: 'challenge-1',
+        code_verifier: 'verifier-1',
+      }),
+    );
+    const poll = await createOpenAiProvider({
+      fetchImpl,
+    }).pollDeviceAuthorization?.(device);
+    expect(poll).toEqual({
+      status: 'approved',
+      code: 'code-1',
+      codeVerifier: 'verifier-1',
+      redirectUri: 'https://auth.openai.com/deviceauth/callback',
+    });
+  });
+
+  it('reads any other answer as a refusal', async () => {
+    const { fetchImpl } = stubFetch(() => json({}, 400));
+    expect(
+      await createOpenAiProvider({ fetchImpl }).pollDeviceAuthorization?.(
+        device,
+      ),
+    ).toEqual({ status: 'refused' });
+  });
+
+  it('keeps waiting through a poll that could not reach OpenAI', async () => {
+    const provider = createOpenAiProvider({
+      fetchImpl: () => Promise.reject(new Error('offline')),
+    });
+    expect(await provider.pollDeviceAuthorization?.(device)).toEqual({
+      status: 'pending',
+    });
   });
 });
 

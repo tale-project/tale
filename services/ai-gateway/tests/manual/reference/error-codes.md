@@ -14,6 +14,9 @@ Each surfaces as a localized message the user can act on.
 | `missing_code` | Paste something with no `code` in it — a bare `#state`, or prose. |
 | `state_mismatch` | Paste a redirect URL whose `state` belongs to a different authorization (start two, swap the pastes). |
 | `exchange_failed` | Paste a code the vendor refuses — an expired one, or one already redeemed by its own CLI. |
+| `expired` | Leave a device code unapproved for fifteen minutes (`ACCT-42`). |
+| `denied` | Decline at the vendor — at Anthropic on a loopback panel (`ACCT-40`), or refuse the code at OpenAI. |
+| `unavailable` | Start an OpenAI sign-in while `auth.openai.com` is unreachable (block it in `/etc/hosts`); the gateway answers 502. |
 | `unknown_account` | Remove an account in a second tab, then use the first tab's row menu. |
 
 ## Reachable on the API surface only

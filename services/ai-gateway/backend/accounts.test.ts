@@ -2,10 +2,17 @@ import { randomBytes } from 'node:crypto';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AccountError, createAccountService } from './accounts';
+import {
+  AccountError,
+  createAccountService,
+  loopbackRedirectUri,
+} from './accounts';
 import { createTokenCipher } from './crypto';
 import {
   ProviderError,
+  type AuthorizationRequest,
+  type BeginAuthorizationOptions,
+  type DevicePoll,
   type Provider,
   type Subscription,
   type UsageWindow,
@@ -38,6 +45,9 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   refreshCount: number;
   usageCount: number;
   identityCount: number;
+  offersDevice: boolean;
+  devicePoll: DevicePoll;
+  pollCount: number;
 } {
   const state = {
     usage: [
@@ -60,17 +70,43 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
     refreshCount: 0,
     usageCount: 0,
     identityCount: 0,
+    /** Whether this vendor signs in with a device code, as OpenAI's does. */
+    offersDevice: false,
+    /** What the vendor answers the next device poll with. */
+    devicePoll: { status: 'pending' } as DevicePoll,
+    pollCount: 0,
   };
 
   return Object.assign(state, {
     id,
-    callbackStyle: 'code' as const,
     cliCommand: (accessToken: string) => `FAKE_TOKEN=${accessToken} fake`,
-    beginAuthorization: (stateValue: string) => ({
-      authorizeUrl: `https://example.test/authorize?state=${stateValue}`,
-      codeVerifier: 'verifier',
-      redirectUri: 'https://example.test/callback',
-    }),
+    beginAuthorization: (
+      stateValue: string,
+      options: BeginAuthorizationOptions,
+    ): Promise<AuthorizationRequest> => {
+      if (state.offersDevice && !options.preferBrowser) {
+        return Promise.resolve({
+          flow: 'device',
+          verificationUrl: 'https://example.test/device',
+          userCode: 'ABCD-EFGH',
+          deviceAuthId: 'device-1',
+          intervalSeconds: 5,
+          expiresAt: '2026-09-21T10:15:00.000Z',
+        });
+      }
+      return Promise.resolve({
+        flow: options.loopbackRedirectUri ? 'redirect' : 'paste',
+        authorizeUrl: `https://example.test/authorize?state=${stateValue}`,
+        codeVerifier: 'verifier',
+        redirectUri:
+          options.loopbackRedirectUri ?? 'https://example.test/callback',
+        pasteStyle: 'code',
+      });
+    },
+    pollDeviceAuthorization: () => {
+      state.pollCount += 1;
+      return Promise.resolve(state.devicePoll);
+    },
     parseCallback: (pasted: string) => ({
       code: pasted.split('#')[0] ?? '',
       state: pasted.split('#')[1] ?? null,
@@ -185,14 +221,14 @@ describe('createAccountService', () => {
     expect(cipher.open(stored?.accessToken ?? '')).toBe('access-1');
   });
 
-  it('takes an explicit label over the provider identity', async () => {
+  it('takes a name given at the start over the provider identity', async () => {
     const { state } = await service.beginAuthorization({
       provider: 'anthropic',
+      label: '  work account  ',
     });
     const account = await service.completeAuthorization({
       state,
       pasted: 'code-1',
-      label: '  work account  ',
     });
     expect(account.label).toBe('work account');
   });
@@ -521,5 +557,234 @@ describe('createAccountService', () => {
     await expect(
       service.completeAuthorization({ state, pasted: 'code-1' }),
     ).rejects.toMatchObject({ code: 'unknown_state' });
+  });
+  it('leaves the attempt open after a paste with no code in it', async () => {
+    const { state } = await service.beginAuthorization({
+      provider: 'anthropic',
+    });
+    await expect(
+      service.completeAuthorization({ state, pasted: '#only-state' }),
+    ).rejects.toMatchObject({ code: 'missing_code' });
+    // The wrong thing was copied; the right thing still connects.
+    const account = await service.completeAuthorization({
+      state,
+      pasted: 'code-1',
+    });
+    expect(account.status).toBe('active');
+  });
+
+  it('reports a finished paste to a panel asking after it', async () => {
+    const { state } = await service.beginAuthorization({
+      provider: 'anthropic',
+    });
+    const account = await service.completeAuthorization({
+      state,
+      pasted: 'code-1',
+    });
+    expect(await service.authorizationStatus(state)).toEqual({
+      status: 'connected',
+      account,
+    });
+  });
+
+  describe('the device flow', () => {
+    beforeEach(() => {
+      openai.offersDevice = true;
+    });
+
+    it('connects the account once the vendor says it was approved, with no paste', async () => {
+      const start = await service.beginAuthorization({
+        provider: 'openai',
+        label: 'team seat',
+      });
+      expect(start).toMatchObject({
+        flow: 'device',
+        userCode: 'ABCD-EFGH',
+        verificationUrl: 'https://example.test/device',
+        pollIntervalSeconds: 5,
+      });
+      // The vendor's handle is a secret while it lives: never in the answer.
+      expect(JSON.stringify(start)).not.toContain('device-1');
+      expect(await service.authorizationStatus(start.state)).toEqual({
+        status: 'pending',
+      });
+
+      openai.devicePoll = {
+        status: 'approved',
+        code: 'code-1',
+        codeVerifier: 'verifier-1',
+        redirectUri: 'https://example.test/device/callback',
+      };
+      now = new Date('2026-09-21T10:00:06.000Z');
+      const status = await service.authorizationStatus(start.state);
+      expect(status).toMatchObject({
+        status: 'connected',
+        account: { label: 'team seat', provider: 'openai', status: 'active' },
+      });
+      expect(await service.list()).toHaveLength(1);
+    });
+
+    it('asks the vendor no more often than it asked to be asked', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'openai',
+      });
+      await service.authorizationStatus(state);
+      now = new Date('2026-09-21T10:00:02.000Z');
+      await service.authorizationStatus(state);
+      expect(openai.pollCount).toBe(1);
+
+      now = new Date('2026-09-21T10:00:05.000Z');
+      await service.authorizationStatus(state);
+      expect(openai.pollCount).toBe(2);
+    });
+
+    it('mints one account when two panels ask the moment it is approved', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'openai',
+      });
+      openai.devicePoll = {
+        status: 'approved',
+        code: 'code-1',
+        codeVerifier: 'verifier-1',
+        redirectUri: 'https://example.test/device/callback',
+      };
+      const [first, second] = await Promise.all([
+        service.authorizationStatus(state),
+        service.authorizationStatus(state),
+      ]);
+      expect(first.status).toBe('connected');
+      expect(second.status).toBe('connected');
+      expect(await service.list()).toHaveLength(1);
+    });
+
+    it('fails a code that ran out before anybody approved it', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'openai',
+      });
+      now = new Date('2026-09-21T10:15:00.000Z');
+      expect(await service.authorizationStatus(state)).toEqual({
+        status: 'failed',
+        code: 'expired',
+      });
+      expect(openai.pollCount).toBe(0);
+    });
+
+    it('fails a code the vendor refused', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'openai',
+      });
+      openai.devicePoll = { status: 'refused' };
+      expect(await service.authorizationStatus(state)).toEqual({
+        status: 'failed',
+        code: 'denied',
+      });
+    });
+
+    it('takes no paste for a code that finishes on its own', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'openai',
+      });
+      await expect(
+        service.completeAuthorization({ state, pasted: 'code-1' }),
+      ).rejects.toMatchObject({ code: 'unknown_state' });
+    });
+
+    it('offers the browser flow when it is asked for', async () => {
+      const start = await service.beginAuthorization({
+        provider: 'openai',
+        preferBrowser: true,
+      });
+      expect(start.flow).toBe('paste');
+    });
+  });
+
+  describe('the redirect flow', () => {
+    it('comes back to this gateway when the browser reaches it on loopback', async () => {
+      const start = await service.beginAuthorization({
+        provider: 'anthropic',
+        loopbackOrigin: 'http://localhost:3004',
+      });
+      expect(start.flow).toBe('redirect');
+
+      const done = await service.completeRedirect({
+        state: start.state,
+        code: 'code-1',
+        error: null,
+      });
+      expect(done).toMatchObject({ status: 'connected' });
+      // The panel that started it reads the same outcome.
+      expect(await service.authorizationStatus(start.state)).toEqual(done);
+      expect(await service.list()).toHaveLength(1);
+    });
+
+    it('never offers it to a browser that reaches the gateway anywhere else', async () => {
+      const start = await service.beginAuthorization({
+        provider: 'anthropic',
+        loopbackOrigin: 'https://ai.tale.dev',
+      });
+      expect(start.flow).toBe('paste');
+    });
+
+    it('records a consent the person declined at the vendor', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'anthropic',
+        loopbackOrigin: 'http://localhost:3004',
+      });
+      expect(
+        await service.completeRedirect({
+          state,
+          code: null,
+          error: 'access_denied',
+        }),
+      ).toEqual({ status: 'failed', code: 'denied' });
+    });
+
+    it('answers a reload of the callback with the outcome it already had', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'anthropic',
+        loopbackOrigin: 'http://localhost:3004',
+      });
+      await service.completeRedirect({ state, code: 'code-1', error: null });
+      await service.completeRedirect({ state, code: 'code-1', error: null });
+      expect(await service.list()).toHaveLength(1);
+    });
+
+    it('still takes the address bar by hand, for a browser the redirect did not reach', async () => {
+      const { state } = await service.beginAuthorization({
+        provider: 'anthropic',
+        loopbackOrigin: 'http://127.0.0.1:3004',
+      });
+      const account = await service.completeAuthorization({
+        state,
+        pasted: 'code-1',
+      });
+      expect(account.status).toBe('active');
+    });
+  });
+});
+
+describe('loopbackRedirectUri', () => {
+  it.each([
+    ['http://localhost:3004', 'http://localhost:3004/callback'],
+    ['http://127.0.0.1:8080', 'http://localhost:8080/callback'],
+    ['http://[::1]:3000', 'http://localhost:3000/callback'],
+    ['http://localhost', 'http://localhost/callback'],
+  ])('sends %s back to its own /callback', (origin, redirect) => {
+    expect(loopbackRedirectUri(origin)).toBe(redirect);
+  });
+
+  it.each([
+    'https://ai.tale.dev',
+    'http://gateway.example.com:3004',
+    'https://localhost:3004',
+    'http://localhost:3004/somewhere',
+    'http://user@localhost:3004',
+    'not a url',
+  ])('offers no redirect to %s', (origin) => {
+    expect(loopbackRedirectUri(origin)).toBeNull();
+  });
+
+  it('offers none when the browser sent no origin', () => {
+    expect(loopbackRedirectUri(null)).toBeNull();
   });
 });

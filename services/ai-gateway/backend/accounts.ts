@@ -14,6 +14,8 @@ import type { ProviderRegistry } from './providers/index';
 import { generateState } from './providers/oauth';
 import {
   ProviderError,
+  type AuthorizationRequest,
+  type CallbackStyle,
   type ProviderExchange,
   type ProviderIdentity,
 } from './providers/types';
@@ -43,14 +45,60 @@ const IDENTITY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
  */
 const REFRESH_RETRY_PAUSE_MS = 60 * 1000;
 
+/**
+ * Why an authorization could not go on. The codes are the panel's to
+ * translate; `expired` and `denied` end a flow that finished without it (a
+ * device code nobody approved in time, a consent somebody declined).
+ */
+export type AuthorizationFailure =
+  | 'unknown_state'
+  | 'missing_code'
+  | 'state_mismatch'
+  | 'exchange_failed'
+  | 'expired'
+  | 'denied'
+  | 'unavailable';
+
+const AUTHORIZATION_FAILURES: readonly AuthorizationFailure[] = [
+  'unknown_state',
+  'missing_code',
+  'state_mismatch',
+  'exchange_failed',
+  'expired',
+  'denied',
+  'unavailable',
+];
+
+/** A stored failure, read back as a code the panel knows. */
+function asFailure(value: string | null): AuthorizationFailure {
+  return (
+    AUTHORIZATION_FAILURES.find((code) => code === value) ?? 'exchange_failed'
+  );
+}
+
+/**
+ * This gateway's own `/callback` as a vendor may be told to redirect to —
+ * only when the browser reaches the gateway on a loopback origin, the one kind
+ * of address Claude Code's client lets a redirect go to. Always spelled
+ * `localhost`, the host Claude Code itself registers the redirect under, on
+ * whatever port the origin has: RFC 8252 lets a loopback redirect choose it.
+ * Anything else — a public host, a path, credentials in the URL — is no
+ * loopback origin, and the vendor's own page is used instead.
+ */
+export function loopbackRedirectUri(origin: string | null): string | null {
+  if (!origin || !URL.canParse(origin)) return null;
+  const url = new URL(origin);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'http:' || !loopback) return null;
+  if (url.pathname !== '/' || url.search || url.hash || url.username) {
+    return null;
+  }
+  return `http://localhost${url.port ? `:${url.port}` : ''}/callback`;
+}
+
 export class AccountError extends Error {
   constructor(
-    readonly code:
-      | 'unknown_account'
-      | 'unknown_state'
-      | 'missing_code'
-      | 'state_mismatch'
-      | 'exchange_failed',
+    readonly code: 'unknown_account' | AuthorizationFailure,
     message: string,
     options?: { cause?: unknown },
   ) {
@@ -83,21 +131,64 @@ export interface AccountServiceOptions {
   now?: () => Date;
 }
 
+/**
+ * A started authorization, as the panel needs it: which way it comes back,
+ * and what to show meanwhile. The device flow's own handle stays server-side.
+ */
+export type AuthorizationStart =
+  | {
+      state: string;
+      flow: 'device';
+      verificationUrl: string;
+      userCode: string;
+      expiresAt: string | null;
+      pollIntervalSeconds: number;
+    }
+  | { state: string; flow: 'redirect'; authorizeUrl: string }
+  | {
+      state: string;
+      flow: 'paste';
+      authorizeUrl: string;
+      pasteStyle: CallbackStyle;
+    };
+
+/** Where a started authorization stands. */
+export type AuthorizationStatus =
+  | { status: 'pending' }
+  | { status: 'connected'; account: AccountView }
+  | { status: 'failed'; code: AuthorizationFailure };
+
 export interface AccountService {
   list(): Promise<AccountView[]>;
   beginAuthorization(input: {
     provider: ProviderId;
     accountId?: string | null;
-  }): Promise<{
-    state: string;
-    authorizeUrl: string;
-    callbackStyle: 'code' | 'redirect-url';
-  }>;
+    /** A name for the account; the flows that finish alone keep it. */
+    label?: string | null;
+    /**
+     * The origin the browser reaches the gateway on, when that is a
+     * loopback address — the vendor may then redirect straight back.
+     */
+    loopbackOrigin?: string | null;
+    /** The browser flow, even where a device flow is offered. */
+    preferBrowser?: boolean;
+  }): Promise<AuthorizationStart>;
+  /** Finish a paste flow with what the person copied out of the browser. */
   completeAuthorization(input: {
     state: string;
     pasted: string;
-    label?: string | null;
   }): Promise<AccountView>;
+  /** Finish a redirect flow with what the vendor sent to `/callback`. */
+  completeRedirect(input: {
+    state: string;
+    code: string | null;
+    error: string | null;
+  }): Promise<AuthorizationStatus>;
+  /**
+   * Where an authorization stands — asking the vendor, for a device code
+   * whose poll interval has passed, and finishing it once it is approved.
+   */
+  authorizationStatus(state: string): Promise<AuthorizationStatus>;
   remove(id: string): Promise<boolean>;
   cliCommand(id: string): Promise<string | null>;
   /** One background pass: refresh every account's token and usage reading. */
@@ -399,6 +490,163 @@ export function createAccountService(
     return refreshUsage(account, { force: true });
   }
 
+  /**
+   * Exchange a claimed authorization's code and land the grant — the one path
+   * every flow finishes through, whoever brought the code back — then record
+   * how it ended, so a panel asking after it reads the same outcome.
+   */
+  async function finish(
+    pending: PendingAuthorization,
+    grant: { code: string; codeVerifier: string; redirectUri: string },
+  ): Promise<StoredAccount> {
+    let exchange: ProviderExchange;
+    try {
+      exchange = await providers[pending.provider].exchangeCode({
+        code: grant.code,
+        codeVerifier: grant.codeVerifier,
+        redirectUri: grant.redirectUri,
+        state: pending.state,
+      });
+    } catch (error) {
+      await store.settlePending(pending.state, {
+        phase: 'failed',
+        failure: 'exchange_failed',
+      });
+      throw new AccountError(
+        'exchange_failed',
+        error instanceof ProviderError
+          ? error.message
+          : 'The authorization code could not be exchanged.',
+        { cause: error },
+      );
+    }
+    const account = await storeGrant(pending, exchange, pending.label);
+    await store.settlePending(pending.state, {
+      phase: 'connected',
+      accountId: account.id,
+    });
+    return account;
+  }
+
+  /** `finish`, answered as a status rather than thrown. */
+  async function finishedStatus(
+    pending: PendingAuthorization,
+    grant: { code: string; codeVerifier: string; redirectUri: string },
+  ): Promise<AuthorizationStatus> {
+    try {
+      return {
+        status: 'connected',
+        account: toAccountView(await finish(pending, grant)),
+      };
+    } catch (error) {
+      if (error instanceof AccountError && error.code !== 'unknown_account') {
+        return { status: 'failed', code: error.code };
+      }
+      throw error;
+    }
+  }
+
+  /** What a stored authorization says about itself. */
+  async function statusOf(
+    pending: PendingAuthorization,
+  ): Promise<AuthorizationStatus> {
+    if (pending.phase === 'connected' && pending.accountId) {
+      const account = await store.getAccount(pending.accountId);
+      // Connected, then removed before anyone asked: nothing to show.
+      return account
+        ? { status: 'connected', account: toAccountView(account) }
+        : { status: 'failed', code: 'unknown_state' };
+    }
+    if (pending.phase === 'failed') {
+      return { status: 'failed', code: asFailure(pending.failure) };
+    }
+    return { status: 'pending' };
+  }
+
+  /** The outcome a concurrent completion recorded, when this one lost to it. */
+  async function statusAfterRace(state: string): Promise<AuthorizationStatus> {
+    const latest = await store.getPending(state);
+    return latest
+      ? statusOf(latest)
+      : { status: 'failed', code: 'unknown_state' };
+  }
+
+  /** Device codes being put to their vendor right now, by state. */
+  const polling = new Map<string, Promise<AuthorizationStatus>>();
+  /** When each device code was last put to its vendor. */
+  const polledAt = new Map<string, number>();
+
+  /**
+   * Ask the vendor whether a device code was approved — at most once per the
+   * interval the vendor asked for, one poll at a time per code, however many
+   * panels are asking — and finish the authorization the moment it was.
+   */
+  function pollDevice(
+    pending: PendingAuthorization,
+  ): Promise<AuthorizationStatus> {
+    const inFlight = polling.get(pending.state);
+    if (inFlight) return inFlight;
+    const run = pollDeviceOnce(pending).finally(() => {
+      polling.delete(pending.state);
+    });
+    polling.set(pending.state, run);
+    return run;
+  }
+
+  async function pollDeviceOnce(
+    pending: PendingAuthorization,
+  ): Promise<AuthorizationStatus> {
+    const provider = providers[pending.provider];
+    if (
+      !provider.pollDeviceAuthorization ||
+      !pending.deviceAuthId ||
+      !pending.userCode
+    ) {
+      return { status: 'failed', code: 'unknown_state' };
+    }
+
+    const nowMs = now().getTime();
+    const expiresAt = pending.expiresAt
+      ? new Date(pending.expiresAt).getTime()
+      : Number.NaN;
+    if (Number.isFinite(expiresAt) && nowMs >= expiresAt) {
+      if (await store.claimPending(pending.state)) {
+        await store.settlePending(pending.state, {
+          phase: 'failed',
+          failure: 'expired',
+        });
+        polledAt.delete(pending.state);
+        return { status: 'failed', code: 'expired' };
+      }
+      return statusAfterRace(pending.state);
+    }
+
+    const intervalMs = (pending.pollIntervalSeconds ?? 5) * 1000;
+    const last = polledAt.get(pending.state);
+    if (last !== undefined && nowMs - last < intervalMs) {
+      return { status: 'pending' };
+    }
+    polledAt.set(pending.state, nowMs);
+
+    const poll = await provider.pollDeviceAuthorization({
+      deviceAuthId: cipher.open(pending.deviceAuthId),
+      userCode: pending.userCode,
+    });
+    if (poll.status === 'pending') return { status: 'pending' };
+
+    const claimed = await store.claimPending(pending.state);
+    if (!claimed) return statusAfterRace(pending.state);
+    polledAt.delete(pending.state);
+    if (poll.status === 'refused') {
+      await store.settlePending(pending.state, {
+        phase: 'failed',
+        failure: 'denied',
+      });
+      return { status: 'failed', code: 'denied' };
+    }
+    return finishedStatus(claimed, poll);
+  }
+
   return {
     async list() {
       const accounts = await store.listAccounts();
@@ -409,43 +657,103 @@ export function createAccountService(
       return refreshed.map(toAccountView);
     },
 
-    async beginAuthorization({ provider: providerId, accountId = null }) {
+    async beginAuthorization({
+      provider: providerId,
+      accountId = null,
+      label = null,
+      loopbackOrigin = null,
+      preferBrowser = false,
+    }) {
       if (accountId && !(await store.getAccount(accountId))) {
         throw new AccountError(
           'unknown_account',
           'That account no longer exists.',
         );
       }
-      const provider = providers[providerId];
       const state = generateState();
-      const request = provider.beginAuthorization(state);
+      let request: AuthorizationRequest;
+      try {
+        request = await providers[providerId].beginAuthorization(state, {
+          loopbackRedirectUri: loopbackRedirectUri(loopbackOrigin),
+          preferBrowser,
+        });
+      } catch (error) {
+        throw new AccountError(
+          'unavailable',
+          error instanceof ProviderError
+            ? error.message
+            : 'The authorization could not be started.',
+          { cause: error },
+        );
+      }
+
       await store.prunePending(PENDING_AUTHORIZATION_TTL_MS, now());
-      await store.addPending({
+      const entry = {
         state,
         provider: providerId,
-        codeVerifier: request.codeVerifier,
-        redirectUri: request.redirectUri,
         targetAccountId: accountId,
         createdAt: now().toISOString(),
-      });
-      return {
-        state,
-        authorizeUrl: request.authorizeUrl,
-        callbackStyle: provider.callbackStyle,
+        label: label?.trim() || null,
+        phase: 'open' as const,
+        accountId: null,
+        failure: null,
       };
+      if (request.flow === 'device') {
+        await store.addPending({
+          ...entry,
+          flow: 'device',
+          codeVerifier: '',
+          redirectUri: '',
+          deviceAuthId: cipher.seal(request.deviceAuthId),
+          userCode: request.userCode,
+          pollIntervalSeconds: request.intervalSeconds,
+          expiresAt: request.expiresAt,
+        });
+        return {
+          state,
+          flow: 'device',
+          verificationUrl: request.verificationUrl,
+          userCode: request.userCode,
+          expiresAt: request.expiresAt,
+          pollIntervalSeconds: request.intervalSeconds,
+        };
+      }
+
+      await store.addPending({
+        ...entry,
+        flow: request.flow,
+        codeVerifier: request.codeVerifier,
+        redirectUri: request.redirectUri,
+        deviceAuthId: null,
+        userCode: null,
+        pollIntervalSeconds: null,
+        expiresAt: null,
+      });
+      return request.flow === 'redirect'
+        ? { state, flow: 'redirect', authorizeUrl: request.authorizeUrl }
+        : {
+            state,
+            flow: 'paste',
+            authorizeUrl: request.authorizeUrl,
+            pasteStyle: request.pasteStyle,
+          };
     },
 
-    async completeAuthorization({ state, pasted, label = null }) {
-      const pending = await store.takePending(state);
-      if (!pending) {
+    async completeAuthorization({ state, pasted }) {
+      const pending = await store.getPending(state);
+      // A device code finishes on its own; only a flow whose code comes back
+      // through the browser takes a paste — a redirect flow too, for the
+      // browser that could not load the loopback page it was sent to.
+      if (!pending || pending.phase !== 'open' || pending.flow === 'device') {
         throw new AccountError(
           'unknown_state',
           'That authorization has expired or was already completed.',
         );
       }
 
-      const provider = providers[pending.provider];
-      const parsed = provider.parseCallback(pasted);
+      const parsed = providers[pending.provider].parseCallback(pasted);
+      // A paste that does not parse leaves the attempt open: the person
+      // copied the wrong thing, which a second try can fix.
       if (!parsed.code) {
         throw new AccountError(
           'missing_code',
@@ -459,25 +767,51 @@ export function createAccountService(
         );
       }
 
-      let exchange;
-      try {
-        exchange = await provider.exchangeCode({
-          code: parsed.code,
-          codeVerifier: pending.codeVerifier,
-          redirectUri: pending.redirectUri,
-          state: pending.state,
-        });
-      } catch (error) {
+      const claimed = await store.claimPending(state);
+      if (!claimed) {
         throw new AccountError(
-          'exchange_failed',
-          error instanceof ProviderError
-            ? error.message
-            : 'The authorization code could not be exchanged.',
-          { cause: error },
+          'unknown_state',
+          'That authorization has expired or was already completed.',
         );
       }
+      return toAccountView(
+        await finish(claimed, {
+          code: parsed.code,
+          codeVerifier: claimed.codeVerifier,
+          redirectUri: claimed.redirectUri,
+        }),
+      );
+    },
 
-      return toAccountView(await storeGrant(pending, exchange, label));
+    async completeRedirect({ state, code, error }) {
+      const pending = await store.getPending(state);
+      if (!pending || pending.flow === 'device') {
+        return { status: 'failed', code: 'unknown_state' };
+      }
+      // A reload of `/callback` after it finished reads the outcome again.
+      if (pending.phase !== 'open') return statusOf(pending);
+
+      const claimed = await store.claimPending(state);
+      if (!claimed) return statusAfterRace(state);
+      if (error || !code) {
+        const failure = error === 'access_denied' ? 'denied' : 'missing_code';
+        await store.settlePending(state, { phase: 'failed', failure });
+        return { status: 'failed', code: failure };
+      }
+      return finishedStatus(claimed, {
+        code,
+        codeVerifier: claimed.codeVerifier,
+        redirectUri: claimed.redirectUri,
+      });
+    },
+
+    async authorizationStatus(state) {
+      const pending = await store.getPending(state);
+      if (!pending) return { status: 'failed', code: 'unknown_state' };
+      if (pending.flow === 'device' && pending.phase === 'open') {
+        return pollDevice(pending);
+      }
+      return statusOf(pending);
     },
 
     remove(id) {

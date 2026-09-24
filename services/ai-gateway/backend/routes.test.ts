@@ -66,11 +66,18 @@ function build(overrides: Partial<AccountService> = {}) {
     beginAuthorization: vi.fn(() =>
       Promise.resolve({
         state: 'state-1',
+        flow: 'paste' as const,
         authorizeUrl: 'https://example.test/authorize',
-        callbackStyle: 'code' as const,
+        pasteStyle: 'code' as const,
       }),
     ),
     completeAuthorization: vi.fn(() => Promise.resolve(view)),
+    completeRedirect: vi.fn(() =>
+      Promise.resolve({ status: 'connected' as const, account: view }),
+    ),
+    authorizationStatus: vi.fn(() =>
+      Promise.resolve({ status: 'pending' as const }),
+    ),
     remove: vi.fn(() => Promise.resolve(true)),
     cliCommand: vi.fn(() => Promise.resolve('FAKE_TOKEN=access-1 fake')),
     refreshAll: vi.fn(() => Promise.resolve()),
@@ -119,10 +126,7 @@ describe('the panel routes', () => {
     const { call } = build();
     const response = await call('/api/providers');
     expect(await response.json()).toEqual({
-      providers: [
-        { id: 'anthropic', callbackStyle: 'code' },
-        { id: 'openai', callbackStyle: 'redirect-url' },
-      ],
+      providers: [{ id: 'anthropic' }, { id: 'openai' }],
     });
   });
 
@@ -142,6 +146,65 @@ describe('the panel routes', () => {
       body: JSON.stringify({ provider: 'gemini' }),
     });
     expect(bad.status).toBe(400);
+  });
+
+  it('decides the way back from the origin the browser sent, not from the body', async () => {
+    const beginAuthorization = vi.fn(() =>
+      Promise.resolve({
+        state: 'state-1',
+        flow: 'redirect' as const,
+        authorizeUrl: 'https://example.test/authorize',
+      }),
+    );
+    const { call } = build({ beginAuthorization });
+    await call('/api/accounts/authorize', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost:3004',
+      },
+      body: JSON.stringify({
+        provider: 'anthropic',
+        label: 'work',
+        method: 'browser',
+        // Not a field the route reads: page script cannot forge `Origin`,
+        // but it can write anything into a body.
+        loopbackOrigin: 'http://localhost:9999',
+      }),
+    });
+    expect(beginAuthorization).toHaveBeenCalledWith({
+      provider: 'anthropic',
+      accountId: null,
+      label: 'work',
+      loopbackOrigin: 'http://localhost:3004',
+      preferBrowser: true,
+    });
+  });
+
+  it('says where an authorization stands, and never lets that be cached', async () => {
+    const authorizationStatus = vi.fn(() =>
+      Promise.resolve({ status: 'pending' as const }),
+    );
+    const { call } = build({ authorizationStatus });
+    const response = await call('/api/accounts/authorize/state-1');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ status: 'pending' });
+    expect(authorizationStatus).toHaveBeenCalledWith('state-1');
+  });
+
+  it('answers a vendor that could not be reached as a bad gateway', async () => {
+    const { call } = build({
+      beginAuthorization: vi.fn(() =>
+        Promise.reject(new AccountError('unavailable', 'OpenAI is down.')),
+      ),
+    });
+    const response = await call('/api/accounts/authorize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'openai' }),
+    });
+    expect(response.status).toBe(502);
   });
 
   it('answers a completed authorization with the new account', async () => {
@@ -351,9 +414,60 @@ describe('createApiDispatcher', () => {
 
     expect(at('/api/accounts')).not.toBeNull();
     expect(at('/api/tokens/anthropic')).not.toBeNull();
+    // Where a vendor's loopback redirect lands, outside `/api`.
+    expect(at('/callback?state=state-1&code=code-1')).not.toBeNull();
     // The shared React server owns the health probe and the SPA.
     expect(at('/api/health')).toBeNull();
     expect(at('/')).toBeNull();
     expect(at('/assets/index.js')).toBeNull();
+  });
+});
+
+describe('the vendor callback', () => {
+  it('finishes the redirect and sends the browser back to the panel', async () => {
+    const completeRedirect = vi.fn(() =>
+      Promise.resolve({ status: 'connected' as const, account: view }),
+    );
+    const { call } = build({ completeRedirect });
+    const response = await call('/callback?code=code-1&state=state-1');
+
+    expect(completeRedirect).toHaveBeenCalledWith({
+      state: 'state-1',
+      code: 'code-1',
+      error: null,
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/?authorization=state-1');
+  });
+
+  it('carries a consent the person declined back to the panel too', async () => {
+    const completeRedirect = vi.fn(() =>
+      Promise.resolve({ status: 'failed' as const, code: 'denied' as const }),
+    );
+    const { call } = build({ completeRedirect });
+    const response = await call('/callback?error=access_denied&state=state-1');
+    expect(completeRedirect).toHaveBeenCalledWith({
+      state: 'state-1',
+      code: null,
+      error: 'access_denied',
+    });
+    expect(response.headers.get('location')).toBe('/?authorization=state-1');
+  });
+
+  it('still ends on the panel when finishing throws', async () => {
+    const { call } = build({
+      completeRedirect: vi.fn(() => Promise.reject(new Error('disk full'))),
+    });
+    const response = await call('/callback?code=code-1&state=state-1');
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/?authorization=state-1');
+  });
+
+  it('sends a callback with no state straight to the panel', async () => {
+    const completeRedirect = vi.fn();
+    const { call } = build({ completeRedirect });
+    const response = await call('/callback?code=code-1');
+    expect(completeRedirect).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('/');
   });
 });

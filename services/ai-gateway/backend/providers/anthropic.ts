@@ -2,10 +2,11 @@
  * Anthropic — a Claude Pro/Max subscription, reached through the public OAuth
  * client Claude Code itself uses.
  *
- * The flow is the CLI's "manual" variant: the browser goes to claude.ai, and
- * after consent Anthropic's console callback page DISPLAYS the result instead
- * of redirecting anywhere this gateway could listen. The person copies that
- * `code#state` pair back into the panel.
+ * The client redirects only to a loopback address or to Anthropic's console
+ * page that DISPLAYS the result. So a gateway the browser reaches on a
+ * loopback address takes consent straight back on its own `/callback`, and
+ * one reached anywhere else asks the person to copy that `code#state` pair
+ * back into the panel — the CLI's "manual" variant.
  *
  * The usage endpoint is the one behind Claude Code's `/usage` command. It
  * insists on the `claude-code/<version>` User-Agent — without it the request
@@ -150,29 +151,44 @@ export function createAnthropicProvider(
 
   return {
     id: 'anthropic',
-    callbackStyle: 'code',
     cliCommand(accessToken) {
       return `ANTHROPIC_AUTH_TOKEN=${accessToken} claude`;
     },
 
-    beginAuthorization(state): AuthorizationRequest {
+    /**
+     * Claude Code's client redirects to two kinds of address: a loopback
+     * `http://localhost:<any port>/callback` — the client's metadata lists
+     * `http://localhost/callback`, and RFC 8252 lets the port vary — or the
+     * console page that prints the code. So when the browser reaches this
+     * gateway on a loopback address, consent comes straight back to its own
+     * `/callback` and finishes there; anywhere else the page prints the code
+     * and the person pastes it. Anthropic offers no device flow for a
+     * subscription, so there is no third way.
+     */
+    beginAuthorization(
+      state,
+      { loopbackRedirectUri },
+    ): Promise<AuthorizationRequest> {
       const { verifier, challenge } = generatePkce();
+      const redirectUri = loopbackRedirectUri ?? REDIRECT_URI;
       const params = new URLSearchParams({
-        // Asks for the copy-the-code flow rather than a redirect.
+        // Claude Code sends this whichever way the code comes back.
         code: 'true',
         client_id: clientId,
         response_type: 'code',
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
         scope: SCOPES,
         code_challenge: challenge,
         code_challenge_method: 'S256',
         state,
       });
-      return {
+      return Promise.resolve({
+        flow: loopbackRedirectUri ? 'redirect' : 'paste',
         authorizeUrl: `${AUTHORIZE_URL}?${params.toString()}`,
         codeVerifier: verifier,
-        redirectUri: REDIRECT_URI,
-      };
+        redirectUri,
+        pasteStyle: 'code',
+      });
     },
 
     parseCallback: parseAuthorizationCallback,

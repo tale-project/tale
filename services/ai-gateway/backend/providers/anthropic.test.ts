@@ -8,12 +8,18 @@ import {
 import { stubFetch, jsonResponse as json } from './testing';
 import { ProviderError } from './types';
 
+const REMOTE = { loopbackRedirectUri: null, preferBrowser: false };
+
 describe('beginAuthorization', () => {
-  it('builds the console copy-the-code authorize URL', () => {
+  it('builds the console copy-the-code authorize URL', async () => {
     const provider = createAnthropicProvider({ clientId: 'client-1' });
-    const { authorizeUrl, redirectUri, codeVerifier } =
-      provider.beginAuthorization('state-1');
+    const request = await provider.beginAuthorization('state-1', REMOTE);
+    if (request.flow === 'device') throw new Error('no device flow here');
+    const { authorizeUrl, redirectUri, codeVerifier } = request;
     const url = new URL(authorizeUrl);
+
+    expect(request.flow).toBe('paste');
+    expect(request.pasteStyle).toBe('code');
 
     expect(url.origin + url.pathname).toBe('https://claude.ai/oauth/authorize');
     expect(url.searchParams.get('client_id')).toBe('client-1');
@@ -28,6 +34,31 @@ describe('beginAuthorization', () => {
       'https://console.anthropic.com/oauth/code/callback',
     );
     expect(codeVerifier).not.toBe('');
+  });
+
+  it('sends consent straight back to a gateway on a loopback address', async () => {
+    const request = await createAnthropicProvider().beginAuthorization(
+      'state-1',
+      {
+        loopbackRedirectUri: 'http://localhost:3004/callback',
+        preferBrowser: false,
+      },
+    );
+    if (request.flow === 'device') throw new Error('no device flow here');
+    expect(request.flow).toBe('redirect');
+    expect(request.redirectUri).toBe('http://localhost:3004/callback');
+    expect(new URL(request.authorizeUrl).searchParams.get('redirect_uri')).toBe(
+      'http://localhost:3004/callback',
+    );
+  });
+
+  it('offers no device flow, whatever it is asked', async () => {
+    const request = await createAnthropicProvider().beginAuthorization(
+      'state-1',
+      { loopbackRedirectUri: null, preferBrowser: true },
+    );
+    expect(request.flow).toBe('paste');
+    expect('pollDeviceAuthorization' in createAnthropicProvider()).toBe(false);
   });
 });
 

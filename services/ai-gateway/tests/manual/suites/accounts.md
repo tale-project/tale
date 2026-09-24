@@ -27,22 +27,47 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
 
 ### Adding an account
 
-- [ ] `ACCT-1` · **Add account → Anthropic (Claude) → Continue** → step two
-  names the Anthropic authorization URL, and its hint asks for the code the
-  page prints.
+- [ ] `ACCT-1` · **On a panel reached at any address but localhost — the
+  fleet's own, or a dev server opened from another machine: Add account →
+  Anthropic (Claude) → Continue** → step two names the Anthropic authorization
+  URL, and its hint asks for the code the page prints: Anthropic redirects
+  nowhere this gateway could listen.
 - [ ] `ACCT-2` · **Open that URL, approve, copy the value the console page
   shows, paste it, Connect** → the dialog closes, a toast names the account,
   and a row appears carrying the Claude mark, the account's own e-mail, its
   plan in the Plan column, **Active**, and usage bars that are already
   populated — not "No usage read yet".
-- [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → the hint now
-  asks for the whole address bar instead, because that flow redirects to a
-  loopback URL that will not load.
-- [ ] `ACCT-4` · **Approve in the browser, copy the entire failed
-  `localhost:1455` address, paste it, Connect** → the row appears the same way,
-  with the OpenAI mark, its own plan and populated usage bars. Every
-  ChatGPT plan publishes at least its weekly window, so "No usage read yet" on
-  a freshly connected OpenAI row is a defect, not an empty plan.
+- [ ] `ACCT-3` · **Add account → OpenAI (ChatGPT) → Continue** → no paste
+  step: the dialog shows a one-time code with a copy button, a link to
+  OpenAI's sign-in page, and one line saying it is waiting for your approval.
+- [ ] `ACCT-4` · **Open that page, sign in, enter the code, approve** → within
+  a few seconds, without touching the panel again, the dialog closes, a toast
+  names the account, and the row appears with the OpenAI mark, its own plan
+  and populated usage bars. Every ChatGPT plan publishes at least its weekly
+  window, so "No usage read yet" on a freshly connected OpenAI row is a
+  defect, not an empty plan.
+- [ ] `ACCT-39` · **On a panel opened at `http://localhost:3004`: Add account
+  → Anthropic (Claude) → Continue, then approve at Anthropic** → the page goes
+  to Anthropic and comes straight back to the panel by itself: a toast names
+  the account and its row is there. No code to copy, no second tab, and the
+  address bar ends on `/` with no `authorization` left in it.
+- [ ] `ACCT-40` · **Start the flow of `ACCT-39` and decline at Anthropic** →
+  back on the panel, a toast says the sign-in was declined, and no row
+  appears.
+- [ ] `ACCT-41` · **In the OpenAI device step, choose "Sign in through the
+  browser instead"** → the browser flow's paste step, whose hint asks for the
+  whole address bar; approving and pasting the `localhost:1455` address the
+  browser lands on connects the account.
+- [ ] `ACCT-42` · **Leave a device code unapproved until it runs out (15
+  minutes)** → the waiting line turns into "That code ran out before it was
+  approved", and **Start again** issues a fresh code.
+- [ ] `ACCT-43` · **In a paste step, paste something with no code in it, then
+  the right value** → the first is refused ("No authorization code was
+  found"), and the second still connects: a mistyped paste does not spend the
+  attempt.
+- [ ] `ACCT-44` · **Close the dialog while it waits on a device code, then
+  approve that code at OpenAI anyway** → nothing is added: closing the dialog
+  ends the attempt, the way it does for every other flow (`ACCT-6`).
 - [ ] `ACCT-5` · **Add an account and type a name in step one** → the row
   carries that name, and its caption still shows the provider and the account's
   address, so the identity is not lost behind the label.

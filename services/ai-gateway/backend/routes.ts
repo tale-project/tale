@@ -37,13 +37,16 @@ const authorizeSchema = z.object({
   provider: z.string().refine(isProviderId, 'Unknown provider'),
   /** Set to re-authenticate an existing account instead of adding one. */
   accountId: z.string().min(1).nullish(),
+  /** A name for the account; a flow that finishes on its own still has it. */
+  label: z.string().max(200).nullish(),
+  /** `browser`: the browser flow, even where a device flow is offered. */
+  method: z.literal('browser').nullish(),
 });
 
 const completeSchema = z.object({
   state: z.string().min(1),
   /** Whatever the person copied out of the browser. */
   pasted: z.string().min(1),
-  label: z.string().nullish(),
 });
 
 /** The error envelope every failing route answers with. */
@@ -73,7 +76,11 @@ function serializeToken(handout: TokenHandout) {
 
 export function createApi(options: ApiOptions) {
   const { accounts, providers } = options;
-  const api = new Hono().basePath('/api');
+  // One router, two prefixes: the API under `/api`, and outside it the one
+  // route a vendor's redirect lands on. A `basePath` clone shares its
+  // parent's router, so both are served — and fail — through `app`.
+  const app = new Hono();
+  const api = app.basePath('/api');
 
   // --- Panel routes --------------------------------------------------------
 
@@ -85,6 +92,12 @@ export function createApi(options: ApiOptions) {
     c.json({ accounts: await accounts.list() }),
   );
 
+  /**
+   * Start an authorization. Which way it comes back is decided here, from
+   * the `Origin` the browser sent — a header page script cannot set — so a
+   * panel reached on a loopback address gets the flow that returns to this
+   * gateway's own `/callback`, and one reached anywhere else never does.
+   */
   api.post('/accounts/authorize', async (c) => {
     const body = authorizeSchema.safeParse(
       await c.req.json().catch(() => null),
@@ -96,8 +109,21 @@ export function createApi(options: ApiOptions) {
       await accounts.beginAuthorization({
         provider: body.data.provider,
         accountId: body.data.accountId ?? null,
+        label: body.data.label ?? null,
+        loopbackOrigin: c.req.header('origin') ?? null,
+        preferBrowser: body.data.method === 'browser',
       }),
     );
+  });
+
+  /**
+   * Where an authorization stands. For a device code this is also what
+   * moves it on — each read may ask the vendor, at most once per the
+   * interval it wants — so the answer is never cached.
+   */
+  api.get('/accounts/authorize/:state', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json(await accounts.authorizationStatus(c.req.param('state')));
   });
 
   api.post('/accounts/complete', async (c) => {
@@ -111,7 +137,6 @@ export function createApi(options: ApiOptions) {
     const account = await accounts.completeAuthorization({
       state: body.data.state,
       pasted: body.data.pasted,
-      label: body.data.label ?? null,
     });
     return c.json({ account }, 201);
   });
@@ -192,18 +217,52 @@ export function createApi(options: ApiOptions) {
     return c.json({ tokens: tokens.map(serializeToken) });
   });
 
+  // --- The vendor's way back ----------------------------------------------
+
+  /**
+   * Where a vendor's loopback redirect lands — Anthropic's, when the browser
+   * reaches this gateway on a loopback address. It finishes the grant, then
+   * sends the browser on to the panel, which reads the outcome off the same
+   * authorization and says it in the reader's language (which this route has
+   * no way to know). A failure to finish still ends on the panel: a browser
+   * that arrived by redirect is owed a page, not a JSON error.
+   */
+  app.get('/callback', async (c) => {
+    const state = c.req.query('state');
+    if (!state) return c.redirect('/', 302);
+    try {
+      await accounts.completeRedirect({
+        state,
+        code: c.req.query('code') ?? null,
+        error: c.req.query('error') ?? null,
+      });
+    } catch (error) {
+      console.error(
+        '[ai-gateway] finishing a redirected sign-in failed:',
+        error,
+      );
+    }
+    const back = new URLSearchParams({ authorization: state });
+    return c.redirect(`/?${back.toString()}`, 302);
+  });
+
   // --- Failures ------------------------------------------------------------
 
-  api.onError((error, c) => {
+  app.onError((error, c) => {
     if (error instanceof AccountError) {
-      const status = error.code === 'unknown_account' ? 404 : 400;
+      const status =
+        error.code === 'unknown_account'
+          ? 404
+          : error.code === 'unavailable'
+            ? 502
+            : 400;
       return c.json(fail(error.code, error.message), status);
     }
     console.error('[ai-gateway] request failed:', error);
     return c.json(fail('internal_error', 'Something went wrong.'), 500);
   });
 
-  return api;
+  return app;
 }
 
 export type Api = ReturnType<typeof createApi>;
@@ -213,13 +272,15 @@ export type Api = ReturnType<typeof createApi>;
  *
  * Returns `null` for anything the gateway does not serve so the caller falls
  * through — `/api/health` belongs to the shared React server, and every other
- * path is the SPA's.
+ * path but the vendors' `/callback` is the SPA's.
  */
 export function createApiDispatcher(api: Api) {
   return function dispatch(
     request: Request,
     url: URL,
   ): Promise<Response> | null {
+    if (url.pathname === '/callback')
+      return Promise.resolve(api.fetch(request));
     if (!url.pathname.startsWith('/api/')) return null;
     if (url.pathname === '/api/health') return null;
     return Promise.resolve(api.fetch(request));
