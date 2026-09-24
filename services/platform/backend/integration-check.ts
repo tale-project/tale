@@ -2556,6 +2556,11 @@ async function checkTasks(
     .safeParse(
       await get(`/api/app/tasks/${aId}/live-automation-run?orgId=${orgId}`),
     );
+  const latestAutomation = z
+    .object({ run: z.null() })
+    .safeParse(
+      await get(`/api/app/tasks/${aId}/latest-automation-run?orgId=${orgId}`),
+    );
   const appListing = z
     .object({ automations: z.array(z.unknown()) })
     .safeParse(await get(`/api/app/automations/listing?orgId=${orgId}`));
@@ -2639,6 +2644,7 @@ async function checkTasks(
       mentionPreview.data.previews[0]?.willTrigger &&
       latestRun.success &&
       liveAutomation.success &&
+      latestAutomation.success &&
       appListing.success &&
       wfStart.success &&
       wfCancel.success &&

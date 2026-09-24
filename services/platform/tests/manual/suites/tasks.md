@@ -139,9 +139,13 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (`tasks.run.detailsTitle`) → The dialog streams the execution log while
   running (tool-only activity renders as collapsed per-tool rows, not silence;
   an empty log reads `automations.runs.agentLog.empty`); for an
-  automation-owned task the dialog shows the step timeline
-  (`automations.runs.timeline.label`) with the current step marked, and **Open
-  the full run** (`tasks.run.openFull`) navigates to the run page under
+  automation-owned task the property panel's **Run** row (`tasks.run.label`)
+  shows the latest run's state badge (`automations.runs.status.*`) and its
+  **Details** in every state — after the run finished too, when the subject
+  panel's own Details is gone — and the dialog shows the step timeline
+  (`automations.runs.timeline.label`) with the current step marked, titled in
+  the past tense once nothing moves; **Open the full run**
+  (`tasks.run.openFull`) navigates to the run page under
   `…/projects/{projectId}/automations/…`
 - [ ] `TASK-F14` · **Outputs & settle** — Let a run finish → The Run row flips
   to **Finished** (`tasks.agentRun.status.settled`); the result is posted as

@@ -99,6 +99,7 @@ import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskAutomationBadge } from './task-automation-badge';
+import { TaskAutomationRunEntry } from './task-automation-run-entry';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
@@ -1011,6 +1012,19 @@ function EditTaskBody({
         }
       : 'skip',
   );
+  // The latest run in ANY state feeds the property panel's Run row; the live
+  // query above stays the one the verbs and guards read.
+  const latestRunQuery = useBackendQuery(
+    'automations/queries:getLatestRunForTask',
+    task != null && ownedBy !== null
+      ? {
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          taskId: task._id,
+        }
+      : 'skip',
+  );
+  const latestRun = latestRunQuery.data ?? null;
   const { t: tAutomations } = useT('automations');
   // The owning automation's operator settings, opened from the task itself.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1624,6 +1638,20 @@ function EditTaskBody({
                     organizationId={task.organizationId}
                     taskId={task._id}
                     canEdit={canMutate}
+                  />
+                </PropertyField>
+              )}
+              {/* The automation lane's twin: the latest subject-linked run's
+                state and its step timeline, kept after the run finished so
+                the result can still be audited from the task. Absent until a
+                run exists — the subject panel's Start is the way in. */}
+              {ownedBy !== null && latestRun !== null && (
+                <PropertyField label={t('run.label')}>
+                  <TaskAutomationRunEntry
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    run={latestRun}
+                    name={ownedBy.displayName}
                   />
                 </PropertyField>
               )}

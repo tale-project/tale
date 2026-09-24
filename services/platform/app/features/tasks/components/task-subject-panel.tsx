@@ -4,45 +4,20 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Row } from '@tale/ui/layout';
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogTitle,
-} from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
-import { Link } from '@tanstack/react-router';
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  Loader2,
-  Play,
-  Undo2,
-  Workflow,
-} from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { CheckCircle2, Loader2, Play, Undo2, Workflow } from 'lucide-react';
+import { useId, useState } from 'react';
 
 import {
   RunApprovalCard,
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
 import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
-import { RunStepTimeline } from '@/app/features/automations/components/run-step-timeline';
-import {
-  useAutomation,
-  useAutomationRun,
-  useRunPendingAsk,
-} from '@/app/features/automations/hooks/queries';
-import { readDocument } from '@/app/features/automations/lib/document';
-import { buildGraph } from '@/app/features/automations/lib/graph';
-import {
-  projectRun,
-  readRunCursorNode,
-} from '@/app/features/automations/lib/run-view';
+import { useRunPendingAsk } from '@/app/features/automations/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -51,90 +26,7 @@ import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { deriveSubjectState } from '../lib/subject-state';
-
-/**
- * The run's progress, inspected WITHOUT leaving the task.
- *
- * One vertical step timeline, every step compact until unfolded — the
- * {@link RunStepTimeline} owns the reading. The dialog itself only resolves
- * the run and the document version it executed, and offers the full run page
- * as the way out for a deeper audit. Nothing is fetched until it opens.
- */
-function TaskRunDetailsDialog({
-  organizationId,
-  projectId,
-  automationSlug,
-  runId,
-  name,
-  open,
-  onOpenChange,
-}: {
-  organizationId: string;
-  projectId: string;
-  automationSlug: string;
-  runId: string;
-  name: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { t } = useT('tasks');
-  const runQuery = useAutomationRun(organizationId, open ? runId : undefined);
-  const run = runQuery.data ?? null;
-  const versionQuery = useAutomation(
-    organizationId,
-    automationSlug,
-    open ? run?.version : undefined,
-  );
-  const automation = useMemo(
-    () => readDocument(versionQuery.data?.document),
-    [versionQuery.data?.document],
-  );
-  const graph = useMemo(() => buildGraph(automation), [automation]);
-  const projection = useMemo(() => projectRun(run), [run]);
-  // Where the run IS: the stepper's own cursor while it runs, else the last
-  // step of the finished run's ordered trace. Never "the last key of the
-  // checkpoint record" — those arrive alphabetically, which would point at
-  // whichever skipped node happens to sort last.
-  const currentNodeId =
-    readRunCursorNode(run) ?? projection.trace.at(-1)?.node ?? null;
-
-  return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
-        <ResponsiveDialogTitle className="text-base font-semibold">
-          {/* Always the live tense: `getLiveRunForTask` only ever returns a
-              non-terminal run, so this dialog never opens on a finished one. */}
-          {t('run.detailsTitleLive', { name })}
-        </ResponsiveDialogTitle>
-        {run !== null && (
-          <>
-            <RunStepTimeline
-              graph={graph}
-              projection={projection}
-              currentNodeId={currentNodeId}
-              organizationId={organizationId}
-              runId={runId}
-            />
-            {/* The dialog is the quick look; the run page is the audit. */}
-            <Link
-              to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
-              params={{
-                id: organizationId,
-                projectId,
-                automationSlug: automationSlugToParam(automationSlug),
-                runId,
-              }}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
-            >
-              {t('run.openFull')}
-              <ArrowUpRight className="size-3.5" aria-hidden />
-            </Link>
-          </>
-        )}
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
-  );
-}
+import { TaskRunDetailsDialog } from './task-run-details-dialog';
 
 /**
  * The automation-ownership work panel of the task modal — the read-side twin
@@ -538,6 +430,8 @@ export function TaskSubjectPanel({
           automationSlug={run.name}
           runId={run.runId}
           name={displayName}
+          // `getLiveRunForTask` only ever returns a non-terminal run.
+          live
           open={detailsOpen}
           onOpenChange={setDetailsOpen}
         />

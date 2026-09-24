@@ -41,6 +41,7 @@ import {
   taskCommentCursorSchema,
 } from './comments.ts';
 import {
+  findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
   resolveSetupFolderId,
   startWorkflowForTask,
@@ -921,6 +922,30 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       assertTaskReadable(project, auth);
       return c.json({
         run: await findLiveAutomationRunForTask(deps.sql, {
+          organizationId: auth.organizationId,
+          projectId: task.projectId,
+          taskId: task.id,
+        }),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The task's latest subject-linked automation run in any state — the
+  // property panel's Run row, which outlives the live banner.
+  app.get('/:taskId/latest-automation-run', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      return c.json({
+        run: await findLatestAutomationRunForTask(deps.sql, {
           organizationId: auth.organizationId,
           projectId: task.projectId,
           taskId: task.id,
