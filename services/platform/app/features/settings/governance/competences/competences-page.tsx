@@ -224,7 +224,7 @@ export function CompetencesPage({ organizationId }: Props) {
               )}
           </div>
         ),
-        size: 180,
+        size: 150,
       },
       {
         id: 'competence',
@@ -302,8 +302,9 @@ export function CompetencesPage({ organizationId }: Props) {
           <span className="sr-only">{t('competences.columns.actions')}</span>
         ),
         meta: { isAction: true },
-        // Sized for the widest label across locales ("Widerrufen", "Révoquer").
-        size: 130,
+        // Sized for the widest label across locales ("Widerrufen", ~154px
+        // rendered with its icon and the cell padding).
+        size: 160,
         cell: ({ row }) =>
           row.original.status === 'active' ? (
             <Button
