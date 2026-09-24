@@ -174,10 +174,11 @@ its `/api/tokens/<id>` endpoint comes with the id. A new id needs a
 
 The panel is one screen in the documentation frame's chrome: an `h-13` header
 strip carrying the Tale mark, the service's name and the language / theme /
-repository cluster, over a single full-height account table. Language is a
-stored preference here, not a path segment — the panel ships as one
-untranslated tree — so the shared `LanguageSwitcher` runs in its state-driven
-mode.
+repository cluster, over one account table built as a list page — the same
+`useListPage` state Projects and Automations run on, so it scrolls, loads and
+counts its rows the way they do. Language is a stored preference here, not a
+path segment — the panel ships as one untranslated tree — so the shared
+`LanguageSwitcher` runs in its state-driven mode.
 
 ## Develop
 

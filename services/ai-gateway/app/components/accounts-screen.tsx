@@ -13,6 +13,7 @@ import { PageLayout } from '@tale/ui/page-layout';
 import { SkipLink } from '@tale/ui/skip-link';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
@@ -59,7 +60,6 @@ export function AccountsScreen({
   const { locale } = useFormatDate();
   const { toast } = useToast();
 
-  const [query, setQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dialog, setDialog] = useState<AddAccountTarget | null>(null);
@@ -292,8 +292,9 @@ export function AccountsScreen({
   }, []);
 
   /**
-   * What the table shows: the pool narrowed by the search box and the two
-   * facets, then ordered.
+   * The pool narrowed by the two facets, then ordered — the set the search
+   * box and the count footer work on, the way Projects hands its list the
+   * rows its team facet leaves.
    *
    * The order is the pool's own shape rather than an alphabet — vendors in
    * the catalog's order, and inside a vendor the accounts by address. An
@@ -304,7 +305,6 @@ export function AccountsScreen({
    * reader's own locale, so an umlaut sorts where that reader expects it.
    */
   const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     const matches = accounts.filter((account) => {
       if (
         providerFilter.length > 0 &&
@@ -312,15 +312,7 @@ export function AccountsScreen({
       ) {
         return false;
       }
-      if (statusFilter.length > 0 && !statusFilter.includes(account.status)) {
-        return false;
-      }
-      if (!needle) return true;
-      return [
-        account.label,
-        account.accountEmail ?? '',
-        tProviders(account.provider),
-      ].some((value) => value.toLowerCase().includes(needle));
+      return statusFilter.length === 0 || statusFilter.includes(account.status);
     });
 
     const providerRank = (id: ProviderId) => {
@@ -339,15 +331,33 @@ export function AccountsScreen({
         { sensitivity: 'base' },
       );
     });
-  }, [
-    accounts,
-    locale,
-    providerFilter,
-    providers,
-    query,
-    statusFilter,
-    tProviders,
-  ]);
+  }, [accounts, locale, providerFilter, providers, statusFilter]);
+
+  /**
+   * Search, the row window and the count footer — the list page's shared
+   * state, so this table pages and counts exactly the way Projects and
+   * Automations do: the rows scroll inside the frame, more load as the reader
+   * nears the end, and the frame closes on "Showing all N accounts" (or
+   * "N of M" while a search narrows it). The provider rides as a searched
+   * value too, so "claude" or "chatgpt" finds a vendor's accounts by the name
+   * the reader sees rather than by the id the row carries.
+   */
+  const list = useListPage<AccountView>({
+    dataSource: { type: 'query', data: isLoading ? undefined : rows },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    search: {
+      fields: [
+        'label',
+        'accountEmail',
+        (account) => tProviders(account.provider),
+      ],
+      placeholder: t('searchPlaceholder'),
+    },
+    filters: { configs: filterConfigs, onClear: clearFilters },
+    getRowId: (account) => account.id,
+    approxRowCount: accounts.length || undefined,
+    entityLabel: { one: t('entity.one'), other: t('entity.other') },
+  });
 
   return (
     <>
@@ -366,40 +376,26 @@ export function AccountsScreen({
         <PageLayout>
           <ContentArea variant="list">
             <DataTable
+              // The page inset comes from `ContentArea variant="list"`, which
+              // also bounds the height this sticky frame fills — so the
+              // toolbar and the header row stay put and only the rows scroll,
+              // and a short pool gets a frame that hugs its rows.
+              stickyLayout
+              {...list.tableProps}
               addAction={{
                 icon: Plus,
                 label: t('add'),
                 onClick: () => setDialog({ account: null }),
               }}
-              approxRowCount={accounts.length || undefined}
               caption={t('caption')}
               columns={columns}
-              data={rows}
               emptyState={{
                 description: t('empty.description'),
                 icon: KeyRound,
                 title: t('empty.title'),
               }}
               error={loadError}
-              filters={filterConfigs}
-              // This screen IS the panel — nothing sits below the table — so
-              // the frame keeps the whole height and the count footer stays on
-              // the bottom edge whether the pool holds one account or fifty.
-              fillHeight
-              getRowId={(account) => account.id}
-              isLoading={isLoading}
-              onClearFilters={clearFilters}
               onRetry={onReload}
-              pagination={{
-                clientSide: true,
-                entityLabel: { one: t('entity.one'), other: t('entity.other') },
-              }}
-              search={{
-                value: query,
-                onChange: setQuery,
-                placeholder: t('searchPlaceholder'),
-              }}
-              stickyLayout
             />
           </ContentArea>
         </PageLayout>
