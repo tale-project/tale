@@ -268,6 +268,14 @@
       "description": "Finde protokollierte Änderungen, prüfe Ereignisdetails, exportiere Ergebnisse und kontrolliere die Audit-Kette."
     }
   },
+  "de:platform/admin/governance/competences": {
+    "slug": "platform/admin/governance/competences",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Kompetenzen",
+      "description": "Gib einem Mitglied ein einzelnes, eng begrenztes Recht oder eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird."
+    }
+  },
   "de:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "de",
@@ -1396,6 +1404,14 @@
       "description": "Find recorded organization changes, inspect event details, export results, and check the audit chain."
     }
   },
+  "en:platform/admin/governance/competences": {
+    "slug": "platform/admin/governance/competences",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Competences",
+      "description": "Give a member one narrow right or a qualification without an Admin role, and revoke it when it is no longer needed."
+    }
+  },
   "en:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "en",
@@ -2522,6 +2538,14 @@
     "frontmatter": {
       "title": "Journaux d’audit",
       "description": "Retrouve les changements enregistrés, examine les événements, exporte les résultats et vérifie la chaîne d’audit."
+    }
+  },
+  "fr:platform/admin/governance/competences": {
+    "slug": "platform/admin/governance/competences",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Compétences",
+      "description": "Accorde à un membre un droit bien délimité ou une qualification sans rôle Admin, et révoque-le quand il n’est plus nécessaire."
     }
   },
   "fr:platform/admin/governance/content-models": {

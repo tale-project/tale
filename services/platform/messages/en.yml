@@ -3314,11 +3314,98 @@ governance:
     contentAndModels: Models
     policiesAndLimits: Policies & Limits
     securityAndMonitoring: Security
+    competences: Competences
     legalHold: Legal hold
     trash: Trash
     guardrails: Guardrails
     logs: Logs
     dataSubjectRequests: Data subject requests
+  competences:
+    title: Competences
+    description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
+    accessDenied: Only organization owners and admins can manage competences.
+    formerMember: Former member
+    grantedBy: by {name}
+    revokedBy: Revoked by {name}
+    revokedBySystem: Replaced by a new grant after it expired
+    columns:
+      member: Member
+      competence: Competence
+      status: Status
+      granted: Granted
+      evidence: Evidence
+      actions: Actions
+    status:
+      active: Active
+      expired: Expired
+      revoked: Revoked
+    statusDetail:
+      until: Until {date}
+      noExpiry: No expiry
+    capabilities:
+      notificationsExport:
+        label: Export notifications
+        description: Read the notifications another member can see through the REST API, to mirror them into another application.
+      restActAs:
+        label: Act for another member
+        description: Name the member an API call answers a question or decides a review for, so the record shows that person instead of the key.
+    empty:
+      title: No competences granted yet
+      description: Grant a member a platform capability or a qualification. It applies in this organization only.
+    actions:
+      grant: Grant competence
+      revoke: Revoke
+      revokeFor: Revoke {competence} from {member}
+    grantDialog:
+      title: Grant a competence
+      description: The member holds it in this organization until it expires or an admin revokes it.
+      memberLabel: Member
+      memberPlaceholder: Select a member
+      memberSearch: Search members
+      memberEmpty: No members found
+      competenceLabel: Competence
+      competencePlaceholder: Select a competence
+      capabilitiesGroup: Platform capabilities
+      qualificationsGroup: Your organization
+      qualificationOption: Qualification
+      qualificationOptionDescription: A name your review policy asks for
+      qualificationLabel: Qualification name
+      qualificationDescription: The name your review policy uses, for example tax-reviewer.
+      expiryLabel: Expires
+      expiryOptions:
+        never: Never
+        30days: In 30 days
+        90days: In 90 days
+        1year: In 1 year
+      evidenceLabel: Evidence
+      evidenceDescription: Why this member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
+      submit: Grant
+      validation:
+        memberRequired: Select a member.
+        competenceRequired: Select a competence.
+        qualificationRequired: Enter a qualification name.
+        qualificationTooLong: Use at most 120 characters.
+        qualificationReserved: 'Names starting with "tale:" are reserved for platform capabilities.'
+        evidenceTooLong: Use at most 2,000 characters.
+    revokeDialog:
+      title: Revoke competence?
+      description: '{member} loses "{competence}" in this organization right away. The grant stays in the register as history.'
+      confirm: Revoke
+    toasts:
+      granted: Competence granted
+      revoked: Competence revoked
+      revokeFailed: Couldn't revoke the competence
+    errors:
+      generic: Couldn't save the change. Try again.
+      alreadyGranted: This member already holds this competence. Revoke the current grant before you grant it again.
+      notMember: This person is not a member of the organization.
+      forbidden: Only organization owners and admins can grant or revoke competences.
+      capabilityUnknown: This is not a platform capability.
+      expiryInPast: The expiry has to be in the future.
+      evidenceTooLong: Evidence can be at most 2,000 characters.
+      invalid: A competence name has 1 to 120 characters.
+      notFound: This grant no longer exists.
+      alreadyRevoked: This grant has already been revoked.
   trash:
     title: Trash
     description: Recover retention-trashed records before they are permanently

@@ -446,7 +446,7 @@ Branche ton client sur `indexing.errorCode`, pas sur le texte d’`error`. Le sc
 
 Un service qui synchronise les notifications n’a pas besoin d’un compte Admin. Le rôle Admin permet aussi de gérer les membres, d’administrer l’authentification unique et SCIM, et de réinitialiser le mot de passe des membres de rang inférieur. Exécute plutôt le service sous un compte de membre ordinaire et accorde à ce membre la seule capacité que vérifie l’export. L’attribution est une entrée du registre des compétences de l’organisation : elle ne vaut que dans cette organisation, elle est journalisée, elle peut expirer et elle est révoquée automatiquement quand un Admin retire le membre ou que ton fournisseur d’identité supprime son adhésion via SCIM.
 
-Un Propriétaire ou un Admin l’accorde depuis une session active. Définis `TALE_ORIGIN` avec l’origine de ton instance et `TALE_SESSION_COOKIE` avec l’en-tête Cookie de cette session. `TALE_ORG_ID` et `TALE_WORKER_USER_ID` sont les valeurs `organization.id` et `user.id` que renvoie `GET /api/v1/me` avec la clé du service :
+Un Propriétaire ou un Admin l’accorde dans **Paramètres > Gouvernance > Compétences** ([Compétences](/fr/platform/admin/governance/competences)), ou par HTTP depuis une session active. Définis `TALE_ORIGIN` avec l’origine de ton instance et `TALE_SESSION_COOKIE` avec l’en-tête Cookie de cette session. `TALE_ORG_ID` et `TALE_WORKER_USER_ID` sont les valeurs `organization.id` et `user.id` que renvoie `GET /api/v1/me` avec la clé du service :
 
 ```bash
 GRANT_BODY=$(jq -n --arg user "$TALE_WORKER_USER_ID" \

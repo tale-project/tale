@@ -1,5 +1,6 @@
 import {
   AlertOctagon,
+  BadgeCheck,
   Brain,
   ClipboardList,
   Scale,
@@ -14,6 +15,7 @@ const GOVERNANCE_GROUPS = [
   'content-models',
   'policies-limits',
   'security-monitoring',
+  'competences',
   'guardrails',
   'logs',
   'legal-hold',
@@ -28,6 +30,7 @@ interface GovernanceNavItem {
     | 'contentAndModels'
     | 'policiesAndLimits'
     | 'securityAndMonitoring'
+    | 'competences'
     | 'guardrails'
     | 'logs'
     | 'legalHold'
@@ -50,6 +53,7 @@ export const GOVERNANCE_NAV_ITEMS: GovernanceNavItem[] = [
     labelKey: 'securityAndMonitoring',
     icon: ShieldAlert,
   },
+  { slug: 'competences', labelKey: 'competences', icon: BadgeCheck },
   { slug: 'guardrails', labelKey: 'guardrails', icon: Shield },
   { slug: 'logs', labelKey: 'logs', icon: ScrollText },
   { slug: 'legal-hold', labelKey: 'legalHold', icon: AlertOctagon },

@@ -380,7 +380,7 @@ Branch on `indexing.errorCode`, not the wording of `error`. The OpenAPI schema e
 
 A mirror worker does not need an Admin account. The Admin role also manages members, administers single sign-on and SCIM, and can reset lower-ranked members’ passwords, so run the worker as an ordinary member and grant that member the one capability the export checks. The grant is an entry in the organization’s competence register: it applies only in that organization, is audited, can carry an expiry, and is revoked automatically when an Admin removes the member or SCIM deprovisions them.
 
-An Owner or Admin grants it from an active session. `TALE_ORIGIN` is your Tale origin and `TALE_SESSION_COOKIE` that session’s cookie header; `TALE_ORG_ID` and `TALE_WORKER_USER_ID` are the `organization.id` and `user.id` that `GET /api/v1/me` returns for the worker’s key:
+An Owner or Admin grants it under **Settings > Governance > Competences** ([Competences](/platform/admin/governance/competences)), or over HTTP from an active session. `TALE_ORIGIN` is your Tale origin and `TALE_SESSION_COOKIE` that session’s cookie header; `TALE_ORG_ID` and `TALE_WORKER_USER_ID` are the `organization.id` and `user.id` that `GET /api/v1/me` returns for the worker’s key:
 
 ```bash
 GRANT_BODY=$(jq -n --arg user "$TALE_WORKER_USER_ID" \

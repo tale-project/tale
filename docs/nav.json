@@ -201,6 +201,7 @@
               "pages": [
                 "platform/admin/governance/audit-logs",
                 "platform/admin/governance/policies-and-limits",
+                "platform/admin/governance/competences",
                 "platform/admin/governance/guardrails",
                 "platform/admin/governance/content-models",
                 "platform/admin/governance/usage-analytics",

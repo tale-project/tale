@@ -1,5 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  competenceRecordStatus,
+  PLATFORM_CAPABILITIES,
+  PLATFORM_CAPABILITY_PREFIX,
+  type PlatformCapability,
+} from '../../../lib/shared/competences';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
@@ -37,30 +43,13 @@ const COMPETENCE_EVIDENCE_MAX = 2000;
 /** A member holds a handful of competences; the cap bounds a bad org. */
 const COMPETENCE_SCAN_CAP = 200;
 
-/**
- * The reserved namespace: a slug under it names a platform capability,
- * never an organization's own qualification. A grant matches it without
- * regard to case, so `TALE:…` cannot pose as a capability it does not
- * confer. `removeMembershipCascade` (auth/membership.ts) revokes the live
- * grants under it by this same prefix.
- */
-export const PLATFORM_CAPABILITY_PREFIX = 'tale:';
-
-/**
- * Every platform capability the register can carry — a closed set: a grant
- * under the reserved namespace naming anything else is refused
- * (`COMPETENCE_CAPABILITY_UNKNOWN`). A slug joins it together with the door
- * that checks it through `holdsCapability`.
- */
-export const PLATFORM_CAPABILITIES = [
-  'tale:notifications.export',
-  /** The REST door may act FOR another verified member the request names
-   * (`actor` on a run's ask answer and a task's review decision —
-   * `rest/actor.ts`), so a relayed gesture carries the person, not the key. */
-  'tale:rest.act-as',
-] as const;
-
-export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
+// The reserved namespace and its closed set live in `lib/shared` so the
+// governance screen offers exactly what this register accepts.
+export {
+  PLATFORM_CAPABILITIES,
+  PLATFORM_CAPABILITY_PREFIX,
+  type PlatformCapability,
+};
 
 const KNOWN_PLATFORM_CAPABILITIES: ReadonlySet<string> = new Set(
   PLATFORM_CAPABILITIES,
@@ -100,9 +89,7 @@ export function isCompetenceRecordActive(
   record: { expiresAt: number | null; revokedAt: number | null },
   now: number,
 ): boolean {
-  if (record.revokedAt !== null) return false;
-  if (record.expiresAt !== null && record.expiresAt <= now) return false;
-  return true;
+  return competenceRecordStatus(record, now) === 'active';
 }
 
 /**
@@ -444,30 +431,56 @@ export async function revokeCompetence(
   });
 }
 
-/** Every record in the org — revoked ones included, because the register is
- * the evidence trail, not just the current roster. */
+/** The newest revoked records an org-wide listing carries. */
+const ORG_HISTORY_CAP = 1000;
+
+/**
+ * Every LIVE record (unrevoked: active, or past its expiry until a re-grant
+ * retires it) plus the newest `historyCap` revoked ones, newest first. Live
+ * rows are bounded — one per member and competence, the partial unique
+ * index — so an admin can always see, and revoke, everything that may still
+ * vouch; only the audit history is capped. A plain newest-first LIMIT let a
+ * long history push an old grant that still vouches off the list.
+ */
+function listRegister(
+  sql: Sql,
+  organizationId: string,
+  historyCap: number,
+  userId?: string,
+): Promise<CompetenceRecord[]> {
+  const member = userId === undefined ? sql`TRUE` : sql`user_id = ${userId}`;
+  return sql<CompetenceRecord[]>`
+    SELECT * FROM (
+      SELECT ${sql.unsafe(COLUMNS)} FROM app.competence_records
+      WHERE org_id = ${organizationId} AND ${member}
+        AND revoked_at_ms IS NULL
+      UNION ALL
+      (
+        SELECT ${sql.unsafe(COLUMNS)} FROM app.competence_records
+        WHERE org_id = ${organizationId} AND ${member}
+          AND revoked_at_ms IS NOT NULL
+        ORDER BY granted_at_ms DESC
+        LIMIT ${historyCap}
+      )
+    ) AS register
+    ORDER BY "grantedAt" DESC
+  `;
+}
+
+/** The org's register — every live grant, and its revoked ones as the
+ * evidence trail (the newest {@link ORG_HISTORY_CAP}). */
 export async function listOrgCompetences(
   sql: Sql,
   organizationId: string,
 ): Promise<CompetenceRecord[]> {
-  return sql<CompetenceRecord[]>`
-    SELECT ${sql.unsafe(COLUMNS)} FROM app.competence_records
-    WHERE org_id = ${organizationId}
-    ORDER BY granted_at_ms DESC
-    LIMIT 1000
-  `;
+  return listRegister(sql, organizationId, ORG_HISTORY_CAP);
 }
 
-/** One member's records. */
+/** One member's records — every live grant, and the newest revoked ones. */
 export async function listUserCompetences(
   sql: Sql,
   organizationId: string,
   userId: string,
 ): Promise<CompetenceRecord[]> {
-  return sql<CompetenceRecord[]>`
-    SELECT ${sql.unsafe(COLUMNS)} FROM app.competence_records
-    WHERE org_id = ${organizationId} AND user_id = ${userId}
-    ORDER BY granted_at_ms DESC
-    LIMIT ${COMPETENCE_SCAN_CAP}
-  `;
+  return listRegister(sql, organizationId, COMPETENCE_SCAN_CAP, userId);
 }

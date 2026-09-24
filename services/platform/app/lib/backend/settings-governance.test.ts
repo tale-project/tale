@@ -7,7 +7,7 @@ import { mapLegalHoldError } from '@/app/features/settings/governance/legal-hold
 import { runAdapted } from './adapters';
 import { automationWriteAdapters } from './automations';
 import { backendKey } from './query-keys';
-import { settingsWriteAdapters } from './settings';
+import { settingsReadAdapters, settingsWriteAdapters } from './settings';
 
 beforeEach(() => {
   window.__ENV__ = { BASE_PATH: '' };
@@ -80,6 +80,103 @@ describe('governance adapters', () => {
     automationWriteAdapters[
       'approvals/mutations:updateApprovalStatus'
     ]?.invalidate?.(client, {}, { organizationId: 'org-a' });
+    expect(client.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(other)?.isInvalidated).toBe(false);
+    client.clear();
+  });
+});
+
+describe('competence register adapters', () => {
+  it('reads the register as its record list', async () => {
+    const records = [{ id: 'record-a', competence: 'tale:rest.act-as' }];
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ records }));
+    const read = settingsReadAdapters[
+      'governance/competences:listCompetences'
+    ]?.({ organizationId: 'org-a' }, {});
+    await expect(read?.queryFn()).resolves.toEqual(records);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/app/governance/competences?orgId=org-a',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('grants with only the fields the admin set', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(
+          Response.json({ recordId: 'record-a' }, { status: 201 }),
+        ),
+      );
+    const adapter =
+      settingsWriteAdapters['governance/competences:grantCompetence'];
+    await expect(
+      adapter?.run(
+        {
+          organizationId: 'org-a',
+          userId: 'user-a',
+          competence: 'tale:notifications.export',
+          evidence: '',
+        },
+        {},
+      ),
+    ).resolves.toEqual({ recordId: 'record-a' });
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/app/governance/competences?orgId=org-a',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          userId: 'user-a',
+          competence: 'tale:notifications.export',
+        }),
+      }),
+    );
+
+    await adapter?.run(
+      {
+        organizationId: 'org-a',
+        userId: 'user-a',
+        competence: 'tax-reviewer',
+        expiresAt: 1_800_000_000_000,
+        evidence: 'Certified',
+      },
+      {},
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      '/api/app/governance/competences?orgId=org-a',
+      expect.objectContaining({
+        body: JSON.stringify({
+          userId: 'user-a',
+          competence: 'tax-reviewer',
+          expiresAt: 1_800_000_000_000,
+          evidence: 'Certified',
+        }),
+      }),
+    );
+  });
+
+  it('revokes the record by id and refreshes only this organization', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ ok: true }));
+    const adapter =
+      settingsWriteAdapters['governance/competences:revokeCompetence'];
+    await expect(
+      adapter?.run({ organizationId: 'org-a', recordId: 'record/a' }, {}),
+    ).resolves.toBeNull();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/app/governance/competences/record%2Fa/revoke?orgId=org-a',
+      expect.objectContaining({ method: 'POST' }),
+    );
+
+    const client = new QueryClient();
+    const own = backendKey('org-a', 'competence', 'list');
+    const other = backendKey('org-b', 'competence', 'list');
+    client.setQueryData(own, []);
+    client.setQueryData(other, []);
+    adapter?.invalidate?.(client, { organizationId: 'org-a' }, {});
     expect(client.getQueryState(own)?.isInvalidated).toBe(true);
     expect(client.getQueryState(other)?.isInvalidated).toBe(false);
     client.clear();

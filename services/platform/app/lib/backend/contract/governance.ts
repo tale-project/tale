@@ -9,7 +9,46 @@
 
 import type { PolicyType } from '@tale/shared/schemas/governance';
 
+/** One row of the competence register (`GET /governance/competences`) —
+ * revoked and expired grants included, because the register is the audit
+ * trail, not only the current roster. */
+export interface CompetenceRecordWire {
+  id: string;
+  userId: string;
+  competence: string;
+  /** The granting admin's user id. */
+  grantedBy: string;
+  grantedAt: number;
+  expiresAt: number | null;
+  revokedAt: number | null;
+  /** The revoking admin's user id, or `system` for a grant a re-grant
+   * after expiry retired. */
+  revokedBy: string | null;
+  evidence: string | null;
+}
+
 export interface GovernanceContract {
+  'governance/competences:grantCompetence': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      userId: string;
+      competence: string;
+      expiresAt?: number;
+      evidence?: string;
+    };
+    returns: { recordId: string };
+  };
+  'governance/competences:listCompetences': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: CompetenceRecordWire[];
+  };
+  'governance/competences:revokeCompetence': {
+    kind: 'mutation';
+    args: { organizationId: string; recordId: string };
+    returns: null;
+  };
   'governance/dsar_policy:cancelPendingDsarPolicyChange': {
     kind: 'mutation';
     args: { organizationId: string };

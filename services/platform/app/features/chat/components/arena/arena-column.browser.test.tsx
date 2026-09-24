@@ -176,9 +176,16 @@ describe('ArenaColumn send', () => {
         interval: 50,
       })
       .toBeLessThanOrEqual(2);
-    expect(
-      log.scrollHeight - log.scrollTop - log.clientHeight,
-    ).toBeLessThanOrEqual(1);
+    // The glide eases frame by frame, so the bubble is within 2px of the top
+    // a frame or two before the column comes to rest at its end; wait for the
+    // landing rather than reading the scroll mid-flight (a slow runner caught
+    // it 2px short).
+    await expect
+      .poll(() => log.scrollHeight - log.scrollTop - log.clientHeight, {
+        timeout: 2000,
+        interval: 50,
+      })
+      .toBeLessThanOrEqual(1);
   });
 
   it('hands the bubble to the real rows in place', async () => {
