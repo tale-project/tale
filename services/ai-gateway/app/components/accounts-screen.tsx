@@ -111,7 +111,7 @@ export function AccountsScreen({
         // an e-mail address. No column here is the flex one, so every `size`
         // is a proportion of the width the table gets — and together they
         // are the min-width it is summed from.
-        size: 320,
+        size: 300,
         meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {
           const { accountEmail, label, provider } = row.original;
@@ -152,11 +152,11 @@ export function AccountsScreen({
         id: 'status',
         accessorFn: (account) => account.status,
         header: t('columns.status'),
-        // A glyph and one short phrase. Sized for the English and German
-        // labels on one line; the longest French one ("Réautorisation
-        // nécessaire") wraps to two, which the row already has room for —
-        // a wider column would be empty gutter on every other row.
-        size: 150,
+        // A glyph and one short phrase. Sized so the common labels sit on one
+        // line; the longest ("Letzter Aufruf fehlgeschlagen", "Réautorisation
+        // nécessaire") wrap to two, which the row already has room for — a
+        // wider column would be empty gutter on every other row.
+        size: 170,
         // `icon-text`: the loaded cell is a glyph plus one phrase, not a pill.
         meta: {
           className: 'overflow-hidden',

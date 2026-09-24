@@ -62,7 +62,10 @@ The dev server up on :3004 per [`../setup.md`](../setup.md), devtools open, a
 - [ ] `SMOKE-15` · **Narrow the viewport until the Status column loses its
   words** → each row still says which state it is in: a tick, a warning
   triangle or a cross, in the state's own colour, and hovering one names it.
-  The column never shows a bare dot with no other cue.
+  The column never shows a bare dot with no other cue. Widen it again at
+  1440 px in each language: every label reads whole, the longest ones
+  ("Letzter Aufruf fehlgeschlagen", "Réautorisation nécessaire") on two
+  lines rather than cut off.
 - [ ] `SMOKE-16` · **Hover a date in the last column** → the exact instant,
   with the time, in the language the panel is set to — a German panel gives
   `22. Oktober 2026 06:25`, an English one `October 22, 2026 6:25 AM`.
