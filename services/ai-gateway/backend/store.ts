@@ -53,8 +53,11 @@ const accountSchema = z.object({
   accountId: z.string().nullable(),
   // A document written before the plan had a column of its own carries a
   // `plan` string instead — for an Anthropic account, the organization's
-  // NAME. The object strips that key on read, and the next pass reads the
+  // NAME. It reads as null whatever it held, and the next pass reads the
   // subscription afresh, so no row keeps showing an org name as its plan.
+  // It is still WRITTEN, as null: 0.5.53 and earlier require the key, so a
+  // document without it would leave a rolled-back gateway reading nothing.
+  plan: z.unknown().transform(() => null),
   subscription: subscriptionSchema.nullable().default(null),
   /** When the vendor was last asked who the account is and what it pays for. */
   identityCheckedAt: z.string().nullable().default(null),

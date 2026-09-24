@@ -21,6 +21,7 @@ function account(overrides: Partial<StoredAccount> = {}): StoredAccount {
     label: 'you@example.com',
     accountEmail: 'you@example.com',
     accountId: null,
+    plan: null,
     subscription: null,
     identityCheckedAt: null,
     accessToken: 'v1.sealed.access',
@@ -225,7 +226,7 @@ describe('createFileAccountStore', () => {
     );
 
     const [read] = await store.listAccounts();
-    expect(read).not.toHaveProperty('plan');
+    expect(read?.plan).toBeNull();
     expect(read?.subscription).toBeNull();
     expect(read?.identityCheckedAt).toBeNull();
     expect(read?.usage?.windows[0]?.windowSeconds).toBeNull();

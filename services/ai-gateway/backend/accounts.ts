@@ -473,6 +473,7 @@ export function createAccountService(
       label: defaultLabel(pending.provider, exchange.identity),
       accountEmail: null,
       accountId: null,
+      plan: null,
       subscription: null,
       identityCheckedAt: null,
       accessToken: '',
@@ -702,8 +703,11 @@ export function createAccountService(
         await store.addPending({
           ...entry,
           flow: 'device',
-          codeVerifier: '',
-          redirectUri: '',
+          // Unused by the device flow — OpenAI hands the verifier back with
+          // the approved code — and filled only because 0.5.53 and earlier
+          // require both, so a rolled-back gateway can still read the file.
+          codeVerifier: 'device',
+          redirectUri: request.verificationUrl,
           deviceAuthId: cipher.seal(request.deviceAuthId),
           userCode: request.userCode,
           pollIntervalSeconds: request.intervalSeconds,
