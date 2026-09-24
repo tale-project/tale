@@ -194,6 +194,20 @@ export function CompetencesPage({ organizationId }: Props) {
         description: mapCompetenceError(err, t),
         variant: 'destructive',
       });
+      // A refusal often means someone else changed the grant meanwhile
+      // (already revoked, gone): refresh, and drop the dialog when there is
+      // no longer anything live to revoke.
+      const refreshed = await competences.refetch();
+      const current = refreshed.data?.find(
+        (record) => record.id === revokeTarget.record.id,
+      );
+      if (
+        refreshed.data !== undefined &&
+        (current === undefined ||
+          competenceRecordStatus(current, Date.now()) !== 'active')
+      ) {
+        setRevokeTarget(null);
+      }
     } finally {
       setRevoking(false);
     }

@@ -142,11 +142,10 @@ describe('CompetencesPage', () => {
     );
   });
 
-  it('keeps the dialog and explains a refused revocation', async () => {
+  it('keeps the dialog while the refused grant is still live', async () => {
     state.records = [record({ id: 'live' })];
-    state.revoke.mockRejectedValue({
-      data: { code: 'COMPETENCE_ALREADY_REVOKED' },
-    });
+    state.revoke.mockRejectedValue({ data: { code: 'COMPETENCE_FORBIDDEN' } });
+    state.refetch.mockResolvedValue({ data: [record({ id: 'live' })] });
     const { user } = render(<CompetencesPage organizationId="org-a" />);
 
     await user.click(screen.getByRole('button', { name: /^Revoke Act for/ }));
@@ -156,11 +155,41 @@ describe('CompetencesPage', () => {
     expect(state.toast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Couldn't revoke the competence",
+        description:
+          'Only organization owners and admins can grant or revoke competences.',
+        variant: 'destructive',
+      }),
+    );
+    expect(state.refetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('refreshes and closes when another admin revoked the grant first', async () => {
+    state.records = [record({ id: 'live' })];
+    state.revoke.mockRejectedValue({
+      data: { code: 'COMPETENCE_ALREADY_REVOKED' },
+    });
+    state.refetch.mockResolvedValue({
+      data: [
+        record({ id: 'live', revokedAt: NOW - 1000, revokedBy: 'user-admin' }),
+      ],
+    });
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    await user.click(screen.getByRole('button', { name: /^Revoke Act for/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke' }));
+
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
         description: 'This grant has already been revoked.',
         variant: 'destructive',
       }),
     );
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(state.refetch).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
   });
 
   it('turns away a member who may not manage organization settings', () => {
