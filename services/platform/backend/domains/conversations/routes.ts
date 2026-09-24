@@ -459,6 +459,7 @@ export function createConversationRoutes(deps: {
       .object({
         contactId: z.string().min(1).max(64),
         connectorName: z.string().min(1).max(128),
+        credentialId: z.string().min(1).max(128).optional(),
         subject: z.string().min(1).max(1000),
         content: z.string().min(1).max(200_000),
         sourceMarkdown: z.string().max(200_000).optional(),
@@ -475,6 +476,9 @@ export function createConversationRoutes(deps: {
         organizationId: c.get('orgId'),
         contactId: body.data.contactId,
         connectorName: body.data.connectorName,
+        ...(body.data.credentialId !== undefined
+          ? { credentialId: body.data.credentialId }
+          : {}),
         subject: body.data.subject,
         content: body.data.content,
         ...(body.data.sourceMarkdown !== undefined

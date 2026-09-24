@@ -29,7 +29,7 @@ The table contains one row per credential. The **Default** badge marks the crede
 
 A connector with several credentials and no default can still serve callers that name a credential. Callers that omit the name need a default. Name accounts clearly before wiring automations so a future administrator can identify the intended account.
 
-Mailbox synchronization and inbox triage can inspect every active credential for a mailbox connector. A second mailbox does not have to become the default before these operations can find it.
+Mailbox synchronization and inbox triage can inspect every active credential for a mailbox connector. A second mailbox does not have to become the default before these operations can find it. When you compose a new email, the **Inbox** field lists each mailbox by its name, and the email leaves from the one you choose. Replies in that conversation, including a retry of a failed send, leave from the same mailbox.
 
 ## Rotate a secret or pause access
 

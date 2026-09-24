@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 42 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -334,6 +334,18 @@ rows lead with the subject.
   acknowledged it; **Undo** inside the window removes it. Send another and have
   the app fail it permanently → The bubble stays, marked not delivered, with
   **Retry** and **Discard**.
+
+- [ ] `CONV-F23` · **Compose sends from the mailbox you pick** — With TWO
+  mailboxes on one email connector (A the default, B not), open **Compose** →
+  The **Inbox** field (`conversations.compose.inboxLabel`) lists both by name,
+  each with its address. Pick B and send → The email arrives from B's address,
+  the new thread's header names B, and a reply on that thread before the
+  correspondent answers also leaves from B. Close and reopen Compose with a
+  draft on B → B is still selected.
+- [ ] `CONV-F24` · **A retry leaves from the same mailbox** — With the same two
+  mailboxes, make a send through B fail (for example, stop B's SMTP host), then
+  restore it and choose **Retry** on the failed bubble → The email arrives from
+  B, not from the default A.
 
 ## Boundary & error tests
 

@@ -140,8 +140,17 @@ export function ComposeEmailPane({
     `${draftPrefix}-contact`,
     initialContactId ?? '',
   );
-  const [connectorName, setConnectorName, clearConnectorName] =
-    usePersistedState(`${draftPrefix}-inbox`, '');
+  // The chosen mailbox, by credential id. A draft from before one connector
+  // could hold several mailboxes stored the connector slug under `-inbox`;
+  // that key is only read to resume such a draft.
+  const [mailboxId, setMailboxId, clearMailboxId] = usePersistedState(
+    `${draftPrefix}-mailbox`,
+    '',
+  );
+  const [legacyInbox, , clearLegacyInbox] = usePersistedState(
+    `${draftPrefix}-inbox`,
+    '',
+  );
   const [senderAddress, setSenderAddress, clearSenderAddress] =
     usePersistedState(`${draftPrefix}-sender`, '');
   const [subject, setSubject, clearSubject] = usePersistedState(
@@ -232,22 +241,41 @@ export function ComposeEmailPane({
   }, [initialContactId, setContactId]);
 
   const selectedConnector = useMemo(
-    () => emailConnectors.find((i) => i.slug === connectorName) ?? null,
-    [emailConnectors, connectorName],
+    () => emailConnectors.find((i) => i.credentialId === mailboxId) ?? null,
+    [emailConnectors, mailboxId],
   );
 
-  // Once inboxes load: keep the persisted inbox only if it's still connected,
-  // else auto-select the sole inbox (or clear when there's a choice to make).
+  // Once mailboxes load: keep the persisted mailbox only if it can still send.
+  // Otherwise resume a legacy draft on its connector's only mailbox, else
+  // auto-select the sole mailbox (or clear when there's a choice to make). A
+  // mailbox that went away takes its sender override with it.
   useEffect(() => {
     if (connectorsLoading) return;
-    const stillConnected =
-      connectorName !== '' &&
-      emailConnectors.some((i) => i.slug === connectorName);
-    if (stillConnected) return;
-    setConnectorName(
-      emailConnectors.length === 1 ? emailConnectors[0].slug : '',
-    );
-  }, [connectorsLoading, emailConnectors, connectorName, setConnectorName]);
+    if (
+      mailboxId !== '' &&
+      emailConnectors.some((i) => i.credentialId === mailboxId)
+    ) {
+      return;
+    }
+    const onLegacySlug = emailConnectors.filter((i) => i.slug === legacyInbox);
+    const next =
+      onLegacySlug.length === 1
+        ? onLegacySlug[0]
+        : emailConnectors.length === 1
+          ? emailConnectors[0]
+          : undefined;
+    if (legacyInbox !== '') clearLegacyInbox();
+    if (mailboxId !== '') clearSenderAddress();
+    setMailboxId(next?.credentialId ?? '');
+  }, [
+    connectorsLoading,
+    emailConnectors,
+    mailboxId,
+    legacyInbox,
+    setMailboxId,
+    clearLegacyInbox,
+    clearSenderAddress,
+  ]);
 
   // Sender is an OVERRIDE over the inbox's configured address: empty means "use
   // the inbox default", so switching inbox (which clears the override) falls
@@ -266,27 +294,29 @@ export function ComposeEmailPane({
   const hasEmailConnector = emailConnectors.length > 0;
   const canSend = Boolean(
     contactId &&
-    connectorName &&
+    selectedConnector &&
     subject.trim() &&
     hasEmailConnector &&
     senderValid,
   );
 
-  const handleInboxChange = (slug: string) => {
-    setConnectorName(slug);
+  const handleInboxChange = (credentialId: string) => {
+    setMailboxId(credentialId);
     clearSenderAddress();
   };
 
   const clearDraftFields = useCallback(() => {
     clearContactId();
-    clearConnectorName();
+    clearMailboxId();
+    clearLegacyInbox();
     clearSenderAddress();
     clearSubject();
     clearAssigneeUserId();
     clearAssigneeTeamId();
   }, [
     clearContactId,
-    clearConnectorName,
+    clearMailboxId,
+    clearLegacyInbox,
     clearSenderAddress,
     clearSubject,
     clearAssigneeUserId,
@@ -361,7 +391,7 @@ export function ComposeEmailPane({
     attachments?: AttachedFile[],
     sourceMarkdown?: string,
   ) => {
-    if (!contactId || !connectorName || !subject.trim()) return;
+    if (!contactId || !selectedConnector || !subject.trim()) return;
 
     let uploaded: UploadedAttachment[] | undefined;
     if (attachments && attachments.length > 0) {
@@ -378,7 +408,8 @@ export function ComposeEmailPane({
       const result = await composeEmail({
         organizationId,
         contactId: contactId,
-        connectorName,
+        connectorName: selectedConnector.slug,
+        credentialId: selectedConnector.credentialId,
         subject: subject.trim(),
         content: message,
         ...(sourceMarkdown ? { sourceMarkdown } : {}),
@@ -562,10 +593,10 @@ export function ComposeEmailPane({
                     <SearchableSelect
                       label={t('compose.inboxLabel')}
                       required
-                      value={connectorName || null}
+                      value={mailboxId || null}
                       onValueChange={handleInboxChange}
                       options={emailConnectors.map((i) => ({
-                        value: i.slug,
+                        value: i.credentialId,
                         label: i.title,
                         description: i.fromAddress,
                       }))}

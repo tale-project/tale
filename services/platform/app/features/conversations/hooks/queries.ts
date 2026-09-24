@@ -96,9 +96,10 @@ export function useComposeContactName(
 const EMAIL_PROVIDER_SLUGS = new Set(['gmail', 'outlook', 'imap-smtp']);
 
 /**
- * The inboxes the compose dialog can send through — the Inbox's connected
+ * The mailboxes the compose dialog can send through — the Inbox's connected
  * providers from installed inbox automations' `requiredConnectors`, resolved
- * against active connector credentials.
+ * against active connector credentials. One option per credential, not per
+ * connector: an organization may hold several mailboxes on one connector.
  */
 export function useEmailConnectors(organizationId: string): {
   emailConnectors: EmailConnectorOption[];
@@ -129,22 +130,20 @@ export function useEmailConnectors(organizationId: string): {
   const emailConnectors = useMemo(() => {
     if (!credentials || providerSlugs.length === 0)
       return EMPTY_EMAIL_CONNECTORS;
-    const bySlug = new Map(
-      credentials
-        .filter((row) => row.status === 'active')
-        .map((row) => [row.connectorSlug, row]),
-    );
+    const active = credentials.filter((row) => row.status === 'active');
     const options: EmailConnectorOption[] = [];
     for (const slug of providerSlugs) {
-      const row = bySlug.get(slug);
-      if (!row) continue;
-      options.push(
-        resolvedEmailOption(slug, {
-          title: row.name,
-          type: slug === 'imap-smtp' ? 'imap_smtp' : 'oauth',
-          connectionConfig: row.config,
-        }),
-      );
+      for (const row of active) {
+        if (row.connectorSlug !== slug) continue;
+        options.push({
+          ...resolvedEmailOption(slug, {
+            title: row.name,
+            type: slug === 'imap-smtp' ? 'imap_smtp' : 'oauth',
+            connectionConfig: row.config,
+          }),
+          credentialId: row.id,
+        });
+      }
     }
     return options.length === 0 ? EMPTY_EMAIL_CONNECTORS : options;
   }, [credentials, providerSlugs]);

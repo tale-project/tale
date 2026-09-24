@@ -9,7 +9,10 @@
  *
  * 1. The credential recorded on the thread's newest INBOUND message (0113).
  *    The newest wins: a thread moved to another mailbox answers from where it
- *    now arrives. An outbound row names where we sent, not where they wrote.
+ *    now arrives. Where they wrote beats where we sent, so an inbound stamp
+ *    wins over any outbound one. A thread with no inbound stamp — one composed
+ *    in Tale and not yet answered — takes the credential its newest outbound
+ *    message was sent through.
  * 2. For a thread with no recorded credential (its messages predate 0113):
  *    the active credential whose mailbox address is the address on our side
  *    of the envelope. Only an exact, unique match counts — two mailboxes
@@ -35,6 +38,52 @@ export interface MailboxThread {
 function normalizedAddress(address: string | undefined): string | undefined {
   const trimmed = address?.trim().toLowerCase();
   return trimmed ? trimmed : undefined;
+}
+
+/** A mailbox's own address as answer 2 compares it: its configured
+ *  `fromAddress`, trimmed and lowercased. */
+export function mailboxAddressOf(row: {
+  config: Record<string, string | number | boolean> | null;
+}): string | undefined {
+  return normalizedAddress(
+    storedImapFromAddress({ config: row.config ?? undefined }),
+  );
+}
+
+/**
+ * Answer 1 as SQL, for one row of `app.conversations` (referenced unaliased
+ * as `conversations`). ONE fragment, shared by every statement that asks it,
+ * so the resolver and the Inbox filter cannot disagree about a thread.
+ */
+export function recordedCredentialSql(sql: Sql) {
+  return sql`(
+    SELECT m.credential_id FROM app.conversation_messages m
+    WHERE m.conversation_id = conversations.id
+      AND m.org_id = conversations.org_id
+      AND m.credential_id IS NOT NULL
+    ORDER BY (m.direction = 'inbound') DESC,
+      coalesce(m.sent_at_ms, m.delivered_at_ms, m.created_at_ms) DESC,
+      m.seq DESC
+    LIMIT 1
+  )`;
+}
+
+/**
+ * Answer 1 for a thread the caller already holds, oldest message first
+ * (`listConversationMessages` order).
+ */
+export function newestRecordedCredential(
+  messages: readonly {
+    direction: 'inbound' | 'outbound';
+    credentialId: string | null;
+  }[],
+): string | undefined {
+  const newest =
+    messages.findLast(
+      (message) =>
+        message.direction === 'inbound' && message.credentialId !== null,
+    ) ?? messages.findLast((message) => message.credentialId !== null);
+  return newest?.credentialId ?? undefined;
 }
 
 function isEmailThread(thread: MailboxThread): boolean {
@@ -85,9 +134,7 @@ async function matchByAddress(
     const matches = mailboxes.filter(
       (mailbox) =>
         mailbox.connectorSlug === thread.connectorSlug &&
-        normalizedAddress(
-          storedImapFromAddress({ config: mailbox.config ?? undefined }),
-        ) === thread.address,
+        mailboxAddressOf(mailbox) === thread.address,
     );
     const [only] = matches;
     if (only !== undefined && matches.length === 1) {
@@ -110,20 +157,18 @@ export async function resolveThreadCredentials(
   if (email.length === 0) return resolved;
 
   const recorded = await sql<
-    { conversationId: string; credentialId: string }[]
+    { conversationId: string; credentialId: string | null }[]
   >`
-    SELECT DISTINCT ON (conversation_id)
-      conversation_id AS "conversationId", credential_id AS "credentialId"
-    FROM app.conversation_messages
+    SELECT id AS "conversationId",
+      ${recordedCredentialSql(sql)} AS "credentialId"
+    FROM app.conversations
     WHERE org_id = ${organizationId}
-      AND conversation_id = ANY(${email.map((thread) => thread.id)})
-      AND direction = 'inbound'
-      AND credential_id IS NOT NULL
-    ORDER BY conversation_id,
-      coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC, seq DESC
+      AND id = ANY(${email.map((thread) => thread.id)})
   `;
   for (const row of recorded) {
-    resolved.set(row.conversationId, row.credentialId);
+    if (row.credentialId !== null) {
+      resolved.set(row.conversationId, row.credentialId);
+    }
   }
 
   await matchByAddress(
@@ -149,11 +194,8 @@ export async function resolveHeldThreadCredential(
   }[],
 ): Promise<string | undefined> {
   if (!isEmailThread(thread)) return undefined;
-  const newest = messages.findLast(
-    (message) =>
-      message.direction === 'inbound' && message.credentialId !== null,
-  );
-  if (newest?.credentialId) return newest.credentialId;
+  const recorded = newestRecordedCredential(messages);
+  if (recorded !== undefined) return recorded;
 
   const resolved = new Map<string, string>();
   await matchByAddress(sql, organizationId, [thread], resolved);
