@@ -407,7 +407,7 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 
 Ein Dienst, der Benachrichtigungen spiegelt, braucht kein Admin-Konto. Mit der Admin-Rolle lassen sich auch Mitglieder, Single Sign-on und SCIM verwalten und Passwörter rangniedrigerer Mitglieder zurücksetzen. Betreibe den Dienst deshalb als gewöhnliches Mitglied und erteile diesem Mitglied genau die Berechtigung, die der Export prüft. Sie ist ein Eintrag im Kompetenzregister der Organisation: Sie gilt nur in dieser Organisation, wird protokolliert, kann ein Ablaufdatum haben und wird automatisch widerrufen, wenn ein Admin das Mitglied entfernt oder dein Identitätsanbieter die Mitgliedschaft per SCIM aufhebt.
 
-Ein Inhaber oder Admin erteilt sie aus einer aktiven Sitzung. `TALE_ORIGIN` ist der Ursprung deiner Tale-Instanz, `TALE_SESSION_COOKIE` der Cookie-Header dieser Sitzung. `TALE_ORG_ID` und `TALE_WORKER_USER_ID` sind die Werte `organization.id` und `user.id`, die `GET /api/v1/me` für den Schlüssel des Dienstes liefert:
+Ein Inhaber oder Admin erteilt sie unter **Einstellungen > Richtlinien > Kompetenzen** ([Kompetenzen](/de/platform/admin/governance/competences)) oder per HTTP aus einer aktiven Sitzung. `TALE_ORIGIN` ist der Ursprung deiner Tale-Instanz, `TALE_SESSION_COOKIE` der Cookie-Header dieser Sitzung. `TALE_ORG_ID` und `TALE_WORKER_USER_ID` sind die Werte `organization.id` und `user.id`, die `GET /api/v1/me` für den Schlüssel des Dienstes liefert:
 
 ```bash
 GRANT_BODY=$(jq -n --arg user "$TALE_WORKER_USER_ID" \
