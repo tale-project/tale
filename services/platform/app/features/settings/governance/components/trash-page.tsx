@@ -211,7 +211,7 @@ export function TrashPage({ organizationId }: Props) {
               variant="muted"
               truncate
               title={label}
-              className="text-xs"
+              className="block text-xs"
             >
               {label}
             </Text>
@@ -230,7 +230,12 @@ export function TrashPage({ organizationId }: Props) {
         cell: ({ row }) => {
           const name = row.original.displayName ?? row.original.id;
           return (
-            <Text as="span" truncate title={name} className="font-mono text-xs">
+            <Text
+              as="span"
+              truncate
+              title={name}
+              className="block font-mono text-xs"
+            >
               {name}
             </Text>
           );
@@ -240,17 +245,28 @@ export function TrashPage({ organizationId }: Props) {
       {
         id: 'owner',
         header: t('trash.column.owner', 'Owner'),
-        cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="muted"
-            truncate
-            className={row.original.ownerName ? 'text-xs' : 'font-mono text-xs'}
-          >
-            {row.original.ownerName ?? row.original.ownerId ?? '—'}
-          </Text>
-        ),
-        size: 130,
+        // `block`, like every text cell here: `truncate` only clips a box
+        // with the cell's width — as a bare inline span, an owner name that
+        // is one unbreakable token painted over the Status badge.
+        cell: ({ row }) => {
+          const owner = row.original.ownerName ?? row.original.ownerId ?? '—';
+          return (
+            <Text
+              as="span"
+              variant="muted"
+              truncate
+              title={owner}
+              className={
+                row.original.ownerName
+                  ? 'block text-xs'
+                  : 'block font-mono text-xs'
+              }
+            >
+              {owner}
+            </Text>
+          );
+        },
+        size: 180,
       },
       {
         id: 'status',
@@ -330,7 +346,7 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      {/* `fullWidth`: the trash columns declare a ~890px size floor
+      {/* `fullWidth`: the trash columns declare a ~940px size floor
           (type/name/owner/status/trashed + the labelled Restore button) —
           wider than the `max-w-3xl` other settings pages standardized on
           (#2567), and clipping it hides the one control the page exists for.

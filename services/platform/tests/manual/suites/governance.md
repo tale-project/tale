@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 41 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -336,6 +336,11 @@ select lists only the current admin's keys (`useApiKeys`).
   reports **"Names starting with "tale:" are reserved for platform
   capabilities."** (`governance.competences.grantDialog.validation.qualificationReserved`)
   and **Grant** stays disabled.
+- [ ] `GOV-B10` · **Long owners in the trash** — `trash` with a trashed row
+  whose owner is a long unbroken address (a test account's email will do) →
+  The **Owner** cell (`governance.trash.column.owner`) ends in an ellipsis
+  inside its own column, never over the **Trashed** badge
+  (`governance.trash.status.trashed`); hovering it shows the full owner.
 
 ## Accessibility (WCAG 2.1 AA)
 

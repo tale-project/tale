@@ -146,7 +146,7 @@ describe('TrashPage', () => {
     // The trash table scrolls its own rows, the way the Logs table does: the
     // section header, the column headers and the count footer stay put while
     // the rows move. Without the scrollport the settings pane scrolls instead
-    // and the 890px column set — Restore included — hides behind a horizontal
+    // and the 940px column set — Restore included — hides behind a horizontal
     // scrollbar.
     mockListTrashedRows.mockReturnValue({
       data: {
@@ -211,5 +211,40 @@ describe('TrashPage', () => {
     expect(screen.getByText('5 minutes ago')).toBeInTheDocument();
     // Null date -> the shared cell's em-dash fallback (no NaN/crash).
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  // Regression: owner names that are one unbreakable token (an address, an
+  // account slug) ran out of their cell and painted over the Status badge,
+  // because `truncate` on a bare inline span never clips. Each text cell is
+  // a block that truncates, and the owner keeps its full value on hover.
+  it('clips a long owner name inside its own cell', () => {
+    const owner = 'eval-ui-full-20260920-account-with-a-very-long-name';
+    mockListTrashedRows.mockReturnValue({
+      data: {
+        rows: [
+          {
+            resourceType: 'thread' as const,
+            id: '136b362b-6aa9-4d5f-9f74-5e8d48044602',
+            status: 'trashed' as const,
+            statusChangedAt: Date.now(),
+            createdAt: Date.now(),
+            displayName: null,
+            ownerId: 'user-1',
+            ownerName: owner,
+          },
+        ],
+        nextCursor: null,
+      },
+      isLoading: false,
+    });
+
+    render(<TrashPage organizationId="org-1" />);
+
+    const ownerCell = screen.getByText(owner);
+    expect(ownerCell).toHaveClass('block', 'truncate');
+    expect(ownerCell).toHaveAttribute('title', owner);
+    expect(
+      screen.getByText('136b362b-6aa9-4d5f-9f74-5e8d48044602'),
+    ).toHaveClass('block', 'truncate');
   });
 });
