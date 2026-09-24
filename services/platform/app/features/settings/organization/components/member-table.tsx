@@ -18,10 +18,10 @@ import { useMemo, useCallback, useState } from 'react';
 
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
-import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
 import { useRemoveMember } from '../hooks/mutations';
 import { MemberRowActions } from './member-row-actions';
+import { RoleBadge } from './role-badge';
 
 type Member = {
   _id: string;
@@ -124,21 +124,7 @@ export function MemberTable({
             badge: { variant: 'slate', className: 'rounded-full px-2' },
           },
         },
-        cell: ({ row }) => {
-          const role = row.original.role;
-          const roleKey = role
-            ? (`roles.${role.toLowerCase()}` as const)
-            : 'roles.disabled';
-          return (
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getRoleBadgeClasses(
-                role,
-              )}`}
-            >
-              {tSettings(roleKey as Parameters<typeof tSettings>[0])}
-            </span>
-          );
-        },
+        cell: ({ row }) => <RoleBadge role={row.original.role} />,
         size: 112,
       },
       {
@@ -172,7 +158,7 @@ export function MemberTable({
         ),
       },
     ],
-    [memberContext, tTables, tSettings],
+    [memberContext, tTables],
   );
 
   // Same list shape as the Teams table: search and pagination come from the

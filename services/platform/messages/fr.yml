@@ -5164,6 +5164,13 @@ settings:
       namePlaceholder: Entre ton nom
       email: Courriel
       nameRequired: Le nom est requis
+    role:
+      title: Ton rôle
+      description: Ton rôle détermine ce que tu peux faire dans cette
+        organisation. Les admins l’attribuent dans Paramètres › Membres. Avec
+        l’authentification unique, ton fournisseur d’identité peut aussi le
+        définir.
+      manageLink: Gérer les membres
     teams:
       title: Tes équipes
       description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."

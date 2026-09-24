@@ -23,6 +23,10 @@ Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder e
 
 Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst.
 
+## Deine Rolle sehen {#role}
+
+Unter **Einstellungen > Konto > Deine Rolle** steht deine Rolle in dieser Organisation, zum Beispiel Redakteur oder Mitglied. Die Rolle bestimmt, was du tun darfst; deine Teams bestimmen, welche Team-Inhalte du siehst. Admins vergeben Rollen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles). Mit Single Sign-On kann auch dein Identity-Provider deine Rolle bei jeder Anmeldung festlegen. Inhaber und Admins sehen im Abschnitt den Link **Mitglieder verwalten**.
+
 ## Deine Teams sehen {#teams}
 
 Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du gehörst. Teams bestimmen, welche Team-Dokumente, Projekte und Posteingangs-Warteschlangen du siehst; was mit der ganzen Organisation geteilt ist, siehst du in jedem Fall. Bist du in keinem Team, sagt der Abschnitt das.

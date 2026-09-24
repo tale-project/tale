@@ -44,6 +44,8 @@ After adding a person, assign the teams they need. A role alone does not put the
 | **Member** | Use chat and read resources shared with them | No organization administration; can submit message feedback. |
 | **Disabled** | No active access | Retains the membership record without granting permissions. |
 
+People who are not Owners or Admins cannot open **Settings > Members**; they see their own role under [**Settings > Account > Your role**](/platform/member/preferences#role).
+
 These are role capabilities, not a promise that every record is visible. Conversation reads follow assignment: a person sees work assigned to them or their teams; unassigned conversations remain with Owners and Admins for triage. See [conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing).
 
 Audit-log viewing is restricted to Owners and Admins. Actions by other roles can still produce audit entries; producing an entry does not grant access to the log.

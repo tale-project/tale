@@ -44,6 +44,8 @@ Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allei
 | **Mitglied** | Chat nutzen und freigegebene Ressourcen lesen | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
 | **Deaktiviert** | Kein aktiver Zugriff | Der Mitgliedschaftseintrag bleibt bestehen, ohne Rechte zu gewähren. |
 
+Wer weder Inhaber noch Admin ist, kann **Einstellungen > Mitglieder** nicht öffnen und sieht die eigene Rolle unter [**Einstellungen > Konto > Deine Rolle**](/de/platform/member/preferences#role).
+
 Die Rolle beschreibt Befugnisse, nicht die Sichtbarkeit jedes Datensatzes. Konversationen folgen ihrer Zuweisung: Eine Person sieht Arbeit, die ihr oder ihren Teams zugewiesen ist. Nicht zugewiesene Konversationen bleiben Inhabern und Admins zur Sichtung vorbehalten. Siehe [Konversationen zuweisen](/de/platform/admin/governance/policies-and-limits#konversations-routing).
 
 Nur Inhaber und Admins können Audit-Protokolle lesen. Aktionen anderer Rollen können trotzdem Einträge erzeugen. Einen Eintrag auszulösen berechtigt nicht dazu, das Protokoll zu öffnen.

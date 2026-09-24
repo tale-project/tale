@@ -23,6 +23,10 @@ Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’in
 
 Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu.
 
+## Voir ton rôle {#role}
+
+**Paramètres > Compte > Ton rôle** affiche ton rôle dans cette organisation, par exemple Éditeur ou Membre. Ton rôle détermine ce que tu peux faire ; tes équipes déterminent quels contenus d’équipe tu vois. Les admins attribuent les rôles dans [Membres et rôles](/fr/platform/admin/members-and-roles). Avec l’authentification unique, ton fournisseur d’identité peut aussi définir ton rôle à chaque connexion. Les propriétaires et les admins voient le lien **Gérer les membres** dans la section.
+
 ## Voir tes équipes {#teams}
 
 **Paramètres > Compte > Tes équipes** liste les équipes dont tu fais partie. Les équipes déterminent quels documents d’équipe, projets et files de la boîte de réception tu vois ; ce qui est partagé avec toute l’organisation te reste visible dans tous les cas. Si tu n’es dans aucune équipe, la section le dit.

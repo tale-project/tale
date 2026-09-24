@@ -5231,6 +5231,12 @@ settings:
       namePlaceholder: Enter your name
       email: Email
       nameRequired: Name is required
+    role:
+      title: Your role
+      description: Your role decides what you can do in this organization.
+        Admins assign it under Settings › Members. With single sign-on, your
+        identity provider can also set it.
+      manageLink: Manage members
     teams:
       title: Your teams
       description: Teams decide which team documents, projects and inbox

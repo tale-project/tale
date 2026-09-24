@@ -5091,6 +5091,12 @@ settings:
       namePlaceholder: Gib deinen Namen ein
       email: E-Mail
       nameRequired: Name ist erforderlich
+    role:
+      title: Deine Rolle
+      description: Deine Rolle bestimmt, was du in dieser Organisation tun
+        kannst. Admins vergeben sie unter Einstellungen › Mitglieder. Mit Single
+        Sign-On kann auch dein Identity-Provider sie festlegen.
+      manageLink: Mitglieder verwalten
     teams:
       title: Deine Teams
       description: Teams bestimmen, welche Team-Dokumente, Projekte und

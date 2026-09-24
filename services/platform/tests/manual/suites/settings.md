@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 69 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 70 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -523,6 +523,15 @@ any toggled setting after the run.
   (`settings.enterpriseSso.roleMapping.removeRule`) deletes only that row.
   With an IdP at hand, a user matching two rules signs in with the higher
   rule's role.
+- [ ] `SET-F45` · **Your role on the account page** —
+  `/dashboard/{org}/settings/account` (its `#role` anchor) as an editor, then
+  as an owner → The **Your role** section (`settings.account.role.title`, its
+  description `settings.account.role.description`) sits above **Your teams**
+  and shows the role as a translated badge (`settings.roles.editor`, never the
+  raw `editor`); only the owner sees **Manage members**
+  (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
+  hovering the name in the profile menu reads the name and the same translated
+  role.
 
 ## Boundary & error tests
 
