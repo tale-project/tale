@@ -11,32 +11,40 @@ A list page helps someone find an item, inspect it, or create another. Start wit
 
 This frame is an inert layout illustration. The header contains the title; the table toolbar contains search and the create action. For a working search interaction, use the [Data table example](/docs/components/data-table).
 
-The following excerpt assumes the host supplies columns, filtered rows, query state, and `openCreate`:
+The following excerpt assumes the host supplies `columns`, the loaded `rows` (`undefined` while the first request is pending), and `openCreate`:
 
 ```tsx
-<PageLayout
-  header={
-    <AdaptiveHeaderRoot showBorder>
-      <AdaptiveHeaderTitle>Automations</AdaptiveHeaderTitle>
-    </AdaptiveHeaderRoot>
-  }
->
-  <ContentArea variant="list">
-    <DataTable
-      stickyLayout
-      columns={columns}
-      data={rows}
-      getRowId={(row) => row.id}
-      caption="Automations"
-      search={{ value: query, onChange: setQuery }}
-      addAction={{ label: 'New automation', onClick: openCreate }}
-      emptyState={{ title: 'No automations yet' }}
-    />
-  </ContentArea>
-</PageLayout>
+const list = useListPage({
+  dataSource: { type: 'query', data: rows },
+  pageSize: DEFAULT_LIST_PAGE_SIZE,
+  search: { fields: ['name'], placeholder: 'Search automations' },
+  getRowId: (row) => row.id,
+  entityLabel: { one: 'automation', other: 'automations' },
+});
+
+return (
+  <PageLayout
+    header={
+      <AdaptiveHeaderRoot showBorder>
+        <AdaptiveHeaderTitle>Automations</AdaptiveHeaderTitle>
+      </AdaptiveHeaderRoot>
+    }
+  >
+    <ContentArea variant="list">
+      <DataTable
+        stickyLayout
+        {...list.tableProps}
+        columns={columns}
+        caption="Automations"
+        addAction={{ label: 'New automation', onClick: openCreate }}
+        emptyState={{ title: 'No automations yet' }}
+      />
+    </ContentArea>
+  </PageLayout>
+);
 ```
 
-Import these components from their `@tale/ui` subpaths and mount the [adaptive header context and mobile slot](/docs/components/app-shell) in the surrounding application. This fragment is the page body, not a complete app entry point.
+Import these components from their `@tale/ui` subpaths — `useListPage` and `DEFAULT_LIST_PAGE_SIZE` come from `@tale/ui/use-list-page` — and mount the [adaptive header context and mobile slot](/docs/components/app-shell) in the surrounding application. This fragment is the page body, not a complete app entry point.
 
 ## Scroll the rows, not the page
 
@@ -48,9 +56,9 @@ Content the page stacks above the table — a folder breadcrumb, a load-failure 
 
 ## Connect the controls to one data source
 
-The search field and filters describe the rows beneath them. Update the query in their handlers, then filter the complete local dataset or request filtered results from the backend. Reset page or cursor state when the query changes so a new search does not start halfway through the old result set.
+The search field and filters describe the rows beneath them. `useListPage` keeps them honest: it matches the query against the complete set — draining a paginated source first, so a match on a page that has not loaded yet is still found — and starts its window over when the query changes, so a new search never opens halfway through the old result. Search `fields` name the row's own keys, or pass an accessor for a value the row does not carry, such as a label your service translates.
 
-Use `filters`, `dateRange`, and `onClearFilters` for the shared facet controls. Put additional filter-side content in `filtersContent`. Keep shareable filter state in the URL when reloads and copied links should preserve the view.
+A facet that matches one field exactly can live in the hook through `filters.definitions`. Facets your service keeps itself — in the URL, say, or with several values at once — go to the hook as `filters.configs` with an `onClear`, and the rows you hand it are the ones those facets leave. Use `dateRange` and `filtersContent` on the table for the rest. Keep shareable filter state in the URL when reloads and copied links should preserve the view.
 
 `addAction` creates the primary toolbar affordance; it does not open a dialog by itself. Supply `onClick`, `href`, or menu items and derive availability from the host's permission state. Do not duplicate the same create action in the page header.
 
@@ -74,6 +82,6 @@ Choose stable IDs with `getRowId`. Use a named link or action for the item's des
 
 ## Choose paging and prove the states
 
-Use client-side pagination only when the full set is present. For server pages, pass the one-based page and paging callbacks. For cursor sources, append batches through `infiniteScroll` and supply accurate `hasMore` and loading state. Provide singular and plural `entityLabel` values for count copy.
+Every collection screen pages the same way, whatever its source: `useListPage` hands the table a window of rows, loads more as the reader nears the end, and closes the frame on the count footer — "Showing all 12 automations", or "3 of 12" while a search narrows the set. Pass `{ type: 'query', data }` for a set that arrives whole and `{ type: 'paginated', … }` for cursor pages with their status and `loadMore`. Provide singular and plural `entityLabel` values for the footer's copy. Rows that aggregate several entities, such as a folder, can report how many they stand for through `countRow`.
 
 Before shipping, try an initially empty collection, a nonmatching search, a rejected request followed by Retry, and a narrow viewport. Tab to the search, a row action, and the create control. Confirm the host prevents unauthorized writes even if its UI state is bypassed.

@@ -77,6 +77,8 @@ Pass `error` and `onRetry` for a failed query. A load failure should explain rec
 
 ## Pick one paging model
 
+On a collection screen, let [`useListPage`](/docs/patterns/list-page) choose: it drives the cursor model below for an in-memory set and for backend pages alike, so every list loads more on scroll and ends on the same count footer. The table's own models remain for a table outside that pattern.
+
 | Model | Configuration |
 | --- | --- |
 | All rows already loaded | `pagination.clientSide: true`; the table slices the in-memory data. |

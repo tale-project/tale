@@ -2,12 +2,12 @@
 
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useListPage } from '@/app/hooks/use-list-page';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';

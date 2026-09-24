@@ -11,11 +11,11 @@ import {
 } from '@tale/ui/data-table/table-icon-cell';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import {

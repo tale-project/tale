@@ -4,11 +4,11 @@ import { Button, buttonVariants } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { Stack } from '@tale/ui/layout';
+import { useListPage } from '@tale/ui/use-list-page';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';

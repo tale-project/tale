@@ -5,10 +5,28 @@ import type {
   DataTableSearchConfig,
   EntityLabel,
 } from '@tale/ui/data-table/data-table-types';
+import type { SortingState } from '@tanstack/react-table';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { SortingState } from '@/lib/pagination/types';
-import { filterByTextSearch, filterByFields } from '@/lib/utils/filtering';
+import {
+  filterByTextSearch,
+  filterByFields,
+  type SearchAccessor,
+} from '../lib/filtering';
+
+/**
+ * The state behind every collection screen's `DataTable`: search, facets, and
+ * the window of rows the table shows before it loads more on scroll — which is
+ * what ends each list on the same "Showing all N …" footer inside its frame.
+ * One hook, so two lists cannot page or count differently.
+ */
+
+/**
+ * How many rows a list shows before it loads more on scroll. A host that
+ * primes a backend page from a route loader asks for this many, so the first
+ * paint is exactly the window the table renders.
+ */
+export const DEFAULT_LIST_PAGE_SIZE = 20;
 
 // ---------------------------------------------------------------------------
 // Data Source Types
@@ -45,7 +63,12 @@ interface ListFilterDefinition {
 // ---------------------------------------------------------------------------
 
 interface ManagedSearch<TData> {
-  fields: (keyof TData & string)[];
+  /**
+   * What the query matches against: a row's own keys, or an accessor for a
+   * value the row does not carry as a field — a label the host translates, a
+   * related record's name.
+   */
+  fields: (Extract<keyof TData, string> | SearchAccessor<TData>)[];
   placeholder?: string;
 }
 
@@ -236,11 +259,7 @@ export function useListPage<TData>(
 
     // Apply managed text search
     if (search && isManagedSearch<TData>(search) && searchValue) {
-      data = filterByTextSearch(
-        data,
-        searchValue,
-        search.fields as (keyof TData)[],
-      );
+      data = filterByTextSearch(data, searchValue, search.fields);
     }
 
     // Apply managed field filters

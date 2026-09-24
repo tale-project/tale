@@ -48,14 +48,15 @@ export function filterByFields<T>(items: T[], filters: FieldFilter<T>[]): T[] {
   });
 }
 
+/** Reads a value to match off an item that does not carry it as a field. */
+export type SearchAccessor<T> = (item: T) => string | number | null | undefined;
+
 /**
  * A field to search within {@link filterByTextSearch}: either a top-level key
  * of the item, or an accessor that returns the value to match (used to reach
  * nested fields such as a related customer's name).
  */
-type SearchField<T> =
-  | keyof T
-  | ((item: T) => string | number | null | undefined);
+type SearchField<T> = keyof T | SearchAccessor<T>;
 
 /**
  * Filter items by text search across multiple fields

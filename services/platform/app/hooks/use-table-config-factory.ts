@@ -1,6 +1,7 @@
 'use client';
 
 import * as columnBuilders from '@tale/ui/data-table/column-builders';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
@@ -11,9 +12,10 @@ type TranslationFn = (key: string) => string;
 
 /**
  * Default first-page size for entity list tables. Exported so route loaders can
- * prime the paginated cache with the same count the table renders.
+ * prime the paginated cache with the same count the table renders — which is
+ * the list page's own window, so the two can never disagree.
  */
-export const DEFAULT_TABLE_PAGE_SIZE = 20;
+export const DEFAULT_TABLE_PAGE_SIZE = DEFAULT_LIST_PAGE_SIZE;
 
 interface TableConfigMetadata {
   searchPlaceholder: string;
