@@ -244,3 +244,25 @@ describe('useListPage — active sort', () => {
     expect('infiniteScroll' in result.current.tableProps).toBe(true);
   });
 });
+
+describe('useListPage — managed search', () => {
+  it('matches a value the row only carries through an accessor', () => {
+    // A label the host derives (a translated category name, say) is not a
+    // field of the row, but it is what a reader types.
+    const labels: Record<string, string> = { even: 'Gerade', odd: 'Ungerade' };
+    const { result } = renderListPage({
+      search: {
+        fields: ['name', (item) => labels[item.category]],
+      },
+      entityLabel: { one: 'item', other: 'items' },
+    });
+
+    act(() => {
+      result.current.tableProps.search?.onChange('ungerade');
+    });
+
+    expect(result.current.filteredCount).toBe(25);
+    // The footer counts the matches against the whole set: "25 of 50".
+    expect(result.current.tableProps.infiniteScroll.totalCount).toBe(50);
+  });
+});

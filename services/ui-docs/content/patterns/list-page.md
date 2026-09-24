@@ -56,7 +56,7 @@ Content the page stacks above the table — a folder breadcrumb, a load-failure 
 
 ## Connect the controls to one data source
 
-The search field and filters describe the rows beneath them. `useListPage` keeps them honest: it matches the query against the complete set — draining a paginated source first, so a match on a page that has not loaded yet is still found — and starts its window over when the query changes, so a new search never opens halfway through the old result.
+The search field and filters describe the rows beneath them. `useListPage` keeps them honest: it matches the query against the complete set — draining a paginated source first, so a match on a page that has not loaded yet is still found — and starts its window over when the query changes, so a new search never opens halfway through the old result. Search `fields` name the row's own keys, or pass an accessor for a value the row does not carry, such as a label your service translates.
 
 A facet that matches one field exactly can live in the hook through `filters.definitions`. Facets your service keeps itself — in the URL, say, or with several values at once — go to the hook as `filters.configs` with an `onClear`, and the rows you hand it are the ones those facets leave. Use `dateRange` and `filtersContent` on the table for the rest. Keep shareable filter state in the URL when reloads and copied links should preserve the view.
 
