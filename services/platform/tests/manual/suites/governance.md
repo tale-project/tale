@@ -1,11 +1,11 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 32 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 40 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
-retention), security & monitoring (login / password / 2FA / session), legal
-hold, data-subject requests (DSAR), and the read-only surfaces (feedback
+retention), security & monitoring (login / password / 2FA / session), the
+competence register, legal hold, data-subject requests (DSAR), and the read-only surfaces (feedback
 metrics, usage metrics, logs, trash). Most write controls are
 admin/owner-gated. **Restore every toggle you flip** — these are org-wide
 settings. > Mock-LLM mode is fine for everything except F3's actual
@@ -24,6 +24,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
+| Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
 | Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
 | Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
@@ -269,6 +270,32 @@ select lists only the current admin's keys (`useApiKeys`).
   returns exactly ONE element and it is `[data-testid="data-table-scrollport"]`
   — the same frame `logs` renders in.
 
+- [ ] `GOV-F22` · **Grant a platform capability** — Add a second account to
+  the org with the **Developer** role and mint it an API key. As owner/admin
+  open `competences` → **Grant competence**
+  (`governance.competences.actions.grant`) → **Member** = that account,
+  **Competence** = **Act for another member**
+  (`governance.competences.capabilities.restActAs.label`), **Expires** =
+  **Never**, a line of **Evidence** → **Grant** → toast **Competence granted**
+  (`governance.competences.toasts.granted`); the row reads **Active** with
+  **No expiry** (`governance.competences.statusDetail.noExpiry`), **by** your
+  name, and the evidence. `GET /api/v1/me` with the Developer's key now
+  answers `capabilities.actAs: true` without any restart.
+- [ ] `GOV-F23` · **Qualification with an expiry** — **Grant competence** →
+  **Competence** = **Qualification** → **Qualification name** `tax-reviewer`
+  → **Expires** = **In 30 days** → **Grant** → the row shows the name alone
+  (no capability label) and **Until** the date 30 days out
+  (`governance.competences.statusDetail.until`); the list stays on **Active**
+  after a reload.
+- [ ] `GOV-F24` · **Revoke and read the history** — On GOV-F22's row press
+  **Revoke** (`governance.competences.actions.revoke`) → the dialog names the
+  member and **Act for another member** → **Revoke** → toast **Competence
+  revoked**; the row leaves the Active list. **Filter** → **Status** →
+  **Revoked** shows it with today's date under **Revoked**, and pointing at
+  the date reads **Revoked by** your name. **Logs** lists
+  `competence_granted` and `competence_revoked`; the Developer's `/api/v1/me`
+  answers `capabilities.actAs: false` on its next call.
+
 ## Boundary & error tests
 
 - [ ] `GOV-B1` · **DSAR cooling-off bounds** — `data-subject-requests` →
@@ -299,6 +326,16 @@ select lists only the current admin's keys (`useApiKeys`).
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
   workflow and render limits.
+- [ ] `GOV-B8` · **A second live grant is refused in the form** — Grant
+  GOV-F22's member **Act for another member** again → the dialog stays open
+  with **"This member already holds this competence. Revoke the current grant
+  before you grant it again."** (`governance.competences.errors.alreadyGranted`);
+  no second row appears. Picking another competence clears the message.
+- [ ] `GOV-B9` · **The platform namespace is reserved** — **Competence** =
+  **Qualification**, **Qualification name** `tale:anything` → the field
+  reports **"Names starting with "tale:" are reserved for platform
+  capabilities."** (`governance.competences.grantDialog.validation.qualificationReserved`)
+  and **Grant** stays disabled.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -311,6 +348,12 @@ select lists only the current admin's keys (`useApiKeys`).
 - [ ] `GOV-A3` · **Dialogs** → DSAR **File erasure request** and legal-hold
   **Place legal hold** dialogs trap focus; **Close** (`common.aria.close`)
   returns focus to the trigger.
+- [ ] `GOV-A4` · **Competences by keyboard** → Tab to **Grant competence**,
+  open it with Enter, and complete a grant with Tab, arrows and Enter only;
+  each field is announced by its label. Tab to a row's **Revoke** — its name
+  says which competence and member (`governance.competences.actions.revokeFor`)
+  — confirm the revocation, and focus lands on the register region named
+  **Competences**, not on the page body.
 
 ## Performance
 

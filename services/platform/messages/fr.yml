@@ -3514,11 +3514,98 @@ governance:
     contentAndModels: Modèles
     policiesAndLimits: Politiques et limites
     securityAndMonitoring: Sécurité
+    competences: Compétences
     legalHold: Conservation légale
     trash: Corbeille
     guardrails: Garde-fous
     logs: Journaux
     dataSubjectRequests: Personnes concernées
+  competences:
+    title: Compétences
+    description: Permets à un membre une seule action bien délimitée sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution et chaque révocation est auditée, et retirer un membre révoque ses attributions.
+    accessDenied: Seuls les propriétaires et les admins de l'organisation peuvent gérer les compétences.
+    formerMember: Ancien membre
+    grantedBy: par {name}
+    revokedBy: Révoquée par {name}
+    revokedBySystem: Remplacée par une nouvelle attribution après son expiration
+    columns:
+      member: Membre
+      competence: Compétence
+      status: Statut
+      granted: Attribuée
+      evidence: Justificatif
+      actions: Actions
+    status:
+      active: Active
+      expired: Expirée
+      revoked: Révoquée
+    statusDetail:
+      until: 'Jusqu''au {date}'
+      noExpiry: Sans expiration
+    capabilities:
+      notificationsExport:
+        label: Exporter les notifications
+        description: Lire par l'API REST les notifications qu'un autre membre peut voir, pour les refléter dans une autre application.
+      restActAs:
+        label: Agir pour un autre membre
+        description: Nommer, dans un appel d'API, le membre pour qui une question reçoit une réponse ou une relecture est décidée, pour que l'enregistrement indique cette personne plutôt que la clé.
+    empty:
+      title: Aucune compétence attribuée
+      description: Attribue à un membre une capacité de la plateforme ou une qualification. Elle ne s'applique que dans cette organisation.
+    actions:
+      grant: Attribuer une compétence
+      revoke: Révoquer
+      revokeFor: Révoquer {competence} pour {member}
+    grantDialog:
+      title: Attribuer une compétence
+      description: Le membre la détient dans cette organisation jusqu'à son expiration ou jusqu'à ce qu'un admin la révoque.
+      memberLabel: Membre
+      memberPlaceholder: Choisis un membre
+      memberSearch: Rechercher des membres
+      memberEmpty: Aucun membre trouvé
+      competenceLabel: Compétence
+      competencePlaceholder: Choisis une compétence
+      capabilitiesGroup: Capacités de la plateforme
+      qualificationsGroup: Ton organisation
+      qualificationOption: Qualification
+      qualificationOptionDescription: Un nom exigé par ta politique de relecture
+      qualificationLabel: Nom de la qualification
+      qualificationDescription: Le nom utilisé par ta politique de relecture, par exemple tax-reviewer.
+      expiryLabel: Expire
+      expiryOptions:
+        never: Jamais
+        30days: Dans 30 jours
+        90days: Dans 90 jours
+        1year: Dans 1 an
+      evidenceLabel: Justificatif
+      evidenceDescription: Pourquoi ce membre la détient, par exemple un certificat, un ticket ou le système qu'elle sert. Il reste dans le registre.
+      submit: Attribuer
+      validation:
+        memberRequired: Choisis un membre.
+        competenceRequired: Choisis une compétence.
+        qualificationRequired: Saisis un nom de qualification.
+        qualificationTooLong: Utilise au plus 120 caractères.
+        qualificationReserved: 'Les noms qui commencent par "tale:" sont réservés aux capacités de la plateforme.'
+        evidenceTooLong: Utilise au plus 2 000 caractères.
+    revokeDialog:
+      title: Révoquer la compétence ?
+      description: '{member} perd "{competence}" dans cette organisation immédiatement. L''attribution reste dans le registre comme historique.'
+      confirm: Révoquer
+    toasts:
+      granted: Compétence attribuée
+      revoked: Compétence révoquée
+      revokeFailed: Impossible de révoquer la compétence
+    errors:
+      generic: Impossible d'enregistrer la modification. Réessaie.
+      alreadyGranted: Ce membre détient déjà cette compétence. Révoque l'attribution en cours avant de l'attribuer à nouveau.
+      notMember: Cette personne n'est pas membre de l'organisation.
+      forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer ou révoquer des compétences.
+      capabilityUnknown: Ce n'est pas une capacité de la plateforme.
+      expiryInPast: L'expiration doit être dans le futur.
+      evidenceTooLong: Le justificatif peut contenir au plus 2 000 caractères.
+      invalid: Un nom de compétence compte de 1 à 120 caractères.
+      notFound: Cette attribution n'existe plus.
+      alreadyRevoked: Cette attribution a déjà été révoquée.
   trash:
     title: Corbeille
     description:

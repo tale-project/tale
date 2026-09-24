@@ -128,6 +128,20 @@ export function useCloseLegalMatter() {
   return useBackendMutation('governance/legal_hold:closeLegalMatter');
 }
 
+// The competence dialogs explain a refusal themselves (inline in the grant
+// form, in the revoke toast), so both opt out of the generic error toast.
+export function useGrantCompetence() {
+  return useBackendMutation('governance/competences:grantCompetence', {
+    errorToast: false,
+  });
+}
+
+export function useRevokeCompetence() {
+  return useBackendMutation('governance/competences:revokeCompetence', {
+    errorToast: false,
+  });
+}
+
 export function useRestoreSoftDeletedRow() {
   const queryClient = useQueryClient();
   return useBackendMutation('governance/restore:restoreSoftDeletedRow', {

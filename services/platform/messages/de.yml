@@ -3444,11 +3444,98 @@ governance:
     contentAndModels: Modelle
     policiesAndLimits: Richtlinien & Limits
     securityAndMonitoring: Sicherheit
+    competences: Kompetenzen
     legalHold: Legal Hold
     trash: Papierkorb
     guardrails: Guardrails
     logs: Protokolle
     dataSubjectRequests: Anfragen betroffener Personen
+  competences:
+    title: Kompetenzen
+    description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+    accessDenied: Nur Inhaber und Admins der Organisation können Kompetenzen verwalten.
+    formerMember: Ehemaliges Mitglied
+    grantedBy: von {name}
+    revokedBy: Widerrufen von {name}
+    revokedBySystem: Nach dem Ablauf durch eine neue Zuweisung ersetzt
+    columns:
+      member: Mitglied
+      competence: Kompetenz
+      status: Status
+      granted: Zugewiesen
+      evidence: Nachweis
+      actions: Aktionen
+    status:
+      active: Aktiv
+      expired: Abgelaufen
+      revoked: Widerrufen
+    statusDetail:
+      until: Bis {date}
+      noExpiry: Kein Ablauf
+    capabilities:
+      notificationsExport:
+        label: Benachrichtigungen exportieren
+        description: Die Benachrichtigungen, die ein anderes Mitglied sieht, über die REST-API lesen, um sie in einer anderen Anwendung zu spiegeln.
+      restActAs:
+        label: Für ein anderes Mitglied handeln
+        description: Bei einem API-Aufruf das Mitglied nennen, für das eine Frage beantwortet oder eine Prüfung entschieden wird, damit der Eintrag diese Person zeigt statt des Schlüssels.
+    empty:
+      title: Noch keine Kompetenzen zugewiesen
+      description: Weise einem Mitglied eine Plattform-Berechtigung oder eine Qualifikation zu. Sie gilt nur in dieser Organisation.
+    actions:
+      grant: Kompetenz zuweisen
+      revoke: Widerrufen
+      revokeFor: '{competence} für {member} widerrufen'
+    grantDialog:
+      title: Kompetenz zuweisen
+      description: Das Mitglied hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft.
+      memberLabel: Mitglied
+      memberPlaceholder: Mitglied auswählen
+      memberSearch: Mitglieder suchen
+      memberEmpty: Keine Mitglieder gefunden
+      competenceLabel: Kompetenz
+      competencePlaceholder: Kompetenz auswählen
+      capabilitiesGroup: Plattform-Berechtigungen
+      qualificationsGroup: Deine Organisation
+      qualificationOption: Qualifikation
+      qualificationOptionDescription: Ein Name aus deiner Freigaberichtlinie
+      qualificationLabel: Name der Qualifikation
+      qualificationDescription: Der Name, den deine Freigaberichtlinie verwendet, zum Beispiel tax-reviewer.
+      expiryLabel: Läuft ab
+      expiryOptions:
+        never: Nie
+        30days: In 30 Tagen
+        90days: In 90 Tagen
+        1year: In 1 Jahr
+      evidenceLabel: Nachweis
+      evidenceDescription: Warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
+      submit: Zuweisen
+      validation:
+        memberRequired: Wähle ein Mitglied aus.
+        competenceRequired: Wähle eine Kompetenz aus.
+        qualificationRequired: Gib einen Namen für die Qualifikation ein.
+        qualificationTooLong: Verwende höchstens 120 Zeichen.
+        qualificationReserved: 'Namen, die mit "tale:" beginnen, sind für Plattform-Berechtigungen reserviert.'
+        evidenceTooLong: Verwende höchstens 2000 Zeichen.
+    revokeDialog:
+      title: Kompetenz widerrufen?
+      description: '{member} verliert "{competence}" in dieser Organisation sofort. Die Zuweisung bleibt als Verlauf im Register.'
+      confirm: Widerrufen
+    toasts:
+      granted: Kompetenz zugewiesen
+      revoked: Kompetenz widerrufen
+      revokeFailed: Kompetenz konnte nicht widerrufen werden
+    errors:
+      generic: Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.
+      alreadyGranted: Dieses Mitglied hat diese Kompetenz bereits. Widerrufe die bestehende Zuweisung, bevor du sie erneut zuweist.
+      notMember: Diese Person ist kein Mitglied der Organisation.
+      forbidden: Nur Inhaber und Admins der Organisation können Kompetenzen zuweisen oder widerrufen.
+      capabilityUnknown: Das ist keine Plattform-Berechtigung.
+      expiryInPast: Der Ablauf muss in der Zukunft liegen.
+      evidenceTooLong: Der Nachweis darf höchstens 2000 Zeichen haben.
+      invalid: Ein Kompetenzname hat 1 bis 120 Zeichen.
+      notFound: Diese Zuweisung gibt es nicht mehr.
+      alreadyRevoked: Diese Zuweisung wurde bereits widerrufen.
   trash:
     title: Papierkorb
     description:

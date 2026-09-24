@@ -95,6 +95,7 @@ import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './ro
 import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails';
 import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback';
 import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models';
+import { Route as DashboardIdSettingsGovernanceCompetencesRouteImport } from './routes/dashboard/$id/settings/governance/competences';
 import { Route as DashboardIdSettingsGovernanceAuditLogsRouteImport } from './routes/dashboard/$id/settings/governance/audit-logs';
 import { Route as DashboardIdSettingsApiWebdavRouteImport } from './routes/dashboard/$id/settings/api/webdav';
 import { Route as DashboardIdSettingsApiRuntimesRouteImport } from './routes/dashboard/$id/settings/api/runtimes';
@@ -615,6 +616,12 @@ const DashboardIdSettingsGovernanceContentModelsRoute =
     path: '/content-models',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any);
+const DashboardIdSettingsGovernanceCompetencesRoute =
+  DashboardIdSettingsGovernanceCompetencesRouteImport.update({
+    id: '/competences',
+    path: '/competences',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any);
 const DashboardIdSettingsGovernanceAuditLogsRoute =
   DashboardIdSettingsGovernanceAuditLogsRouteImport.update({
     id: '/audit-logs',
@@ -889,6 +896,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
   '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
+  '/dashboard/$id/settings/governance/competences': typeof DashboardIdSettingsGovernanceCompetencesRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -995,6 +1003,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
   '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
+  '/dashboard/$id/settings/governance/competences': typeof DashboardIdSettingsGovernanceCompetencesRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -1113,6 +1122,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
   '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
+  '/dashboard/$id/settings/governance/competences': typeof DashboardIdSettingsGovernanceCompetencesRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -1231,6 +1241,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
     | '/dashboard/$id/settings/governance/audit-logs'
+    | '/dashboard/$id/settings/governance/competences'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -1337,6 +1348,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
     | '/dashboard/$id/settings/governance/audit-logs'
+    | '/dashboard/$id/settings/governance/competences'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -1454,6 +1466,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
     | '/dashboard/$id/settings/governance/audit-logs'
+    | '/dashboard/$id/settings/governance/competences'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -2108,6 +2121,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsGovernanceContentModelsRouteImport;
       parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
     };
+    '/dashboard/$id/settings/governance/competences': {
+      id: '/dashboard/$id/settings/governance/competences';
+      path: '/competences';
+      fullPath: '/dashboard/$id/settings/governance/competences';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceCompetencesRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/audit-logs': {
       id: '/dashboard/$id/settings/governance/audit-logs';
       path: '/audit-logs';
@@ -2429,6 +2449,7 @@ const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren =
 interface DashboardIdSettingsGovernanceRouteRouteChildren {
   DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   DashboardIdSettingsGovernanceAuditLogsRoute: typeof DashboardIdSettingsGovernanceAuditLogsRoute;
+  DashboardIdSettingsGovernanceCompetencesRoute: typeof DashboardIdSettingsGovernanceCompetencesRoute;
   DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute;
   DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute;
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -2447,6 +2468,8 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
       DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren,
     DashboardIdSettingsGovernanceAuditLogsRoute:
       DashboardIdSettingsGovernanceAuditLogsRoute,
+    DashboardIdSettingsGovernanceCompetencesRoute:
+      DashboardIdSettingsGovernanceCompetencesRoute,
     DashboardIdSettingsGovernanceContentModelsRoute:
       DashboardIdSettingsGovernanceContentModelsRoute,
     DashboardIdSettingsGovernanceFeedbackRoute:

@@ -228,6 +228,14 @@ export function useOrgMembersForPicker(organizationId: string | undefined) {
   );
 }
 
+/** Every record of the competence register — revoked and expired included. */
+export function useCompetences(organizationId: string | undefined) {
+  return useBackendQuery(
+    'governance/competences:listCompetences',
+    organizationId ? { organizationId } : 'skip',
+  );
+}
+
 export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
   const { data: policy } = useGovernancePolicy(organizationId, 'upload_policy');
 

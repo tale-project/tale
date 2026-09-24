@@ -97,6 +97,12 @@ type RequestErasureResult = ReturnsOf<'governance/erasure:requestErasure'>;
 type ExtendErasureResult =
   ReturnsOf<'governance/erasure:extendErasureDeadline'>;
 type CloseMatterResult = ReturnsOf<'governance/legal_hold:closeLegalMatter'>;
+type CompetenceItem = ItemOf<'governance/competences:listCompetences'>;
+type GrantCompetenceResult =
+  ReturnsOf<'governance/competences:grantCompetence'>;
+
+/** Query-key entity of the competence register. */
+const COMPETENCE_ENTITY = 'competence';
 type ProposeDsarResult = ReturnsOf<'governance/dsar_policy:proposeDsarPolicy'>;
 
 /** GET /members row (the directory projection the pickers reuse). */
@@ -633,6 +639,17 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ holds: LegalHoldItem[] }>(`/legal-holds${qs}`, {
           orgId,
         }).then((body) => body.holds),
+    };
+  },
+  'governance/competences:listCompetences': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, COMPETENCE_ENTITY, 'list'),
+      queryFn: () =>
+        backendFetch<{ records: CompetenceItem[] }>('/governance/competences', {
+          orgId,
+        }).then((body) => body.records),
     };
   },
   'governance/legal_hold_queries:listLegalMatters': (args, ctx) => {
@@ -1613,6 +1630,31 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       }).then((body) => body.matterId),
     invalidate: invalidateLegalHolds,
   },
+  'governance/competences:grantCompetence': {
+    run: (args, ctx) =>
+      backendFetch<GrantCompetenceResult>('/governance/competences', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          userId: stringArg(args, 'userId'),
+          competence: stringArg(args, 'competence'),
+          ...(typeof args.expiresAt === 'number'
+            ? { expiresAt: args.expiresAt }
+            : {}),
+          ...(typeof args.evidence === 'string' && args.evidence !== ''
+            ? { evidence: args.evidence }
+            : {}),
+        },
+      }),
+    invalidate: invalidateCompetences,
+  },
+  'governance/competences:revokeCompetence': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/governance/competences/${encodeURIComponent(stringArg(args, 'recordId'))}/revoke`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateCompetences,
+  },
   'governance/legal_hold:closeLegalMatter': {
     run: (args, ctx) =>
       backendFetch<CloseMatterResult>(
@@ -1755,6 +1797,18 @@ function invalidateLegalHolds(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'legal_hold'),
+  });
+}
+
+function invalidateCompetences(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, COMPETENCE_ENTITY),
   });
 }
 
