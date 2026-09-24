@@ -702,7 +702,8 @@ export async function startWorkflowForTaskInTx(
   return { runId: started.runId, alreadyRunning: false };
 }
 
-/** The 0.4 live-run wire for the task modal's inline automation banner. */
+/** The 0.4 run wire for the task modal: the inline automation banner reads
+ * the LIVE run, the property panel's Run row the LATEST one. */
 export interface LiveAutomationRunForTask {
   runId: string;
   name: string;
@@ -711,10 +712,34 @@ export interface LiveAutomationRunForTask {
   detail?: string;
 }
 
+interface AutomationRunForTaskArgs {
+  organizationId: string;
+  projectId: string;
+  taskId: string;
+}
+
 /** The subject-linked live automation run operating this task, if any. */
 export async function findLiveAutomationRunForTask(
   sql: Sql,
-  args: { organizationId: string; projectId: string; taskId: string },
+  args: AutomationRunForTaskArgs,
+): Promise<LiveAutomationRunForTask | null> {
+  return await findAutomationRunForTask(sql, args, { liveOnly: true });
+}
+
+/** The most recent subject-linked automation run of this task in ANY state —
+ * what keeps a finished run's step timeline reachable from the task after
+ * the live banner has gone. */
+export async function findLatestAutomationRunForTask(
+  sql: Sql,
+  args: AutomationRunForTaskArgs,
+): Promise<LiveAutomationRunForTask | null> {
+  return await findAutomationRunForTask(sql, args, { liveOnly: false });
+}
+
+async function findAutomationRunForTask(
+  sql: Sql,
+  args: AutomationRunForTaskArgs,
+  options: { liveOnly: boolean },
 ): Promise<LiveAutomationRunForTask | null> {
   const rows = await sql<
     {
@@ -728,7 +753,11 @@ export async function findLiveAutomationRunForTask(
     SELECT id, name, status, version, detail
     FROM app.automation_runs
     WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
-      AND status IN ('queued', 'running', 'waiting')
+      AND ${
+        options.liveOnly
+          ? sql`status IN ('queued', 'running', 'waiting')`
+          : sql`TRUE`
+      }
       AND input -> 'task' ->> 'id' = ${args.taskId}
     ORDER BY started_at_ms DESC
     LIMIT 1

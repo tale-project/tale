@@ -523,6 +523,19 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.run),
     };
   },
+  'automations/queries:getLatestRunForTask': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'latest-automation-run', taskId),
+      queryFn: () =>
+        backendFetch<{ run: unknown }>(
+          `/tasks/${encodeURIComponent(taskId)}/latest-automation-run`,
+          { orgId },
+        ).then((body) => body.run),
+    };
+  },
   'automations/queries:listAutomations': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

@@ -9,6 +9,15 @@
 
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
+/** One subject-linked run as the task modal reads it. */
+export interface AutomationRunForTask {
+  detail?: string;
+  runId: string;
+  name: string;
+  status: 'queued' | 'running' | 'waiting' | 'success' | 'failed' | 'cancelled';
+  version: number;
+}
+
 export interface AutomationsContract {
   'automations/catalog:listNodeTypes': {
     kind: 'action';
@@ -133,19 +142,14 @@ export interface AutomationsContract {
   'automations/queries:getLiveRunForTask': {
     kind: 'query';
     args: { organizationId: string; projectId: string; taskId: string };
-    returns: null | {
-      detail?: string;
-      runId: string;
-      name: string;
-      status:
-        | 'queued'
-        | 'running'
-        | 'waiting'
-        | 'success'
-        | 'failed'
-        | 'cancelled';
-      version: number;
-    };
+    returns: null | AutomationRunForTask;
+  };
+  /** The task's most recent subject-linked run in ANY state — the property
+   * panel's Run row, which keeps a finished run's details reachable. */
+  'automations/queries:getLatestRunForTask': {
+    kind: 'query';
+    args: { organizationId: string; projectId: string; taskId: string };
+    returns: null | AutomationRunForTask;
   };
   'automations/queries:getOrgAutomationMetrics': {
     kind: 'query';

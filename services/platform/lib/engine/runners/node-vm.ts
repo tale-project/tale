@@ -15,7 +15,10 @@
  *    allocates without end, or parks itself inside `await`, takes down that
  *    process and nothing else; the supervisor rejects the evaluation with the
  *    reason and starts a fresh process for the next one. Evaluations that
- *    were queued behind the runaway body are re-sent, not failed.
+ *    were queued behind the runaway body are re-sent, not failed. The
+ *    deadline charges the authored code alone: the clock starts once the
+ *    child has the scope in place and stops when it reports the evaluation
+ *    finished, and its verdict waits for an answer already in the pipe.
  *
  * What it is NOT: a security boundary. The child runs as the same user, on
  * the same filesystem and network as the host, and node:vm itself is not an
@@ -49,15 +52,18 @@ export interface NodeVmRunnerOptions {
   maxHeapMb?: number;
   /**
    * How long past `limits.timeoutMs` a started evaluation may run before the
-   * process is killed (default 250ms). vm's own `timeout` fires first for a
+   * process is killed (default 1000ms). vm's own `timeout` fires first for a
    * busy loop and yields its precise message; the kill is for bodies vm
    * cannot interrupt — an awaited continuation — and for a wedged process.
+   * The grace is measured on the host's clock, so it also has to absorb a
+   * starved child's scheduling delay and the IPC hop of its answer; it is
+   * generous because a kill also fails every other evaluation in flight.
    */
   killGraceMs?: number;
 }
 
 const DEFAULT_MAX_HEAP_MB = 512;
-const DEFAULT_KILL_GRACE_MS = 250;
+const DEFAULT_KILL_GRACE_MS = 1000;
 /** How much of the runner's stderr to keep for the death notice — V8's
  * fatal-OOM banner is the first few lines. */
 const STDERR_TAIL_BYTES = 4096;
@@ -145,6 +151,9 @@ interface Pending {
   /** Set once the process acknowledged it is running this request — from
    * then on the deadline clock ticks and a restart fails it. */
   started: boolean;
+  /** Set once the process reported the evaluation complete; the answer is
+   * on its way and the deadline no longer applies. */
+  finished: boolean;
   /** How many processes this request was handed to. A request whose
    * process died before acknowledging it is re-sent once; a second such
    * death means the request itself is what kills the process (the ack
@@ -185,6 +194,7 @@ class RunnerProcess {
       const entry: Pending = {
         request: { id, source, async, scopeJson, timeoutMs: limits.timeoutMs },
         started: false,
+        finished: false,
         dispatches: 0,
         deadline: null,
         resolve,
@@ -268,6 +278,12 @@ class RunnerProcess {
       );
       return;
     }
+    if (message.finished === true) {
+      entry.finished = true;
+      if (entry.deadline !== null) clearTimeout(entry.deadline);
+      entry.deadline = null;
+      return;
+    }
     this.settle(entry);
     if (message.ok === true) {
       entry.resolve(
@@ -291,9 +307,22 @@ class RunnerProcess {
     this.updateRef();
   }
 
+  /** The deadline fired. It is a host timer, and after a stall of the host's
+   * own event loop it fires BEFORE the poll phase that would deliver an
+   * answer already sitting in the pipe — so the verdict waits one loop turn
+   * for that answer (or the `finished` ack ahead of a large one) to be read.
+   * Only an evaluation still unfinished after that is a runaway. */
+  private overran(entry: Pending): void {
+    entry.deadline = null;
+    setImmediate(() => {
+      if (!this.pending.has(entry.request.id) || entry.finished) return;
+      this.kill(entry);
+    });
+  }
+
   /** A started evaluation outlived vm's own timeout: kill the process, fail
    * this evaluation, and let the others resume on a fresh process. */
-  private overran(entry: Pending): void {
+  private kill(entry: Pending): void {
     this.settle(entry);
     entry.reject(
       new Error(

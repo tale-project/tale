@@ -376,8 +376,7 @@ auth:
       ton administration.
     proxyHandoff:
       pending: Connexion en cours via le service de connexion de ton organisation…
-      stalled:
-        La connexion automatique n’a pas abouti. Connecte-toi autrement
+      stalled: La connexion automatique n’a pas abouti. Connecte-toi autrement
         ci-dessous ou réessaie.
       retry: Réessayer
       continue: Continuer avec la connexion automatique
@@ -2742,8 +2741,7 @@ governance:
       est indisponible. La reconnaissance vocale du navigateur utilise son
       propre modèle.
     label: Modèle qui transcrit l'audio
-    labelHint:
-      Automatique choisit un modèle disponible. Un modèle fixé reste
+    labelHint: Automatique choisit un modèle disponible. Un modèle fixé reste
       sélectionné jusqu'à ce que tu le changes, même s'il devient indisponible.
     automaticLabel: Automatique
     automaticHint: Tale choisit parmi les modèles de transcription audio disponibles.
@@ -4576,7 +4574,7 @@ personalization:
       overridingOrgDefault: Remplace la valeur par défaut de l'organisation ({state}).
     customInstructionsToggle:
       label: Instructions personnalisées
-      description: "Instructions permanentes que l’assistant de chat suit dans chacune de ses réponses. Dans un chat de projet, elles s’appliquent en plus des instructions du projet."
+      description: 'Instructions permanentes que l’assistant de chat suit dans chacune de ses réponses. Dans un chat de projet, elles s’appliquent en plus des instructions du projet.'
     customInstructions:
       title: Instructions personnalisées
       placeholder:
@@ -5092,10 +5090,10 @@ settings:
       description: Archive tes chats ou déplace-les dans la corbeille de cette organisation.
       archiveAll: Archiver tous les chats
       deleteAll: Supprimer tous les chats
-      archiveConfirm: "Archiver tous tes chats non archivés de cette organisation, y compris les chats de projet. Tu pourras les désarchiver plus tard. Les chats sous conservation légale restent inchangés."
-      deleteConfirm: "Déplacer tous tes chats de cette organisation dans la corbeille, y compris les chats archivés et les chats de projet. Tu pourras les restaurer pendant le délai de conservation. Les chats sous conservation légale ou avec une réponse en cours restent inchangés."
-      result: "{changed} chats mis à jour ; {failed} n’ont pas pu être modifiés."
-      failed: "Impossible de mettre à jour tes chats. Réessaie."
+      archiveConfirm: 'Archiver tous tes chats non archivés de cette organisation, y compris les chats de projet. Tu pourras les désarchiver plus tard. Les chats sous conservation légale restent inchangés.'
+      deleteConfirm: 'Déplacer tous tes chats de cette organisation dans la corbeille, y compris les chats archivés et les chats de projet. Tu pourras les restaurer pendant le délai de conservation. Les chats sous conservation légale ou avec une réponse en cours restent inchangés.'
+      result: '{changed} chats mis à jour ; {failed} n’ont pas pu être modifiés.'
+      failed: 'Impossible de mettre à jour tes chats. Réessaie.'
   usage:
     limits:
       title: Limites d'utilisation
@@ -5115,9 +5113,11 @@ settings:
         propres limites."
     empty:
       title: Aucune limite d'utilisation ne s'applique à toi
-      description: Ton organisation n'a défini aucune limite de tokens, de coût ou
+      description:
+        Ton organisation n'a défini aucune limite de tokens, de coût ou
         de requêtes qui te concerne.
-    loadFailed: Impossible de charger tes limites d'utilisation. Recharge la page
+    loadFailed:
+      Impossible de charger tes limites d'utilisation. Recharge la page
       pour réessayer.
     manageLimits: Gérer les limites
     metric:
@@ -5133,7 +5133,8 @@ settings:
     reached: Limite atteinte
     storage:
       title: Stockage
-      description: Fichiers que tu as téléversés dans cette organisation. Une fois
+      description:
+        Fichiers que tu as téléversés dans cette organisation. Une fois
         la limite atteinte, les nouveaux téléversements de documents sont refusés.
       label: Fichiers téléversés
       unlimited: Aucune limite de stockage ne s'applique à toi.
@@ -5242,7 +5243,7 @@ settings:
       Une équipe doit conserver au moins un membre. Supprime plutôt
       l'équipe pour retirer le dernier membre.
     teamNameTooLong: Le nom de l'équipe ne peut pas dépasser 80 caractères
-    membershipChangesFailed: "{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée."
+    membershipChangesFailed: '{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée.'
     syncedBadge: Synchronisée
     syncedNotice: "Cette équipe est provisionnée par ton fournisseur d'identité, qui gère son nom et ses membres. Modifie-les là-bas : une modification locale serait annulée à la prochaine synchronisation."
     deleteImpact:
@@ -5534,22 +5535,27 @@ settings:
       tokenFailed: Échec de la génération du jeton SCIM
     trustedHeaders:
       section: En-têtes de confiance
-      help: Laisse une application qui connecte déjà ses utilisateurs les faire entrer
+      help:
+        Laisse une application qui connecte déjà ses utilisateurs les faire entrer
         dans cette organisation via son reverse proxy. À chaque passage, le proxy
         présente l’une des clés ci-dessous avec les en-têtes d’identité.
       enabled: Activé
       disabled: Désactivé
       toggleLabel: Accepter les connexions d’un proxy de confiance
-      toggleHelp: Désactivé, chaque clé de cette organisation est refusée sans qu’aucune
+      toggleHelp:
+        Désactivé, chaque clé de cette organisation est refusée sans qu’aucune
         soit révoquée.
       maxRoleLabel: Rôle le plus élevé qu’un proxy peut attribuer
-      maxRoleHelp: L’en-tête de rôle est plafonné à ce rôle. Le rôle Propriétaire ne peut jamais
+      maxRoleHelp:
+        L’en-tête de rôle est plafonné à ce rôle. Le rôle Propriétaire ne peut jamais
         être attribué via un proxy.
       endpointLabel: URL de passage
-      endpointHelp: Fais pointer la connexion du proxy vers cette adresse. Il envoie la clé
+      endpointHelp:
+        Fais pointer la connexion du proxy vers cette adresse. Il envoie la clé
         dans l’en-tête de clé, avec les en-têtes d’identité.
       headersLabel: Noms des en-têtes
-      headersHelp: Les en-têtes lus par cette installation. L’opérateur les renomme avec les
+      headersHelp:
+        Les en-têtes lus par cette installation. L’opérateur les renomme avec les
         variables TRUSTED_*_HEADER.
       headerKey: Clé
       headerEmail: E-mail
@@ -5557,7 +5563,8 @@ settings:
       headerRole: Rôle
       headerTeams: Équipes
       keysTitle: Clés
-      keysHelp: Une clé s’affiche une seule fois, à sa création. La révoquer ne met pas fin
+      keysHelp:
+        Une clé s’affiche une seule fois, à sa création. La révoquer ne met pas fin
         aux sessions qu’elle a ouvertes.
       noKeys: Aucune clé pour l’instant. Crée-en une et confie-la au proxy.
       createKey: Créer une clé
@@ -5570,34 +5577,40 @@ settings:
         de passage.
       revoke: Révoquer
       revokeTitle: Révoquer cette clé ?
-      revokeDescription: Le proxy qui détient « {name} » ne peut plus connecter personne.
+      revokeDescription:
+        Le proxy qui détient « {name} » ne peut plus connecter personne.
         Les sessions déjà ouvertes restent connectées.
       revoked: Clé révoquée
       createdAt: Créée
       lastUsed: Dernière utilisation
       neverUsed: Jamais utilisée
-      limitReached: Cette organisation détient déjà le maximum de {max} clés. Révoque-en
+      limitReached:
+        Cette organisation détient déjà le maximum de {max} clés. Révoque-en
         une pour en créer une autre.
     embedding:
       section: Intégration dans un cadre
-      help: Laisse une autre application web afficher les pages de cette organisation dans
+      help:
+        Laisse une autre application web afficher les pages de cette organisation dans
         un cadre. Tale refuse tout cadre tant que l’origine de la page englobante n’est
         pas listée ici.
       enabled: Activé
       disabled: Désactivé
       toggleLabel: Autoriser l’affichage dans un cadre
-      toggleHelp: Désactivé, aucune page ne s’affiche dans un cadre ; la liste ci-dessous
+      toggleHelp:
+        Désactivé, aucune page ne s’affiche dans un cadre ; la liste ci-dessous
         est conservée.
       originsLabel: Origines autorisées
       originsHelp: Une origine par ligne, par exemple https://app.example.com. Au plus {max}.
       originsPlaceholder: https://app.example.com
-      invalidOrigin: Saisis uniquement des origines https, une par ligne. Le http simple est
+      invalidOrigin:
+        Saisis uniquement des origines https, une par ligne. Le http simple est
         accepté pour localhost.
       tooMany: Au plus {max} origines.
       save: Enregistrer les origines
       saved: Paramètres d’intégration enregistrés
       saveFailed: Impossible d’enregistrer les paramètres d’intégration
-      sameSiteNote: Un cadre ne reçoit la session connectée que si la page englobante est
+      sameSiteNote:
+        Un cadre ne reçoit la session connectée que si la page englobante est
         sur le même site que Tale, par exemple un sous-domaine de l’hôte ou Tale servi
         sous le domaine de l’hôte.
     disable: Désactiver la connexion
@@ -5976,8 +5989,8 @@ settings:
       resultValidTitle: Chaîne vérifiée
       resultValidBody: '{count, plural, one {# entrée vérifiée} other {# entrées
         vérifiées}} — aucune altération détectée.'
-      truncatedNote: "Seules les {count} premières entrées ont été vérifiées. Demande à l’opérateur de ton installation de vérifier la suite."
-      unsignedScrubNote: "{count, plural, one {# entrée effacée n’a pas de demande d’effacement correspondante} other {# entrées effacées n’ont pas de demande d’effacement correspondante}}. Examine les demandes d’effacement avant de te fier à cet historique."
+      truncatedNote: 'Seules les {count} premières entrées ont été vérifiées. Demande à l’opérateur de ton installation de vérifier la suite.'
+      unsignedScrubNote: '{count, plural, one {# entrée effacée n’a pas de demande d’effacement correspondante} other {# entrées effacées n’ont pas de demande d’effacement correspondante}}. Examine les demandes d’effacement avant de te fier à cet historique.'
       brokenTitle: Intégrité de la chaîne rompue
       brokenBody: La chaîne de hachage ne correspond pas à l'entrée ci-dessous.
         Conserve cette preuve avant toute modification.
@@ -6482,8 +6495,8 @@ settings:
         Modèles d’embedding de la liste de ce fournisseur ; choisis « Autre modèle »
         pour saisir un tag qui n’y figure pas.
       modelUnlistedHint:
-        "Aucune liste ne permet de savoir si ce fournisseur sert des embeddings :
-        saisis le tag exactement comme le fournisseur l’écrit."
+        'Aucune liste ne permet de savoir si ce fournisseur sert des embeddings :
+        saisis le tag exactement comme le fournisseur l’écrit.'
       modelNoneHint:
         Le catalogue de {provider} ne liste aucun modèle d’embedding. Choisis un
         fournisseur qui en sert un.
@@ -6711,6 +6724,7 @@ tasks:
     missingInput: "Dépose d'abord les fichiers d'entrée — la liste Fichiers de cette tâche est encore vide."
     working: '{name} travaille sur cette tâche.'
     waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
+    label: Exécution
     details: Détails
     detailsTitle: "{name} — détails de l'exécution"
     detailsTitleLive: '{name} — avancement'

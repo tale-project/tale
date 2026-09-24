@@ -49,17 +49,54 @@ function walkStrings(v: unknown, fn: (s: string) => void): void {
   }
 }
 
+/** The two static spellings of a node reference: `nodes.foo` and
+ * `nodes["foo"]`. Both the derived-edge scanner and the scope pruner read
+ * these, so a reference the graph sees is exactly one the pruner keeps. */
+const NODE_DOT_REF_RE = /\bnodes\s*\.\s*([A-Za-z_$][\w$]*)/g;
+const NODE_BRACKET_REF_RE = /\bnodes\s*\[\s*["']([^"']+)["']\s*\]/g;
+
 /** Node ids referenced as `nodes.foo` / `nodes["foo"]` in a JS source
  * string — the derived-edge scanner. */
 export function refsInSource(src: string): Set<string> {
   const out = new Set<string>();
-  for (const m of src.matchAll(/\bnodes\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
-    out.add(m[1]);
-  }
-  for (const m of src.matchAll(/\bnodes\s*\[\s*["']([^"']+)["']\s*\]/g)) {
-    out.add(m[1]);
-  }
+  for (const m of src.matchAll(NODE_DOT_REF_RE)) out.add(m[1]);
+  for (const m of src.matchAll(NODE_BRACKET_REF_RE)) out.add(m[1]);
   return out;
+}
+
+/**
+ * The scope a piece of source actually needs: `nodes` cut down to the ids it
+ * names statically, everything else untouched.
+ *
+ * A scope carries every prior node output, and each expression of a prompt
+ * ships the whole of it across the runner boundary — serialized, sent,
+ * parsed. Pruning is what keeps a `{{ input.task.title }}` cheap after a
+ * node has produced megabytes. It never changes what the code sees: a node
+ * the source does not name reads as `undefined` with or without pruning.
+ * Any other use of the `nodes` identifier — a computed index, a spread, the
+ * object handed to a function — could reach an unnamed node, so the source
+ * keeps the full scope. Wrongly keeping too much only costs time; the check
+ * errs that way.
+ */
+function scopeForSource(
+  src: string,
+  scope: Record<string, unknown>,
+): Record<string, unknown> {
+  const nodes = scope.nodes;
+  if (!isPlainRecord(nodes)) return scope;
+  const rest = src
+    .replace(NODE_DOT_REF_RE, '')
+    .replace(NODE_BRACKET_REF_RE, '');
+  if (/\bnodes\b/.test(rest)) return scope;
+  const kept: Record<string, unknown> = {};
+  for (const id of refsInSource(src)) {
+    if (Object.hasOwn(nodes, id)) kept[id] = nodes[id];
+  }
+  return { ...scope, nodes: kept };
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
 /** `input.<key>` references, for typo-checking against the inputs schema. */
@@ -72,15 +109,18 @@ export function inputKeysInSource(src: string): Set<string> {
 }
 
 /** Expression evaluation budget. Expressions are lookups and small
- * reshapes; anything that needs longer belongs in a transform node. */
-const EXPR_TIMEOUT_MS = 100;
+ * reshapes — anything that needs longer belongs in a transform node — but
+ * the budget is wall-clock inside a shared runner process on a busy host, so
+ * it sits far above what a lookup needs: a starved child must not fail an
+ * honest expression, and a runaway loop is still stopped within a second. */
+const EXPR_TIMEOUT_MS = 1000;
 
 async function evalExpr(
   expr: string,
   scope: Record<string, unknown>,
 ): Promise<unknown> {
   try {
-    return await codeRunner().evalExpr(expr, scope, {
+    return await codeRunner().evalExpr(expr, scopeForSource(expr, scope), {
       timeoutMs: EXPR_TIMEOUT_MS,
     });
   } catch (e) {
@@ -165,7 +205,9 @@ export async function runCode(
   timeoutMs = CODE_TIMEOUT_MS,
 ): Promise<unknown> {
   try {
-    return await codeRunner().runBody(code, scope, { timeoutMs });
+    return await codeRunner().runBody(code, scopeForSource(code, scope), {
+      timeoutMs,
+    });
   } catch (e) {
     throw new ExprError('[code]', e instanceof Error ? e.message : String(e));
   }
