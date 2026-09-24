@@ -44,7 +44,7 @@ La liste s’ouvre sur les attributions **Active**. Utilise **Filtre > Statut** 
 | **Expirée**  | La date d’expiration, affichée sous le statut, est passée. Attribue-la à nouveau si le membre en a encore besoin.                                            |
 | **Révoquée** | Un admin ou un propriétaire l’a révoquée, ou une nouvelle attribution l’a remplacée après son expiration. La date de révocation est affichée sous le statut. |
 
-Une attribution détenue par une personne qui a quitté l’organisation l’indique comme **Ancien membre**.
+Une attribution détenue par une personne qui a quitté l’organisation l’indique comme **Ancien membre**. Le registre liste toutes les attributions actives et expirées, et comme historique les 1 000 dernières révoquées.
 
 <Tip>
 

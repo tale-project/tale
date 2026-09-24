@@ -44,7 +44,7 @@ Die Liste zeigt zuerst die Zuweisungen mit dem Status **Aktiv**. Mit **Filter > 
 | **Abgelaufen** | Das Ablaufdatum unter dem Status ist vorbei. Weise die Kompetenz erneut zu, wenn das Mitglied sie weiter braucht.                                      |
 | **Widerrufen** | Ein Admin oder Inhaber hat sie widerrufen, oder nach ihrem Ablauf hat eine neue Zuweisung sie ersetzt. Unter dem Status steht das Datum des Widerrufs. |
 
-Eine Zuweisung an jemanden, der die Organisation verlassen hat, zeigt **Ehemaliges Mitglied**.
+Eine Zuweisung an jemanden, der die Organisation verlassen hat, zeigt **Ehemaliges Mitglied**. Das Register listet alle aktiven und abgelaufenen Zuweisungen sowie als Verlauf die 1000 zuletzt widerrufenen.
 
 <Tip>
 

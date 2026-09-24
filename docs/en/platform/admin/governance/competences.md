@@ -44,7 +44,7 @@ The list opens on **Active** grants. Use **Filter > Status** to include **Expire
 | **Expired** | The expiry date has passed, shown below the status. Grant it again if the member still needs it.                          |
 | **Revoked** | An Admin or Owner revoked it, or a new grant replaced it after it expired. The revocation date is shown below the status. |
 
-A grant held by someone who has left the organization names them **Former member**.
+A grant held by someone who has left the organization names them **Former member**. The register lists every active and expired grant, and the 1,000 most recent revoked ones as history.
 
 <Tip>
 

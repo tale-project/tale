@@ -20361,6 +20361,44 @@ async function checkCompetences(
     `granted=${granted.success}, duplicate=${duplicate.status}/${duplicateBody.success ? duplicateBody.data.error : 'ERR'} (want 409), regrantAfterExpiry=${regrant.status} (want 201), nonMember=${stranger.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'} (want 400), listed=${listed.success ? listed.data.records.length : 'ERR'}`,
   );
 
+  // A long revoked history must not push a grant that still vouches off the
+  // register the governance screen lists: every live grant is listed, only
+  // the history is capped (1000). These revoked rows are all NEWER than the
+  // live auditor grant, so a plain newest-first LIMIT would drop it.
+  await sql`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms,
+      revoked_at_ms, revoked_by
+    )
+    SELECT ${orgId}, ${userId}, 'history-filler', ${userId},
+      live.granted_at_ms + n, live.granted_at_ms + n, ${userId}
+    FROM generate_series(1, 1001) AS n,
+      (SELECT granted_at_ms FROM app.competence_records WHERE id = ${recordId})
+        AS live
+  `;
+  const register = z
+    .object({
+      records: z.array(
+        z
+          .object({ competence: z.string(), revokedAt: z.number().nullable() })
+          .loose(),
+      ),
+    })
+    .safeParse(await (await api('/competences')).json());
+  const liveAuditorListed =
+    register.success &&
+    register.data.records.some(
+      (row) => row.competence === 'iso-13485-auditor' && row.revokedAt === null,
+    );
+  const revokedListed = register.success
+    ? register.data.records.filter((row) => row.revokedAt !== null).length
+    : -1;
+  record(
+    'competences: a long revoked history never hides a live grant',
+    liveAuditorListed && revokedListed === 1000,
+    `liveAuditorListed=${liveAuditorListed}, revokedListed=${revokedListed} (want 1000)`,
+  );
+
   // ---- the review door actually consults the register ------------------
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
