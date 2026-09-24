@@ -5716,9 +5716,11 @@ settings:
       clientSecretRequired: Un secret client est requis.
       spKeyRequired: Exiger des assertions chiffrées demande une clé privée SP.
     roleMapping:
-      help: Associez les groupes, rôles d'application ou intitulés de poste du
-        fournisseur d'identité à un rôle de la plateforme. Les utilisateurs
-        sans correspondance reçoivent le rôle par défaut.
+      help: Associe les groupes, rôles d’application ou intitulés de poste du
+        fournisseur d’identité à un rôle de la plateforme. Les règles sont
+        vérifiées de haut en bas, et la première qui correspond attribue le
+        rôle. Place donc en premier les règles qui donnent le plus de droits.
+        Les utilisateurs sans correspondance reçoivent le rôle par défaut.
       empty: Aucune règle pour l'instant — tout le monde reçoit le rôle par défaut.
       addRule: Ajouter une règle
       removeRule: Supprimer

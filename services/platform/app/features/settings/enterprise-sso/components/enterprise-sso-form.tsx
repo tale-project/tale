@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
 import { Input } from '@tale/ui/input';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import { ReorderList, type ReorderItem } from '@tale/ui/reorder-list';
 import { Select } from '@tale/ui/select';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
@@ -1595,7 +1596,9 @@ function AdditionalOriginCopies({
 /**
  * Editor for the IdP → platform role-mapping rules (drives the "auto-assign
  * roles from the IdP" toggle, which is otherwise inert without rules). The
- * first matching rule wins; a user who matches none gets the default role.
+ * first matching rule wins; a user who matches none gets the default role —
+ * so the list is ordered, and the admin reorders it by drag or by the
+ * up/down buttons.
  */
 function RoleMappingRulesEditor({
   control,
@@ -1603,10 +1606,61 @@ function RoleMappingRulesEditor({
   control: Control<SsoFormData>;
 }) {
   const { t } = useT('settings');
-  const { fields, append, remove } = useFieldArray({
+  const { t: tCommon } = useT('common');
+  const { fields, append, remove, move } = useFieldArray({
     control,
     name: 'roleMappingRules',
   });
+
+  // Framer Motion's `Reorder` tracks rows by reference identity, while
+  // `useFieldArray` hands out fresh field objects on every change — so keep
+  // one stable `{ id }` per field id across renders.
+  const rowsByIdRef = useRef(new Map<string, ReorderItem>());
+  const rows = useMemo(() => {
+    const next = new Map<string, ReorderItem>();
+    const result = fields.map((field) => {
+      const row = rowsByIdRef.current.get(field.id) ?? { id: field.id };
+      next.set(field.id, row);
+      return row;
+    });
+    rowsByIdRef.current = next;
+    return result;
+  }, [fields]);
+
+  // A drag reports the whole new order; replay it as field-array moves so
+  // each row keeps its field id (and its mounted inputs).
+  const handleReorder = useCallback(
+    (next: ReorderItem[]) => {
+      const order = rows.map((row) => row.id);
+      next.forEach((row, to) => {
+        const from = order.indexOf(row.id);
+        if (from === -1 || from === to) return;
+        order.splice(to, 0, ...order.splice(from, 1));
+        move(from, to);
+      });
+    },
+    [rows, move],
+  );
+  const handleMoveUp = useCallback(
+    (index: number) => {
+      if (index > 0) move(index, index - 1);
+    },
+    [move],
+  );
+  const handleMoveDown = useCallback(
+    (index: number) => {
+      if (index < fields.length - 1) move(index, index + 1);
+    },
+    [fields.length, move],
+  );
+  const handleRemove = useCallback(
+    (id: string) => {
+      const index = fields.findIndex((field) => field.id === id);
+      if (index !== -1) remove(index);
+    },
+    [fields, remove],
+  );
+
   const sourceOptions = ROLE_RULE_SOURCES.map((s) => ({
     value: s,
     label: t(`enterpriseSso.roleMapping.source.${s}`),
@@ -1627,18 +1681,25 @@ function RoleMappingRulesEditor({
             {t('enterpriseSso.roleMapping.empty')}
           </Text>
         ) : (
-          <Stack gap={3}>
-            {fields.map((field, index) => (
+          <ReorderList
+            items={rows}
+            onReorder={handleReorder}
+            onMoveUp={handleMoveUp}
+            onMoveDown={handleMoveDown}
+            onRemove={handleRemove}
+            moveUpLabel={tCommon('moveUp')}
+            moveDownLabel={tCommon('moveDown')}
+            dragHandleLabel={tCommon('drag')}
+            removeLabel={t('enterpriseSso.roleMapping.removeRule')}
+            renderItem={({ index }) => (
               <RoleMappingRuleRow
-                key={field.id}
                 control={control}
                 index={index}
                 sourceOptions={sourceOptions}
                 roleOptions={roleOptions}
-                onRemove={() => remove(index)}
               />
-            ))}
-          </Stack>
+            )}
+          />
         )}
         <HStack>
           <Button
@@ -1662,13 +1723,11 @@ function RoleMappingRuleRow({
   index,
   sourceOptions,
   roleOptions,
-  onRemove,
 }: {
   control: Control<SsoFormData>;
   index: number;
   sourceOptions: { value: string; label: string }[];
   roleOptions: { value: string; label: string }[];
-  onRemove: () => void;
 }) {
   const { t } = useT('settings');
   const source = useWatch({
@@ -1732,9 +1791,6 @@ function RoleMappingRuleRow({
               />
             )}
           />
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-            {t('enterpriseSso.roleMapping.removeRule')}
-          </Button>
         </Row>
         {source === 'claim' && (
           <Controller

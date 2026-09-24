@@ -62,6 +62,8 @@ SAML peut être lancé par l’IdP ou par Tale. Pour une connexion commencée da
 | **Synchroniser les groupes de l'IdP avec les équipes** | Crée ou rejoint les équipes selon les groupes à la connexion. |
 | **Exclure des groupes** | Noms de groupes séparés par des virgules à écarter de la synchronisation. |
 
+Les règles de rôle sont vérifiées de haut en bas, et la première qui correspond détermine le rôle. Une personne qui correspond à plusieurs règles, par exemple avec les rôles d’application `Administrator` et `Employee`, reçoit le rôle de la règle placée le plus haut, pas forcément le rôle qui donne le plus de droits. Place donc en premier les règles les plus privilégiées : fais glisser une règle par sa poignée ou utilise ses flèches **Monter** et **Descendre**, puis enregistre.
+
 Quand des groupes disparaissent, la synchronisation retire les appartenances qu’elle avait ajoutées et supprime les équipes qu’elle avait créées une fois vides. Elle préserve les appartenances créées manuellement ou par SCIM et laisse les groupes exclus tels quels. La page [Équipes](/fr/platform/admin/teams) décrit la gestion manuelle.
 
 ## Provisionner les membres par SCIM
@@ -95,7 +97,7 @@ Ouvre une session de navigateur séparée, choisis **Continuer avec SSO**, puis 
 | Redirection incorrecte, notamment `AADSTS50011` | Compare le rappel enregistré à l’URL exacte de Tale : domaine, schéma, chemin et barre oblique finale. |
 | Échec du test de connexion | Vérifie l’émetteur/les points de terminaison, l’ID client, la valeur et l’expiration du secret, ainsi que le consentement requis chez le fournisseur. |
 | Erreur de liaison au navigateur | Recommence dans le même navigateur et autorise les cookies nécessaires aux redirections. |
-| Mauvais rôle ou équipe absente | Vérifie les claims réellement fournis, les règles de rôles, les exclusions et les autorisations de groupes. Une règle **Rôle d'application** correspond à la valeur du rôle d’application, pas à son nom d’affichage ni à son ID. |
+| Mauvais rôle ou équipe absente | Vérifie les claims réellement fournis, les règles de rôles et leur ordre, les exclusions et les autorisations de groupes. Une règle **Rôle d'application** correspond à la valeur du rôle d’application, pas à son nom d’affichage ni à son ID. |
 | SCIM ne se connecte pas | Vérifie l’URL de base, le jeton Bearer et l’activation du provisionnement. |
 | La connexion par proxy est refusée | Vérifie que la carte est activée, que la clé n’est pas révoquée et que le proxy envoie l’en-tête d’e-mail et la clé dans la requête de passage. |
 | URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/fr/self-hosted/configuration/authentication). |

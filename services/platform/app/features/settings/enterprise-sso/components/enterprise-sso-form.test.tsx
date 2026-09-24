@@ -369,6 +369,51 @@ describe('EnterpriseSsoForm validation + save', () => {
     });
   });
 
+  it('saves role rules in the order the admin arranged them', async () => {
+    // The first matching rule wins at sign-in, so the list order IS the
+    // precedence: moving a rule has to reach the saved payload.
+    upsertOidcMock.mockClear();
+    revealClientIdMock.mockResolvedValueOnce('client-123');
+    const { user } = renderForm({
+      ...connectedOidc,
+      provisioning: {
+        ...connectedOidc.provisioning,
+        roleMappingRules: [
+          { source: 'appRole', pattern: 'Employee', targetRole: 'member' },
+          { source: 'appRole', pattern: 'Administrator', targetRole: 'admin' },
+        ],
+      },
+    });
+
+    expect(
+      screen.getByText(/checked from top to bottom and the first match/i),
+    ).toBeInTheDocument();
+    // The fieldset stays disabled until the stored connection has loaded,
+    // and that load re-renders the rows — so query the buttons afresh.
+    const moveDown = () => screen.getAllByRole('button', { name: 'Move down' });
+    await waitFor(() => expect(moveDown()[0]).toBeEnabled());
+    expect(
+      screen.getAllByRole('button', { name: 'Move up' })[0],
+    ).toBeDisabled();
+
+    await user.click(moveDown()[0]);
+    expect(
+      screen
+        .getAllByRole('textbox', { name: /matches value/i })
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(['Administrator', 'Employee']);
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
+    expect(upsertOidcMock.mock.calls[0][0].roleMappingRules).toEqual([
+      { source: 'appRole', pattern: 'Administrator', targetRole: 'admin' },
+      { source: 'appRole', pattern: 'Employee', targetRole: 'member' },
+    ]);
+  });
+
   it('round-trips a stored OAuth2 connection’s endpoints into the edit form', async () => {
     // Regression: the read view now carries the explicit OAuth2 endpoints, so
     // the form must seed them — otherwise editing an existing connection blanks

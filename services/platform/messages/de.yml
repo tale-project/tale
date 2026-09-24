@@ -5634,7 +5634,9 @@ settings:
     roleMapping:
       help:
         Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer
-        Plattformrolle zu. Wer auf keine Regel passt, erhält die
+        Plattformrolle zu. Die Regeln werden von oben nach unten geprüft, und die
+        erste passende Regel legt die Rolle fest. Stell deshalb die Regeln mit
+        den meisten Rechten nach oben. Wer auf keine Regel passt, erhält die
         Standardrolle.
       empty: Noch keine Regeln — alle erhalten die Standardrolle.
       addRule: Regel hinzufügen

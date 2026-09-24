@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 67 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 69 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -510,6 +510,19 @@ any toggled setting after the run.
   and the picker entry are gone while `TALE_CONFIG_DIR/<org>/providers/.history/`
   keeps the archived file; the same entry creates a second custom provider
   whose identifier numbers past the first (`qwen-cn`, then `qwen-cn-2`).
+- [ ] `SET-F44` · **Role rules keep their order** —
+  `/dashboard/{org}/settings/enterprise-sso` with **Auto-assign roles from the
+  IdP** (`settings.enterpriseSso.autoRoleLabel`) on → add three rules
+  (`settings.enterpriseSso.roleMapping.addRule`), move the last one up with
+  its **Move up** arrow (`common.moveUp`), drag another by its handle
+  (`common.drag`), header **Save**, reload → The help text
+  (`settings.enterpriseSso.roleMapping.help`) says rules are checked top to
+  bottom and the first match sets the role; the rules come back in the new
+  order; the first row's **Move up** and the last row's **Move down**
+  (`common.moveDown`) are disabled; a row's remove button
+  (`settings.enterpriseSso.roleMapping.removeRule`) deletes only that row.
+  With an IdP at hand, a user matching two rules signs in with the higher
+  rule's role.
 
 ## Boundary & error tests
 

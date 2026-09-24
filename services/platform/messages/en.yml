@@ -5742,7 +5742,9 @@ settings:
     roleMapping:
       help:
         Map identity-provider groups, app roles, or job titles to a platform role.
-        Users who match no rule get the default role.
+        Rules are checked from top to bottom and the first match sets the role,
+        so put the most privileged rules first. Users who match no rule get the
+        default role.
       empty: No rules yet — every user gets the default role.
       addRule: Add rule
       removeRule: Remove
