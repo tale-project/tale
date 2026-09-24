@@ -1,0 +1,68 @@
+'use client';
+
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { type ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
+
+interface PopoverProps {
+  trigger: ReactNode;
+  children: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  align?: 'start' | 'center' | 'end';
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  sideOffset?: number;
+  contentClassName?: string;
+  modal?: boolean;
+  onOpenAutoFocus?: (event: Event) => void;
+  /**
+   * Accessible name for the popover layer. Radix renders the content as
+   * `role="dialog"`, and a dialog without a name leaves assistive technology
+   * with no context on entry — point this at the id of the visible heading.
+   */
+  'aria-labelledby'?: string;
+  /** Accessible name when the popover has no visible heading to point at. */
+  'aria-label'?: string;
+}
+
+const CONTENT_CLASSES =
+  'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
+
+export function Popover({
+  trigger,
+  children,
+  open,
+  onOpenChange,
+  align = 'center',
+  side,
+  sideOffset = 4,
+  contentClassName,
+  modal,
+  onOpenAutoFocus,
+  'aria-labelledby': ariaLabelledby,
+  'aria-label': ariaLabel,
+}: PopoverProps) {
+  return (
+    <PopoverPrimitive.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      modal={modal}
+    >
+      <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align={align}
+          side={side}
+          sideOffset={sideOffset}
+          onOpenAutoFocus={onOpenAutoFocus}
+          aria-labelledby={ariaLabelledby}
+          aria-label={ariaLabel}
+          className={cn(CONTENT_CLASSES, contentClassName)}
+        >
+          {children}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
