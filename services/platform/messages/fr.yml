@@ -5164,6 +5164,13 @@ settings:
       namePlaceholder: Entre ton nom
       email: Courriel
       nameRequired: Le nom est requis
+    role:
+      title: Ton rôle
+      description: Ton rôle détermine ce que tu peux faire dans cette
+        organisation. Les admins l’attribuent dans Paramètres › Membres. Avec
+        l’authentification unique, ton fournisseur d’identité peut aussi le
+        définir.
+      manageLink: Gérer les membres
     teams:
       title: Tes équipes
       description: "Les équipes déterminent quels documents d'équipe, projets et files de la boîte de réception tu vois. Les admins les gèrent dans Paramètres › Équipes."
@@ -5716,9 +5723,11 @@ settings:
       clientSecretRequired: Un secret client est requis.
       spKeyRequired: Exiger des assertions chiffrées demande une clé privée SP.
     roleMapping:
-      help: Associez les groupes, rôles d'application ou intitulés de poste du
-        fournisseur d'identité à un rôle de la plateforme. Les utilisateurs
-        sans correspondance reçoivent le rôle par défaut.
+      help: Associe les groupes, rôles d’application ou intitulés de poste du
+        fournisseur d’identité à un rôle de la plateforme. Les règles sont
+        vérifiées de haut en bas, et la première qui correspond attribue le
+        rôle. Place donc en premier les règles qui donnent le plus de droits.
+        Les utilisateurs sans correspondance reçoivent le rôle par défaut.
       empty: Aucune règle pour l'instant — tout le monde reçoit le rôle par défaut.
       addRule: Ajouter une règle
       removeRule: Supprimer

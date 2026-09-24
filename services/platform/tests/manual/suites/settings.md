@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 67 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 71 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -510,6 +510,28 @@ any toggled setting after the run.
   and the picker entry are gone while `TALE_CONFIG_DIR/<org>/providers/.history/`
   keeps the archived file; the same entry creates a second custom provider
   whose identifier numbers past the first (`qwen-cn`, then `qwen-cn-2`).
+- [ ] `SET-F44` · **Role rules keep their order** —
+  `/dashboard/{org}/settings/enterprise-sso` with **Auto-assign roles from the
+  IdP** (`settings.enterpriseSso.autoRoleLabel`) on → add three rules
+  (`settings.enterpriseSso.roleMapping.addRule`), move the last one up with
+  its **Move up** arrow (`common.moveUp`), drag another by its handle
+  (`common.drag`), header **Save**, reload → The help text
+  (`settings.enterpriseSso.roleMapping.help`) says rules are checked top to
+  bottom and the first match sets the role; the rules come back in the new
+  order; the first row's **Move up** and the last row's **Move down**
+  (`common.moveDown`) are disabled; a row's remove button
+  (`settings.enterpriseSso.roleMapping.removeRule`) deletes only that row.
+  With an IdP at hand, a user matching two rules signs in with the higher
+  rule's role.
+- [ ] `SET-F45` · **Your role on the account page** —
+  `/dashboard/{org}/settings/account` (its `#role` anchor) as an editor, then
+  as an owner → The **Your role** section (`settings.account.role.title`, its
+  description `settings.account.role.description`) sits above **Your teams**
+  and shows the role as a translated badge (`settings.roles.editor`, never the
+  raw `editor`); only the owner sees **Manage members**
+  (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
+  hovering the name in the profile menu reads the name and the same translated
+  role.
 
 ## Boundary & error tests
 
@@ -585,6 +607,11 @@ any toggled setting after the run.
   (`settings.usage.reached`) over a full destructive bar; the chat banner
   switches to `chat.budgetLimitReached` and still links **View usage**
   (`chat.budgetViewUsage`).
+- [ ] `SET-B15` · **Long team names** — `/dashboard/{org}/settings/teams` with a
+  team whose name runs past 60 characters (a synced IdP group name will do) →
+  The name truncates with an ellipsis and never pushes the **Synced** badge
+  (`settings.teams.syncedBadge`) or the member count out of place; hovering the
+  name shows it in full; the name column is wider than the member-count column.
 
 ## Accessibility (WCAG 2.1 AA)
 

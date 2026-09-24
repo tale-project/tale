@@ -44,6 +44,8 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 | **Membre** | Utiliser le chat et lire les ressources partagées | Pas d’administration ; peut donner un avis sur les messages. |
 | **Désactivé** | Aucun accès actif | Conserve l’adhésion sans accorder de permissions. |
 
+Les personnes qui ne sont ni propriétaires ni admins ne peuvent pas ouvrir **Paramètres > Membres** ; elles voient leur propre rôle dans [**Paramètres > Compte > Ton rôle**](/fr/platform/member/preferences#role).
+
 Ce tableau décrit les capacités des rôles, sans garantir l’accès à chaque élément. Les conversations suivent leur attribution : une personne voit le travail qui lui est attribué ou qui appartient à ses équipes. Les conversations non attribuées restent réservées aux propriétaires et aux admins pour le triage. Consulte [le routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations).
 
 Seuls les propriétaires et les admins peuvent lire les journaux d’audit. Les actions des autres rôles peuvent produire des entrées, sans leur donner accès au journal.

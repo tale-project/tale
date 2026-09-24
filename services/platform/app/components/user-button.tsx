@@ -47,6 +47,7 @@ import {
 } from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -200,6 +201,7 @@ export function UserButton({
     organizationId,
     !user,
   );
+  const roleLabel = useRoleLabel();
 
   const [signOutDialogOpen, setSignOutDialogOpen] = useState(false);
   const [open, setOpen] = useState(false);
@@ -245,7 +247,7 @@ export function UserButton({
           <Tooltip
             content={
               !loading && user && memberContext?.role
-                ? `${displayName} - ${memberContext.role}`
+                ? `${displayName} - ${roleLabel(memberContext.role)}`
                 : null
             }
             side="top"
@@ -544,6 +546,7 @@ export function UserButton({
     loading,
     user,
     memberContext,
+    roleLabel,
     displayName,
     organizationId,
     currentOrg,

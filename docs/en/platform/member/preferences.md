@@ -23,6 +23,10 @@ Open the profile menu from your avatar. **Language** changes the interface langu
 
 Check the organization name before changing settings or adding content.
 
+## See your role {#role}
+
+**Settings > Account > Your role** shows your role in this organization, such as Editor or Member. Your role decides what you can do; your teams decide which team work you can see. Admins assign roles under [Members and roles](/platform/admin/members-and-roles). With single sign-on, your identity provider can also set your role each time you sign in. Owners and Admins see a **Manage members** link in the section.
+
 ## See your teams {#teams}
 
 **Settings > Account > Your teams** lists the teams you belong to. Teams decide which team documents, projects, and inbox queues you can see; work shared with the whole organization is visible to you regardless. When you are in no team, the section says so.

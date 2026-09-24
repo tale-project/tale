@@ -5231,6 +5231,12 @@ settings:
       namePlaceholder: Enter your name
       email: Email
       nameRequired: Name is required
+    role:
+      title: Your role
+      description: Your role decides what you can do in this organization.
+        Admins assign it under Settings › Members. With single sign-on, your
+        identity provider can also set it.
+      manageLink: Manage members
     teams:
       title: Your teams
       description: Teams decide which team documents, projects and inbox
@@ -5742,7 +5748,9 @@ settings:
     roleMapping:
       help:
         Map identity-provider groups, app roles, or job titles to a platform role.
-        Users who match no rule get the default role.
+        Rules are checked from top to bottom and the first match sets the role,
+        so put the most privileged rules first. Users who match no rule get the
+        default role.
       empty: No rules yet — every user gets the default role.
       addRule: Add rule
       removeRule: Remove

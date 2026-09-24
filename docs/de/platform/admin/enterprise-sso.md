@@ -62,6 +62,8 @@ SAML kann vom IdP oder von Tale aus gestartet werden. Wenn du in Tale beginnst, 
 | **IdP-Gruppen mit Teams synchronisieren** | Erstellt Teams oder fügt Mitglieder bei der Anmeldung anhand ihrer Gruppen hinzu. |
 | **Gruppen ausschließen** | Kommagetrennte Gruppennamen, die die Team-Synchronisierung auslässt. |
 
+Rollenregeln werden von oben nach unten geprüft, und die erste passende Regel bestimmt die Rolle. Passt jemand auf mehrere Regeln – etwa mit den App-Rollen `Administrator` und `Employee` –, gilt die Rolle der Regel, die weiter oben steht, und nicht automatisch die mit den meisten Rechten. Stell die Regeln mit den meisten Rechten deshalb nach oben: Zieh eine Regel an ihrem Griff oder nutze ihre Pfeile **Nach oben** und **Nach unten**, und speichere dann.
+
 Verschwinden Gruppen, entfernt die Synchronisierung die zuvor von ihr vergebenen Mitgliedschaften. Von ihr erstellte Teams löscht sie, sobald diese leer sind. Manuell oder über SCIM angelegte Mitgliedschaften bleiben erhalten; ausgeschlossene Gruppen bleiben unberührt. Die manuelle Verwaltung beschreibt [Teams](/de/platform/admin/teams).
 
 ## Mitglieder über SCIM bereitstellen
@@ -95,7 +97,7 @@ Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adr
 | Abweichende Weiterleitung, etwa `AADSTS50011` | Vergleiche den registrierten Callback exakt mit Tales URL: Domain, Schema, Pfad und abschließender Schrägstrich. |
 | Verbindungstest schlägt fehl | Prüfe Issuer/Endpunkte, Client-ID, Wert und Ablaufdatum des Secrets sowie nötige Zustimmungen beim Anbieter. |
 | Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
-| Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. Eine **App-Rolle**-Regel passt auf den Wert der App-Rolle, nicht auf ihren Anzeigenamen oder ihre ID. |
+| Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, die Rollenregeln und ihre Reihenfolge, Ausschlüsse und Gruppenberechtigungen. Eine **App-Rolle**-Regel passt auf den Wert der App-Rolle, nicht auf ihren Anzeigenamen oder ihre ID. |
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
 | Die Proxy-Anmeldung wird abgelehnt | Prüfe, ob die Karte eingeschaltet ist, der Schlüssel nicht widerrufen wurde und der Proxy E-Mail-Header und Schlüssel bei der Übergabe-Anfrage sendet. |
 | Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |

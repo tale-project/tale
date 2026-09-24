@@ -62,6 +62,8 @@ Both IdP-initiated and Tale-initiated SAML are supported. For a sign-in started 
 | **Sync IdP groups to teams** | Creates or joins teams from group membership at sign-in. |
 | **Exclude groups** | Comma-separated group names to leave out of team sync. |
 
+Role rules are checked from top to bottom, and the first rule that matches decides the role. A person who matches several rules — for example, someone with both an `Administrator` and an `Employee` app role — gets the role of the rule higher in the list, not automatically the most privileged one. Put the most privileged rules first: drag a rule by its handle or use its **Move up** and **Move down** arrows, then save.
+
 Team sync removes memberships it previously granted when groups disappear and deletes teams it created once empty. It preserves memberships created manually or through SCIM, and leaves excluded groups alone. See [teams](/platform/admin/teams) for manual membership management.
 
 ## Provision members through SCIM
@@ -95,7 +97,7 @@ Open a separate browser session, choose **Continue with SSO**, and select the or
 | Redirect mismatch, including `AADSTS50011` | Compare the registered callback with Tale's exact URL; check domain, scheme, path, and trailing slash. |
 | Connection test fails | Check issuer/endpoints, client ID, secret value and expiry, and required provider consent. |
 | Browser-binding error | Start sign-in again in the same browser and allow the cookies needed across redirects. |
-| Wrong role or missing team | Inspect the IdP's actual claims, role rules, exclusions, and group permissions. An **App role** rule matches the app role's Value, not its display name or ID. |
+| Wrong role or missing team | Inspect the IdP's actual claims, role rules and their order, exclusions, and group permissions. An **App role** rule matches the app role's Value, not its display name or ID. |
 | SCIM cannot connect | Check the base URL, bearer token, and whether provisioning is enabled. |
 | Proxy sign-in is refused | Check that the card is on, the key is not revoked, and the proxy sends the email header and the key on the hand-off request. |
 | Missing redirect URL or server-configuration warning | Ask the deployment operator to check [authentication configuration](/self-hosted/configuration/authentication). |
