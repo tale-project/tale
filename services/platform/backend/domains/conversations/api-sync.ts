@@ -18,6 +18,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { FileError, statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import { completePendingDraftInTx } from './draft.ts';
+import { applyConversationRouting } from './routing.ts';
 import {
   addMessageToConversation,
   ConversationError,
@@ -324,6 +325,20 @@ export async function synchronizeConversation(
         INSERT INTO app.conversation_api_bindings(conversation_id, org_id, source, external_id, external_contact_id, owner_user_id)
         VALUES (${conversationId}, ${viewer.organizationId}, ${input.source}, ${input.externalId}, ${input.externalContactId}, ${viewer.userId})
       `;
+      // Conversation routing (governance feature): a new mirror goes to the
+      // team or person the rule for its source names, before its messages
+      // notify anyone. Without a rule it stays unassigned — admin triage.
+      await applyConversationRouting(tx, {
+        id: conversationId,
+        organizationId: viewer.organizationId,
+        subject: input.subject,
+        status: input.status,
+        channel: 'api',
+        connectorName: input.source,
+        assigneeUserId: null,
+        assigneeTeamId: null,
+        metadata: null,
+      });
       binding = {
         conversationId,
         ownerUserId: viewer.userId,

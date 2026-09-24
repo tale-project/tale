@@ -3967,22 +3967,19 @@ governance:
     saveForbidden: You don't have permission to change this setting.
   conversationRouting:
     title: Conversation routing
-    description:
-      Route new inbound conversations to a team or person by the address
-      they were sent to. Rules apply automatically the moment mail arrives.
+    description: 'Route new conversations to a team or person by where they arrive: a mailbox, the address they were sent to, or an API app. Rules apply automatically the moment a conversation comes in.'
     addRule: Add rule
     editRule: Edit rule
     deleteRule: Delete rule
-    address: Address
+    sentTo: Sent to
     addressPlaceholder: billing@yourcompany.com
     invalidAddress: Enter a valid email address
     assignedTo: Assigned to
     actions: Actions
     noRulesTitle: No routing rules
-    noRulesDescription: Add a rule to auto-assign inbound conversations by the
-      address they were sent to.
+    noRulesDescription: 'Add a rule to auto-assign new conversations by the mailbox or API app they arrive on, or the address they were sent to.'
     removeRuleConfirmTitle: Remove routing rule?
-    removeRuleConfirmDescription: New conversations sent to this address will no longer be auto-assigned.
+    removeRuleConfirmDescription: 'New conversations this rule matches will no longer be auto-assigned.'
     removeRuleConfirmAction: Remove
     confirm: Save rule
     saved: Routing rules updated
@@ -3995,11 +3992,18 @@ governance:
     noAssignees: No people or teams found
     removePerson: Remove person
     removeTeam: Remove team
-    handoffAddRuleDescription:
-      New mail sent to this address will be assigned automatically. These rules
-      live here under Conversation routing — open this page anytime from
-      Settings.
+    handoffAddRuleDescription: 'New conversations like this one will be assigned automatically. These rules live here under Conversation routing — open this page anytime from Settings.'
     backToConversation: Back to conversation
+    arrivesOn: Arrives on
+    anyMailbox: Any mailbox
+    mailboxesSection: Mailboxes
+    apiSection: API apps
+    apiSource: 'API: {source}'
+    sentToHint: 'Required for Any mailbox, optional for one mailbox. A rule for support@ also catches support+billing@, and a rule for the tagged address wins.'
+    anyAddress: Any address
+    removedMailbox: Removed mailbox
+    duplicateRule: A rule for this mailbox and address already exists
+    precedence: 'The most specific rule wins: a mailbox with its exact address, then a mailbox with the base address, then an address on any mailbox, then a mailbox alone.'
 metrics:
   title: Metrics
   groups:

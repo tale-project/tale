@@ -4123,25 +4123,19 @@ governance:
     saveForbidden: Sie haben keine Berechtigung, diese Einstellung zu ändern.
   conversationRouting:
     title: Konversations-Routing
-    description: Neue eingehende Konversationen anhand der Adresse, an die sie
-      gesendet wurden, an ein Team oder eine Person weiterleiten. Die Regeln
-      greifen automatisch, sobald Post eintrifft.
+    description: 'Leite neue Konversationen anhand ihres Eingangs an ein Team oder eine Person weiter: über ein Postfach, die Adresse, an die sie gesendet wurden, oder eine API-App. Die Regeln greifen automatisch, sobald eine Konversation eingeht.'
     addRule: Regel hinzufügen
     editRule: Regel bearbeiten
     deleteRule: Regel löschen
-    address: Adresse
+    sentTo: Gesendet an
     addressPlaceholder: rechnung@deinefirma.de
     invalidAddress: Gib eine gültige E-Mail-Adresse ein
     assignedTo: Zugewiesen an
     actions: Aktionen
     noRulesTitle: Keine Routing-Regeln
-    noRulesDescription:
-      Füge eine Regel hinzu, um eingehende Konversationen anhand
-      der Zieladresse automatisch zuzuweisen.
+    noRulesDescription: 'Füge eine Regel hinzu, um neue Konversationen anhand des Postfachs, der API-App oder der Zieladresse automatisch zuzuweisen.'
     removeRuleConfirmTitle: Routing-Regel entfernen?
-    removeRuleConfirmDescription:
-      Neue Konversationen an diese Adresse werden nicht
-      mehr automatisch zugewiesen.
+    removeRuleConfirmDescription: 'Neue Konversationen, auf die diese Regel zutrifft, werden nicht mehr automatisch zugewiesen.'
     removeRuleConfirmAction: Entfernen
     confirm: Regel speichern
     saved: Routing-Regeln aktualisiert
@@ -4154,11 +4148,18 @@ governance:
     noAssignees: Keine Personen oder Teams gefunden
     removePerson: Person entfernen
     removeTeam: Team entfernen
-    handoffAddRuleDescription:
-      Neue Post an diese Adresse wird automatisch zugewiesen. Die Regeln liegen
-      hier unter Konversations-Routing — du erreichst diese Seite jederzeit über
-      Einstellungen.
+    handoffAddRuleDescription: 'Neue Konversationen wie diese werden automatisch zugewiesen. Die Regeln liegen hier unter Konversations-Routing — du erreichst diese Seite jederzeit über Einstellungen.'
     backToConversation: Zurück zur Konversation
+    arrivesOn: Eingang über
+    anyMailbox: Beliebiges Postfach
+    mailboxesSection: Postfächer
+    apiSection: API-Apps
+    apiSource: 'API: {source}'
+    sentToHint: 'Pflicht bei „Beliebiges Postfach“, optional für ein bestimmtes Postfach. Eine Regel für support@ erfasst auch support+rechnung@; eine Regel für die Adresse mit Zusatz hat Vorrang.'
+    anyAddress: Beliebige Adresse
+    removedMailbox: Entferntes Postfach
+    duplicateRule: Für dieses Postfach und diese Adresse gibt es bereits eine Regel
+    precedence: 'Die genaueste Regel gewinnt: zuerst ein Postfach mit genau dieser Adresse, dann ein Postfach mit der Grundadresse, dann eine Adresse in beliebigem Postfach, zuletzt ein Postfach allein.'
 metrics:
   title: Metriken
   groups:

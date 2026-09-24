@@ -15,7 +15,7 @@ import {
 } from '../contacts/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
-import { applyAddressRouting } from './routing.ts';
+import { applyConversationRouting } from './routing.ts';
 import {
   addMessageToConversation,
   createConversation,
@@ -265,20 +265,29 @@ export function conversationShimHandlers(
               ? { credentialId: initialMessage.credentialId }
               : {}),
           });
-          // Address routing (governance feature): auto-assign a NEW inbound
-          // conversation to the team/person mapped to the address it was sent
-          // to, BEFORE downstream notifications observe the row (the 0.4
-          // ingest-inline hook).
+          // Conversation routing (governance feature): auto-assign a NEW
+          // inbound conversation to the team/person mapped to the mailbox it
+          // arrived on and the address it was sent to, BEFORE downstream
+          // notifications observe the row (the 0.4 ingest-inline hook).
           if (args.direction === 'inbound') {
-            await applyAddressRouting(tx, {
-              id: conversationId,
-              organizationId: args.organizationId,
-              subject: args.subject ?? null,
-              status: args.status ?? 'open',
-              assigneeUserId: args.assigneeUserId ?? null,
-              assigneeTeamId: args.assigneeTeamId ?? null,
-              metadata: args.metadata ?? null,
-            });
+            await applyConversationRouting(
+              tx,
+              {
+                id: conversationId,
+                organizationId: args.organizationId,
+                subject: args.subject ?? null,
+                status: args.status ?? 'open',
+                channel: args.channel ?? null,
+                connectorName:
+                  initialMessage.connectorName ?? args.connectorName ?? null,
+                assigneeUserId: args.assigneeUserId ?? null,
+                assigneeTeamId: args.assigneeTeamId ?? null,
+                metadata: args.metadata ?? null,
+              },
+              initialMessage.credentialId !== undefined
+                ? { credentialId: initialMessage.credentialId }
+                : {},
+            );
           }
           return { conversationId, messageId };
         });

@@ -96,7 +96,12 @@ export function useComposeContactName(
   };
 }
 
-const EMAIL_PROVIDER_SLUGS = new Set(['gmail', 'outlook', 'imap-smtp']);
+/** The connectors whose credentials are email mailboxes. */
+export const EMAIL_PROVIDER_SLUGS: ReadonlySet<string> = new Set([
+  'gmail',
+  'outlook',
+  'imap-smtp',
+]);
 
 /**
  * The mailboxes the compose dialog can send through — the Inbox's connected

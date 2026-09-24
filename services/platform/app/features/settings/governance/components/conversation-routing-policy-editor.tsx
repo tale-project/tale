@@ -2,7 +2,7 @@
 
 import {
   conversationRoutingConfigSchema,
-  type ConversationRoutingRule,
+  type ConversationRoutingConfig,
 } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useNavigate, Link } from '@tanstack/react-router';
 import {
@@ -39,11 +40,16 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  EMAIL_PROVIDER_SLUGS,
+  useMailboxes,
+} from '@/app/features/conversations/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';
@@ -69,10 +75,90 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const parseConfig = createConfigParser(conversationRoutingConfigSchema, () => ({
   rules: [],
+  sourceRules: [],
 }));
 
-function emptyRule(): ConversationRoutingRule {
-  return { address: '' };
+// Where a rule applies, as the dialog's "Arrives on" picker names it: every
+// mailbox (an address rule, stored in `rules`), one mailbox, or one API app
+// (both stored in `sourceRules`).
+const ANY_MAILBOX = 'any';
+const MAILBOX_PREFIX = 'mailbox:';
+const API_PREFIX = 'api:';
+const MAILBOXES_HEADER = '__routing_mailboxes__';
+const API_HEADER = '__routing_api__';
+
+/** One row of the editor, over both of the file's rule arrays. */
+interface EditorRule {
+  arrivesOn: string;
+  /** The address it was sent to; empty for "any address". */
+  address: string;
+  teamId?: string;
+  userId?: string;
+}
+
+function targetOf(rule: { teamId?: string; userId?: string }) {
+  return {
+    ...(rule.teamId ? { teamId: rule.teamId } : {}),
+    ...(rule.userId ? { userId: rule.userId } : {}),
+  };
+}
+
+function editorRulesOf(config: ConversationRoutingConfig): EditorRule[] {
+  return [
+    ...config.rules.map((rule) => ({
+      arrivesOn: ANY_MAILBOX,
+      address: rule.address,
+      ...targetOf(rule),
+    })),
+    ...config.sourceRules.map((rule) => ({
+      arrivesOn:
+        rule.mailbox !== undefined
+          ? `${MAILBOX_PREFIX}${rule.mailbox}`
+          : `${API_PREFIX}${rule.apiSource ?? ''}`,
+      address: rule.address ?? '',
+      ...targetOf(rule),
+    })),
+  ];
+}
+
+/** The file both arrays are saved to: any-mailbox address rules in `rules`,
+ *  the rest in `sourceRules`, each keeping the editor's order. */
+function configOf(
+  rules: readonly EditorRule[],
+  enabled: boolean,
+): ConversationRoutingConfig {
+  const config: ConversationRoutingConfig = {
+    enabled,
+    rules: [],
+    sourceRules: [],
+  };
+  for (const rule of rules) {
+    const address = rule.address.trim();
+    if (rule.arrivesOn === ANY_MAILBOX) {
+      config.rules.push({ address, ...targetOf(rule) });
+    } else if (rule.arrivesOn.startsWith(MAILBOX_PREFIX)) {
+      config.sourceRules.push({
+        mailbox: rule.arrivesOn.slice(MAILBOX_PREFIX.length),
+        ...(address !== '' ? { address } : {}),
+        ...targetOf(rule),
+      });
+    } else {
+      config.sourceRules.push({
+        apiSource: rule.arrivesOn.slice(API_PREFIX.length),
+        ...targetOf(rule),
+      });
+    }
+  }
+  return config;
+}
+
+/** Two rules that match the same conversations. */
+function ruleKey(rule: EditorRule): string {
+  return `${rule.arrivesOn}|${rule.address.trim().toLowerCase()}`;
+}
+
+function emptyRule(): EditorRule {
+  return { arrivesOn: ANY_MAILBOX, address: '' };
 }
 
 interface Option {
@@ -83,14 +169,17 @@ interface Option {
 interface RuleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rule: ConversationRoutingRule;
-  onSave: (rule: ConversationRoutingRule) => void;
+  rule: EditorRule;
+  onSave: (rule: EditorRule) => void;
   title: string;
   /** Orient handoff visitors: why this page, where rules live. */
   description?: string;
   cannotManage: boolean;
   teamOptions: Option[];
   memberOptions: Option[];
+  arrivesOnOptions: SearchableSelectOption[];
+  /** Whether another rule already matches the same conversations. */
+  isDuplicate: (rule: EditorRule) => boolean;
 }
 
 function RuleDialog({
@@ -103,6 +192,8 @@ function RuleDialog({
   cannotManage,
   teamOptions,
   memberOptions,
+  arrivesOnOptions,
+  isDuplicate,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
@@ -159,22 +250,36 @@ function RuleDialog({
     }
   }, []);
 
-  const addressValid = EMAIL_RE.test(draft.address.trim());
+  // An API app has no address to narrow by; any mailbox needs one, or the
+  // rule would catch every email.
+  const isApi = draft.arrivesOn.startsWith(API_PREFIX);
+  const address = isApi ? '' : draft.address.trim();
+  const addressTyped = address !== '';
+  const addressValid = addressTyped
+    ? EMAIL_RE.test(address)
+    : draft.arrivesOn !== ANY_MAILBOX;
   const hasTarget = Boolean(draft.teamId || draft.userId);
-  const isValid = addressValid && hasTarget;
+  const duplicate = isDuplicate({ ...draft, address });
+  const isValid = addressValid && hasTarget && !duplicate;
+
+  const handleArrivesOnChange = useCallback((value: string) => {
+    if (value === MAILBOXES_HEADER || value === API_HEADER) return;
+    setDraft((d) => ({ ...d, arrivesOn: value }));
+  }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
       if (!isValid) return;
       onSave({
-        address: draft.address.trim(),
+        arrivesOn: draft.arrivesOn,
+        address,
         ...(draft.teamId ? { teamId: draft.teamId } : {}),
         ...(draft.userId ? { userId: draft.userId } : {}),
       });
       onOpenChange(false);
     },
-    [draft, isValid, onSave, onOpenChange],
+    [draft, address, isValid, onSave, onOpenChange],
   );
 
   return (
@@ -188,20 +293,43 @@ function RuleDialog({
       isValid={isValid}
     >
       <Stack gap={4}>
-        <Input
-          label={t('conversationRouting.address')}
-          type="email"
-          placeholder={t('conversationRouting.addressPlaceholder')}
-          value={draft.address}
-          onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
+        <SearchableSelect
+          label={t('conversationRouting.arrivesOn')}
+          value={draft.arrivesOn}
+          onValueChange={handleArrivesOnChange}
+          options={arrivesOnOptions}
           disabled={cannotManage}
-          isInvalid={draft.address.trim() !== '' && !addressValid}
-          errorMessage={
-            draft.address.trim() !== '' && !addressValid
-              ? t('conversationRouting.invalidAddress')
-              : undefined
-          }
+          modal
+          align="start"
+          aria-label={t('conversationRouting.arrivesOn')}
         />
+        {isApi ? (
+          duplicate ? (
+            <Text variant="error" role="alert">
+              {t('conversationRouting.duplicateRule')}
+            </Text>
+          ) : null
+        ) : (
+          <Input
+            label={t('conversationRouting.sentTo')}
+            type="email"
+            placeholder={t('conversationRouting.addressPlaceholder')}
+            value={draft.address}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, address: e.target.value }))
+            }
+            disabled={cannotManage}
+            description={t('conversationRouting.sentToHint')}
+            isInvalid={(addressTyped && !addressValid) || duplicate}
+            errorMessage={
+              addressTyped && !addressValid
+                ? t('conversationRouting.invalidAddress')
+                : duplicate
+                  ? t('conversationRouting.duplicateRule')
+                  : undefined
+            }
+          />
+        )}
         <Stack gap={2}>
           <Label>{t('conversationRouting.routeTo')}</Label>
           <SearchableSelect
@@ -306,8 +434,11 @@ interface ConversationRoutingPolicyEditorProps {
   organizationId: string;
   /** One-shot deep link: open the Add rule dialog (from inbox Auto assign). */
   openAddRule?: boolean;
-  /** Prefill for the Address field when `openAddRule` is set. */
+  /** Prefill for the Sent to field when `openAddRule` is set. */
   initialAddress?: string;
+  /** Prefill for Arrives on (`mailbox:<id>` or `api:<source>`) when
+   *  `openAddRule` is set. */
+  initialArrivesOn?: string;
   /** Return target while the Auto assign handoff is in flight. */
   returnToConversation?: {
     id: string;
@@ -316,16 +447,18 @@ interface ConversationRoutingPolicyEditorProps {
 }
 
 /**
- * Editor for the `conversation_routing` policy — per-org rules mapping an
- * inbound recipient address to a team and/or a person. The built-in ingest
- * hook (`applyAddressRouting`) reads these to auto-assign new inbound
- * conversations. Mirrors the model-access editor's rules-table + dialog pattern;
- * the whole `rules` array is saved on every add/edit/remove.
+ * Editor for the `conversation_routing` policy — per-org rules mapping where
+ * a new conversation arrives (any mailbox with an address, one mailbox with
+ * or without one, or an API app) to a team and/or a person. The built-in
+ * ingest hook (`applyConversationRouting`) reads these to auto-assign new
+ * conversations. Mirrors the model-access editor's rules-table + dialog
+ * pattern; both rule arrays are saved on every add/edit/remove.
  */
 export function ConversationRoutingPolicyEditor({
   organizationId,
   openAddRule = false,
   initialAddress,
+  initialArrivesOn,
   returnToConversation,
 }: ConversationRoutingPolicyEditorProps) {
   const { t } = useT('governance');
@@ -354,14 +487,27 @@ export function ConversationRoutingPolicyEditor({
     [members],
   );
 
+  const { mailboxes: allMailboxes } = useMailboxes();
+  const mailboxes = useMemo(
+    () =>
+      allMailboxes.filter((entry) =>
+        EMAIL_PROVIDER_SLUGS.has(entry.connectorSlug),
+      ),
+    [allMailboxes],
+  );
+  const { data: apiSources } = useBackendQuery(
+    'conversations/queries:apiSources',
+    organizationId ? { organizationId } : 'skip',
+  );
+
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
-  const savedRules = savedConfig.rules;
+  const savedRules = useMemo(() => editorRulesOf(savedConfig), [savedConfig]);
   // Absent flag means "decide from the rules": an org that configured routing
   // before the toggle existed keeps it, a fresh org (no rules) reads off.
   const savedEnabled = savedConfig.enabled ?? savedRules.length > 0;
 
   const initializedRef = useRef(false);
-  const [rules, setRules] = useState<ConversationRoutingRule[]>([]);
+  const [rules, setRules] = useState<EditorRule[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
@@ -388,20 +534,20 @@ export function ConversationRoutingPolicyEditor({
     policyType: 'conversation_routing',
     savedEnabled,
     isLoading: loading,
-    buildConfig: (next) => ({ enabled: next, rules: savedRules }),
+    buildConfig: (next) => configOf(savedRules, next),
     failureTitle: t('toastSaveFailedTitle'),
     failureDescription: t('conversationRouting.saveFailed'),
   });
 
   const saveRules = useCallback(
-    (next: ConversationRoutingRule[], revert: () => void) => {
+    (next: EditorRule[], revert: () => void) => {
       setRules(next);
       upsertMutation.mutate(
         {
           organizationId,
           policyType: 'conversation_routing',
           // A rule edit is only reachable while the section is on.
-          config: { enabled: true, rules: next },
+          config: configOf(next, true),
         },
         {
           onSuccess: () =>
@@ -442,7 +588,13 @@ export function ConversationRoutingPolicyEditor({
     if (!openAddRule) return;
     setEditingIndex(null);
     setFromHandoff(true);
-    setDialogRule({ address: initialAddress?.trim() ?? '' });
+    const arrivesOn = initialArrivesOn ?? ANY_MAILBOX;
+    setDialogRule({
+      arrivesOn,
+      address: arrivesOn.startsWith(API_PREFIX)
+        ? ''
+        : (initialAddress?.trim() ?? ''),
+    });
     setDialogOpen(true);
     void navigate({
       to: '/dashboard/$id/settings/governance/policies-limits',
@@ -452,11 +604,12 @@ export function ConversationRoutingPolicyEditor({
         const next = { ...prev };
         delete next.openRoutingRule;
         delete next.routingAddress;
+        delete next.routingArrivesOn;
         return next;
       },
       replace: true,
     });
-  }, [openAddRule, initialAddress, navigate, organizationId]);
+  }, [openAddRule, initialAddress, initialArrivesOn, navigate, organizationId]);
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
     setDialogOpen(open);
@@ -473,7 +626,7 @@ export function ConversationRoutingPolicyEditor({
   );
 
   const handleDialogSave = useCallback(
-    (rule: ConversationRoutingRule) => {
+    (rule: EditorRule) => {
       const prev = rules;
       const next =
         editingIndex === null
@@ -492,8 +645,95 @@ export function ConversationRoutingPolicyEditor({
     saveRules(next, () => setRules(prev));
   }, [deletingIndex, rules, saveRules]);
 
+  const isDuplicate = useCallback(
+    (candidate: EditorRule) =>
+      rules.some(
+        (rule, index) =>
+          index !== editingIndex && ruleKey(rule) === ruleKey(candidate),
+      ),
+    [rules, editingIndex],
+  );
+
+  const arrivesOnLabel = useCallback(
+    (arrivesOn: string): string => {
+      if (arrivesOn === ANY_MAILBOX) {
+        return t('conversationRouting.anyMailbox');
+      }
+      if (arrivesOn.startsWith(API_PREFIX)) {
+        return t('conversationRouting.apiSource', {
+          source: arrivesOn.slice(API_PREFIX.length),
+        });
+      }
+      const id = arrivesOn.slice(MAILBOX_PREFIX.length);
+      return (
+        mailboxes.find((entry) => entry.id === id)?.name ??
+        t('conversationRouting.removedMailbox')
+      );
+    },
+    [mailboxes, t],
+  );
+
+  // Any mailbox, then each mailbox by name (its address beneath), then each
+  // API app that has synced a conversation. A rule already naming a mailbox
+  // or app that is gone keeps its entry, so editing it does not lose it.
+  const arrivesOnOptions = useMemo<SearchableSelectOption[]>(() => {
+    const options: SearchableSelectOption[] = [
+      { value: ANY_MAILBOX, label: t('conversationRouting.anyMailbox') },
+    ];
+    const listed = new Set<string>([ANY_MAILBOX]);
+    const mailboxValues = mailboxes.map((entry) => {
+      const value = `${MAILBOX_PREFIX}${entry.id}`;
+      listed.add(value);
+      const fromAddress = entry.config?.fromAddress;
+      return {
+        value,
+        label: entry.name,
+        ...(typeof fromAddress === 'string' && fromAddress !== ''
+          ? { description: fromAddress }
+          : {}),
+      };
+    });
+    const apiValues = (apiSources ?? []).map((source) => {
+      const value = `${API_PREFIX}${source}`;
+      listed.add(value);
+      return { value, label: arrivesOnLabel(value) };
+    });
+    const stale = [...rules, dialogRule]
+      .map((rule) => rule.arrivesOn)
+      .filter((value) => !listed.has(value))
+      .filter((value, index, all) => all.indexOf(value) === index)
+      .map((value) => ({ value, label: arrivesOnLabel(value) }));
+    const staleMailboxes = stale.filter((o) =>
+      o.value.startsWith(MAILBOX_PREFIX),
+    );
+    const staleApi = stale.filter((o) => o.value.startsWith(API_PREFIX));
+    if (mailboxValues.length + staleMailboxes.length > 0) {
+      options.push(
+        {
+          value: MAILBOXES_HEADER,
+          label: t('conversationRouting.mailboxesSection'),
+          isSectionHeader: true,
+        },
+        ...mailboxValues,
+        ...staleMailboxes,
+      );
+    }
+    if (apiValues.length + staleApi.length > 0) {
+      options.push(
+        {
+          value: API_HEADER,
+          label: t('conversationRouting.apiSection'),
+          isSectionHeader: true,
+        },
+        ...apiValues,
+        ...staleApi,
+      );
+    }
+    return options;
+  }, [mailboxes, apiSources, rules, dialogRule, arrivesOnLabel, t]);
+
   const resolveTargets = useCallback(
-    (rule: ConversationRoutingRule): string => {
+    (rule: EditorRule): string => {
       const parts: string[] = [];
       if (rule.teamId) {
         parts.push(
@@ -548,11 +788,13 @@ export function ConversationRoutingPolicyEditor({
             it. */}
         {(loading || enabled) && (
           <Stack gap={4}>
-            <Row justify="end">
+            <Row justify="between" align="start" gap={4}>
+              <Text variant="muted">{t('conversationRouting.precedence')}</Text>
               <Button
                 variant="primary"
                 onClick={openAddDialog}
                 disabled={cannotManage || isPending}
+                className="shrink-0"
               >
                 <Signpost className="mr-1.5 size-4" />
                 {t('conversationRouting.addRule')}
@@ -565,7 +807,8 @@ export function ConversationRoutingPolicyEditor({
                 </TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('conversationRouting.address')}</TableHead>
+                    <TableHead>{t('conversationRouting.arrivesOn')}</TableHead>
+                    <TableHead>{t('conversationRouting.sentTo')}</TableHead>
                     <TableHead>{t('conversationRouting.assignedTo')}</TableHead>
                     <TableHead className="text-right">
                       {t('conversationRouting.actions')}
@@ -578,6 +821,11 @@ export function ConversationRoutingPolicyEditor({
                       { length: PLACEHOLDER_ROW_COUNT },
                       (_, index) => (
                         <TableRow key={`skeleton-${index}`} data-no-hover>
+                          <TableCell>
+                            <div className="w-32">
+                              <SkeletonText />
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="w-40">
                               <SkeletonText />
@@ -610,8 +858,14 @@ export function ConversationRoutingPolicyEditor({
                             onClick={() => openEditDialog(index)}
                             disabled={cannotManage}
                           >
-                            {rule.address}
+                            {arrivesOnLabel(rule.arrivesOn)}
                           </button>
+                        </TableCell>
+                        <TableCell>
+                          {rule.arrivesOn.startsWith(API_PREFIX)
+                            ? '—'
+                            : rule.address ||
+                              t('conversationRouting.anyAddress')}
                         </TableCell>
                         <TableCell>{resolveTargets(rule)}</TableCell>
                         <TableCell className="text-right">
@@ -629,7 +883,7 @@ export function ConversationRoutingPolicyEditor({
                     ))
                   ) : (
                     <TableRow data-no-hover>
-                      <TableCell colSpan={3} className="p-0">
+                      <TableCell colSpan={4} className="p-0">
                         <RulesTableEmptyState
                           icon={Signpost}
                           title={t('conversationRouting.noRulesTitle')}
@@ -665,6 +919,8 @@ export function ConversationRoutingPolicyEditor({
             cannotManage={cannotManage}
             teamOptions={teamOptions}
             memberOptions={memberOptions}
+            arrivesOnOptions={arrivesOnOptions}
+            isDuplicate={isDuplicate}
           />
         )}
 

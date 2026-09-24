@@ -74,6 +74,14 @@ export function ConversationAssigneePicker({
     isRecord(conversation.metadata) ? conversation.metadata : undefined,
     conversation.direction,
   );
+  // Where this thread arrived, so the rule the handoff opens matches it: its
+  // API app, or the mailbox the server placed it on.
+  const routingArrivesOn =
+    conversation.channel === 'api' && conversation.connectorName
+      ? `api:${conversation.connectorName}`
+      : conversation.credentialId
+        ? `mailbox:${conversation.credentialId}`
+        : undefined;
   const inboxStatus =
     conversation.status === 'closed' ||
     conversation.status === 'spam' ||
@@ -346,6 +354,7 @@ export function ConversationAssigneePicker({
             state={{
               openRoutingRule: true,
               ...(routingAddress ? { routingAddress } : {}),
+              ...(routingArrivesOn ? { routingArrivesOn } : {}),
               returnToConversation: {
                 id: conversation.id,
                 status: inboxStatus,

@@ -32,18 +32,21 @@ vi.mock('../hooks/mutations', () => ({
     isPending: false,
   }),
 }));
-const { state, members, teams, providers, apiKeys } = vi.hoisted(() => ({
-  state: {
-    result: { data: undefined, isLoading: true } as {
-      data: { config: Record<string, unknown> } | undefined;
-      isLoading: boolean;
+const { state, members, teams, providers, apiKeys, mailboxes, backendQuery } =
+  vi.hoisted(() => ({
+    state: {
+      result: { data: undefined, isLoading: true } as {
+        data: { config: Record<string, unknown> } | undefined;
+        isLoading: boolean;
+      },
     },
-  },
-  members: { members: [{ userId: 'user-1', displayName: 'Alice' }] },
-  teams: { teams: [{ id: 'team-1', name: 'Finance' }] },
-  providers: { providers: [] },
-  apiKeys: { data: [] },
-}));
+    members: { members: [{ userId: 'user-1', displayName: 'Alice' }] },
+    teams: { teams: [{ id: 'team-1', name: 'Finance' }] },
+    providers: { providers: [] },
+    apiKeys: { data: [] },
+    mailboxes: { mailboxes: [] },
+    backendQuery: { data: [], isLoading: false },
+  }));
 vi.mock('../hooks/queries', () => ({
   useGovernancePolicy: () => state.result,
 }));
@@ -59,6 +62,14 @@ vi.mock('../hooks/model-catalog', () => ({
 }));
 vi.mock('@/app/features/settings/api-keys/hooks/use-api-keys', () => ({
   useApiKeys: () => apiKeys,
+}));
+// The routing editor lists mailboxes and API apps as arrival points.
+vi.mock('@/app/features/conversations/hooks/queries', () => ({
+  EMAIL_PROVIDER_SLUGS: new Set(['gmail', 'outlook', 'imap-smtp']),
+  useMailboxes: () => mailboxes,
+}));
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => backendQuery,
 }));
 
 afterEach(cleanup);

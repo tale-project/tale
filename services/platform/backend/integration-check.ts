@@ -26637,13 +26637,16 @@ async function checkChatZeroHitListingFallback(
 }
 
 /**
- * Address→assignee routing at inbound ingest: the org's
- * `conversation_routing` governance file maps the address the customer
- * wrote to onto a team queue or a person; an unknown address and a stale
- * rule (deleted user) leave the row unassigned WITHOUT breaking ingest;
- * `enabled: false` silences configured rules.
+ * Conversation routing at ingest: the org's `conversation_routing`
+ * governance file maps where a new conversation arrived onto a team queue or
+ * a person — the address an email was sent to (a base address also catching
+ * its plus-tagged variants), the mailbox it came through, or the API source
+ * it was mirrored under — with the documented precedence. An unknown address,
+ * a stale rule (deleted user) and a rule for a removed mailbox leave the row
+ * unassigned WITHOUT breaking ingest; `enabled: false` silences every lane.
+ * Each routed dimension is audited as the system under its own action.
  */
-async function checkAddressRouting(
+async function checkConversationRouting(
   sql: Sql,
   ctx: { orgId: string; userId: string },
   orgSlug: string,
@@ -26651,36 +26654,72 @@ async function checkAddressRouting(
   const { orgId, userId } = ctx;
   const { conversationShimHandlers } =
     await import('./domains/conversations/shim.ts');
+  const { synchronizeConversation } =
+    await import('./domains/conversations/api-sync.ts');
+  const { apiSnapshotSchema } =
+    await import('../lib/shared/conversations/api-sync.ts');
   const { clearOrgConfigCaches } = await import('./lib/org-config.ts');
 
-  const teamRows = await sql<{ id: string }[]>`
-    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
-    VALUES (gen_random_uuid(), 'Routing Desk', ${orgId}, ${new Date()})
-    RETURNING "id"
-  `;
-  const teamId = teamRows[0]?.id ?? '';
+  const team = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+      VALUES (gen_random_uuid(), ${name}, ${orgId}, ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const teamId = await team('Routing Desk');
+  const mailboxTeamId = await team('Mailbox Desk');
   await sql`
     INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
     VALUES (gen_random_uuid(), ${teamId}, ${userId}, ${new Date()})
+  `;
+  const mailbox = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.connector_credentials (
+        org_id, connector_slug, auth_method, name, encrypted_data, status,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, 'imap-smtp', 'basic', ${name}, ${sql.json({})}, 'active',
+        'itest', ${Date.now()}, ${Date.now()}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const mailboxA = await mailbox('routing-mailbox-a');
+  const mailboxB = await mailbox('routing-mailbox-b');
+  await sql`
+    INSERT INTO app.contacts (org_id, name, email, source, external_id,
+                              created_at_ms, updated_at_ms)
+    VALUES (${orgId}, 'Routing Client', 'routing.client@ext.test',
+            'api_import', 'routing-client', ${Date.now()}, ${Date.now()})
   `;
 
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
   const routingFile = path.join(governanceDir, 'conversation-routing.yml');
-  await writeFile(
-    routingFile,
-    [
-      'enabled: true',
-      'rules:',
-      '  - address: support@door.test',
-      `    teamId: ${teamId}`,
-      '  - address: billing@door.test',
-      `    userId: ${userId}`,
-      '  - address: ghost@door.test',
-      '    userId: no-such-user',
-    ].join('\n'),
-  );
+  const routingRules = [
+    'rules:',
+    '  - address: support@door.test',
+    `    teamId: ${teamId}`,
+    '  - address: billing@door.test',
+    `    userId: ${userId}`,
+    '  - address: ghost@door.test',
+    '    userId: no-such-user',
+    'sourceRules:',
+    `  - mailbox: ${mailboxA}`,
+    `    teamId: ${mailboxTeamId}`,
+    `  - mailbox: ${mailboxA}`,
+    '    address: sales@door.test',
+    `    userId: ${userId}`,
+    '  - mailbox: mailbox-removed',
+    `    teamId: ${mailboxTeamId}`,
+    '  - apiSource: routing-app',
+    `    teamId: ${teamId}`,
+  ];
+  await writeFile(routingFile, ['enabled: true', ...routingRules].join('\n'));
   clearOrgConfigCaches();
 
   const handlers = conversationShimHandlers(sql, () => {
@@ -26689,7 +26728,21 @@ async function checkAddressRouting(
   const create =
     handlers['conversations/internal_mutations:createConversationWithMessage'];
   if (!create) throw new Error('shim handler missing');
-  const mk = async (address: string, subject: string) => {
+  const assignment = async (conversationId: string) => {
+    const rows = await sql<
+      { assigneeUserId: string | null; assigneeTeamId: string | null }[]
+    >`
+      SELECT assignee_user_id AS "assigneeUserId",
+             assignee_team_id AS "assigneeTeamId"
+      FROM app.conversations WHERE id = ${conversationId} LIMIT 1
+    `;
+    return { id: conversationId, row: rows[0] ?? null };
+  };
+  const mk = async (
+    address: string,
+    subject: string,
+    credentialId?: string,
+  ) => {
     const out = z
       .object({ conversationId: z.string() })
       .loose()
@@ -26698,29 +26751,68 @@ async function checkAddressRouting(
           organizationId: orgId,
           direction: 'inbound',
           channel: 'email',
+          connectorName: 'imap-smtp',
           subject,
           metadata: { to: [{ address }] },
           initialMessage: {
             sender: 'router.customer@ext.test',
             content: 'route me',
             isCustomer: true,
+            ...(credentialId !== undefined ? { credentialId } : {}),
           },
         }),
       );
-    const rows = await sql<
-      { assigneeUserId: string | null; assigneeTeamId: string | null }[]
-    >`
-      SELECT assignee_user_id AS "assigneeUserId",
-             assignee_team_id AS "assigneeTeamId"
-      FROM app.conversations WHERE id = ${out.conversationId} LIMIT 1
-    `;
-    return { id: out.conversationId, row: rows[0] ?? null };
+    return assignment(out.conversationId);
+  };
+  const viewer = { organizationId: orgId, userId, role: 'owner' };
+  const mirror = async (externalId: string) => {
+    const synced = z
+      .object({ conversationId: z.string() })
+      .loose()
+      .parse(
+        await synchronizeConversation(
+          sql,
+          viewer,
+          apiSnapshotSchema.parse({
+            source: 'routing-app',
+            externalId,
+            externalContactId: 'routing-client',
+            version: 0,
+            subject: `API ${externalId}`,
+            status: 'open',
+            messages: [
+              {
+                externalId: `${externalId}-m1`,
+                content: 'route me',
+                isCustomer: true,
+                authorName: 'Routing Client',
+                createdAt: Date.now(),
+              },
+            ],
+          }),
+        ),
+      );
+    return assignment(synced.conversationId);
   };
 
   const toTeam = await mk('support@door.test', 'Routed to team');
   const toUser = await mk('Billing@Door.Test', 'Routed to person');
+  const tagged = await mk('support+eu@door.test', 'Routed by base address');
   const unknown = await mk('nobody@door.test', 'No rule');
   const stale = await mk('ghost@door.test', 'Stale rule');
+  const mailboxOnly = await mk('jobs@door.test', 'Mailbox rule', mailboxA);
+  const mailboxExact = await mk(
+    'sales@door.test',
+    'Mailbox + address',
+    mailboxA,
+  );
+  const addressBeatsMailbox = await mk(
+    'support@door.test',
+    'Address over mailbox',
+    mailboxA,
+  );
+  const otherMailbox = await mk('jobs@door.test', 'Other mailbox', mailboxB);
+  const api = await mirror('routing-thread-1');
 
   const bell = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.user_notifications
@@ -26728,43 +26820,65 @@ async function checkAddressRouting(
       AND type = 'conversation_assigned' AND actor_type = 'system'
       AND resource_id IN (${toTeam.id}, ${toUser.id})
   `;
-  const audits = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.audit_logs
-    WHERE org_id = ${orgId} AND action = 'assign_conversation'
-      AND actor_type = 'system'
+  const audits = await sql<{ resourceId: string; action: string }[]>`
+    SELECT resource_id AS "resourceId", action FROM app.audit_logs
+    WHERE org_id = ${orgId} AND actor_type = 'system'
+      AND action IN ('assign_conversation', 'assign_conversation_team')
       AND resource_id IN (${toTeam.id}, ${toUser.id})
   `;
+  const auditOf = (id: string) =>
+    audits
+      .filter((row) => row.resourceId === id)
+      .map((row) => row.action)
+      .join(',');
 
-  // The kill switch: configured rules silenced by an explicit false.
-  await writeFile(
-    routingFile,
-    [
-      'enabled: false',
-      'rules:',
-      '  - address: support@door.test',
-      `    teamId: ${teamId}`,
-    ].join('\n'),
-  );
+  // The kill switch: configured rules silenced by an explicit false, on the
+  // email lane and the API lane alike.
+  await writeFile(routingFile, ['enabled: false', ...routingRules].join('\n'));
   clearOrgConfigCaches();
   const silenced = await mk('support@door.test', 'Silenced');
+  const silencedApi = await mirror('routing-thread-2');
 
   const { unlink } = await import('node:fs/promises');
   await unlink(routingFile);
   clearOrgConfigCaches();
 
+  const is = (
+    got: {
+      row: {
+        assigneeUserId: string | null;
+        assigneeTeamId: string | null;
+      } | null;
+    },
+    want: { teamId?: string; userId?: string },
+  ) =>
+    got.row?.assigneeTeamId === (want.teamId ?? null) &&
+    got.row.assigneeUserId === (want.userId ?? null);
+  const cases = {
+    toTeam: is(toTeam, { teamId }),
+    toUser: is(toUser, { userId }),
+    tagged: is(tagged, { teamId }),
+    unknown: is(unknown, {}),
+    stale: is(stale, {}),
+    mailboxOnly: is(mailboxOnly, { teamId: mailboxTeamId }),
+    mailboxExact: is(mailboxExact, { userId }),
+    addressBeatsMailbox: is(addressBeatsMailbox, { teamId }),
+    otherMailbox: is(otherMailbox, {}),
+    api: is(api, { teamId }),
+    silenced: is(silenced, {}),
+    silencedApi: is(silencedApi, {}),
+  };
   record(
-    'address routing at inbound ingest (governance file, stale-rule safety)',
-    toTeam.row?.assigneeTeamId === teamId &&
-      toTeam.row.assigneeUserId === null &&
-      toUser.row?.assigneeUserId === userId &&
-      unknown.row?.assigneeUserId === null &&
-      unknown.row.assigneeTeamId === null &&
-      stale.row?.assigneeUserId === null &&
-      stale.row.assigneeTeamId === null &&
-      silenced.row?.assigneeTeamId === null &&
+    'conversation routing at ingest (address, subaddress, mailbox, API source, stale-rule safety)',
+    Object.values(cases).every(Boolean) &&
       Number(bell[0]?.count ?? '0') === 2 &&
-      Number(audits[0]?.count ?? '0') === 2,
-    `team=${toTeam.row?.assigneeTeamId === teamId} user=${toUser.row?.assigneeUserId === userId} (case-insensitive), unknown=${unknown.row?.assigneeUserId ?? 'null'}/${unknown.row?.assigneeTeamId ?? 'null'} stale=${stale.row?.assigneeUserId ?? 'null'} (ingest survived), silenced=${silenced.row?.assigneeTeamId ?? 'null'}, bells=${bell[0]?.count} (want 2) audits=${audits[0]?.count} (want 2)`,
+      auditOf(toTeam.id) === 'assign_conversation_team' &&
+      auditOf(toUser.id) === 'assign_conversation',
+    `${Object.entries(cases)
+      .map(([name, ok]) => `${name}=${ok ? 'ok' : 'WRONG'}`)
+      .join(
+        ' ',
+      )} bells=${bell[0]?.count} (want 2) audits team=${auditOf(toTeam.id)} (want assign_conversation_team) person=${auditOf(toUser.id)} (want assign_conversation)`,
   );
 }
 
@@ -52941,8 +53055,8 @@ async function main(): Promise<void> {
         () => checkChatZeroHitListingFallback(sql, authCtx),
       ],
       [
-        'checkAddressRouting',
-        () => checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`),
+        'checkConversationRouting',
+        () => checkConversationRouting(sql, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkControlDrain', () => checkControlDrain(sql, baseUrl, authCtx)],
       ['checkProvisioning', () => checkProvisioning(sql)],

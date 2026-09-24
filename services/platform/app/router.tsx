@@ -104,6 +104,9 @@ declare module '@tanstack/react-router' {
   interface HistoryState {
     openRoutingRule?: boolean;
     routingAddress?: string;
+    /** Where the thread arrived, as the routing editor's Arrives on names
+     *  it: `mailbox:<credentialId>` or `api:<source>`. */
+    routingArrivesOn?: string;
     returnToConversation?: {
       id: string;
       status: 'open' | 'closed' | 'spam' | 'archived';

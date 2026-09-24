@@ -82,11 +82,17 @@ The notice is a reminder only. It does not check, block, or change what members 
 
 ## Conversation routing
 
-Use **Conversation routing** to assign new inbound conversations by the recipient address. Add a rule, select a team, a person, or both, then save it. Address matching ignores case.
+Use **Conversation routing** to assign new conversations by where they arrive. Add a rule, set its fields, then save it:
+
+- **Arrives on**: **Any mailbox**, one mailbox by its name, or an API app. An API app is listed once it has synced a conversation.
+- **Sent to**: the address the conversation was sent to. It is required for **Any mailbox**, optional for one mailbox, and absent for an API app. Address matching ignores case.
+- **Route to**: a team, a person, or both.
+
+A rule for `support@example.com` also catches plus-addressed mail such as `support+billing@example.com`, and a rule for the tagged address wins for that address. When several rules match, the most specific one applies: a mailbox with its exact address, then a mailbox with the base address, then an address on any mailbox, then a mailbox alone.
 
 A team assignment makes the conversation visible to that team's members; a person assignment makes it visible to that person. When both are set, either membership grants visibility. Unassigned conversations are for Admin and Owner triage.
 
-Rules apply when a new conversation arrives. They do not reassign an existing conversation when a reply joins it. If a rule points to a deleted person or team, the conversation still arrives without that routing assignment. Test with a new message to the recipient address and verify the resulting assignee.
+Rules apply when a new conversation arrives. They do not reassign an existing conversation when a reply joins it. If a rule points to a deleted person, team, or mailbox, the conversation still arrives without that routing assignment. Test with a new message and verify the resulting assignee.
 
 ## Configure sign-in limits separately
 

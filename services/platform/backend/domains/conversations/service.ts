@@ -960,6 +960,174 @@ export async function assertAssignableMember(
   }
 }
 
+/** Who changed an assignment: a person through a door, or the system
+ *  (routing). */
+export type AssignmentActor =
+  | { type: 'user'; userId: string; email?: string }
+  | { type: 'system' };
+
+interface AssignableConversation {
+  id: string;
+  organizationId: string;
+  subject: string | null;
+  status: string | null;
+  assigneeUserId: string | null;
+  assigneeTeamId: string | null;
+}
+
+function assignmentAuditActor(actor: AssignmentActor) {
+  return actor.type === 'user'
+    ? {
+        actorId: actor.userId,
+        ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+        actorType: 'user' as const,
+      }
+    : { actorId: 'system', actorType: 'system' as const };
+}
+
+function notifyFieldsOf(conversation: AssignableConversation) {
+  return {
+    id: conversation.id,
+    organizationId: conversation.organizationId,
+    subject: conversation.subject,
+    status: conversation.status,
+  };
+}
+
+/**
+ * Set or clear a conversation's person: the ONE write every assigning path
+ * shares (the Inbox door, routing). The assignee must be an active member;
+ * an unchanged value is a silent no-op. Audits the change as `actor`, tells
+ * the new assignee (never on self-assignment), and emits a hint. Returns
+ * whether it changed anything. The caller gates who may assign.
+ */
+export async function writeConversationAssignee(
+  tx: TransactionSql,
+  conversation: AssignableConversation,
+  next: string | null,
+  actor: AssignmentActor,
+): Promise<boolean> {
+  const previous = conversation.assigneeUserId;
+  if (previous === next) return false;
+  if (next !== null) {
+    await assertAssignableMember(tx, conversation.organizationId, next);
+  }
+  await tx`
+    UPDATE app.conversations SET assignee_user_id = ${next}
+    WHERE id = ${conversation.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: conversation.organizationId,
+    ...assignmentAuditActor(actor),
+    action: next ? 'assign_conversation' : 'unassign_conversation',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: conversation.id,
+    ...(conversation.subject !== null
+      ? { resourceName: conversation.subject }
+      : {}),
+    previousState: { assigneeUserId: previous },
+    newState: { assigneeUserId: next },
+    status: 'success',
+  });
+  if (next) {
+    await notifyConversationAssigned(tx, {
+      conversation: notifyFieldsOf(conversation),
+      assigneeUserId: next,
+      actorType: actor.type,
+      actorId: actor.type === 'user' ? actor.userId : 'system',
+    });
+  }
+  await emitHintInTx(tx, {
+    orgId: conversation.organizationId,
+    entity: 'conversation',
+    entityId: conversation.id,
+  });
+  return true;
+}
+
+/**
+ * Set or clear a conversation's team queue: the ONE write the Inbox door,
+ * routing and the public API share. The team must belong to the
+ * conversation's organization; an unchanged value is a silent no-op. Audits
+ * the change as `actor`, fans the news out to the team (the acting person
+ * excluded), and emits a hint. Returns whether it changed anything. The
+ * caller gates who may assign.
+ */
+export async function writeConversationTeam(
+  tx: TransactionSql,
+  conversation: AssignableConversation,
+  next: string | null,
+  actor: AssignmentActor,
+): Promise<boolean> {
+  const previous = conversation.assigneeTeamId;
+  if (previous === next) return false;
+  if (next !== null) {
+    const teams = await tx<{ organizationId: string }[]>`
+      SELECT "organizationId" FROM "team" WHERE "id" = ${next} LIMIT 1
+    `;
+    if (teams[0]?.organizationId !== conversation.organizationId) {
+      throw new ConversationError(
+        'team_not_in_org',
+        'Team does not belong to this organization',
+      );
+    }
+  }
+  await tx`
+    UPDATE app.conversations SET assignee_team_id = ${next}
+    WHERE id = ${conversation.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: conversation.organizationId,
+    ...assignmentAuditActor(actor),
+    action: next ? 'assign_conversation_team' : 'unassign_conversation_team',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: conversation.id,
+    ...(conversation.subject !== null
+      ? { resourceName: conversation.subject }
+      : {}),
+    previousState: { assigneeTeamId: previous },
+    newState: { assigneeTeamId: next },
+    status: 'success',
+  });
+  if (next) {
+    await notifyConversationAssignedTeam(tx, {
+      conversation: notifyFieldsOf(conversation),
+      teamId: next,
+      actorUserId: actor.type === 'user' ? actor.userId : null,
+    });
+  }
+  await emitHintInTx(tx, {
+    orgId: conversation.organizationId,
+    entity: 'conversation',
+    entityId: conversation.id,
+  });
+  return true;
+}
+
+/** The conversation row an Inbox assignment door acts on, or a 404. */
+async function loadConversationForAssignment(
+  tx: TransactionSql,
+  organizationId: string,
+  conversationId: string,
+): Promise<ConversationRow> {
+  const rows = await tx<ConversationRow[]>`
+    SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
+    WHERE id = ${conversationId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const conversation = rows[0];
+  if (!conversation) {
+    throw new ConversationError(
+      'conversation_not_found',
+      'Conversation not found',
+      404,
+    );
+  }
+  return conversation;
+}
+
 /** Admin-only individual assignment; unchanged = silent no-op; the assignee
  * must be an active org member; the new assignee is notified (never on
  * self-assignment or unassign). */
@@ -980,64 +1148,15 @@ export async function assignConversation(
     );
   }
   await sql.begin(async (tx) => {
-    const rows = await tx<ConversationRow[]>`
-      SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
-      WHERE id = ${args.conversationId} AND org_id = ${args.organizationId}
-      LIMIT 1
-    `;
-    const conversation = rows[0];
-    if (!conversation) {
-      throw new ConversationError(
-        'conversation_not_found',
-        'Conversation not found',
-        404,
-      );
-    }
-    const previous = conversation.assigneeUserId;
-    const next = args.assigneeUserId;
-    if (previous === next) return;
-    if (next !== null) {
-      await assertAssignableMember(tx, args.organizationId, next);
-    }
-    await tx`
-      UPDATE app.conversations SET assignee_user_id = ${next}
-      WHERE id = ${args.conversationId}
-    `;
-    await createAuditLog(tx, {
-      organizationId: args.organizationId,
-      actorId: args.actor.userId,
-      ...(args.actor.email !== undefined
-        ? { actorEmail: args.actor.email }
-        : {}),
-      actorType: 'user',
-      action: next ? 'assign_conversation' : 'unassign_conversation',
-      category: 'data',
-      resourceType: 'conversation',
-      resourceId: args.conversationId,
-      ...(conversation.subject !== null
-        ? { resourceName: conversation.subject }
-        : {}),
-      previousState: { assigneeUserId: previous },
-      newState: { assigneeUserId: next },
-      status: 'success',
-    });
-    if (next && next !== args.actor.userId) {
-      await notifyConversationAssigned(tx, {
-        conversation: {
-          id: conversation.id,
-          organizationId: conversation.organizationId,
-          subject: conversation.subject,
-          status: conversation.status,
-        },
-        assigneeUserId: next,
-        actorType: 'user',
-        actorId: args.actor.userId,
-      });
-    }
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
-      entity: 'conversation',
-      entityId: args.conversationId,
+    const conversation = await loadConversationForAssignment(
+      tx,
+      args.organizationId,
+      args.conversationId,
+    );
+    await writeConversationAssignee(tx, conversation, args.assigneeUserId, {
+      type: 'user',
+      userId: args.actor.userId,
+      ...(args.actor.email !== undefined ? { email: args.actor.email } : {}),
     });
   });
 }
@@ -1061,71 +1180,15 @@ export async function assignConversationTeam(
     );
   }
   await sql.begin(async (tx) => {
-    const rows = await tx<ConversationRow[]>`
-      SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
-      WHERE id = ${args.conversationId} AND org_id = ${args.organizationId}
-      LIMIT 1
-    `;
-    const conversation = rows[0];
-    if (!conversation) {
-      throw new ConversationError(
-        'conversation_not_found',
-        'Conversation not found',
-        404,
-      );
-    }
-    const previous = conversation.assigneeTeamId;
-    const next = args.assigneeTeamId;
-    if (previous === next) return;
-    if (next !== null) {
-      const teams = await tx<{ organizationId: string }[]>`
-        SELECT "organizationId" FROM "team" WHERE "id" = ${next} LIMIT 1
-      `;
-      if (teams[0]?.organizationId !== args.organizationId) {
-        throw new ConversationError(
-          'team_not_in_org',
-          'Team does not belong to this organization',
-        );
-      }
-    }
-    await tx`
-      UPDATE app.conversations SET assignee_team_id = ${next}
-      WHERE id = ${args.conversationId}
-    `;
-    await createAuditLog(tx, {
-      organizationId: args.organizationId,
-      actorId: args.actor.userId,
-      ...(args.actor.email !== undefined
-        ? { actorEmail: args.actor.email }
-        : {}),
-      actorType: 'user',
-      action: next ? 'assign_conversation_team' : 'unassign_conversation_team',
-      category: 'data',
-      resourceType: 'conversation',
-      resourceId: args.conversationId,
-      ...(conversation.subject !== null
-        ? { resourceName: conversation.subject }
-        : {}),
-      previousState: { assigneeTeamId: previous },
-      newState: { assigneeTeamId: next },
-      status: 'success',
-    });
-    if (next) {
-      await notifyConversationAssignedTeam(tx, {
-        conversation: {
-          id: conversation.id,
-          organizationId: conversation.organizationId,
-          subject: conversation.subject,
-          status: conversation.status,
-        },
-        teamId: next,
-        actorUserId: args.actor.userId,
-      });
-    }
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
-      entity: 'conversation',
-      entityId: args.conversationId,
+    const conversation = await loadConversationForAssignment(
+      tx,
+      args.organizationId,
+      args.conversationId,
+    );
+    await writeConversationTeam(tx, conversation, args.assigneeTeamId, {
+      type: 'user',
+      userId: args.actor.userId,
+      ...(args.actor.email !== undefined ? { email: args.actor.email } : {}),
     });
   });
 }
