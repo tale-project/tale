@@ -165,6 +165,7 @@ export interface ConversationsContract {
       priority?: string;
       direction?: 'inbound' | 'outbound';
       connectorName?: string;
+      credentialId?: string;
       channel?: string;
       externalMessageId?: string;
       contactId?: string;
@@ -270,6 +271,7 @@ export interface ConversationsContract {
       priority?: string;
       direction?: 'inbound' | 'outbound';
       connectorName?: string;
+      credentialId?: string;
       channel?: string;
       externalMessageId?: string;
       contactId?: string;
@@ -390,6 +392,7 @@ export interface ConversationsContract {
         priority?: string;
         direction?: 'inbound' | 'outbound';
         connectorName?: string;
+        credentialId?: string;
         channel?: string;
         externalMessageId?: string;
         contactId?: string;

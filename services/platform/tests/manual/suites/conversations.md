@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 39 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -302,9 +302,9 @@ rows lead with the subject.
   the draft's own person does NOT, because a draft always keeps an owner.
 - [ ] `CONV-F19` · **The Inbox names the channel** — In an org with TWO email
   connectors installed and at least one API-synced thread, as an owner → Each
-  list row carries a channel chip: the connector's title for an email thread,
+  list row carries a channel chip: the mailbox's name for an email thread,
   the source slug for an API one, and no chip at all on a thread that names
-  neither. Open an email thread → The header reads **{connector} · {address}**,
+  neither. Open an email thread → The header reads **{mailbox} · {address}**,
   not the address alone. Open the API thread → The header reads
   `conversations.header.apiSource` with its source, where it previously showed
   nothing. The composer names the destination in both
@@ -317,6 +317,16 @@ rows lead with the subject.
   never the same slug twice. Pick one → Only that channel's rows remain and
   `?channel=<slug>` lands in the URL; reload and the choice survives. In an org
   with no connector and no API thread, the Channel facet does not appear at all.
+
+- [ ] `CONV-F21` · **Two mailboxes on one connector each name themselves** —
+  With TWO credentials on one email connector (mailboxes A and B, B listed
+  last), mail the organization at A's address → The list row's chip reads A's
+  name, and the header reads **{A} · {A's address}**, never B's name beside
+  A's address. The composer reads `conversations.header.replyVia` with A, and
+  the reply leaves from A. Open a thread from before the mailboxes recorded
+  where mail arrived, written to A's address → It is named A too. Open one
+  written to an address neither mailbox has → The header shows the address
+  alone, with no mailbox name.
 
 ## Boundary & error tests
 

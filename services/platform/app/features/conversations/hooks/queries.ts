@@ -4,6 +4,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 
+import type { MailboxEntry } from '../lib/channel-source';
 import {
   resolvedEmailOption,
   type EmailConnectorOption,
@@ -158,23 +159,25 @@ export function useEmailConnectors(organizationId: string): {
 const EMPTY_EMAIL_CONNECTORS: EmailConnectorOption[] = [];
 
 /**
- * Names an email connector by slug, for any surface that shows where a thread
- * came in. Reads the org from context and shares `useEmailConnectors`' cached
+ * The organization's mailboxes (every connector credential), for any surface
+ * that names where a thread came in — pass them to `channelSourceOf`. Reads
+ * the org from context and shares `useEmailConnectors`' cached credentials
  * query, so a list of rows costs one directory read rather than one per row.
+ *
+ * Every credential, not one per connector: an organization may hold several
+ * mailboxes on one connector, and a thread names its own by `credentialId`.
  */
-export function useConnectorTitles(): {
-  titleOf: (slug: string) => string | undefined;
-} {
+export function useMailboxes(): { mailboxes: readonly MailboxEntry[] } {
   const organizationId = useOrganizationId();
-  const { emailConnectors } = useEmailConnectors(organizationId ?? '');
-  const titleOf = useMemo(() => {
-    const bySlug = new Map(
-      emailConnectors.map((connector) => [connector.slug, connector.title]),
-    );
-    return (slug: string) => bySlug.get(slug);
-  }, [emailConnectors]);
-  return { titleOf };
+  const { data } = useBackendQuery(
+    'connector_credentials/queries:listCredentials',
+    organizationId ? { organizationId } : 'skip',
+  );
+  return { mailboxes: data ?? EMPTY_MAILBOXES };
 }
+
+// Stable identity so consumers' memos don't re-run every render.
+const EMPTY_MAILBOXES: MailboxEntry[] = [];
 
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();

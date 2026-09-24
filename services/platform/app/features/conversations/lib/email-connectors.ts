@@ -31,6 +31,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** A connector config's send address (`fromAddress`), when it has one. */
+export function configuredFromAddress(
+  connectionConfig: unknown,
+): string | undefined {
+  return isRecord(connectionConfig) &&
+    typeof connectionConfig.fromAddress === 'string' &&
+    connectionConfig.fromAddress.trim().length > 0
+    ? connectionConfig.fromAddress.trim()
+    : undefined;
+}
+
 /**
  * Shape a resolved inbox connector (the merged file-config + credential object
  * from `useRequiredConnectors`) into a sender option. `slug` is passed
@@ -41,13 +52,7 @@ export function resolvedEmailOption(
   connector: unknown,
 ): EmailConnectorOption {
   const rec = isRecord(connector) ? connector : {};
-  const connectionConfig = rec.connectionConfig;
-  const fromAddress =
-    isRecord(connectionConfig) &&
-    typeof connectionConfig.fromAddress === 'string' &&
-    connectionConfig.fromAddress.trim().length > 0
-      ? connectionConfig.fromAddress.trim()
-      : undefined;
+  const fromAddress = configuredFromAddress(rec.connectionConfig);
   return {
     slug,
     title:

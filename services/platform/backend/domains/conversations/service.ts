@@ -19,6 +19,10 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import {
+  resolveHeldThreadCredential,
+  resolveThreadCredentials,
+} from './thread-mailbox.ts';
 
 /**
  * Conversations — the shared Inbox core, the 0.5 twin of
@@ -512,9 +516,9 @@ function isUnread(metadata: Record<string, unknown> | null): boolean {
  *
  * `items` is the page in the shape the Inbox reads (the SAME shared
  * projection the detail door applies), built from the page's batched reads
- * — contacts, newest message, pending approval — so a page costs four
- * queries whatever its size. The route used to re-project every row through
- * the detail path, three more queries per row.
+ * — contacts, newest message, pending approval, each thread's mailbox — so a
+ * page costs at most six queries whatever its size. The route used to
+ * re-project every row through the detail path, three more queries per row.
  */
 export async function listConversationsPage(
   sql: Sql,
@@ -604,6 +608,11 @@ export async function listConversationsPage(
     viewer.organizationId,
     conversationIds,
   );
+  const credentialByConversation = await resolveThreadCredentials(
+    sql,
+    viewer.organizationId,
+    visible,
+  );
 
   const page = visible.map((row) => {
     const lastMessage = lastByConversation.get(row.id);
@@ -625,11 +634,13 @@ export async function listConversationsPage(
     items: page.map((row) => {
       const lastMessage = lastByConversation.get(row.id);
       const pending = pendingByConversation.get(row.id);
+      const credentialId = credentialByConversation.get(row.id);
       return projectConversationItem({
         conversation: row,
         contact: row.contact,
         messages: lastMessage ? [lastMessage] : [],
         ...(pending !== undefined ? { pendingApproval: pending } : {}),
+        ...(credentialId !== undefined ? { credentialId } : {}),
       });
     }),
     isDone,
@@ -1280,6 +1291,12 @@ export async function projectConversationForView(
       conversation.id,
     ])
   ).get(conversation.id);
+  const credentialId = await resolveHeldThreadCredential(
+    sql,
+    conversation.organizationId,
+    conversation,
+    messages,
+  );
   return projectConversationItem({
     conversation,
     contact:
@@ -1288,6 +1305,7 @@ export async function projectConversationForView(
         : (contactById.get(conversation.contactId) ?? null),
     messages: presigned,
     ...(pending !== undefined ? { pendingApproval: pending } : {}),
+    ...(credentialId !== undefined ? { credentialId } : {}),
   });
 }
 

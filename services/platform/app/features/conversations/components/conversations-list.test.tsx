@@ -11,8 +11,15 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   // The row names its channel through the connector directory; these tests
   // render without a query provider.
-  useConnectorTitles: () => ({
-    titleOf: (slug: string) => (slug === 'gmail' ? 'Gmail' : undefined),
+  useMailboxes: () => ({
+    mailboxes: [
+      {
+        id: 'cred-gmail',
+        connectorSlug: 'gmail',
+        name: 'Gmail',
+        status: 'active',
+      },
+    ],
   }),
 }));
 

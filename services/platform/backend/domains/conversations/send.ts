@@ -38,6 +38,7 @@ import {
   type ConversationMessageRow,
   type ConversationRow,
 } from './service.ts';
+import { resolveThreadCredentials } from './thread-mailbox.ts';
 
 /**
  * The outbound send surface — the 0.5 twin of the 0.4 send lane
@@ -418,13 +419,15 @@ export async function replyToConversation(
       organizationId: string;
       connectorName: string | null;
       channel: string | null;
+      direction: 'inbound' | 'outbound' | null;
+      metadata: Record<string, unknown> | null;
       subject: string | null;
       contactEmail: string | null;
     }[]
   >`
     SELECT c.org_id AS "organizationId",
-           c.connector_name AS "connectorName", c.channel, c.subject,
-           ct.email AS "contactEmail"
+           c.connector_name AS "connectorName", c.channel, c.direction,
+           c.metadata, c.subject, ct.email AS "contactEmail"
     FROM app.conversations c
     LEFT JOIN app.contacts ct ON ct.id = c.contact_id AND ct.org_id = c.org_id
     WHERE c.id = ${args.conversationId} LIMIT 1
@@ -470,20 +473,20 @@ export async function replyToConversation(
   // only the connector, and an organization may hold several credentials on
   // one connector, so without this the send resolves the `is_default`
   // credential and can answer from a mailbox the customer never wrote to.
-  // The newest inbound message wins: a thread moved to another mailbox
-  // should reply from where it now arrives. Absent on threads whose messages
-  // predate 0113, which keep the default-credential behaviour.
-  const carried = await sql<{ credentialId: string | null }[]>`
-    SELECT credential_id AS "credentialId"
-    FROM app.conversation_messages
-    WHERE conversation_id = ${args.conversationId}
-      AND org_id = ${args.organizationId}
-      AND direction = 'inbound'
-      AND credential_id IS NOT NULL
-    ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC, seq DESC
-    LIMIT 1
-  `;
-  const credentialId = carried[0]?.credentialId ?? undefined;
+  // The Inbox names the thread's mailbox from the same resolver, so the name
+  // it shows is where this reply leaves from. A thread it cannot place keeps
+  // the default-credential behaviour.
+  const credentialId = (
+    await resolveThreadCredentials(sql, args.organizationId, [
+      {
+        id: args.conversationId,
+        channel: row.channel,
+        connectorName: row.connectorName,
+        direction: row.direction,
+        metadata: row.metadata,
+      },
+    ])
+  ).get(args.conversationId);
 
   const subject = buildReplySubject(row.subject ?? undefined);
   const { html, text } = splitHtmlText(args.content);

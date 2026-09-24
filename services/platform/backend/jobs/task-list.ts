@@ -564,6 +564,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           organizationId: z.string().min(1),
           messageId: z.string().min(1),
           connectorName: z.string().min(1),
+          // The mailbox the send must leave through. Left out, the parse
+          // dropped it and every send resolved the connector's default.
+          credentialId: z.string().min(1).optional(),
           to: z.array(z.string()).min(1),
           cc: z.array(z.string()).optional(),
           subject: z.string(),

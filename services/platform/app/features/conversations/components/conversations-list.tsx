@@ -26,7 +26,7 @@ import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-utils';
 
-import { useConnectorTitles } from '../hooks/queries';
+import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
 import type { Conversation } from '../types';
 
@@ -185,7 +185,7 @@ const ConversationRow = memo(function ConversationRow({
   const { t: tCommon } = useT('common');
   // One cached directory read for every row (same query key).
   const { nameOf: teamNameOf } = useTeamNames();
-  const { titleOf: connectorTitleOf } = useConnectorTitles();
+  const { mailboxes } = useMailboxes();
 
   // Localized fallback for a name-less contact. The backend now returns an
   // undefined name (instead of a hardcoded "Unknown Contact"), so the label is
@@ -338,17 +338,15 @@ const ConversationRow = memo(function ConversationRow({
               </Badge>
             ) : null}
 
-            {/* Which channel the thread came in on, and so where a reply
-                goes back out: the server re-derives the route from these same
-                stamps. Two mailboxes on one connector read alike here — the
-                connector is what the row has room to say. A thread with
-                neither stamp shows nothing rather than a guess. */}
+            {/* Which mailbox the thread came in on, and so where a reply
+                goes back out: the server resolves both from the same stamps.
+                Two mailboxes on one connector each carry their own name; a
+                thread the server could not place shows the connector's slug,
+                and a thread with neither stamp shows nothing rather than a
+                guess. */}
             {conversation
               ? (() => {
-                  const source = channelSourceOf(
-                    conversation,
-                    connectorTitleOf,
-                  );
+                  const source = channelSourceOf(conversation, mailboxes);
                   if (source.lane === 'unknown') return null;
                   return (
                     <Badge

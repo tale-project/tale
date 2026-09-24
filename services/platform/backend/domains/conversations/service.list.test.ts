@@ -157,15 +157,30 @@ const CONTACTS = [
 describe('listConversationsPage', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('projects the page from four batched reads, none per row', async () => {
+  it('projects the page from batched reads, none per row', async () => {
     const rows = [
-      conversation('c1', 'ct-1'),
+      {
+        ...conversation('c1', 'ct-1'),
+        metadata: { unread_count: 1, to: [{ address: 'hello@support.test' }] },
+      },
       conversation('c2', 'ct-2'),
       conversation('c3', null),
     ];
     const { sql, statements } = recordingSql((text) => {
       if (text.includes('FROM app.conversations ')) return rows;
       if (text.includes('FROM app.contacts')) return CONTACTS;
+      if (text.includes('AND credential_id IS NOT NULL')) {
+        return [{ conversationId: 'c2', credentialId: 'cred-b' }];
+      }
+      if (text.includes('FROM app.connector_credentials')) {
+        return [
+          {
+            id: 'cred-general',
+            connectorSlug: 'imap-smtp',
+            config: { fromAddress: 'hello@support.test' },
+          },
+        ];
+      }
       if (text.includes('FROM app.conversation_messages')) {
         return [
           message('m1', 'c1', 'x'.repeat(500)),
@@ -183,14 +198,17 @@ describe('listConversationsPage', () => {
       limit: 25,
     });
 
-    // rows, contacts, newest messages, pending approvals — and nothing else,
-    // whatever the page size.
+    // rows, contacts, newest messages, pending approvals, then each thread's
+    // mailbox (recorded credentials, and the mailboxes an unrecorded thread's
+    // address can name) — and nothing else, whatever the page size.
     const reads = tableReads(statements);
     expect(reads.map((s) => s.text.split(' FROM ')[1]?.split(' ')[0])).toEqual([
       'app.conversations',
       'app.contacts',
       'app.conversation_messages',
       'app.approvals',
+      'app.conversation_messages',
+      'app.connector_credentials',
     ]);
     // Every batch is keyed on the whole page, org-scoped where a row is
     // org-owned.
@@ -198,6 +216,10 @@ describe('listConversationsPage', () => {
     expect(contacts?.values).toEqual([['ct-1', 'ct-2'], ORG]);
     const approvals = reads[3];
     expect(approvals?.values).toEqual([ORG, ['c1', 'c2', 'c3']]);
+    const recorded = reads[4];
+    expect(recorded?.values).toEqual([ORG, ['c1', 'c2', 'c3']]);
+    const mailboxes = reads[5];
+    expect(mailboxes?.values).toEqual([ORG, ['imap-smtp']]);
 
     expect(result.page.map((row) => row.contact?.email ?? null)).toEqual([
       'carla@ext.test',
@@ -223,6 +245,15 @@ describe('listConversationsPage', () => {
     });
     expect(result.items[0]).not.toHaveProperty('pendingApproval');
     expect(result.items[2]).toMatchObject({ _id: 'c3', message_count: 0 });
+
+    // Each thread names its own mailbox: c1 by the address it was written
+    // to, c2 by the credential its messages recorded, c3 not at all.
+    expect(result.items.map((item) => item.credentialId)).toEqual([
+      'cred-general',
+      'cred-b',
+      undefined,
+    ]);
+    expect(result.items[2]).not.toHaveProperty('credentialId');
   });
 
   it('skips the contact and message batches for an empty page', async () => {
@@ -282,5 +313,71 @@ describe('projectConversationForView', () => {
     );
     // The caller's rows are answered raw alongside the item: untouched.
     expect(thread[0]?.metadata).toEqual({ attachments: [attachment] });
+    // Nothing recorded a mailbox and no address names one.
+    expect(item).not.toHaveProperty('credentialId');
+  });
+
+  it("names the mailbox from the thread's own newest inbound message, with no read", async () => {
+    const thread = [
+      { ...message('m1', 'c1', 'first'), credentialId: 'cred-a' },
+      { ...message('m2', 'c1', 'moved'), credentialId: 'cred-b' },
+      // Our own reply names where we sent, not where they wrote.
+      {
+        ...message('m3', 'c1', 'reply'),
+        direction: 'outbound' as const,
+        credentialId: 'cred-c',
+      },
+    ];
+    const { sql, statements } = recordingSql((text) => {
+      if (text.includes('FROM app.contacts')) return [CONTACTS[0]];
+      if (text.includes('FROM app.approvals')) return [];
+      throw new Error(`unexpected statement: ${text}`);
+    });
+
+    const item = await projectConversationForView(
+      sql,
+      conversation('c1', 'ct-1'),
+      thread,
+      null,
+    );
+
+    expect(item).toMatchObject({ credentialId: 'cred-b' });
+    expect(
+      statements.map((s) => s.text.split(' FROM ')[1]?.split(' ')[0]),
+    ).toEqual(['app.contacts', 'app.approvals']);
+  });
+
+  it('names an unrecorded thread by the mailbox its address belongs to', async () => {
+    const { sql } = recordingSql((text) => {
+      if (text.includes('FROM app.contacts')) return [CONTACTS[0]];
+      if (text.includes('FROM app.approvals')) return [];
+      if (text.includes('FROM app.connector_credentials')) {
+        return [
+          {
+            id: 'cred-recruitment',
+            connectorSlug: 'imap-smtp',
+            config: { fromAddress: 'jobs@support.test' },
+          },
+          {
+            id: 'cred-general',
+            connectorSlug: 'imap-smtp',
+            config: { fromAddress: 'hello@support.test' },
+          },
+        ];
+      }
+      throw new Error(`unexpected statement: ${text}`);
+    });
+
+    const item = await projectConversationForView(
+      sql,
+      {
+        ...conversation('c1', 'ct-1'),
+        metadata: { to: [{ address: 'hello@support.test' }] },
+      },
+      [message('m1', 'c1', 'hello')],
+      null,
+    );
+
+    expect(item).toMatchObject({ credentialId: 'cred-general' });
   });
 });

@@ -23199,6 +23199,11 @@ async function checkConnectorCredentials(
  * `is_default`, so a thread received on mailbox B could be answered from
  * mailbox A. Each message now records the credential that carried it.
  *
+ * The Inbox names the thread's mailbox from the SAME resolver, so both read
+ * doors must carry the credential the reply leaves through. A thread whose
+ * messages predate 0113 records none: the address it was written to names its
+ * mailbox instead, for the reply and the Inbox alike.
+ *
  * Also proves the FK degrades rather than destroys: removing a mailbox must
  * keep the correspondence that came through it, with the message falling back
  * to the default-credential behaviour it had before the column existed.
@@ -23208,16 +23213,26 @@ async function checkConversationReplyMailbox(
   ctx: { orgId: string },
 ): Promise<void> {
   const { orgId } = ctx;
-  const { createConversation, addMessageToConversation } =
-    await import('./domains/conversations/service.ts');
+  const {
+    createConversation,
+    addMessageToConversation,
+    listConversationMessages,
+    listConversationsPage,
+    loadVisibleConversation,
+    projectConversationForView,
+  } = await import('./domains/conversations/service.ts');
 
-  const credential = async (name: string): Promise<string> => {
+  const credential = async (
+    name: string,
+    config?: Record<string, string>,
+  ): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.connector_credentials (
-        org_id, connector_slug, auth_method, name, encrypted_data, status,
-        created_by, created_at_ms, updated_at_ms
+        org_id, connector_slug, auth_method, name, encrypted_data, config,
+        status, created_by, created_at_ms, updated_at_ms
       ) VALUES (
-        ${orgId}, 'imap-smtp', 'basic', ${name}, ${sql.json({})}, 'active',
+        ${orgId}, 'imap-smtp', 'basic', ${name}, ${sql.json({})},
+        ${config === undefined ? null : sql.json(config)}, 'active',
         'itest', ${Date.now()}, ${Date.now()}
       )
       RETURNING id
@@ -23282,6 +23297,87 @@ async function checkConversationReplyMailbox(
     queued[0]?.credentialId === mailboxB,
     `queued reply carries=${queued[0]?.credentialId ?? 'none'} ` +
       `(want mailbox-b ${mailboxB}, not mailbox-a ${mailboxA})`,
+  );
+
+  // An unrecorded thread, written to mailbox C's address (case differs).
+  const mailboxC = await credential('mailbox-c', {
+    fromAddress: 'desk-c@inbox.test',
+  });
+  const unrecordedId = await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      contactId: contactRows[0]?.id ?? '',
+      subject: 'Written before 0113',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+      metadata: { to: [{ address: 'Desk-C@Inbox.test' }] },
+    }),
+  );
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId: unrecordedId,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'Is anyone there?',
+      isCustomer: true,
+      connectorName: 'imap-smtp',
+      sentAt: Date.now() - 500,
+    }),
+  );
+  const unrecordedReply = await replyToConversation(sql, {
+    conversationId: unrecordedId,
+    organizationId: orgId,
+    content: '<p>We are.</p>',
+    actor: { userId: 'itest-user' },
+  });
+  const unrecordedQueued = await sql<{ credentialId: string | null }[]>`
+    SELECT credential_id AS "credentialId"
+    FROM app.conversation_messages WHERE id = ${unrecordedReply}
+  `;
+  record(
+    'conversation reply mailbox — an unrecorded thread replies from its address',
+    unrecordedQueued[0]?.credentialId === mailboxC,
+    `queued reply carries=${unrecordedQueued[0]?.credentialId ?? 'none'} ` +
+      `(want mailbox-c ${mailboxC})`,
+  );
+
+  // Both read doors name the mailbox the reply left through.
+  const adminView = {
+    organizationId: orgId,
+    userId: 'itest-admin',
+    role: 'admin',
+  };
+  const listed = await listConversationsPage(sql, adminView, {
+    contactId: contactRows[0]?.id ?? '',
+    cursor: null,
+    limit: 10,
+  });
+  const listedCredential = (id: string): unknown =>
+    listed.items.find((item) => item._id === id)?.credentialId;
+  const detailCredential = async (id: string): Promise<unknown> => {
+    const row = await loadVisibleConversation(sql, adminView, id);
+    const item = await projectConversationForView(
+      sql,
+      row,
+      await listConversationMessages(sql, id),
+      null,
+    );
+    return item.credentialId;
+  };
+  const reads = {
+    listRecorded: listedCredential(conversationId),
+    detailRecorded: await detailCredential(conversationId),
+    listUnrecorded: listedCredential(unrecordedId),
+    detailUnrecorded: await detailCredential(unrecordedId),
+  };
+  record(
+    'conversation reply mailbox — the Inbox reads name the same mailbox',
+    reads.listRecorded === mailboxB &&
+      reads.detailRecorded === mailboxB &&
+      reads.listUnrecorded === mailboxC &&
+      reads.detailUnrecorded === mailboxC,
+    `${JSON.stringify(reads)} (want b=${mailboxB} twice, c=${mailboxC} twice)`,
   );
 
   // Removing the mailbox keeps the mail and degrades to the default.
