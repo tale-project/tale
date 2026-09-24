@@ -50,8 +50,68 @@ vi.mock('@tale/ui/use-toast', () => ({
 }));
 
 const upsert = vi.fn();
+const upsertAsync = vi.fn(async (_args: unknown) => undefined);
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutate: upsert, isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutate: upsert,
+    mutateAsync: upsertAsync,
+    isPending: false,
+  }),
+}));
+
+const MAILBOXES = [
+  {
+    id: 'cred-general',
+    connectorSlug: 'imap-smtp',
+    name: 'General Support',
+    status: 'active',
+    config: { fromAddress: 'hello@support.test' },
+  },
+  {
+    id: 'cred-slack',
+    connectorSlug: 'slack',
+    name: 'Team chat',
+    status: 'active',
+  },
+];
+vi.mock('@/app/features/conversations/hooks/queries', () => ({
+  EMAIL_PROVIDER_SLUGS: new Set(['gmail', 'outlook', 'imap-smtp']),
+  useMailboxes: () => ({ mailboxes: MAILBOXES }),
+}));
+const API_SOURCES = { data: ['helpdesk'] };
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => API_SOURCES,
+}));
+
+// The pickers reduced to their options, so a test can pick one (the real
+// component opens a popover).
+vi.mock('@tale/ui/searchable-select', () => ({
+  SearchableSelect: ({
+    options = [],
+    onValueChange,
+    'aria-label': ariaLabel,
+  }: {
+    options?: { value: string; label: string; isSectionHeader?: boolean }[];
+    onValueChange?: (value: string) => void;
+    'aria-label'?: string;
+  }) => (
+    <div role="group" aria-label={ariaLabel}>
+      {options
+        .filter((option) => option.isSectionHeader !== true)
+        .map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="option"
+            aria-selected={false}
+            data-testid={`option-${option.value}`}
+            onClick={() => onValueChange?.(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+    </div>
+  ),
 }));
 
 const { state } = vi.hoisted(() => ({
@@ -146,6 +206,7 @@ describe('ConversationRoutingPolicyEditor', () => {
       state: (prev: {
         openRoutingRule?: boolean;
         routingAddress?: string;
+        routingArrivesOn?: string;
         returnToConversation?: { id: string; status: string };
       }) => Record<string, unknown>;
     };
@@ -153,6 +214,7 @@ describe('ConversationRoutingPolicyEditor', () => {
       call.state({
         openRoutingRule: true,
         routingAddress: 'billing@acme.test',
+        routingArrivesOn: 'mailbox:cred-general',
         returnToConversation: { id: 'conv-1', status: 'open' },
       }),
     ).toEqual({
@@ -172,5 +234,159 @@ describe('ConversationRoutingPolicyEditor', () => {
 
     const back = screen.getByRole('link', { name: /back to conversation/i });
     expect(back).toBeInTheDocument();
+  });
+
+  /**
+   * Rules can match where a conversation arrived — one mailbox, one API app —
+   * not only the address. Those live in `sourceRules`, which the editor must
+   * write and must never drop.
+   */
+  describe('where a conversation arrives', () => {
+    it('saves a rule for one mailbox, with no address, into sourceRules', async () => {
+      upsert.mockClear();
+      state.isLoading = false;
+      state.config = {
+        enabled: true,
+        rules: [{ address: 'billing@acme.test', teamId: 't1' }],
+      };
+      const { user } = render(
+        <ConversationRoutingPolicyEditor organizationId="org-1" />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      await user.click(screen.getByTestId('option-mailbox:cred-general'));
+      await user.click(screen.getByTestId('option-team:t1'));
+      await user.click(screen.getByRole('button', { name: 'Save rule' }));
+
+      expect(upsert.mock.calls[0]?.[0]).toMatchObject({
+        policyType: 'conversation_routing',
+        config: {
+          enabled: true,
+          rules: [{ address: 'billing@acme.test', teamId: 't1' }],
+          sourceRules: [{ mailbox: 'cred-general', teamId: 't1' }],
+        },
+      });
+    });
+
+    it('lists email mailboxes and API apps as arrival points', async () => {
+      state.isLoading = false;
+      state.config = { enabled: true, rules: [] };
+      const { user } = render(
+        <ConversationRoutingPolicyEditor organizationId="org-1" />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      expect(screen.getByTestId('option-any')).toHaveTextContent('Any mailbox');
+      expect(
+        screen.getByTestId('option-mailbox:cred-general'),
+      ).toHaveTextContent('General Support');
+      expect(screen.getByTestId('option-api:helpdesk')).toHaveTextContent(
+        'API: helpdesk',
+      );
+      // A credential on a connector that is not a mailbox is no arrival point.
+      expect(
+        screen.queryByTestId('option-mailbox:cred-slack'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('asks no address for an API app, and saves it by source', async () => {
+      upsert.mockClear();
+      state.isLoading = false;
+      state.config = { enabled: true, rules: [] };
+      const { user } = render(
+        <ConversationRoutingPolicyEditor organizationId="org-1" />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      expect(screen.getByLabelText('Sent to')).toBeInTheDocument();
+      await user.click(screen.getByTestId('option-api:helpdesk'));
+      expect(screen.queryByLabelText('Sent to')).not.toBeInTheDocument();
+      await user.click(screen.getByTestId('option-team:t1'));
+      await user.click(screen.getByRole('button', { name: 'Save rule' }));
+
+      expect(upsert.mock.calls[0]?.[0]).toMatchObject({
+        config: {
+          rules: [],
+          sourceRules: [{ apiSource: 'helpdesk', teamId: 't1' }],
+        },
+      });
+    });
+
+    it('needs an address for any mailbox, and refuses a duplicate', async () => {
+      state.isLoading = false;
+      state.config = {
+        enabled: true,
+        rules: [{ address: 'billing@acme.test', teamId: 't1' }],
+      };
+      const { user } = render(
+        <ConversationRoutingPolicyEditor organizationId="org-1" />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      await user.click(screen.getByTestId('option-team:t1'));
+      const save = screen.getByRole('button', { name: 'Save rule' });
+      expect(save).toBeDisabled();
+
+      await user.type(screen.getByLabelText('Sent to'), 'Billing@acme.test');
+      expect(save).toBeDisabled();
+      expect(
+        screen.getByText('A rule for this mailbox and address already exists'),
+      ).toBeInTheDocument();
+
+      // The same address on one mailbox is a different rule.
+      await user.click(screen.getByTestId('option-mailbox:cred-general'));
+      expect(save).toBeEnabled();
+    });
+
+    it('keeps sourceRules when the section is switched off', async () => {
+      upsertAsync.mockClear();
+      state.isLoading = false;
+      state.config = {
+        enabled: true,
+        rules: [],
+        sourceRules: [{ apiSource: 'helpdesk', teamId: 't1' }],
+      };
+      const { user } = render(
+        <ConversationRoutingPolicyEditor organizationId="org-1" />,
+      );
+
+      await user.click(
+        screen.getByRole('switch', { name: 'Conversation routing' }),
+      );
+
+      await waitFor(() => expect(upsertAsync).toHaveBeenCalled());
+      expect(upsertAsync.mock.calls[0]?.[0]).toMatchObject({
+        config: {
+          enabled: false,
+          sourceRules: [{ apiSource: 'helpdesk', teamId: 't1' }],
+        },
+      });
+    });
+
+    it('names each row by where it applies, and a removed mailbox as such', () => {
+      state.isLoading = false;
+      state.config = {
+        enabled: true,
+        rules: [{ address: 'billing@acme.test', teamId: 't1' }],
+        sourceRules: [
+          { mailbox: 'cred-general', teamId: 't1' },
+          { mailbox: 'cred-gone', userId: 'u1' },
+          { apiSource: 'helpdesk', teamId: 't1' },
+        ],
+      };
+      render(<ConversationRoutingPolicyEditor organizationId="org-1" />);
+
+      const rows = screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.textContent);
+      expect(rows).toEqual([
+        expect.stringContaining('Any mailbox'),
+        expect.stringContaining('General Support'),
+        expect.stringContaining('Removed mailbox'),
+        expect.stringContaining('API: helpdesk'),
+      ]);
+      expect(rows[1]).toContain('Any address');
+    });
   });
 });

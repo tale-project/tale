@@ -851,12 +851,64 @@ export const conversationAccessConfigSchema = z.object({
 });
 
 /**
- * Address→assignee routing rules. Each rule maps an inbound recipient address to
- * a team and/or a person; the built-in ingest hook (`applyAddressRouting`)
- * assigns a newly-ingested, still-unassigned conversation by matching its
- * `metadata.to[0].address` (case-insensitive, exact) against these rules in
- * order. Missing row / empty `rules` ⇒ no routing.
+ * An API source slug — the name an integration mirrors its conversations
+ * under (`/api/v1/conversations/sync`). The conversations wire shapes and the
+ * routing rules below both read it from here.
  */
+export const API_SOURCE_PATTERN = /^[a-z][a-z0-9_-]{0,59}$/;
+
+const routingTarget = {
+  teamId: z.string().optional(),
+  userId: z.string().optional(),
+};
+
+/**
+ * Conversation routing — the governance hook that assigns a newly-created,
+ * still-unassigned conversation to a team and/or a person by where it
+ * arrived.
+ *
+ * `rules` match the address an email was sent to, on any mailbox: the first
+ * recipient (`metadata.to[0].address`), compared case-insensitively. A rule's
+ * address also catches its plus-addressed variants (`support@` catches
+ * `support+billing@`), and a rule written for the exact tagged address wins.
+ *
+ * `sourceRules` match WHERE a conversation arrived: one mailbox (a connector
+ * credential id), optionally narrowed by address the same way, or one API
+ * source. They live in their own array so a reader that predates them still
+ * parses the file: `z.object` drops the unknown key, the address rules keep
+ * routing, and a source rule can never widen into an any-mailbox rule.
+ *
+ * Precedence, most specific first: a mailbox rule with the exact address, a
+ * mailbox rule with the base address, an any-mailbox rule with the exact
+ * address, then with the base address, then a mailbox rule with no address.
+ * The first rule in its array wins within a tier. An API conversation matches
+ * only an `apiSource` rule. Missing file / empty rules ⇒ no routing.
+ */
+export const conversationRoutingSourceRuleSchema = z
+  .object({
+    /** A connector credential id: the mailbox the conversation arrived on. */
+    mailbox: z.string().min(1).max(128).optional(),
+    /** An API source slug the conversation was mirrored under. */
+    apiSource: z.string().regex(API_SOURCE_PATTERN).optional(),
+    address: z.string().email().optional(),
+    ...routingTarget,
+  })
+  .superRefine((rule, ctx) => {
+    if ((rule.mailbox === undefined) === (rule.apiSource === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A source rule names exactly one mailbox or one API source',
+      });
+    }
+    if (rule.apiSource !== undefined && rule.address !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['address'],
+        message: 'An API source rule matches no address',
+      });
+    }
+  });
+
 export const conversationRoutingConfigSchema = z.object({
   /**
    * Whether routing runs at all — the section's toggle. Absent means "decide
@@ -866,20 +918,17 @@ export const conversationRoutingConfigSchema = z.object({
    */
   enabled: z.boolean().optional(),
   rules: z
-    .array(
-      z.object({
-        address: z.string().email(),
-        teamId: z.string().optional(),
-        userId: z.string().optional(),
-      }),
-    )
+    .array(z.object({ address: z.string().email(), ...routingTarget }))
     .default([]),
+  sourceRules: z.array(conversationRoutingSourceRuleSchema).default([]),
 });
 export type ConversationRoutingConfig = z.infer<
   typeof conversationRoutingConfigSchema
 >;
 export type ConversationRoutingRule =
   ConversationRoutingConfig['rules'][number];
+export type ConversationRoutingSourceRule =
+  ConversationRoutingConfig['sourceRules'][number];
 
 /**
  * Which live WRITES hold for a human before they run — the operator's override

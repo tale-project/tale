@@ -82,11 +82,17 @@ Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine 
 
 ## Konversations-Routing
 
-Mit dem Konversations-Routing ordnest du neue eingehende Konversationen anhand der Empfängeradresse zu. Füge eine Regel hinzu, wähle ein Team, eine Person oder beides und speichere. Die Adressprüfung ignoriert Groß- und Kleinschreibung.
+Mit dem **Konversations-Routing** ordnest du neue Konversationen danach zu, wo sie eingehen. Füge eine Regel hinzu, fülle ihre Felder aus und speichere:
+
+- **Eingang über**: **Beliebiges Postfach**, ein bestimmtes Postfach mit seinem Namen oder eine API-App. Eine API-App erscheint, sobald sie eine Konversation synchronisiert hat.
+- **Gesendet an**: die Adresse, an die die Konversation gesendet wurde. Sie ist bei **Beliebiges Postfach** Pflicht, bei einem bestimmten Postfach optional und entfällt bei einer API-App. Die Adressprüfung ignoriert Groß- und Kleinschreibung.
+- **Zuweisen an**: ein Team, eine Person oder beides.
+
+Eine Regel für `support@example.com` erfasst auch Post mit Zusatz wie `support+rechnung@example.com`; eine Regel für die Adresse mit Zusatz hat für diese Adresse Vorrang. Treffen mehrere Regeln zu, gilt die genaueste: zuerst ein Postfach mit genau dieser Adresse, dann ein Postfach mit der Grundadresse, dann eine Adresse in beliebigem Postfach, zuletzt ein Postfach allein.
 
 Bei Teamzuordnung sehen die Teammitglieder die Konversation, bei Personenzuordnung diese Person. Sind beide gesetzt, genügt eine der Zuordnungen für den Zugriff. Nicht zugewiesene Konversationen sortieren Admins und Inhaber ein.
 
-Regeln greifen beim Eintreffen einer neuen Konversation. Sie ändern keine bestehende Zuordnung, wenn eine Antwort hinzugefügt wird. Verweist eine Regel auf eine gelöschte Person oder ein gelöschtes Team, kommt die Konversation trotzdem ohne diese Routing-Zuordnung an. Teste mit einer neuen Nachricht an die Empfängeradresse und prüfe die entstandene Zuständigkeit.
+Regeln greifen beim Eintreffen einer neuen Konversation. Sie ändern keine bestehende Zuordnung, wenn eine Antwort hinzugefügt wird. Verweist eine Regel auf eine gelöschte Person, ein gelöschtes Team oder ein entferntes Postfach, kommt die Konversation trotzdem ohne diese Routing-Zuordnung an. Teste mit einer neuen Nachricht und prüfe die entstandene Zuständigkeit.
 
 ## Anmeldelimits separat einrichten
 

@@ -4188,24 +4188,19 @@ governance:
     saveForbidden: Vous n'avez pas l'autorisation de modifier ce paramètre.
   conversationRouting:
     title: Routage des conversations
-    description:
-      Acheminer les nouvelles conversations entrantes vers une équipe ou
-      une personne selon l'adresse à laquelle elles ont été envoyées. Les règles
-      s'appliquent automatiquement dès l'arrivée du courrier.
+    description: 'Achemine les nouvelles conversations vers une équipe ou une personne selon leur point d''arrivée : une boîte, l''adresse à laquelle elles ont été envoyées ou une app API. Les règles s''appliquent automatiquement dès qu''une conversation arrive.'
     addRule: Ajouter une règle
     editRule: Modifier la règle
     deleteRule: Supprimer la règle
-    address: Adresse
+    sentTo: Envoyé à
     addressPlaceholder: facturation@votreentreprise.com
     invalidAddress: Saisis une adresse e-mail valide
     assignedTo: Assigné à
     actions: Actions
     noRulesTitle: Aucune règle de routage
-    noRulesDescription: Ajoute une règle pour assigner automatiquement les
-      conversations entrantes selon l'adresse de destination.
+    noRulesDescription: 'Ajoute une règle pour assigner automatiquement les nouvelles conversations selon la boîte ou l''app API par laquelle elles arrivent, ou l''adresse à laquelle elles ont été envoyées.'
     removeRuleConfirmTitle: Supprimer la règle de routage ?
-    removeRuleConfirmDescription: Les nouvelles conversations envoyées à cette
-      adresse ne seront plus assignées automatiquement.
+    removeRuleConfirmDescription: 'Les nouvelles conversations que cette règle vise ne seront plus assignées automatiquement.'
     removeRuleConfirmAction: Supprimer
     confirm: Enregistrer la règle
     saved: Règles de routage mises à jour
@@ -4218,11 +4213,18 @@ governance:
     noAssignees: Aucune personne ou équipe trouvée
     removePerson: Retirer la personne
     removeTeam: Retirer l'équipe
-    handoffAddRuleDescription:
-      Les nouveaux courriers envoyés à cette adresse seront assignés
-      automatiquement. Ces règles vivent ici sous Routage des conversations —
-      tu ouvres cette page à tout moment depuis Paramètres.
+    handoffAddRuleDescription: 'Les nouvelles conversations comme celle-ci seront assignées automatiquement. Ces règles vivent ici sous Routage des conversations — tu ouvres cette page à tout moment depuis Paramètres.'
     backToConversation: Retour à la conversation
+    arrivesOn: Arrive par
+    anyMailbox: N'importe quelle boîte
+    mailboxesSection: Boîtes
+    apiSection: Apps API
+    apiSource: 'API : {source}'
+    sentToHint: 'Obligatoire pour « N''importe quelle boîte », facultative pour une boîte précise. Une règle pour support@ couvre aussi support+facturation@, et une règle pour l''adresse étiquetée l''emporte.'
+    anyAddress: N'importe quelle adresse
+    removedMailbox: Boîte supprimée
+    duplicateRule: Une règle existe déjà pour cette boîte et cette adresse
+    precedence: 'La règle la plus précise l''emporte : une boîte avec son adresse exacte, puis une boîte avec l''adresse de base, puis une adresse sur n''importe quelle boîte, enfin une boîte seule.'
 metrics:
   title: Métriques
   groups:

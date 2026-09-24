@@ -82,11 +82,17 @@ L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les m
 
 ## Routage des conversations
 
-Utilise le routage pour attribuer les nouvelles conversations entrantes selon l’adresse destinataire. Ajoute une règle, choisis une équipe, une personne ou les deux, puis enregistre. La comparaison des adresses ignore la casse.
+Utilise le **Routage des conversations** pour attribuer les nouvelles conversations selon leur point d’arrivée. Ajoute une règle, remplis ses champs, puis enregistre :
 
-Une attribution d’équipe rend la conversation visible à ses membres ; une attribution individuelle la rend visible à cette personne. Avec les deux, l’une ou l’autre appartenance donne accès. Les conversations non attribuées sont réservées au triage des admins et propriétaires.
+- **Arrive par** : **N'importe quelle boîte**, une boîte précise sous son nom, ou une app API. Une app API apparaît dès qu’elle a synchronisé une conversation.
+- **Envoyé à** : l’adresse à laquelle la conversation a été envoyée. Elle est obligatoire pour **N'importe quelle boîte**, facultative pour une boîte précise et absente pour une app API. La comparaison des adresses ignore la casse.
+- **Assigner à** : une équipe, une personne ou les deux.
 
-Les règles s’appliquent à l’arrivée d’une nouvelle conversation. Elles ne réattribuent pas une conversation existante lorsqu’une réponse la rejoint. Si une règle vise une personne ou équipe supprimée, la conversation arrive quand même sans cette attribution. Teste avec un nouveau message à l’adresse destinataire et vérifie la personne ou l’équipe obtenue.
+Une règle pour `support@example.com` couvre aussi le courrier étiqueté comme `support+facturation@example.com`, et une règle pour l’adresse étiquetée l’emporte pour cette adresse. Si plusieurs règles correspondent, la plus précise s’applique : une boîte avec son adresse exacte, puis une boîte avec l’adresse de base, puis une adresse sur n’importe quelle boîte, enfin une boîte seule.
+
+Une attribution d’équipe rend la conversation visible à ses membres ; une attribution individuelle la rend visible à cette personne. Avec les deux, l’une ou l’autre appartenance donne accès. Les conversations non attribuées sont réservées au triage des admins et propriétaires.
+
+Les règles s’appliquent à l’arrivée d’une nouvelle conversation. Elles ne réattribuent pas une conversation existante lorsqu’une réponse la rejoint. Si une règle vise une personne, une équipe ou une boîte supprimée, la conversation arrive quand même sans cette attribution. Teste avec un nouveau message et vérifie la personne ou l’équipe obtenue.
 
 ## Configurer les limites de connexion séparément
 

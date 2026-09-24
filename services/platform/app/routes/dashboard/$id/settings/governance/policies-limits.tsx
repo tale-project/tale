@@ -38,10 +38,14 @@ function PoliciesLimitsRoute() {
   // Inbox Auto assign passes open + address + return target via history state
   // (not search), so the mailbox address never appears in the URL / logs /
   // Referer. `returnToConversation` stays until Back is clicked.
-  const { openRoutingRule, routingAddress, returnToConversation } =
-    useRouterState({
-      select: (s) => s.location.state,
-    });
+  const {
+    openRoutingRule,
+    routingAddress,
+    routingArrivesOn,
+    returnToConversation,
+  } = useRouterState({
+    select: (s) => s.location.state,
+  });
 
   return (
     <SettingsPage>
@@ -57,6 +61,7 @@ function PoliciesLimitsRoute() {
           organizationId={organizationId}
           openAddRule={Boolean(openRoutingRule)}
           initialAddress={routingAddress}
+          initialArrivesOn={routingArrivesOn}
           returnToConversation={returnToConversation}
         />
       </EditorGroup>

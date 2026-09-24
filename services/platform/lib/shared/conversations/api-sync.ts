@@ -1,3 +1,4 @@
+import { API_SOURCE_PATTERN } from '@tale/shared/schemas/governance';
 import { z } from 'zod';
 
 /**
@@ -9,8 +10,9 @@ import { z } from 'zod';
  */
 
 /** A source slug — the pattern the door enforces on the query string and
- * on every body that names a source; the OpenAPI source renders it. */
-export const API_SOURCE_PATTERN = /^[a-z][a-z0-9_-]{0,59}$/;
+ * on every body that names a source; the OpenAPI source renders it. Defined
+ * with the routing rules that also name sources. */
+export { API_SOURCE_PATTERN };
 export const apiSourceSchema = z.string().regex(API_SOURCE_PATTERN);
 
 /** A source's own identifier for a conversation, message, contact or

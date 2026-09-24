@@ -1,24 +1,26 @@
 import type { TransactionSql } from 'postgres';
 
 import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply-from.ts';
-import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
 import {
-  notifyConversationAssigned,
-  notifyConversationAssignedTeam,
-} from '../collab/service.ts';
-import { assertAssignableMember, ConversationError } from './service.ts';
+  matchRoutingRule,
+  type RoutingArrival,
+} from '../../../lib/shared/conversations/routing-match.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import {
+  assertAssignableMember,
+  writeConversationAssignee,
+  writeConversationTeam,
+  type AssignmentActor,
+} from './service.ts';
 
 /**
- * Address→assignee routing — the 0.5 twin of
- * `convex/conversations/address_routing.ts`: the built-in governance hook,
- * run inline when an INBOUND conversation is created (before downstream
- * notifications observe the row), never a user-installable automation. The
- * org's `conversation_routing` policy file maps the address the customer
- * wrote to onto a team queue and/or a person; no policy / no match / no
- * address is a quiet no-op, and a stale rule (a since-deleted team or user)
- * must never break ingest.
+ * Conversation routing — the built-in governance hook, run inline when a
+ * conversation is created from outside (an inbound email, or an API mirror)
+ * before downstream notifications observe the row; never a user-installable
+ * automation. The org's `conversation_routing` policy file maps where a
+ * conversation arrived (a mailbox, the address it was sent to, an API source)
+ * onto a team queue and/or a person. No policy / no match is a quiet no-op,
+ * and a stale rule (a since-deleted team or user) must never break ingest.
  */
 
 type Db = TransactionSql;
@@ -28,159 +30,106 @@ export interface RoutableConversation {
   organizationId: string;
   subject: string | null;
   status: string | null;
+  channel: string | null;
+  connectorName: string | null;
   assigneeUserId: string | null;
   assigneeTeamId: string | null;
   metadata: Record<string, unknown> | null;
 }
 
+const SYSTEM: AssignmentActor = { type: 'system' };
+
 /**
  * Set a conversation's individual owner and/or team queue
- * (system-initiated). Validates each target belongs to the conversation's
- * org (defense-in-depth), patches only the dimensions that change, emits a
- * `system` audit row, and notifies the newly-set owner / team impersonally.
- * Returns true when it wrote a change.
+ * (system-initiated), through the same writes the Inbox doors use: each
+ * target is validated against the conversation's org, only a changed
+ * dimension is written, each is audited as `system` under its own action, and
+ * the new owner / team is notified impersonally. Returns true when it wrote a
+ * change.
  */
 export async function applyConversationAssignment(
   db: Db,
   conversation: RoutableConversation,
   next: { assigneeUserId?: string; assigneeTeamId?: string },
 ): Promise<boolean> {
+  // Both targets are checked before either is written, so a stale half of a
+  // rule leaves the conversation untouched rather than half-routed.
   if (next.assigneeUserId) {
-    // The one assignee gate every assigning door shares (see service.ts).
     await assertAssignableMember(
       db,
       conversation.organizationId,
       next.assigneeUserId,
     );
   }
+  let changed = false;
   if (next.assigneeTeamId) {
-    const teams = await db<{ organizationId: string }[]>`
-      SELECT "organizationId" FROM "team" WHERE "id" = ${next.assigneeTeamId}
-      LIMIT 1
-    `;
-    if (teams[0]?.organizationId !== conversation.organizationId) {
-      throw new ConversationError(
-        'team_not_in_org',
-        'Team does not belong to this organization',
-        400,
-      );
-    }
+    changed = await writeConversationTeam(
+      db,
+      conversation,
+      next.assigneeTeamId,
+      SYSTEM,
+    );
   }
-
-  const patch: { assigneeUserId?: string; assigneeTeamId?: string } = {};
-  if (
-    next.assigneeUserId &&
-    next.assigneeUserId !== conversation.assigneeUserId
-  ) {
-    patch.assigneeUserId = next.assigneeUserId;
+  if (next.assigneeUserId) {
+    changed =
+      (await writeConversationAssignee(
+        db,
+        conversation,
+        next.assigneeUserId,
+        SYSTEM,
+      )) || changed;
   }
-  if (
-    next.assigneeTeamId &&
-    next.assigneeTeamId !== conversation.assigneeTeamId
-  ) {
-    patch.assigneeTeamId = next.assigneeTeamId;
-  }
-  if (
-    patch.assigneeUserId === undefined &&
-    patch.assigneeTeamId === undefined
-  ) {
-    return false;
-  }
-
-  await db`
-    UPDATE app.conversations SET
-      assignee_user_id = ${patch.assigneeUserId ?? db.unsafe('assignee_user_id')},
-      assignee_team_id = ${patch.assigneeTeamId ?? db.unsafe('assignee_team_id')}
-    WHERE id = ${conversation.id}
-  `;
-  await createAuditLog(db, {
-    organizationId: conversation.organizationId,
-    actorId: 'system',
-    actorType: 'system',
-    action: 'assign_conversation',
-    category: 'data',
-    resourceType: 'conversation',
-    resourceId: conversation.id,
-    ...(conversation.subject !== null
-      ? { resourceName: conversation.subject }
-      : {}),
-    previousState: {
-      assigneeUserId: conversation.assigneeUserId,
-      assigneeTeamId: conversation.assigneeTeamId,
-    },
-    newState: {
-      assigneeUserId: patch.assigneeUserId ?? conversation.assigneeUserId,
-      assigneeTeamId: patch.assigneeTeamId ?? conversation.assigneeTeamId,
-    },
-    status: 'success',
-  });
-  const notifyFields = {
-    id: conversation.id,
-    organizationId: conversation.organizationId,
-    subject: conversation.subject,
-    status: conversation.status,
-  };
-  if (patch.assigneeUserId) {
-    await notifyConversationAssigned(db, {
-      conversation: notifyFields,
-      assigneeUserId: patch.assigneeUserId,
-      actorType: 'system',
-      actorId: 'system',
-    });
-  }
-  if (patch.assigneeTeamId) {
-    await notifyConversationAssignedTeam(db, {
-      conversation: notifyFields,
-      teamId: patch.assigneeTeamId,
-      actorUserId: null,
-    });
-  }
-  await emitHintInTx(db, {
-    orgId: conversation.organizationId,
-    entity: 'conversation',
-    entityId: conversation.id,
-  });
-  return true;
+  return changed;
 }
 
 /**
- * Match the address the customer wrote to (`metadata.to[0].address`,
- * case-insensitive, exact) against the org's `conversation_routing` rules
- * and assign to the matched team and/or person. Skips an already-assigned
- * conversation; an explicit `enabled: false` silences configured rules.
+ * Route a new, still-unassigned conversation by where it arrived: an email by
+ * its mailbox (`arrival.credentialId`) and the address it was sent to, an API
+ * conversation by its source (`connector_name`). Precedence is
+ * `matchRoutingRule`'s. An explicit `enabled: false` silences every rule.
  * Returns true when it assigned.
  */
-export async function applyAddressRouting(
+export async function applyConversationRouting(
   db: Db,
   conversation: RoutableConversation,
+  arrival: { credentialId?: string } = {},
 ): Promise<boolean> {
   if (conversation.assigneeUserId || conversation.assigneeTeamId) {
     return false;
   }
-  const derived = inboundRecipientAddress(conversation.metadata ?? undefined);
-  const address = (derived ?? '').trim().toLowerCase();
-  if (!address) return false;
+  const recipient = inboundRecipientAddress(conversation.metadata ?? undefined);
+  const routed: RoutingArrival | undefined =
+    conversation.channel === 'api'
+      ? conversation.connectorName
+        ? { lane: 'api', source: conversation.connectorName }
+        : undefined
+      : {
+          lane: 'email',
+          ...(arrival.credentialId !== undefined
+            ? { credentialId: arrival.credentialId }
+            : {}),
+          ...(recipient !== undefined ? { recipient } : {}),
+        };
+  if (routed === undefined) return false;
 
   const config = await readGovernancePolicyForOrg(
     db,
     conversation.organizationId,
     'conversation_routing',
   );
-  if (config === null || config.enabled === false) return false;
-  const match = config.rules.find(
-    (rule) => rule.address.trim().toLowerCase() === address,
-  );
-  if (!match || (!match.teamId && !match.userId)) return false;
+  if (config === null) return false;
+  const target = matchRoutingRule(config, routed);
+  if (target === undefined) return false;
   try {
     return await applyConversationAssignment(db, conversation, {
-      ...(match.userId !== undefined ? { assigneeUserId: match.userId } : {}),
-      ...(match.teamId !== undefined ? { assigneeTeamId: match.teamId } : {}),
+      ...(target.userId !== undefined ? { assigneeUserId: target.userId } : {}),
+      ...(target.teamId !== undefined ? { assigneeTeamId: target.teamId } : {}),
     });
   } catch (error) {
-    // A stale rule (a since-deleted team/user) must never break inbound
-    // ingest — log and leave the conversation unassigned.
+    // A stale rule (a since-deleted team/user) must never break ingest —
+    // log and leave the conversation unassigned.
     console.warn(
-      '[address-routing] matched rule but assignment failed; leaving unassigned',
+      '[conversation-routing] matched rule but assignment failed; leaving unassigned',
       error instanceof Error ? error.message : error,
     );
     return false;

@@ -53,7 +53,7 @@ vi.mock('./service.ts', () => ({
   addMessageToConversation,
 }));
 vi.mock('./routing.ts', () => ({
-  applyAddressRouting: vi.fn(async () => undefined),
+  applyConversationRouting: vi.fn(async () => undefined),
 }));
 vi.mock('../knowledge/service.ts', () => ({ markRagQueued }));
 vi.mock('../contacts/service.ts', async (importOriginal) => {

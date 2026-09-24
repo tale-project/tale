@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 41 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 46 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -22,7 +22,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
 | Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
-| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
 | Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
@@ -295,6 +295,27 @@ select lists only the current admin's keys (`useApiKeys`).
   the date reads **Revoked by** your name. **Logs** lists
   `competence_granted` and `competence_revoked`; the Developer's `/api/v1/me`
   answers `capabilities.actAs: false` on its next call.
+- [ ] `GOV-F25` · **Route by mailbox and address** — With TWO mailboxes on one
+  email connector (A and B) and a team T1 and T2, `policies-limits` →
+  **Conversation routing** → add three rules: **Any mailbox** · `support@…` →
+  T1; mailbox A with no address → T2; mailbox A · `sales@…` → yourself. Mail
+  `support+eu@…` at B → the new conversation lands on T1 (a base address
+  catches its tag). Mail `jobs@…` at A → T2. Mail `sales@…` at A → you. Mail
+  `support@…` at A → T1: an address on any mailbox beats a mailbox alone, as
+  the section's precedence line (`governance.conversationRouting.precedence`)
+  says. The table's **Arrives on** column names each mailbox by its name.
+- [ ] `GOV-F26` · **Route an API app** — With an API app that has synced one
+  conversation, add a rule with **Arrives on** set to that app → **Sent to**
+  disappears; route to T1 and save. Sync a NEW conversation from the app → it
+  lands on T1 and its members can open it, where before only admins could.
+  Switch **Conversation routing** off and sync another → it stays unassigned;
+  switch it back on → every rule, the API one included, is still there.
+- [ ] `GOV-F27` · **Auto assign opens the thread's own rule** — In the Inbox,
+  open a thread received on mailbox B, then the assignee picker's **Auto
+  assign** (`conversations.header.autoAssignSettings`) → the **Add rule**
+  dialog opens with **Arrives on** set to B and **Sent to** set to the
+  thread's address. From an API thread → **Arrives on** is its app and there
+  is no **Sent to**.
 
 ## Boundary & error tests
 
@@ -341,6 +362,14 @@ select lists only the current admin's keys (`useApiKeys`).
   The **Owner** cell (`governance.trash.column.owner`) ends in an ellipsis
   inside its own column, never over the **Trashed** badge
   (`governance.trash.status.trashed`); hovering it shows the full owner.
+- [ ] `GOV-B11` · **Stale routing rules never break ingest** — Keep a rule for
+  mailbox B, then remove mailbox B under **Settings > Connectors** → the row's
+  **Arrives on** reads **Removed mailbox**
+  (`governance.conversationRouting.removedMailbox`) and editing it keeps that
+  entry. Point a rule at a person, then remove them from the organization, and
+  mail its address → the conversation still arrives, unassigned. Adding a
+  second rule for the same mailbox and address is refused inline
+  (`governance.conversationRouting.duplicateRule`).
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -359,6 +388,11 @@ select lists only the current admin's keys (`useApiKeys`).
   says which competence and member (`governance.competences.actions.revokeFor`)
   — confirm the revocation, and focus lands on the register region named
   **Competences**, not on the page body.
+- [ ] `GOV-A5` · **Routing rules by keyboard** → Tab to **Add rule**, open it
+  with Enter, and complete a rule with Tab, arrows and Enter only: **Arrives
+  on**, **Sent to** and **Route to** are each announced by their label, the
+  plus-address hint is read with **Sent to**, and an invalid or duplicate
+  address is announced as the field's error.
 
 ## Performance
 
