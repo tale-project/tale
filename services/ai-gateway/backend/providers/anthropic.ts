@@ -334,7 +334,7 @@ const READING_KEYS = [
  * stood, that answer replaced a good reading with an empty one; it is a
  * failed read, and the last reading stands.
  */
-export function carriesReading(data: Record<string, unknown>): boolean {
+function carriesReading(data: Record<string, unknown>): boolean {
   return READING_KEYS.some((key) => key in data);
 }
 

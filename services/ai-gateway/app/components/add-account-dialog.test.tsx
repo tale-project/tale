@@ -1,6 +1,5 @@
 import { TooltipProvider } from '@tale/ui/tooltip';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AccountView } from '@/app/lib/api';
@@ -46,19 +45,17 @@ const device = {
 
 function open(onConnected = vi.fn(), onOpenChange = vi.fn()) {
   render(
-    <I18nextProvider i18n={i18n}>
-      <TooltipProvider>
-        <AddAccountDialog
-          onConnected={onConnected}
-          onOpenChange={onOpenChange}
-          open
-          // One provider, so the picker starts on it and the tests never have
-          // to drive a Radix select through jsdom.
-          providers={['openai']}
-          target={{ account: null }}
-        />
-      </TooltipProvider>
-    </I18nextProvider>,
+    <TooltipProvider>
+      <AddAccountDialog
+        onConnected={onConnected}
+        onOpenChange={onOpenChange}
+        open
+        // One provider, so the picker starts on it and the tests never have
+        // to drive a Radix select through jsdom.
+        providers={['openai']}
+        target={{ account: null }}
+      />
+    </TooltipProvider>,
   );
   return { onConnected, onOpenChange };
 }
