@@ -32,10 +32,7 @@ import {
   useSendMessageViaConnector,
   useUndoSendMessage,
 } from '../hooks/mutations';
-import {
-  useConnectorTitles,
-  useConversationWithMessages,
-} from '../hooks/queries';
+import { useConversationWithMessages, useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
 import { ConversationHeader } from './conversation-header';
 import {
@@ -106,7 +103,7 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
-  const { titleOf: connectorTitleOf } = useConnectorTitles();
+  const { mailboxes } = useMailboxes();
 
   const { formatDateHeader } = useFormatDate();
 
@@ -117,12 +114,12 @@ export function ConversationPanel({
     error: loadError,
     refetch,
   } = useConversationWithMessages(selectedConversationId);
-  // Where a reply leaves from. The server derives the route from the
-  // conversation's own stamps, so this states the outcome rather than
-  // choosing it: the composer cannot send anywhere else.
+  // Where a reply leaves from. The server derives the route — down to the
+  // mailbox — from the conversation's own stamps, so this states the outcome
+  // rather than choosing it: the composer cannot send anywhere else.
   const replyDestination = useMemo(() => {
     if (!conversation) return undefined;
-    const source = channelSourceOf(conversation, connectorTitleOf);
+    const source = channelSourceOf(conversation, mailboxes);
     if (source.lane === 'unknown') {
       return tConversations('header.replyViaUnknown');
     }
@@ -130,7 +127,7 @@ export function ConversationPanel({
     return source.lane === 'api'
       ? tConversations('header.replyViaApi', { source: name })
       : tConversations('header.replyVia', { source: name });
-  }, [conversation, connectorTitleOf, tConversations]);
+  }, [conversation, mailboxes, tConversations]);
 
   // Surface the underlying load failure — the UI only renders a generic
   // "something went wrong", so without this the real error (e.g. a Convex

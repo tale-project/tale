@@ -30,23 +30,21 @@ vi.mock('./conversation-assignee-picker', () => ({
   ConversationAssigneePicker: () => null,
 }));
 
-// The From-source line reads email connectors via a Convex query; stub it so
-// the header renders without a live Convex client. Override per-test via
-// `emailConnectorsMock`.
-const emailConnectorsMock = vi.hoisted(() => ({
+// The From-source line reads the org's mailboxes (connector credentials) via
+// a backend query; stub it so the header renders without a live client.
+// Override per-test via `mailboxesMock`.
+const mailboxesMock = vi.hoisted(() => ({
   current: [] as Array<{
-    slug: string;
-    title: string;
-    type: string;
-    fromAddress?: string;
+    id: string;
+    connectorSlug: string;
+    name: string;
+    status: string;
+    config?: Record<string, string>;
   }>,
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useEmailConnectors: () => ({
-    emailConnectors: emailConnectorsMock.current,
-    isLoading: false,
-  }),
+  useMailboxes: () => ({ mailboxes: mailboxesMock.current }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -104,7 +102,7 @@ function makeConversation(overrides = {}) {
 
 afterEach(() => {
   cleanup();
-  emailConnectorsMock.current = [];
+  mailboxesMock.current = [];
   vi.clearAllMocks();
 });
 
@@ -248,12 +246,13 @@ describe('ConversationHeader', () => {
   });
 
   it('shows the connected mailbox From, not a different @gmail.com To', () => {
-    emailConnectorsMock.current = [
+    mailboxesMock.current = [
       {
-        slug: 'gmail',
-        title: 'Gmail',
-        type: 'oauth',
-        fromAddress: 'desk@gmail.com',
+        id: 'cred-gmail',
+        connectorSlug: 'gmail',
+        name: 'Gmail',
+        status: 'active',
+        config: { fromAddress: 'desk@gmail.com' },
       },
     ];
     render(
@@ -284,12 +283,13 @@ describe('ConversationHeader', () => {
   });
 
   it('shows the IMAP login From when config.fromAddress mirrors username', () => {
-    emailConnectorsMock.current = [
+    mailboxesMock.current = [
       {
-        slug: 'imap-smtp',
-        title: 'IMAP / SMTP Mailbox',
-        type: 'imap_smtp',
-        fromAddress: 'hello@acme.test',
+        id: 'cred-imap',
+        connectorSlug: 'imap-smtp',
+        name: 'IMAP / SMTP Mailbox',
+        status: 'active',
+        config: { fromAddress: 'hello@acme.test' },
       },
     ];
     render(
@@ -319,8 +319,13 @@ describe('ConversationHeader', () => {
     // Sent-folder mail synced back: `direction: outbound`, `metadata.to` is the
     // CONTACT. gmail/outlook expose no configured From, so reading `to` blindly
     // is what showed an unconnected personal address as the inbox source.
-    emailConnectorsMock.current = [
-      { slug: 'gmail', title: 'Gmail', type: 'oauth' },
+    mailboxesMock.current = [
+      {
+        id: 'cred-gmail',
+        connectorSlug: 'gmail',
+        name: 'Gmail',
+        status: 'active',
+      },
     ];
     render(
       <ConversationHeader
@@ -354,8 +359,13 @@ describe('ConversationHeader', () => {
     // The multi-mailbox fan-out makes this the signal that says WHICH inbox a
     // thread arrived at; gmail/outlook have no `config.fromAddress` to fall back
     // on, so the inbound envelope's recipient has to carry it.
-    emailConnectorsMock.current = [
-      { slug: 'gmail', title: 'Gmail', type: 'oauth' },
+    mailboxesMock.current = [
+      {
+        id: 'cred-gmail',
+        connectorSlug: 'gmail',
+        name: 'Gmail',
+        status: 'active',
+      },
     ];
     render(
       <ConversationHeader
@@ -396,11 +406,12 @@ describe('ConversationHeader', () => {
    */
   describe('where the thread came in', () => {
     it('names the connector beside the address', () => {
-      emailConnectorsMock.current = [
+      mailboxesMock.current = [
         {
-          slug: 'gmail',
-          title: 'Gmail',
-          type: 'oauth',
+          id: 'cred-gmail',
+          connectorSlug: 'gmail',
+          name: 'Gmail',
+          status: 'active',
         },
       ];
       render(
@@ -418,7 +429,7 @@ describe('ConversationHeader', () => {
     });
 
     it('names the source of an API thread, which carries no address', () => {
-      emailConnectorsMock.current = [];
+      mailboxesMock.current = [];
       render(
         <ConversationHeader
           conversation={makeConversation({
@@ -435,7 +446,7 @@ describe('ConversationHeader', () => {
 
     // Says nothing rather than something wrong.
     it('shows no source when the thread carries neither stamp', () => {
-      emailConnectorsMock.current = [];
+      mailboxesMock.current = [];
       render(
         <ConversationHeader
           conversation={makeConversation({ metadata: {} })}
@@ -444,6 +455,67 @@ describe('ConversationHeader', () => {
       );
 
       expect(screen.queryByText(/^API:/)).not.toBeInTheDocument();
+    });
+  });
+
+  /**
+   * One connector, two mailboxes. The name used to be looked up by connector,
+   * which kept only the last mailbox listed, so a thread written to General
+   * Support read "Recruitment Support · hello@…".
+   */
+  describe('two mailboxes on one connector', () => {
+    const GENERAL = {
+      id: 'cred-general',
+      connectorSlug: 'imap-smtp',
+      name: 'General Support',
+      status: 'active',
+      config: { fromAddress: 'hello@support.test' },
+    };
+    const RECRUITMENT = {
+      id: 'cred-recruitment',
+      connectorSlug: 'imap-smtp',
+      name: 'Recruitment Support',
+      status: 'active',
+      config: { fromAddress: 'jobs@support.test' },
+    };
+
+    it('names the mailbox the thread was placed on, not the last one listed', () => {
+      mailboxesMock.current = [GENERAL, RECRUITMENT];
+      render(
+        <ConversationHeader
+          conversation={makeConversation({
+            channel: 'email',
+            connectorName: 'imap-smtp',
+            credentialId: 'cred-general',
+            direction: 'inbound' as const,
+            metadata: { to: [{ address: 'hello@support.test' }] },
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(
+        screen.getByText('General Support · hello@support.test'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Recruitment Support/)).not.toBeInTheDocument();
+    });
+
+    it('shows the address alone when the thread was not placed', () => {
+      mailboxesMock.current = [GENERAL, RECRUITMENT];
+      render(
+        <ConversationHeader
+          conversation={makeConversation({
+            channel: 'email',
+            connectorName: 'imap-smtp',
+            direction: 'inbound' as const,
+            metadata: { to: [{ address: 'hello@support.test' }] },
+          })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.getByText('hello@support.test')).toBeInTheDocument();
+      expect(screen.queryByText(/Support ·/)).not.toBeInTheDocument();
     });
   });
 });

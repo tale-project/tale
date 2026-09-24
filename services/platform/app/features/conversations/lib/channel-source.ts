@@ -8,40 +8,78 @@
  * names a connector catalog slug (`gmail`), an API thread names whatever
  * source slug the caller chose — so neither field alone identifies the lane.
  *
- * The reply follows the thread: the server re-derives the route from these
- * same stamps, so what this module names is also where a reply will leave
- * from. It is the caller's job to supply connector titles; this module never
- * queries.
+ * Inside the email lane one connector can hold several mailboxes (one
+ * credential each), so the connector does not say which mailbox a thread is
+ * on. The server does: it resolves each thread's `credentialId` with the same
+ * rule its reply route uses, so the mailbox this module names is also where a
+ * reply will leave from. It is the caller's job to supply the organization's
+ * mailboxes; this module never queries.
  */
+
+import { configuredFromAddress } from './email-connectors';
 
 /** The lane a thread is on. `unknown` is a thread stamped before either
  *  field was written, which can still be read but has no reply route. */
 export type ChannelLane = 'api' | 'email' | 'unknown';
 
+/** One of the organization's mailboxes: a connector credential. */
+export interface MailboxEntry {
+  id: string;
+  connectorSlug: string;
+  name: string;
+  status: string;
+  config?: Record<string, string | number | boolean>;
+}
+
+/** The mailbox a thread is on. */
+export interface ChannelMailbox {
+  id: string;
+  name: string;
+  /** The mailbox's configured send address, when it exposes one. */
+  fromAddress?: string;
+}
+
 export interface ChannelSource {
   lane: ChannelLane;
   /** The connector or source slug, when the thread names one. */
   slug?: string;
-  /** What to show: a connector's title ("Gmail"), else the bare slug. */
+  /** What to show: the mailbox's name ("General Support"), else the bare
+   *  slug. */
   label?: string;
+  /** The email thread's mailbox, when it is known. */
+  mailbox?: ChannelMailbox;
 }
 
 export interface ConversationSourceInput {
   channel?: string;
   connectorName?: string;
+  credentialId?: string;
+}
+
+function mailboxOf(entry: MailboxEntry): ChannelMailbox {
+  const fromAddress = configuredFromAddress(entry.config);
+  return {
+    id: entry.id,
+    name: entry.name,
+    ...(fromAddress !== undefined ? { fromAddress } : {}),
+  };
 }
 
 /**
  * Resolve a thread's source for display.
  *
- * `titleOf` names an email connector; an API source has no catalog entry, so
- * its own slug is the honest label. A thread with neither stamp resolves to
- * `unknown` with no label rather than inventing one — the Inbox says nothing
- * instead of saying something wrong.
+ * An email thread names the mailbox the server placed it on, even one since
+ * disabled — it is still where the thread arrived. A thread the server could
+ * not place is named only when its connector has a single active mailbox, so
+ * there is nothing to confuse it with; otherwise it names no mailbox and the
+ * label is the bare slug. An API source has no mailbox, so its own slug is
+ * the honest label. A thread with neither stamp resolves to `unknown` with no
+ * label rather than inventing one — the Inbox says nothing instead of saying
+ * something wrong.
  */
 export function channelSourceOf(
   conversation: ConversationSourceInput,
-  titleOf: (slug: string) => string | undefined,
+  mailboxes: readonly MailboxEntry[],
 ): ChannelSource {
   const slug =
     typeof conversation.connectorName === 'string' &&
@@ -53,7 +91,22 @@ export function channelSourceOf(
     return { lane: 'api', ...(slug ? { slug, label: slug } : {}) };
   }
   if (slug === undefined) return { lane: 'unknown' };
-  return { lane: 'email', slug, label: titleOf(slug) ?? slug };
+
+  const placed =
+    conversation.credentialId !== undefined
+      ? mailboxes.find(
+          (entry) =>
+            entry.id === conversation.credentialId &&
+            entry.connectorSlug === slug,
+        )
+      : undefined;
+  const active = mailboxes.filter(
+    (entry) => entry.connectorSlug === slug && entry.status === 'active',
+  );
+  const entry = placed ?? (active.length === 1 ? active[0] : undefined);
+  if (entry === undefined) return { lane: 'email', slug, label: slug };
+  const mailbox = mailboxOf(entry);
+  return { lane: 'email', slug, label: mailbox.name, mailbox };
 }
 
 export interface ChannelOption {

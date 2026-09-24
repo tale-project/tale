@@ -35,7 +35,7 @@ import {
   useMarkAsSpam,
   useReopenConversation,
 } from '../hooks/mutations';
-import { useEmailConnectors } from '../hooks/queries';
+import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
 import type { ConversationWithMessages } from '../types';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
@@ -60,33 +60,34 @@ export function ConversationHeader({
   const pendingContactInfo = useRef(false);
   const { formatRelative } = useFormatDate();
 
-  // Which of the org's mailboxes THIS thread belongs to — read from the side of
-  // the envelope that is ours (`mailboxSideAddress`: the recipient on inbound
-  // mail, the sender on sent-folder mail we synced back, where `metadata.to` is
-  // the contact). Reading `to` blindly is what made an unconnected personal
-  // address look like the inbox source on outbound threads. With a configured
-  // From (imap_smtp mirrors the login) `resolveReplyFrom` keeps the mailbox
-  // address unless the thread ran on a genuine same-domain alias; gmail/outlook
-  // expose no From, so the envelope's own address stands on its own.
-  const { emailConnectors } = useEmailConnectors(organizationId);
-  const inbox = conversation.connectorName
-    ? emailConnectors.find((i) => i.slug === conversation.connectorName)
-    : undefined;
+  // Which of the org's mailboxes THIS thread belongs to: the one the server
+  // placed it on (`credentialId`), never a lookup by connector — one connector
+  // can hold several mailboxes, and naming the connector's last one put a
+  // mailbox's name beside another mailbox's address. A thread the server
+  // could not place shows its address alone.
+  //
+  // The address is read from the side of the envelope that is ours
+  // (`mailboxSideAddress`: the recipient on inbound mail, the sender on
+  // sent-folder mail we synced back, where `metadata.to` is the contact).
+  // Reading `to` blindly is what made an unconnected personal address look
+  // like the inbox source on outbound threads. With a configured From
+  // (imap_smtp mirrors the login) `resolveReplyFrom` keeps the mailbox address
+  // unless the thread ran on a genuine same-domain alias; gmail/outlook expose
+  // no From, so the envelope's own address stands on its own.
+  //
+  // The lane also covers a thread that has no envelope address to show. An
+  // API thread carries no `metadata.to`, so before that it showed nothing.
+  const { mailboxes } = useMailboxes();
+  const source = channelSourceOf(conversation, mailboxes);
+  const mailbox = source.mailbox;
   const ourAddress = mailboxSideAddress(
     isRecord(conversation.metadata) ? conversation.metadata : undefined,
     conversation.direction,
   );
-  const conversationFrom = inbox?.fromAddress
-    ? resolveReplyFrom(ourAddress, inbox.fromAddress)
+  const conversationFrom = mailbox?.fromAddress
+    ? resolveReplyFrom(ourAddress, mailbox.fromAddress)
     : ourAddress;
-  const inboxLabel = inbox?.title;
-  // The lane, for a thread that has no envelope address to show. An API
-  // thread carries no `metadata.to`, so before this it showed nothing at all.
-  const source = channelSourceOf(
-    conversation,
-    (slug) =>
-      emailConnectors.find((connector) => connector.slug === slug)?.title,
-  );
+  const inboxLabel = mailbox?.name;
 
   const { mutate: closeConversation, isPending: isClosing } =
     useCloseConversation();
