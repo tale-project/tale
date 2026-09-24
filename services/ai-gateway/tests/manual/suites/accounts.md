@@ -51,6 +51,10 @@ specs; see [`../reference/automation.md`](../reference/automation.md).
   the abandoned attempt.
 - [ ] `ACCT-7` · **Paste the same authorization value a second time** → refused
   with "that authorization expired", not silently accepted into a duplicate row.
+- [ ] `ACCT-33` · **Add account → open the Provider picker** → each vendor is
+  listed with its own mark beside its name — the mark its rows carry in the
+  table — and the closed picker keeps the chosen vendor's mark. A screen
+  reader still hears only the vendor's name.
 
 ### Handing tokens out
 

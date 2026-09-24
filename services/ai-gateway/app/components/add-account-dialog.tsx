@@ -19,6 +19,8 @@ import {
 } from '@/app/lib/api';
 import { useT } from '@/lib/i18n/client';
 
+import { ProviderMark } from './provider-mark';
+
 export interface AddAccountTarget {
   /** Re-authenticating an existing account rather than adding a new one. */
   account: AccountView | null;
@@ -214,9 +216,13 @@ export function AddAccountDialog({
               onValueChange={(value) => {
                 if (isProviderId(value)) setChosenProvider(value);
               }}
+              // The vendor's mark beside its name, in the list and in the
+              // closed control alike — the same marks the table rows lead
+              // with, so the choice reads the way the pool does.
               options={providers.map((id) => ({
                 value: id,
                 label: tProviders(id),
+                icon: <ProviderMark className="size-4" provider={id} />,
               }))}
               value={provider ?? ''}
             />
