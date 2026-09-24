@@ -127,11 +127,14 @@ export function channelOptionsOf(
   connectors: ReadonlyArray<{ slug: string; title: string }>,
   apiSources: readonly string[],
 ): ChannelOption[] {
-  const options = connectors.map((connector) => ({
-    value: connector.slug,
-    label: connector.title,
-  }));
-  const seen = new Set(options.map((option) => option.value));
+  // One entry per connector: the list may hold several mailboxes on one.
+  const options: ChannelOption[] = [];
+  const seen = new Set<string>();
+  for (const connector of connectors) {
+    if (seen.has(connector.slug)) continue;
+    seen.add(connector.slug);
+    options.push({ value: connector.slug, label: connector.title });
+  }
   for (const source of apiSources) {
     if (seen.has(source)) continue;
     seen.add(source);

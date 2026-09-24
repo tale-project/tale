@@ -30,6 +30,8 @@ interface Fragment {
   [FRAGMENT]: true;
   text: string;
   values: unknown[];
+  /** Its own record in `statements`, marked once it is inlined. */
+  record: { text: string; values: unknown[]; inlined?: true };
 }
 
 function isFragment(value: unknown): value is Fragment {
@@ -44,10 +46,11 @@ function isFragment(value: unknown): value is Fragment {
  * A `sql` stand-in that records every statement and answers by table. Nested
  * `sql\`…\`` fragments (the assignment scope) are inlined the way postgres.js
  * inlines them, so a recorded read is the statement Postgres would see. They
- * are recorded too, hence `tableReads` below — a fragment is not a read.
+ * are recorded too, and marked `inlined` once another statement embeds them,
+ * hence `tableReads` below — a fragment is not a read.
  */
 function recordingSql(answer: (text: string) => unknown[]) {
-  const statements: { text: string; values: unknown[] }[] = [];
+  const statements: { text: string; values: unknown[]; inlined?: true }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     let text = '';
     const flat: unknown[] = [];
@@ -58,14 +61,21 @@ function recordingSql(answer: (text: string) => unknown[]) {
       if (isFragment(value)) {
         text += value.text;
         flat.push(...value.values);
+        value.record.inlined = true;
       } else {
         text += '?';
         flat.push(value);
       }
     });
     text = text.replace(/\s+/g, ' ').trim();
-    statements.push({ text, values: flat });
-    const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+    const record: Fragment['record'] = { text, values: flat };
+    statements.push(record);
+    const fragment: Fragment = {
+      [FRAGMENT]: true,
+      text,
+      values: flat,
+      record,
+    };
     return Object.assign(
       Promise.resolve(text.includes(' FROM ') ? answer(text) : []),
       fragment,
@@ -80,8 +90,10 @@ function recordingSql(answer: (text: string) => unknown[]) {
 }
 
 /** The statements that actually read a table, in order. */
-function tableReads(statements: { text: string; values: unknown[] }[]) {
-  return statements.filter((s) => s.text.includes(' FROM '));
+function tableReads(
+  statements: { text: string; values: unknown[]; inlined?: true }[],
+) {
+  return statements.filter((s) => !s.inlined && s.text.includes(' FROM '));
 }
 
 const ORG = 'o1';
@@ -167,11 +179,15 @@ describe('listConversationsPage', () => {
       conversation('c3', null),
     ];
     const { sql, statements } = recordingSql((text) => {
+      if (text.includes('AS "credentialId" FROM app.conversations')) {
+        return [
+          { conversationId: 'c1', credentialId: null },
+          { conversationId: 'c2', credentialId: 'cred-b' },
+          { conversationId: 'c3', credentialId: null },
+        ];
+      }
       if (text.includes('FROM app.conversations ')) return rows;
       if (text.includes('FROM app.contacts')) return CONTACTS;
-      if (text.includes('AND credential_id IS NOT NULL')) {
-        return [{ conversationId: 'c2', credentialId: 'cred-b' }];
-      }
       if (text.includes('FROM app.connector_credentials')) {
         return [
           {
@@ -345,6 +361,32 @@ describe('projectConversationForView', () => {
     expect(
       statements.map((s) => s.text.split(' FROM ')[1]?.split(' ')[0]),
     ).toEqual(['app.contacts', 'app.approvals']);
+  });
+
+  // A thread composed in Tale has no inbound message yet: the mailbox it was
+  // sent through places it, so its replies stay there.
+  it('names a thread with no inbound stamp by its outbound one', async () => {
+    const { sql } = recordingSql((text) => {
+      if (text.includes('FROM app.contacts')) return [CONTACTS[0]];
+      if (text.includes('FROM app.approvals')) return [];
+      throw new Error(`unexpected statement: ${text}`);
+    });
+
+    const item = await projectConversationForView(
+      sql,
+      { ...conversation('c1', 'ct-1'), direction: 'outbound' },
+      [
+        {
+          ...message('m1', 'c1', 'first'),
+          direction: 'outbound' as const,
+          credentialId: 'cred-a',
+        },
+        { ...message('m2', 'c1', 'unstamped'), direction: 'outbound' as const },
+      ],
+      null,
+    );
+
+    expect(item).toMatchObject({ credentialId: 'cred-a' });
   });
 
   it('names an unrecorded thread by the mailbox its address belongs to', async () => {

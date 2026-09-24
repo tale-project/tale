@@ -29,7 +29,7 @@ Die Tabelle zeigt eine Zeile je Zugangsdaten-Eintrag. **Standard** kennzeichnet 
 
 Ein Connector mit mehreren Einträgen, aber ohne Standard funktioniert weiterhin für Aufrufer, die Zugangsdaten benennen. Ohne einen solchen Namen braucht der Aufruf einen Standard. Benenne Konten eindeutig, bevor du sie in Automatisierungen verwendest, damit später erkennbar bleibt, welches Konto gemeint ist.
 
-Postfachsynchronisation und Eingangssichtung können alle aktiven Zugangsdaten eines Postfach-Connectors prüfen. Ein zweites Postfach muss dafür nicht zuerst Standard werden.
+Postfachsynchronisation und Eingangssichtung können alle aktiven Zugangsdaten eines Postfach-Connectors prüfen. Ein zweites Postfach muss dafür nicht zuerst Standard werden. Beim Verfassen einer neuen E-Mail listet das Feld **Postfach** jedes Postfach mit seinem Namen auf; die E-Mail wird über das gewählte Postfach versendet. Auch Antworten in dieser Konversation werden über dieses Postfach versendet, ebenso ein erneuter Versuch nach einem fehlgeschlagenen Versand.
 
 ## Ein Geheimnis rotieren oder Zugriff pausieren
 

@@ -78,6 +78,7 @@ export interface ConversationsContract {
       organizationId: string;
       content: string;
       connectorName: string;
+      credentialId?: string;
       contactId: string;
       subject: string;
     };

@@ -29,7 +29,7 @@ Le tableau contient une ligne par jeu d’identifiants. Le badge **Par défaut**
 
 Sans choix par défaut, un connecteur qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
 
-La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connecteur de messagerie. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations.
+La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connecteur de messagerie. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations. Quand tu rédiges un nouvel e-mail, le champ **Boîte** liste chaque boîte sous son nom, et l’e-mail part de celle que tu choisis. Les réponses dans cette conversation partent de la même boîte, y compris quand tu relances un envoi qui a échoué.
 
 ## Renouveler un secret ou suspendre l’accès
 

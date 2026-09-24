@@ -280,6 +280,9 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
         body: {
           contactId: stringArg(args, 'contactId'),
           connectorName: stringArg(args, 'connectorName'),
+          ...(typeof args.credentialId === 'string'
+            ? { credentialId: args.credentialId }
+            : {}),
           subject: stringArg(args, 'subject'),
           content: stringArg(args, 'content'),
           ...(typeof args.sourceMarkdown === 'string'

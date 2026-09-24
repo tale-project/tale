@@ -12,12 +12,22 @@ import { ComposeEmailPane } from './compose-email-pane';
 
 const emailConnectorsMock = vi.hoisted(() => ({
   current: [] as Array<{
+    credentialId: string;
     slug: string;
     title: string;
     type: string;
     fromAddress?: string;
   }>,
 }));
+
+// The draft fields, as `usePersistedState` would hold them across mounts.
+const persisted = vi.hoisted(() => new Map<string, string>());
+const composeMock = vi.hoisted(() =>
+  vi.fn(async (_args: Record<string, unknown>) => ({
+    conversationId: 'c-new',
+    messageId: 'm-new',
+  })),
+);
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -34,7 +44,7 @@ vi.mock('../hooks/queries', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useComposeEmailConversation: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: composeMock,
     isPending: false,
   }),
   useGenerateUploadUrl: () => ({ mutateAsync: vi.fn() }),
@@ -58,18 +68,50 @@ vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 
-vi.mock('@/app/hooks/use-persisted-state', () => ({
-  usePersistedState: (_key: string, initial: string) => {
-    return [initial, vi.fn(), vi.fn()] as const;
-  },
-}));
+vi.mock('@/app/hooks/use-persisted-state', async () => {
+  const { useCallback, useState } = await import('react');
+  return {
+    usePersistedState: (key: string, initial: string) => {
+      const [value, setValue] = useState(() => persisted.get(key) ?? initial);
+      const set = useCallback(
+        (next: string) => {
+          persisted.set(key, next);
+          setValue(next);
+        },
+        [key],
+      );
+      const clear = useCallback(() => {
+        persisted.delete(key);
+        setValue(initial);
+      }, [key, initial]);
+      return [value, set, clear] as const;
+    },
+  };
+});
 
 vi.mock('./contact-recipient-picker', () => ({
   ContactRecipientPicker: () => <div data-testid="recipient-picker" />,
 }));
 
+// The body editor, reduced to its send gesture.
 vi.mock('@tale/ui/lazy-component', () => ({
-  lazyComponent: () => () => <div data-testid="message-editor" />,
+  lazyComponent:
+    () =>
+    ({
+      onSave,
+      disabled,
+    }: {
+      onSave: (message: string) => Promise<void>;
+      disabled?: boolean;
+    }) => (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => void onSave('<p>Body</p>')}
+      >
+        Send body
+      </button>
+    ),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -96,6 +138,7 @@ function renderPane(role: keyof typeof abilities) {
 describe('ComposeEmailPane — missing email connector', () => {
   beforeEach(() => {
     emailConnectorsMock.current = [];
+    persisted.clear();
     navigateMock.mockReset();
   });
 
@@ -134,5 +177,88 @@ describe('ComposeEmailPane — missing email connector', () => {
   it('passes axe with the warning banner shown', async () => {
     const { container } = renderPane('admin');
     await checkAccessibility(container);
+  });
+});
+
+/**
+ * One connector can hold several mailboxes. Compose sends from the one the
+ * draft names, by credential; keyed by connector it sent from the default.
+ */
+describe('ComposeEmailPane — the mailbox', () => {
+  const DRAFT = 'compose-user-1-org-1';
+  const GENERAL = {
+    credentialId: 'cred-general',
+    slug: 'imap-smtp',
+    title: 'General Support',
+    type: 'imap_smtp',
+    fromAddress: 'hello@support.test',
+  };
+  const RECRUITMENT = {
+    credentialId: 'cred-recruitment',
+    slug: 'imap-smtp',
+    title: 'Recruitment Support',
+    type: 'imap_smtp',
+    fromAddress: 'jobs@support.test',
+  };
+  const GMAIL = {
+    credentialId: 'cred-gmail',
+    slug: 'gmail',
+    title: 'Sales inbox',
+    type: 'oauth',
+  };
+
+  beforeEach(() => {
+    persisted.clear();
+    persisted.set(`${DRAFT}-contact`, 'ct1');
+    persisted.set(`${DRAFT}-subject`, 'Quote 7');
+    composeMock.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  async function send() {
+    const button = screen.getByRole('button', { name: 'Send body' });
+    expect(button).toBeEnabled();
+    button.click();
+    await vi.waitFor(() => expect(composeMock).toHaveBeenCalledTimes(1));
+    return composeMock.mock.calls[0]?.[0];
+  }
+
+  it('sends from the chosen mailbox, by its credential', async () => {
+    emailConnectorsMock.current = [GENERAL, RECRUITMENT];
+    persisted.set(`${DRAFT}-mailbox`, 'cred-recruitment');
+    renderPane('admin');
+
+    expect(await send()).toMatchObject({
+      connectorName: 'imap-smtp',
+      credentialId: 'cred-recruitment',
+      from: 'jobs@support.test',
+    });
+  });
+
+  it("resumes a draft that stored a connector on that connector's only mailbox", async () => {
+    emailConnectorsMock.current = [GENERAL, RECRUITMENT, GMAIL];
+    persisted.set(`${DRAFT}-inbox`, 'gmail');
+    renderPane('admin');
+
+    expect(await send()).toMatchObject({
+      connectorName: 'gmail',
+      credentialId: 'cred-gmail',
+    });
+    expect(persisted.has(`${DRAFT}-inbox`)).toBe(false);
+  });
+
+  it('drops the sender a vanished mailbox left behind', async () => {
+    emailConnectorsMock.current = [GENERAL];
+    persisted.set(`${DRAFT}-mailbox`, 'cred-removed');
+    persisted.set(`${DRAFT}-sender`, 'billing@support.test');
+    renderPane('admin');
+
+    expect(await send()).toMatchObject({
+      credentialId: 'cred-general',
+      from: 'hello@support.test',
+    });
   });
 });

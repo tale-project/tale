@@ -25320,6 +25320,99 @@ async function checkOutboundSendLane(
         finalSendCount === 5,
       `draft=${firstDraft.created}/${secondDraft.created}/pending=${pendingDraftCount[0]?.count} (want true/false/1), reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, lateUndo=${lateUndo.status}/${lateUndoBody.success ? lateUndoBody.data.error : 'ERR'} claimed=${claimedOk} stillQueued=${rowStillQueued} sentAfterRelease=${lateSentOk} (want 409/undo_window_closed, one mail), discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 5)`,
     );
+
+    // A second mailbox on the same connector, not the default. A compose
+    // names it, the reply on that thread follows it (the composed message is
+    // the thread's only stamp), and a retry of that reply keeps it: all of
+    // them leave with its address, never the default's `inbox@door.test`.
+    const deskTwo = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/app/connector-credentials?orgId=${orgId}`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+          body: JSON.stringify({
+            connectorSlug: 'imap-smtp',
+            authMethod: 'basic',
+            name: 'Desk Two',
+            secret: { username: 'desk2@other.test', password: 'desk-pass' },
+            config: {
+              imapHost: 'imap.other.test',
+              smtpHost: 'smtp.other.test',
+            },
+          }),
+        })
+      ).json(),
+    );
+    const deskTwoId = deskTwo.success ? deskTwo.data.credentialId : '';
+    const deskCompose = z
+      .object({ conversationId: z.string(), messageId: z.string() })
+      .safeParse(
+        await (
+          await api('/compose', {
+            body: {
+              contactId,
+              connectorName: 'imap-smtp',
+              credentialId: deskTwoId,
+              subject: 'Desk two quote',
+              content: 'From the second desk.',
+            },
+          })
+        ).json(),
+      );
+    const deskComposed = deskCompose.success
+      ? await waitForState(deskCompose.data.messageId, 'sent')
+      : false;
+    failMode = true;
+    const deskReply = deskCompose.success
+      ? z.object({ messageId: z.string() }).safeParse(
+          await (
+            await api(`/${deskCompose.data.conversationId}/reply`, {
+              body: { content: '<p>Following up.</p>' },
+            })
+          ).json(),
+        )
+      : null;
+    const deskReplyId = deskReply?.success ? deskReply.data.messageId : '';
+    const deskReplyFailed = await waitForState(deskReplyId, 'failed');
+    failMode = false;
+    const deskRetry = await api(`/messages/${deskReplyId}/retry`, {
+      body: {},
+    });
+    const deskRetried = await waitForState(deskReplyId, 'sent');
+    const deskSends = smtpSends
+      .filter((send) => send.subject.endsWith('Desk two quote'))
+      .map((send) => send.from);
+    // A mailbox id from nowhere is refused before anything exists.
+    const strayCompose = await api('/compose', {
+      body: {
+        contactId,
+        connectorName: 'imap-smtp',
+        credentialId: 'mailbox-from-nowhere',
+        subject: 'Stray mailbox',
+        content: 'Never sent.',
+      },
+    });
+    const strayConversations = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND subject = 'Stray mailbox'
+    `;
+    record(
+      'outbound send lane: a chosen mailbox carries its compose, reply and retry',
+      deskTwoId !== '' &&
+        deskComposed &&
+        deskReplyFailed &&
+        deskRetry.status === 200 &&
+        deskRetried &&
+        deskSends.length === 2 &&
+        deskSends.every((from) => from === 'desk2@other.test') &&
+        strayCompose.status === 404 &&
+        strayConversations[0]?.count === '0',
+      `mailbox=${deskTwoId !== ''} composed=${deskComposed} replyFailed=${deskReplyFailed} retry=${deskRetry.status}/${deskRetried} froms=${deskSends.join('|')} (want desk2@other.test twice) stray=${strayCompose.status}/${strayConversations[0]?.count} (want 404/0)`,
+    );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
   }

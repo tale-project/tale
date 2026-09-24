@@ -41,6 +41,7 @@ import {
   discardOutboundMessage,
   replyToConversation,
   resolveSentExternalMessageId,
+  retrySendMessage,
   runSendMessageJob,
   undoSendMessage,
 } from './send.ts';
@@ -303,6 +304,104 @@ describe('composeEmailConversation — one transaction', () => {
     expect(conversationInsert?.begin).toBe(0);
     expect(begins).toEqual([{ status: 'rolled_back' }]);
   });
+
+  /**
+   * One connector can hold several mailboxes. A compose names the one it
+   * sends from, and the outbound row records it, so the thread's later
+   * replies stay on that mailbox.
+   */
+  const MAILBOX = 'FROM app.connector_credentials';
+  const composeFrom = (sql: Sql) =>
+    composeEmailConversation(sql, {
+      organizationId: 'o1',
+      contactId: 'ct1',
+      connectorName: 'imap-smtp',
+      credentialId: 'cred-b',
+      subject: 'Quote 7',
+      content: 'Seven units.',
+      actor: { userId: 'u1', role: 'member' },
+    });
+
+  it('sends through the chosen mailbox and records it on the message', async () => {
+    const { sql, statements } = fakeSql({
+      ...answers,
+      [MAILBOX]: [{ connectorSlug: 'imap-smtp', status: 'active' }],
+    });
+    await composeFrom(sql);
+
+    const lookup = statements.find((st) => st.text.includes(MAILBOX));
+    // Scoped to the organization: an id from another org is no mailbox.
+    expect(lookup?.values).toEqual(['cred-b', 'o1']);
+    const insert = statements.find((st) =>
+      st.text.startsWith('INSERT INTO app.conversation_messages'),
+    );
+    // org, conversation, connector_name, credential_id
+    expect(insert?.values[3]).toBe('cred-b');
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ credentialId: 'cred-b' });
+  });
+
+  it.each([
+    ['compose_mailbox_not_found', []],
+    [
+      'compose_mailbox_connector_mismatch',
+      [{ connectorSlug: 'gmail', status: 'active' }],
+    ],
+    [
+      'compose_mailbox_inactive',
+      [{ connectorSlug: 'imap-smtp', status: 'disabled' }],
+    ],
+  ])('refuses with %s before writing anything', async (code, mailbox) => {
+    const { sql, statements, begins } = fakeSql({
+      ...answers,
+      [MAILBOX]: mailbox,
+    });
+    await expect(composeFrom(sql)).rejects.toMatchObject({ code });
+    expect(begins).toEqual([]);
+    expect(statements.some((st) => st.text.startsWith('INSERT'))).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('retrySendMessage — the mailbox', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const FAILED_ROW: ConversationMessageRow = {
+    ...QUEUED_ROW,
+    deliveryState: 'failed',
+    credentialId: 'cred-b',
+    metadata: {
+      subject: 'Re: Order 42',
+      to: ['carla@ext.test'],
+      error: 'SMTP refused',
+    },
+  };
+  const answers = (row: ConversationMessageRow) => ({
+    'FROM app.conversation_messages WHERE id': [row],
+    'SELECT metadata FROM app.conversations': [{ metadata: null }],
+  });
+
+  it('retries through the mailbox the failed attempt used', async () => {
+    const { sql } = fakeSql(answers(FAILED_ROW));
+    await retrySendMessage(sql, {
+      organizationId: 'o1',
+      messageId: 'm1',
+      actor: { userId: 'u1' },
+    });
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ credentialId: 'cred-b' });
+  });
+
+  it('leaves the credential unset for a message that recorded none', async () => {
+    const { sql } = fakeSql(answers({ ...FAILED_ROW, credentialId: null }));
+    await retrySendMessage(sql, {
+      organizationId: 'o1',
+      messageId: 'm1',
+      actor: { userId: 'u1' },
+    });
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).not.toHaveProperty('credentialId');
+  });
 });
 
 describe('undoSendMessage — after the claim', () => {
@@ -475,16 +574,20 @@ describe('resolveSentExternalMessageId', () => {
  * credential on the run the resolver falls through to the connector's
  * `is_default`, so a thread received on one mailbox could be answered from
  * another. The reply carries the credential recorded on the newest inbound
- * message. A thread with none (its messages predate 0113) replies from the
- * one active mailbox whose address is the one the correspondent wrote to, and
- * keeps the old default-credential behaviour when no single mailbox claims it.
+ * message, else on the newest outbound one (a thread composed in Tale). A
+ * thread with none (its messages predate 0113) replies from the one active
+ * mailbox whose address is the one the correspondent wrote to, and keeps the
+ * old default-credential behaviour when no single mailbox claims it.
  */
 describe('replyToConversation — the mailbox', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const CONVERSATION = 'FROM app.conversations c';
   const CONVERSATION_ROW = 'FROM app.conversations WHERE id';
-  const CARRIED = 'AND credential_id IS NOT NULL';
+  /** The resolver's per-thread read; the recorded-credential subquery is a
+   *  fragment inside it, recorded as its own statement by this double. */
+  const CARRIED = 'AS "credentialId" FROM app.conversations';
+  const RECORDED = 'm.credential_id IS NOT NULL';
   const MAILBOXES = 'FROM app.connector_credentials';
   /** The row `sendMessageViaConnectorInTx` re-reads inside the transaction. */
   const ROW = { id: 'c1', organizationId: 'o1', metadata: null };
@@ -541,7 +644,7 @@ describe('replyToConversation — the mailbox', () => {
     expect(payload).not.toHaveProperty('credentialId');
   });
 
-  it('asks only for INBOUND credentials — an outbound row names where we sent, not where they wrote', async () => {
+  it('ranks where they wrote above where we sent, newest first within each', async () => {
     const { sql, statements } = fakeSql({
       [CONVERSATION]: [EMAIL_ROW],
       [CONVERSATION_ROW]: [ROW],
@@ -551,8 +654,13 @@ describe('replyToConversation — the mailbox', () => {
 
     await replyToConversation(sql, REPLY);
 
-    const lookup = statements.find((st) => st.text.includes(CARRIED));
-    expect(lookup?.text).toContain("direction = 'inbound'");
+    // The ordering itself is proven on real Postgres (integration-check);
+    // this pins that the statement carries it.
+    const lookup = statements.find((st) => st.text.includes(RECORDED));
+    expect(lookup?.text).toContain(
+      "ORDER BY (m.direction = 'inbound') DESC, coalesce(m.sent_at_ms, m.delivered_at_ms, m.created_at_ms) DESC, m.seq DESC",
+    );
+    expect(lookup?.text).toContain('m.org_id = conversations.org_id');
   });
 
   /** An unrecorded thread the correspondent wrote to `hello@` at. */

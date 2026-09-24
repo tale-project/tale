@@ -15,11 +15,14 @@
 
 import { isPublicEmailDomain } from '@/lib/shared/conversations/reply-from';
 
-/** A connected, email-capable inbox the compose dialog can send through. */
+/** A connected, email-capable mailbox the compose dialog can send through. */
 export interface EmailConnectorOption {
+  /** The mailbox's connector credential — passed as `credentialId`. One
+   *  connector can hold several mailboxes, so this, not `slug`, is the key. */
+  credentialId: string;
   /** Connector slug — passed to the backend as `connectorName`. */
   slug: string;
-  /** Human title for the picker (e.g. "Outlook"). */
+  /** Human title for the picker: the mailbox's name (e.g. "Support"). */
   title: string;
   /** Connector kind (`imap_smtp` | `rest_api` | …) — drives sender editability. */
   type: string;
@@ -50,7 +53,7 @@ export function configuredFromAddress(
 export function resolvedEmailOption(
   slug: string,
   connector: unknown,
-): EmailConnectorOption {
+): Omit<EmailConnectorOption, 'credentialId'> {
   const rec = isRecord(connector) ? connector : {};
   const fromAddress = configuredFromAddress(rec.connectionConfig);
   return {
@@ -74,7 +77,7 @@ export function resolvedEmailOption(
  * server-side guard (`sameMailboxAliasDomain`) refuses the alias.
  */
 export function supportsDynamicSender(
-  connector: EmailConnectorOption | null | undefined,
+  connector: Omit<EmailConnectorOption, 'credentialId'> | null | undefined,
 ): boolean {
   if (connector?.type !== 'imap_smtp') return false;
   if (typeof connector.fromAddress !== 'string') return false;

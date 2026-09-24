@@ -39,10 +39,10 @@ function inboxPack(slug: string, connector: string): Record<string, unknown> {
 function credential(
   connectorSlug: string,
   name: string,
-  status: 'active' | 'revoked',
+  status: 'active' | 'disabled',
   config: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return { connectorSlug, name, status, config };
+  return { id: `cred-${name}`, connectorSlug, name, status, config };
 }
 
 function stub(options: {
@@ -84,12 +84,14 @@ describe('useEmailConnectors', () => {
 
     expect(result.current.emailConnectors).toEqual([
       {
+        credentialId: 'cred-Support mailbox',
         slug: 'imap-smtp',
         title: 'Support mailbox',
         type: 'imap_smtp',
         fromAddress: 'support@example.com',
       },
       {
+        credentialId: 'cred-Sales inbox',
         slug: 'gmail',
         title: 'Sales inbox',
         type: 'oauth',
@@ -99,10 +101,40 @@ describe('useEmailConnectors', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  // One connector, two mailboxes: each is its own sender. Keyed by slug, the
+  // list kept only the name that sorted last and sent from the default.
+  it('offers every active mailbox on one connector, in listing order', () => {
+    stub({
+      automations: [inboxPack('imap-smtp/sync-emails', 'imap-smtp')],
+      credentials: [
+        credential('imap-smtp', 'General Support', 'active', {
+          fromAddress: 'hello@support.test',
+        }),
+        credential('imap-smtp', 'Old desk', 'disabled'),
+        credential('imap-smtp', 'Recruitment Support', 'active', {
+          fromAddress: 'jobs@support.test',
+        }),
+      ],
+    });
+
+    const { result } = renderHook(() => useEmailConnectors('org_1'));
+
+    expect(
+      result.current.emailConnectors.map((option) => [
+        option.credentialId,
+        option.slug,
+        option.fromAddress,
+      ]),
+    ).toEqual([
+      ['cred-General Support', 'imap-smtp', 'hello@support.test'],
+      ['cred-Recruitment Support', 'imap-smtp', 'jobs@support.test'],
+    ]);
+  });
+
   it('drops a provider whose credential is not active', () => {
     stub({
       automations: [inboxPack('outlook/sync-emails', 'outlook')],
-      credentials: [credential('outlook', 'Old mailbox', 'revoked')],
+      credentials: [credential('outlook', 'Old mailbox', 'disabled')],
     });
 
     const { result } = renderHook(() => useEmailConnectors('org_1'));

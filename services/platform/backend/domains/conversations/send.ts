@@ -594,6 +594,46 @@ export async function resolveComposeAssignment(
   return { assigneeUserId, assigneeTeamId: args.assigneeTeamId };
 }
 
+/**
+ * The mailbox a compose names must be one the organization can send from on
+ * that connector. Checked before anything is written: the send job would
+ * refuse it anyway, but only after the undo window, as a failed bubble on a
+ * thread that should never have existed.
+ */
+async function assertComposeMailbox(
+  sql: Sql,
+  args: { organizationId: string; connectorName: string; credentialId: string },
+): Promise<void> {
+  const rows = await sql<{ connectorSlug: string; status: string }[]>`
+    SELECT connector_slug AS "connectorSlug", status
+    FROM app.connector_credentials
+    WHERE id = ${args.credentialId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  const mailbox = rows[0];
+  if (!mailbox) {
+    throw new ConversationError(
+      'compose_mailbox_not_found',
+      'That mailbox does not exist in this organization',
+      404,
+    );
+  }
+  if (mailbox.connectorSlug !== args.connectorName) {
+    throw new ConversationError(
+      'compose_mailbox_connector_mismatch',
+      'That mailbox belongs to another connector',
+      400,
+    );
+  }
+  if (mailbox.status !== 'active') {
+    throw new ConversationError(
+      'compose_mailbox_inactive',
+      'That mailbox is not active and cannot send',
+      409,
+    );
+  }
+}
+
 export async function composeEmailConversation(
   sql: Sql,
   args: {
@@ -603,6 +643,9 @@ export async function composeEmailConversation(
     /** Team queue. Admin-only; validated in-org. Non-admin requests are dropped. */
     assigneeTeamId?: string;
     connectorName: string;
+    /** The mailbox (connector credential) to send from. Unset sends through
+     *  the connector's default credential. */
+    credentialId?: string;
     subject: string;
     content: string;
     sourceMarkdown?: string;
@@ -646,6 +689,13 @@ export async function composeEmailConversation(
   // Refuse over-cap attachments BEFORE creating the conversation — the 0.4
   // compose is one atomic mutation, so a cap denial must leave nothing.
   validateConversationAttachmentCaps(args.attachments);
+  if (args.credentialId !== undefined) {
+    await assertComposeMailbox(sql, {
+      organizationId: args.organizationId,
+      connectorName: args.connectorName,
+      credentialId: args.credentialId,
+    });
+  }
 
   const { assigneeUserId, assigneeTeamId } = await resolveComposeAssignment(
     sql,
@@ -684,6 +734,9 @@ export async function composeEmailConversation(
       conversationId,
       organizationId: args.organizationId,
       connectorName: args.connectorName,
+      ...(args.credentialId !== undefined
+        ? { credentialId: args.credentialId }
+        : {}),
       content: args.content,
       to: [contactEmail],
       subject,
@@ -882,6 +935,11 @@ export async function retrySendMessage(
       organizationId: args.organizationId,
       messageId: args.messageId,
       connectorName,
+      // A retry leaves from the mailbox the first attempt was sent through,
+      // not the connector's default.
+      ...(message.credentialId !== null
+        ? { credentialId: message.credentialId }
+        : {}),
       to,
       ...(cc ? { cc } : {}),
       subject,
