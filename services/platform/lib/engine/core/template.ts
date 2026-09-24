@@ -78,7 +78,7 @@ export function refsInSource(src: string): Set<string> {
  * keeps the full scope. Wrongly keeping too much only costs time; the check
  * errs that way.
  */
-export function scopeForSource(
+function scopeForSource(
   src: string,
   scope: Record<string, unknown>,
 ): Record<string, unknown> {
