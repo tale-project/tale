@@ -1,0 +1,207 @@
+import type { Meta, StoryObj } from '@storybook/react';
+import {
+  Trash2,
+  Edit,
+  MoreHorizontal,
+  Settings,
+  X,
+  Plus,
+  Copy,
+  Download,
+} from 'lucide-react';
+import { fn } from 'storybook/test';
+
+import { IconButton } from './icon-button';
+
+const meta: Meta<typeof IconButton> = {
+  title: 'Primitives/IconButton',
+  component: IconButton,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        component: `
+An icon-only button component for compact UI actions.
+
+## Usage
+\`\`\`tsx
+import { IconButton } from '@tale/ui/icon-button';
+
+<IconButton icon={Edit} aria-label="Edit item" />
+<IconButton icon={Trash2} variant="destructive" aria-label="Delete item" />
+\`\`\`
+
+## Accessibility
+- Requires \`aria-label\` prop (enforced by TypeScript)
+- Icon is hidden from screen readers with \`aria-hidden\`
+- Inherits Button's press animation and focus states
+        `,
+      },
+    },
+  },
+  argTypes: {
+    variant: {
+      control: 'select',
+      options: [
+        'primary',
+        'secondary',
+        'destructive',
+        'success',
+        'ghost',
+        'link',
+      ],
+      description: 'Visual style variant',
+      table: {
+        type: { summary: 'string' },
+        defaultValue: { summary: 'ghost' },
+      },
+    },
+    iconSize: {
+      control: 'select',
+      options: [3, 4, 5, 6],
+      description: 'Icon size (Tailwind size classes)',
+      table: {
+        type: { summary: 'number' },
+        defaultValue: { summary: '4' },
+      },
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'Disables the button',
+    },
+  },
+  args: {
+    onClick: fn(),
+    icon: Edit,
+    'aria-label': 'Edit',
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof IconButton>;
+
+export const Default: Story = {
+  args: {
+    icon: Edit,
+    'aria-label': 'Edit item',
+  },
+};
+
+export const AllVariants: Story = {
+  render: () => (
+    <div className="flex flex-wrap gap-4">
+      <IconButton icon={Settings} aria-label="Settings" variant="primary" />
+      <IconButton icon={Plus} aria-label="Add" variant="secondary" />
+      <IconButton icon={MoreHorizontal} aria-label="More" variant="ghost" />
+      <IconButton icon={Trash2} aria-label="Delete" variant="destructive" />
+      <IconButton icon={Edit} aria-label="Edit" variant="success" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: { story: 'All available icon button variants.' },
+    },
+  },
+};
+
+export const AllSizes: Story = {
+  render: () => (
+    <div className="flex items-center gap-4">
+      <IconButton icon={Edit} aria-label="Size 3" iconSize={3} />
+      <IconButton icon={Edit} aria-label="Size 4" iconSize={4} />
+      <IconButton icon={Edit} aria-label="Size 5" iconSize={5} />
+      <IconButton icon={Edit} aria-label="Size 6" iconSize={6} />
+    </div>
+  ),
+};
+
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex items-center gap-4">
+      <IconButton icon={Edit} aria-label="Default height" size="default" />
+      <IconButton icon={Edit} aria-label="Small height" size="sm" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The button height axis: `default` is the standard h-9 square; `sm` is the h-8 square for dense bars and toolbars. (This is the button box size — use `iconSize` to change the glyph size within it.)',
+      },
+    },
+  },
+};
+
+export const CommonActions: Story = {
+  render: () => (
+    <div className="flex items-center gap-2 rounded-lg border p-4">
+      <IconButton icon={Edit} aria-label="Edit" />
+      <IconButton icon={Copy} aria-label="Copy" />
+      <IconButton icon={Download} aria-label="Download" />
+      <IconButton
+        icon={Trash2}
+        aria-label="Delete"
+        variant="ghost"
+        iconClassName="text-destructive"
+      />
+      <IconButton icon={MoreHorizontal} aria-label="More options" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Common action buttons pattern used in row actions or toolbars.',
+      },
+    },
+  },
+};
+
+export const CloseButton: Story = {
+  args: { icon: X, 'aria-label': 'Close', className: 'absolute top-2 right-2' },
+  render: (args) => (
+    <div className="relative rounded-lg border p-8">
+      <IconButton {...args} />
+      <p className="text-muted-foreground text-sm">Modal or panel content</p>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: { story: 'Close button pattern for dialogs and panels.' },
+    },
+  },
+};
+
+export const Disabled: Story = {
+  render: () => (
+    <div className="flex gap-4">
+      <IconButton icon={Edit} aria-label="Edit" disabled />
+      <IconButton
+        icon={Trash2}
+        aria-label="Delete"
+        variant="destructive"
+        disabled
+      />
+    </div>
+  ),
+};
+
+export const PressAnimation: Story = {
+  args: { icon: Plus, 'aria-label': 'Add', variant: 'primary', iconSize: 5 },
+  render: (args) => (
+    <div className="flex flex-col items-center gap-4">
+      <p className="text-muted-foreground text-sm">
+        Click and hold to see the press animation
+      </p>
+      <IconButton {...args} />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Icon buttons inherit the press animation from Button for consistent feedback.',
+      },
+    },
+  },
+};
