@@ -130,9 +130,11 @@ describe('matchRoutingRule details', () => {
   it('routes an API conversation only by its source', () => {
     const rules = config({
       rules: [{ address: 'support@acme.test', teamId: 't-email' }],
+      // The mailbox rule first: an API conversation must skip it even when
+      // the ids collide.
       sourceRules: [
-        { apiSource: 'helpdesk', teamId: 't-helpdesk' },
         { mailbox: 'helpdesk', teamId: 't-wrong-lane' },
+        { apiSource: 'helpdesk', teamId: 't-helpdesk' },
       ],
     });
     expect(

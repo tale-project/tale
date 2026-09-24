@@ -46,9 +46,9 @@ function exactMatch(ruleAddress: string, recipient: string): boolean {
   return normalizedAddress(ruleAddress) === normalizedAddress(recipient);
 }
 
-/** A tag-free rule address equals the recipient with its tag removed. */
+/** The rule's address equals the recipient with its tag removed. A tagged
+ *  rule address never does: a base address has no tag. */
 function baseMatch(ruleAddress: string, recipient: string): boolean {
-  if (ruleAddress.includes('+')) return false;
   const base = baseAddress(recipient);
   return base !== undefined && normalizedAddress(ruleAddress) === base;
 }
