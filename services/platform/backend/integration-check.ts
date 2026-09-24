@@ -51560,6 +51560,8 @@ interface LaneSummary {
   ran: number;
   total: number;
   truncatedAt: string | null;
+  /** The `ITEST_LANES` filter in force, or null for the full run. */
+  filter: string | null;
 }
 
 function errorText(error: unknown): string {
@@ -51641,11 +51643,46 @@ function envLeaks(before: ReadonlyMap<string, string | undefined>): string[] {
   return leaked;
 }
 
+/**
+ * `ITEST_LANES=checkWatchdogs,checkDevSeed` runs only the named lanes — to
+ * prove one lane on the real schema while an unrelated earlier lane
+ * truncates the full run. A name no lane carries throws (a typo must not
+ * pass as "nothing to run"), and the tally names the filter, so a partial
+ * run can never read as full coverage.
+ */
+function selectLanes(lanes: readonly Lane[]): {
+  selected: readonly Lane[];
+  filter: string | null;
+} {
+  const raw = process.env.ITEST_LANES?.trim();
+  if (!raw) return { selected: lanes, filter: null };
+  const wanted = new Set(
+    raw
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0),
+  );
+  const unknown = [...wanted].filter(
+    (name) => !lanes.some(([laneName]) => laneName === name),
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `ITEST_LANES names no registered lane: ${unknown.join(', ')}`,
+    );
+  }
+  const selected = lanes.filter(([name]) => wanted.has(name));
+  console.log(
+    `[itest] ITEST_LANES — running ${selected.length} of ${lanes.length} registered lane(s): ${selected.map(([name]) => name).join(', ')}`,
+  );
+  return { selected, filter: [...wanted].join(',') };
+}
+
 async function runLanes(
   base: string,
   ctx: { cookie: string; userId: string },
-  lanes: readonly Lane[],
+  registered: readonly Lane[],
 ): Promise<LaneSummary> {
+  const { selected: lanes, filter } = selectLanes(registered);
   for (const [index, [name, run]] of lanes.entries()) {
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
@@ -51658,7 +51695,12 @@ async function runLanes(
         false,
         `RUN TRUNCATED at ${position} — ${notRun} later lane(s) never ran; threw ${errorText(error)}`,
       );
-      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+      return {
+        ran: index + 1,
+        total: lanes.length,
+        truncatedAt: name,
+        filter,
+      };
     }
     const leaked = envLeaks(envBefore);
     if (leaked.length > 0) {
@@ -51676,10 +51718,20 @@ async function runLanes(
         false,
         `RUN TRUNCATED at ${position} — the suite's shared session no longer resolves, so the ${notRun} later lane(s) would only 401; a probe that invalidates its own session must act as a throwaway user (signUpOrgMember)`,
       );
-      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+      return {
+        ran: index + 1,
+        total: lanes.length,
+        truncatedAt: name,
+        filter,
+      };
     }
   }
-  return { ran: lanes.length, total: lanes.length, truncatedAt: null };
+  return {
+    ran: lanes.length,
+    total: lanes.length,
+    truncatedAt: null,
+    filter,
+  };
 }
 
 async function main(): Promise<void> {
@@ -52534,7 +52586,7 @@ async function main(): Promise<void> {
     );
   }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }
