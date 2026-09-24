@@ -136,6 +136,10 @@ you need to retain. It creates users and fixtures; some probes deliberately
 revoke sessions or make storage unavailable. Reusing a previous run's state can
 invalidate the proof.
 
+`ITEST_LANES=checkWatchdogs,checkDevSeed` runs only the named lanes — to prove one
+lane on the real schema while an unrelated earlier lane truncates the full run. The
+tally names the filter; a filtered run is never full coverage.
+
 Set `DATABASE_URL` to the fresh `tale_app` database and `TALE_CONFIG_DIR` to the
 isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can

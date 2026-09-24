@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reconcileSession } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import {
+  reconcileOrgSessions,
   runSandboxWatchdog,
   SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
   type WatchdogSpawner,
@@ -270,5 +271,74 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       statements.some((s) => s.text.includes("s.owner_type = 'workflow_run'")),
     ).toBe(false);
     expect(stampsOf(statements)).toHaveLength(0);
+  });
+});
+
+describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
+  // The regression: the page's probe walked EVERY live row of the org,
+  // hibernated (`stopped`) ones included, and settled each spawner 404 as
+  // destroyed — so opening the page emptied it of idle project workspaces
+  // (their containers are reaped by design; the workspace waits on disk).
+  // The probe is now the sweep's own compute-holding-only pass, org-scoped.
+  it('runs the compute-holding-only fair pass scoped to the org, probes with the given spawner, and stamps the visit', async () => {
+    const batch = [candidate('a'), candidate('b')];
+    const { sql, statements } = fakeSql({ reconcile: [batch] });
+    const spawner: WatchdogSpawner = {
+      isAlive: vi.fn(() => Promise.resolve(true)),
+      destroyIfIdle: vi.fn(() =>
+        Promise.resolve({ destroyed: false, busy: false }),
+      ),
+    };
+    vi.mocked(reconcileSession).mockResolvedValueOnce('healed');
+
+    const result = await reconcileOrgSessions(sql, 'org_1', spawner);
+
+    expect(result).toEqual({ healed: 1 });
+    const select = statements.find(
+      (s) =>
+        s.text.includes('SELECT id, session_id') &&
+        s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+    );
+    // `stopped` is not a candidate status, the walk is scoped to the org and
+    // stays the sweep's fair rotation with the page's batch of 25.
+    expect(select?.text).not.toContain("'stopped'");
+    expect(select?.text).toContain('org_id = ?');
+    expect(select?.text).toContain(
+      'ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC',
+    );
+    expect(select?.values).toEqual(['org_1', 'org_1', 25]);
+    expect(reconcileSession).toHaveBeenCalledTimes(2);
+    for (const c of batch) {
+      expect(reconcileSession).toHaveBeenCalledWith(
+        sql,
+        { organizationId: c.orgId, sessionId: c.sessionId },
+        { isAlive: spawner.isAlive },
+      );
+    }
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+    const stamps = stampsOf(statements);
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.values[1]).toEqual(['a', 'b']);
+  });
+
+  it('leaves the sweep tick unscoped (a null scope matches every org)', async () => {
+    const { sql, statements } = fakeSql({ reconcile: [[candidate('x')]] });
+
+    await runSandboxWatchdog(sql, {
+      reconcileBatch: 1,
+      spawner: {
+        isAlive: vi.fn(() => Promise.resolve(true)),
+        destroyIfIdle: vi.fn(() =>
+          Promise.resolve({ destroyed: false, busy: false }),
+        ),
+      },
+    });
+
+    const select = statements.find(
+      (s) =>
+        s.text.includes('SELECT id, session_id') &&
+        s.text.includes("WHERE status IN ('creating', 'active', 'degraded')"),
+    );
+    expect(select?.values).toEqual([null, null, 1]);
   });
 });

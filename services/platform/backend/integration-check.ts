@@ -49489,6 +49489,62 @@ async function checkWatchdogs(
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
+  // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
+  // to the org. A hibernated (`stopped`) project workspace is never a
+  // candidate, so the spawner's 404 for it (container reaped by design)
+  // cannot settle it as destroyed — the page used to empty itself of idle
+  // workspaces on every open — while a genuine phantom (compute-holding
+  // row, container gone) still heals. The pass is walked until the phantom
+  // has been probed: the fair rotation may need more than one batch when
+  // earlier lanes left never-visited compute-holding rows in this org.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-org-hibernated', 'stopped', 'project_agent',
+       'itest-wd-agent-idle', 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-phantom', 'active', 'project_agent',
+       'itest-wd-agent-gone', 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const orgProbed: string[] = [];
+  const orgSpawner = {
+    isAlive: (sessionId: string): Promise<boolean> => {
+      orgProbed.push(sessionId);
+      return Promise.resolve(sessionId !== 'wd-org-phantom');
+    },
+    destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
+      Promise.resolve({ destroyed: false, busy: false }),
+  };
+  let orgHealed = 0;
+  let orgPasses = 0;
+  while (!orgProbed.includes('wd-org-phantom') && orgPasses < 8) {
+    const pass = await sandboxWatchdogs.reconcileOrgSessions(
+      sql,
+      orgId,
+      orgSpawner,
+    );
+    orgHealed += pass.healed;
+    orgPasses += 1;
+  }
+  const orgRows = await sql<{ sessionId: string; status: string }[]>`
+    SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-org-%'
+  `;
+  const orgStatusOf = (sessionId: string): string | undefined =>
+    orgRows.find((r) => r.sessionId === sessionId)?.status;
+  record(
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals',
+    !orgProbed.includes('wd-org-hibernated') &&
+      orgStatusOf('wd-org-hibernated') === 'stopped' &&
+      orgProbed.includes('wd-org-phantom') &&
+      orgStatusOf('wd-org-phantom') === 'destroyed' &&
+      orgHealed === 1,
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed}`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`
@@ -51504,6 +51560,8 @@ interface LaneSummary {
   ran: number;
   total: number;
   truncatedAt: string | null;
+  /** The `ITEST_LANES` filter in force, or null for the full run. */
+  filter: string | null;
 }
 
 function errorText(error: unknown): string {
@@ -51585,11 +51643,46 @@ function envLeaks(before: ReadonlyMap<string, string | undefined>): string[] {
   return leaked;
 }
 
+/**
+ * `ITEST_LANES=checkWatchdogs,checkDevSeed` runs only the named lanes — to
+ * prove one lane on the real schema while an unrelated earlier lane
+ * truncates the full run. A name no lane carries throws (a typo must not
+ * pass as "nothing to run"), and the tally names the filter, so a partial
+ * run can never read as full coverage.
+ */
+function selectLanes(lanes: readonly Lane[]): {
+  selected: readonly Lane[];
+  filter: string | null;
+} {
+  const raw = process.env.ITEST_LANES?.trim();
+  if (!raw) return { selected: lanes, filter: null };
+  const wanted = new Set(
+    raw
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0),
+  );
+  const unknown = [...wanted].filter(
+    (name) => !lanes.some(([laneName]) => laneName === name),
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `ITEST_LANES names no registered lane: ${unknown.join(', ')}`,
+    );
+  }
+  const selected = lanes.filter(([name]) => wanted.has(name));
+  console.log(
+    `[itest] ITEST_LANES — running ${selected.length} of ${lanes.length} registered lane(s): ${selected.map(([name]) => name).join(', ')}`,
+  );
+  return { selected, filter: [...wanted].join(',') };
+}
+
 async function runLanes(
   base: string,
   ctx: { cookie: string; userId: string },
-  lanes: readonly Lane[],
+  registered: readonly Lane[],
 ): Promise<LaneSummary> {
+  const { selected: lanes, filter } = selectLanes(registered);
   for (const [index, [name, run]] of lanes.entries()) {
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
@@ -51602,7 +51695,12 @@ async function runLanes(
         false,
         `RUN TRUNCATED at ${position} — ${notRun} later lane(s) never ran; threw ${errorText(error)}`,
       );
-      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+      return {
+        ran: index + 1,
+        total: lanes.length,
+        truncatedAt: name,
+        filter,
+      };
     }
     const leaked = envLeaks(envBefore);
     if (leaked.length > 0) {
@@ -51620,10 +51718,20 @@ async function runLanes(
         false,
         `RUN TRUNCATED at ${position} — the suite's shared session no longer resolves, so the ${notRun} later lane(s) would only 401; a probe that invalidates its own session must act as a throwaway user (signUpOrgMember)`,
       );
-      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+      return {
+        ran: index + 1,
+        total: lanes.length,
+        truncatedAt: name,
+        filter,
+      };
     }
   }
-  return { ran: lanes.length, total: lanes.length, truncatedAt: null };
+  return {
+    ran: lanes.length,
+    total: lanes.length,
+    truncatedAt: null,
+    filter,
+  };
 }
 
 async function main(): Promise<void> {
@@ -52478,7 +52586,7 @@ async function main(): Promise<void> {
     );
   }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }

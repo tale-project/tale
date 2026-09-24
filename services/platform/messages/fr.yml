@@ -7887,6 +7887,8 @@ sandboxes:
   empty:
     title: Aucun espace de travail pour le moment
     description:
-      Les espaces apparaissent lorsqu'un agent de projet ou un workflow démarre.
-      Les chiffres de capacité ci-dessus incluent les sessions temporaires d'exploration.
+      L'espace de travail d'un agent de projet apparaît après sa première tâche et
+      reste affiché tant que l'agent est inactif. L'espace d'une exécution de
+      workflow est récupéré à la fin de l'exécution. Les chiffres de capacité
+      ci-dessus incluent les sessions temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.

@@ -357,11 +357,14 @@ any toggled setting after the run.
   admin row actions **Stop task** / **Pin** / **Destroy** (`sandboxes.actions.stop` /
   `…pin` / `…destroy`; Destroy confirms via `sandboxes.destroyConfirm.title`)
   — runtime and organization allocation are separate; a running container can
-  show **Quota released** (`sandboxes.status.quotaReleased`). Every header
-  label sits inside its own column in `en`, `de` and `fr` (no label paints
-  over its neighbour, no horizontal scrollbar at the settings pane's width);
-  the row-action column has no visible header. Quota editing is covered by
-  GOV-F13.
+  show **Quota released** (`sandboxes.status.quotaReleased`). A project
+  agent's workspace whose task finished more than 30 minutes ago still lists
+  as **Stopped** (`sandboxes.status.runtime.stopped`) + **Quota released**,
+  and stays listed after a reload — the page's mount probe never destroys a
+  hibernated workspace. Every header label sits inside its own column in
+  `en`, `de` and `fr` (no label paints over its neighbour, no horizontal
+  scrollbar at the settings pane's width); the row-action column has no
+  visible header. Quota editing is covered by GOV-F13.
 - [ ] `SET-F31` · **Metrics smoke** — Expand the rail's **Metrics** group;
   open `/dashboard/{org}/settings/metrics` → The group lists six children from
   `metrics.groups.*` (Usage / Feedback / Chat health / Harness turns /

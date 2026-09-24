@@ -13,7 +13,7 @@ const {
   listViews,
   listSessions,
   pin,
-  reconcile,
+  reconcileOrg,
   teardown,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
@@ -23,7 +23,7 @@ const {
   listViews: vi.fn(),
   listSessions: vi.fn(),
   pin: vi.fn(),
-  reconcile: vi.fn(),
+  reconcileOrg: vi.fn(),
   teardown: vi.fn(),
 }));
 
@@ -60,8 +60,10 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('./service.ts', () => ({
   pinSession: pin,
-  reconcileSession: reconcile,
   teardownSession: teardown,
+}));
+vi.mock('./watchdogs.ts', () => ({
+  reconcileOrgSessions: reconcileOrg,
 }));
 vi.mock('./sessions.ts', () => ({
   listSandboxViewsForOrg: listViews,
@@ -182,8 +184,22 @@ describe('sandbox settings read and write authority', () => {
     }
     expect(query).not.toHaveBeenCalled();
     expect(pin).not.toHaveBeenCalled();
-    expect(reconcile).not.toHaveBeenCalled();
+    expect(reconcileOrg).not.toHaveBeenCalled();
     expect(teardown).not.toHaveBeenCalled();
+  });
+
+  it('runs the mount-time reconcile as the org-scoped sweep pass, never its own walk over every live row', async () => {
+    // The regression: the route used to list EVERY live session (hibernated
+    // `stopped` rows included) and settle each spawner 404 as destroyed, so
+    // opening the page emptied it of idle project workspaces. It now
+    // delegates to the sweep's compute-holding-only pass.
+    reconcileOrg.mockResolvedValue({ healed: 1 });
+    const response = await app().request('/reconcile', { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ healed: 1 });
+    expect(reconcileOrg).toHaveBeenCalledTimes(1);
+    expect(reconcileOrg).toHaveBeenCalledWith(query, 'member-org');
+    expect(listSessions).not.toHaveBeenCalled();
   });
 
   it('returns authoritative policy limits alongside occupied quota slots', async () => {

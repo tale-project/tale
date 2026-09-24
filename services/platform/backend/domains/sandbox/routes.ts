@@ -20,13 +20,14 @@ import {
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
-import { pinSession, reconcileSession, teardownSession } from './service.ts';
+import { pinSession, teardownSession } from './service.ts';
 import {
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
   listSandboxViewsForOrg,
   listSessionsForOrg,
 } from './sessions.ts';
+import { reconcileOrgSessions } from './watchdogs.ts';
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
@@ -346,29 +347,15 @@ export function createSandboxRoutes(deps: {
     return c.json({ cancelled });
   });
 
-  /** Reconcile the org's live rows with the spawner (the mount-time probe
-   * that keeps the fleet view honest — the 0.4 `reconcileOrgSessions`). */
+  /** Reconcile the org's compute-holding rows with the spawner — the sweep's
+   * RECONCILE lane, org-scoped (the mount-time probe that keeps the fleet
+   * view honest — the 0.4 `reconcileOrgSessions`). A hibernated (`stopped`)
+   * workspace is never a candidate: its container is gone by design, and the
+   * spawner's 404 for it is not a phantom to heal. */
   app.post('/reconcile', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    const organizationId = c.get('orgId');
-    const sessions = await listSessionsForOrg(deps.sql, organizationId);
-    let healed = 0;
-    for (const session of sessions.slice(0, 25)) {
-      try {
-        const outcome = await reconcileSession(deps.sql, {
-          organizationId,
-          sessionId: session.sessionId,
-        });
-        if (outcome === 'healed') healed += 1;
-      } catch (error) {
-        console.warn(
-          `[sandbox] reconcile ${session.sessionId} failed (left as live):`,
-          error,
-        );
-      }
-    }
-    return c.json({ healed });
+    return c.json(await reconcileOrgSessions(deps.sql, c.get('orgId')));
   });
 
   app.post('/sessions/:sessionId/pin', async (c) => {

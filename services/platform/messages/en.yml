@@ -7497,6 +7497,7 @@ sandboxes:
   empty:
     title: No workspaces yet
     description:
-      Workspaces appear when a project agent or workflow runs. Temporary crawler
-      sessions are included in capacity counts above.
+      A project agent's workspace appears after its first task and stays listed
+      while the agent is idle. A workflow run's workspace is reclaimed once the
+      run ends. Temporary crawler sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.

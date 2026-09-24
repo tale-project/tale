@@ -51,7 +51,7 @@ Measurements refresh every 15 seconds; **Refresh** requests a new observation. C
 
 ## Explain an allocated or idle workspace
 
-Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot.
+Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot. A project agent’s workspace stays listed while the agent is idle, as **Stopped** with **Quota released**, and leaves the list only when you destroy it. A workflow run’s workspace is reclaimed shortly after the run ends.
 
 **Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
