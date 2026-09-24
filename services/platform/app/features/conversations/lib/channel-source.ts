@@ -110,30 +110,67 @@ export function channelSourceOf(
 }
 
 export interface ChannelOption {
-  /** What the server filters on: `connectorName`. */
+  /** What the server filters on: `connectorName`, or for one mailbox of a
+   *  connector that holds several, `mailbox:<credentialId>`. */
   value: string;
   label: string;
+}
+
+/** The option prefix that names one mailbox rather than a connector. API
+ *  source slugs cannot contain `:`, so the two cannot collide. */
+const MAILBOX_OPTION_PREFIX = 'mailbox:';
+
+export function mailboxOptionValue(credentialId: string): string {
+  return `${MAILBOX_OPTION_PREFIX}${credentialId}`;
+}
+
+/** Split a channel-filter value into the server filter it names. */
+export function channelFilterOf(value: string | undefined): {
+  channel?: string;
+  mailbox?: string;
+} {
+  if (value === undefined || value === '') return {};
+  return value.startsWith(MAILBOX_OPTION_PREFIX)
+    ? { mailbox: value.slice(MAILBOX_OPTION_PREFIX.length) }
+    : { channel: value };
 }
 
 /**
  * Every lane a thread can arrive on, for the Inbox's channel facet.
  *
- * Email connectors are named by their title. An API source names itself —
- * the integration chose the slug and there is no catalog to read it from.
- * A source that collides with a connector slug is dropped rather than
- * listed twice: one slug is one lane on the server's filter.
+ * An email connector is one entry, named by its title, while it holds a
+ * single mailbox. With several, each mailbox is its own entry, named by the
+ * mailbox, so the filter can tell them apart; a disabled one is marked by
+ * `inactiveLabel`. An API source names itself — the integration chose the
+ * slug and there is no catalog to read it from. A source that collides with a
+ * connector slug is dropped rather than listed twice: one slug is one lane on
+ * the server's filter.
  */
 export function channelOptionsOf(
   connectors: ReadonlyArray<{ slug: string; title: string }>,
   apiSources: readonly string[],
+  mailboxes: readonly MailboxEntry[] = [],
+  inactiveLabel: (name: string) => string = (name) => name,
 ): ChannelOption[] {
-  // One entry per connector: the list may hold several mailboxes on one.
   const options: ChannelOption[] = [];
   const seen = new Set<string>();
   for (const connector of connectors) {
     if (seen.has(connector.slug)) continue;
     seen.add(connector.slug);
-    options.push({ value: connector.slug, label: connector.title });
+    const onConnector = mailboxes.filter(
+      (entry) => entry.connectorSlug === connector.slug,
+    );
+    if (onConnector.length > 1) {
+      for (const entry of onConnector) {
+        options.push({
+          value: mailboxOptionValue(entry.id),
+          label:
+            entry.status === 'active' ? entry.name : inactiveLabel(entry.name),
+        });
+      }
+    } else {
+      options.push({ value: connector.slug, label: connector.title });
+    }
   }
   for (const source of apiSources) {
     if (seen.has(source)) continue;

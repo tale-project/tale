@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 42 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 44 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -346,6 +346,14 @@ rows lead with the subject.
   mailboxes, make a send through B fail (for example, stop B's SMTP host), then
   restore it and choose **Retry** on the failed bubble → The email arrives from
   B, not from the default A.
+- [ ] `CONV-F25` · **The channel filter lists each mailbox** — With TWO
+  mailboxes on one email connector, open **Filter** → **Channel**
+  (`conversations.filter.channel`) → The connector appears as two entries, one
+  per mailbox, each by its name; a disabled one reads
+  `conversations.filter.mailboxInactive`. Pick one → Only the threads whose
+  chip names that mailbox remain, `?mailbox=<id>` lands in the URL, and a
+  reload keeps the choice. A connector with a single mailbox is still one
+  entry that filters by `?channel=<slug>`.
 
 ## Boundary & error tests
 
@@ -429,3 +437,7 @@ rows lead with the subject.
 - [ ] `CONV-P4` · **Source facet switch (warm)** → Selecting a channel in the
   Filter panel repaints the list within **1 s** (one server-side paginated
   re-query). Needs the CONV-F5 precondition.
+- [ ] `CONV-P5` · **Mailbox facet switch (warm, populated)** → With two
+  mailboxes on one connector and a few thousand conversations, selecting one
+  mailbox in the Channel filter repaints the list within **1 s**. Needs the
+  CONV-F25 precondition.

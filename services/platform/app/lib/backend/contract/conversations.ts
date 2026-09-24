@@ -374,6 +374,7 @@ export interface ConversationsContract {
       status?: 'archived' | 'open' | 'closed' | 'spam';
       priority?: string;
       connectorName?: string;
+      credentialId?: string;
       channel?: string;
       organizationId: string;
       paginationOpts: {
