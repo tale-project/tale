@@ -160,6 +160,9 @@ export function projectConversationItem(args: {
   contact: ProjectableContact | null;
   messages: ProjectableMessage[];
   pendingApproval?: unknown;
+  /** The mailbox (connector credential) the thread belongs to, which is also
+   *  the one its reply leaves from. Absent when the server cannot place it. */
+  credentialId?: string;
 }): Record<string, unknown> {
   const { conversation } = args;
   const metadata = isRecord(conversation.metadata) ? conversation.metadata : {};
@@ -207,6 +210,7 @@ export function projectConversationItem(args: {
     ...(conversation.connectorName
       ? { connectorName: conversation.connectorName }
       : {}),
+    ...(args.credentialId ? { credentialId: args.credentialId } : {}),
     ...(conversation.lastMessageAt !== null &&
     conversation.lastMessageAt !== undefined
       ? { lastMessageAt: conversation.lastMessageAt }

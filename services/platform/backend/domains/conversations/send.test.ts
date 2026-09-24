@@ -475,7 +475,9 @@ describe('resolveSentExternalMessageId', () => {
  * credential on the run the resolver falls through to the connector's
  * `is_default`, so a thread received on one mailbox could be answered from
  * another. The reply carries the credential recorded on the newest inbound
- * message; a thread with none keeps the old default-credential behaviour.
+ * message. A thread with none (its messages predate 0113) replies from the
+ * one active mailbox whose address is the one the correspondent wrote to, and
+ * keeps the old default-credential behaviour when no single mailbox claims it.
  */
 describe('replyToConversation — the mailbox', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -483,6 +485,7 @@ describe('replyToConversation — the mailbox', () => {
   const CONVERSATION = 'FROM app.conversations c';
   const CONVERSATION_ROW = 'FROM app.conversations WHERE id';
   const CARRIED = 'AND credential_id IS NOT NULL';
+  const MAILBOXES = 'FROM app.connector_credentials';
   /** The row `sendMessageViaConnectorInTx` re-reads inside the transaction. */
   const ROW = { id: 'c1', organizationId: 'o1', metadata: null };
   const EMAIL_ROW = {
@@ -512,7 +515,7 @@ describe('replyToConversation — the mailbox', () => {
     const { sql, statements } = fakeSql({
       [CONVERSATION]: [EMAIL_ROW],
       [CONVERSATION_ROW]: [ROW],
-      [CARRIED]: [{ credentialId: 'cred-b' }],
+      [CARRIED]: [{ conversationId: 'c1', credentialId: 'cred-b' }],
       'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
     });
 
@@ -542,7 +545,7 @@ describe('replyToConversation — the mailbox', () => {
     const { sql, statements } = fakeSql({
       [CONVERSATION]: [EMAIL_ROW],
       [CONVERSATION_ROW]: [ROW],
-      [CARRIED]: [{ credentialId: 'cred-b' }],
+      [CARRIED]: [{ conversationId: 'c1', credentialId: 'cred-b' }],
       'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
     });
 
@@ -550,6 +553,87 @@ describe('replyToConversation — the mailbox', () => {
 
     const lookup = statements.find((st) => st.text.includes(CARRIED));
     expect(lookup?.text).toContain("direction = 'inbound'");
+  });
+
+  /** An unrecorded thread the correspondent wrote to `hello@` at. */
+  const OLD_EMAIL_ROW = {
+    ...EMAIL_ROW,
+    direction: 'inbound',
+    metadata: { to: [{ address: 'Hello@Support.Test' }] },
+  };
+  const GENERAL = {
+    id: 'cred-general',
+    connectorSlug: 'imap-smtp',
+    config: { fromAddress: 'hello@support.test' },
+  };
+  const RECRUITMENT = {
+    id: 'cred-recruitment',
+    connectorSlug: 'imap-smtp',
+    config: { fromAddress: 'jobs@support.test' },
+  };
+
+  it('replies to an unrecorded thread from the mailbox its address names', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [OLD_EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [],
+      [MAILBOXES]: [RECRUITMENT, GENERAL],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBe('cred-general');
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ credentialId: 'cred-general' });
+    // Only a mailbox that can still send is a candidate.
+    const lookup = statements.find((st) => st.text.includes(MAILBOXES));
+    expect(lookup?.text).toContain("status = 'active'");
+  });
+
+  it('prefers the recorded credential over the address', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [OLD_EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [{ conversationId: 'c1', credentialId: 'cred-recruitment' }],
+      [MAILBOXES]: [RECRUITMENT, GENERAL],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBe('cred-recruitment');
+    expect(statements.some((st) => st.text.includes(MAILBOXES))).toBe(false);
+  });
+
+  it('keeps the default credential when two mailboxes claim the address', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [OLD_EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [],
+      [MAILBOXES]: [GENERAL, { ...RECRUITMENT, config: GENERAL.config }],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBeNull();
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).not.toHaveProperty('credentialId');
+  });
+
+  it('keeps the default credential when no mailbox has the address', async () => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [OLD_EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [],
+      [MAILBOXES]: [RECRUITMENT],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+
+    await replyToConversation(sql, REPLY);
+
+    expect(insertedCredential(statements)).toBeNull();
   });
 });
 
