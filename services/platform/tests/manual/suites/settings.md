@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 70 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 71 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -607,6 +607,11 @@ any toggled setting after the run.
   (`settings.usage.reached`) over a full destructive bar; the chat banner
   switches to `chat.budgetLimitReached` and still links **View usage**
   (`chat.budgetViewUsage`).
+- [ ] `SET-B15` · **Long team names** — `/dashboard/{org}/settings/teams` with a
+  team whose name runs past 60 characters (a synced IdP group name will do) →
+  The name truncates with an ellipsis and never pushes the **Synced** badge
+  (`settings.teams.syncedBadge`) or the member count out of place; hovering the
+  name shows it in full; the name column is wider than the member-count column.
 
 ## Accessibility (WCAG 2.1 AA)
 

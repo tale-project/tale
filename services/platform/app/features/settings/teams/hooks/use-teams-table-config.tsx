@@ -38,9 +38,18 @@ export function useTeamsTableConfig(
       {
         accessorKey: 'name',
         header: tSettings('teams.columns.name'),
+        // The name carries the row, and synced IdP group names run long
+        // (`Department.Platform.Editors`): give it most of the width, and a
+        // native `title` so a name that still truncates reads in full on hover.
+        size: 320,
         cell: ({ row }) => (
           <HStack gap={2} align="center" className="min-w-0">
-            <Text as="span" variant="label" className="truncate">
+            <Text
+              as="span"
+              variant="label"
+              className="truncate"
+              title={row.original.name}
+            >
               {row.original.name}
             </Text>
             {/* An identity provider owns this roster: local edits are
@@ -56,6 +65,7 @@ export function useTeamsTableConfig(
       {
         accessorKey: 'memberCount',
         header: tSettings('teams.columns.members'),
+        size: 140,
         cell: ({ row }) => (
           <Text as="span" variant="caption">
             {tSettings('teams.memberCount', {
