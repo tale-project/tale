@@ -24,6 +24,7 @@ import {
   readString,
   resetsAtFromSeconds,
   toIsoInstant,
+  tokenFailureCode,
   toUtilization,
 } from './oauth';
 import {
@@ -86,7 +87,7 @@ export function createOpenAiProvider(
     if (!response.ok) {
       throw new ProviderError(
         'openai',
-        code,
+        tokenFailureCode(code, response.status),
         `The OpenAI token endpoint answered ${response.status}.`,
       );
     }

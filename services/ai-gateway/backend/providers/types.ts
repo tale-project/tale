@@ -163,13 +163,22 @@ export interface Provider {
   fetchUsage(credential: ProviderCredential): Promise<UsageReading>;
 }
 
-/** A provider call that failed in a way the panel should name. */
+/**
+ * A provider call that failed in a way the panel should name.
+ *
+ * Two refresh failures mean different things. `refresh_rejected` is the
+ * vendor refusing the grant (a 400/401/403 — revoked, reused, expired): the
+ * refresh token is spent and only a new sign-in brings the account back.
+ * `refresh_failed` is everything else — a rate limit, an outage, a network
+ * that did not answer — after which the same token works on the next try.
+ */
 export class ProviderError extends Error {
   constructor(
     readonly provider: ProviderId,
     readonly code:
       | 'authorization_failed'
       | 'refresh_failed'
+      | 'refresh_rejected'
       | 'identity_failed'
       | 'usage_failed',
     message: string,

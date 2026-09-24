@@ -22,6 +22,7 @@ import {
   readObject,
   readString,
   toIsoInstant,
+  tokenFailureCode,
   toUtilization,
 } from './oauth';
 import {
@@ -107,7 +108,7 @@ export function createAnthropicProvider(
     if (!response.ok) {
       throw new ProviderError(
         'anthropic',
-        code,
+        tokenFailureCode(code, response.status),
         `The Anthropic token endpoint answered ${response.status}.`,
       );
     }
@@ -256,8 +257,16 @@ export function createAnthropicProvider(
           `The Anthropic usage endpoint answered ${response.status}.`,
         );
       }
+      const data = await readJsonRecord(response);
+      if (!carriesReading(data)) {
+        throw new ProviderError(
+          'anthropic',
+          'usage_failed',
+          'The Anthropic usage endpoint answered without a reading.',
+        );
+      }
       return {
-        windows: parseAnthropicUsage(await readJsonRecord(response)),
+        windows: parseAnthropicUsage(data),
         // The usage answer carries no plan; the profile is where it lives.
         subscription: null,
       };
@@ -287,12 +296,43 @@ export function subscriptionFromOrganization(
 }
 
 /**
- * Map Anthropic's usage payload onto the shared windows.
+ * The keys a usage reading is made of — the list Claude Code checks an answer
+ * against before it believes one.
+ */
+const READING_KEYS = [
+  'five_hour',
+  'seven_day',
+  'seven_day_oauth_apps',
+  'seven_day_opus',
+  'seven_day_sonnet',
+  'cinder_cove',
+  'extra_usage',
+  'limits',
+] as const;
+
+/**
+ * Whether a 200 carries a reading at all.
+ *
+ * A rate-limited read is not always a 429: the endpoint can answer 200 with
+ * `{"error": {"type": "rate_limit_error"}}` and no window in it. Mapped as it
+ * stood, that answer replaced a good reading with an empty one; it is a
+ * failed read, and the last reading stands.
+ */
+export function carriesReading(data: Record<string, unknown>): boolean {
+  return READING_KEYS.some((key) => key in data);
+}
+
+/**
+ * Map Anthropic's usage payload onto the shared windows — the same rows
+ * Claude Code's `/usage` draws from it.
  *
  * `five_hour` and `seven_day` are the general caps every model shares.
  * Per-model caps are not top-level keys: they arrive in `limits` as entries
  * tagged with `scope.model.display_name`, and they report `percent` where the
- * general windows report `utilization`.
+ * general windows report `utilization`. Only a `weekly_scoped` entry is one:
+ * Claude Code classifies a row on its `kind`, never on its label, and an entry
+ * of another kind that happened to name a model would land beside the weekly
+ * one under the same name ("Fable" twice, with two figures).
  */
 export function parseAnthropicUsage(
   data: Record<string, unknown>,
@@ -325,36 +365,22 @@ export function parseAnthropicUsage(
   if (Array.isArray(limits)) {
     for (const entry of limits) {
       if (!isRecord(entry)) continue;
-      const limit = entry;
-      const model = readObject(readObject(limit, 'scope'), 'model');
+      if (readString(entry, 'kind') !== 'weekly_scoped') continue;
+      const model = readObject(readObject(entry, 'scope'), 'model');
       const name = readString(model, 'display_name');
       if (!name) continue;
       windows.push({
         kind: 'scoped',
         label: name,
         utilization: toUtilization(
-          limit['percent'] ?? limit['utilization'] ?? null,
+          entry['percent'] ?? entry['utilization'] ?? null,
         ),
-        resetsAt: toIsoInstant(limit['resets_at']),
-        windowSeconds: scopedWindowSeconds(limit),
+        resetsAt: toIsoInstant(entry['resets_at']),
+        // `weekly_scoped` names its length: the week the plan cap runs over.
+        windowSeconds: SEVEN_DAY_SECONDS,
       });
     }
   }
 
   return windows;
-}
-
-/**
- * How long a per-model limit's window runs.
- *
- * The entry says which family it belongs to rather than how long it is:
- * `group` is `session` or `weekly`, and `kind` repeats it with the scope
- * attached (`weekly_scoped`). Either is enough; a family neither names is left
- * unmeasured rather than guessed at.
- */
-function scopedWindowSeconds(limit: Record<string, unknown>): number | null {
-  const family = readString(limit, 'group') ?? readString(limit, 'kind') ?? '';
-  if (family.startsWith('session')) return FIVE_HOUR_SECONDS;
-  if (family.startsWith('weekly')) return SEVEN_DAY_SECONDS;
-  return null;
 }

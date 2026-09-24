@@ -48,6 +48,7 @@ usage:
   weekly: Weekly
   unread: No usage read yet
   spent: '{percent}% spent'
+  spentAsOf: '{percent}% spent, read {when}'
   resets: Resets {when}
   untilReset: '{window}: time until the window resets'
 addAccount:

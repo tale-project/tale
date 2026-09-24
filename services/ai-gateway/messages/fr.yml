@@ -48,6 +48,7 @@ usage:
   weekly: Semaine
   unread: Aucune consommation lue pour l’instant
   spent: '{percent} % consommés'
+  spentAsOf: '{percent} % consommés, lu {when}'
   resets: Réinitialisation {when}
   untilReset: '{window} : temps restant avant la réinitialisation'
 addAccount:

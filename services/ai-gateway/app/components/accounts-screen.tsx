@@ -173,9 +173,7 @@ export function AccountsScreen({
         // column needs at the table's narrowest.
         size: 250,
         meta: { skeleton: { type: 'text', lines: 2 } },
-        cell: ({ row }) => (
-          <UsageCell windows={row.original.usage?.windows ?? []} />
-        ),
+        cell: ({ row }) => <UsageCell usage={row.original.usage} />,
       },
       {
         id: 'resets',

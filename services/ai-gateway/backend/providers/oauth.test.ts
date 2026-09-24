@@ -13,6 +13,7 @@ import {
   readString,
   resetsAtFromSeconds,
   toIsoInstant,
+  tokenFailureCode,
   toUtilization,
 } from './oauth';
 
@@ -157,5 +158,27 @@ describe('decodeJwtClaims', () => {
   it('answers null for anything that is not a decodable JWT', () => {
     expect(decodeJwtClaims('not-a-jwt')).toBeNull();
     expect(decodeJwtClaims('header.not-base64-json.signature')).toBeNull();
+  });
+});
+
+describe('tokenFailureCode', () => {
+  it('reads a refusal of a refresh as the grant being spent', () => {
+    for (const status of [400, 401, 403]) {
+      expect(tokenFailureCode('refresh_failed', status)).toBe(
+        'refresh_rejected',
+      );
+    }
+  });
+
+  it('reads a rate limit or an outage as a refresh worth trying again', () => {
+    for (const status of [429, 500, 502, 503]) {
+      expect(tokenFailureCode('refresh_failed', status)).toBe('refresh_failed');
+    }
+  });
+
+  it('leaves a failed first exchange as it is', () => {
+    expect(tokenFailureCode('authorization_failed', 400)).toBe(
+      'authorization_failed',
+    );
   });
 });

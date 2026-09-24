@@ -30,6 +30,7 @@ function account(overrides: Partial<StoredAccount> = {}): StoredAccount {
     createdAt: '2026-09-21T10:00:00.000Z',
     lastRefreshedAt: null,
     usage: null,
+    usageAttemptedAt: null,
     ...overrides,
   };
 }
@@ -209,5 +210,36 @@ describe('toAccountView', () => {
     expect(view).not.toHaveProperty('accessToken');
     expect(view).not.toHaveProperty('refreshToken');
     expect(view.label).toBe('you@example.com');
+  });
+
+  const reading = {
+    windows: [],
+    checkedAt: '2026-09-21T10:00:00.000Z',
+  };
+
+  it('calls a reading current when the latest try at it succeeded', () => {
+    const view = toAccountView(
+      account({ usage: reading, usageAttemptedAt: reading.checkedAt }),
+    );
+    expect(view.usage?.stale).toBe(false);
+  });
+
+  it('calls a reading stale when a later try at it failed', () => {
+    const view = toAccountView(
+      account({
+        status: 'error',
+        usage: reading,
+        usageAttemptedAt: '2026-09-21T13:00:00.000Z',
+      }),
+    );
+    expect(view.usage).toMatchObject({
+      checkedAt: '2026-09-21T10:00:00.000Z',
+      stale: true,
+    });
+  });
+
+  it('calls an expired account’s reading stale, since nothing reads it', () => {
+    const view = toAccountView(account({ status: 'expired', usage: reading }));
+    expect(view.usage?.stale).toBe(true);
   });
 });

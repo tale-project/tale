@@ -1,8 +1,10 @@
+import { cn } from '@tale/ui/cn';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Fragment } from 'react';
 
-import type { UsageWindow } from '@/app/lib/api';
+import type { AccountView } from '@/app/lib/api';
 import { spentPercent, usageTint } from '@/app/lib/usage-tint';
 import {
   readableWindows,
@@ -24,17 +26,30 @@ import { useT } from '@/lib/i18n/client';
  * How long each window still has to run is the next column over, on the same
  * rows; the two cells share their filter and their vertical rhythm through
  * `app/lib/usage-windows.ts`.
+ *
+ * A stale reading — the latest try at it failed, or the account cannot be
+ * read until someone signs it in again — is still the best figure there is,
+ * so it stays on screen, dimmed, and each bar's tooltip says when it was
+ * read. What it must not do is pass for current: weekly figures only climb
+ * during a week, so an old one silently shown reads as simply wrong.
  */
-export function UsageCell({ windows }: { windows: UsageWindow[] }) {
+export function UsageCell({ usage }: { usage: AccountView['usage'] }) {
   const { t } = useT('usage');
+  const { formatRelative } = useFormatDate();
 
-  const readable = readableWindows(windows);
+  const readable = readableWindows(usage?.windows ?? []);
   if (readable.length === 0) {
     return <Text variant="caption">{t('unread')}</Text>;
   }
+  const readWhen = usage?.stale ? formatRelative(usage.checkedAt) : null;
 
   return (
-    <div className="grid grid-cols-[4rem_auto] items-center justify-start gap-x-2 gap-y-1.5 py-1">
+    <div
+      className={cn(
+        'grid grid-cols-[4rem_auto] items-center justify-start gap-x-2 gap-y-1.5 py-1',
+        readWhen && 'opacity-60',
+      )}
+    >
       {readable.map((window, index) => {
         const name = windowName(window, t);
         const percent = spentPercent(window.utilization);
@@ -51,7 +66,11 @@ export function UsageCell({ windows }: { windows: UsageWindow[] }) {
               indicatorClassName={usageTint(percent)}
               label={name}
               max={100}
-              tooltipContent={t('spent', { percent })}
+              tooltipContent={
+                readWhen
+                  ? t('spentAsOf', { percent, when: readWhen })
+                  : t('spent', { percent })
+              }
               value={percent}
             />
           </Fragment>

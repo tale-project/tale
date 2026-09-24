@@ -106,6 +106,20 @@ describe('exchangeCode', () => {
 });
 
 describe('refresh', () => {
+  it('names a refused grant apart from a refresh that merely failed', async () => {
+    for (const [status, code] of [
+      [400, 'refresh_rejected'],
+      [401, 'refresh_rejected'],
+      [429, 'refresh_failed'],
+      [503, 'refresh_failed'],
+    ] as const) {
+      const { fetchImpl } = stubFetch(() => json({}, status));
+      await expect(
+        createAnthropicProvider({ fetchImpl }).refresh('refresh-1'),
+      ).rejects.toMatchObject({ code });
+    }
+  });
+
   it('keeps the old refresh token when the answer omits a new one', async () => {
     const { fetchImpl } = stubFetch(() =>
       json({ access_token: 'access-2', expires_in: 3600 }),
@@ -201,6 +215,20 @@ describe('fetchUsage', () => {
     expect(reading.subscription).toBeNull();
   });
 
+  it('treats a 200 that carries no reading as a failed read', async () => {
+    // A rate-limited read can arrive as a 200 with an error body and no
+    // window; mapped as it stood, it replaced a good reading with nothing.
+    const { fetchImpl } = stubFetch(() =>
+      json({
+        error: { type: 'rate_limit_error', message: 'Rate limited.' },
+      }),
+    );
+    const provider = createAnthropicProvider({ fetchImpl });
+    await expect(
+      provider.fetchUsage({ accessToken: 'access-1', accountId: null }),
+    ).rejects.toMatchObject({ code: 'usage_failed' });
+  });
+
   it('reports an unreachable endpoint as a provider failure', async () => {
     const { fetchImpl } = stubFetch(() => json({}, 429));
     const provider = createAnthropicProvider({ fetchImpl });
@@ -258,11 +286,76 @@ describe('parseAnthropicUsage', () => {
     ]);
   });
 
-  it('leaves a per-model cap unmeasured when it names no family', () => {
+  it('draws a per-model row only from a weekly_scoped limit', () => {
+    // Claude Code classifies a row on its `kind`, never on its label: an
+    // entry of another kind naming the same model must not become a second
+    // "Fable" beside the weekly one.
     const windows = parseAnthropicUsage({
-      limits: [{ scope: { model: { display_name: 'Fable' } }, percent: 61 }],
+      limits: [
+        {
+          kind: 'session_scoped',
+          group: 'session',
+          percent: 40,
+          scope: { model: { display_name: 'Fable' } },
+        },
+        { scope: { model: { display_name: 'Fable' } }, percent: 61 },
+        {
+          kind: 'weekly_scoped',
+          group: 'weekly',
+          percent: 82,
+          scope: { model: { display_name: 'Fable' } },
+        },
+      ],
     });
-    expect(windows[0]?.windowSeconds).toBeNull();
+    expect(windows).toEqual([
+      {
+        kind: 'scoped',
+        label: 'Fable',
+        utilization: 82,
+        resetsAt: null,
+        windowSeconds: 604_800,
+      },
+    ]);
+  });
+
+  it('reads the answer Claude Code renders as its /usage the same way', () => {
+    // Captured from a live Max account on 2026-09-24, trimmed to the keys
+    // this mapping reads plus the ones it must pass over. `/usage` showed
+    // "Current session 79%", "Current week (all models) 57%" and
+    // "Current week (Fable) 82%" for it.
+    const windows = parseAnthropicUsage({
+      five_hour: {
+        utilization: 79,
+        resets_at: '2026-09-24T20:39:59.978700+00:00',
+      },
+      seven_day: {
+        utilization: 57,
+        resets_at: '2026-09-26T16:59:59.978719+00:00',
+      },
+      seven_day_opus: null,
+      seven_day_sonnet: null,
+      nimbus_quill: { utilization: 0, resets_at: null },
+      extra_usage: { is_enabled: false, utilization: null },
+      limits: [
+        { kind: 'session', group: 'session', percent: 79, scope: null },
+        { kind: 'weekly_all', group: 'weekly', percent: 57, scope: null },
+        {
+          kind: 'weekly_scoped',
+          group: 'weekly',
+          percent: 82,
+          resets_at: '2026-09-26T16:59:59.978933+00:00',
+          scope: { model: { id: null, display_name: 'Fable' }, surface: null },
+          is_active: true,
+        },
+      ],
+    });
+    expect(
+      windows.map(({ kind, label, utilization }) => [kind, label, utilization]),
+    ).toEqual([
+      ['session', null, 79],
+      ['weekly', null, 57],
+      ['scoped', 'Fable', 82],
+    ]);
   });
 
   it('answers no windows for a payload it does not recognize', () => {

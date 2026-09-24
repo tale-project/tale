@@ -15,11 +15,28 @@ import { createMemoryAccountStore, type AccountStore } from './store';
 const cipher = createTokenCipher(randomBytes(32));
 
 /** A provider that answers from memory and records what it was asked. */
+/** How a refresh fails: the vendor refusing the grant, or a passing fault. */
+type RefreshRefusal = 'rejected' | 'failed';
+
+/**
+ * Holds a call open until the test lets it go, so two passes can be made to
+ * overlap exactly where a real race would.
+ */
+function gate(): { wait: Promise<void>; open: () => void } {
+  let open = () => undefined as void;
+  const wait = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { wait, open };
+}
+
 function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   usage: UsageWindow[];
   usagePlan: Subscription | null;
-  refusals: { refresh?: boolean; usage?: boolean; exchange?: boolean };
+  refusals: { refresh?: RefreshRefusal; usage?: boolean; exchange?: boolean };
+  gates: { refresh?: Promise<void>; usage?: Promise<void> };
   refreshCount: number;
+  usageCount: number;
   identityCount: number;
 } {
   const state = {
@@ -34,8 +51,14 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
     ] as UsageWindow[],
     /** The plan a usage answer names, as ChatGPT's does; null like Claude's. */
     usagePlan: null as Subscription | null,
-    refusals: {} as { refresh?: boolean; usage?: boolean; exchange?: boolean },
+    refusals: {} as {
+      refresh?: RefreshRefusal;
+      usage?: boolean;
+      exchange?: boolean;
+    },
+    gates: {} as { refresh?: Promise<void>; usage?: Promise<void> },
     refreshCount: 0,
+    usageCount: 0,
     identityCount: 0,
   };
 
@@ -70,22 +93,28 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
         },
       });
     },
-    refresh: () => {
+    refresh: async () => {
       state.refreshCount += 1;
+      const count = state.refreshCount;
+      await state.gates.refresh;
       if (state.refusals.refresh) {
-        return Promise.reject(
-          new ProviderError(id, 'refresh_failed', 'refused'),
+        throw new ProviderError(
+          id,
+          state.refusals.refresh === 'rejected'
+            ? 'refresh_rejected'
+            : 'refresh_failed',
+          'refused',
         );
       }
-      return Promise.resolve({
+      return {
         tokens: {
-          accessToken: `access-${state.refreshCount + 1}`,
-          refreshToken: `refresh-${state.refreshCount + 1}`,
+          accessToken: `access-${count + 1}`,
+          refreshToken: `refresh-${count + 1}`,
           expiresAt: '2026-09-21T12:00:00.000Z',
           scopes: 'scope',
         },
         identity: null,
-      });
+      };
     },
     fetchIdentity: () => {
       state.identityCount += 1;
@@ -95,14 +124,13 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
         subscription: { plan: 'max', tier: '20x' },
       });
     },
-    fetchUsage: () => {
+    fetchUsage: async () => {
+      state.usageCount += 1;
+      await state.gates.usage;
       if (state.refusals.usage) {
-        return Promise.reject(new ProviderError(id, 'usage_failed', 'refused'));
+        throw new ProviderError(id, 'usage_failed', 'refused');
       }
-      return Promise.resolve({
-        windows: state.usage,
-        subscription: state.usagePlan,
-      });
+      return { windows: state.usage, subscription: state.usagePlan };
     },
   });
 }
@@ -274,14 +302,129 @@ describe('createAccountService', () => {
     expect(anthropic.refreshCount).toBe(0);
   });
 
-  it('marks an account expired when its refresh token stops working', async () => {
+  it('marks an account expired when the vendor refuses its refresh token', async () => {
     await connect();
-    anthropic.refusals.refresh = true;
+    anthropic.refusals.refresh = 'rejected';
     now = new Date('2026-09-21T11:30:00.000Z');
     const [handout] = await service.handOutTokens();
     expect(handout?.status).toBe('expired');
     // Still listed, so the panel can offer re-authentication.
     expect(await service.list()).toHaveLength(1);
+  });
+
+  it('marks an account errored — not expired — when a refresh fails for a passing reason', async () => {
+    await connect();
+    anthropic.refusals.refresh = 'failed';
+    now = new Date('2026-09-21T11:30:00.000Z');
+    const [handout] = await service.handOutTokens();
+    // A rate limit or an outage: the refresh token is still good.
+    expect(handout?.status).toBe('error');
+  });
+
+  it('marks an account expired when its stored refresh token no longer opens', async () => {
+    const account = await connect();
+    // What a replaced AI_GATEWAY_ENCRYPTION_KEY leaves behind: a sealed value
+    // this process cannot open, which no retry will change.
+    await store.updateAccount(account.id, (row) => {
+      row.refreshToken = createTokenCipher(randomBytes(32)).seal('refresh-1');
+    });
+    now = new Date('2026-09-21T11:30:00.000Z');
+    const [handout] = await service.handOutTokens();
+    expect(handout?.status).toBe('expired');
+    expect(anthropic.refreshCount).toBe(0);
+  });
+
+  it('pauses before trying a refresh that failed for a passing reason again', async () => {
+    await connect();
+    anthropic.refusals.refresh = 'failed';
+    now = new Date('2026-09-21T11:30:00.000Z');
+    await service.handOutTokens();
+    await service.handOutTokens();
+    expect(anthropic.refreshCount).toBe(1);
+
+    anthropic.refusals.refresh = undefined;
+    now = new Date('2026-09-21T11:31:30.000Z');
+    const [handout] = await service.handOutTokens();
+    expect(anthropic.refreshCount).toBe(2);
+    expect(handout?.status).toBe('active');
+  });
+
+  it('shares one refresh between callers that arrive together', async () => {
+    await connect();
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const held = gate();
+    anthropic.gates.refresh = held.wait;
+
+    // A hand-out, the panel's poll and a second hand-out, all at once.
+    const calls = Promise.all([
+      service.handOutTokens(),
+      service.list(),
+      service.handOutTokens(),
+    ]);
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    held.open();
+    const [first, , third] = await calls;
+
+    // Both vendors rotate the refresh token, so a second refresh would have
+    // spent one the first had already retired.
+    expect(anthropic.refreshCount).toBe(1);
+    expect(first[0]?.accessToken).toBe('access-2');
+    expect(third[0]?.accessToken).toBe('access-2');
+  });
+
+  it('keeps a refresh token rotated while a usage read was in flight', async () => {
+    const account = await connect();
+    // A read starts from the row as it stood — refresh-1 — and hangs.
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const held = gate();
+    anthropic.gates.usage = held.wait;
+    const reading = service.list();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    // Meanwhile the token nears its expiry and a hand-out refreshes it.
+    now = new Date('2026-09-21T10:56:00.000Z');
+    await service.handOutTokens();
+    expect(anthropic.refreshCount).toBe(1);
+
+    held.open();
+    await reading;
+    // The read wrote its own fields only; the rotated grant survives it.
+    const stored = await store.getAccount(account.id);
+    expect(cipher.open(stored?.refreshToken ?? '')).toBe('refresh-2');
+    expect(cipher.open(stored?.accessToken ?? '')).toBe('access-2');
+  });
+
+  it('keeps the last reading, and when it was read, through a failed read', async () => {
+    await connect();
+    anthropic.refusals.usage = true;
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const [row] = await service.list();
+    expect(row?.status).toBe('error');
+    expect(row?.usage?.windows).toHaveLength(1);
+    // The figures are from 10:00, and the row still says so.
+    expect(row?.usage?.checkedAt).toBe('2026-09-21T10:00:00.000Z');
+
+    // The floor counts from the failed attempt, not from the old reading.
+    now = new Date('2026-09-21T10:12:00.000Z');
+    await service.list();
+    expect(anthropic.usageCount).toBe(2);
+    now = new Date('2026-09-21T10:14:00.000Z');
+    await service.list();
+    expect(anthropic.usageCount).toBe(3);
+  });
+
+  it('does not bring back an account removed while it was being read', async () => {
+    const account = await connect();
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const held = gate();
+    anthropic.gates.usage = held.wait;
+    const pass = service.refreshAll();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    await service.remove(account.id);
+    held.open();
+    await pass;
+    expect(await service.list()).toEqual([]);
   });
 
   it('marks an account errored — not expired — when only the usage call fails', async () => {

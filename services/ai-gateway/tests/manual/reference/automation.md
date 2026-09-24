@@ -16,7 +16,7 @@ a spec failure and belongs in the gate, not in a round.
 | The split: one endpoint per vendor, in cc-gateway's shape | `backend/routes.test.ts` + `backend/accounts.test.ts` | the live end of it (`ACCT-21` … `ACCT-24`) — the specs pin the field names, the filtering and the 404, but only a real pool proves the token an endpoint hands out is the one its CLI accepts |
 | OAuth URL construction, callback parsing, PKCE | `backend/providers/{anthropic,openai,oauth}.test.ts` | nothing — the authorize URLs, the three paste shapes and the S256 derivation are all asserted |
 | Usage-payload mapping (both vendors) | `backend/providers/{anthropic,openai}.test.ts` | how the mapped windows READ in the table — bar widths, the scoped window's vendor name, the reset countdown against the wall clock |
-| Token refresh, expiry skew, the usage-poll floor | `backend/accounts.test.ts` | nothing at the unit level — but the live cadence over a real interval is `ACCT-12` |
+| Token refresh, expiry skew, the usage-poll floor | `backend/accounts.test.ts` | nothing at the unit level — the specs also stage the races: one refresh shared by callers that arrive together, a rotated grant surviving a read that was in flight, a refusal told from a rate limit, a failed read keeping its figures and their time. The live cadence over a real interval is `ACCT-12`, a live failing read `ACCT-38` |
 | Encryption at rest, tamper detection | `backend/crypto.test.ts` | the wrong-key restart's user-visible behaviour (`ACCT-14`) |
 | The account document on disk | `backend/store.test.ts` | survival across a real restart (`ACCT-13`) |
 | Configuration and the fail-fast boot | `backend/config.test.ts` | nothing |

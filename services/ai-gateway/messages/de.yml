@@ -48,6 +48,7 @@ usage:
   weekly: Woche
   unread: Noch kein Verbrauch gelesen
   spent: '{percent} % verbraucht'
+  spentAsOf: '{percent} % verbraucht, gelesen {when}'
   resets: Setzt sich {when} zurück
   untilReset: '{window}: verbleibende Zeit bis zur Zurücksetzung'
 addAccount:

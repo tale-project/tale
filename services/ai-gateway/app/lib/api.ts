@@ -53,7 +53,16 @@ export interface AccountView {
   scopes: string | null;
   createdAt: string;
   lastRefreshedAt: string | null;
-  usage: { windows: UsageWindow[]; checkedAt: string } | null;
+  /**
+   * `stale`: the latest attempt to read the figures failed, or the account
+   * cannot be read until it is signed in again — they are shown, dimmed,
+   * with the time they were read.
+   */
+  usage: {
+    windows: UsageWindow[];
+    checkedAt: string;
+    stale: boolean;
+  } | null;
 }
 
 export interface ProviderSummary {

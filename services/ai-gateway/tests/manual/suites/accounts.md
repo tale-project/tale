@@ -140,6 +140,15 @@ in the pool**, so they run before the removals.
 
 ### Staying fresh
 
+- [ ] `ACCT-37` · **Read a Claude row's Usage column beside Claude Code's
+  `/usage` for the same account, within a few minutes** → Session, Weekly and
+  each per-model week (Fable) carry the figures `/usage` prints, rounded down
+  the same way, and no per-model cap appears twice.
+- [ ] `ACCT-38` · **Make one account's usage read fail — block its vendor's
+  host, or revoke the token at the vendor — and wait a refresh pass** → the
+  row reads "Last call failed" and its bars stay, dimmed; hovering one says
+  when the figures were read ("read 12 minutes ago"). Unblock it and the next
+  pass brings the bars back to full colour with fresh figures.
 - [ ] `ACCT-12` · **Leave the panel open past the refresh interval** → the
   usage figures move on their own, and the reset countdowns stay consistent
   with the wall clock rather than drifting by your UTC offset (`ACCT-12`).
@@ -147,9 +156,10 @@ in the pool**, so they run before the removals.
   both accounts are still there, still Active: the document on disk survived,
   and the stored tokens decrypt.
 - [ ] `ACCT-14` · **Restart the server with a different
-  `AI_GATEWAY_ENCRYPTION_KEY` and reload** → the panel does not pretend: the
-  rows show a failure rather than empty usage bars, and nothing crashes the
-  process.
+  `AI_GATEWAY_ENCRYPTION_KEY` and reload** → the panel does not pretend: every
+  row reads as failing — its bars dimmed, with the time they were read — and
+  once its token is due, "Needs reauthentication"; no row shows empty or
+  current-looking bars, and nothing crashes the process.
 - [ ] `ACCT-15` · **Row menu → Reauthenticate on one row, complete the flow** →
   the same row is updated in place; the pool does not grow, and the account's
   usage history stays with it.

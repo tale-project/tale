@@ -59,6 +59,24 @@ export function parseAuthorizationCallback(pasted: string): {
   return { code: trimmed, state: null };
 }
 
+/**
+ * The code a failed token-endpoint answer carries.
+ *
+ * A refresh the vendor refuses outright — 400, 401 or 403, the statuses OAuth
+ * answers a revoked, reused or expired grant with — is `refresh_rejected`, and
+ * the account needs a new sign-in. Any other status on a refresh, a 429 above
+ * all, is `refresh_failed`: the refresh token is still good and the next pass
+ * tries it again. Treating a rate limit as a dead grant used to strand an
+ * account as "needs reauthentication", its last reading frozen on screen.
+ */
+export function tokenFailureCode(
+  code: 'authorization_failed' | 'refresh_failed',
+  status: number,
+): 'authorization_failed' | 'refresh_failed' | 'refresh_rejected' {
+  const refused = status === 400 || status === 401 || status === 403;
+  return code === 'refresh_failed' && refused ? 'refresh_rejected' : code;
+}
+
 /** `expires_in` seconds, as the ISO-8601 instant this gateway stores. */
 export function expiresAtFrom(
   expiresIn: unknown,

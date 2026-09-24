@@ -66,9 +66,21 @@ const accountSchema = z.object({
   status: z.enum(['active', 'expired', 'error']),
   createdAt: z.string(),
   lastRefreshedAt: z.string().nullable(),
+  /**
+   * The last reading the vendor actually gave, and when it gave it. A failed
+   * read leaves both alone, so `checkedAt` is always the age of the figures —
+   * never a timestamp that makes an old reading look current.
+   */
   usage: z
     .object({ windows: z.array(usageWindowSchema), checkedAt: z.string() })
     .nullable(),
+  /**
+   * When a usage read was last attempted, succeeded or not — what the polling
+   * floor counts from, so a vendor that keeps failing is not asked on every
+   * pass. Null in a document from before the two were apart; the floor then
+   * counts from the reading.
+   */
+  usageAttemptedAt: z.string().nullable().default(null),
 });
 
 const pendingSchema = z.object({
@@ -105,6 +117,18 @@ export interface AccountStore {
   getAccount(id: string): Promise<StoredAccount | null>;
   /** Insert or replace an account, keyed by id. */
   putAccount(account: StoredAccount): Promise<void>;
+  /**
+   * Change one account as it is stored now: `change` edits the current row
+   * in place. Every write after an account exists goes through here, so two
+   * passes that each read the row earlier cannot overwrite each other's
+   * fields — a rotated refresh token above all, which is lost for good once
+   * an older copy lands on top of it. Answers the row as written, or null
+   * when it is gone, which a late write must never bring back.
+   */
+  updateAccount(
+    id: string,
+    change: (account: StoredAccount) => void,
+  ): Promise<StoredAccount | null>;
   deleteAccount(id: string): Promise<boolean>;
   addPending(pending: PendingAuthorization): Promise<void>;
   /** Read and consume a pending authorization; one-time by construction. */
@@ -207,6 +231,15 @@ export function createFileAccountStore(
       });
     },
 
+    updateAccount(id, change) {
+      return mutate((document) => {
+        const account = document.accounts.find((row) => row.id === id);
+        if (!account) return null;
+        change(account);
+        return structuredClone(account);
+      });
+    },
+
     deleteAccount(id) {
       return mutate((document) => {
         const index = document.accounts.findIndex(
@@ -249,28 +282,42 @@ export function createFileAccountStore(
   };
 }
 
-/** An in-memory store, for tests and for a read-only smoke run. */
+/**
+ * An in-memory store, for tests and for a read-only smoke run.
+ *
+ * Rows go in and come out as copies, the way the file store's reads are fresh
+ * parses: a caller holding an account it read earlier has a copy that goes
+ * stale, exactly as it would against the document — which is what lets a
+ * test catch a write that lands an old copy over a newer row.
+ */
 export function createMemoryAccountStore(): AccountStore {
   const document: StoreDocument = structuredClone(EMPTY);
 
   return {
     listAccounts: () =>
       Promise.resolve(
-        [...document.accounts].sort((a, b) =>
+        structuredClone(document.accounts).sort((a, b) =>
           a.createdAt.localeCompare(b.createdAt),
         ),
       ),
-    getAccount: (id) =>
-      Promise.resolve(
-        document.accounts.find((account) => account.id === id) ?? null,
-      ),
+    getAccount: (id) => {
+      const account = document.accounts.find((row) => row.id === id);
+      return Promise.resolve(account ? structuredClone(account) : null);
+    },
     putAccount: (account) => {
+      const copy = structuredClone(account);
       const index = document.accounts.findIndex(
         (existing) => existing.id === account.id,
       );
-      if (index === -1) document.accounts.push(account);
-      else document.accounts[index] = account;
+      if (index === -1) document.accounts.push(copy);
+      else document.accounts[index] = copy;
       return Promise.resolve();
+    },
+    updateAccount: (id, change) => {
+      const account = document.accounts.find((row) => row.id === id);
+      if (!account) return Promise.resolve(null);
+      change(account);
+      return Promise.resolve(structuredClone(account));
     },
     deleteAccount: (id) => {
       const index = document.accounts.findIndex((account) => account.id === id);
@@ -314,7 +361,30 @@ export interface AccountView {
   scopes: string | null;
   createdAt: string;
   lastRefreshedAt: string | null;
-  usage: { windows: UsageWindow[]; checkedAt: string } | null;
+  /**
+   * The last reading, when it was read, and whether it is stale: the latest
+   * attempt to read it failed, or the account cannot be read at all until it
+   * is signed in again. A stale reading is still the best figure there is,
+   * so it is shown — as what it is.
+   */
+  usage: {
+    windows: UsageWindow[];
+    checkedAt: string;
+    stale: boolean;
+  } | null;
+}
+
+/** Whether an account's figures are older than its latest try at them. */
+function readingIsStale(account: StoredAccount): boolean {
+  if (!account.usage) return false;
+  if (account.status === 'expired') return true;
+  const attempted = account.usageAttemptedAt
+    ? new Date(account.usageAttemptedAt).getTime()
+    : Number.NaN;
+  const read = new Date(account.usage.checkedAt).getTime();
+  return (
+    Number.isFinite(attempted) && Number.isFinite(read) && attempted > read
+  );
 }
 
 export function toAccountView(account: StoredAccount): AccountView {
@@ -329,6 +399,8 @@ export function toAccountView(account: StoredAccount): AccountView {
     scopes: account.scopes,
     createdAt: account.createdAt,
     lastRefreshedAt: account.lastRefreshedAt,
-    usage: account.usage,
+    usage: account.usage
+      ? { ...account.usage, stale: readingIsStale(account) }
+      : null,
   };
 }
