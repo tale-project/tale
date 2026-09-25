@@ -14,15 +14,19 @@ import { gatewayApi, type AccountView, type ProviderId } from './api';
 const ACCOUNTS_POLL_MS = 60_000;
 
 export interface AccountsState {
-  accounts: AccountView[];
-  isLoading: boolean;
+  /**
+   * The list as last read, or `null` until a read has succeeded. A later
+   * read that fails leaves it as it was — it is still the best list there
+   * is, and `error` says it may be behind.
+   */
+  accounts: AccountView[] | null;
+  /** Why the latest read failed; `null` once one succeeds again. */
   error: Error | null;
   reload: () => void;
 }
 
 export function useAccounts(): AccountsState {
-  const [accounts, setAccounts] = useState<AccountView[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [accounts, setAccounts] = useState<AccountView[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
   // `reload` reaches the live reader through this, so re-reading on demand
   // does not need a dependency that re-runs the whole effect.
@@ -30,18 +34,24 @@ export function useAccounts(): AccountsState {
 
   useEffect(() => {
     let cancelled = false;
+    // A panel left open while the gateway is out of reach fails a read every
+    // minute; the console hears about the first of a run, not each one.
+    let failing = false;
 
     const read = async () => {
       try {
         const next = await gatewayApi.accounts();
         if (cancelled) return;
+        failing = false;
         setAccounts(next);
         setError(null);
       } catch (cause) {
         if (cancelled) return;
+        if (!failing) {
+          console.warn('[ai-gateway] reading the account list failed:', cause);
+        }
+        failing = true;
         setError(cause instanceof Error ? cause : new Error(String(cause)));
-      } finally {
-        if (!cancelled) setIsLoading(false);
       }
     };
 
@@ -57,7 +67,7 @@ export function useAccounts(): AccountsState {
 
   const reload = useCallback(() => readNow.current(), []);
 
-  return { accounts, isLoading, error, reload };
+  return { accounts, error, reload };
 }
 
 /**

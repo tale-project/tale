@@ -32,7 +32,7 @@ export const Route = createFileRoute('/')({
  * rather than after a session check.
  */
 function PanelPage() {
-  const { accounts, isLoading, error, reload } = useAccounts();
+  const { accounts, error, reload } = useAccounts();
   const providers = useProviders();
   useRedirectOutcome(reload);
 
@@ -41,7 +41,6 @@ function PanelPage() {
       <AccountsScreen
         accounts={accounts}
         error={error}
-        isLoading={isLoading}
         onReload={reload}
         providers={providers}
       />

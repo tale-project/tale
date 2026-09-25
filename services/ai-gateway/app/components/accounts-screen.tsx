@@ -1,3 +1,5 @@
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
@@ -18,7 +20,13 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { gatewayApi, type AccountView, type ProviderId } from '@/app/lib/api';
+import {
+  gatewayApi,
+  isSignedOut,
+  type AccountView,
+  type ProviderId,
+} from '@/app/lib/api';
+import { reloadPage } from '@/app/lib/leave-for';
 import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
@@ -33,9 +41,10 @@ import { UsageCell } from './usage-cell';
 const STATUS_ORDER = ['active', 'expired', 'error'] as const;
 
 interface AccountsScreenProps {
-  accounts: AccountView[];
+  /** The list as last read; `null` until a read has succeeded. */
+  accounts: AccountView[] | null;
   providers: ProviderId[];
-  isLoading: boolean;
+  /** Why the latest read failed, if it did. */
   error: Error | null;
   onReload: () => void;
 }
@@ -49,11 +58,11 @@ interface AccountsScreenProps {
 export function AccountsScreen({
   accounts,
   providers,
-  isLoading,
   error,
   onReload,
 }: AccountsScreenProps) {
   const { t } = useT('accounts');
+  const { t: tCommon } = useT('common');
   const { t: tPanel } = useT('panel');
   const { t: tProviders } = useT('providers');
   const { t: tStatus } = useT('status');
@@ -67,6 +76,27 @@ export function AccountsScreen({
     null,
   );
 
+  const isLoading = accounts === null && error === null;
+  const signedOut = isSignedOut(error);
+
+  /**
+   * Say that an action failed. A session that ran out is its own message,
+   * because trying the action again cannot help — and the list is re-read at
+   * once, so the notice offering to sign in again appears now rather than at
+   * the next re-read a minute later.
+   */
+  const actionFailed = useCallback(
+    (cause: unknown, message: string) => {
+      if (isSignedOut(cause)) {
+        toast({ title: t('sessionExpired.title'), variant: 'destructive' });
+        onReload();
+        return;
+      }
+      toast({ title: message, variant: 'destructive' });
+    },
+    [onReload, t, toast],
+  );
+
   const copyCommand = useCallback(
     async (account: AccountView) => {
       try {
@@ -78,10 +108,10 @@ export function AccountsScreen({
         });
       } catch (cause) {
         console.error('[ai-gateway] copying the CLI command failed:', cause);
-        toast({ title: t('commandFailed'), variant: 'destructive' });
+        actionFailed(cause, t('commandFailed'));
       }
     },
-    [t, toast],
+    [actionFailed, t, toast],
   );
 
   const remove = useCallback(
@@ -95,10 +125,10 @@ export function AccountsScreen({
         onReload();
       } catch (cause) {
         console.error('[ai-gateway] removing the account failed:', cause);
-        toast({ title: t('removeFailed'), variant: 'destructive' });
+        actionFailed(cause, t('removeFailed'));
       }
     },
-    [onReload, t, toast],
+    [actionFailed, onReload, t, toast],
   );
 
   const columns = useMemo<ColumnDef<AccountView>[]>(
@@ -261,13 +291,6 @@ export function AccountsScreen({
     [copyCommand, t, tProviders],
   );
 
-  // `DataTable` renders the `Error` it is handed, so the sentence a reader
-  // sees has to be the translated one rather than whatever the API wrote.
-  const loadError = useMemo(
-    () => (error ? new Error(t('loadFailed')) : null),
-    [error, t],
-  );
-
   const filterConfigs = useMemo<FilterConfig[]>(
     () => [
       {
@@ -314,7 +337,7 @@ export function AccountsScreen({
    * reader's own locale, so an umlaut sorts where that reader expects it.
    */
   const rows = useMemo(() => {
-    const matches = accounts.filter((account) => {
+    const matches = (accounts ?? []).filter((account) => {
       if (
         providerFilter.length > 0 &&
         !providerFilter.includes(account.provider)
@@ -364,7 +387,7 @@ export function AccountsScreen({
     },
     filters: { configs: filterConfigs, onClear: clearFilters },
     getRowId: (account) => account.id,
-    approxRowCount: accounts.length || undefined,
+    approxRowCount: accounts?.length || undefined,
     entityLabel: { one: t('entity.one'), other: t('entity.other') },
   });
 
@@ -383,7 +406,45 @@ export function AccountsScreen({
           to jump to. */}
       <main className="flex min-h-0 flex-1 flex-col" id="main" tabIndex={-1}>
         <PageLayout>
-          <ContentArea variant="list">
+          <ContentArea gap={4} variant="list">
+            {/* A re-read that fails leaves the rows as they were: they are
+                still the best list there is, and every action on them still
+                works when only the connection hiccupped. What must not happen
+                is for them to pass as current, so this says they may be
+                behind, and how to catch up. */}
+            {accounts !== null && error !== null ? (
+              signedOut ? (
+                <Alert
+                  description={t('sessionExpired.description')}
+                  title={t('sessionExpired.title')}
+                  variant="warning"
+                >
+                  <Button
+                    className="mt-3"
+                    onClick={reloadPage}
+                    size="sm"
+                    type="button"
+                  >
+                    {t('sessionExpired.action')}
+                  </Button>
+                </Alert>
+              ) : (
+                <Alert
+                  description={t('refreshFailed.description')}
+                  title={t('refreshFailed.title')}
+                  variant="warning"
+                >
+                  <Button
+                    className="mt-3"
+                    onClick={onReload}
+                    size="sm"
+                    type="button"
+                  >
+                    {tCommon('actions.tryAgain')}
+                  </Button>
+                </Alert>
+              )
+            ) : null}
             <DataTable
               // The page inset comes from `ContentArea variant="list"`, which
               // also bounds the height this sticky frame fills — so the
@@ -403,8 +464,10 @@ export function AccountsScreen({
                 icon: KeyRound,
                 title: t('empty.title'),
               }}
-              error={loadError}
-              onRetry={onReload}
+              // Only a list never read takes the table's own failure state;
+              // with a session that ran out, only a page load gets back in.
+              error={accounts === null ? error : null}
+              onRetry={signedOut ? reloadPage : onReload}
             />
           </ContentArea>
         </PageLayout>

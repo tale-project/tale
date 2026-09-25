@@ -10,7 +10,13 @@ accounts:
   entity:
     one: compte
     other: comptes
-  loadFailed: La liste des comptes n’a pas pu être lue.
+  refreshFailed:
+    title: La liste des comptes n’a pas pu être actualisée
+    description: La liste ci-dessous date de la dernière lecture réussie. Le panneau réessaie chaque minute.
+  sessionExpired:
+    title: Ta session a expiré
+    description: La liste ci-dessous date de la dernière lecture réussie. Reconnecte-toi pour la mettre à jour.
+    action: Se reconnecter
   columns:
     account: Compte
     plan: Forfait
@@ -84,4 +90,5 @@ addAccount:
     expired: Ce code a expiré avant d’être autorisé. Recommence pour en obtenir un nouveau.
     denied: La connexion a été refusée. Recommence pour réessayer.
     unavailable: Le fournisseur est injoignable. Réessaie dans un instant.
+    signed_out: Ta session a expiré. Recharge la page pour te reconnecter.
     failed: Le compte n’a pas pu être connecté.

@@ -10,7 +10,13 @@ accounts:
   entity:
     one: account
     other: accounts
-  loadFailed: The account list could not be read.
+  refreshFailed:
+    title: The account list could not be refreshed
+    description: The list below is from the last successful read. The panel tries again every minute.
+  sessionExpired:
+    title: Your session expired
+    description: The list below is from the last successful read. Sign in again to bring it up to date.
+    action: Sign in again
   columns:
     account: Account
     plan: Plan
@@ -84,4 +90,5 @@ addAccount:
     expired: That code ran out before it was approved. Start again for a new one.
     denied: The sign-in was declined. Start again to try once more.
     unavailable: The provider could not be reached. Try again in a moment.
+    signed_out: Your session expired. Reload the page to sign in again.
     failed: The account could not be connected.

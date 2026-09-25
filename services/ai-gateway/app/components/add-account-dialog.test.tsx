@@ -2,7 +2,7 @@ import { TooltipProvider } from '@tale/ui/tooltip';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AccountView } from '@/app/lib/api';
+import { ApiError, type AccountView } from '@/app/lib/api';
 import { i18n } from '@/lib/i18n/i18n';
 
 import { AddAccountDialog } from './add-account-dialog';
@@ -147,6 +147,54 @@ describe('AddAccountDialog', () => {
     });
     expect(api.authorize).toHaveBeenCalledTimes(2);
     expect(screen.getAllByText('NEW0-CODE1').length).toBeGreaterThan(0);
+  });
+
+  it('stops waiting on a device code once the session has run out', async () => {
+    open();
+    await continueTo(device);
+    // Asking is what finishes a device sign-in, and no answer can come back
+    // through a sign-in gate whose session is gone.
+    api.authorizationStatus.mockRejectedValueOnce(
+      new ApiError('signed_out', 'The sign-in has run out.', 0),
+    );
+    await advance(5000);
+
+    expect(
+      screen.getByText(
+        'Your session expired. Reload the page to sign in again.',
+      ),
+    ).toBeTruthy();
+    await advance(20_000);
+    expect(api.authorizationStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps waiting through a connection that dropped for a moment', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    open();
+    await continueTo(device);
+    api.authorizationStatus
+      .mockRejectedValueOnce(new ApiError('unreachable', 'Failed to fetch', 0))
+      .mockResolvedValueOnce({ status: 'pending' });
+    await advance(5000);
+    await advance(5000);
+
+    expect(api.authorizationStatus).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/Waiting for your approval/)).toBeTruthy();
+  });
+
+  it('says the session ran out when starting a sign-in meets the gate', async () => {
+    open();
+    api.authorize.mockRejectedValueOnce(
+      new ApiError('signed_out', 'The sign-in has run out.', 0),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    });
+    expect(
+      screen.getByText(
+        'Your session expired. Reload the page to sign in again.',
+      ),
+    ).toBeTruthy();
   });
 
   it('stops asking once the dialog is closed', async () => {

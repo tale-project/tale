@@ -10,7 +10,13 @@ accounts:
   entity:
     one: Konto
     other: Konten
-  loadFailed: Die Kontenliste konnte nicht gelesen werden.
+  refreshFailed:
+    title: Die Kontenliste konnte nicht aktualisiert werden
+    description: Die Liste unten stammt vom letzten erfolgreichen Abruf. Das Panel versucht es jede Minute erneut.
+  sessionExpired:
+    title: Deine Sitzung ist abgelaufen
+    description: Die Liste unten stammt vom letzten erfolgreichen Abruf. Melde dich erneut an, um sie zu aktualisieren.
+    action: Erneut anmelden
   columns:
     account: Konto
     plan: Tarif
@@ -84,4 +90,5 @@ addAccount:
     expired: Der Code ist abgelaufen, bevor er freigegeben wurde. Starte neu, um einen neuen zu erhalten.
     denied: Die Anmeldung wurde abgelehnt. Starte neu, um es noch einmal zu versuchen.
     unavailable: Der Anbieter ist nicht erreichbar. Versuche es gleich noch einmal.
+    signed_out: Deine Sitzung ist abgelaufen. Lade die Seite neu, um dich erneut anzumelden.
     failed: Das Konto konnte nicht verbunden werden.
