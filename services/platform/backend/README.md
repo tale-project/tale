@@ -122,6 +122,11 @@ client and shows its secret once. Current membership, verified email and applica
 MFA policy remain prerequisites for identity claims. Native userinfo tokens are
 not REST API keys. Keep callback validation, audience restrictions, secret
 rotation and organization retirement covered when changing this integration.
+The ID token's `email`/`profile` claims come from Tale's own
+`customIdTokenClaims` hook (`oidcScopeClaims` in [`auth/oidc.ts`](auth/oidc.ts)):
+from Better Auth 1.7 the library itself delivers them at userinfo only.
+[`auth/oidc.id-token.test.ts`](auth/oidc.id-token.test.ts) verifies the minted
+token in the CI `test` lane; `backend:integration` is not a CI job.
 
 ## Verify a backend change
 

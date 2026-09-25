@@ -53,9 +53,10 @@ export async function checkNativeIdentity(
     });
   const freshUser = async (label: string) => {
     const email = `identity-${label}-${suffix}@example.test`;
+    const name = `Identity ${label}`;
     const response = await post('/api/auth/sign-up/email', {
       email,
-      name: `Identity ${label}`,
+      name,
       password: 'identity-test-password',
     });
     assert.equal(response.status, 200, `signup ${label}`);
@@ -64,6 +65,7 @@ export async function checkNativeIdentity(
       .parse(await response.json());
     return {
       email,
+      name,
       id: body.user.id,
       cookie: response.headers
         .getSetCookie()
@@ -268,8 +270,11 @@ export async function checkNativeIdentity(
         (returned.success ? returned.data.url : ''),
     };
   };
-  const issue = async (cookie = member.cookie) => {
-    const request = await begin(cookie);
+  const issue = async (
+    cookie = member.cookie,
+    changes: Record<string, string | null | undefined> = {},
+  ) => {
+    const request = await begin(cookie, changes);
     assert(request.location, `authorize returned ${request.response.status}`);
     const location = new URL(request.location, base);
     if (location.pathname === '/oauth/consent') {
@@ -375,6 +380,38 @@ export async function checkNativeIdentity(
         JSON.stringify({ id: org.id, slug: orgSlug, role: 'member' }) &&
       tokens.refresh_token === undefined &&
       (payload.exp ?? 0) - (payload.iat ?? 0) <= 300,
+    `claims=${Object.keys(payload).join(',')}`,
+  );
+  // Better Auth 1.7 delivers the scope claims at userinfo only; relying
+  // parties that verify the ID token alone need them there too.
+  check(
+    'the ID token carries the profile claims the profile scope grants',
+    payload.name === member.name &&
+      payload.given_name === 'Identity' &&
+      payload.family_name === 'member' &&
+      !('picture' in payload),
+    `name=${String(payload.name)} given=${String(payload.given_name)} family=${String(payload.family_name)} picture=${String(payload.picture)}`,
+  );
+  const withoutEmail = await exchange(
+    await issue(member.cookie, { scope: 'openid profile tale:organization' }),
+  );
+  assert.equal(
+    withoutEmail.status,
+    200,
+    `exchange without email ${await withoutEmail.clone().text()}`,
+  );
+  const { payload: profileOnly } = await jwtVerify(
+    z.object({ id_token: z.string() }).parse(await withoutEmail.json())
+      .id_token,
+    keySet,
+    { issuer, audience: clientId, algorithms: ['RS256'] },
+  );
+  check(
+    'an ID token without the email scope carries no email claims',
+    profileOnly.name === member.name &&
+      !('email' in profileOnly) &&
+      !('email_verified' in profileOnly),
+    `claims=${Object.keys(profileOnly).join(',')}`,
   );
   check(
     'the ID token carries the one acr discovery advertises — always bronze',
@@ -385,7 +422,7 @@ export async function checkNativeIdentity(
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
   const infoBody = z
-    .object({
+    .looseObject({
       sub: z.string(),
       email_verified: z.boolean(),
       [OIDC_ORGANIZATION_CLAIM]: z.object({ id: z.string() }),
@@ -397,6 +434,24 @@ export async function checkNativeIdentity(
       infoBody.sub === member.id &&
       infoBody.email_verified &&
       infoBody[OIDC_ORGANIZATION_CLAIM].id === org.id,
+  );
+  const standardClaims = (claims: Record<string, unknown>) =>
+    JSON.stringify(
+      [
+        'name',
+        'picture',
+        'given_name',
+        'family_name',
+        'email',
+        'email_verified',
+      ]
+        .filter((name) => name in claims)
+        .map((name) => [name, claims[name]]),
+    );
+  check(
+    'the ID token and userinfo agree on every standard claim',
+    standardClaims(payload) === standardClaims(infoBody),
+    `id_token=${standardClaims(payload)} userinfo=${standardClaims(infoBody)}`,
   );
   // RFC 6750 §3: a bad or missing bearer token is 401 with a challenge —
   // every five-minute token expiry walks this path.
