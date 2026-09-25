@@ -73,6 +73,7 @@ Change-scoped, by area:
 | routing or the app shell | `SMOKE-1`, `SMOKE-10` |
 | copy or catalogs (any locale) | `SMOKE-4` |
 | controls, focus, geometry | `SMOKE-5` · [`automation.md`](reference/automation.md) first |
+| how the panel reads a failed request (`app/lib/api.ts`, the list's re-read) | `ACCT-19`, `ACCT-45`, `ACCT-46` |
 
 ## How a box works
 

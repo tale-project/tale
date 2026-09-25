@@ -57,6 +57,14 @@ deployment serves it through an SSO gateway and lets only `/api/tokens*` and
 `/api/health` past. Run it on a public address with nothing in front and the
 pool is open to whoever finds it.
 
+Whatever sits in front owns the session, and ends it on its own clock. No
+route the panel calls redirects or answers 401, so the panel reads either as
+that session having run out: it keeps the account list it has, says the session
+expired, and offers **Sign in again** — a page load, the one request a sign-in
+gate can send through its identity provider and back. A re-read that fails for
+any other reason keeps the list too, says it could not be refreshed, and tries
+again every minute.
+
 ## Add an account
 
 Open the panel and choose **Add account**. Each provider's consent happens on

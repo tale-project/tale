@@ -14,6 +14,7 @@ import {
   ApiError,
   gatewayApi,
   isProviderId,
+  isSignedOut,
   type AccountView,
   type AuthorizationStart,
   type ProviderId,
@@ -199,6 +200,13 @@ export function AddAccountDialog({
           return;
         }
       } catch (cause) {
+        // Asking is what finishes the sign-in, so a session that ran out
+        // ends the wait: no answer can arrive until a page load signs this
+        // browser in again.
+        if (isSignedOut(cause)) {
+          onDeviceFailed('signed_out');
+          return;
+        }
         // A panel that lost the gateway for a moment keeps waiting; the
         // sign-in itself is the vendor's and has not gone anywhere.
         console.warn('[ai-gateway] asking after the sign-in failed:', cause);

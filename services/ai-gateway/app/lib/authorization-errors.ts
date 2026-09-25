@@ -4,8 +4,9 @@
  * The gateway ends an authorization on one of these codes — the dialog hears
  * them from the API, and the page a redirected sign-in lands on hears them
  * from the authorization it reports — and each has its message under
- * `addAccount.errors`. Anything else reads as the general failure rather than
- * as a raw code.
+ * `addAccount.errors`. `signed_out` is the panel's own: the sign-in in front
+ * of the gateway answered instead (see `isSignedOut`). Anything else reads as
+ * the general failure rather than as a raw code.
  */
 const AUTHORIZATION_ERRORS = new Set([
   'unknown_state',
@@ -15,6 +16,7 @@ const AUTHORIZATION_ERRORS = new Set([
   'expired',
   'denied',
   'unavailable',
+  'signed_out',
 ]);
 
 /** The `addAccount` key that says why an authorization failed. */

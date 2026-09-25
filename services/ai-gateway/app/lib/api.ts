@@ -109,6 +109,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Whether a call was answered by the sign-in in front of the gateway rather
+ * than by the gateway: the session that let this page load has run out.
+ *
+ * Nothing the panel does can renew it. Only a page load passes through the
+ * gate's own sign-in — see `reloadPage`.
+ */
+export function isSignedOut(cause: unknown): boolean {
+  return cause instanceof ApiError && cause.code === 'signed_out';
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has('Content-Type')) {
@@ -117,12 +128,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(path, { ...init, headers });
+    // No route the panel calls redirects, so a redirect is the deployment's
+    // front door answering in the gateway's place: a sign-in gate whose
+    // session ran out, sending the browser to its identity provider.
+    // Followed, that chain ends on another origin and `fetch` fails exactly
+    // as it does on a dropped connection. Held, it is an answer this helper
+    // can name.
+    response = await fetch(path, { ...init, headers, redirect: 'manual' });
   } catch (error) {
     throw new ApiError(
       'unreachable',
       error instanceof Error ? error.message : 'The gateway did not answer.',
       0,
+    );
+  }
+
+  // A browser hands a held redirect over as an opaque answer with status 0;
+  // a `fetch` outside one shows the 3xx itself.
+  if (
+    response.type === 'opaqueredirect' ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    throw new ApiError(
+      'signed_out',
+      'The sign-in in front of the gateway has run out.',
+      response.status,
     );
   }
 
@@ -137,8 +167,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       typeof payload === 'object' && payload !== null
         ? (payload as { error?: { code?: string; message?: string } }).error
         : undefined;
+    // The gateway has no login of its own, so no route the panel calls
+    // answers 401.
+    // One without the gateway's envelope is a gate that refuses a request
+    // outright instead of redirecting it.
+    const code =
+      envelope?.code ??
+      (response.status === 401 ? 'signed_out' : 'request_failed');
     throw new ApiError(
-      envelope?.code ?? 'request_failed',
+      code,
       envelope?.message ?? `The gateway answered ${response.status}.`,
       response.status,
     );

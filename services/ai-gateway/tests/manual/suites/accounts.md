@@ -188,6 +188,19 @@ in the pool**, so they run before the removals.
 - [ ] `ACCT-15` · **Row menu → Reauthenticate on one row, complete the flow** →
   the same row is updated in place; the pool does not grow, and the account's
   usage history stays with it.
+- [ ] `ACCT-45` · **With an account in the pool, stop the network — or the
+  server — and wait up to a minute** → the rows stay, and a warning above the
+  table says the list could not be refreshed and that the rows are from the
+  last successful read; the search, the filter and **Add account** stay where
+  they were. Restore the network and the warning goes by itself at the next
+  minute's read, or at once with **Try again** — no reload.
+- [ ] `ACCT-46` · **On the fleet's panel, end the sign-in in front of it —
+  delete every `__Host-tale_entra_oid*` cookie in the browser's developer
+  tools, or leave the panel open until the session runs out — and wait up to
+  a minute** → the rows stay, and a warning says your session expired, with
+  **Sign in again**; no "Something went wrong" screen and no console error
+  from the panel. **Sign in again** passes through the sign-in and lands back
+  on the panel with the list current and the warning gone.
 
 ### Removing
 
@@ -206,6 +219,7 @@ in the pool**, so they run before the removals.
 
 ### Degraded
 
-- [ ] `ACCT-19` · **Stop the network, then reload the panel** → the table shows
-  its load failure with a retry, not an empty collection; restore the network
-  and Retry recovers without a reload.
+- [ ] `ACCT-19` · **Block `/api/accounts` in the browser's developer tools
+  (Network → request blocking), then reload the panel** → the table shows its
+  load failure with a retry, not an empty collection; unblock it and **Try
+  again** recovers without a reload.
