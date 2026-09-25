@@ -12,6 +12,7 @@ import {
   OIDC_ORGANIZATION_CLAIM,
   OIDC_PROMPT_VALUES_SUPPORTED,
   oauthRefusalFor,
+  oidcScopeClaims,
   tokenRequestRefusal,
 } from './oidc.ts';
 
@@ -305,6 +306,164 @@ describe('createOidcProvider — discovery', () => {
     // `create` lands on the ordinary sign-in continuation, not a
     // registration page — advertising either misleads a relying party.
     expect(OIDC_PROMPT_VALUES_SUPPORTED).toEqual(['none', 'login', 'consent']);
+  });
+});
+
+/**
+ * Better Auth 1.7 stopped putting the scope claims in the ID token itself;
+ * the first-party relying parties verify the ID token alone and require
+ * `email` and `email_verified` in it, so "Continue with Tale" failed on
+ * every one of them. The mapping is 1.6's — the one userinfo still applies.
+ */
+describe('oidcScopeClaims — the standard claims a grant carries into the ID token', () => {
+  const ada = {
+    name: 'Ada King Lovelace',
+    image: 'https://tale.example.com/avatars/ada.png',
+    email: 'ada@example.test',
+    emailVerified: true,
+  };
+
+  it('puts email and email_verified in for the email scope alone', () => {
+    expect(oidcScopeClaims(ada, ['openid', 'email'])).toStrictEqual({
+      email: 'ada@example.test',
+      email_verified: true,
+    });
+  });
+
+  it('puts the name, its parts and the picture in for the profile scope alone', () => {
+    expect(oidcScopeClaims(ada, ['openid', 'profile'])).toStrictEqual({
+      name: 'Ada King Lovelace',
+      picture: 'https://tale.example.com/avatars/ada.png',
+      given_name: 'Ada King',
+      family_name: 'Lovelace',
+    });
+  });
+
+  it('carries both sets for the scopes a registered Tale client requests', () => {
+    expect(
+      oidcScopeClaims(ada, ['openid', 'profile', 'email', 'tale:organization']),
+    ).toStrictEqual({
+      name: 'Ada King Lovelace',
+      picture: 'https://tale.example.com/avatars/ada.png',
+      given_name: 'Ada King',
+      family_name: 'Lovelace',
+      email: 'ada@example.test',
+      email_verified: true,
+    });
+  });
+
+  it('carries nothing without the profile or email scope', () => {
+    expect(oidcScopeClaims(ada, ['openid', 'tale:organization'])).toStrictEqual(
+      {},
+    );
+    expect(oidcScopeClaims(ada, [])).toStrictEqual({});
+  });
+
+  it('keeps a one-word name whole, with no given or family name', () => {
+    expect(oidcScopeClaims({ ...ada, name: 'Ada' }, ['profile'])).toStrictEqual(
+      {
+        name: 'Ada',
+        picture: 'https://tale.example.com/avatars/ada.png',
+      },
+    );
+  });
+
+  it('splits on single spaces the way userinfo does, and keeps the name as stored', () => {
+    expect(
+      oidcScopeClaims({ ...ada, name: ' Ada   Lovelace ', image: null }, [
+        'profile',
+      ]),
+    ).toStrictEqual({
+      name: ' Ada   Lovelace ',
+      given_name: 'Ada',
+      family_name: 'Lovelace',
+    });
+  });
+
+  it('omits the picture of an account without an image — never null', () => {
+    const claims = oidcScopeClaims({ ...ada, image: null }, [
+      'profile',
+      'email',
+    ]);
+    expect(claims).not.toHaveProperty('picture');
+    expect(Object.values(claims)).not.toContain(null);
+    expect(Object.values(claims)).not.toContain(undefined);
+  });
+
+  it('says so when the email is not verified, rather than dropping the claim', () => {
+    expect(
+      oidcScopeClaims({ ...ada, emailVerified: false }, ['email']),
+    ).toStrictEqual({ email: 'ada@example.test', email_verified: false });
+    expect(
+      oidcScopeClaims({ email: 'ada@example.test' }, ['email']),
+    ).toStrictEqual({ email: 'ada@example.test', email_verified: false });
+  });
+});
+
+/** Answers the membership lookup for one bound organization, and reports
+ * no membership to the MFA policy read (so the default policy applies). */
+function membershipSql(member: {
+  userId: string;
+  organization: { id: string; slug: string; role: string };
+}): Sql {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?');
+    if (text.includes('FROM "organization" o')) {
+      const [organizationId, userId] = values;
+      return Promise.resolve(
+        organizationId === member.organization.id && userId === member.userId
+          ? [member.organization]
+          : [],
+      );
+    }
+    if (text.includes('SELECT "organizationId" FROM "member"')) {
+      return Promise.resolve([]);
+    }
+    return Promise.reject(new Error(`unexpected query: ${text}`));
+  };
+  return tag as unknown as Sql;
+}
+
+describe('createOidcProvider — the ID token claims hook', () => {
+  const organization = { id: 'org-1', slug: 'acme', role: 'member' };
+  const sql = membershipSql({ userId: 'user-1', organization });
+  const plugin: unknown = createOidcProvider(sql, 'https://tale.example.com');
+  const options = isRecord(plugin) ? plugin.options : undefined;
+  const hook = isRecord(options) ? options.customIdTokenClaims : undefined;
+  const claimsFor = (user: Record<string, unknown>, scopes: string[]) => {
+    if (typeof hook !== 'function') throw new Error('no customIdTokenClaims');
+    return Promise.resolve(
+      hook({ user, scopes, metadata: { taleOrganizationId: organization.id } }),
+    );
+  };
+  const member = {
+    id: 'user-1',
+    name: 'Ada Lovelace',
+    image: null,
+    email: 'ada@example.test',
+    emailVerified: true,
+  };
+
+  it('returns the scope claims beside the organization claim', async () => {
+    await expect(
+      claimsFor(member, ['openid', 'profile', 'email', 'tale:organization']),
+    ).resolves.toStrictEqual({
+      name: 'Ada Lovelace',
+      given_name: 'Ada',
+      family_name: 'Lovelace',
+      email: 'ada@example.test',
+      email_verified: true,
+      [OIDC_ORGANIZATION_CLAIM]: organization,
+    });
+  });
+
+  it('still refuses an unverified identity and a non-member, whatever the scopes', async () => {
+    await expect(
+      claimsFor({ ...member, emailVerified: false }, ['openid', 'email']),
+    ).rejects.toMatchObject({ message: 'IDENTITY_NOT_ELIGIBLE' });
+    await expect(
+      claimsFor({ ...member, id: 'user-2' }, ['openid', 'email']),
+    ).rejects.toMatchObject({ message: 'IDENTITY_NOT_ELIGIBLE' });
   });
 });
 

@@ -191,11 +191,13 @@ La création répond **201** avec `{ "created": true, "client": { "client_id": "
 
 Utilise une bibliothèque OIDC maintenue avec le flux Authorization Code, PKCE S256, un paramètre `state` à usage unique et un nonce. Vérifie l’émetteur, l’audience, la signature RS256, l’expiration et le nonce du jeton d’identité, puis exige `email_verified: true`. Le claim `https://tale.dev/organization` contient `{ "id", "slug", "role" }` pour l’organisation du client.
 
+Le jeton d’identité contient les claims standard des scopes demandés, avec les valeurs que renvoie Userinfo : tu n’as donc pas besoin d’appeler Userinfo pour les lire. `email` ajoute `email` et `email_verified`. `profile` ajoute `name`, ainsi que `given_name` (tous les mots sauf le dernier) et `family_name` (le dernier mot) quand le nom compte au moins deux mots, et `picture` si le compte a une image.
+
 Le jeton contient toujours `acr: "urn:mace:incommon:iap:bronze"`, valeur également annoncée dans `acr_values_supported` et `claims_supported`. Elle ne prouve pas un niveau d’authentification plus fort, notamment une authentification MFA. N’en déduis aucune autorisation supplémentaire.
 
 La découverte annonce `none`, `login` et `consent` dans `prompt_values_supported`. `select_account` et `create` ne sont pas pris en charge. Tale vérifie l’appartenance actuelle à l’organisation et l’exigence MFA native avant d’émettre les jetons, puis à chaque appel à Userinfo. L’application applique sa propre politique d’accès.
 
-Un code d’autorisation expire après 60 secondes et ne peut être échangé qu’une fois. Les jetons d’accès et d’identité expirent après cinq minutes. L’enregistrement dynamique, le flux implicite et les jetons de renouvellement sont désactivés.
+Un code d’autorisation, un jeton d’accès et un jeton d’identité expirent après cinq minutes, et un code ne peut être échangé qu’une fois. L’enregistrement dynamique, le flux implicite et les jetons de renouvellement sont désactivés.
 
 Les jetons d’accès servent uniquement au point de terminaison natif `userinfo` ; les audiences de ressources externes sont désactivées. Pour appeler l’API REST, utilise une clé API Tale.
 

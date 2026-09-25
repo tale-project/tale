@@ -366,6 +366,58 @@ export const OIDC_DISABLED_PATHS = [
   '/oauth2/get-clients',
 ];
 
+/** The standard claims (OIDC Core §5.1) a granted scope puts in the ID token. */
+export interface OidcScopeClaims {
+  name?: string;
+  picture?: string;
+  given_name?: string;
+  family_name?: string;
+  email?: string;
+  email_verified?: boolean;
+}
+
+/**
+ * The standard claims the granted scopes carry into the ID token:
+ * `profile` → `name`, `picture`, and `given_name` / `family_name` split
+ * from the name (every word but the last, then the last — only for a name
+ * of two or more words); `email` → `email` and `email_verified`. A value
+ * the account lacks is omitted, never sent as null.
+ *
+ * Better Auth 1.6 put these in every ID token itself. From 1.7 the library
+ * delivers them at userinfo only (OIDC Core §5.4) and blanks them in the
+ * ID token, so the first-party `customIdTokenClaims` hook is the one way
+ * back in — and the first-party relying parties verify the ID token alone
+ * and require `email` and `email_verified` in it. The mapping is the one
+ * the library's userinfo applies (`userNormalClaims` in 1.6, the
+ * `STANDARD_CLAIMS` registry in 1.7), so the ID token and userinfo agree.
+ */
+export function oidcScopeClaims(
+  user: {
+    name?: string | null;
+    image?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  },
+  scopes: readonly string[],
+): OidcScopeClaims {
+  const claims: OidcScopeClaims = {};
+  if (scopes.includes('profile')) {
+    if (user.name != null) claims.name = user.name;
+    if (user.image != null) claims.picture = user.image;
+    const words = (user.name ?? '').split(' ').filter((word) => word !== '');
+    const family = words.at(-1);
+    if (words.length > 1 && family !== undefined) {
+      claims.given_name = words.slice(0, -1).join(' ');
+      claims.family_name = family;
+    }
+  }
+  if (scopes.includes('email')) {
+    if (user.email != null) claims.email = user.email;
+    claims.email_verified = user.emailVerified ?? false;
+  }
+  return claims;
+}
+
 export async function oidcOrganizationClaims(
   sql: Sql,
   user: { id: string; emailVerified: boolean },
@@ -429,8 +481,17 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
       const member = await findOrganizationMember(sql, organizationId, user.id);
       return member !== null && isAdminRole(member.role);
     },
-    customIdTokenClaims: ({ user, metadata }) =>
-      oidcOrganizationClaims(sql, user, metadata?.taleOrganizationId),
+    // The scope claims beside the organization claim: from Better Auth 1.7
+    // this hook is the only way a standard claim reaches the ID token
+    // (`oidcScopeClaims`). An ineligible identity is refused first.
+    customIdTokenClaims: async ({ user, scopes, metadata }) => {
+      const organization = await oidcOrganizationClaims(
+        sql,
+        user,
+        metadata?.taleOrganizationId,
+      );
+      return { ...oidcScopeClaims(user, scopes), ...organization };
+    },
     customAccessTokenClaims: ({ user, metadata }) => {
       if (!user) {
         throw new APIError('FORBIDDEN', { message: 'IDENTITY_NOT_ELIGIBLE' });

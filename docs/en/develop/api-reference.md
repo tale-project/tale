@@ -182,7 +182,9 @@ The first response is **201** with `{ "created": true, "client": { "client_id": 
 
 Use a maintained OIDC client with authorization code flow, S256 PKCE, one-use state and a nonce. Validate the issuer, audience, RS256 signature, expiry and nonce of the ID token, then require `email_verified: true`. The `https://tale.dev/organization` claim contains `{ "id", "slug", "role" }` for the registered organization. Every ID token also carries `acr: "urn:mace:incommon:iap:bronze"` — always that value, the one discovery lists under `acr_values_supported` and `claims_supported`; Tale asserts no stronger authentication context, MFA enforcement included, so do not gate on `acr`. Discovery's `prompt_values_supported` names what the issuer honours — `none`, `login`, `consent`; `select_account` and `create` are not offered.
 
-Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes expire after 60 seconds and can be redeemed once; access and ID tokens expire after five minutes. Dynamic registration, implicit grants and refresh tokens are disabled.
+The ID token carries the standard claims of the scopes you request, with the values userinfo returns, so you can read them without a userinfo request. `email` adds `email` and `email_verified`. `profile` adds `name`, split into `given_name` (every word but the last) and `family_name` (the last word) when the name has two or more words, and `picture` when the account has one.
+
+Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes, access tokens and ID tokens expire after five minutes, and a code can be redeemed once. Dynamic registration, implicit grants and refresh tokens are disabled.
 
 Access tokens serve only native userinfo; external resource audiences are disabled. Use native API keys for REST requests.
 
