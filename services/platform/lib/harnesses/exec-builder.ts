@@ -65,6 +65,10 @@ function withMaxContext(model: string): string {
   return `${model}[1m]`;
 }
 
+/** The header a Claude Code exec on a foreign model sends through the managed
+ * gateway, which forwards it upstream as `X-Tale-Cache-Affinity`. */
+export const CACHE_AFFINITY_GATEWAY_HEADER = 'x-bf-eh-x-tale-cache-affinity';
+
 /** True for a Claude model reference in ANY spelling the exec can carry — a
  * vendor-native id (`claude-*`), a gateway path (`anthropic/claude-…`), a
  * rolling alias (`~anthropic/claude-…`) — plus the shapes that resolve to
@@ -664,6 +668,22 @@ export function buildHarnessExec(
     env.CLAUDE_CODE_DISABLE_THINKING = '1';
     env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';
     env.CLAUDE_CODE_ATTRIBUTION_HEADER = '0';
+    // A self-hosted model served by several replicas keeps each
+    // conversation's prompt prefix in ONE replica's cache, so a turn the
+    // balancer sends to another replica prefills the whole conversation again
+    // (observed live: one 42-turn agent exec changed replica 20 times and
+    // spent a seventh of its model time re-reading its own context). Name
+    // the exec in every request so a balancer can keep it on one replica: the
+    // managed gateway forwards an `x-bf-eh-<name>` header upstream as
+    // `<name>`. A balancer that does not hash it is unaffected.
+    if (spec.execId && spec.credential.mode === 'managed') {
+      env.ANTHROPIC_CUSTOM_HEADERS = [
+        env.ANTHROPIC_CUSTOM_HEADERS,
+        `${CACHE_AFFINITY_GATEWAY_HEADER}: ${spec.execId}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
   }
 
   // -------------------------------------------------------------------------
