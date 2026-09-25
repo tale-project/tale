@@ -72,6 +72,71 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('GET /events resumes from a cursor', () => {
+  /** An authorized reader whose outbox tail is id 42 and retains nothing. */
+  function resumeApp(): Hono<AuthEnv> {
+    return appWith((text) => {
+      if (text.includes('FROM "member"')) return [MEMBER];
+      if (text.includes('FROM "organization"')) return [{ id: 'o1' }];
+      if (text.includes('FROM "session"')) return [{ id: 's1' }];
+      if (text.includes('max(id)')) return [{ max: '42' }];
+      return [];
+    });
+  }
+
+  /** The id on the stream's `ready` frame, if one was written. */
+  function readyIdIn(text: string): string | undefined {
+    const frame = text
+      .split('\n\n')
+      .find((candidate) => candidate.startsWith('event: ready\n'));
+    return /^id: (.*)$/m.exec(frame ?? '')?.[1];
+  }
+
+  async function readyId(response: Response): Promise<string | undefined> {
+    const { text } = await drain(response, 100);
+    return readyIdIn(text);
+  }
+
+  test('a fresh stream opens with a ready event carrying the tail cursor', async () => {
+    const response = await resumeApp().request('/events?orgId=o1');
+    expect(await readyId(response)).toBe('42');
+  });
+
+  test('a new EventSource resumes from ?lastEventId= and is held to the retention check', async () => {
+    const response = await resumeApp().request(
+      '/events?orgId=o1&lastEventId=7',
+    );
+    const { text } = await drain(response, 100);
+    expect(readyIdIn(text)).toBe('7');
+    // The fake outbox retains nothing at or below 7, so the replay cannot be
+    // proven complete — the same verdict a Last-Event-ID resume gets.
+    expect(text).toContain('event: resync');
+  });
+
+  test('the browser reconnect header wins over the cursor the URL was opened with', async () => {
+    const response = await resumeApp().request(
+      '/events?orgId=o1&lastEventId=7',
+      { headers: { 'Last-Event-ID': '9' } },
+    );
+    expect(await readyId(response)).toBe('9');
+  });
+
+  test('a cursor that is not a bigint-sized number starts at the tail', async () => {
+    for (const forged of ['abc', '12345678901234567890', '-1']) {
+      const response = await resumeApp().request(
+        `/events?orgId=o1&lastEventId=${forged}`,
+      );
+      expect(await readyId(response)).toBe('42');
+    }
+  });
+
+  test('a fresh stream is not told to resync', async () => {
+    const response = await resumeApp().request('/events?orgId=o1');
+    const { text } = await drain(response, 100);
+    expect(text).not.toContain('resync');
+  });
+});
+
 describe('GET /events re-proves the reader while the stream is open', () => {
   test('a member disabled mid-stream is told forbidden and the stream ends', async () => {
     let role = 'member';
@@ -156,6 +221,9 @@ describe('GET /events re-proves the reader while the stream is open', () => {
     mode = 'fault';
     const reader = response.body?.getReader();
     if (reader === undefined) throw new Error('no body');
+    // The opening `ready` frame is written before any re-check can run.
+    const ready = await reader.read();
+    expect(new TextDecoder().decode(ready.value)).toContain('event: ready');
     // The fault lands on the first re-check; the stream must still be open
     // after it (the poll backs off a second and retries). The read stays
     // pending across the probe — a fresh read would race it for the chunk.

@@ -112,10 +112,18 @@ export function endAllEventStreams(): number {
  * connected clients; no cross-pod coordination, no sticky sessions. A client
  * resumes after a reconnect by replaying from `Last-Event-ID` (the outbox id
  * it last saw); without one it starts at the tail — TanStack Query's
- * refetch-on-reconnect covers the gap. A resume the outbox can no longer
- * serve in full (the cursor row was reclaimed past the retention horizon)
- * is answered with a `resync` event first: the client refetches its whole
- * org scope instead of trusting a cache with a hole in it.
+ * refetch-on-reconnect covers the gap. A client that closed its stream on
+ * purpose (a tab hidden long enough to give its connection back) opens a
+ * NEW EventSource, which cannot set that header, so the same cursor is also
+ * accepted as `?lastEventId=`; the header wins, because the browser's own
+ * reconnect of that source sends a newer one. A resume the outbox can no
+ * longer serve in full (the cursor row was reclaimed past the retention
+ * horizon) is answered with a `resync` event first: the client refetches its
+ * whole org scope instead of trusting a cache with a hole in it.
+ *
+ * Every stream opens with a `ready` event whose id is the cursor it starts
+ * from, so a reader of a quiet org still holds a cursor to resume from
+ * before its first hint arrives.
  *
  * Membership and the session are re-proved on a coarse cadence while the
  * stream is open ({@link AUTH_RECHECK_INTERVAL_MS}); a stream whose reader
@@ -165,13 +173,18 @@ export function createEventsHandler(
       }
       throw error;
     }
-    const resumeFrom = c.req.header('Last-Event-ID') ?? null;
+    const resumeFrom =
+      c.req.header('Last-Event-ID') || c.req.query('lastEventId') || null;
 
     return streamSSE(c, async (stream) => {
       hintStreamOpened();
       registerLiveStream(stream);
+      // At most 18 digits: always inside `bigint`, so a forged cursor starts
+      // at the tail instead of failing every poll's `::bigint` cast.
       const resumeCursor =
-        resumeFrom !== null && /^\d+$/.test(resumeFrom) ? resumeFrom : null;
+        resumeFrom !== null && /^\d{1,18}$/.test(resumeFrom)
+          ? resumeFrom
+          : null;
       let cursor = resumeCursor ?? (await latestOutboxId(sql));
       // Checked once, AFTER the first read, so the verdict is exact: reclaim
       // removes a strict id-prefix, so a cursor row still present after the
@@ -181,6 +194,7 @@ export function createEventsHandler(
       let lastAuthCheckAt = Date.now();
 
       try {
+        await stream.writeSSE({ event: 'ready', id: cursor, data: '' });
         while (!stream.aborted) {
           try {
             if (Date.now() - lastAuthCheckAt >= authRecheckIntervalMs) {

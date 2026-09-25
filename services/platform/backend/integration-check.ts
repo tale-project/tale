@@ -617,13 +617,38 @@ async function checkAuthAndSse(
     3_000,
   );
   const noDuplicate = !second.events.some((e) => e.data.includes('"t1"'));
+  const resumeId = [...second.events].reverse().find((e) => e.id)?.id ?? null;
   second.abort();
   await second.done;
 
+  // A tab that gave its connection back while hidden reopens a NEW
+  // EventSource, which cannot send the header: the cursor rides the URL, the
+  // stream opens with a `ready` event carrying it, then replays the gap.
+  await sql.begin(async (tx) => {
+    await emitHintInTx(tx, { orgId, entity: 'task', entityId: 't3' });
+  });
+  const third = connectSse(resumeId ? `${url}&lastEventId=${resumeId}` : url, {
+    cookie,
+  });
+  const queryReplayOk = await waitFor(
+    () => third.events.some((e) => e.event === 'hint' && e.data.includes('t3')),
+    3_000,
+  );
+  const readyCursorOk =
+    third.events[0]?.event === 'ready' && third.events[0]?.id === resumeId;
+  const noQueryDuplicate = !third.events.some((e) => e.data.includes('"t2"'));
+  third.abort();
+  await third.done;
+
   record(
     'authorized outbox → SSE',
-    liveOk && replayOk && noDuplicate,
-    `live=${liveOk}, resume-replay=${replayOk}, no-duplicate-on-resume=${noDuplicate}`,
+    liveOk &&
+      replayOk &&
+      noDuplicate &&
+      queryReplayOk &&
+      readyCursorOk &&
+      noQueryDuplicate,
+    `live=${liveOk}, resume-replay=${replayOk}, no-duplicate-on-resume=${noDuplicate}, query-cursor-replay=${queryReplayOk}, ready-carries-cursor=${readyCursorOk}, no-duplicate-on-query-resume=${noQueryDuplicate}`,
   );
 
   // 5f. An open stream re-proves its reader: a member soft-removed and a
