@@ -52,6 +52,13 @@ describe('backendUrl', () => {
   });
 });
 
+describe('eventsUrl', () => {
+  it('carries the resume cursor only when one is known', () => {
+    expect(eventsUrl('org1')).toBe('/events?orgId=org1');
+    expect(eventsUrl('org1', '42')).toBe('/events?orgId=org1&lastEventId=42');
+  });
+});
+
 describe('backendFetch', () => {
   it('GETs by default and returns the parsed body', async () => {
     const fetchMock = vi

@@ -1,7 +1,17 @@
 // @vitest-environment jsdom
 import { QueryClient } from '@tanstack/react-query';
 import { act, render } from '@testing-library/react';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+
+import { HIDDEN_RELEASE_MS } from '@/app/lib/backend/while-visible';
 
 import { useThreadStream } from './thread-stream';
 
@@ -30,7 +40,10 @@ class FakeEventSource {
     this.listeners.set(name, listener);
   }
   removeEventListener() {}
-  close() {}
+  closed = false;
+  close() {
+    this.closed = true;
+  }
   emit(name: string, data = '') {
     act(() => {
       this.listeners.get(name)?.(new MessageEvent(name, { data }));
@@ -82,6 +95,28 @@ beforeAll(() => {
 });
 afterAll(() => {
   vi.unstubAllGlobals();
+});
+
+let visibility: DocumentVisibilityState = 'visible';
+
+function setVisibility(next: DocumentVisibilityState): void {
+  act(() => {
+    visibility = next;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
+
+function overrideVisibility(initial: DocumentVisibilityState): void {
+  visibility = initial;
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => visibility,
+  });
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  Reflect.deleteProperty(document, 'visibilityState');
 });
 
 describe('useThreadStream read nudges', () => {
@@ -140,5 +175,61 @@ describe('useThreadStream read nudges', () => {
       'chat_thread',
     ]);
     lane.view.unmount();
+  });
+});
+
+describe('useThreadStream while the tab is hidden', () => {
+  it('gives the lane back after the grace, keeps the last state, and reopens on return', () => {
+    vi.useFakeTimers();
+    overrideVisibility('visible');
+    const lane = openLane('thread_hidden');
+    lane.source.emit('progress', PROGRESS);
+    expect(lane.nudged()).toEqual(['chat_message', 'chat_deferred']);
+
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS);
+    });
+    expect(lane.source.closed).toBe(true);
+    // The released lane still paints what it last knew.
+    expect(lane.state()).toHaveTextContent('streaming');
+
+    setVisibility('visible');
+    const reopened = FakeEventSource.instances.at(-1);
+    expect(reopened).not.toBe(lane.source);
+    // The turn settled while the tab was away: the reopened lane's probe
+    // answers idle, which nudges the reads the missed settle would have.
+    reopened?.emit('idle');
+    expect(lane.state()).toHaveTextContent('idle');
+    expect(lane.nudged().slice(2)).toEqual([
+      'chat_message',
+      'chat_deferred',
+      'chat_thread',
+    ]);
+    lane.view.unmount();
+    expect(reopened?.closed).toBe(true);
+
+    // An unsubscribed lane stops watching: no hide/show brings it back.
+    const count = FakeEventSource.instances.length;
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS);
+    });
+    setVisibility('visible');
+    expect(FakeEventSource.instances).toHaveLength(count);
+  });
+
+  it('opens no lane in a background tab until it is first shown', () => {
+    overrideVisibility('hidden');
+    const before = FakeEventSource.instances.length;
+    const view = render(
+      <Probe threadId="thread_background" queryClient={new QueryClient()} />,
+    );
+    expect(FakeEventSource.instances).toHaveLength(before);
+    expect(view.getByRole('status')).toHaveTextContent('resolving');
+
+    setVisibility('visible');
+    expect(FakeEventSource.instances).toHaveLength(before + 1);
+    view.unmount();
   });
 });

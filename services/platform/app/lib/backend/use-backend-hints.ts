@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { eventsUrl } from './api-client';
 import { reportBackendReachable } from './connection-state';
 import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
+import { whileVisible } from './while-visible';
 
 /**
  * `EventSource.CLOSED` as a literal: the browser has given up on this source
@@ -32,10 +33,19 @@ const RECONNECT_MAX_MS = 60_000;
  * nothing on screen says so, until the user reloads by hand. We reopen those
  * ourselves with a capped backoff.
  *
- * A reopened source carries no `Last-Event-ID`, so hints emitted while it was
- * down are gone for good — the whole org scope refetches on the first open
- * after a forced reconnect, the same contract `resync` has when the server
- * cannot replay a cursor. `forbidden` stays terminal: the server re-proves
+ * The stream is held only while the page is visible (`whileVisible`): a tab
+ * hidden past the grace closes it and reopens it when shown again, so
+ * background tabs stop holding the browser's few HTTP/1.1 connections.
+ *
+ * Every reopen — after a refused handshake or a hidden spell — resumes from
+ * the last outbox id the stream delivered (the opening `ready` event carries
+ * one, so even a quiet org has it), passed as `?lastEventId=` because a new
+ * EventSource cannot send the header. The server replays the gap, or answers
+ * `resync` when it can no longer. A backend from before that parameter
+ * ignores it and starts at the tail, so the cursor is trusted only once the
+ * server has sent `ready`; until then — a stream that never opened, or an
+ * older backend mid-deploy — a reopen refetches the whole org scope on its
+ * first open instead. `forbidden` stays terminal: the server re-proves
  * membership and the session while the stream is open and ends it once
  * either is gone, so reopening would only meet a guaranteed 401/403.
  */
@@ -53,10 +63,31 @@ export function useBackendHints(orgId: string | undefined): void {
     let attempt = 0;
     /** Set once the effect is torn down, or `forbidden` ended the stream. */
     let stopped = false;
-    /** A forced reconnect skipped the cursor: refetch on the next open. */
+    /** The outbox id of the last event delivered — where a reopen resumes. */
+    let cursor: string | undefined;
+    /** The server sent `ready`, so it honours `?lastEventId=` on a reopen. */
+    let resumable = false;
+    /** A reopen cannot be trusted to replay the gap: refetch on its open. */
     let replayLost = false;
 
+    const track = (event: MessageEvent<string>): void => {
+      if (event.lastEventId !== '') {
+        cursor = event.lastEventId;
+      }
+    };
+    // The source is going away with a reopen to follow. A server that
+    // resumes replays what it misses; otherwise the gap is gone for good.
+    const markGap = (): void => {
+      if (!resumable) {
+        replayLost = true;
+      }
+    };
+    const onReady = (event: MessageEvent<string>): void => {
+      resumable = true;
+      track(event);
+    };
     const onHint = (event: MessageEvent<string>): void => {
+      track(event);
       try {
         const hint: unknown = JSON.parse(event.data);
         if (
@@ -111,7 +142,7 @@ export function useBackendHints(orgId: string | undefined): void {
         return;
       }
       detach();
-      replayLost = true;
+      markGap();
       const delay = Math.min(
         RECONNECT_MAX_MS,
         RECONNECT_BASE_MS * 2 ** attempt,
@@ -126,6 +157,7 @@ export function useBackendHints(orgId: string | undefined): void {
       if (source === undefined) {
         return;
       }
+      source.removeEventListener('ready', onReady);
       source.removeEventListener('hint', onHint);
       source.removeEventListener('resync', onResync);
       source.removeEventListener('open', onOpen);
@@ -140,9 +172,10 @@ export function useBackendHints(orgId: string | undefined): void {
       if (stopped) {
         return;
       }
-      source = new EventSource(eventsUrl(org), {
+      source = new EventSource(eventsUrl(org, cursor), {
         withCredentials: true,
       });
+      source.addEventListener('ready', onReady);
       source.addEventListener('hint', onHint);
       source.addEventListener('resync', onResync);
       source.addEventListener('open', onOpen);
@@ -150,9 +183,21 @@ export function useBackendHints(orgId: string | undefined): void {
       source.addEventListener('error', onError);
     };
 
-    connect();
+    // Hidden past the grace: give the connection back. A pending reopen is
+    // dropped too — the next `open` connects at once.
+    const release = (): void => {
+      if (retryTimer !== undefined) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      detach();
+      markGap();
+    };
+
+    const stopWatching = whileVisible({ open: connect, release });
     return () => {
       stopped = true;
+      stopWatching();
       if (retryTimer !== undefined) {
         clearTimeout(retryTimer);
         retryTimer = undefined;

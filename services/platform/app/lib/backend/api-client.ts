@@ -64,9 +64,15 @@ export function backendUrl(route: string, orgId?: string): string {
   return `${url}${separator}orgId=${encodeURIComponent(orgId)}`;
 }
 
-/** The `/events` hint-stream URL for one organization. */
-export function eventsUrl(orgId: string): string {
-  return `${basePath()}/events?orgId=${encodeURIComponent(orgId)}`;
+/**
+ * The `/events` hint-stream URL for one organization, resuming after
+ * `lastEventId` when given (a new EventSource cannot send the header).
+ */
+export function eventsUrl(orgId: string, lastEventId?: string): string {
+  const url = `${basePath()}/events?orgId=${encodeURIComponent(orgId)}`;
+  return lastEventId === undefined
+    ? url
+    : `${url}&lastEventId=${encodeURIComponent(lastEventId)}`;
 }
 
 export async function backendFetch<T>(

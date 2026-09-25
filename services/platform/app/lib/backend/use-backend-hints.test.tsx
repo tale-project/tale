@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook } from '@testing-library/react';
+import { cleanup, renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { useBackendHints } from './use-backend-hints';
+import { HIDDEN_RELEASE_MS } from './while-visible';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
 class FakeEventSource {
@@ -46,11 +47,20 @@ class FakeEventSource {
     this.closed = true;
   }
 
-  emit(type: string, data: string): void {
+  emit(type: string, data: string, lastEventId = ''): void {
     for (const listener of this.listeners.get(type) ?? []) {
-      listener(new MessageEvent<string>(type, { data }));
+      listener(new MessageEvent<string>(type, { data, lastEventId }));
     }
   }
+}
+
+let visibility: DocumentVisibilityState = 'visible';
+
+function setVisibility(next: DocumentVisibilityState): void {
+  act(() => {
+    visibility = next;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
 }
 
 let queryClient: QueryClient;
@@ -66,13 +76,22 @@ beforeEach(() => {
   FakeEventSource.instances = [];
   window.__ENV__ = { BASE_PATH: '' };
   vi.stubGlobal('EventSource', FakeEventSource);
+  visibility = 'visible';
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => visibility,
+  });
 });
 
 afterEach(() => {
+  // Unmount every hook this file rendered: a still-mounted one keeps its
+  // visibility listener and would answer the next test's dispatches.
+  cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete window.__ENV__;
+  Reflect.deleteProperty(document, 'visibilityState');
   reportBackendReachable();
 });
 
@@ -289,6 +308,160 @@ describe('useBackendHints', () => {
       vi.advanceTimersByTime(1_000);
     });
     expect(FakeEventSource.instances).toHaveLength(4);
+  });
+
+  it('resumes a forced reopen from the last cursor instead of refetching', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit('ready', '', '5');
+      FakeEventSource.instances[0]?.emit('open', '');
+    });
+
+    abandon(FakeEventSource.instances[0]);
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeEventSource.instances[1]?.url).toBe(
+      '/events?orgId=org1&lastEventId=5',
+    );
+    // The server replays the gap from the cursor, so the open refetches nothing.
+    act(() => {
+      FakeEventSource.instances[1]?.emit('open', '');
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('gives the connection back once the page stays hidden, and resumes from the newest cursor on return', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const first = FakeEventSource.instances[0];
+    act(() => {
+      first?.emit('ready', '', '5');
+      first?.emit('open', '');
+      first?.emit('hint', JSON.stringify({ entity: 'task' }), '9');
+    });
+    invalidate.mockClear();
+
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS - 1);
+    });
+    expect(first?.closed).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(first?.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    setVisibility('visible');
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(FakeEventSource.instances[1]?.url).toBe(
+      '/events?orgId=org1&lastEventId=9',
+    );
+    act(() => {
+      FakeEventSource.instances[1]?.emit('open', '');
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('does not trust a cursor from a backend that never sent ready', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit('open', '');
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'task' }),
+        '9',
+      );
+    });
+    invalidate.mockClear();
+
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS);
+    });
+    setVisibility('visible');
+    // An older backend ignores the parameter and starts at the tail, so the
+    // hints emitted while hidden would be lost without a refetch.
+    expect(FakeEventSource.instances[1]?.url).toBe(
+      '/events?orgId=org1&lastEventId=9',
+    );
+    act(() => {
+      FakeEventSource.instances[1]?.emit('open', '');
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
+  });
+
+  it('keeps the stream through a glance away shorter than the grace', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS - 1);
+    });
+    setVisibility('visible');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(FakeEventSource.instances[0]?.closed).toBe(false);
+  });
+
+  it('waits to connect in a background tab, then refetches the org scope when first shown', () => {
+    vi.useFakeTimers();
+    visibility = 'hidden';
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    expect(FakeEventSource.instances).toHaveLength(0);
+
+    setVisibility('visible');
+    expect(FakeEventSource.instances[0]?.url).toBe('/events?orgId=org1');
+    // The page's reads ran while no stream was open to hint them stale.
+    act(() => {
+      FakeEventSource.instances[0]?.emit('open', '');
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
+  });
+
+  it('drops a pending reopen when the page is hidden, and connects at once on return', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit('ready', '', '5');
+    });
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS - 500);
+    });
+    // Refused late in the grace: the 1s reopen would land after the release.
+    abandon(FakeEventSource.instances[0]);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    setVisibility('visible');
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(FakeEventSource.instances[1]?.url).toBe(
+      '/events?orgId=org1&lastEventId=5',
+    );
+  });
+
+  it('does not reopen a released stream after unmount', () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() => useBackendHints('org1'), { wrapper });
+    setVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(HIDDEN_RELEASE_MS);
+    });
+    unmount();
+    setVisibility('visible');
+    expect(FakeEventSource.instances).toHaveLength(1);
   });
 
   it('cancels a pending reopen on unmount', () => {

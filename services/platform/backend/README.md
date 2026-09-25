@@ -93,6 +93,15 @@ outbox entries when no browser is connected. Token streaming uses the chat
 thread's dedicated stream route; do not send token payloads through the general
 invalidation bus.
 
+A browser tab holds its streams only while it is visible. After 5 seconds hidden
+it closes them, and it reopens them when shown again. This matters most in local
+dev: Vite serves HTTP/1.1, which allows six connections per host across all
+tabs, so background tabs holding streams used to stall the next tab's reads.
+Every `/events` stream opens with a `ready` event whose id is its starting
+cursor. A reopened stream passes the last id it saw as `?lastEventId=`, because
+a new `EventSource` cannot set the `Last-Event-ID` header. The header wins when
+both are present.
+
 ## Diagnose startup and indexing
 
 Inspect the first failed startup stage before restarting. Database migrations,

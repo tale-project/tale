@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 13 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 16 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -153,6 +153,13 @@ single warm sample.
   `e2e:error` in `mockA`. → The provider-error UI renders (HTTP 500 path); the
   chat input recovers to **Send message** enabled — no spinner stuck on, no
   page crash. This is the designed error path (**ENVIRONMENT**).
+- [ ] `PERF-B5` · **Many tabs on the dev server** — Under `bun run dev`
+  (`http://localhost:3000`, plain HTTP/1.1), open `/dashboard/{org}/projects`
+  in six tabs one after another, then a seventh on `/dashboard/{org}/documents`.
+  → The seventh tab renders and every region finishes loading (none stays on
+  a skeleton). In DevTools → Network of a tab that was hidden for more than
+  5 s, its `…/events?orgId=` request has ended; switching back to it opens a
+  new one whose URL carries `lastEventId=`.
 
 ## Accessibility (WCAG 2.1 AA)
 

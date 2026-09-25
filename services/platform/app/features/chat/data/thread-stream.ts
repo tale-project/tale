@@ -21,6 +21,12 @@
  * tab's would otherwise show no user bubble and a "Queued" tray row for the
  * whole generation. An `idle` over a streaming lane is a reconnect that
  * missed `settled`, and nudges the same reads.
+ *
+ * The EventSource is held only while the page is visible (`whileVisible`):
+ * a tab hidden past the grace closes it and keeps the last state on screen,
+ * and showing the tab reopens it. That reopen is lossless — the open-time
+ * probe answers `idle` (a missed settle nudges the reads, as above) or the
+ * live turn's `progress` with its whole text so far.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -31,6 +37,7 @@ import {
   invalidateChatMessages,
   invalidateChatThreads,
 } from '@/app/lib/backend/chat';
+import { whileVisible } from '@/app/lib/backend/while-visible';
 import type { MessagePart } from '@/lib/chat/types';
 
 export interface ThreadStreamGeneration {
@@ -73,9 +80,12 @@ const RESOLVING: ThreadStreamState = {
 const IDLE: ThreadStreamState = { generation: null, generationText: null };
 
 interface StreamEntry {
-  source: EventSource;
+  /** `undefined` while the page is hidden and the lane is released. */
+  source: EventSource | undefined;
   state: ThreadStreamState;
   listeners: Set<() => void>;
+  /** Detach the visibility watch; the caller closes the source. */
+  stopWatching: () => void;
 }
 
 const streams = new Map<string, StreamEntry>();
@@ -105,14 +115,33 @@ function openStream(
   threadId: string,
   queryClient: QueryClient,
 ): StreamEntry {
+  const entry: StreamEntry = {
+    source: undefined,
+    state: RESOLVING,
+    listeners: new Set(),
+    stopWatching: () => undefined,
+  };
+  entry.stopWatching = whileVisible({
+    open: () => {
+      entry.source = connectLane(key, organizationId, threadId, queryClient);
+    },
+    release: () => {
+      entry.source?.close();
+      entry.source = undefined;
+    },
+  });
+  return entry;
+}
+
+function connectLane(
+  key: string,
+  organizationId: string,
+  threadId: string,
+  queryClient: QueryClient,
+): EventSource {
   const source = new EventSource(streamPath(organizationId, threadId), {
     withCredentials: true,
   });
-  const entry: StreamEntry = {
-    source,
-    state: RESOLVING,
-    listeners: new Set(),
-  };
   source.addEventListener('idle', () => {
     // `idle` is the open-time probe, so one arriving over a streaming lane
     // is a reconnect that found the turn over: `settled` went by while the
@@ -184,7 +213,7 @@ function openStream(
   source.addEventListener('error', () => {
     // The browser reconnects on its own; hold the last state meanwhile.
   });
-  return entry;
+  return source;
 }
 
 /**
@@ -213,7 +242,8 @@ export function useThreadStream(
         if (!current) return;
         current.listeners.delete(onStoreChange);
         if (current.listeners.size === 0) {
-          current.source.close();
+          current.stopWatching();
+          current.source?.close();
           streams.delete(key);
         }
       };
