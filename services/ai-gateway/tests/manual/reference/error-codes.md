@@ -18,6 +18,8 @@ Each surfaces as a localized message the user can act on.
 | `denied` | Decline at the vendor — at Anthropic on a loopback panel (`ACCT-40`), or refuse the code at OpenAI. |
 | `unavailable` | Start an OpenAI sign-in while `auth.openai.com` is unreachable (block it in `/etc/hosts`); the gateway answers 502. |
 | `unknown_account` | Remove an account in a second tab, then use the first tab's row menu. |
+| `signed_out` | Not the server's — the panel's own code for a redirect, or a 401 without the gateway's envelope, from whatever fronts it: its sign-in ran out. On the fleet's panel, delete the SSO gateway's `__Host-tale_entra_oid*` cookies and wait for the next re-read (`ACCT-46`), or use a row action. |
+| `unreachable` | Not the server's — the panel's own code for "the fetch never completed". Block `/api/accounts` in the browser's developer tools and reload the panel for the table's failure state (`ACCT-19`), or stop the server with the panel open for the warning above the rows (`ACCT-45`). |
 
 ## Reachable on the API surface only
 
@@ -28,7 +30,6 @@ Never a UI message — seeing one of these in the UI is itself a bug.
 | `invalid_api_key` | Any `GET /api/tokens…` with a wrong key or no key. The panel's routes never answer this — the key is not their door. |
 | `unknown_provider` | `GET /api/tokens/<anything the registry does not know>` with a valid key — `/api/tokens/gemini`. A vendor that exists but holds no accounts is a 200 and an empty list instead. |
 | `invalid_request` | A malformed body: a `provider` the registry does not know, a complete with no paste. The panel's own controls cannot produce these. |
-| `unreachable` | Not the server's — the panel's own code for "the fetch never completed". Provoke it by stopping the server and reloading the panel. |
 
 ## Must never appear
 
