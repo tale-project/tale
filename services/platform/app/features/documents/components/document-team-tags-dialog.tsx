@@ -11,7 +11,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Settings, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
@@ -59,7 +59,7 @@ function DocumentTeamDialogContent({
 
   const updateDocument = useUpdateDocument();
   const updateFolderTeams = useUpdateFolderTeams();
-  const { teams, isLoading } = useTeams();
+  const { teams, isLoading } = useOrgTeams();
 
   const hasTeams = teams && teams.length > 0;
 

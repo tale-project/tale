@@ -42,7 +42,7 @@ const mockTeams = [
 ];
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useTeams: () => ({ teams: mockTeams, isLoading: false }),
+  useOrgTeams: () => ({ teams: mockTeams, isLoading: false }),
 }));
 
 vi.mock('../hooks/mutations', () => ({

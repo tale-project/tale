@@ -16,7 +16,7 @@ import {
   useState,
 } from 'react';
 
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useT } from '@/lib/i18n/client';
 
@@ -98,7 +98,7 @@ export function GoogleDriveImportDialog({
     Array<{ id: string | undefined; name: string }>
   >([{ id: undefined, name: t('breadcrumb.googleDrive') }]);
 
-  const { teams, isLoading: isLoadingTeams } = useTeams();
+  const { teams, isLoading: isLoadingTeams } = useOrgTeams();
 
   const { data: cloudImportAuth, isLoading: cloudImportAuthLoading } =
     useCloudImportAuthorizationStatus(

@@ -56,7 +56,7 @@ let mockTeamsData: { teams: typeof mockTeams | undefined; isLoading: boolean } =
   { teams: mockTeams, isLoading: false };
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useTeams: () => mockTeamsData,
+  useOrgTeams: () => mockTeamsData,
 }));
 
 // Lightweight stand-in for the real multi-select: one checkbox per team that

@@ -46,7 +46,7 @@ const mockTeams = [
 ];
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useTeams: () => ({ teams: mockTeams, isLoading: false }),
+  useOrgTeams: () => ({ teams: mockTeams, isLoading: false }),
 }));
 
 // Destination folder lookup (#1469). Default: no folder / no team binding.

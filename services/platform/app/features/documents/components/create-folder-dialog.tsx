@@ -9,7 +9,7 @@ import { useToast } from '@tale/ui/use-toast';
 import { type RefObject, useState, useMemo } from 'react';
 import * as z from 'zod';
 
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useT } from '@/lib/i18n/client';
 
@@ -44,7 +44,7 @@ export function CreateFolderDialog({
   const { t: tDocuments } = useT('documents');
   const { toast } = useToast();
   const { mutateAsync: createFolder } = useCreateFolder();
-  const { teams } = useTeams();
+  const { teams } = useOrgTeams();
 
   const nameRequiredError = tDocuments('folder.nameRequired');
   const schema = useMemo(

@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 43 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 44 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -380,6 +380,14 @@ records and delete them after.
   entry (`knowledgeEntries.viewDialog.entryIdHint`). **Edit** the content,
   save, reopen the details → the Version ID differs from the one copied
   before while the topic and **Version history** carry the previous version.
+- [ ] `KNOW-F28` · **An Owner or Admin may pick any team** — Signed in as an
+  Owner who is a member of none of the org's teams (Settings › Teams lists at
+  least one synced team) → Documents → **Upload documents** → **Assign to
+  teams**, a row's **Assign team**, **New folder** → **Team**, and the
+  OneDrive / Google Drive import dialogs' team picker → Each lists every team
+  of the organization, synced ones included, as the documents guide says. As
+  a plain Member of one team → the same pickers list that team only. Assign a
+  document to a team you are not in → its preview sidebar names that team.
 
 ## Boundary & error tests
 
