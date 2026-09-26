@@ -743,6 +743,12 @@ function CreateTaskBody({
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  const { resolveActor } = useActorDirectory(organizationId, projectId);
+  // Named beside the avatar, as on the task's own details panel — the bare
+  // avatar button left "who takes this" to a hover.
+  const assigneeName = assignee
+    ? resolveActor(assignee.type, assignee.id).name
+    : t('assignee.unassigned');
 
   const submit = async () => {
     const trimmed = title.trim();
@@ -902,6 +908,16 @@ function CreateTaskBody({
                 taskDescription={description}
                 taskLabels={labels}
                 align="end"
+                afterTrigger={
+                  <span
+                    className={cn(
+                      'min-w-0 truncate text-sm',
+                      assignee ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {assigneeName}
+                  </span>
+                }
                 onAssign={(type, id) => setAssignee({ type, id })}
                 onUnassign={() => setAssignee(null)}
               />
@@ -1644,7 +1660,15 @@ export function EditTaskBody({
           disabled={!canMutate}
           align="end"
           afterTrigger={
-            <span className="text-foreground min-w-0 truncate text-sm">
+            // An empty value reads muted, like the dates' "Pick a date".
+            <span
+              className={cn(
+                'min-w-0 truncate text-sm',
+                task.assigneeType && task.assigneeId
+                  ? 'text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
               {assigneeName}
             </span>
           }
@@ -1700,7 +1724,14 @@ export function EditTaskBody({
           disabled={!canMutate}
           align="end"
           afterTrigger={
-            <span className="text-foreground min-w-0 truncate text-sm">
+            <span
+              className={cn(
+                'min-w-0 truncate text-sm',
+                task.reviewerUserId !== undefined
+                  ? 'text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
               {reviewerName}
             </span>
           }
