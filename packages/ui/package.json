@@ -45,6 +45,7 @@
     "./content-wrapper": "./src/components/layout/content-wrapper.tsx",
     "./copyable-field": "./src/components/data-display/copyable-field.tsx",
     "./copyable-timestamp": "./src/components/data-display/copyable-timestamp.tsx",
+    "./count-badge": "./src/components/feedback/count-badge.tsx",
     "./data-table/column-builders": "./src/components/data-table/column-builders.tsx",
     "./data-table/data-table": "./src/components/data-table/data-table.tsx",
     "./data-table/data-table-action-menu": "./src/components/data-table/data-table-action-menu.tsx",

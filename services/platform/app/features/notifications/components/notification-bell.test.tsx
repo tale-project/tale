@@ -9,9 +9,10 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 import { NotificationBell } from './notification-bell';
 
 // The bell's own count hooks — keep them quiet so the component renders without
-// a live backend. Values are irrelevant to the dialog-naming assertion.
+// a live backend. Zero unless a test raises it.
+const mockUnread = vi.hoisted(() => ({ count: 0 }));
 vi.mock('../hooks/queries', () => ({
-  useNotificationsUnreadCount: () => ({ data: 0 }),
+  useNotificationsUnreadCount: () => ({ data: mockUnread.count }),
 }));
 vi.mock('@/app/features/inbox/hooks/queries', () => ({
   useUnreadNotificationCount: () => 0,
@@ -33,9 +34,22 @@ vi.mock('./notification-list-panel', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUnread.count = 0;
 });
 
 describe('NotificationBell', () => {
+  it('names its unread count, since the count chip itself is hidden', () => {
+    mockUnread.count = 3;
+    render(<NotificationBell organizationId="org-1" />);
+
+    const trigger = screen.getByRole('button', {
+      name: 'Notifications, 3 unread notifications',
+    });
+    const chip = trigger.querySelector('[data-slot="count-badge"]');
+    expect(chip).toHaveTextContent('3');
+    expect(chip).toHaveAttribute('aria-hidden', 'true');
+  });
+
   // Regression test for #2096: Radix renders the popover content as
   // role="dialog"; it must carry an accessible name so screen readers announce
   // it as the "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).

@@ -4349,6 +4349,7 @@ navigation:
   aria:
     primaryNavigation: Primary navigation
     unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'
+    unreadNotifications: '{count, plural, one {# unread notification} other {# unread notifications}}'
   dataResidency: Data residency
   sandboxes: Sandboxes
   enterpriseSso: Enterprise SSO

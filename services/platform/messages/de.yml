@@ -4507,6 +4507,7 @@ navigation:
   aria:
     primaryNavigation: Hauptnavigation
     unreadConversations: '{count, plural, one {# ungelesene Konversation} other {# ungelesene Konversationen}}'
+    unreadNotifications: '{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}'
   dataResidency: Datenresidenz
   sandboxes: Sandboxes
   enterpriseSso: Enterprise-SSO
