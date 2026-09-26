@@ -1597,6 +1597,7 @@ common:
     dismiss: Verwerfen
     zoomIn: Vergrößern
     zoomOut: Verkleinern
+    pageNumber: Seitenzahl
     removeNamed: '{name} entfernen'
     unread: Ungelesen
     completed: Abgeschlossen

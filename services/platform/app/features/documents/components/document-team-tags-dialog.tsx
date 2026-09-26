@@ -190,8 +190,8 @@ function DocumentTeamDialogContent({
         />
       ) : (
         <div className="space-y-1.5 px-6 pt-2 pb-4">
-          <Label>{tDocuments('teamTags.team')}</Label>
           <TeamMultiSelect
+            label={tDocuments('teamTags.team')}
             teams={teams ?? []}
             selectedTeamIds={selectedTeamIds}
             onSelectionChange={setSelectedTeamIds}

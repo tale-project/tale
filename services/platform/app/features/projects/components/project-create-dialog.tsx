@@ -227,21 +227,16 @@ export function ProjectCreateDialog({
         errorMessage={errors.description?.message}
       />
       {assignableTeams && assignableTeams.length > 0 ? (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="project-audience">
-            {t('create.audienceLabel')}
-          </label>
-          <p className="text-muted-foreground text-sm">
-            {t('create.audienceHelp')}
-          </p>
-          <TeamMultiSelect
-            teams={assignableTeams}
-            selectedTeamIds={teamIds}
-            onSelectionChange={setTeamIds}
-            orgWideLabel={t('list.sharingOrgWide')}
-            disabled={isSubmitting}
-          />
-        </div>
+        <TeamMultiSelect
+          id="project-audience"
+          label={t('create.audienceLabel')}
+          description={t('create.audienceHelp')}
+          teams={assignableTeams}
+          selectedTeamIds={teamIds}
+          onSelectionChange={setTeamIds}
+          orgWideLabel={t('list.sharingOrgWide')}
+          disabled={isSubmitting}
+        />
       ) : null}
     </FormDialog>
   );

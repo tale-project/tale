@@ -1604,6 +1604,7 @@ common:
     dismiss: Ignorer
     zoomIn: Zoom avant
     zoomOut: Zoom arrière
+    pageNumber: Numéro de page
     removeNamed: Retirer {name}
     unread: Non lu
     completed: Terminé

@@ -69,14 +69,17 @@ vi.mock('./team-multi-select', () => ({
     onSelectionChange,
     orgWideLabel,
     disabled,
+    label,
   }: {
     teams: Array<{ id: string; name: string }>;
     selectedTeamIds: string[];
     onSelectionChange: (ids: string[]) => void;
     orgWideLabel: string;
     disabled?: boolean;
+    label?: string;
   }) => (
     <div data-testid="mock-team-multi-select">
+      <span data-testid="picker-label">{label}</span>
       <span data-testid="selection">
         {selectedTeamIds.length === 0
           ? orgWideLabel
@@ -162,6 +165,17 @@ describe('DocumentTeamTagsDialog', () => {
     expect(screen.getByTestId('team-team-1')).toBeInTheDocument();
     expect(screen.getByTestId('team-team-2')).toBeInTheDocument();
     expect(screen.getByTestId('team-team-3')).toBeInTheDocument();
+  });
+
+  // The label is the picker's own (B-08): the combobox is named by it, so
+  // the dialog no longer renders a detached <Label> beside it.
+  it('hands the picker its visible label', () => {
+    render(<DocumentTeamTagsDialog {...defaultProps} />);
+
+    expect(screen.getByTestId('picker-label')).toHaveTextContent(
+      'documents.teamTags.team',
+    );
+    expect(screen.getAllByText('documents.teamTags.team')).toHaveLength(1);
   });
 
   it('defaults to org-wide when no team is selected', () => {

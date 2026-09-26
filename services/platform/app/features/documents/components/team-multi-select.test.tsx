@@ -19,6 +19,22 @@ const defaultProps = {
 };
 
 describe('TeamMultiSelect', () => {
+  // Regression (2026-09-26 evaluation, B-08): the combobox had no accessible
+  // name — the words above it were a bare span.
+  it('names the combobox by its visible label', () => {
+    render(<TeamMultiSelect {...defaultProps} label="Assign to teams" />);
+
+    expect(
+      screen.getByRole('combobox', { name: 'Assign to teams' }),
+    ).toBeInTheDocument();
+  });
+
+  it('names the combobox by aria-label when no label is rendered', () => {
+    render(<TeamMultiSelect {...defaultProps} aria-label="Teams" />);
+
+    expect(screen.getByRole('combobox', { name: 'Teams' })).toBeInTheDocument();
+  });
+
   it('renders org-wide chip when no teams selected', () => {
     render(<TeamMultiSelect {...defaultProps} />);
 

@@ -1,6 +1,6 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 24 boxes
 
 A WCAG 2.1 **Level AA** sweep across the whole app. Tale's standard (root
 [`AGENTS.md`](../../../AGENTS.md) → Accessibility) is mandatory, not
@@ -123,6 +123,22 @@ component-level axe coverage comes from `vitest-axe` via
   Tab: after **Skip to main content** (`common.aria.skipToContent`) the next
   stop is **Skip to message box** (`chat.aria.skipToComposer`); Enter lands the
   focus in the message box, past every sidebar row.
+- [ ] `A11Y-A17` · **Team pickers and the PDF page box are named** — Open
+  Documents → **Upload documents** → **From your device**, a row's **Assign
+  team**, a project's **New project** and **Sharing** section, and a skill's
+  **Team** visibility; read each team combobox in the accessibility tree →
+  Its accessible name is the visible words above it (**Assign to teams**
+  `documents.upload.selectTeams`, **Team** `documents.teamTags.team`,
+  `projects.create.audienceLabel`, `projects.settings.audience`,
+  `skills.visibility.teamsLabel`), never unnamed; axe `aria-input-field-name`
+  reports nothing. Preview a multi-page PDF → the page-number box is a
+  spinbutton named **Page number** (`common.aria.pageNumber`).
+- [ ] `A11Y-A18` · **Muted text meets AA** — In light mode open **Add
+  website** and **Add product**; measure with axe `color-contrast` or a
+  contrast picker → the inactive **URL list** segment reads ≥ 4.5:1 on its
+  track and every **(optional)** label suffix (`common.optional`) reads
+  ≥ 4.5:1 on the dialog; the suffix is the full muted colour, not a faded
+  copy of it.
 
 ## Boundary & error tests
 

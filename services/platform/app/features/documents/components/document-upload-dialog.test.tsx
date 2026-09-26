@@ -162,6 +162,10 @@ describe('DocumentUploadDialog', () => {
       screen.getByText('documents.upload.selectTeams'),
     ).toBeInTheDocument();
     expect(screen.getByText('documents.teamTags.orgWide')).toBeInTheDocument();
+    // The visible label names the picker (B-08).
+    expect(
+      screen.getByRole('combobox', { name: 'documents.upload.selectTeams' }),
+    ).toBeInTheDocument();
   });
 
   // Regression test for #1469: uploading into a team-scoped folder must lock

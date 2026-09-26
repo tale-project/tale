@@ -1547,6 +1547,7 @@ common:
     dismiss: Dismiss
     zoomIn: Zoom in
     zoomOut: Zoom out
+    pageNumber: Page number
     removeNamed: Remove {name}
     unread: Unread
     completed: Completed

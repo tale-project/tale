@@ -270,15 +270,13 @@ export function DocumentUploadDialog({
 
         {/* Team selection */}
         <Stack gap={2}>
-          <span className="text-muted-foreground text-sm font-medium">
-            {tDocuments('upload.selectTeams')}
-          </span>
           {isLoadingTeams ? (
             <Row gap={0} justify="center" className="py-3">
               <Spinner size="sm" label={tCommon('actions.loading')} />
             </Row>
           ) : (
             <TeamMultiSelect
+              label={tDocuments('upload.selectTeams')}
               teams={teams ?? []}
               selectedTeamIds={selectedTeamIds}
               onSelectionChange={handleTeamSelectionChange}

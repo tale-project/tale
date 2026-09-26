@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { DocumentPreviewPDF } from './document-preview-pdf';
@@ -60,5 +60,15 @@ describe('DocumentPreviewPDF pdfjs bootstrap', () => {
       expect(getDocument).toHaveBeenCalledWith('https://example.com/file.pdf');
     });
     expect(globalThis.pdfjsLib).toBeDefined();
+  });
+
+  // Regression (2026-09-26 evaluation, B-08): the page-number box was a bare
+  // `<input type="number">` with no name.
+  it('names the page-number input', async () => {
+    render(<DocumentPreviewPDF url="https://example.com/file.pdf" />);
+
+    expect(
+      await screen.findByRole('spinbutton', { name: 'aria.pageNumber' }),
+    ).toBeInTheDocument();
   });
 });
