@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 42 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 43 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -437,6 +437,14 @@ records and delete them after.
   with a description starting `products.1.price:`; a contacts CSV with an
   invalid email on the second row → **Import error** (`contacts.import.error`)
   with `contacts.1.email:`. Nothing is imported in either case.
+- [ ] `KNOW-B8` · **`http://` in each add-website mode** — Websites → **Add
+  website** → **Whole website** → **Domain** = `http://example.net` → **Save**
+  → the field shows the https-host sentence inline
+  (`websites.toast.addErrorReason.domainInvalid`), no request leaves, no
+  toast. Switch to **URL list** → the hint under **URLs**
+  (`websites.urlListHint`) says pages are fetched over HTTPS and an `http://`
+  line is fetched as `https://`; paste `http://example.org/` → **Save** → the
+  source appears and its page is stored as `https://example.org/`.
 
 ## Accessibility (WCAG 2.1 AA)
 

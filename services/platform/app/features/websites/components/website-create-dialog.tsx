@@ -115,6 +115,14 @@ export function WebsiteCreateDialog({
                 path: ['domain'],
                 message: tWebsites('validation.domainRequired'),
               });
+            } else if (/^http:\/\//i.test(data.domain.trim())) {
+              // The crawler dials https only; the door refuses an http://
+              // host with this sentence, so say it here before the trip.
+              ctx.addIssue({
+                code: 'custom',
+                path: ['domain'],
+                message: tWebsites('toast.addErrorReason.domainInvalid'),
+              });
             } else if (!isValidDomainInput(data.domain)) {
               ctx.addIssue({
                 code: 'custom',

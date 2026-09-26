@@ -155,6 +155,38 @@ describe('WebsiteCreateDialog', () => {
     });
   });
 
+  // Regression (2026-09-26 evaluation, B-05): whole-website mode sent an
+  // http:// domain to the door only to be refused with a generic toast.
+  describe('whole-website mode and http://', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('refuses an http:// domain inline before any request', async () => {
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      const domain = screen.getByLabelText('Domain');
+      await user.type(domain, 'http://example.net');
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await user.click(submit);
+
+      await waitFor(() =>
+        expect(domain).toHaveAccessibleDescription(
+          /http:\/\/ addresses are not crawled/,
+        ),
+      );
+      expect(createWebsiteMock).not.toHaveBeenCalled();
+      expect(toast).not.toHaveBeenCalled();
+    });
+  });
+
   // Regression (2026-09-26 evaluation, B-04): every policy refusal read
   // "Couldn't add website" while the server's answer named the reason.
   describe('refusal reasons', () => {
@@ -280,6 +312,23 @@ describe('WebsiteCreateDialog', () => {
         ),
       );
       expect(onClose).toHaveBeenCalled();
+    });
+
+    // Regression (2026-09-26 evaluation, B-05): the list hint said nothing
+    // about the https upgrade the server applies to a listed http:// page.
+    it('says listed pages are fetched over HTTPS', async () => {
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      await user.click(screen.getByRole('radio', { name: 'URL list' }));
+      expect(screen.getByLabelText('URLs')).toHaveAccessibleDescription(
+        /fetched over HTTPS; an http:\/\/ line is fetched as https:\/\//,
+      );
     });
 
     it('rejects an unparseable line with a field error and no calls', async () => {

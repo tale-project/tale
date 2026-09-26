@@ -7555,7 +7555,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: Une URL par ligne. Seules ces pages exactes sont indexées, pas le site entier. Les URL de domaines différents sont enregistrées comme des sites web séparés.
+  urlListHint: Une URL par ligne. Seules ces pages exactes sont indexées, pas le site entier. Les URL de domaines différents sont enregistrées comme des sites web séparés. Les pages sont récupérées en HTTPS ; une ligne en http:// est récupérée en https://.
   kindList: Liste d'URL
   scanIntervals:
     1hour: Toutes les heures

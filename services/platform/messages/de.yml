@@ -7456,7 +7456,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt.
+  urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt. Die Seiten werden über HTTPS geholt; eine http://-Zeile wird als https:// abgerufen.
   kindList: URL-Liste
   scanIntervals:
     1hour: Jede Stunde

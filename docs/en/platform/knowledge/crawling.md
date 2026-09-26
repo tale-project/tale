@@ -26,7 +26,7 @@ Choose **Scan interval** and **Save**. The default interval is six hours; the av
 
 ## Keep a URL list focused
 
-A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
+A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. A listed `http://` address is accepted and fetched as `https://`, unlike a whole-website `http://` domain, which is refused; a page that serves plaintext only stays out of reach either way. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
 
 Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. Images and scans without extractable text do not become searchable content.
 

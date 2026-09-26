@@ -7504,7 +7504,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites.
+  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites. Pages are fetched over HTTPS; an http:// line is fetched as https://.
   kindList: URL list
   scanIntervals:
     1hour: Every 1 hour
