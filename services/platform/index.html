@@ -138,6 +138,9 @@
             section === 'tasks' ||
             (section === 'conversations' &&
               /[?&]conversation=/.test(window.location.search));
+          // A conversation-shaped page brings its own phone header, so the
+          // shell's bar stand-in hides there (see DashboardShellFrame).
+          if (collapsible) root.classList.add('boot-thread-page');
           var stored = localStorage.getItem('chat-history-panel-open-' + org);
           if (!collapsible || stored !== 'false') {
             root.classList.add('boot-home-panel-open');

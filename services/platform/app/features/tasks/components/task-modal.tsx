@@ -1845,12 +1845,20 @@ export function EditTaskBody({
             }
             meta={
               <>
+                {/* On a phone the key and the status are what fit beside the
+                    header's actions; the project name steps aside. */}
                 {project !== null && project !== undefined && (
-                  <span className="truncate">{project.name}</span>
+                  <span className="hidden min-w-0 truncate sm:inline">
+                    {project.name}
+                  </span>
                 )}
                 {identifier && (
                   <>
-                    <ThreadHeaderSeparator />
+                    {project !== null && project !== undefined && (
+                      <span className="hidden sm:contents">
+                        <ThreadHeaderSeparator />
+                      </span>
+                    )}
                     {/* The key is what people quote in a message or a
                         commit — one click copies it. */}
                     <Tooltip

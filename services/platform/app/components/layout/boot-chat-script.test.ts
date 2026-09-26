@@ -97,6 +97,29 @@ describe('index.html boot-chat script', () => {
     }
   });
 
+  it('marks the pages that bring their own phone header', () => {
+    for (const path of [
+      '/dashboard/org-1/chat',
+      '/dashboard/org-1/chat/thread-1',
+      '/dashboard/org-1/tasks/t-1',
+      '/dashboard/org-1/conversations/open?conversation=c-1',
+    ]) {
+      expect(bootAt(path).classList.contains('boot-thread-page'), path).toBe(
+        true,
+      );
+    }
+    for (const path of [
+      '/dashboard/org-1/home',
+      '/dashboard/org-1/projects/p-1',
+      '/dashboard/org-1/conversations/open',
+      '/dashboard/org-1/settings/account',
+    ]) {
+      expect(bootAt(path).classList.contains('boot-thread-page'), path).toBe(
+        false,
+      );
+    }
+  });
+
   it("leaves a project's automation workbench without the panel", () => {
     for (const path of [
       '/dashboard/org-1/projects/p-1/automations/intake',

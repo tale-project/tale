@@ -42,6 +42,7 @@ import { ChangelogToastTrigger } from '@/app/features/changelog/components/chang
 import { HomePanel } from '@/app/features/home/components/home-panel';
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 import {
+  isPanelCollapsible,
   readHomeLocation,
   showsHomePanel,
 } from '@/app/features/home/lib/home-paths';
@@ -94,6 +95,13 @@ export const Route = createFileRoute('/dashboard/$id')({
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
   usePasswordExpiryGate(organizationId);
+  // A chat, a task or an open conversation carries its own header on a
+  // phone — back arrow, title, actions — so the shell's bar would only stack
+  // an empty row above it.
+  const { pathname, search } = useLocation();
+  const threadPage = isPanelCollapsible(
+    readHomeLocation(pathname, search, organizationId),
+  );
 
   // Theme the app to this org's branding. BrandingProvider sits above the
   // router (it themes the pre-auth shell too) and can't read this route param
@@ -320,14 +328,23 @@ function DashboardLayout() {
                         {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
-                        <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                          <Row gap={2} className="min-h-12">
-                            <div className="min-w-0 flex-1">
-                              <AdaptiveHeaderSlot />
-                            </div>
-                            <UserButton align="end" />
-                          </Row>
-                        </header>
+                        {threadPage ? (
+                          // The notch clearance the bar would have given the
+                          // page's own header.
+                          <div
+                            aria-hidden
+                            className="bg-background h-(--safe-top) shrink-0 md:hidden"
+                          />
+                        ) : (
+                          <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                            <Row gap={2} className="min-h-12">
+                              <div className="min-w-0 flex-1">
+                                <AdaptiveHeaderSlot />
+                              </div>
+                              <UserButton align="end" />
+                            </Row>
+                          </header>
+                        )}
 
                         {hasRole ? (
                           <AppSidebar organizationId={organizationId} />

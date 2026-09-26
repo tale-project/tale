@@ -30,7 +30,15 @@ export function DashboardShellFrame() {
           landing): a leading cluster of action icons + the trailing account
           avatar, so the real header slots in without reflow. Matches the
           DashboardLayout header geometry (px-4, min-h-12). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+      {/* The notch clearance a thread page keeps without the bar (zero where
+          there is no notch, so harmless on desktop). */}
+      <div
+        aria-hidden
+        className="hidden h-(--safe-top) shrink-0 [.boot-thread-page_&]:block"
+      />
+      {/* Hidden on a chat, a task or an open conversation, which carry their
+          own header on a phone (`boot-thread-page`, set before first paint). */}
+      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden [.boot-thread-page_&]:hidden">
         <Skeletonize loading>
           <Row gap={2} className="min-h-12">
             {/* Leading action icons (sidebar menu / search). */}

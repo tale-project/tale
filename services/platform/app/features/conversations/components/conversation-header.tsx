@@ -324,7 +324,9 @@ export function ConversationHeader({
             </>
           )}
           {sourceLabel !== null && (
-            <>
+            // Like the email, the source steps aside on a phone: the name
+            // and the time are what fit beside the header's actions.
+            <span className="hidden min-w-0 items-center gap-1.5 md:inline-flex">
               <ThreadHeaderSeparator />
               <Tooltip content={sourceLabel}>
                 <span
@@ -343,7 +345,7 @@ export function ConversationHeader({
                   <span className="truncate">{sourceLabel}</span>
                 </span>
               </Tooltip>
-            </>
+            </span>
           )}
         </>
       }
