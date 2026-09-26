@@ -186,7 +186,7 @@ Verwende einen gepflegten OIDC-Client mit Authorization Code Flow, S256 PKCE sow
 
 Das ID-Token enthält die Standard-Claims der angeforderten Scopes mit denselben Werten, die Userinfo liefert. Um sie zu lesen, brauchst du also keine Userinfo-Anfrage. `email` ergänzt `email` und `email_verified`. `profile` ergänzt `name`, dazu `given_name` (alle Wörter außer dem letzten) und `family_name` (das letzte Wort), wenn der Name aus mindestens zwei Wörtern besteht, sowie `picture`, wenn das Konto ein Bild hat.
 
-Jedes ID-Token trägt denselben Wert `acr: "urn:mace:incommon:iap:bronze"`. Die Discovery führt ihn unter `acr_values_supported` und `claims_supported`. Er bescheinigt keinen stärkeren Authentifizierungskontext und keine abgeschlossene MFA-Prüfung; verwende ihn dafür nicht als Zugangskriterium. `prompt_values_supported` nennt die unterstützten Werte `none`, `login` und `consent`; `select_account` und `create` werden nicht angeboten.
+Jedes ID-Token trägt denselben Wert `acr: "0"`. Die Discovery führt `"0"` unter `acr_values_supported` und `acr` unter `claims_supported`. Er bescheinigt keinen stärkeren Authentifizierungskontext und keine abgeschlossene MFA-Prüfung; verwende ihn dafür nicht als Zugangskriterium. `prompt_values_supported` nennt die unterstützten Werte `none`, `login` und `consent`; `select_account` und `create` werden nicht angeboten.
 
 Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes, Zugriffs- und ID-Tokens laufen nach fünf Minuten ab, und ein Code lässt sich einmal einlösen. Dynamische Registrierung, Implicit Grants und Refresh Tokens sind deaktiviert.
 

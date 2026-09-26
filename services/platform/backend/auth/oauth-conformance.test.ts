@@ -25,6 +25,37 @@ const json = (
  * header included — and touches nothing else it serves.
  */
 describe('withOAuthConformance', () => {
+  it.each([
+    [401, 'invalid_token', 'Invalid access token'],
+    [403, 'insufficient_scope', 'Missing required scope'],
+  ])(
+    'keeps the modern provider %i bearer error in its challenge',
+    async (status, error, description) => {
+      const request = new Request(`${REALM}/oauth2/userinfo`, {
+        headers: { authorization: 'Bearer invalid-or-unscoped' },
+      });
+      const body = { error, error_description: description };
+      const response = await withOAuthConformance(
+        request,
+        json(status, body, { 'WWW-Authenticate': `Bearer error="${error}"` }),
+        REALM,
+      );
+      expect(response.status).toBe(status);
+      expect(response.headers.get('www-authenticate')).toContain(
+        `error="${error}"`,
+      );
+      expect(response.headers.get('www-authenticate')).toContain(
+        `error_description="${description}"`,
+      );
+      if (error === 'insufficient_scope') {
+        expect(response.headers.get('www-authenticate')).toContain(
+          'scope="openid"',
+        );
+      }
+      expect(await response.json()).toEqual(body);
+    },
+  );
+
   it('turns the userinfo 400 for a bad token into 401 invalid_token with a Bearer challenge', async () => {
     const request = new Request(`${REALM}/oauth2/userinfo`, {
       headers: { authorization: 'Bearer not-a-real-token' },

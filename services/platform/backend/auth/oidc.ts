@@ -42,7 +42,7 @@ export const OIDC_CLAIMS_SUPPORTED = [
 ];
 
 /** The one authentication context class the library asserts. */
-export const OIDC_ACR_VALUE = 'urn:mace:incommon:iap:bronze';
+export const OIDC_ACR_VALUE = '0';
 
 /**
  * What discovery advertises as `prompt_values_supported`: the values this
@@ -237,10 +237,33 @@ export function oauthRefusalFor(input: {
       };
     }
     if (status === 401 || status === 403) {
+      // Current provider versions already return the RFC status and error.
+      // Keep those details when adding our realm; a bare challenge would
+      // discard the invalid-token/required-scope signal clients act on.
+      const challengeError =
+        (status === 401 && body.error === 'invalid_token') ||
+        (status === 403 && body.error === 'insufficient_scope')
+          ? body.error
+          : undefined;
       return {
         status,
         body,
-        headers: { 'WWW-Authenticate': bearerChallenge(realm) },
+        headers: {
+          'WWW-Authenticate': bearerChallenge(
+            realm,
+            challengeError !== undefined
+              ? {
+                  error: challengeError,
+                  ...(description !== null
+                    ? { error_description: description }
+                    : {}),
+                  ...(challengeError === 'insufficient_scope'
+                    ? { scope: 'openid' }
+                    : {}),
+                }
+              : {},
+          ),
+        },
       };
     }
     return null;

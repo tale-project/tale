@@ -37,7 +37,7 @@ const answered = (status: number, body: unknown) => ({ status, body });
 /**
  * RFC 6750 §3: a bearer-protected resource answers an invalid or expired
  * token with 401 `invalid_token` and a `WWW-Authenticate: Bearer` challenge.
- * The provider library answers 400 with no challenge, which a conforming
+ * Older provider versions answered 400 with no challenge, which a conforming
  * client reads as "malformed, do not retry" — so every five-minute access
  * token expiry surfaced as a hard error instead of a re-login.
  */
@@ -283,7 +283,7 @@ describe('createOidcProvider — discovery', () => {
     // `acr_values_supported`; without the claim in `claims_supported` a
     // relying party that asked for it could not verify it was honoured.
     expect(OIDC_CLAIMS_SUPPORTED).toContain('acr');
-    expect(OIDC_ACR_VALUE).toBe('urn:mace:incommon:iap:bronze');
+    expect(OIDC_ACR_VALUE).toBe('0');
   });
 
   it('leaves a person five minutes to sign in before the request expires', () => {

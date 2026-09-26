@@ -414,7 +414,7 @@ export async function checkNativeIdentity(
     `claims=${Object.keys(profileOnly).join(',')}`,
   );
   check(
-    'the ID token carries the one acr discovery advertises — always bronze',
+    'the ID token carries the one acr discovery advertises — always 0',
     payload.acr === OIDC_ACR_VALUE,
     `acr=${String(payload.acr)} (want ${OIDC_ACR_VALUE})`,
   );
