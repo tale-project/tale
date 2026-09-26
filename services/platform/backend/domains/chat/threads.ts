@@ -4,6 +4,10 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  parseBranchSelections,
+  resolveViewPath,
+} from '../../../lib/shared/branch-selection.ts';
+import {
   getUserTeamIds,
   findOrganizationMember,
 } from '../../auth/membership.ts';
@@ -104,6 +108,9 @@ interface ThreadRow {
    * sequence; both null on a root. */
   branchParentId: string | null;
   branchForkSequence: number | null;
+  /** The sibling a share link's snapshot reads (the branch on screen when
+   * the link was taken); null = the root itself. Set on the ROOT row. */
+  sharedThreadId: string | null;
   hidden: boolean | null;
   createdAt: number;
   updatedAt: number;
@@ -123,7 +130,8 @@ const THREAD_COLUMNS = `
   tm.shared_at_ms::float8 AS "sharedAt", tm.shared_by AS "sharedBy",
   tm.status, tm.branch_root_id AS "branchRootId",
   tm.branch_parent_id AS "branchParentId",
-  tm.branch_fork_sequence AS "branchForkSequence", tm.hidden,
+  tm.branch_fork_sequence AS "branchForkSequence",
+  tm.shared_thread_id AS "sharedThreadId", tm.hidden,
   t.created_at_ms::float8 AS "createdAt", t.updated_at_ms::float8 AS "updatedAt"
 `;
 
@@ -864,24 +872,88 @@ export async function setThreadSharedWithProject(
   return true;
 }
 
-/** Share org-internally: mint (or keep) the token and stamp `sharedAt` — the
- * snapshot boundary. Re-sharing refreshes the boundary, keeping the URL. */
+/**
+ * Share org-internally: mint (or keep) the token and stamp `sharedAt` — the
+ * snapshot boundary. Re-sharing refreshes the boundary, keeping the URL.
+ *
+ * The share is taken on the lineage ROOT (the id the URL carries), but the
+ * transcript on screen is the LEAF the root's selection map resolves to —
+ * every edit / regenerate tail lives in a hidden sibling. The leaf is
+ * frozen here as `shared_thread_id`: the client names the sibling it shows
+ * (`leafThreadId`; its optimistic flips can lead the stored map), otherwise
+ * the stored map is walked server-side. A leaf that is not the root or one
+ * of its live siblings, or that belongs to someone else, refuses the share
+ * (null) — a token must never publish a thread its owner did not pick.
+ * Re-sharing ("Include newer messages") re-freezes to the leaf on screen.
+ */
 export async function shareThread(
   sql: Sql,
   organizationId: string,
   userId: string,
   threadId: string,
+  leafThreadId?: string,
 ): Promise<{ shareToken: string } | null> {
   const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
   if (!thread) return null;
+  const leaf =
+    leafThreadId === undefined
+      ? await resolveViewLeaf(sql, organizationId, userId, thread.id)
+      : await validateShareLeaf(
+          sql,
+          organizationId,
+          userId,
+          thread.id,
+          leafThreadId,
+        );
+  if (leaf === null) return null;
   const shareToken = thread.shareToken ?? mintShareToken();
   await sql`
     UPDATE app.thread_metadata SET
       share_token = ${shareToken}, is_shared = true,
-      shared_at_ms = ${Date.now()}, shared_by = ${userId}
+      shared_at_ms = ${Date.now()}, shared_by = ${userId},
+      shared_thread_id = ${leaf === thread.id ? null : leaf}
     WHERE thread_id = ${thread.id}
   `;
   return { shareToken };
+}
+
+/** The root itself, or one of its LIVE hidden siblings owned by the same
+ * person; anything else is null. */
+async function validateShareLeaf(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  rootId: string,
+  leafThreadId: string,
+): Promise<string | null> {
+  if (leafThreadId === rootId) return rootId;
+  const rows = await sql<{ id: string }[]>`
+    SELECT t.id
+    FROM app.threads t
+    JOIN app.thread_metadata tm ON tm.thread_id = t.id
+    WHERE t.id = ${leafThreadId} AND t.org_id = ${organizationId}
+      AND t.user_id = ${userId} AND tm.status = 'active'
+      AND tm.branch_root_id = ${rootId}
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
+/** The leaf the owner's view resolves to from the stored selection map —
+ * the same walk the app runs, over the same lineage read. */
+async function resolveViewLeaf(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  rootId: string,
+): Promise<string> {
+  const lineage = await listThreadBranches(sql, organizationId, userId, rootId);
+  const path = resolveViewPath(
+    rootId,
+    lineage.branches,
+    parseBranchSelections(lineage.selections),
+  );
+  return path.at(-1) ?? rootId;
 }
 
 /**
@@ -949,6 +1021,32 @@ export interface SharedThreadView {
 }
 
 /**
+ * The thread whose rows a share link publishes: the sibling frozen at share
+ * time, else the root. A frozen sibling that has since left the lineage
+ * (trashed, purged) falls back to the ROOT rather than going dark — the
+ * link's promise is "the conversation as shared", and the root's rows up to
+ * `sharedAt` are the closest thing still standing; the owner re-freezes
+ * with "Include newer messages". The `sharedAt` cut still holds on a
+ * sibling: its copied prefix carries the branch's creation stamp, which
+ * precedes any share taken from it.
+ */
+async function sharedSnapshotThreadId(
+  sql: Sql,
+  thread: ThreadRow,
+): Promise<string> {
+  const leaf = thread.sharedThreadId;
+  if (leaf === null || leaf === thread.id) return thread.id;
+  const rows = await sql<{ id: string }[]>`
+    SELECT tm.thread_id AS id
+    FROM app.thread_metadata tm
+    WHERE tm.thread_id = ${leaf} AND tm.branch_root_id = ${thread.id}
+      AND tm.status = 'active'
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? thread.id;
+}
+
+/**
  * Resolve a share token to its read-only snapshot. The token authorizes the
  * read TOGETHER with org membership (checked by the route's door — the org
  * is resolved FROM the thread here and compared). The snapshot is cut at
@@ -980,6 +1078,7 @@ export async function getSharedThread(
     return null;
   }
   const sharedAt = thread.sharedAt;
+  const snapshotThreadId = await sharedSnapshotThreadId(sql, thread);
   const messages = await sql<
     {
       id: string;
@@ -998,7 +1097,7 @@ export async function getSharedThread(
            provider_slug AS "providerSlug", blocked_reason AS "blockedReason",
            error, created_at_ms::float8 AS "createdAt"
     FROM app.messages
-    WHERE thread_id = ${thread.id} AND created_at_ms <= ${sharedAt}
+    WHERE thread_id = ${snapshotThreadId} AND created_at_ms <= ${sharedAt}
     ORDER BY "order", step_order
   `;
   return {

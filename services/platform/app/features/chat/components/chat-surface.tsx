@@ -2318,13 +2318,15 @@ function ChatSurfaceInner({
           />
         )}
 
-        {/* The header menu's Share — status, link, republish, revoke. */}
-        {threadId !== undefined && (
+        {/* The header menu's Share — status, link, republish, revoke. The
+          link names the root; the snapshot is the sibling on screen. */}
+        {threadId !== undefined && viewThreadId !== undefined && (
           <ShareChatDialog
             open={shareOpen}
             onOpenChange={setShareOpen}
             organizationId={organizationId}
             threadId={threadId}
+            viewThreadId={viewThreadId}
           />
         )}
 

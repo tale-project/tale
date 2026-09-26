@@ -686,13 +686,32 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  // The share names the lineage ROOT; `leafThreadId` is the sibling on
+  // screen (the version of each edited / regenerated turn the owner sees),
+  // which the snapshot is frozen to. Absent, the stored selection map is
+  // walked server-side. The body is optional: an older tab posts none.
   app.post('/threads/:threadId/share', async (c) => {
+    const raw = await c.req.text();
+    let parsed: unknown = {};
+    if (raw.trim().length > 0) {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        console.warn('[chat] share body is not JSON', error);
+        return c.json({ error: 'invalid body' }, 400);
+      }
+    }
+    const body = z
+      .object({ leafThreadId: z.string().min(1).max(128).optional() })
+      .safeParse(parsed);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const share = await shareThread(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
+      body.data.leafThreadId,
     );
     if (share === null) return c.json({ error: 'thread not found' }, 404);
     await hintThread(c, c.req.param('threadId'));

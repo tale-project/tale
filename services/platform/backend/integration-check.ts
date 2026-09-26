@@ -38882,6 +38882,85 @@ async function checkChatThreadSurface(
     `answer=${nestedEdit.success ? `${nestedEdit.data.parentId}:${nestedEdit.data.forkSequence}` : 'ERR'} row=${nestedStamp[0]?.parentId}:${nestedStamp[0]?.forkSequence} (want ${threadB}:0)`,
   );
 
+  // A share link publishes the sibling on screen: the leaf the client names
+  // is frozen on the ROOT row (`shared_thread_id`, migration 0114) and the
+  // snapshot reads ITS rows under the root's token; a leaf outside the
+  // lineage is refused; without a leaf the stored selection map (root:0 →
+  // the regenerate sibling, set above) resolves it.
+  const regenOnly = `regen only reply ${Date.now()}`;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${regenBranchId}, ${orgId}, 1, 0, 'assistant', ${regenOnly},
+       ${sql.json(toJson([{ type: 'text', text: regenOnly }]))},
+       'complete', ${Date.now()})
+  `;
+  const snapshotTexts = async (): Promise<{
+    threadId: string;
+    texts: string[];
+  } | null> => {
+    const parsed = z
+      .object({
+        threadId: z.string(),
+        messages: z.array(
+          z
+            .object({
+              parts: z.array(z.object({ text: z.string().optional() }).loose()),
+            })
+            .loose(),
+        ),
+      })
+      .loose()
+      .safeParse(
+        await get(`/api/app/chat/threads/shared/${token}?orgId=${orgId}`),
+      );
+    if (!parsed.success) return null;
+    return {
+      threadId: parsed.data.threadId,
+      texts: parsed.data.messages.flatMap((message) =>
+        message.parts.map((part) => part.text ?? ''),
+      ),
+    };
+  };
+  const leafShare = z.object({ shareToken: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads/${threadB}/share?orgId=${orgId}`, {
+        leafThreadId: regenBranchId,
+      })
+    ).json(),
+  );
+  const leafSnapshot = await snapshotTexts();
+  const frozen = await sql<{ sharedThreadId: string | null }[]>`
+    SELECT shared_thread_id AS "sharedThreadId"
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  const foreignLeaf = await post(
+    `/api/app/chat/threads/${threadB}/share?orgId=${orgId}`,
+    { leafThreadId: threadA },
+  );
+  const resolvedShare = await post(
+    `/api/app/chat/threads/${threadB}/share?orgId=${orgId}`,
+    {},
+  );
+  const resolvedSnapshot = await snapshotTexts();
+  record(
+    'share links publish the sibling on screen; a foreign leaf is refused; the stored map resolves one',
+    leafShare.success &&
+      leafShare.data.shareToken === token &&
+      frozen[0]?.sharedThreadId === regenBranchId &&
+      leafSnapshot !== null &&
+      leafSnapshot.threadId === threadB &&
+      leafSnapshot.texts.includes(regenOnly) &&
+      !leafSnapshot.texts.includes('result text beta') &&
+      foreignLeaf.status === 404 &&
+      resolvedShare.status === 200 &&
+      resolvedSnapshot !== null &&
+      resolvedSnapshot.texts.includes(regenOnly),
+    `token=${leafShare.success && leafShare.data.shareToken === token}, frozen=${frozen[0]?.sharedThreadId === regenBranchId}, leaf=${leafSnapshot ? `${leafSnapshot.threadId === threadB}/${leafSnapshot.texts.includes(regenOnly)}/${!leafSnapshot.texts.includes('result text beta')}` : 'ERR'} (want root/true/true), foreign=${foreignLeaf.status} (want 404), resolved=${resolvedShare.status}/${resolvedSnapshot?.texts.includes(regenOnly)} (want 200/true)`,
+  );
+
   // Palette search reads the whole live lineage: a body that exists ONLY on
   // the hidden edit sibling is found, and the hit names the ROOT (the id the
   // chat URL carries), never the sibling. The regenerate sibling — selected

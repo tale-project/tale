@@ -12,6 +12,8 @@ Teile einen Chat, wenn Kollegen die Frage und Antwort lesen sollen, ohne dein Ge
 3. Klicke auf **Freigabelink erstellen**.
 4. Prüfe die Momentaufnahme mit **Vorschau** und nutze anschließend **Link kopieren**.
 
+Die Momentaufnahme zeigt den Zweig, den du gerade siehst. Hast du **Nachricht bearbeiten** oder **Erneut versuchen** genutzt, veröffentlicht der Link von jeder bearbeiteten oder neu erzeugten Antwort die Fassung, die auf dem Bildschirm steht. Wechsle vor dem Erstellen des Links mit **Vorheriger Zweig** und **Nächster Zweig** zu der Fassung, die deine Kollegen lesen sollen.
+
 Lies den Verlauf, bevor du den Link weitergibst. Eine Antwort kann Angaben aus einer eingeschränkt zugänglichen Quelle enthalten. Mit der Freigabe wird ihr Text für Organisationsmitglieder mit dem Link lesbar.
 
 <Frame caption="Empfänger lesen die Momentaufnahme mit Angaben zur Freigabe. Ein Nachrichtenfeld gibt es dort nicht.">
@@ -22,7 +24,7 @@ Lies den Verlauf, bevor du den Link weitergibst. Eine Antwort kann Angaben aus e
 
 ## Eine spätere Antwort einbeziehen
 
-Neue Nachrichten bleiben außerhalb der veröffentlichten Momentaufnahme. Öffne erneut **Teilen** und wähle **Neuere Nachrichten einbeziehen**, wenn derselbe Link den neueren Austausch zeigen soll. Prüfe die aktualisierte Fassung noch einmal in der Vorschau.
+Neue Nachrichten bleiben außerhalb der veröffentlichten Momentaufnahme. Öffne erneut **Teilen** und wähle **Neuere Nachrichten einbeziehen**, wenn derselbe Link den neueren Austausch zeigen soll. Die Momentaufnahme wird dabei erneut von dem Zweig genommen, den du gerade siehst. Wechsle also zuerst zu der Fassung, die du veröffentlichen möchtest. Prüfe die aktualisierte Fassung noch einmal in der Vorschau.
 
 Wer das Thema fortsetzen möchte, beginnt einen eigenen Chat. Die Momentaufnahme macht aus deinem Chat kein gemeinsam bearbeitetes Gespräch und gewährt nicht automatisch Zugriff auf alle genannten Quellen.
 

@@ -275,13 +275,20 @@ export function setChatThreadSharedWithProject(
   return threadVerb(organizationId, threadId, 'share-project', { shared });
 }
 
+/** Share the lineage ROOT; `leafThreadId` is the sibling on screen, which
+ * the snapshot is frozen to (the server walks the stored map without it). */
 export function shareChatThread(
   organizationId: string,
   threadId: string,
+  leafThreadId?: string,
 ): Promise<{ shareToken: string }> {
   return backendFetch<{ shareToken: string }>(
     `/chat/threads/${encodeURIComponent(threadId)}/share`,
-    { method: 'POST', body: {}, orgId: organizationId },
+    {
+      method: 'POST',
+      body: leafThreadId !== undefined ? { leafThreadId } : {},
+      orgId: organizationId,
+    },
   );
 }
 

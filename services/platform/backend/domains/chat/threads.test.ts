@@ -41,6 +41,7 @@ import {
   moveThreadToProject,
   searchChats,
   setThreadArchived,
+  shareThread,
   unshareThread,
   trashThread,
 } from './threads.ts';
@@ -74,6 +75,7 @@ const OWNED_ROW = {
   branchRootId: null,
   branchParentId: null,
   branchForkSequence: null,
+  sharedThreadId: null,
   hidden: null,
   createdAt: 1,
   updatedAt: 1,
@@ -286,6 +288,76 @@ describe('trashThread with the turn fence', () => {
   });
 });
 
+/**
+ * A share names the ROOT but publishes the sibling on screen: the leaf is
+ * frozen on the root row at share time, and the snapshot reads ITS rows.
+ * A leaf outside the lineage (or someone else's) refuses the share.
+ */
+describe('shareThread freezes the leaf', () => {
+  const isOwnedRead = (s: Statement) =>
+    s.text.includes('FROM app.threads t') && s.text.includes('WHERE t.id = ?');
+  const isSiblingCheck = (s: Statement) =>
+    s.text.includes('tm.branch_root_id = ?') &&
+    s.text.includes('t.user_id = ?');
+  const update = (statements: Statement[]) =>
+    statements.find((s) => s.text.includes('shared_thread_id = ?'));
+
+  it('stores the sibling on screen when it is a live branch of the root, owned by the sharer', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (isSiblingCheck(statement)) return [{ id: 'b1' }];
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await expect(
+      shareThread(sql, 'org_1', 'user_1', 'thread_1', 'b1'),
+    ).resolves.toEqual({ shareToken: 'tok' });
+    const check = statements.find(isSiblingCheck);
+    expect(check?.values).toEqual(['b1', 'org_1', 'user_1', 'thread_1']);
+    expect(check?.text).toContain("tm.status = 'active'");
+    // share_token, shared_at_ms, shared_by, shared_thread_id, thread_id
+    expect(update(statements)?.values[3]).toBe('b1');
+  });
+
+  it('stores NULL for the root itself — no lineage read', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      isOwnedRead(statement) ? [OWNED_ROW] : undefined,
+    );
+    await shareThread(sql, 'org_1', 'user_1', 'thread_1', 'thread_1');
+    expect(statements.some(isSiblingCheck)).toBe(false);
+    expect(update(statements)?.values[3]).toBeNull();
+  });
+
+  it('refuses a leaf that is not a live sibling of the root (foreign, trashed, another lineage)', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (isSiblingCheck(statement)) return [];
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await expect(
+      shareThread(sql, 'org_1', 'user_1', 'thread_1', 'not-mine'),
+    ).resolves.toBeNull();
+    expect(update(statements)).toBeUndefined();
+  });
+
+  it('resolves the leaf from the stored selection map when the caller names none', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('branch_parent_id IS NOT NULL')) {
+        return [
+          { id: 'b1', parentId: 'thread_1', forkSequence: 2, createdAt: 5 },
+          { id: 'b2', parentId: 'b1', forkSequence: 4, createdAt: 6 },
+        ];
+      }
+      if (statement.text.includes('SELECT branch_selections')) {
+        return [{ branchSelections: '{"thread_1:2":"b1","b1:4":"b2"}' }];
+      }
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await shareThread(sql, 'org_1', 'user_1', 'thread_1');
+    expect(update(statements)?.values[3]).toBe('b2');
+  });
+});
+
 describe('getSharedThread', () => {
   it('resolves the token only for an ACTIVE thread — trash and expiry go dark', async () => {
     const { sql, statements } = fakeSql((statement) =>
@@ -296,6 +368,92 @@ describe('getSharedThread', () => {
     expect(view?.threadId).toBe('thread_1');
     const lookup = statements.find((s) => s.text.includes('share_token'));
     expect(lookup?.text).toContain("tm.status = 'active'");
+  });
+
+  it('reads the frozen sibling’s rows while it is live, the root’s once it is gone', async () => {
+    const messagesOf = (statements: Statement[]) =>
+      statements.find((s) => s.text.includes('FROM app.messages'));
+    const isLeafCheck = (s: Statement) =>
+      s.text.includes('tm.branch_root_id = ?') &&
+      s.text.includes('tm.thread_id = ?');
+    const frozen = { ...OWNED_ROW, sharedThreadId: 'b1' };
+
+    const live = fakeSql((statement) => {
+      if (statement.text.includes('share_token')) return [frozen];
+      if (isLeafCheck(statement)) return [{ id: 'b1' }];
+      return [];
+    });
+    const view = await getSharedThread(live.sql, ['org_1'], 'tok');
+    // The link still names the root; only the rows come from the leaf.
+    expect(view?.threadId).toBe('thread_1');
+    expect(messagesOf(live.statements)?.values).toEqual(['b1', 1_000]);
+
+    const gone = fakeSql((statement) =>
+      statement.text.includes('share_token') ? [frozen] : [],
+    );
+    await getSharedThread(gone.sql, ['org_1'], 'tok');
+    expect(messagesOf(gone.statements)?.values).toEqual(['thread_1', 1_000]);
+  });
+
+  it('reads the root when nothing was frozen — every share taken before the column', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      statement.text.includes('share_token') ? [OWNED_ROW] : [],
+    );
+    await getSharedThread(sql, ['org_1'], 'tok');
+    expect(
+      statements.some((s) => s.text.includes('tm.branch_root_id = ?')),
+    ).toBe(false);
+    expect(
+      statements.find((s) => s.text.includes('FROM app.messages'))?.values[0],
+    ).toBe('thread_1');
+  });
+
+  it('maps NULL blocked_reason/error to ABSENT — a shared message is not a blocked, failed reply', async () => {
+    const messageRow = {
+      id: 'm1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'hello' }],
+      order: 0,
+      stepOrder: 0,
+      model: null,
+      providerSlug: null,
+      blockedReason: null,
+      error: null,
+      createdAt: 10,
+    };
+    const { sql } = fakeSql((statement) => {
+      if (statement.text.includes('share_token')) return [OWNED_ROW];
+      if (statement.text.includes('FROM app.messages')) {
+        return [
+          messageRow,
+          {
+            ...messageRow,
+            id: 'm2',
+            role: 'assistant',
+            order: 1,
+            blockedReason: 'content_policy',
+            error: 'upstream refused',
+            createdAt: 20,
+          },
+        ];
+      }
+      return undefined;
+    });
+    const view = await getSharedThread(sql, ['org_1'], 'tok');
+
+    expect(view?.messages).toHaveLength(2);
+    // The client tests `!== undefined`, so a SQL null must not survive into
+    // the view — on the wire the two keys are simply absent.
+    const [plain, blocked] = view?.messages ?? [];
+    expect(plain?.blockedReason).toBeUndefined();
+    expect(plain?.error).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(plain))).not.toHaveProperty(
+      'blockedReason',
+    );
+    expect(JSON.parse(JSON.stringify(plain))).not.toHaveProperty('error');
+    // A genuinely blocked or failed row keeps its stamps.
+    expect(blocked?.blockedReason).toBe('content_policy');
+    expect(blocked?.error).toBe('upstream refused');
   });
 });
 

@@ -12,6 +12,8 @@ Partage un chat lorsqu’un collègue doit lire la question et la réponse sans 
 3. Clique sur **Créer le lien de partage**.
 4. Vérifie le contenu avec **Aperçu**, puis utilise **Copier le lien** lorsqu’il est prêt.
 
+L’instantané correspond à la branche que tu consultes. Si tu as utilisé **Modifier le message** ou **Réessayer**, le lien publie, pour chaque tour modifié ou régénéré, la version affichée à l’écran. Avant de créer le lien, passe à la version que tes collègues doivent lire avec **Branche précédente** et **Branche suivante**.
+
 Relis la conversation avant de diffuser le lien. Une réponse peut reprendre ou résumer des informations provenant d’une source à accès restreint. Partager cette réponse rend son texte lisible par les membres de l’organisation qui possèdent le lien.
 
 <Frame caption="Les destinataires lisent l’instantané avec le nom de la personne qui l’a partagé, sans champ de saisie.">
@@ -22,7 +24,7 @@ Relis la conversation avant de diffuser le lien. Une réponse peut reprendre ou 
 
 ## Inclure une réponse ultérieure
 
-Les nouveaux messages restent hors de l’instantané publié. Rouvre **Partager** et choisis **Inclure les messages plus récents** pour que le même lien affiche la suite de l’échange. Vérifie à nouveau cette version dans l’aperçu.
+Les nouveaux messages restent hors de l’instantané publié. Rouvre **Partager** et choisis **Inclure les messages plus récents** pour que le même lien affiche la suite de l’échange. L’instantané est repris depuis la branche que tu consultes. Passe donc d’abord à la version que tu veux publier. Vérifie à nouveau cette version dans l’aperçu.
 
 Un destinataire qui souhaite poursuivre le sujet démarre son propre chat. L’instantané ne crée pas de conversation collaborative et n’accorde pas l’accès à toutes les sources qui y sont mentionnées.
 

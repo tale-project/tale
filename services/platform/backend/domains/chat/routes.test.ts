@@ -16,6 +16,7 @@ const {
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
+  shareThread,
   setBranchSelection,
   assertChatTurnBudget,
   getArenaPair,
@@ -34,6 +35,7 @@ const {
   listArchivedThreads: vi.fn(),
   branchForEdit: vi.fn(),
   branchForRegenerate: vi.fn(),
+  shareThread: vi.fn(),
   setBranchSelection: vi.fn(),
   assertChatTurnBudget: vi.fn(),
   getArenaPair: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('./threads.ts', async (importOriginal) => ({
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
+  shareThread,
   setBranchSelection,
 }));
 vi.mock('./budget-admission.ts', async (importOriginal) => ({
@@ -250,16 +253,62 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
 });
 
 /**
- * A selection flip lands every key it needs in ONE write; the single-key
- * shape stays for an older tab.
+ * A share names the lineage ROOT and freezes the sibling on screen; the
+ * body is optional (an older tab posts none) and the domain resolves the
+ * leaf then. A selection flip lands every key it needs in ONE write.
  */
-describe('POST /threads/:threadId/branch-selection body', () => {
+describe('POST /threads/:threadId/share and /branch-selection bodies', () => {
   const post = (route: string, body?: string) =>
     makeApp().request(`${route}?orgId=o1`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       ...(body !== undefined ? { body } : {}),
     });
+
+  it('passes the leaf on screen to the domain', async () => {
+    shareThread.mockResolvedValueOnce({ shareToken: 'tok' });
+    const res = await post(
+      '/threads/t1/share',
+      JSON.stringify({ leafThreadId: 'b1' }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ shareToken: 'tok' });
+    expect(shareThread).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      'b1',
+    );
+  });
+
+  it('shares without a body, leaving the leaf to the domain', async () => {
+    shareThread.mockResolvedValueOnce({ shareToken: 'tok' });
+    const res = await post('/threads/t1/share');
+    expect(res.status).toBe(200);
+    expect(shareThread).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      undefined,
+    );
+  });
+
+  it('refuses a body that is not JSON, and a leaf the domain rejects is 404', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const bad = await post('/threads/t1/share', '{nope');
+    expect(bad.status).toBe(400);
+    expect(shareThread).not.toHaveBeenCalled();
+    warn.mockRestore();
+
+    shareThread.mockResolvedValueOnce(null);
+    const foreign = await post(
+      '/threads/t1/share',
+      JSON.stringify({ leafThreadId: 'someone-elses' }),
+    );
+    expect(foreign.status).toBe(404);
+  });
 
   it('writes a selection chain in one call, and wraps the single-key shape', async () => {
     setBranchSelection.mockResolvedValue(undefined);

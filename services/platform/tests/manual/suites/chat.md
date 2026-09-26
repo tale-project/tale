@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 78 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -349,6 +349,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   the retried reply; **Try again** twice on one reply likewise reads 3/3 with
   the first reply still reachable; after a reload the same version is on
   screen.
+- [ ] `CHAT-F45` · **Share publishes the branch on screen** — In a chat with
+  versions (CHAT-F44) navigate to the edited version (3/3), then **Share**
+  (`chat.share.button`) → **Share with organization**
+  (`chat.share.organizationLink`) → **Create share link**
+  (`chat.share.createLink`) → **Preview** (`chat.share.preview`) → The shared
+  page shows the edited question and its reply, never the original; back in
+  the chat switch to 1/3 and send a follow-up there, reopen **Share** →
+  **Include newer messages** (`chat.share.includeNewer`) → reload the preview
+  → it now shows the original version WITH the follow-up (the snapshot is
+  re-taken from the branch on screen); the thread row's **Shared** indicator
+  (`chat.share.sharedIndicator`) and the link stay the same throughout.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
