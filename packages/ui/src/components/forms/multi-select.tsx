@@ -470,7 +470,7 @@ function MultiSelectBase({
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={handleListKeyDown}
                   placeholder={searchPlaceholder}
-                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
+                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
                   aria-expanded={isOpen}
                   aria-controls={listboxId}
                   aria-activedescendant={

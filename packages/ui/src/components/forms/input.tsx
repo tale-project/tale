@@ -26,7 +26,7 @@ import { Label } from './label';
 const inputVariants = cva(
   // One height fits all (`h-9`). Disabled is a filled muted field
   // (design-system Input/Text `xZ0I9`), not an opacity wash.
-  'placeholder:text-muted-foreground flex h-9 w-full text-base transition-[border-color,box-shadow] duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)]',
+  'placeholder:text-muted-foreground flex h-9 w-full text-base transition-[border-color,box-shadow] duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)] md:text-sm',
   {
     variants: {
       variant: {
@@ -397,7 +397,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
             {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
             <div
               className={cn(
-                `bg-input flex h-9 w-full items-center rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 ${FIELD_FOCUS_WITHIN}`,
+                `bg-input flex h-9 w-full items-center rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 md:text-sm ${FIELD_FOCUS_WITHIN}`,
                 showInvalid && FIELD_INVALID_WITHIN,
                 showShake && 'animate-shake',
                 className,
@@ -423,7 +423,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
                   type={inputType}
                   {...sensitiveAttrs}
                   {...disabledAttrs}
-                  className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:text-[color:var(--color-fg-subtle)]"
+                  className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:text-[color:var(--color-fg-subtle)] md:text-sm"
                   ref={ref}
                   required={required}
                   aria-invalid={showInvalid || undefined}

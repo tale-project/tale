@@ -21,6 +21,13 @@ describe('Input', () => {
       );
     });
 
+    it('drops to the 14px UI size from md up, like Select and Textarea', () => {
+      render(<Input placeholder="Enter text" />);
+      expect(screen.getByPlaceholderText('Enter text').className).toContain(
+        'md:text-sm',
+      );
+    });
+
     it('renders with label', () => {
       render(<Input label="Email" />);
       expect(
