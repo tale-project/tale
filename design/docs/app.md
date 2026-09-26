@@ -9,19 +9,48 @@ there for the detail of any element below, and to a `.pen` file (via Pencil) or
 
 A dense, calm, keyboard-friendly product surface in **light and dark**. Inter throughout, Lucide icons
 only, generous whitespace on the `gap` scale, one bordered surface (`Card`), one control height (`h-9`).
-Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is small and purposeful
-(`framer-motion`): fades, slides, the AI shimmer — never decorative.
+Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is small and purposeful:
+fades, slides, the AI shimmer — never decorative. A selection **glides** to its new place (the rail
+pill, the view switcher, a section panel's highlight — measured with `useSlidingIndicator` and moved
+by a CSS transform, since the app loads the lean animation bundle); new badges and unread dots pop in
+once; a list swapped for another fades in; every motion honours `prefers-reduced-motion`.
 
 ## Shell & layout
 
-- **Nav sidebar** — a slim left rail (~48px in the design) of Lucide icon targets; the active item is
-  full-contrast, inactive muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui`
-  primitives, not a bespoke layout.
-- **Header** — per-section title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
-  **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (Knowledge,
-  Inbox, project and automation detail), otherwise the header's own bottom border
-  (`AdaptiveHeaderRoot showBorder` — the Projects and Automations lists, Settings). Icon buttons are
-  32×32, 8px radius, hover fill.
+Three levels, the same in every section: the **rail** says where you are, a **section panel** says
+what is there, and the page shows the one thing you opened.
+
+- **Rail** — a permanent 52px column of Lucide icon targets holding the sections: **Home**,
+  **Knowledge**, **Automations**, and at its foot **Settings**, notifications and the account. The
+  active section sits on one pill that glides from tile to tile (never two fills blinking); inactive
+  tiles are muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui` primitives, not a
+  bespoke layout. A phone shows the same sections, from the same list, as the bottom tab bar.
+- **Section panels** — a section with navigation of its own opens it in a panel beside the page,
+  one frame for all of them: `SubPanel width="list"` (280px, full height, right border), a
+  `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so
+  the two rules meet as one line), then rows. Fixed pages are icon rows with a highlight that glides
+  to the open page (`SectionNavPanel` — Settings, Knowledge); Home lists your work. **Automations has
+  no panel**: its canvas is a workbench that needs the full width.
+- **Home** — chats, the tasks assigned to you or waiting on your review, and the inbox's customer
+  conversations in **one list**. A pill switcher narrows it (All · Chats · Tasks · Inbox); Projects
+  sit above the list as doors to their pages and as drop targets for filing chats; the list bands
+  by time (Pinned, Today, Yesterday, Previous 7 days, Earlier). Every row has one anatomy: a 20px
+  glyph that says what the item is (chat bubble, task status, contact initials), the title, a
+  compact age, and a line of context (project, task key and status, contact and preview), with the
+  blue unread dot in the same place for every kind. The Inbox view adds the status switch, search,
+  facets and multi-select with bulk verbs. The panel stays mounted across every Home route; on a
+  phone it is the Home screen itself.
+- **Header** — per-page title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
+  **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (project and
+  automation detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder`).
+  Beside a section panel, the page header names the open page (the panel already names the
+  section). Icon buttons are 32×32, 8px radius, hover fill.
+- **Conversation pages** — a chat, a task and a customer conversation open in one frame:
+  `ThreadHeader` (the Home panel toggle, a 32px identity mark, the title, one quiet line of context,
+  then the actions), a centred reading column, and the composer pinned at the foot in the same frame
+  for all three (`CHAT_COMPOSER_FRAME_CLASS`). A task is a structured chat: its brief (description,
+  files, subtasks) opens the thread as a card, comments and history follow oldest first under day
+  pills, and its structure (status, owner, dates…) lives in a details panel that folds away.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
@@ -30,8 +59,8 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
   (`AdaptiveHeaderTabActionsSlot`), never in the title row's right half; the title row keeps only
   the name and its identity badges (archived, live). Run/sub-pages keep a plain leaf, keep the strip
   with the parent tab lit, and link the entity name back up the trail.
-- **Right/secondary panels** (history sidebar, detail panels) slide in and **resize the main column**
-  rather than overlay it; main content re-flows to the remaining width.
+- **Right/secondary panels** (the Home panel, a task's details) slide in and **resize the main
+  column** rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't
   let product content run full-bleed.
 
@@ -41,11 +70,11 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
   content, agent selector dropdown above the input, streaming response with a blinking cursor + stop
   button, the **thinking timeline** (collapsed-by-default, user-controlled — never auto-expand it),
   rich-text/markdown answers, message hover actions. Specs: `design-system.md` → _Chat_, _Dev Notes_.
-- **Conversations** (inbox) — split panel (list + detail), tabs (Open/Closed/Spam/Archived), bulk-action
-  bar, Gmail-style reply composer with an "improve with AI" rewrite. Specs: `design-system.md` →
-  _Conversations_.
-- **Knowledge** — tabbed (Documents/Websites/Products/Customers/Vendors) over a `DataTable`. Specs:
-  `design-system.md` → _Knowledge_.
+- **Conversations** (inbox) — listed in the Home panel's Inbox view (status switch, search, facets,
+  bulk-action bar); the reading pane takes the page, with a Gmail-style reply composer and an
+  "improve with AI" rewrite. Specs: `design-system.md` → _Conversations_.
+- **Knowledge** — the Knowledge panel (Documents/Knowledge entries/Websites/Products/Contacts) beside a
+  `DataTable`. Specs: `design-system.md` → _Knowledge_.
 - **Auth, settings, automations, agents, onboarding** — each has a `.pen` under `design/sources/platform/`.
 
 ## Interaction conventions (hold these everywhere)
