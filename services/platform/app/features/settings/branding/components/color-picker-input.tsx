@@ -8,6 +8,7 @@ import { useCallback, useRef } from 'react';
 
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useT } from '@/lib/i18n/client';
+import { isHexColor } from '@/lib/utils/color';
 
 interface ColorPickerInputProps {
   value: string;
@@ -59,7 +60,7 @@ export function ColorPickerInput({
     [normalizeHex],
   );
 
-  const isValidHex = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(value);
+  const isValidHex = isHexColor(value);
   const colorOnly = value.slice(0, 7);
   const displayValue = value.replace('#', '').toUpperCase();
 

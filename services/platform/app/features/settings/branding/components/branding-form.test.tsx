@@ -221,6 +221,38 @@ describe('BrandingForm', () => {
     expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
   });
 
+  it('hands the preview a complete hex only — the last one while a shorter value is typed', () => {
+    const onPreviewChange = vi.fn();
+    render(
+      <ActiveEditorProvider>
+        <BrandingForm
+          {...defaultProps}
+          onPreviewChange={onPreviewChange}
+          branding={{ accentColor: '#FF0000' }}
+        />
+      </ActiveEditorProvider>,
+    );
+    const lastPreviewAccent = () => {
+      const [data] = onPreviewChange.mock.lastCall ?? [];
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mock's one argument is the preview payload
+      return (data as { accentColor?: string } | undefined)?.accentColor;
+    };
+    expect(lastPreviewAccent()).toBe('#FF0000');
+
+    const hexInput = screen.getByLabelText('Accent color hex value');
+    // One keystroke at a time: the preview keeps the stored color until the
+    // typed value is a color again (a partial hex is not one).
+    fireEvent.change(hexInput, { target: { value: 'E' } });
+    expect(lastPreviewAccent()).toBe('#FF0000');
+    fireEvent.change(hexInput, { target: { value: 'E11D' } });
+    expect(lastPreviewAccent()).toBe('#FF0000');
+    fireEvent.change(hexInput, { target: { value: 'E11D48' } });
+    expect(lastPreviewAccent()).toBe('#E11D48');
+    // Clearing the field clears the preview's accent.
+    fireEvent.change(hexInput, { target: { value: '' } });
+    expect(lastPreviewAccent()).toBeUndefined();
+  });
+
   it('returns the active editor to clean when the color reverts to baseline', () => {
     render(
       <ActiveEditorProvider>
