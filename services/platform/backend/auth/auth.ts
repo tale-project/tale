@@ -11,7 +11,7 @@ import {
 } from 'better-auth/api';
 import { jwt, organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   assertValidOrgSlug,
@@ -37,6 +37,13 @@ import {
   assertOrgSlugNotRetiring,
   OrganizationError,
 } from '../domains/organizations/service.ts';
+import {
+  auditTeamCreated,
+  auditTeamDeleted,
+  auditTeamUpdated,
+  PLUGIN_SYSTEM_ACTOR,
+  type TeamAuditActor,
+} from '../domains/teams/audit.ts';
 import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
 import {
   anchorTwoFactorGraceOnSignIn,
@@ -425,6 +432,44 @@ export function createAuth(config: AuthConfig) {
     }
   };
 
+  /**
+   * One `team.*` audit row for a plugin-door team write, in its own
+   * serializable transaction after the plugin's commit — the posture the
+   * `joined_organization` rows take. Non-fatal for the same reason as the
+   * hint: the write already landed, so a failed row is LOUD, never a
+   * refusal the user sees for a change that happened.
+   */
+  const auditTeamLifecycle = async (
+    hook: string,
+    write: (tx: TransactionSql) => Promise<unknown>,
+  ): Promise<void> => {
+    try {
+      await transactSerializable(sql, (tx) => write(tx).then(() => undefined));
+    } catch (error) {
+      console.error(
+        `[${hook}] failed to write the team audit row`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  };
+
+  /** The signed-in user a plugin hook was handed, or the system when the
+   * call carried no session (a server-side call). */
+  const pluginActor = (
+    user: { id: string; email?: string } | undefined,
+  ): TeamAuditActor =>
+    user === undefined
+      ? PLUGIN_SYSTEM_ACTOR
+      : {
+          id: user.id,
+          ...(user.email !== undefined ? { email: user.email } : {}),
+          type: 'user',
+        };
+
+  /** Team name before a plugin-door rename, keyed by team id — set by
+   * beforeUpdateTeam, consumed by afterUpdateTeam of the same request. */
+  const pendingTeamRenames = new Map<string, string>();
+
   // Better Auth owns its own pool, so it needs the same TLS treatment as
   // every other connection this process opens — and node-postgres lets a
   // connection string's `sslmode` override an `ssl` option, so it gets the
@@ -449,7 +494,17 @@ export function createAuth(config: AuthConfig) {
     // `tale:` capability grants would outlive it (its remove-member sibling
     // at least fires afterRemoveMember, which this config hooks). Nothing in
     // the product calls it; leaving an organization is an administered act.
-    disabledPaths: [...OIDC_DISABLED_PATHS, '/organization/leave'],
+    // The plugin's team-membership doors are closed for the same reason:
+    // they write `teamMember` rows with no audit row and no last-member
+    // rule, while the app's own `/api/app/teams/:teamId/members` doors —
+    // what the product calls — carry both. `remove-team` stays open: its
+    // afterDeleteTeam hook retires the scopes and audits the deletion.
+    disabledPaths: [
+      ...OIDC_DISABLED_PATHS,
+      '/organization/leave',
+      '/organization/add-team-member',
+      '/organization/remove-team-member',
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
@@ -991,22 +1046,58 @@ export function createAuth(config: AuthConfig) {
           // tab by hand, and nothing at all reached anyone else. A second tab
           // — and every teammate with the Teams page or the account menu's
           // team picker open — kept the stale list until reload. These three
-          // hooks put the plugin's lane on the Tier-2 bus: one `team` hint
-          // per write, delivered to every connected session of the org.
+          // hooks put the plugin's lane on the Tier-2 bus — one `team` hint
+          // per write, delivered to every connected session of the org — and
+          // on the audit chain: one `team.*` row per write, committed after
+          // the plugin's own (the `joined_organization` posture), non-fatal.
           afterCreateTeam: async (data) => {
+            await auditTeamLifecycle('afterCreateTeam', (tx) =>
+              auditTeamCreated(tx, {
+                organizationId: data.organization.id,
+                actor: pluginActor(data.user),
+                teamId: data.team.id,
+                teamName: data.team.name,
+                metadata: { door: 'plugin' },
+              }),
+            );
             await hintTeamChange(
               'afterCreateTeam',
               data.organization.id,
               data.team.id,
             );
           },
+          // The after-hook is handed only the row the plugin wrote; the name
+          // it replaced is stashed here so the rename's audit row can carry
+          // both. Consumed by afterUpdateTeam of the same request.
+          beforeUpdateTeam: async (data) => {
+            pendingTeamRenames.set(data.team.id, data.team.name);
+          },
           // `team` is null when the update matched no row — the hint then
-          // carries no id, which still invalidates the org's team lists.
+          // carries no id, which still invalidates the org's team lists, and
+          // there is nothing to audit.
           afterUpdateTeam: async (data) => {
+            const team = data.team;
+            if (team !== null) {
+              const previousName = pendingTeamRenames.get(team.id);
+              pendingTeamRenames.delete(team.id);
+              // An update that re-sent the same name changed nothing.
+              if (previousName !== team.name) {
+                await auditTeamLifecycle('afterUpdateTeam', (tx) =>
+                  auditTeamUpdated(tx, {
+                    organizationId: data.organization.id,
+                    actor: pluginActor(data.user),
+                    teamId: team.id,
+                    teamName: team.name,
+                    ...(previousName !== undefined ? { previousName } : {}),
+                    metadata: { door: 'plugin' },
+                  }),
+                );
+              }
+            }
             await hintTeamChange(
               'afterUpdateTeam',
               data.organization.id,
-              data.team?.id ?? null,
+              team?.id ?? null,
             );
           },
           // The plugin deletes the team row and its memberships alone; the
@@ -1017,20 +1108,34 @@ export function createAuth(config: AuthConfig) {
           // transaction and is what the UI calls; this hook covers a caller
           // that still reaches the plugin endpoint directly. It runs after
           // the plugin's own commit, so a failure here logs — the team is
-          // already gone either way.
+          // already gone either way. The app door never reaches this hook
+          // (it calls `deleteTeamInTx` itself), so the `team.deleted` row
+          // written here is the only one a plugin-door delete gets.
           afterDeleteTeam: async (data) => {
+            let retirementCounts: Record<string, unknown> = {};
             try {
-              await retireDeletedTeamScopes(
-                sql,
-                data.organization.id,
-                data.team.id,
-              );
+              const { touchedFileDocumentIds: _touched, ...counts } =
+                await retireDeletedTeamScopes(
+                  sql,
+                  data.organization.id,
+                  data.team.id,
+                );
+              retirementCounts = counts;
             } catch (error) {
               console.error(
                 '[afterDeleteTeam] failed to retire the team scopes',
                 error instanceof Error ? error.message : error,
               );
             }
+            await auditTeamLifecycle('afterDeleteTeam', (tx) =>
+              auditTeamDeleted(tx, {
+                organizationId: data.organization.id,
+                actor: pluginActor(data.user),
+                teamId: data.team.id,
+                teamName: data.team.name,
+                metadata: { door: 'plugin', ...retirementCounts },
+              }),
+            );
             await hintTeamChange(
               'afterDeleteTeam',
               data.organization.id,

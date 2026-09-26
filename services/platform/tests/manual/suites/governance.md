@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 48 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -326,6 +326,18 @@ select lists only the current admin's keys (`useApiKeys`).
   `passnummer 12345678` → the bubble reads `passnummer [PASSPORT]` (the
   stored message is the masked text — reload to confirm) and the event names
   `se-passport`.
+- [ ] `GOV-F29` · **Team changes reach the audit log** — As an admin, under
+  **Settings > Teams** create a team, rename it, add a second member, remove
+  that member again, then delete the team → `logs` → **Audit logs** lists,
+  newest first, **Team deleted**
+  (`settings.logs.audit.actionLabels.team.deleted`), **Team member removed**
+  (`settings.logs.audit.actionLabels.team.member_removed`), **Team member
+  added** (`settings.logs.audit.actionLabels.team.member_added`), **Team
+  updated** (`settings.logs.audit.actionLabels.team.updated`) and **Team
+  created** (`settings.logs.audit.actionLabels.team.created`), every row
+  naming you as the actor and the team (its resource type reads **Team**,
+  `settings.logs.audit.resourceTypeLabels.team`) by its name; the rename's
+  detail shows the old and the new name.
 
 ## Boundary & error tests
 

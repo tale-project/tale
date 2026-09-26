@@ -51166,13 +51166,58 @@ async function checkTeamScopeRetirement(
            shared_with_team_ids AS shared
     FROM app.projects WHERE id = ${projectC}
   `;
+  // The hook is the only audit this door gets: one `team.deleted` row naming
+  // the plugin door and the signed-in actor, with the retirement counts.
+  const pluginAudit = await sql<
+    { actorId: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT actor_id AS "actorId", metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'team.deleted'
+      AND resource_id = ${teamC}
+  `;
   record(
-    'teams: Better Auth’s own remove-team still retires the scopes through its hook',
+    'teams: Better Auth’s own remove-team still retires the scopes through its hook, audited',
     removeTeam.status === 200 &&
       rowsC[0]?.teamIds.length === 0 &&
       rowsC[0]?.teamId === null &&
-      rowsC[0]?.shared.length === 0,
-    `remove-team → ${removeTeam.status} (want 200), project ids=[${rowsC[0]?.teamIds.length}] mirror=${String(rowsC[0]?.teamId)}/${rowsC[0]?.shared.length} (want [0] null/0)`,
+      rowsC[0]?.shared.length === 0 &&
+      pluginAudit.length === 1 &&
+      pluginAudit[0]?.actorId === ctx.userId &&
+      pluginAudit[0]?.metadata?.door === 'plugin' &&
+      pluginAudit[0]?.metadata?.projectsRetagged === 1,
+    `remove-team → ${removeTeam.status} (want 200), project ids=[${rowsC[0]?.teamIds.length}] mirror=${String(rowsC[0]?.teamId)}/${rowsC[0]?.shared.length} (want [0] null/0); audit rows=${pluginAudit.length} actor=${pluginAudit[0]?.actorId} door=${String(pluginAudit[0]?.metadata?.door)} projectsRetagged=${String(pluginAudit[0]?.metadata?.projectsRetagged)} (want 1 / the owner / plugin / 1)`,
+  );
+
+  // The plugin's own membership doors are closed: they would write a
+  // membership with no audit row and no last-member rule.
+  const pluginAddMember = await fetch(
+    `${base}/api/auth/organization/add-team-member`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        teamId: teamD,
+        userId: member.userId,
+        organizationId: orgId,
+      }),
+    },
+  );
+  const pluginRemoveMember = await fetch(
+    `${base}/api/auth/organization/remove-team-member`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        teamId: teamD,
+        userId: member.userId,
+        organizationId: orgId,
+      }),
+    },
+  );
+  record(
+    'teams: Better Auth’s own add/remove-team-member doors are closed',
+    pluginAddMember.status === 404 && pluginRemoveMember.status === 404,
+    `add-team-member → ${pluginAddMember.status}, remove-team-member → ${pluginRemoveMember.status} (want 404/404)`,
   );
 
   // ---- the last-member rule (team D: the member, then the owner)
@@ -51205,8 +51250,18 @@ async function checkTeamScopeRetirement(
     .object({ removed: z.boolean() })
     .safeParse(await removeOne.json().catch(() => null));
   const afterRemoval = await countD();
+  // Every membership change on team D left a row: two adds, one removal (the
+  // refused last-member removal wrote nothing).
+  const membershipAudit = await sql<{ action: string; count: string }[]>`
+    SELECT action, count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${teamD}
+      AND action IN ('team.member_added', 'team.member_removed')
+    GROUP BY action
+  `;
+  const membershipCount = (action: string): string =>
+    membershipAudit.find((row) => row.action === action)?.count ?? '0';
   record(
-    'teams: the admin doors never take a team’s last member (409 TEAM_LAST_MEMBER)',
+    'teams: the admin doors never take a team’s last member (409 TEAM_LAST_MEMBER), and audit every membership change',
     addMember.status === 201 &&
       removeLast.status === 409 &&
       removeLastCode === 'TEAM_LAST_MEMBER' &&
@@ -51215,8 +51270,10 @@ async function checkTeamScopeRetirement(
       removeOne.status === 200 &&
       removeOneBody.success &&
       removeOneBody.data.removed &&
-      afterRemoval === '1',
-    `add → ${addMember.status} (want 201), remove the only member → ${removeLast.status}/${removeLastCode} (want 409/TEAM_LAST_MEMBER) leaving ${afterRefusal} (want 1), add a second → ${addOwner.status}, remove one of two → ${removeOne.status} removed=${removeOneBody.success ? removeOneBody.data.removed : 'ERR'} leaving ${afterRemoval} (want 1)`,
+      afterRemoval === '1' &&
+      membershipCount('team.member_added') === '2' &&
+      membershipCount('team.member_removed') === '1',
+    `add → ${addMember.status} (want 201), remove the only member → ${removeLast.status}/${removeLastCode} (want 409/TEAM_LAST_MEMBER) leaving ${afterRefusal} (want 1), add a second → ${addOwner.status}, remove one of two → ${removeOne.status} removed=${removeOneBody.success ? removeOneBody.data.removed : 'ERR'} leaving ${afterRemoval} (want 1); audit member_added=${membershipCount('team.member_added')} member_removed=${membershipCount('team.member_removed')} (want 2/1)`,
   );
 
   // ---- the assignment rule (the editor joins team E; nobody else is in E)

@@ -4,8 +4,9 @@
  * The teams door's ACCESS rules and its two new lanes: the directory every
  * member may read (names only), the delete preview and the atomic delete
  * (admins only, audited, corpus re-stamped after commit), a roster visible
- * to the team's own members and admins, and the last-member refusal both
- * removal doors share (`TEAM_LAST_MEMBER`, 409).
+ * to the team's own members and admins, the last-member refusal both
+ * removal doors share (`TEAM_LAST_MEMBER`, 409), and the audit row every
+ * membership change owes (`team.member_added` / `team.member_removed`).
  */
 
 import type { Context } from 'hono';
@@ -93,8 +94,8 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
 }
 
 const TEAM_ROW = (statement: Statement) =>
-  statement.text.startsWith('SELECT "id" FROM "team" WHERE "id" = ?')
-    ? [{ id: 't1' }]
+  statement.text.startsWith('SELECT "id", "name" FROM "team" WHERE "id" = ?')
+    ? [{ id: 't1', name: 'Finance' }]
     : undefined;
 
 function mount(sql: Sql) {
@@ -304,22 +305,128 @@ describe('GET /:teamId/members', () => {
   });
 });
 
+describe('POST /:teamId/members', () => {
+  const orgMember = (email: string | null) => (statement: Statement) =>
+    statement.text.startsWith('SELECT m."id", u."email"')
+      ? [{ id: 'm2', email }]
+      : undefined;
+  const post = (sql: Sql) =>
+    mount(sql).request('/t1/members', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userId: 'u2' }),
+    });
+
+  it('is an admin door', async () => {
+    caller.role = 'member';
+    const { sql, statements } = fakeSql(() => undefined);
+    const res = await post(sql);
+    expect(res.status).toBe(403);
+    expect(statements).toEqual([]);
+  });
+
+  it('refuses a user outside the organization without a write or a row', async () => {
+    const { sql, statements } = fakeSql((s) => TEAM_ROW(s));
+    const res = await post(sql);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'USER_NOT_ORG_MEMBER' });
+    expect(writes(statements)).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('answers an existing membership without a second row or an audit row', async () => {
+    const { sql, statements } = fakeSql(
+      (s) =>
+        TEAM_ROW(s) ??
+        orgMember('bob@example.test')(s) ??
+        (s.text.startsWith('SELECT "id" FROM "teamMember"')
+          ? [{ id: 'tm-existing' }]
+          : undefined),
+    );
+    const res = await post(sql);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      id: 'tm-existing',
+      alreadyMember: true,
+    });
+    expect(writes(statements)).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('adds the membership, audits it and hints the team in one transaction', async () => {
+    const { sql, statements } = fakeSql(
+      (s) => TEAM_ROW(s) ?? orgMember('bob@example.test')(s),
+    );
+    const res = await post(sql);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string; alreadyMember: boolean };
+    expect(body.alreadyMember).toBe(false);
+    expect(writes(statements).map((s) => s.text)).toEqual([
+      'INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt") VALUES (?, ?, ?, ?)',
+    ]);
+    // The row, its audit row and the hint ride the same transaction, in
+    // that order — the membership never exists without its account.
+    expect(createAuditLog).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        organizationId: 'o1',
+        actorId: 'u1',
+        actorEmail: 'u@example.test',
+        actorRole: 'admin',
+        actorType: 'user',
+        action: 'team.member_added',
+        category: 'member',
+        resourceType: 'team',
+        resourceId: 't1',
+        resourceName: 'Finance',
+        metadata: {
+          userId: 'u2',
+          teamMemberId: body.id,
+          targetEmail: 'bob@example.test',
+        },
+        status: 'success',
+      }),
+    );
+    expect(emitHintInTx).toHaveBeenCalledWith(sql, {
+      orgId: 'o1',
+      entity: TEAM_HINT_ENTITY,
+      entityId: 't1',
+    });
+    expect(createAuditLog.mock.invocationCallOrder[0]).toBeLessThan(
+      emitHintInTx.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+});
+
 describe('the last-member rule', () => {
   const membership = (count: number) => (statement: Statement) => {
-    if (statement.text.startsWith('SELECT "id", "teamId" FROM "teamMember"')) {
-      return [{ id: 'tm1', teamId: 't1' }];
+    if (
+      statement.text.startsWith(
+        'SELECT "id", "teamId", "userId" FROM "teamMember"',
+      )
+    ) {
+      return [{ id: 'tm1', teamId: 't1', userId: 'u2' }];
     }
-    if (statement.text.startsWith('SELECT tm."id", tm."teamId" FROM')) {
-      return [{ id: 'tm1', teamId: 't1' }];
+    if (
+      statement.text.startsWith('SELECT tm."id", tm."teamId", tm."userId" FROM')
+    ) {
+      return [{ id: 'tm1', teamId: 't1', userId: 'u2' }];
+    }
+    if (statement.text.includes('FOR UPDATE')) {
+      return [{ id: 't1', name: 'Finance' }];
     }
     if (statement.text.startsWith('SELECT count(*)::text AS count')) {
       return [{ count: String(count) }];
+    }
+    if (statement.text.startsWith('SELECT "email" FROM "user"')) {
+      return [{ email: 'bob@example.test' }];
     }
     return TEAM_ROW(statement);
   };
 
   it.each([
-    ['/t1/members/u1', 'by team and user'],
+    ['/t1/members/u2', 'by team and user'],
     ['/members/by-id/tm1', 'by membership row'],
   ])('refuses to remove the last member (%s) with 409', async (route) => {
     const { sql, statements } = fakeSql(membership(1));
@@ -328,14 +435,16 @@ describe('the last-member rule', () => {
     expect(await res.json()).toMatchObject({ error: 'TEAM_LAST_MEMBER' });
     expect(writes(statements)).toEqual([]);
     expect(emitHintInTx).not.toHaveBeenCalled();
+    // A refusal is not a change: no audit row.
+    expect(createAuditLog).not.toHaveBeenCalled();
     // The count is read under the team's row lock, so two concurrent
     // removals cannot both see "two members".
     const lock = statements.find((s) => s.text.includes('FOR UPDATE'));
     expect(lock?.text).toContain('FROM "team" WHERE "id" = ?');
   });
 
-  it.each(['/t1/members/u1', '/members/by-id/tm1'])(
-    'removes one of several members (%s) and hints the team',
+  it.each(['/t1/members/u2', '/members/by-id/tm1'])(
+    'removes one of several members (%s), audits it and hints the team',
     async (route) => {
       const { sql, statements } = fakeSql(membership(2));
       const res = await mount(sql).request(route, { method: 'DELETE' });
@@ -344,6 +453,25 @@ describe('the last-member rule', () => {
       expect(writes(statements).map((s) => s.text)).toEqual([
         'DELETE FROM "teamMember" WHERE "id" = ?',
       ]);
+      expect(createAuditLog).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({
+          organizationId: 'o1',
+          actorId: 'u1',
+          actorRole: 'admin',
+          action: 'team.member_removed',
+          category: 'member',
+          resourceType: 'team',
+          resourceId: 't1',
+          resourceName: 'Finance',
+          metadata: {
+            userId: 'u2',
+            teamMemberId: 'tm1',
+            targetEmail: 'bob@example.test',
+          },
+          status: 'success',
+        }),
+      );
       expect(emitHintInTx).toHaveBeenCalledWith(sql, {
         orgId: 'o1',
         entity: TEAM_HINT_ENTITY,
@@ -355,7 +483,7 @@ describe('the last-member rule', () => {
   it('is an admin door', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(membership(2));
-    const res = await mount(sql).request('/t1/members/u1', {
+    const res = await mount(sql).request('/t1/members/u2', {
       method: 'DELETE',
     });
     expect(res.status).toBe(403);

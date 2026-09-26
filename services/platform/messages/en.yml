@@ -6225,6 +6225,11 @@ settings:
         workflow: Automation
       actionLabels:
         skill.deleted: Skill deleted
+        team.created: Team created
+        team.updated: Team updated
+        team.deleted: Team deleted
+        team.member_added: Team member added
+        team.member_removed: Team member removed
         joined_organization: Joined organization
         signed_in_to_organization: Signed in to organization
         add_member: Added member
@@ -6429,6 +6434,7 @@ settings:
         chat_message: Chat message
         chat_thread: Chat
         member: Member
+        team: Team
         project: Project
         connector: Connector
         connector_operation: Connector operation

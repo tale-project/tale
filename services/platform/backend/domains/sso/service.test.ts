@@ -5,9 +5,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { Sql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+
+// The group sync writes a `team.*` audit row beside every team, membership
+// and reap in the same transaction; the chain-hashed writer needs a real
+// audit table, which this scripted database is not.
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 import {
   createSsoUserSession,
   findOrCreateSsoUser,
@@ -378,7 +383,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
 
   it('records provenance for the team and the membership it creates', async () => {
     const { sql, queries } = fakeSql((text) => {
-      if (text.startsWith('SELECT "id" FROM "team"')) return [];
+      if (text.startsWith('SELECT "id", "name" FROM "team"')) return [];
       if (text.startsWith('INSERT INTO "team"')) return [{ id: 't-ops' }];
       if (text.startsWith('SELECT "id" FROM "teamMember"')) return [];
       return [];
@@ -409,7 +414,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     );
     // The excluded group is unmanaged: not even looked up.
     const lookups = queries.filter((q) =>
-      q.text.startsWith('SELECT "id" FROM "team"'),
+      q.text.startsWith('SELECT "id", "name" FROM "team"'),
     );
     expect(lookups).toHaveLength(1);
     expect(lookups[0]?.values).toContain('ops');
@@ -417,7 +422,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
 
   it('joins an existing admin-built team without claiming the team itself', async () => {
     const { sql, queries } = fakeSql((text) => {
-      if (text.startsWith('SELECT "id" FROM "team"'))
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-board' }];
       if (text.startsWith('SELECT "id" FROM "teamMember"')) return [];
       return [];
@@ -448,7 +453,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
 
   it('does not adopt a membership that already existed (admin- or SCIM-granted)', async () => {
     const { sql, queries } = fakeSql((text) => {
-      if (text.startsWith('SELECT "id" FROM "team"'))
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
         return [{ id: 't-board' }];
       if (text.startsWith('SELECT "id" FROM "teamMember"')) {
         return [{ id: 'tm-board' }];
@@ -469,7 +474,8 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     // The user sits in the admin-built team "Board" (no provenance row) and
     // the claim carries only "Finance", where they are already a member.
     const { sql, queries } = fakeSql((text) => {
-      if (text.startsWith('SELECT "id" FROM "team"')) return [{ id: 't-fin' }];
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
+        return [{ id: 't-fin' }];
       if (text.startsWith('SELECT "id" FROM "teamMember"')) {
         return [{ id: 'tm-fin' }];
       }
@@ -494,14 +500,15 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
 
   it('revokes only the membership it granted and reaps only the team it created', async () => {
     const { sql, queries } = fakeSql((text) => {
-      if (text.startsWith('SELECT "id" FROM "team"')) return [{ id: 't-fin' }];
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
+        return [{ id: 't-fin' }];
       if (text.startsWith('SELECT "id" FROM "teamMember"')) {
         return [{ id: 'tm-fin' }];
       }
       if (text.startsWith('SELECT p.team_id')) {
         return [{ teamId: 't-ops', teamName: 'Ops', membershipId: 'tm-ops' }];
       }
-      if (text.startsWith('SELECT NOT EXISTS')) {
+      if (text.includes('AS "empty"')) {
         return [{ empty: true, syncCreated: true, scimManaged: false }];
       }
       return [];
@@ -550,7 +557,7 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
       if (text.startsWith('SELECT p.team_id')) {
         return [{ teamId: 't-x', teamName: 'X', membershipId: 'tm-x' }];
       }
-      if (text.startsWith('SELECT NOT EXISTS')) return [verdict];
+      if (text.includes('AS "empty"')) return [verdict];
       return [];
     });
 

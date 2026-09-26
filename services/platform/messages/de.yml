@@ -6133,6 +6133,11 @@ settings:
         workflow: Automatisierung
       actionLabels:
         skill.deleted: Skill gelöscht
+        team.created: Team erstellt
+        team.updated: Team aktualisiert
+        team.deleted: Team gelöscht
+        team.member_added: Teammitglied hinzugefügt
+        team.member_removed: Teammitglied entfernt
         joined_organization: Organisation beigetreten
         signed_in_to_organization: An Organisation angemeldet
         add_member: Mitglied hinzugefügt
@@ -6337,6 +6342,7 @@ settings:
         chat_message: Chat-Nachricht
         chat_thread: Chat
         member: Mitglied
+        team: Team
         project: Projekt
         connector: Connector
         connector_operation: Connector-Vorgang

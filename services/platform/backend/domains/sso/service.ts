@@ -9,6 +9,13 @@ import type {
 } from '../../core/enterprise_sso/types.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
+  auditTeamCreated,
+  auditTeamDeleted,
+  auditTeamMemberAdded,
+  auditTeamMemberRemoved,
+  SSO_SYNC_ACTOR,
+} from '../teams/audit.ts';
+import {
   resyncRetiredDocumentScopes,
   retireTeamScopes,
 } from '../teams/service.ts';
@@ -282,11 +289,18 @@ export interface SyncTeamsResult {
  *
  * Anything without a provenance row — every team and membership that predates
  * the migration included — reads as "not mine" and is preserved.
+ *
+ * Every team the sync creates, every membership it grants or revokes and
+ * every team it reaps leaves a `team.*` audit row under the sync's own
+ * identity (`actorId: 'sso'`, the `scim` posture) — each write and its row
+ * in one transaction, so no membership exists that the log cannot explain.
+ * `userEmail` names the person on the membership rows when the door knew it.
  */
 export async function syncTeamsFromGroupNames(
   sql: Sql,
   args: {
     userId: string;
+    userEmail?: string;
     organizationId: string;
     groupNames: string[];
     excludeGroups: string[];
@@ -306,57 +320,91 @@ export async function syncTeamsFromGroupNames(
   );
   const nowMs = Date.now();
 
+  const membershipAudit = {
+    organizationId: args.organizationId,
+    actor: SSO_SYNC_ACTOR,
+    userId: args.userId,
+    ...(args.userEmail !== undefined ? { targetEmail: args.userEmail } : {}),
+    metadata: { door: 'sso' },
+  };
+
   const syncedNamesLower = new Set<string>();
   for (const name of syncable) {
     try {
       syncedNamesLower.add(name.toLowerCase());
-      const teams = await sql<{ id: string }[]>`
-        SELECT "id" FROM "team"
-        WHERE "organizationId" = ${args.organizationId}
-          AND lower("name") = ${name.toLowerCase()}
-        LIMIT 1
-      `;
-      let teamId = teams[0]?.id;
-      if (teamId === undefined) {
-        const created = await sql<{ id: string }[]>`
-          INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
-                              "updatedAt")
-          VALUES (gen_random_uuid(), ${name}, ${args.organizationId},
-                  ${new Date()}, ${new Date()})
-          RETURNING "id"
+      // One group, one transaction: the team, its provenance, the
+      // membership and their audit rows land together or not at all — a
+      // failed group is reported and the next one still runs.
+      const outcome = await sql.begin(async (tx) => {
+        const teams = await tx<{ id: string; name: string }[]>`
+          SELECT "id", "name" FROM "team"
+          WHERE "organizationId" = ${args.organizationId}
+            AND lower("name") = ${name.toLowerCase()}
+          LIMIT 1
         `;
-        teamId = created[0]?.id;
-        if (teamId === undefined) throw new Error('team insert failed');
-        // Provenance: the sync created this team, so the sync may reap it.
-        await sql`
-          INSERT INTO app.sso_synced_teams (org_id, team_id, created_at_ms)
-          VALUES (${args.organizationId}, ${teamId}, ${nowMs})
-          ON CONFLICT DO NOTHING
+        let teamId = teams[0]?.id;
+        let teamName = teams[0]?.name ?? name;
+        let teamCreated = false;
+        if (teamId === undefined) {
+          const created = await tx<{ id: string }[]>`
+            INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                                "updatedAt")
+            VALUES (gen_random_uuid(), ${name}, ${args.organizationId},
+                    ${new Date()}, ${new Date()})
+            RETURNING "id"
+          `;
+          teamId = created[0]?.id;
+          if (teamId === undefined) throw new Error('team insert failed');
+          teamName = name;
+          // Provenance: the sync created this team, so the sync may reap it.
+          await tx`
+            INSERT INTO app.sso_synced_teams (org_id, team_id, created_at_ms)
+            VALUES (${args.organizationId}, ${teamId}, ${nowMs})
+            ON CONFLICT DO NOTHING
+          `;
+          await auditTeamCreated(tx, {
+            organizationId: args.organizationId,
+            actor: SSO_SYNC_ACTOR,
+            teamId,
+            teamName,
+            metadata: { door: 'sso' },
+          });
+          teamCreated = true;
+        }
+        const membership = await tx<{ id: string }[]>`
+          SELECT "id" FROM "teamMember"
+          WHERE "teamId" = ${teamId} AND "userId" = ${args.userId} LIMIT 1
         `;
-        result.teamsCreated += 1;
-      }
-      const membership = await sql<{ id: string }[]>`
-        SELECT "id" FROM "teamMember"
-        WHERE "teamId" = ${teamId} AND "userId" = ${args.userId} LIMIT 1
-      `;
-      if (membership.length === 0) {
-        await sql`
-          INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
-          VALUES (gen_random_uuid(), ${teamId}, ${args.userId}, ${new Date()})
-        `;
-        // Provenance: the sync granted this membership, so the sync may
-        // revoke it. An existing membership (admin- or SCIM-granted) is NOT
-        // adopted — it stays theirs.
-        await sql`
-          INSERT INTO app.sso_synced_team_members (
-            org_id, team_id, user_id, created_at_ms
-          ) VALUES (
-            ${args.organizationId}, ${teamId}, ${args.userId}, ${nowMs}
-          )
-          ON CONFLICT DO NOTHING
-        `;
-        result.membershipsAdded += 1;
-      }
+        let membershipAdded = false;
+        if (membership.length === 0) {
+          const inserted = await tx<{ id: string }[]>`
+            INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+            VALUES (gen_random_uuid(), ${teamId}, ${args.userId}, ${new Date()})
+            RETURNING "id"
+          `;
+          // Provenance: the sync granted this membership, so the sync may
+          // revoke it. An existing membership (admin- or SCIM-granted) is NOT
+          // adopted — it stays theirs.
+          await tx`
+            INSERT INTO app.sso_synced_team_members (
+              org_id, team_id, user_id, created_at_ms
+            ) VALUES (
+              ${args.organizationId}, ${teamId}, ${args.userId}, ${nowMs}
+            )
+            ON CONFLICT DO NOTHING
+          `;
+          await auditTeamMemberAdded(tx, {
+            ...membershipAudit,
+            teamId,
+            teamName,
+            teamMemberId: inserted[0]?.id ?? '',
+          });
+          membershipAdded = true;
+        }
+        return { teamCreated, membershipAdded };
+      });
+      if (outcome.teamCreated) result.teamsCreated += 1;
+      if (outcome.membershipAdded) result.membershipsAdded += 1;
     } catch (error) {
       result.errors.push(
         `Failed to sync group ${name}: ${error instanceof Error ? error.message : String(error)}`,
@@ -385,7 +433,16 @@ export async function syncTeamsFromGroupNames(
       }
     }
     if (row.membershipId !== null) {
-      await sql`DELETE FROM "teamMember" WHERE "id" = ${row.membershipId}`;
+      const membershipId = row.membershipId;
+      await sql.begin(async (tx) => {
+        await tx`DELETE FROM "teamMember" WHERE "id" = ${membershipId}`;
+        await auditTeamMemberRemoved(tx, {
+          ...membershipAudit,
+          teamId: row.teamId,
+          teamName: row.teamName ?? '',
+          teamMemberId: membershipId,
+        });
+      });
       result.membershipsRemoved += 1;
     }
     await sql`
@@ -419,9 +476,15 @@ async function reapEmptySyncedTeam(
   teamId: string,
 ): Promise<boolean> {
   const verdicts = await sql<
-    { empty: boolean; syncCreated: boolean; scimManaged: boolean }[]
+    {
+      empty: boolean;
+      syncCreated: boolean;
+      scimManaged: boolean;
+      name: string | null;
+    }[]
   >`
     SELECT
+      (SELECT "name" FROM "team" WHERE "id" = ${teamId}) AS "name",
       NOT EXISTS (
         SELECT 1 FROM "teamMember" WHERE "teamId" = ${teamId}
       ) AS "empty",
@@ -444,8 +507,9 @@ async function reapEmptySyncedTeam(
   ) {
     return false;
   }
-  // One transaction: the team row, its provenance and every scope it held
-  // go together, so a failure half-way leaves no ghost for a repair to find.
+  // One transaction: the team row, its provenance, every scope it held and
+  // the audit row go together, so a failure half-way leaves no ghost for a
+  // repair to find.
   const retirement = await sql.begin(async (tx) => {
     await tx`
       DELETE FROM "team"
@@ -457,7 +521,16 @@ async function reapEmptySyncedTeam(
     `;
     // Whatever an admin scoped to the synced team meanwhile (a project, a
     // folder) must not stay pointed at the ghost.
-    return retireTeamScopes(tx, organizationId, teamId);
+    const retired = await retireTeamScopes(tx, organizationId, teamId);
+    const { touchedFileDocumentIds: _touched, ...counts } = retired;
+    await auditTeamDeleted(tx, {
+      organizationId,
+      actor: SSO_SYNC_ACTOR,
+      teamId,
+      teamName: verdict.name ?? '',
+      metadata: { door: 'sso', ...counts },
+    });
+    return retired;
   });
   await resyncRetiredDocumentScopes(sql, organizationId, retirement);
   return true;
@@ -551,6 +624,7 @@ export async function handleSsoLogin(
       try {
         const syncResult = await syncTeamsFromGroupNames(sql, {
           userId: result.userId,
+          userEmail: args.email,
           organizationId: args.organizationId,
           groupNames: args.groups,
           excludeGroups: config.excludeGroups,
