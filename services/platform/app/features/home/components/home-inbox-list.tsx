@@ -398,6 +398,7 @@ export function HomeInboxList({
               disabled={loading}
               align="end"
               iconOnly
+              compact
             />
           </div>
         )}

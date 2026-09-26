@@ -18,6 +18,9 @@ type FilterButtonProps = ComponentProps<typeof Button> & {
    * from `aria-label`, which this button always sets.
    */
   iconOnly?: boolean;
+  /** The 32px height of a panel's compact toolbar (beside an `h-8` search
+   * box) instead of the page toolbar's 36px. */
+  compact?: boolean;
 };
 
 export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
@@ -26,6 +29,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
       hasActiveFilters,
       isLoading = false,
       iconOnly = false,
+      compact = false,
       className,
       ...restProps
     },
@@ -39,8 +43,10 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
         variant="secondary"
         aria-label={t('labels.filter')}
         className={cn(
-          'hover:bg-muted relative h-9 gap-2',
-          iconOnly && 'w-9 shrink-0 justify-center gap-0 px-0',
+          'hover:bg-muted relative gap-2',
+          compact ? 'h-8' : 'h-9',
+          iconOnly && 'shrink-0 justify-center gap-0 px-0',
+          iconOnly && (compact ? 'w-8' : 'w-9'),
           hasActiveFilters && 'border-primary',
           isLoading && 'opacity-75',
           className,
