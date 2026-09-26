@@ -1,15 +1,18 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 77 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
 edit/branch/regenerate/stop, the thought timeline and source cards, share
-links and forking, arena mode, the thread history panel, and the degraded
+links and forking, arena mode, the chat header, the chat rows of the Home
+panel (pin, rename, move to a project, archive, delete), and the degraded
 states (backend unavailable, no provider, budget exceeded). There is **no
 agent picker** anymore: the composer picks a **model** and a reasoning effort;
 agents, skills, and connectors are equipped per **project** (see
-[projects.md](projects.md)), not in chat.
+[projects.md](projects.md)), not in chat. The Home panel itself — its views,
+bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
+list of its own any more.
 
 ## Scope & routes
 
@@ -66,15 +69,18 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.send`) → URL becomes `/dashboard/{org}/chat/{threadId}`; an assistant
   reply renders; **Stop generating** (`chat.stopGenerating`) replaces Send
   while streaming, then Send returns.
-- [ ] `CHAT-F4` · **New chat + history panel** — Open the chats panel (**Show
-  chats** `chat.showHistory` / **Hide chats** `chat.hideHistory`); click **New
-  chat** (`chat.newChat`) → URL returns to `/dashboard/{org}/chat` (no thread
-  id); the prior thread is listed under **Chats** (`chat.chatsSection`); an
-  org with projects also shows **Projects** (`chat.projectsSection`)
+- [ ] `CHAT-F4` · **New chat from Home** — In a thread, click **New chat**
+  (`home.newChat`) in the Home panel's header (or press ⌥⌘N, Alt+Ctrl+N off a
+  Mac) → URL becomes `/dashboard/{org}/chat?new=true` (no thread id); a draft
+  row **New chat** (context **Draft**, `home.row.draft`) leads the panel's
+  list, marked current; the prior chat stays listed in its time band under
+  **All** and **Chats** (`home.views.all`, `home.views.chats`); an org with
+  projects also lists them in the panel's **Projects** section
+  (`home.projects.title`)
 - [ ] `CHAT-F5` · **Title auto-generation** — Send the first message in a new
-  thread, then reload → The thread's history entry shows a generated title —
-  not **Untitled chat** (`chat.history.untitled`); the title persists after
-  reload.
+  thread, then reload → The chat's Home-panel row and the chat header show a
+  generated title — not **Untitled chat** (`home.row.untitledChat` /
+  `chat.history.untitled`); the title persists after reload.
 - [ ] `CHAT-F6` · **Model picker** — Open the combined picker (trigger
   `chat.picker.ariaLabel` = "Choose model and reasoning effort"); search
   (`chat.picker.searchPlaceholder`); pick a model under the **Model** section
@@ -166,11 +172,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Copy link** (`chat.share.copyLink`) → **Preview** (`chat.share.preview`)
   → The link copies with confirmation **Link copied**
   (`chat.share.copied`); Preview opens
-  `/dashboard/{org}/chat/shared/{shareToken}`; the thread row gains the
-  **Shared** indicator (`chat.share.sharedIndicator`)
+  `/dashboard/{org}/chat/shared/{shareToken}`; the chat's Home-panel row gains
+  the **Shared** mark and the chat header reads **Shared**
+  (`chat.share.sharedIndicator`) under the title
 - [ ] `CHAT-F22` · **Shared view + stop sharing** — Open the share URL in a
-  private window; then in the owner session use the thread-row menu → **Stop
-  sharing** (`chat.share.unshare`); reload the private window → The shared
+  private window; then in the owner session open the chat's row menu in the
+  Home panel (**More actions**, `chat.moreActions`) → **Stop sharing**
+  (`chat.share.unshare`); reload the private window → The shared
   page is read-only — header **Shared chat** (`chat.share.sharedChat`), byline
   `chat.share.byline`, no composer; after unsharing the same URL shows **This
   shared chat is no longer available.** (`chat.share.notFound`)
@@ -214,39 +222,61 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.dictation.discard`). Sending while recording stops the mic. A known
   unavailable server model explains the reason before recording and cannot
   start MediaRecorder; with no candidate it reads `chat.transcription.noModel`.
-- [ ] `CHAT-F27` · **Pin / rename / unread** — Thread-row **More actions**
-  (`chat.moreActions`) → **Pin chat** (`chat.pinChat`); **Rename**
-  (`chat.history.renameChat`); **Mark as unread** (`chat.markAsUnread`) → The
-  pinned thread shows the **Pinned** marker (`chat.pinned`) and sorts to the
-  top (**Unpin chat** `chat.unpinChat` reverses); the new name persists after
-  reload; an unread thread shows its unread affordance until **Mark as read**
+- [ ] `CHAT-F27` · **Pin / rename / unread** — Hover a chat row in the Home
+  panel and open its **More actions** (`chat.moreActions`) → **Pin chat**
+  (`chat.pinChat`); **Rename** (`chat.history.renameChat`) — the title turns
+  into an input, Enter commits, Escape keeps the old name; **Mark as unread**
+  (`chat.markAsUnread`) → The pinned chat moves to the **Pinned** band
+  (`home.groups.pinned`) with a pin mark (`chat.pinned`), and **Unpin chat**
+  (`chat.unpinChat`) returns it to its time band; the new name persists after
+  reload, on the row and in the chat header; an unread chat shows the blue
+  **Unread** dot (`home.row.unread`) and a bold title until **Mark as read**
   (`chat.markAsRead`) or opening it.
-- [ ] `CHAT-F28` · **Archive / unarchive** — Thread-row menu → **Archive**
-  (`chat.archive`); open the archived thread; unarchive → Toast **Chat
-  archived** (`chat.archiveSuccess`); the thread moves under **Archived**
-  (`chat.archived.title`); opening it replaces the composer with the banner
-  **This conversation was archived** (`chat.archivedBanner`) and an
-  **Unarchive** action (`chat.unarchive`); unarchiving restores the composer.
-- [ ] `CHAT-F29` · **Delete chat** — Thread-row menu → **Delete chat**
-  (`chat.deleteChat`) → confirm (`chat.deleteConfirmation`) → The dialog
-  explains trash + grace period (`chat.deletePermanentMessage`); after
-  confirming the thread leaves the list; opening its old URL shows **This chat
-  is not available.** (`chat.notFound`)
-- [ ] `CHAT-F30` · **Search chats** — Panel **Search chats**
-  (`chat.searchPalette.title`) → type message content into the dialog
-  (placeholder `chat.searchPalette.placeholder`); switch scope to
+- [ ] `CHAT-F28` · **Archive / unarchive** — Chat row menu → **Archive**
+  (`chat.archive`); drag a second chat row and release it with the pointer on
+  **Archived** (`chat.archived.title`) at the foot of the Home panel's **All**
+  or **Chats** view; expand the drawer; open an archived chat; unarchive it
+  from its banner and the other from its row menu (**Unarchive**,
+  `chat.unarchive`) → Either way of archiving toasts **Chat archived**
+  (`chat.archiveSuccess`); the drawer highlights while a chat hovers it; the
+  chats leave the list for the Archived drawer (archiving the chat you are in
+  lands you on a fresh composer); opening the archived chat replaces
+  the composer with the banner **This conversation was archived**
+  (`chat.archivedBanner`) and an **Unarchive** action (`chat.unarchive`);
+  unarchiving from the banner or the row menu restores the composer and the
+  row returns to its band, while a drawer row dragged out and released over
+  the list of chats stays archived. The **Tasks** and **Inbox** views show no
+  Archived drawer.
+- [ ] `CHAT-F29` · **Delete chat** — Chat row menu → **Delete**
+  (`common.actions.delete`) → the dialog `chat.deleteConfirmation` →
+  **Delete chat** (`chat.deleteChat`) → The dialog explains trash + grace
+  period (`chat.deletePermanentMessage`); after confirming the chat leaves the
+  Home panel; opening its old URL shows **This chat is not available.**
+  (`chat.notFound`)
+- [ ] `CHAT-F30` · **Search chats** — Open the palette from the rail's
+  **Search** tile (`navigation.sidebar.search`) or with ⌘K and switch its scope
+  to **Chats** (`dialogs.search.scopeChats`) → it retitles to **Search chats**
+  (`chat.searchPalette.title`); type message content into the dialog
+  (placeholder `chat.searchPalette.placeholder`); switch scope back to
   **Everything** (`dialogs.search.scopeEverything`) without closing → The
   matching thread is listed under Chats (no match: `chat.searchPalette.noResults`);
-  selecting it navigates to `/dashboard/{org}/chat/{threadId}`. The same
-  palette stays open; **Everything** also covers projects, tasks, documents,
-  and contacts (`dialogs.search.title`). A body saved on an edit branch
-  (‹2/2› after **Edit message** `chat.editMessage` → **Send** `chat.editSend`)
-  is found too, listed once, under the conversation's own URL.
-- [ ] `CHAT-F31` · **Move to project** — Thread-row menu → **Move to
-  project…** (`chat.moveToProject`) → pick a project (create one first via
-  **New project** `chat.newProject` if none) → The thread relocates under the
-  project's folder in the panel; **Remove from project**
-  (`chat.removeFromProject`) returns it to **Chats**; both survive a reload.
+  selecting it navigates to `/dashboard/{org}/chat/{threadId}` and its
+  Home-panel row scrolls into view, marked current. The same palette stays
+  open; **Everything** also covers projects, tasks, documents, and contacts
+  (`dialogs.search.title`). A body saved on an edit branch (‹2/2› after
+  **Edit message** `chat.editMessage` → **Send** `chat.editSend`) is found
+  too, listed once, under the conversation's own URL.
+- [ ] `CHAT-F31` · **Move to project** — Chat row menu → **Move to project…**
+  (`chat.moveToProject`) → pick a project in its searchable list (with none,
+  it reads `chat.history.noProjects` — create one with **New project**
+  `home.projects.newProject` in the panel's **Projects** section); then drag a
+  second chat row onto a project row in that section; then drag a third one a
+  little and release it over the list of chats → The project row highlights
+  while a chat hovers it; both filed chats now read the project's name on
+  their Home row and under the chat header's title; the chat released over the
+  list stays exactly as it was (no project, not archived); **Remove from
+  project** (`chat.removeFromProject`), in the same submenu, detaches one —
+  there is no drag gesture for un-filing; all of it survives a reload.
 - [ ] `CHAT-F32` · **Source cards** — **Mode B + Docker stack**: ask about an
   uploaded + indexed document (or a fetched web page) so the turn actually
   loads sources → A **Sources** row (`chat.sources.label`) renders one card
@@ -339,6 +369,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   prompt appears once per column (never a second copy when the reply
   arrives), and the verdict buttons stay unavailable until both replies
   finish.
+- [ ] `CHAT-F44` · **The chat header names where the chat lives** — Open a chat
+  filed in a project and shared with the organization (CHAT-F21), then an
+  unfiled private one, then a fresh composer → The header over the messages
+  shows the **Hide sidebar** toggle (`home.panel.hide`), a chat glyph, the
+  title as the page's heading, and under it the project's name and **Shared**
+  (`chat.share.sharedIndicator`); the unfiled private chat has no second line;
+  **Conversation actions** (`chat.aria.threadActions`) sits at the right;
+  messages scroll beneath the header, which fades into the page instead of
+  cutting them off. The fresh composer shows the toggle alone. Moving the chat
+  to another project (CHAT-F31) or stopping the share (CHAT-F22) updates the
+  line without a reload.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -456,16 +497,20 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   send is refused for the PAIR: neither column gains a prompt or an error
   row — never one column answering while the other is silent
 - [ ] `CHAT-B11` · **Long project and chat lists** — In an org with 30+
-  projects (one holding 20+ chats, expanded) and 40+ unfiled chats, open the
-  chats panel in a desktop window, shorten the window, then open the phone
-  drawer at 390px → **Projects** (`chat.projectsSection`) never takes more
-  than half of the list above **Archived** (`chat.archived.title`), even
-  when only a few chats remain, and **Chats** (`chat.chatsSection`) takes
-  the rest; both headers stay in view, each list scrolls on its own (a wheel
-  or swipe over one never moves the other), a chat dragged onto a folder
-  near the edge of the projects list scrolls that list, and a chat dropped
-  in the empty room under a short chat list lands under **Chats**, never in
-  a folder scrolled out of view
+  projects and 40+ chats, open the Home panel in a desktop window, shorten the
+  window, then open the Home list at 390px → The **Projects** section
+  (`home.projects.title`) never takes more than about half of the panel above
+  **Archived** (`chat.archived.title`), and the list of chats takes the rest;
+  both scroll on their own (a wheel or swipe over one never moves the other)
+  and the band headings stay pinned at the top of the list; collapsing
+  **Projects** with its header toggle (the project count shows beside the
+  title while collapsed) hands the room to the list, and stays collapsed after
+  a reload; a short project list keeps its natural height; a chat dragged onto
+  a visible project row files into that row, while one released anywhere over
+  the list of chats is put back unchanged — never filed into a project
+  scrolled out of view beneath it, never archived because the lifted card
+  grazed the **Archived** drawer; on a phone a drag starts only after a
+  press-and-hold, so a swipe scrolls the list
 
 - [ ] `CHAT-B12` · **Audio preflight and mixed files** — In a local org with
   chat available but no usable audio transcription model, select an audio
@@ -529,8 +574,8 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   streams a canned reply)
 - [ ] `CHAT-P2` · **Attachment upload** → A small PDF uploads and shows its
   chip in < 3 s.
-- [ ] `CHAT-P3` · **Thread switch** → Opening a history thread renders its
-  messages in < 1 s (warm)
+- [ ] `CHAT-P3` · **Thread switch** → Opening another chat from the Home
+  panel renders its messages in < 1 s (warm)
 - [ ] `CHAT-P4` · **Long-thread scroll** → A 50+ message thread scrolls
   without visible jank; the timeline/source folds stay responsive.
 - [ ] `CHAT-P5` · **Notice holds its place on reload** — With the org's

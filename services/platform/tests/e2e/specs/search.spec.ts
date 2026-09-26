@@ -5,15 +5,15 @@ import { t } from '../helpers/i18n';
 
 /**
  * Chat-scoped palette thread search. The shared shell `SearchCommand`
- * (`SidebarSearchCommand`) opens on the Chats scope from the thread-list
- * trigger: a query ≥2 chars runs a backend search over message content and
- * surfaces matching threads. To get a deterministic match, the spec seeds a
- * thread carrying a unique marker, then searches for it. The marker lives in
- * the user's own message (stored regardless of LLM mode), so the assertion
- * holds in mock and live modes. The palette is opened from the thread list's
- * search trigger (stable across OS) and closed with Escape (its close-button
- * label is in the `@tale/ui` search namespace, which the service-only `t()`
- * can't resolve). ⌘K opens the same palette on Everything.
+ * (`SidebarSearchCommand`) opens from the rail's search tile on Everything and
+ * narrows to Chats with its scope toggle: a query ≥2 chars runs a backend
+ * search over message content and surfaces matching threads. To get a
+ * deterministic match, the spec seeds a thread carrying a unique marker, then
+ * searches for it. The marker lives in the user's own message (stored
+ * regardless of LLM mode), so the assertion holds in mock and live modes. The
+ * palette is opened from the rail tile (stable across OS; ⌘K opens the same
+ * palette) and closed with Escape (its close-button label is in the `@tale/ui`
+ * search namespace, which the service-only `t()` can't resolve).
  *
  * FIXME(rewrite): seeding the thread requires a chat SEND, and the composer
  * disables Send until a model is available — which under the AI-backend
@@ -39,11 +39,13 @@ test.fixme('opens the chat command palette, finds a thread, and closes', async (
   const threadId = await sendNewThreadMessage(page, seedMessage);
 
   try {
-    // Open the palette from the thread list's search trigger (first in DOM;
-    // the mobile bar's copy is display:none on this desktop viewport).
+    // Open the palette from the rail's search tile, then narrow it to Chats.
     await page
-      .getByRole('button', { name: t('chat.searchPalette.title') })
+      .getByRole('button', { name: t('navigation.sidebar.search') })
       .first()
+      .click();
+    await page
+      .getByRole('button', { name: t('dialogs.search.scopeChats') })
       .click();
 
     const searchInput = page.getByRole('combobox', {

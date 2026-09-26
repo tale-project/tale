@@ -354,6 +354,14 @@ terms:
     category: feature
     en: Dashboard
     _note: One word. Established loanword.
+  - key: feature_home
+    category: feature
+    en: Home
+    de: Start
+    fr: Accueil
+    _note: The section that holds chats, projects, tasks and the inbox in one
+      panel. Matches UI label `navigation.home`. Never `Startseite` in DE — it
+      is a workspace, not a landing page.
   - key: feature_knowledge
     category: feature
     en: Knowledge

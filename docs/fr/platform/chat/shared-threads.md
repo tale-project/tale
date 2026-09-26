@@ -28,7 +28,7 @@ Un destinataire qui souhaite poursuivre le sujet démarre son propre chat. L’i
 
 ## Arrêter le partage
 
-Choisis **Garder privé** dans le dialogue ou **Arrêter le partage** dans le menu de la ligne du chat. Le lien devient indisponible. Supprimer le chat d’origine met également fin à l’accès partagé.
+Choisis **Garder privé** dans le dialogue ou **Arrêter le partage** dans le menu du chat, dans la liste d’**Accueil**. Le lien devient indisponible. Supprimer le chat d’origine met également fin à l’accès partagé.
 
 L’arrêt empêche les nouvelles consultations par ce lien. Il ne retire pas le texte déjà copié par quelqu’un : relire avant de partager reste donc nécessaire.
 

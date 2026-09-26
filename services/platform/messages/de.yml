@@ -1008,8 +1008,6 @@ chat:
     submitComment: Senden
   pinned: Angeheftet
   pinFailed: Anheften fehlgeschlagen
-  projectsSection: Projekte
-  chatsSection: Chats
   welcomeEmpty: Woran arbeiten wir?
   starters:
     email: Mir helfen, eine klare, professionelle E-Mail zu schreiben
@@ -1087,9 +1085,6 @@ chat:
     voiceOutputStop: Sprachausgabe stoppen
     voiceOutputStopped: Gestoppt
     voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
-  showHistory: Verlauf anzeigen
-  hideHistory: Verlauf ausblenden
-  newProject: Neues Projekt
   notFound: Dieser Chat ist nicht verfügbar.
   placeholder: Stell eine Frage…
   generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Versuch es erneut.
@@ -1266,8 +1261,6 @@ chat:
     error: Fehler
     noMetadata: Token-Verbrauch und Modellinformationen sind für diese Nachricht nicht verfügbar.
   history:
-    empty: Noch keine Gespräche
-    emptySubtitle: Starte einen neuen Chat
     untitled: Unbenannter Chat
     noProjects: Noch keine Projekte — erstelle eines im Panel oben.
     legalHold:
@@ -1280,8 +1273,6 @@ chat:
     generating: Antwort wird generiert
     renameChat: Umbenennen
     loadMore: Mehr laden
-    dropHereToAdd: Chat hier ablegen
-    dropToChatsHint: Hier ablegen, um zu Chats zu verschieben
     toast:
       moveFailed: Chat konnte nicht verschoben werden
       renameFailed: Chat konnte nicht umbenannt werden
@@ -4176,6 +4167,65 @@ metrics:
     searchEmpty: Keine Projekte gefunden
     emptyTitle: Projekt auswählen
     emptyDescription: Wähle ein Projekt, um seine Metriken zu sehen.
+home:
+  title: Start
+  newChat: Neuer Chat
+  panel:
+    hide: Seitenleiste ausblenden
+    show: Seitenleiste einblenden
+  views:
+    label: Anzeigen
+    all: Alle
+    chats: Chats
+    tasks: Aufgaben
+    inbox: Inbox
+  groups:
+    pinned: Angeheftet
+    today: Heute
+    yesterday: Gestern
+    thisWeek: Letzte 7 Tage
+    earlier: Früher
+  projects:
+    title: Projekte
+    newProject: Neues Projekt
+    allProjects: Alle Projekte
+    actions: 'Aktionen für {project}'
+    empty: Noch keine Projekte
+  inbox:
+    statusLabel: '{status}, Konversationsstatus'
+    compose: Neue E-Mail
+    clearSelection: Auswahl aufheben
+    status:
+      open: Offen
+      closed: Geschlossen
+      spam: Spam
+      archived: Archiviert
+  row:
+    untitledChat: Unbenannter Chat
+    chat: Chat
+    draft: Entwurf
+    unread: Ungelesen
+    generating: Schreibt eine Antwort …
+    awaitingReview: Wartet auf dein Review
+  empty:
+    all:
+      title: Noch nichts da
+      hint: Starte einen Chat oder übernimm eine Aufgabe aus einem Projekt.
+    chats:
+      title: Noch keine Chats
+      hint: Deine Unterhaltungen mit dem Assistenten erscheinen hier.
+    tasks:
+      title: Dir ist nichts zugewiesen
+      hint: Offene Aufgaben, die dir in einem Projekt zugewiesen sind, erscheinen hier.
+    inbox:
+      title: Keine Konversationen
+      hint: Kundenkonversationen mit diesem Status erscheinen hier.
+      filtered: Keine Konversation passt zur Suche oder zu den Filtern.
+  aria:
+    panel: Start
+    stream: Deine Chats, Aufgaben und Konversationen
+    inbox: Inbox-Konversationen
+    attention: '{count, plural, one {# Eintrag wartet auf dich} other {# Einträge warten auf dich}}'
 knowledge:
   title: Wissen
   documents: Dokumente
@@ -4279,6 +4329,12 @@ metadata:
   project:
     title: Projekt
     description: Ein geteilter Arbeitsbereich für Dateien, Anweisungen und Chats.
+  task:
+    title: Aufgabe
+    description: Eine Arbeit mit verantwortlicher Person, Status und der Diskussion dazu.
+  home:
+    title: Start
+    description: Deine Chats, Aufgaben und Inbox-Konversationen an einem Ort.
   websites:
     title: Websites
     description: Websites für die Wissensextraktion verwalten.
@@ -4411,10 +4467,9 @@ metadata:
     title: Automatisierungskonfiguration
     description: Automatisierungseinstellungen konfigurieren.
 navigation:
-  chat: Chat
+  home: Start
   knowledge: Wissen
   automations: Automatisierungen
-  more: Mehr
   userSettings: Einstellungen
   notifications: Benachrichtigungen
   organization: Organisation
@@ -4449,7 +4504,6 @@ navigation:
   enterpriseSso: Enterprise-SSO
   sidebar:
     landmark: Dashboard-Seitenleiste
-    title: Menü
     search: Suchen
     searchGlobal: Alles durchsuchen
 notificationPreferences:
@@ -6870,6 +6924,8 @@ tasks:
     create: Aufgabe erstellen
     created: Aufgabe erstellt
     comment: Kommentieren
+    commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten
+    commentShortcut: '{shortcut} zum Senden'
     assign: Zuweisen
     add: Hinzufügen
     archive: Archivieren
@@ -6897,6 +6953,12 @@ tasks:
     overview: Übersicht
     comments: Kommentare
     noComments: Noch keine Kommentare.
+    conversation: Unterhaltung
+    conversationEmpty: Noch keine Kommentare – beginne die Unterhaltung unten.
+    details: Details
+    showDetails: Details einblenden
+    hideDetails: Details ausblenden
+    openBoard: Board
     showEarlierComments: Frühere Kommentare anzeigen
     activity: Aktivität
     subtasks: Teilaufgaben

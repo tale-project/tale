@@ -70,6 +70,17 @@ For a human-owned task, compare the work with the description’s completion che
 
 Move the task to **Done** when the result meets the requirement. If an agent needs to revise it, add specific feedback and mention that agent. [Task automation](/platform/projects/task-automation) explains retries, rework, and cancellation.
 
+## Open your tasks from Home
+
+[Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, not in the board's dialog:
+
+- The brief comes first as a card: the description, attachments, and subtasks.
+- The discussion follows like a conversation, oldest first under day labels. It combines the comments with the task's history, such as status changes, assignments, and agent runs.
+- The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog.
+- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, labels, and dependencies, together with **Watch** and **Archive**. **Hide details** at the end of the header folds it away, and **Show details** brings it back. On a phone, **Show details** opens it as a sheet.
+
+**Board** in the header opens the project's task board. A task you open from the board still appears in its dialog; both views edit the same task.
+
 ## Find work that needs attention
 
 Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep proposals in [Backlog](/platform/projects/backlog) until they are ready to start; use labels for distinctions that do not need another status.

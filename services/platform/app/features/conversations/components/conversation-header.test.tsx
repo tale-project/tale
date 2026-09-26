@@ -132,7 +132,7 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('sarah@company.com')).toBeInTheDocument();
   });
 
-  it('renders avatar initial from contact name', () => {
+  it('renders the contact initials as its identity mark', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
@@ -140,7 +140,8 @@ describe('ConversationHeader', () => {
       />,
     );
 
-    expect(screen.getByText('S')).toBeInTheDocument();
+    // The same tinted initials the Home list shows for this contact.
+    expect(screen.getByText('SJ')).toBeInTheDocument();
   });
 
   it('renders relative time for last message', () => {
@@ -210,28 +211,28 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('Sarah Johnson')).toBeInTheDocument();
     const email = screen.getByText('sarah@company.com');
     expect(email).toBeInTheDocument();
-    // Mobile hides the sender email (contact info already has it); md+ keeps it.
-    expect(email).toHaveClass('hidden', 'md:inline');
+    // Mobile hides the sender email (contact info already has it); md+ keeps
+    // it — the wrapper that also holds its separator carries the breakpoint.
+    // oxlint-disable-next-line testing-library/no-node-access -- the responsive wrapper is structural, not a queryable role
+    expect(email.parentElement).toHaveClass('hidden', 'md:inline-flex');
   });
 
-  it('reveals a hidden meta separator as a flex box, never a bare inline', () => {
-    const { container } = render(
+  it('hides the email together with its separator on small screens', () => {
+    render(
       <ConversationHeader
         conversation={makeConversation()}
         organizationId="org-1"
       />,
     );
 
-    const separators = [...container.querySelectorAll('span.size-4')];
-    const responsive = separators.filter((dot) =>
-      dot.className.includes('hidden'),
-    );
-    expect(responsive.length).toBeGreaterThan(0);
-    // `md:inline` would blockify inside the flex meta row, and the dot would
-    // ride at the top of the separator's box instead of on the text midline.
-    for (const dot of responsive) {
-      expect(dot).toHaveClass('md:inline-flex');
-    }
+    // A lone separator left between the name and the time would read "· ·".
+    // `md:inline-flex`, not `md:inline`: the meta row is a flex box, and an
+    // inline child would ride off the text midline.
+    const email = screen.getByText('sarah@company.com');
+    // oxlint-disable-next-line testing-library/no-node-access -- the responsive wrapper is structural, not a queryable role
+    const group = email.parentElement;
+    expect(group).toHaveClass('hidden', 'md:inline-flex');
+    expect(group?.textContent).toContain('·');
   });
 
   it('does not render a back control (back lives in the page header)', () => {

@@ -2,17 +2,17 @@
 
 import { useIsMac } from '@tale/ui/use-is-mac';
 import {
-  MessageCircle,
   BrainIcon,
+  House,
   Workflow,
-  Folder,
-  Inbox,
   Settings as SettingsIcon,
+  type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
+import { isHomePath } from '@/app/features/home/lib/home-paths';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -21,10 +21,8 @@ export interface NavItem {
   to: string;
   params: Record<string, string>;
   href: string;
-  icon?: React.ComponentType<{
-    className?: string;
-    style?: React.CSSProperties;
-  }>;
+  /** Lucide only, like every icon in the app. */
+  icon?: LucideIcon;
   external?: boolean;
   /** CASL ability check required to show this item. When absent, always visible. */
   can?: [AppAction, AppSubject];
@@ -61,57 +59,45 @@ export interface NavItem {
 export interface NavigationItems {
   /** Main destinations shown in the primary nav list. */
   primary: NavItem[];
-  /** Items pinned at the bottom of the sidebar (above the UserButton) and surfaced in the mobile overflow sheet. */
+  /** Items pinned at the foot of the rail (above the UserButton); on a phone they join the tab bar. */
   pinned: NavItem[];
 }
 
 export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
-  const { t: tProjects } = useT('projects');
-  const { t: tConversations } = useT('conversations');
   const isMac = useIsMac();
   const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
-  // The Inbox entry used to be gated on an installed automation declaring the
-  // `inbox` builtin view; that signal lives in the automations backend, which
-  // is offline while it is rebuilt, so `useInboxAvailability` currently
-  // reports every org as inbox-capable and the entry always shows.
-  const { hasInbox: hasInboxAutomation } = useInboxAvailability(businessId);
-  // The chip on the Inbox tile: OPEN conversations still carrying unread
-  // messages, already narrowed to this caller's inbox scope by the counts
-  // door. Skipped while the entry is hidden, and `undefined` until the first
-  // read lands — the tile renders bare rather than flashing a zero.
+  const { hasInbox } = useInboxAvailability(businessId);
+  // The chip on the Home tile: OPEN inbox conversations still carrying
+  // unread messages, already narrowed to this caller's inbox scope by the
+  // counts door — the one signal that arrives from outside while you work.
+  // Skipped without an inbox, and `undefined` until the first read lands —
+  // the tile renders bare rather than flashing a zero.
   const { data: unreadConversations } = useUnreadConversationCount(
-    hasInboxAutomation ? businessId : undefined,
+    hasInbox ? businessId : undefined,
   );
   return useMemo(
     (): NavigationItems => ({
       primary: [
         {
-          // Section destination: opens the caller's last chat (or a blank
-          // composer when there is none). Fresh chats use the header + /
-          // ⌥⌘N shortcut with `?new=1`.
-          label: tNav('chat'),
+          // Home holds everything you work on — chats, projects with their
+          // tasks, and the inbox — behind one panel. The tile opens the
+          // caller's last chat (or a blank composer when there is none);
+          // clicking it while already in Home starts a fresh chat, the same
+          // navigation the ⌥⌘N shortcut performs.
+          label: tNav('home'),
           to: '/dashboard/$id/chat',
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
-          icon: MessageCircle,
+          icon: House,
           shortcut: newChatShortcut,
-          // Clicking chat while already in it starts a new one — the same
-          // navigation the ⌥⌘N shortcut performs. Entering from elsewhere
-          // resumes the surface's most-recently-active thread.
           reentrySearch: { new: true },
-          isActivePath: (pathname) =>
-            pathname === `/dashboard/${businessId}/chat` ||
-            pathname.startsWith(`/dashboard/${businessId}/chat/`),
-        },
-        {
-          label: tProjects('title'),
-          to: '/dashboard/$id/projects',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/projects`,
-          icon: Folder,
-          can: ['read', 'projects'],
+          isActivePath: (pathname) => isHomePath(pathname, businessId),
+          badge: unreadConversations ?? 0,
+          badgeLabel: tNav('aria.unreadConversations', {
+            count: unreadConversations ?? 0,
+          }),
         },
         {
           label: tNav('knowledge'),
@@ -162,30 +148,15 @@ export function useNavigationItems(businessId: string): NavigationItems {
           href: `/dashboard/${businessId}/automations`,
           icon: Workflow,
         },
-        // Annotated: an inline conditional spread is inferred without the
-        // array's contextual type, which widens the literal's fields and then
-        // poisons the whole array.
-        ...(hasInboxAutomation
-          ? ([
-              {
-                label: tConversations('title'),
-                to: '/dashboard/$id/conversations',
-                params: { id: businessId },
-                href: `/dashboard/${businessId}/conversations`,
-                icon: Inbox,
-                badge: unreadConversations ?? 0,
-                badgeLabel: tNav('aria.unreadConversations', {
-                  count: unreadConversations ?? 0,
-                }),
-              },
-            ] satisfies NavItem[])
-          : []),
+      ],
+      pinned: [
         {
-          // Single Settings entry. The index route redirects to the
-          // permission-appropriate landing page (org settings for admins,
-          // account for everyone else) via getDefaultSettingsRoute. The
-          // default active-path matcher lights it up for every `/settings`
-          // sub-route since they all share this prefix.
+          // Single Settings entry, pinned with the account tiles at the foot
+          // of the rail: configuration is not a place you work in. The index
+          // route redirects to the permission-appropriate landing page (org
+          // settings for admins, account for everyone else) via
+          // getDefaultSettingsRoute; the default active-path matcher lights
+          // it up for every `/settings` sub-route.
           label: tNav('userSettings'),
           to: '/dashboard/$id/settings',
           params: { id: businessId },
@@ -193,17 +164,7 @@ export function useNavigationItems(businessId: string): NavigationItems {
           icon: SettingsIcon,
         },
       ],
-      pinned: [],
     }),
-    [
-      businessId,
-      tNav,
-      tKnowledge,
-      tProjects,
-      tConversations,
-      hasInboxAutomation,
-      unreadConversations,
-      newChatShortcut,
-    ],
+    [businessId, tNav, tKnowledge, unreadConversations, newChatShortcut],
   );
 }

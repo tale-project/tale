@@ -3,6 +3,7 @@
 import { cn } from '@tale/ui/cn';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMac } from '@tale/ui/use-is-mac';
+import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
@@ -22,8 +23,24 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
   return false;
 }
 
+function isItemActive(item: NavItem, pathname: string): boolean {
+  return item.isActivePath
+    ? item.isActivePath(pathname)
+    : isPathMatch(item.href, pathname) ||
+        (item.subItems?.some((subItem) =>
+          isPathMatch(subItem.href, pathname),
+        ) ??
+          false);
+}
+
 export interface SidebarNavItemProps {
   item: NavItem;
+  /**
+   * The list draws the active fill as ONE shared pill that glides between
+   * tiles (see `SidebarNav`); the tile then only switches its icon colour.
+   * Standalone tiles (the pinned footer) paint their own fill.
+   */
+  sharedIndicator?: boolean;
 }
 
 /**
@@ -32,16 +49,16 @@ export interface SidebarNavItemProps {
  * right-side tooltip (with a shortcut chip for items owning a global
  * binding).
  */
-export function SidebarNavItem({ item }: SidebarNavItemProps) {
+export function SidebarNavItem({
+  item,
+  sharedIndicator = false,
+}: SidebarNavItemProps) {
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
 
-  const isActive = item.isActivePath
-    ? item.isActivePath(pathname)
-    : isPathMatch(item.href, pathname) ||
-      item.subItems?.some((subItem) => isPathMatch(subItem.href, pathname));
+  const isActive = isItemActive(item, pathname);
 
   if (item.can && !ability.can(item.can[0], item.can[1])) {
     return null;
@@ -64,7 +81,9 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
 
   const activeStyle =
     isActive && accentColor
-      ? { backgroundColor: `${accentColor}26`, color: accentColor }
+      ? sharedIndicator
+        ? { color: accentColor }
+        : { backgroundColor: `${accentColor}26`, color: accentColor }
       : undefined;
 
   // The tile's accessible name carries the badge. The link sets `aria-label`,
@@ -89,10 +108,12 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
   const rowContent = (
     <div
       className={cn(
-        'relative flex size-9 items-center justify-center rounded-md',
+        'relative flex size-9 items-center justify-center rounded-md transition-[color,background-color,transform] duration-150 active:scale-[0.94] motion-reduce:transition-none',
         isActive
-          ? accentColor
-            ? ''
+          ? accentColor || sharedIndicator
+            ? accentColor
+              ? ''
+              : 'text-foreground'
             : 'bg-muted text-foreground'
           : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
       )}
@@ -100,11 +121,20 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
       data-active={isActive}
     >
       <span className="relative flex size-5 shrink-0 items-center justify-center">
-        {Icon && <Icon className="size-5 shrink-0" />}
+        {Icon && (
+          <Icon
+            className={cn(
+              'size-5 shrink-0 transition-[stroke-width] duration-150',
+              isActive && '[stroke-width:2.25]',
+            )}
+          />
+        )}
         {showBadge && (
           <span
+            // Re-keyed on the count so a new arrival pops the chip again.
+            key={item.badge}
             aria-hidden="true"
-            className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums"
+            className="bg-primary text-primary-foreground ring-background animate-in zoom-in-50 absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums ring-2 duration-300 motion-reduce:animate-none"
           >
             {(item.badge ?? 0) > 99 ? '99+' : item.badge}
           </span>
@@ -118,6 +148,7 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
 
   const link = item.external ? (
     <a
+      data-indicator-key={item.href}
       href={item.href}
       target="_blank"
       rel="noopener noreferrer"
@@ -127,7 +158,12 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
       {rowContent}
     </a>
   ) : (
-    <Link {...linkProps} aria-label={accessibleName} className={linkClassName}>
+    <Link
+      {...linkProps}
+      data-indicator-key={item.href}
+      aria-label={accessibleName}
+      className={linkClassName}
+    >
       {rowContent}
     </Link>
   );
@@ -151,6 +187,16 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
   const { primary } = useNavigationItems(organizationId);
   const navigate = useNavigate();
   const isMac = useIsMac();
+  const { pathname } = useLocation();
+  const { accentColor } = useBrandingContext();
+  const activeHref =
+    primary.find((item) => isItemActive(item, pathname))?.href ?? null;
+  // One pill for the whole list: it glides from the tile you left to the
+  // tile you chose, instead of one fill blinking out while another blinks in.
+  const indicator = useSlidingIndicator<HTMLUListElement>(
+    activeHref,
+    primary.length,
+  );
 
   // New-chat shortcut, registered on the always-mounted sidebar so it works
   // from anywhere in the dashboard. ⌥⌘N on Mac, Alt+Ctrl+N elsewhere —
@@ -175,9 +221,27 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
 
   return (
     <nav aria-label={tCommon('aria.mainNavigation')}>
-      <ul role="list" className="flex list-none flex-col gap-2">
+      <ul
+        ref={indicator.containerRef}
+        role="list"
+        className="relative flex list-none flex-col gap-2"
+      >
+        <span
+          aria-hidden
+          style={
+            accentColor
+              ? { ...indicator.style, backgroundColor: `${accentColor}26` }
+              : indicator.style
+          }
+          className={cn(
+            'pointer-events-none absolute top-0 left-0 rounded-md',
+            !accentColor && 'bg-muted',
+            indicator.animated &&
+              '[transition:transform_300ms_var(--ease-out-quint),opacity_150ms] motion-reduce:transition-none',
+          )}
+        />
         {primary.map((item) => (
-          <SidebarNavItem key={item.href} item={item} />
+          <SidebarNavItem key={item.href} item={item} sharedIndicator />
         ))}
       </ul>
     </nav>

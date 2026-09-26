@@ -10,17 +10,23 @@ import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { toast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef } from 'react';
+import {
+  Outlet,
+  createFileRoute,
+  useLocation,
+  useNavigate,
+} from '@tanstack/react-router';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
 import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-placeholder';
-import { ChatSubPanelPlaceholder } from '@/app/components/layout/chat-sub-panel-placeholder';
+import { HomePanelPlaceholder } from '@/app/components/layout/home-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileBottomNavPlaceholder } from '@/app/components/layout/mobile-bottom-nav-placeholder';
 import { UserButton } from '@/app/components/user-button';
@@ -32,6 +38,9 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { HomePanel } from '@/app/features/home/components/home-panel';
+import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
+import { showsHomePanel } from '@/app/features/home/lib/home-paths';
 import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -287,98 +296,102 @@ function DashboardLayout() {
                   so the sidebar's chat-history relative times and the chat
                   interface's timers share one clock frame on every route. */}
                 <ClockOffsetProvider>
-                  {/* Shell alerts sit above nav + main so page headers (chat toolbar,
+                  <HomePanelProvider organizationId={organizationId}>
+                    {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
-                  <div className="flex h-full w-full flex-col overflow-hidden">
-                    {hasRole && (
-                      <TwoFactorGraceBanner organizationId={organizationId} />
-                    )}
-                    {hasRole && (
-                      <TwoFactorLowBackupCodesBanner
-                        organizationId={organizationId}
-                      />
-                    )}
-                    {hasRole && (
-                      <EmbeddingSetupBanner organizationId={organizationId} />
-                    )}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-                      {/* Safe-area inset clears the notch; the inner fixed-height row
+                    <div className="flex h-full w-full flex-col overflow-hidden">
+                      {hasRole && (
+                        <TwoFactorGraceBanner organizationId={organizationId} />
+                      )}
+                      {hasRole && (
+                        <TwoFactorLowBackupCodesBanner
+                          organizationId={organizationId}
+                        />
+                      )}
+                      {hasRole && (
+                        <EmbeddingSetupBanner organizationId={organizationId} />
+                      )}
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+                        {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
-                      <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                        <Row gap={2} className="min-h-12">
-                          <div className="min-w-0 flex-1">
-                            <AdaptiveHeaderSlot />
-                          </div>
-                          <UserButton align="end" />
-                        </Row>
-                      </header>
-
-                      {hasRole ? (
-                        <AppSidebar organizationId={organizationId} />
-                      ) : (
-                        <AppSidebarPlaceholder />
-                      )}
-
-                      <Stack
-                        id="main-content"
-                        as="main"
-                        tabIndex={-1}
-                        gap={0}
-                        // outline-none: as the skip-link target this region is
-                        // focused programmatically (tabIndex -1, never in the
-                        // tab order), so the browser's focus-visible ring would
-                        // outline the whole content area without conveying
-                        // anything actionable.
-                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
-                      >
-                        {hasRole && <ChangelogToastTrigger />}
-                        {!hasRole && (
-                          // While access resolves, hold the chat layout's
-                          // slots (CSS-gated to chat navigations) — the
-                          // sub-panel and the composer at the message
-                          // column's foot — so the real chat slots in
-                          // without a late pop. Mirrors the boot shell's
-                          // frame exactly.
-                          <div className="flex min-h-0 flex-1 flex-row">
-                            <ChatSubPanelPlaceholder />
-                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                              <ChatComposerPlaceholder />
+                        <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                          <Row gap={2} className="min-h-12">
+                            <div className="min-w-0 flex-1">
+                              <AdaptiveHeaderSlot />
                             </div>
-                          </div>
-                        )}
+                            <UserButton align="end" />
+                          </Row>
+                        </header>
+
                         {hasRole ? (
-                          isSwitching ? (
-                            <FullPageCenter>
-                              <VStack gap={3} align="center">
-                                <Spinner
-                                  size="lg"
-                                  label={tSettings(
-                                    'organization.switchingLabel',
-                                  )}
-                                />
-                                <Text variant="muted" className="text-sm">
-                                  {tSettings('organization.switching')}
-                                </Text>
-                              </VStack>
-                            </FullPageCenter>
-                          ) : (
-                            <Outlet />
-                          )
-                        ) : null}
-                      </Stack>
-                      {hasRole ? (
-                        <MobileBottomNav organizationId={organizationId} />
-                      ) : (
-                        // Holds the tab bar's band while access resolves,
-                        // like the rail and chat placeholders above — without
-                        // it the content column grows to the bottom edge and
-                        // jumps back up when the live bar mounts.
-                        <MobileBottomNavPlaceholder />
-                      )}
+                          <AppSidebar organizationId={organizationId} />
+                        ) : (
+                          <AppSidebarPlaceholder />
+                        )}
+
+                        <Stack
+                          id="main-content"
+                          as="main"
+                          tabIndex={-1}
+                          gap={0}
+                          // outline-none: as the skip-link target this region is
+                          // focused programmatically (tabIndex -1, never in the
+                          // tab order), so the browser's focus-visible ring would
+                          // outline the whole content area without conveying
+                          // anything actionable.
+                          className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
+                        >
+                          {hasRole && <ChangelogToastTrigger />}
+                          {!hasRole && (
+                            // While access resolves, hold the Home layout's
+                            // slots (CSS-gated to Home and chat navigations)
+                            // — the Home panel and a chat's composer at the
+                            // column's foot — so the real page slots in
+                            // without a late pop. Mirrors the boot shell's
+                            // frame exactly.
+                            <div className="flex min-h-0 flex-1 flex-row">
+                              <HomePanelPlaceholder />
+                              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                                <ChatComposerPlaceholder />
+                              </div>
+                            </div>
+                          )}
+                          {hasRole ? (
+                            isSwitching ? (
+                              <FullPageCenter>
+                                <VStack gap={3} align="center">
+                                  <Spinner
+                                    size="lg"
+                                    label={tSettings(
+                                      'organization.switchingLabel',
+                                    )}
+                                  />
+                                  <Text variant="muted" className="text-sm">
+                                    {tSettings('organization.switching')}
+                                  </Text>
+                                </VStack>
+                              </FullPageCenter>
+                            ) : (
+                              <HomeSectionFrame organizationId={organizationId}>
+                                <Outlet />
+                              </HomeSectionFrame>
+                            )
+                          ) : null}
+                        </Stack>
+                        {hasRole ? (
+                          <MobileBottomNav organizationId={organizationId} />
+                        ) : (
+                          // Holds the tab bar's band while access resolves,
+                          // like the rail and chat placeholders above — without
+                          // it the content column grows to the bottom edge and
+                          // jumps back up when the live bar mounts.
+                          <MobileBottomNavPlaceholder />
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </HomePanelProvider>
                 </ClockOffsetProvider>
               </SidebarProvider>
             </AdaptiveHeaderProvider>
@@ -386,5 +399,32 @@ function DashboardLayout() {
         </AbilityLoadingContext.Provider>
       </AbilityContext.Provider>
     </ErrorScopeProvider>
+  );
+}
+
+/**
+ * The Home section's frame: on every Home route (chats, tasks, projects, the
+ * inbox) the Home panel sits beside the page, mounted ONCE here so moving
+ * between those routes keeps it — scroll position, open groups and all —
+ * instead of each page bringing its own navigation. Other sections render
+ * their page alone.
+ */
+function HomeSectionFrame({
+  organizationId,
+  children,
+}: {
+  organizationId: string;
+  children: ReactNode;
+}) {
+  const { pathname } = useLocation();
+  // A phone has no panel beside the page (its Home list is a screen of its
+  // own), so the panel — and every read it makes — mounts on desktop only.
+  const isMobile = useIsMobile();
+  if (!showsHomePanel(pathname, organizationId)) return <>{children}</>;
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+      {!isMobile && <HomePanel organizationId={organizationId} />}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+    </div>
   );
 }

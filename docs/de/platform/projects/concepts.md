@@ -3,7 +3,7 @@ title: Projektgrundlagen
 description: Verstehe, was ein Projekt gemeinsam bereitstellt, welche Chats persönlich bleiben und wann sich ein Projekt lohnt.
 ---
 
-Nutze ein Projekt, wenn mehrere Fragen oder Aufgaben auf denselben Unterlagen beruhen. Es vereint Dateien, Anweisungen, Chats, eine Aufgabenübersicht und Aufgabenagenten. Eine einmalige Frage kann im Chat bleiben. Für eine Veröffentlichung, Kundenübergabe oder laufende Untersuchung ist ein Projekt meist hilfreicher.
+Nutze ein Projekt, wenn mehrere Fragen oder Aufgaben auf denselben Unterlagen beruhen. Es vereint Dateien, Anweisungen, Chats, eine Aufgabenübersicht und Aufgabenagenten. Eine einmalige Frage kann in einem gewöhnlichen Chat bleiben. Für eine Veröffentlichung, Kundenübergabe oder laufende Untersuchung ist ein Projekt meist hilfreicher.
 
 ## Was das Projekt zusammenhält
 
@@ -43,7 +43,7 @@ Ein Chat im Projekt beginnt als dein eigenes Gespräch. Andere Projektmitglieder
 
 Lies die Nachrichten vor der Freigabe durch, auch vertrauliche Angaben, die eine Antwort zitiert. Verschiebst du einen geteilten Chat in ein anderes Projekt oder aus dem Projekt heraus, endet seine Projektfreigabe. Teile ihn bewusst erneut, wenn die neue Zielgruppe ihn lesen soll.
 
-Nutze **In Projekt verschieben…** in den Chat-Aktionen, wenn ein bestehendes Gespräch zu dieser Arbeit gehört. Organisationsweite Links auf eine Momentaufnahme sind eine eigene Funktion; siehe [Einen Chat teilen](/de/platform/chat/shared-threads).
+Gehört ein bestehendes Gespräch zu dieser Arbeit, nutze **In Projekt verschieben…** in den Chat-Aktionen oder zieh den Chat im Bereich **Start** auf das Projekt. Organisationsweite Links auf eine Momentaufnahme sind eine eigene Funktion; siehe [Einen Chat teilen](/de/platform/chat/shared-threads).
 
 ## Aus einem Gespräch eine Aufgabe machen
 

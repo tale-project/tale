@@ -16,10 +16,11 @@ describe('AppSidebarPlaceholder', () => {
 
   it('draws one tile per primary nav item, plus logo and footer', () => {
     const { container } = render(<AppSidebarPlaceholder />);
-    // 1 logo + 1 search + 6 nav + 2 footer (bell + account). The nav count mirrors the
-    // `primary` list in `use-navigation-items.ts` for the full-permission
-    // case — when a nav item is added or retired there, this placeholder (and
-    // this pin) must move with it, or the boot shell visibly over/under-draws.
-    expect(container.querySelectorAll('.size-9')).toHaveLength(10);
+    // 1 logo + 1 search + 3 sections (Home, Knowledge, Automations) + 3
+    // footer (bell + Settings + account). The section count mirrors the
+    // `primary` list in `use-navigation-items.ts` — when a section is added or
+    // retired there, this placeholder (and this pin) must move with it, or
+    // the boot shell visibly over/under-draws.
+    expect(container.querySelectorAll('.size-9')).toHaveLength(8);
   });
 });

@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * One thread of the sub-panel, and its actions menu.
+ * One chat row of the ARCHIVED drawer, and the row menu every chat row in
+ * Home shares.
  *
  * The row says what the thread is at a glance — title, pin
  * glyph, unread dot, live "generating" label or a quiet relative age — and
@@ -166,7 +167,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
             // Hides on hover (desktop) — the actions menu lands on this edge
             // and the age would show through it. Absent while streaming (the
             // dot carries that state).
-            <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
+            <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
               {age}
             </span>
           )}
@@ -176,7 +177,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           horizontal space until hover — the title gets the full width. On
           touch it stays in-flow and always visible. */}
       {!renaming && (
-        <div className="bg-background/80 z-10 shrink-0 rounded-md opacity-100 backdrop-blur-sm transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
+        <div className="bg-background/80 z-10 shrink-0 rounded-md opacity-100 backdrop-blur-sm transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
           <ThreadRowMenu
             thread={thread}
             variant={variant}
@@ -190,7 +191,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
 }
 
 /** The in-place rename field — Enter commits, Escape cancels, blur commits. */
-function ThreadRenameInput({
+export function ThreadRenameInput({
   thread,
   organizationId,
   onDone,
@@ -247,7 +248,7 @@ function ThreadRenameInput({
 }
 
 /** The row's More-actions menu. */
-function ThreadRowMenu({
+export function ThreadRowMenu({
   thread,
   variant,
   active,

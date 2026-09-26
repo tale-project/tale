@@ -11,7 +11,7 @@ Commence avec un compte connecté et un [premier chat](/fr/get-started/quickstar
 
 ## Donner assez de contexte à ta question
 
-Ouvre **Chat**, puis **Nouveau chat**. Décris la tâche, fournis les informations nécessaires et précise la forme du résultat. Par exemple, colle des notes de réunion et demande les décisions, les responsables et les questions ouvertes.
+Ouvre **Accueil**, puis **Nouveau chat**. Décris la tâche, fournis les informations nécessaires et précise la forme du résultat. Par exemple, colle des notes de réunion et demande les décisions, les responsables et les questions ouvertes.
 
 Lis le résultat avant de l’utiliser. Lorsqu’une réponse cite une source, ouvre-la et vérifie qu’elle étaye l’affirmation. Une réponse bien rédigée ne prouve pas que le modèle a utilisé le bon document. [Bien utiliser le chat](/fr/tutorials/member/chat-effectively) montre comment affiner le résultat avec des questions complémentaires.
 
@@ -36,7 +36,7 @@ Si tu ne peux pas ajouter une source partagée, demande à une personne disposan
 
 ## Travailler dans un projet
 
-Ouvre **Projets** et choisis un projet accessible. Consulte **Tâches** pour le travail à réaliser, **Connaissances** pour les fichiers et **Chats** pour les conversations. Les chats de projet restent personnels jusqu’à leur partage avec le projet.
+Dans **Accueil**, choisis un projet accessible sous **Projets**. Consulte **Tâches** pour le travail à réaliser, **Connaissances** pour les fichiers et **Chats** pour les conversations. Les chats de projet restent personnels jusqu’à leur partage avec le projet.
 
 <Frame caption="Le tableau regroupe le travail par statut ; chaque carte ouvre les détails de la tâche.">
 
@@ -48,8 +48,8 @@ Ouvre une tâche pour lire sa description, son attribution et la discussion. Ave
 
 ## Reprendre ton travail
 
-Choisir **Projets** ou **Connaissances** depuis une autre section rouvre la dernière vue consultée. Choisis à nouveau la section active pour revenir à sa liste. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
+Chaque section s’ouvre sur sa première page, quoi que tu y aies fait auparavant. Sur ordinateur, **Accueil** fait exception : il rouvre le chat que tu as lu en dernier, et le choisir à nouveau démarre un nouveau chat. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
 
-La barre latérale des chats conserve l’historique des conversations. Utilise **Afficher les chats** si elle est masquée, puis rouvre la conversation. Commence un nouveau chat pour un nouveau sujet et partage volontairement une conversation de projet lorsque tes collègues en ont besoin.
+**Accueil** affiche tes chats avec les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture ; choisis **Chats** ou **Tâches** au-dessus de la liste pour n’afficher que tes chats ou que tes tâches. Si le panneau latéral est masqué, **Afficher le panneau latéral**, au début de l’en-tête, le fait revenir. Commence un nouveau chat pour un nouveau sujet et partage volontairement une conversation de projet lorsque tes collègues en ont besoin.
 
 La langue et le thème sont accessibles dans **Gérer le compte**. Le [guide des préférences](/fr/platform/member/preferences) explique les autres réglages et les fonctions qui les utilisent.

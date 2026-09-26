@@ -17,7 +17,10 @@ import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
-import { SettingsRail } from '@/app/features/settings/components/settings-rail';
+import {
+  SettingsRail,
+  useSettingsPage,
+} from '@/app/features/settings/components/settings-rail';
 import {
   SettingsHeaderActionsSetter,
   SettingsHeaderActionsReader,
@@ -39,7 +42,10 @@ function SettingsLayout() {
   const { t: tNav } = useT('navigation');
   const location = useLocation();
 
-  const headerTitle = tNav('userSettings');
+  // The panel's header already names the section; the page header names the
+  // open page (the index, which has none, keeps the section's name).
+  const page = useSettingsPage(organizationId);
+  const headerTitle = page?.title ?? tNav('userSettings');
 
   // Stable setter (from useState) goes in SetterContext so sub-page effects
   // can include it as a dep without causing re-render loops.
@@ -58,26 +64,34 @@ function SettingsLayout() {
       {/* Split provider: setter is stable, reader changes only when actions change. */}
       <SettingsHeaderActionsSetter.Provider value={setHeaderActions}>
         <SettingsHeaderActionsReader.Provider value={headerActions}>
-          <PageLayout
-            organizationId={organizationId}
-            header={
-              <AdaptiveHeaderRoot
-                showBorder
-                standalone={false}
-                className="gap-1"
-              >
-                <SettingsMobileBackButton organizationId={organizationId} />
-                <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
-                <SettingsEditorActionsSlot />
-              </AdaptiveHeaderRoot>
-            }
-          >
-            <SettingsMobileActionBar />
-            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-              <SettingsRail organizationId={organizationId} />
+          {/* The same frame as Home: the Settings panel runs the full height
+              beside the page, with its own header, and the page carries the
+              open page's name and its Save/Discard in a header of its own. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+            <SettingsRail organizationId={organizationId} />
+            <PageLayout
+              organizationId={organizationId}
+              className="min-w-0 flex-1"
+              header={
+                <AdaptiveHeaderRoot
+                  showBorder
+                  standalone={false}
+                  className="gap-1"
+                >
+                  <SettingsMobileBackButton organizationId={organizationId} />
+                  <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
+                  <SettingsEditorActionsSlot />
+                </AdaptiveHeaderRoot>
+              }
+            >
+              <SettingsMobileActionBar />
               <ContentArea
+                // Fades in per page — keyed on the page, not the path, so a
+                // drawer route inside one (a request over its list) keeps the
+                // page's state and scroll.
+                key={page?.key ?? location.pathname}
                 className={cn(
-                  'min-w-0 overflow-y-auto',
+                  'animate-in fade-in-0 min-w-0 overflow-y-auto duration-200 motion-reduce:animate-none',
                   usesBoundedLayout ? 'min-h-0 flex-1' : 'flex-1',
                 )}
                 variant="page"
@@ -85,8 +99,8 @@ function SettingsLayout() {
               >
                 <Outlet />
               </ContentArea>
-            </div>
-          </PageLayout>
+            </PageLayout>
+          </div>
         </SettingsHeaderActionsReader.Provider>
       </SettingsHeaderActionsSetter.Provider>
     </ActiveEditorProvider>

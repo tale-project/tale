@@ -41,6 +41,7 @@ import { useThreadListFrame } from './thread-list-context';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
 const ARCHIVE_DROPPABLE_ID = 'archive';
+const STAY_DROPPABLE_ID = 'stay';
 
 /** Payload a chat row advertises while it is being dragged. */
 export interface ThreadDragData {
@@ -52,11 +53,13 @@ export interface ThreadDragData {
   title: string;
 }
 
-/** Payload a drop target advertises: a project folder (`null` projectId = the
- * "no project" zone), or the ARCHIVED drawer, where a drop archives the chat. */
+/** Payload a drop target advertises: a project (`null` projectId = the
+ * "no project" zone), the ARCHIVED drawer, where a drop archives the chat, or
+ * the list the rows live in, where a drop puts the row back unchanged. */
 type ThreadDropData =
   | { kind: 'project'; projectId: string | null }
-  | { kind: 'archive' };
+  | { kind: 'archive' }
+  | { kind: 'stay' };
 
 /**
  * dnd-kit types `data.current` as `Record<string, any>`, so these readers
@@ -82,6 +85,7 @@ function readDropData(
   data: Record<string, unknown> | undefined,
 ): ThreadDropData | null {
   if (data?.kind === 'archive') return { kind: 'archive' };
+  if (data?.kind === 'stay') return { kind: 'stay' };
   if (data?.kind === 'project' && 'projectId' in data) {
     return {
       kind: 'project',
@@ -108,11 +112,11 @@ function clippingAncestor(node: Element): Element | null {
 }
 
 /**
- * Every zone's box, cut to the part its clipping ancestor shows. A folder
- * scrolled out of the PROJECTS list is still laid out below it — under CHATS
- * or ARCHIVED — and dnd-kit measures that unclipped box, so without the cut a
- * chat released over CHATS could land in a folder nobody can see. A zone
- * scrolled wholly out of view takes no drop at all.
+ * Every zone's box, cut to the part its clipping ancestor shows. A project
+ * scrolled out of the PROJECTS list is still laid out below it — under the
+ * stream or ARCHIVED — and dnd-kit measures that unclipped box, so without the
+ * cut a chat released over the stream could land in a project nobody can see.
+ * A zone scrolled wholly out of view takes no drop at all.
  */
 function visibleDroppableRects({
   droppableContainers,
@@ -147,10 +151,11 @@ function visibleDroppableRects({
 }
 
 // Pointer-first collision: drop into whatever zone sits under the cursor, which
-// reads far more predictably than "closest center" when folders vary wildly in
-// height. Fall back to rect-intersection for the gaps between zones so a drop
-// near an edge still lands somewhere sensible. Both judge only the part of
-// each zone that is on screen.
+// reads far more predictably than "closest center" when zones differ wildly in
+// height (a project row, the whole stream, the drawer). Fall back to
+// rect-intersection for the gaps between zones so a drop near an edge still
+// lands somewhere sensible. Both judge only the part of each zone that is on
+// screen.
 const collisionDetection: CollisionDetection = (args) => {
   const visibleArgs = { ...args, droppableRects: visibleDroppableRects(args) };
   const pointerCollisions = pointerWithin(visibleArgs);
@@ -159,15 +164,16 @@ const collisionDetection: CollisionDetection = (args) => {
     : rectIntersection(visibleArgs);
 };
 
-// Folders expand/collapse and the empty-folder placeholders appear mid-drag, so
-// re-measure drop targets continuously instead of only at drag start.
+// The PROJECTS list and the ARCHIVED drawer fold open and shut, and the lists
+// scroll, mid-drag — so re-measure drop targets continuously instead of only
+// at drag start.
 const measuring: MeasuringConfiguration = {
   droppable: { strategy: MeasuringStrategy.Always },
 };
 
 // On drop, fade the lifted row out where it was released (with a subtle
 // settle-scale) instead of letting dnd-kit fly it back to its origin — the row
-// re-appears in its new folder via the reactive query update. The source row is
+// re-appears in its new place via the reactive query update. The source row is
 // held hidden for the duration so it doesn't flicker back in before that lands.
 const dropAnimation: DropAnimation = {
   duration: 180,
@@ -205,7 +211,7 @@ const ThreadDndStateContext = createContext<{
 });
 
 /** True while a chat row is being dragged anywhere in the tree. */
-export function useThreadDndState() {
+function useThreadDndState() {
   return useContext(ThreadDndStateContext);
 }
 
@@ -256,7 +262,7 @@ export function ThreadDndProvider({
       setActiveThread(null);
       const drag = readDragData(event.active.data.current);
       const drop = readDropData(event.over?.data.current);
-      if (!drag || !drop) return;
+      if (!drag || !drop || drop.kind === 'stay') return;
       const threadId = String(event.active.id);
       // Dropping onto the ARCHIVED drawer files the chat away — the drag
       // counterpart of the row menu's Archive action, same toasts and same
@@ -368,7 +374,7 @@ export function useThreadDraggable(thread: {
   return { setNodeRef, listeners, isDragging };
 }
 
-/** Register a project folder (or the "no project" zone, when `projectId` is null) as a drop target. */
+/** Register a project (or the "no project" zone, when `projectId` is null) as a drop target. */
 export function useProjectDropZone(projectId: string | null) {
   const data: ThreadDropData = { kind: 'project', projectId };
   const { setNodeRef, isOver } = useDroppable({
@@ -376,6 +382,19 @@ export function useProjectDropZone(projectId: string | null) {
     data,
   });
   return { setNodeRef, isOver };
+}
+
+/**
+ * Register the list the rows are dragged out of as the place to put a row
+ * back: a release over it changes nothing. Without it the pointer over the
+ * list sits over no zone at all, and the edge fallback hands the drop to
+ * whichever project or drawer the lifted card grazes — a small drag near the
+ * ARCHIVED drawer would archive the chat. Never highlighted.
+ */
+export function useStayDropZone() {
+  const data: ThreadDropData = { kind: 'stay' };
+  const { setNodeRef } = useDroppable({ id: STAY_DROPPABLE_ID, data });
+  return setNodeRef;
 }
 
 /**

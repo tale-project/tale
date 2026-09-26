@@ -237,7 +237,7 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/chat`                               | chat input + model picker                                |
 | `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state      |
 | `/dashboard/{org}/projects`                           | list or empty state                                      |
-| `/dashboard/{org}/conversations`                      | redirects to `…/conversations/open` (Inbox lanes)        |
+| `/dashboard/{org}/conversations`                      | redirects to `…/conversations/open` (beside Home panel)  |
 | `/dashboard/{org}/documents`                          | list or empty state                                      |
 | `/dashboard/{org}/knowledge-entries`                  | list or empty state                                      |
 | `/dashboard/{org}/products`                           | list or empty state                                      |

@@ -3,7 +3,7 @@ title: Trier le backlog du projet
 description: Recueille les propositions, décide lesquelles retenir et distingue l’affectation du démarrage du travail.
 ---
 
-Utilise **Backlog** pour les propositions sur lesquelles l’équipe ne s’est pas encore engagée. Ce statut ordinaire apparaît en premier dans le tableau et la liste. Une proposition peut déjà être affectée à quelqu’un ; cette affectation ne signifie pas que le travail a commencé.
+Utilise **Backlog** pour les propositions sur lesquelles l’équipe ne s’est pas encore engagée. Ce statut ordinaire apparaît en premier dans le tableau et la liste. Une proposition peut déjà être affectée à quelqu’un ; cette affectation ne signifie pas que le travail a commencé. Une proposition qui t’est attribuée apparaît tout de même parmi tes tâches dans [Accueil](/fr/platform#home), avec le statut **Backlog**.
 
 ## Enregistrer une proposition
 

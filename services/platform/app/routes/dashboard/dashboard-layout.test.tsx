@@ -36,6 +36,12 @@ vi.mock('@tanstack/react-router', () => ({
   useBlocker: () => ({ status: 'idle', proceed: vi.fn(), reset: vi.fn() }),
 }));
 
+// The Home panel reads the chat, task and inbox lanes; the layout test only
+// asserts the frame around it.
+vi.mock('@/app/features/home/components/home-panel', () => ({
+  HomePanel: () => <nav data-testid="home-panel" />,
+}));
+
 vi.mock('@/app/features/auth/hooks/use-password-expiry-gate', () => ({
   usePasswordExpiryGate: vi.fn(),
 }));

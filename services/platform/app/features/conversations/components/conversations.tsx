@@ -3,12 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
-import { filterByTextSearch } from '@tale/ui/filtering';
-import {
-  FilterPanel,
-  type FilterConfig,
-  type FilterOption,
-} from '@tale/ui/filters/filter-panel';
+import { FilterPanel } from '@tale/ui/filters/filter-panel';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import { SearchInput } from '@tale/ui/search-input';
@@ -24,26 +19,16 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import {
-  useTeamNames,
-  useTeams,
-} from '@/app/features/settings/teams/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
-import { useBulkActions } from '../hooks/use-bulk-actions';
-import { useConversationSelection } from '../hooks/use-conversation-selection';
 import {
-  ASSIGNEE_ME,
-  ASSIGNEE_MY_TEAMS,
-  ASSIGNEE_UNASSIGNED,
-  buildAssigneeOptions,
-  matchesAssigneeFilter,
-} from '../lib/assignee-filter';
+  ALL_READ_STATES,
+  useInboxList,
+  type ChannelFilter,
+  type ReadFilter,
+} from '../hooks/use-inbox-list';
 import type { Conversation } from '../types';
 import { BulkSendDialog } from './bulk-send-dialog';
 import { ComposeEmailPane } from './compose-email-pane';
@@ -52,21 +37,6 @@ import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsEmptyState } from './conversations-empty-state';
 import { ConversationsList } from './conversations-list';
-
-export interface ChannelFilterOption {
-  /** Connector slug of a connected inbox provider (e.g. `gmail`). */
-  value: string;
-  /** Display title (e.g. "Gmail"). */
-  label: string;
-}
-
-export interface ChannelFilter {
-  options: ChannelFilterOption[];
-  /** The selected provider slug; undefined = all channels. */
-  value?: string;
-  /** Called with the provider slug, or undefined for "All channels". */
-  onChange: (value?: string) => void;
-}
 
 interface ConversationsProps {
   status?: Conversation['status'];
@@ -97,15 +67,6 @@ interface ConversationsProps {
   onReadFilterChange?: (value: ReadFilter) => void;
 }
 
-export type ReadFilter = 'all' | 'read' | 'unread';
-
-/** The read facet's resting value — narrows nothing. */
-const ALL_READ_STATES = 'all';
-
-function isReadFilter(value: string): value is ReadFilter {
-  return value === 'all' || value === 'read' || value === 'unread';
-}
-
 // ---------------------------------------------------------------------------
 // Body state machine
 //
@@ -121,10 +82,6 @@ function isReadFilter(value: string): value is ReadFilter {
 //   'data'           — rows available
 // ---------------------------------------------------------------------------
 type BodyState = 'activate-empty' | 'loading' | 'skeleton' | 'data';
-
-/** Radio sentinel for the channel filter's unfiltered state — never a real
- *  connector slug. */
-const ALL_CHANNELS = 'all';
 
 function deriveBodyState(
   totalConversationCount: number | undefined,
@@ -143,6 +100,8 @@ function deriveBodyState(
   return 'loading';
 }
 
+const NO_ASSIGNEES: readonly string[] = [];
+
 export function Conversations({
   status,
   organizationId,
@@ -160,34 +119,6 @@ export function Conversations({
   onReadFilterChange,
 }: ConversationsProps) {
   const navigate = useNavigate();
-  // The assignee facet resolves ids to names through two directories that any
-  // member may read: every team of the organization, and the member list.
-  const { teams: myTeams } = useTeams();
-  const { nameOf: teamNameOf } = useTeamNames();
-  const { members } = useMembers(organizationId);
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
-  const isAdmin = useAbility().can('read', 'orgSettings');
-  const currentUserId =
-    memberContext && 'userId' in memberContext
-      ? memberContext.userId
-      : undefined;
-  const myTeamIds = useMemo(
-    () => new Set((myTeams ?? []).map((team) => team.id)),
-    [myTeams],
-  );
-  const personNameOf = useMemo(() => {
-    const byId = new Map(
-      (members ?? []).map((member) => [
-        member.userId,
-        member.displayName ?? member.email,
-      ]),
-    );
-    return (userId: string) => byId.get(userId);
-  }, [members]);
-  const assigneeSelection = useMemo(
-    () => assigneeFilter ?? [],
-    [assigneeFilter],
-  );
 
   const [selectedConversationId, setSelectedConversationId] = useState(
     initialConversationId ?? null,
@@ -255,203 +186,43 @@ export function Conversations({
     [totalConversationCount, conversationCount, paginatedResult.status],
   );
 
-  const filteredConversations = useMemo(() => {
-    let results = paginatedResult.results;
-
-    if (searchQuery) {
-      results = filterByTextSearch(results, searchQuery, [
-        'title',
-        'description',
-        'subject',
-        'externalMessageId',
-        // The contact name is the most prominent label on each row, so the
-        // search must cover it too — it lives on the nested `contact` object.
-        (c) => c.contact?.name,
-      ]);
-    }
-
-    if (readFilter === 'unread') {
-      results = results.filter((c) => c.unread_count > 0);
-    } else if (readFilter === 'read') {
-      results = results.filter((c) => c.unread_count === 0);
-    }
-
-    if (assigneeSelection.length > 0) {
-      results = results.filter((c) =>
-        matchesAssigneeFilter(c, assigneeSelection, {
-          ...(currentUserId === undefined ? {} : { currentUserId }),
-          myTeamIds,
-        }),
-      );
-    }
-
-    return results;
-  }, [
-    paginatedResult.results,
-    searchQuery,
-    readFilter,
-    assigneeSelection,
-    currentUserId,
-    myTeamIds,
-  ]);
-
-  // Search, the read facet and the assignee facet all run client-side over the
-  // loaded pages only, so while any of them is active we must keep draining
-  // backend pages — a match beyond the first page would otherwise be silently
-  // missed (#2054). The channel facet is absent on purpose: it narrows
-  // server-side, so its matches are never left behind a page boundary.
-  const isFiltering =
-    Boolean(searchQuery || initialSearch) ||
-    readFilter !== ALL_READ_STATES ||
-    assigneeSelection.length > 0;
-
-  // The facets behind the toolbar's Filter button. Assignee comes first
-  // because it is the one an inbox is usually narrowed by; Source renders only
-  // when the organization has a provider to offer.
-  const filters = useMemo<FilterConfig[]>(() => {
-    const assigneeOptions: FilterOption[] = [
-      ...(currentUserId === undefined
-        ? []
-        : [{ value: ASSIGNEE_ME, label: tConversations('filter.assigneeMe') }]),
-      ...(isAdmin
-        ? [
-            {
-              value: ASSIGNEE_UNASSIGNED,
-              label: tConversations('filter.assigneeUnassigned'),
-            },
-          ]
-        : []),
-      ...(myTeamIds.size > 0
-        ? [
-            {
-              value: ASSIGNEE_MY_TEAMS,
-              label: tConversations('filter.assigneeMyTeams'),
-            },
-          ]
-        : []),
-      ...buildAssigneeOptions({
-        rows: paginatedResult.results,
-        selected: assigneeSelection,
-        personNameOf,
-        teamNameOf,
-        labels: {
-          people: tConversations('filter.assigneePeople'),
-          teams: tConversations('filter.assigneeTeams'),
-          unknownPerson: tConversations('filter.assigneeUnknownPerson'),
-          unknownTeam: tConversations('queue.unknownTeam'),
-        },
-      }),
-    ];
-
-    const configs: FilterConfig[] = [
-      {
-        key: 'assignee',
-        title: tConversations('filter.assignee'),
-        options: assigneeOptions,
-        selectedValues: [...assigneeSelection],
-        onChange: (values) => onAssigneeFilterChange?.(values),
-        multiSelect: true,
-      },
-      {
-        key: 'read',
-        title: tConversations('filter.readStatus'),
-        options: [
-          { value: ALL_READ_STATES, label: tConversations('filter.all') },
-          { value: 'read', label: tConversations('filter.read') },
-          { value: 'unread', label: tConversations('filter.unread') },
-        ],
-        selectedValues: [readFilter],
-        defaultValues: [ALL_READ_STATES],
-        onChange: (values) => {
-          const next = values[0];
-          onReadFilterChange?.(
-            next !== undefined && isReadFilter(next) ? next : ALL_READ_STATES,
-          );
-        },
-      },
-    ];
-
-    if (channelFilter && channelFilter.options.length > 0) {
-      configs.push({
-        key: 'channel',
-        title: tConversations('filter.channel'),
-        options: [
-          { value: ALL_CHANNELS, label: tConversations('filter.allChannels') },
-          ...channelFilter.options,
-        ],
-        selectedValues: [channelFilter.value ?? ALL_CHANNELS],
-        defaultValues: [ALL_CHANNELS],
-        onChange: (values) => {
-          const next = values[0];
-          channelFilter.onChange(
-            next === undefined || next === ALL_CHANNELS ? undefined : next,
-          );
-        },
-      });
-    }
-
-    return configs;
-  }, [
-    tConversations,
-    currentUserId,
-    isAdmin,
-    myTeamIds,
-    paginatedResult.results,
-    assigneeSelection,
-    personNameOf,
-    teamNameOf,
-    onAssigneeFilterChange,
-    readFilter,
-    onReadFilterChange,
-    channelFilter,
-  ]);
-
-  // "Clear all" reaches past the facets to the search box, which is the rest of
-  // what narrows this list.
-  const handleClearAllFilters = useCallback(() => {
-    onAssigneeFilterChange?.([]);
-    onReadFilterChange?.(ALL_READ_STATES);
-    channelFilter?.onChange(undefined);
-    handleSearchChange('');
-  }, [
-    onAssigneeFilterChange,
-    onReadFilterChange,
-    channelFilter,
-    handleSearchChange,
-  ]);
-
   const {
-    selectionState,
-    handleConversationCheck,
-    handleSelectAll,
-    isConversationSelected,
-    selectAllChecked,
-    selectedCount,
-    hasSelectedItems,
-    clearSelection,
-  } = useConversationSelection(filteredConversations);
-
-  const onBulkComplete = useCallback(() => {
-    clearSelection();
-    handleSelectedConversationChange(null);
-  }, [clearSelection, handleSelectedConversationChange]);
-
-  const {
-    isBulkProcessing,
-    bulkSendDialog,
-    openBulkSendDialog,
-    closeBulkSendDialog,
-    handleSendMessages,
-    handleBulkResolve,
-    handleBulkReopen,
-    handleBulkSpam,
-    handleBulkArchive,
-    handleBulkUnarchive,
-  } = useBulkActions({
+    filteredConversations,
+    isFiltering,
+    filters,
+    clearAllFilters: handleClearAllFilters,
+    selection: {
+      handleConversationCheck,
+      handleSelectAll,
+      isConversationSelected,
+      selectAllChecked,
+      selectedCount,
+      hasSelectedItems,
+    },
+    bulk: {
+      isBulkProcessing,
+      bulkSendDialog,
+      openBulkSendDialog,
+      closeBulkSendDialog,
+      handleSendMessages,
+      handleBulkResolve,
+      handleBulkReopen,
+      handleBulkSpam,
+      handleBulkArchive,
+      handleBulkUnarchive,
+    },
+  } = useInboxList({
     organizationId,
-    conversations: filteredConversations,
-    selectionState,
-    onComplete: onBulkComplete,
+    rows: paginatedResult.results,
+    searchQuery,
+    searchPending: Boolean(initialSearch),
+    onSearchChange: handleSearchChange,
+    readFilter,
+    ...(onReadFilterChange !== undefined ? { onReadFilterChange } : {}),
+    assigneeSelection: assigneeFilter ?? NO_ASSIGNEES,
+    ...(onAssigneeFilterChange !== undefined ? { onAssigneeFilterChange } : {}),
+    ...(channelFilter !== undefined ? { channelFilter } : {}),
+    onBulkComplete: () => handleSelectedConversationChange(null),
   });
 
   // The not-yet-activated empty state renders *inside* the two-pane shell (list

@@ -1,23 +1,26 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 17 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 19 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
-the **More** overflow sheet, the mobile floating Save cluster, and that no key
-surface overflows horizontally at phone width. This is a cross-cutting guide:
-it re-walks surfaces other guides own (chat, a DataTable page, a settings
-form) at a narrow viewport rather than testing a single feature.
+the phone's Home list and its way back, the mobile floating Save cluster, and
+that no key surface overflows horizontally at phone width. This is a
+cross-cutting guide: it re-walks surfaces other guides own (chat, a DataTable
+page, a settings form) at a narrow viewport rather than testing a single
+feature.
 
 ## Scope & routes
 
 The responsive split is the Tailwind **`md` breakpoint (768 px)**. Desktop
-chrome is `hidden md:flex` (the side rail, the desktop Save slot); mobile
-chrome is `md:hidden` (the in-flow `BottomTabBar`, the content-width floating
-Save dock bottom-right above it). **`< md` (≤ 767 px) is the mobile layout; ≥
-768 px is the full desktop layout** — at exactly 768 px the desktop chrome is
-already active (there is no separate "tablet" layout). There is **no hamburger
-drawer**: primary nav is the bottom tab bar, and a trailing **More** tab opens
-a bottom `Sheet` with the overflow destinations.
+chrome is `hidden md:flex` (the side rail, the section panels, the desktop Save
+slot); mobile chrome is `md:hidden` (the in-flow `BottomTabBar`, the
+content-width floating Save dock bottom-right above it). **`< md` (≤ 767 px) is
+the mobile layout; ≥ 768 px is the full desktop layout** — at exactly 768 px the
+desktop chrome is already active (there is no separate "tablet" layout). There
+is **no hamburger drawer and no overflow sheet**: primary nav is the bottom tab
+bar with the rail's four sections, and its **Home** tab opens the Home list —
+on a phone the list of chats, tasks and conversations is a screen of its own,
+where a desktop keeps it as the panel beside the page.
 
 Test at three widths — **390×844** (mobile, matches `responsive.spec.ts`),
 **767×1024** (just below the breakpoint — still mobile), **1280×800**
@@ -27,9 +30,10 @@ context `viewport`).
 | Surface (re-walked at mobile width)   | Route                               |
 | ------------------------------------- | ----------------------------------- |
 | Chat (chat input)                     | `/dashboard/{org}/chat`             |
-| Projects (primary tab)                | `/dashboard/{org}/projects`         |
-| Inbox (primary tab, gated)            | `/dashboard/{org}/conversations`    |
-| Knowledge / Documents (More overflow) | `/dashboard/{org}/documents`        |
+| Home list (the Home tab)              | `/dashboard/{org}/home`             |
+| Projects (from the Home list)         | `/dashboard/{org}/projects`         |
+| Inbox (gated; list when none is open) | `/dashboard/{org}/conversations`    |
+| Knowledge / Documents (its own tab)   | `/dashboard/{org}/documents`        |
 | Settings → Account (floating Save)    | `/dashboard/{org}/settings/account` |
 | Contacts (DataTable page)             | `/dashboard/{org}/contacts`         |
 | Products (DataTable page)             | `/dashboard/{org}/products`         |
@@ -47,9 +51,11 @@ if you want to keep a write.
 > `navigation` role named `navigation.aria.primaryNavigation` ("Primary
 > navigation"); the desktop side rail is the `navigation` role named
 > `common.aria.mainNavigation` ("Main navigation") and is `display:none`
-> (hidden) at `< md`. The **More** sheet is a Radix `dialog` whose accessible
-> name is its title, **More** (`navigation.more`). To prove "no horizontal
-> overflow", assert `document.documentElement.scrollWidth === clientWidth`.
+> (hidden) at `< md`. The tabs are buttons named by their section (the Home
+> tab's name also carries the unread count, so match it by its leading word).
+> The Home list is anchored by its **Show** radiogroup (`home.views.label`).
+> To prove "no horizontal overflow", assert
+> `document.documentElement.scrollWidth === clientWidth`.
 > Chat turns are not needed here — the chat input just has to render and be
 > enabled.
 
@@ -58,16 +64,16 @@ if you want to keep a write.
 - [ ] `RESP-F1` · **Bottom tab bar** — At 390 px, open `/dashboard/{org}/chat`
   → The `navigation` "Primary navigation"
   (`navigation.aria.primaryNavigation`) is **visible**; the "Main navigation"
-  rail (`common.aria.mainNavigation`) is **hidden**. The bar shows tabs
-  **Chat** (`navigation.chat`), **Projects** (`projects.title`), **Inbox**
-  (`conversations.title`, gated on inbox availability), **More**
-  (`navigation.more`).
-- [ ] `RESP-F2` · **More sheet** — Tap **More** (`navigation.more`) in the
-  bottom bar → A `dialog` named **More** (`navigation.more`) opens with
-  buttons **Knowledge** (`navigation.knowledge`), **Automations**
-  (`navigation.automations`), **Settings** (`navigation.userSettings`).
-  Pressing **Escape** hides the dialog and returns focus to the **More**
-  tab. Tapping an item navigates and closes the sheet.
+  rail (`common.aria.mainNavigation`) is **hidden**. The bar shows exactly four
+  tabs, in the rail's order: **Home** (`navigation.home`), **Knowledge**
+  (`navigation.knowledge`), **Automations** (`navigation.automations`),
+  **Settings** (`navigation.userSettings`) — no **More** tab, no overflow
+  sheet, no separate Projects or Inbox tab. **Home** is the active tab on the
+  chat, and on a project, a task page and the inbox too; each other tab opens
+  its section's first page.
+- [ ] `RESP-F2` · **~~More sheet~~ (retired)** → The **More** tab and its
+  overflow sheet are gone: Knowledge, Automations and Settings are tabs of
+  their own (`RESP-F1`).
 - [ ] `RESP-F3` · **Floating Save** — At 390 px, open
   `/dashboard/{org}/settings/account`; edit **Display name**
   (`settings.account.profile.name`) → Exactly **one** visible **Save** button
@@ -97,6 +103,25 @@ if you want to keep a write.
 - [ ] `RESP-F9` · **~~Workspace panel~~ (retired)** → The chat side panel /
   canvas strip was removed in #2857/#2877; no mobile canvas surface exists to
   test.
+- [ ] `RESP-F10` · **Home list** — At 390 px tap **Home** (`navigation.home`)
+  in the tab bar → The URL is `/dashboard/{org}/home` and the tab stays active;
+  the header reads **Home** (`home.title`) with **Search**
+  (`navigation.sidebar.search`), which opens the search palette the desktop
+  rail opens, and a **New chat** button (`home.newChat`) that opens
+  `/chat?new=true`; below it the list the desktop
+  panel holds — the **Show** switcher (`home.views.label`), the **Projects**
+  section (`home.projects.title`), the banded list and the **Archived** drawer
+  (`chat.archived.title`) — fills the screen above the tab bar and scrolls on
+  its own. Tapping a chat, a task or a conversation opens it full-screen; the
+  browser tab's title starts with **Home** (`metadata.home.title`). Widen the
+  window to ≥ 768 px while on `/home` → it replaces itself with
+  `/dashboard/{org}/chat`, the Home panel beside it.
+- [ ] `RESP-F11` · **Back to the Home list** — At 390 px open a chat, a task
+  page and a conversation from the Home list → Each header starts with a back
+  arrow named **Back** (`common.aria.back`) that returns to
+  `/dashboard/{org}/home`; none of them shows the desktop **Hide sidebar**
+  toggle (`home.panel.hide`). At ≥ 768 px the back arrow is gone and the toggle
+  takes its place.
 
 ## Boundary & error tests
 
@@ -132,8 +157,8 @@ if you want to keep a write.
 - [ ] `RESP-P1` · **Resize settle** → After a `browser_resize` across the `md`
   breakpoint, the layout settles (final chrome painted, no flicker) in **< 500
   ms** (mock mode A, local backend).
-- [ ] `RESP-P2` · **More-sheet open** → Tapping **More** shows the dialog in
-  **< 300 ms** (mock mode A, local backend).
+- [ ] `RESP-P2` · **~~More-sheet open~~ (retired)** → The **More** sheet is
+  gone (`RESP-F2`); every tab opens a page.
 - [ ] `RESP-P3` · **Mobile composer holds its place while the shell loads**
   — At 390 px, hard-reload `/dashboard/{org}/chat`, once in a fresh tab
   (access resolves after the skeleton) and once again in the same tab → The

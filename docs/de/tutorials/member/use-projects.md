@@ -13,12 +13,12 @@ Neue Projekte sind **Organisationsweit** sichtbar. Verwende für diese Anleitung
 
 ## Das Projekt erstellen
 
-1. Öffne **Projekte** und klicke auf **Projekt erstellen**.
+1. Klicke im Bereich **Start** auf **Neues Projekt**, das Ordnersymbol neben **Projekte**.
 2. Gib unter **Projektname** einen eindeutigen Namen ein, etwa `Website-Relaunch`.
 3. Prüfe das **Projektkürzel**. Es bildet den Anfang von Aufgabenkennungen wie `WEB-1` und lässt sich nach dem Erstellen nicht mehr ändern.
 4. Ergänze bei Bedarf eine **Beschreibung** und klicke auf **Projekt erstellen**.
 
-Das neue Projekt öffnet sich unter **Aufgaben**. Daneben findest du **Allgemein**, **Chats**, **Wissen** und **Agenten**. Für einen Projektchat musst du keinen Agenten anlegen.
+Das neue Projekt öffnet sich unter **Aufgaben** und erscheint im Bereich **Start** unter **Projekte**. Neben **Aufgaben** findest du im Projekt **Allgemein**, **Chats**, **Wissen** und **Agenten**. Für einen Projektchat musst du keinen Agenten anlegen.
 
 ## Eine Referenzdatei hochladen
 

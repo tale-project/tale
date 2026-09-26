@@ -3,7 +3,7 @@ title: Administrer les agents de projet
 description: Vérifie les droits de modification, les ressources autorisées et les conséquences des secrets accordés aux agents.
 ---
 
-Administre un agent à travers son projet et les ressources de l’organisation. Il n’existe pas de liste d’agents supplémentaire à configurer pour toute l’organisation. Ouvre **Projets**, choisis le projet puis **Agents** pour examiner ou modifier ses agents.
+Administre un agent à travers son projet et les ressources de l’organisation. Il n’existe pas de liste d’agents supplémentaire à configurer pour toute l’organisation. Ouvre le projet sous **Projets** dans **Accueil**, puis **Agents** pour examiner ou modifier ses agents.
 
 ## Vérifier qui peut modifier l’agent
 

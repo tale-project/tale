@@ -40,11 +40,6 @@ import {
   useState,
 } from 'react';
 
-import {
-  labelFadeClass,
-  ROW_TRANSITION_CLASS,
-  rowWidthStyle,
-} from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
@@ -142,17 +137,16 @@ function MenuRowCollapsible({
 export interface UserButtonProps {
   align?: 'start' | 'end';
   /**
-   * Unified-sidebar footer variant. When set, the trigger renders as a
-   * sidebar row — a 36px icon tile that widens to a full labelled row (the
-   * member display name) while `true` — sharing the sidebar's width/fade
-   * motion. The hover tooltip only renders while collapsed.
+   * `rail`: the account tile at the foot of the app rail — a 36px icon tile
+   * whose menu opens beside it. The default is the compact header button
+   * (phones, onboarding).
    */
-  sidebarExpanded?: boolean;
+  variant?: 'default' | 'rail';
 }
 
 export function UserButton({
   align = 'start',
-  sidebarExpanded,
+  variant = 'default',
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
@@ -572,7 +566,7 @@ export function UserButton({
     closeMenu,
   ]);
 
-  const isSidebarVariant = sidebarExpanded !== undefined;
+  const isSidebarVariant = variant === 'rail';
 
   const triggerContent = (
     <button
@@ -580,15 +574,9 @@ export function UserButton({
       type="button"
       aria-label={t('userButton.manageAccount')}
       className={cn(
-        'hover:bg-muted relative flex cursor-pointer items-center transition-colors',
-        isSidebarVariant
-          ? cn(
-              'h-9 gap-2.5 overflow-hidden rounded-md pr-2 pl-2',
-              ROW_TRANSITION_CLASS,
-            )
-          : 'justify-center rounded-md p-2',
+        'hover:bg-muted relative flex cursor-pointer items-center justify-center rounded-md transition-[color,background-color,transform] duration-150 active:scale-[0.94] motion-reduce:transition-none',
+        isSidebarVariant ? 'size-9' : 'p-2',
       )}
-      style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >
       <div className="relative shrink-0">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
@@ -602,17 +590,6 @@ export function UserButton({
           </>
         )}
       </div>
-      {isSidebarVariant && (
-        <span
-          aria-hidden
-          className={cn(
-            'text-muted-foreground min-w-0 flex-1 truncate text-left text-[13px]',
-            labelFadeClass(sidebarExpanded ?? false),
-          )}
-        >
-          {displayName}
-        </span>
-      )}
     </button>
   );
 
@@ -636,24 +613,6 @@ export function UserButton({
   );
 
   const contentClassName = 'w-64';
-
-  // The expanded sidebar row shows the display name inline, so the hover
-  // tooltip only exists for the icon-only/collapsed tile.
-  if (isSidebarVariant && sidebarExpanded) {
-    return (
-      <>
-        <DropdownMenu
-          trigger={triggerContent}
-          items={menuItems}
-          align={align}
-          open={open}
-          onOpenChange={handleOpenChange}
-          contentClassName={contentClassName}
-        />
-        {overlays}
-      </>
-    );
-  }
 
   return (
     <>

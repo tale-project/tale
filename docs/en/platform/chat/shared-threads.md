@@ -28,7 +28,7 @@ A recipient who wants to continue the topic starts their own chat. A snapshot do
 
 ## Stop sharing
 
-Choose **Keep private** in the share dialog or **Stop sharing** in the chat’s row menu. The link becomes unavailable. Deleting the original chat also makes its share unavailable.
+Choose **Keep private** in the share dialog or **Stop sharing** in the chat's menu in the Home list. The link becomes unavailable. Deleting the original chat also makes its share unavailable.
 
 Stopping a share prevents future viewing through that link. It cannot retract text someone already copied, which is why reviewing the snapshot before sharing matters.
 

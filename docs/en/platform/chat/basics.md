@@ -13,7 +13,7 @@ Use chat to ask questions, understand a document, or investigate information in 
 
 ## Send your first message
 
-Open **Chat**. It may reopen a recent conversation. Choose **New chat**, or choose **Chat** again while it is active, to begin a new subject. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
+Open **Home**. On a computer, it reopens the chat you last read, if there is one. To begin a new subject, choose **New chat** at the top of the Home list or, on a computer, choose **Home** again while it is active. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
 
 For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 
@@ -61,7 +61,7 @@ The assistant can search workspace information such as documents, knowledge entr
 
 Use the reply toolbar to copy an answer, give feedback, inspect its details, or fork a conversation at that point. A fork lets you try another direction while preserving the earlier exchange.
 
-Find earlier chats in the sidebar. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
+Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project or choose **Move to project…** in its menu. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 
 Very long conversations may exceed the model’s context window. Tale displays a notice when older messages are omitted. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.
 

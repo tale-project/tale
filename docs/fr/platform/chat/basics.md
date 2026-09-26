@@ -13,7 +13,7 @@ Utilise le chat pour poser une question, comprendre un document ou rechercher un
 
 ## Envoyer un premier message
 
-Ouvre **Chat**. Une conversation récente peut se rouvrir. Choisis **Nouveau chat**, ou sélectionne à nouveau **Chat** alors que cette section est active, pour aborder un nouveau sujet. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
+Ouvre **Accueil**. Sur ordinateur, le chat que tu as lu en dernier se rouvre, s’il y en a un. Pour aborder un nouveau sujet, choisis **Nouveau chat** en haut de la liste d’**Accueil** ou, sur ordinateur, sélectionne à nouveau **Accueil** alors que cette section est active. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 
@@ -61,7 +61,7 @@ L’assistant peut rechercher des documents, entrées de connaissances, sites, c
 
 La barre sous la réponse permet de copier le texte, donner un avis, consulter les détails ou créer une branche à cet endroit. Une branche permet d’explorer une autre direction tout en conservant l’échange précédent.
 
-Retrouve les anciens chats dans la barre latérale. Épingle ceux qui servent souvent, donne-leur un titre reconnaissable ou déplace-les dans un projet lorsque le sujet devient récurrent. [Chats partagés](/fr/platform/chat/shared-threads) explique comment publier un instantané en lecture seule pour des collègues.
+Retrouve les anciens chats dans [Accueil](/fr/platform#home) ; la vue **Chats**, au-dessus de la liste, n’affiche que les chats. Épingle ceux qui servent souvent, donne-leur un titre reconnaissable ou déplace-les dans un projet lorsque le sujet devient récurrent : fais-les glisser sur le projet ou choisis **Déplacer vers un projet…** dans leur menu. [Chats partagés](/fr/platform/chat/shared-threads) explique comment publier un instantané en lecture seule pour des collègues.
 
 Une conversation très longue peut dépasser la fenêtre de contexte du modèle. Tale affiche un avis lorsque des messages anciens sont omis. Répète une contrainte importante ou démarre un nouveau chat avec les sources utiles, plutôt que de supposer que l’assistant voit encore tout l’historique.
 

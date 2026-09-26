@@ -6,7 +6,7 @@ import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
 // Relative imports on purpose: this module also runs under plain `bun`
 // (the boot-shell prerender), where the `@/` tsconfig alias isn't guaranteed.
 import { ChatComposerPlaceholder } from './chat-composer-placeholder';
-import { ChatSubPanelPlaceholder } from './chat-sub-panel-placeholder';
+import { HomePanelPlaceholder } from './home-panel-placeholder';
 import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
 
 /**
@@ -62,15 +62,14 @@ export function DashboardShellFrame() {
         gap={0}
         className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
       >
-        {/* Chat layout stand-ins — the row mirrors ChatSurface's frame
-            (sub-panel beside the message column, composer at the column's
-            foot), so the real chat slots in without reflow. Each piece
-            shows itself in CSS only (`boot-chat` / `boot-chat-panel-open`
-            on <html>) when the navigation targets a chat route; on every
-            other route the row renders empty, keeping the shell's single
-            variant. */}
+        {/* Home layout stand-ins — the row mirrors the Home frame (the
+            panel beside the page, a chat's composer at the column's foot),
+            so the real page slots in without reflow. Each piece shows itself
+            in CSS only (`boot-home-panel-open` on a Home route, `boot-chat`
+            on a chat route, on <html>); on every other route the row renders
+            empty, keeping the shell's single variant. */}
         <div className="flex min-h-0 flex-1 flex-row">
-          <ChatSubPanelPlaceholder />
+          <HomePanelPlaceholder />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ChatComposerPlaceholder />
           </div>

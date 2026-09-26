@@ -13,7 +13,7 @@ Im Chat kannst du schnell etwas zu einem Dokument fragen, ein Thema verstehen od
 
 ## Mit einer nützlichen Frage beginnen
 
-Öffne **Chat**, schreibe ins Nachrichtenfeld und sende die Nachricht. Ein Gesprächsvorschlag hilft beim Einstieg. Nenne das gewünschte Ergebnis und die passende Quelle: „Liste anhand des Onboarding-Leitfadens die Schritte auf, die ein neuer Kunde erledigen muss. Belege sie mit dem Leitfaden.“
+Öffne **Start**, wähle **Neuer Chat**, schreibe ins Nachrichtenfeld und sende die Nachricht. Ein Gesprächsvorschlag hilft beim Einstieg. Nenne das gewünschte Ergebnis und die passende Quelle: „Liste anhand des Onboarding-Leitfadens die Schritte auf, die ein neuer Kunde erledigen muss. Belege sie mit dem Leitfaden.“
 
 Sind mehrere nutzbare Modelle verfügbar, kann die Modellauswahl mit **Auto** beginnen. Wähle ein benanntes Modell, wenn du selbst festlegen möchtest, welches verfügbare Modell antwortet. Bei unterstützten Modellen lässt sich auch der Denkaufwand einstellen. Hänge für eine konkrete Frage eine Datei an oder nutze einen Projektchat für wiederkehrende Unterlagen.
 

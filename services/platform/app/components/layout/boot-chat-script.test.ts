@@ -78,6 +78,87 @@ describe('index.html boot-chat script', () => {
     expect(root.classList.contains('boot-chat-notice')).toBe(false);
   });
 
+  it('reserves the Home panel on every Home route', () => {
+    for (const path of [
+      '/dashboard/org-1',
+      '/dashboard/org-1/chat',
+      '/dashboard/org-1/chat/thread-1',
+      '/dashboard/org-1/home',
+      '/dashboard/org-1/projects',
+      '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/projects/p-1/automations',
+      '/dashboard/org-1/tasks/t-1',
+      '/dashboard/org-1/conversations/open',
+    ]) {
+      expect(
+        bootAt(path).classList.contains('boot-home-panel-open'),
+        path,
+      ).toBe(true);
+    }
+  });
+
+  it("leaves a project's automation workbench without the panel", () => {
+    for (const path of [
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+    ]) {
+      expect(
+        bootAt(path).classList.contains('boot-home-panel-open'),
+        path,
+      ).toBe(false);
+    }
+  });
+
+  it('keeps a folded panel folded on the pages that can unfold it', () => {
+    const folded = { 'chat-history-panel-open-org-1': 'false' };
+    for (const path of [
+      '/dashboard/org-1/chat',
+      '/dashboard/org-1/tasks/t-1',
+      '/dashboard/org-1/conversations/open?conversation=c-1',
+    ]) {
+      expect(
+        bootAt(path, folded).classList.contains('boot-home-panel-open'),
+        path,
+      ).toBe(false);
+    }
+    // A project or the inbox index has no toggle to bring it back, so the
+    // panel shows there whatever was stored.
+    for (const path of [
+      '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/conversations/open',
+    ]) {
+      expect(
+        bootAt(path, folded).classList.contains('boot-home-panel-open'),
+        path,
+      ).toBe(true);
+    }
+  });
+
+  it('keeps the chat composer to chat routes', () => {
+    expect(
+      bootAt('/dashboard/org-1/tasks/t-1').classList.contains('boot-chat'),
+    ).toBe(false);
+    expect(
+      bootAt('/dashboard/org-1/chat/thread-1').classList.contains('boot-chat'),
+    ).toBe(true);
+  });
+
+  it('reserves nothing outside Home or on a shared-chat snapshot', () => {
+    for (const path of [
+      '/dashboard/org-1/documents',
+      '/dashboard/org-1/automations',
+      '/dashboard/org-1/settings/account',
+      '/dashboard/org-1/chat/shared/token-1',
+      '/dashboard/switching',
+      '/dashboard/create-organization',
+      '/dashboard/changelog',
+    ]) {
+      const root = bootAt(path);
+      expect(root.classList.contains('boot-home-panel-open'), path).toBe(false);
+      expect(root.classList.contains('boot-chat'), path).toBe(false);
+    }
+  });
+
   it('leaves non-chat routes untouched', () => {
     const root = bootAt('/dashboard/org-1/projects', {
       [dataNoticeBootKey('org-1')]: toCssString('Mind the client data.'),

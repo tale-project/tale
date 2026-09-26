@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n/client';
 /**
  * Compact mobile-only back control for the Inbox page chrome — sits left of
  * the Inbox title in `AdaptiveHeaderRoot` while a conversation or the compose
- * pane is open (`?conversation=` / `?compose=`). Self-contained (reads the URL)
+ * pane is open (`?conversation=` / `?compose=`), and leads back to Home. Self-contained (reads the URL)
  * so it still works when `AdaptiveHeaderSlot` remounts the header outside the
  * conversations tree. Uses the dense `sm` icon square so the glyph reads as
  * part of the title cluster rather than a padded toolbar button.
@@ -31,20 +31,15 @@ export function InboxMobileBackButton() {
   const isComposing = search.compose !== undefined;
   const showBack = Boolean(conversationId || isComposing);
 
+  // Back to the Home list — the one list a phone keeps every chat, task and
+  // conversation in (its Inbox view carries the statuses and bulk verbs).
   const handleBack = useCallback(() => {
     if (!params.id) return;
     void navigate({
-      to: '/dashboard/$id/conversations/$status',
-      params: { id: params.id, status: params.status ?? 'open' },
-      search: (prev) => ({
-        ...prev,
-        conversation: undefined,
-        compose: undefined,
-        composeContact: undefined,
-      }),
-      replace: true,
+      to: '/dashboard/$id/home',
+      params: { id: params.id },
     });
-  }, [navigate, params.id, params.status]);
+  }, [navigate, params.id]);
 
   if (!showBack || !params.id) return null;
 

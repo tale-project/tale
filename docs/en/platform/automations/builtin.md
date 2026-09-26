@@ -19,7 +19,7 @@ The packages are added when an organization is created. Existing versions are pr
 
 ## Sync mail into the Inbox
 
-These workflows pull new messages into conversations every five minutes. Each declares the **Inbox** view: deploying one makes that view available in navigation and offers its connected mailbox in the compose form. Before deployment, the Inbox page points to **Automations**.
+These workflows pull new messages into conversations every five minutes. Each declares the **Inbox** view: deploying one adds that view to [Home](/platform#home) and offers its connected mailbox in the compose form. Before deployment, Home has no **Inbox** view, and a link to the inbox points to **Automations**.
 
 | Automation | Required connector | Schedule |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ These workflows pull new messages into conversations every five minutes. Each de
 | Sync Outlook emails | Outlook | Every 5 minutes |
 | Sync emails via SMTP/IMAP | IMAP/SMTP | Every 5 minutes |
 
-Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in Inbox.
+Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in the **Inbox** view in Home.
 
 ## Read a digest of recent mail
 

@@ -966,8 +966,6 @@ chat:
     submitComment: Submit
   pinned: Pinned
   pinFailed: Couldn't update pin
-  projectsSection: Projects
-  chatsSection: Chats
   welcomeEmpty: What are we working on?
   starters:
     email: Help me write a clear, professional email
@@ -1045,9 +1043,6 @@ chat:
     voiceOutputStop: Stop voice output
     voiceOutputStopped: Stopped
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
-  showHistory: Show chats
-  hideHistory: Hide chats
-  newProject: New project
   notFound: This chat is not available.
   placeholder: Ask a question…
   generationIncomplete: The response couldn't be completed. Try again.
@@ -1222,8 +1217,6 @@ chat:
     error: Error
     noMetadata: Token usage and model information are not available for this message.
   history:
-    empty: No conversations yet
-    emptySubtitle: Start a new chat
     untitled: Untitled chat
     noProjects: No projects yet — create one in the panel above.
     legalHold:
@@ -1236,8 +1229,6 @@ chat:
     generating: Generating response
     renameChat: Rename
     loadMore: Load more
-    dropHereToAdd: Drop a chat here
-    dropToChatsHint: Drop here to move to Chats
     toast:
       moveFailed: Couldn't move chat
       renameFailed: Couldn't rename chat
@@ -4020,6 +4011,65 @@ metrics:
     searchEmpty: No projects found
     emptyTitle: Select a project
     emptyDescription: Choose a project to view its metrics.
+home:
+  title: Home
+  newChat: New chat
+  panel:
+    hide: Hide sidebar
+    show: Show sidebar
+  views:
+    label: Show
+    all: All
+    chats: Chats
+    tasks: Tasks
+    inbox: Inbox
+  groups:
+    pinned: Pinned
+    today: Today
+    yesterday: Yesterday
+    thisWeek: Previous 7 days
+    earlier: Earlier
+  projects:
+    title: Projects
+    newProject: New project
+    allProjects: All projects
+    actions: 'Actions for {project}'
+    empty: No projects yet
+  inbox:
+    statusLabel: '{status}, conversation status'
+    compose: New email
+    clearSelection: Clear selection
+    status:
+      open: Open
+      closed: Closed
+      spam: Spam
+      archived: Archived
+  row:
+    untitledChat: Untitled chat
+    chat: Chat
+    draft: Draft
+    unread: Unread
+    generating: Writing a reply…
+    awaitingReview: Waiting for your review
+  empty:
+    all:
+      title: Nothing here yet
+      hint: Start a chat, or pick up a task from a project.
+    chats:
+      title: No chats yet
+      hint: Your conversations with the assistant show up here.
+    tasks:
+      title: Nothing assigned to you
+      hint: Open tasks assigned to you in any project show up here.
+    inbox:
+      title: No conversations
+      hint: Customer conversations for this status show up here.
+      filtered: No conversation matches the search or filters.
+  aria:
+    panel: Home
+    stream: Your chats, tasks and conversations
+    inbox: Inbox conversations
+    attention: '{count, plural, one {# item needs you} other {# items need you}}'
 knowledge:
   title: Knowledge
   documents: Documents
@@ -4123,6 +4173,12 @@ metadata:
   project:
     title: Project
     description: A shared workspace for files, instructions, and chats.
+  task:
+    title: Task
+    description: A piece of work with an owner, a status, and its discussion.
+  home:
+    title: Home
+    description: Your chats, tasks, and inbox conversations in one place.
   websites:
     title: Websites
     description: Manage websites for knowledge extraction.
@@ -4253,10 +4309,9 @@ metadata:
     title: Automation configuration
     description: Configure automation settings.
 navigation:
-  chat: Chat
+  home: Home
   knowledge: Knowledge
   automations: Automations
-  more: More
   userSettings: Settings
   notifications: Notifications
   organization: Organization
@@ -4291,7 +4346,6 @@ navigation:
   enterpriseSso: Enterprise SSO
   sidebar:
     landmark: Dashboard sidebar
-    title: Menu
     search: Search
     searchGlobal: Search everything
 notificationPreferences:
@@ -6942,6 +6996,8 @@ tasks:
     create: Create task
     created: Task created
     comment: Comment
+    commentPlaceholder: Write a comment — type @ to mention a person or an agent
+    commentShortcut: '{shortcut} to send'
     assign: Assign
     add: Add
     archive: Archive
@@ -6970,6 +7026,12 @@ tasks:
     overview: Overview
     comments: Comments
     noComments: No comments yet.
+    conversation: Conversation
+    conversationEmpty: No comments yet — start the conversation below.
+    details: Details
+    showDetails: Show details
+    hideDetails: Hide details
+    openBoard: Board
     showEarlierComments: Show earlier comments
     activity: Activity
     subtasks: Subtasks
