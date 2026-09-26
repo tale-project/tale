@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Label } from '@tale/ui/label';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
