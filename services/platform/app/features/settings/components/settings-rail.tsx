@@ -267,13 +267,14 @@ function isWithin(href: string, pathname: string) {
 /**
  * The open settings page — the rail entry the path sits in, with its name
  * ("Teams", "Governance · Budgets") for the page header beside the panel (the
- * panel's own header already says Settings) and its href as a stable
- * identity: a drawer or tab route inside a page keeps the page's key, so the
- * page is not remounted under it. `undefined` on the settings index.
+ * panel's own header already says Settings), its own label (`leaf`:
+ * "Budgets"), and its href as a stable identity: a drawer or tab route
+ * inside a page keeps the page's key, so the page is not remounted under it.
+ * `undefined` on the settings index.
  */
 export function useSettingsPage(
   organizationId: string,
-): { key: string; title: string } | undefined {
+): { key: string; title: string; leaf: string } | undefined {
   const { t: tNav } = useT('navigation');
   const sections = useSettingsSections(true);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -283,7 +284,8 @@ export function useSettingsPage(
       const href = `${base}/${item.path}`;
       if (item.kind === 'leaf') {
         if (isLeafActive(item, base, pathname)) {
-          return { key: href, title: tNav(item.labelKey) };
+          const title = tNav(item.labelKey);
+          return { key: href, title, leaf: title };
         }
         continue;
       }
@@ -295,8 +297,9 @@ export function useSettingsPage(
         ? {
             key: `${href}/${child.slug}`,
             title: `${tNav(item.labelKey)} · ${child.label}`,
+            leaf: child.label,
           }
-        : { key: href, title: tNav(item.labelKey) };
+        : { key: href, title: tNav(item.labelKey), leaf: tNav(item.labelKey) };
     }
   }
   return undefined;

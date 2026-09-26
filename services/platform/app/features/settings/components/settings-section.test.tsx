@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
+import { SettingsPageTitleProvider } from './settings-page-title';
 import { SettingsSection } from './settings-section';
 
 describe('SettingsSection', () => {
@@ -72,6 +73,39 @@ describe('SettingsSection', () => {
       render(<SettingsSection title="Profile">content</SettingsSection>);
       const section = screen.getByRole('region', { name: 'Profile' });
       expect(section.getAttribute('aria-describedby')).toBeNull();
+    });
+  });
+
+  describe('under a page header that already names it', () => {
+    it('keeps the heading for assistive tech but does not print it twice', () => {
+      render(
+        <SettingsPageTitleProvider value="Teams">
+          <SettingsSection title="Teams" description="Organize members">
+            <p>Table</p>
+          </SettingsSection>
+        </SettingsPageTitleProvider>,
+      );
+      const heading = screen.getByRole('heading', { level: 2, name: 'Teams' });
+      // Hidden by CSS only as the page's first section (see the browser run).
+      expect(heading.closest('section')).toHaveAttribute(
+        'data-repeats-page-title',
+      );
+      expect(screen.getByText('Organize members')).toBeVisible();
+    });
+
+    it('prints a section titled differently from the page', () => {
+      render(
+        <SettingsPageTitleProvider value="Account">
+          <SettingsSection title="Profile">
+            <p>Fields</p>
+          </SettingsSection>
+        </SettingsPageTitleProvider>,
+      );
+      expect(
+        screen
+          .getByRole('heading', { level: 2, name: 'Profile' })
+          .closest('section'),
+      ).not.toHaveAttribute('data-repeats-page-title');
     });
   });
 

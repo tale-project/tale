@@ -6,6 +6,8 @@ import { Stack } from '@tale/ui/layout';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
+import { useSettingsPageTitle } from './settings-page-title';
+
 const sectionVariants = cva('flex flex-col', {
   variants: {
     gap: {
@@ -45,6 +47,15 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
     const id = useId();
     const headingId = `${id}-heading`;
     const descId = description ? `${id}-desc` : undefined;
+    // The page header already names the page; the page's first section,
+    // when it carries the same name, keeps its heading for assistive tech but
+    // lets its description lead. A later section keeps its title — there it
+    // tells the sections apart.
+    const pageTitle = useSettingsPageTitle();
+    const repeatsPageTitle =
+      typeof title === 'string' &&
+      pageTitle !== undefined &&
+      title === pageTitle;
 
     return (
       <section
@@ -56,6 +67,7 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
         // appearing under the last section of a page whose next sibling is a
         // dialog, a portal, or any other element that renders nothing.
         data-settings-section=""
+        {...(repeatsPageTitle ? { 'data-repeats-page-title': '' } : {})}
         className={cn(sectionVariants({ gap }), className)}
         {...props}
       >
@@ -66,7 +78,10 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
           <Stack gap={1} className="max-w-2xl min-w-0">
             <h2
               id={headingId}
-              className="text-foreground text-base leading-tight font-semibold"
+              className={cn(
+                'text-foreground text-base leading-tight font-semibold',
+                '[[data-repeats-page-title]:first-of-type_&]:sr-only',
+              )}
             >
               {title}
             </h2>

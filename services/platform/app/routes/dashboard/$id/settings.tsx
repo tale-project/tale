@@ -17,6 +17,7 @@ import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
+import { SettingsPageTitleProvider } from '@/app/features/settings/components/settings-page-title';
 import {
   SettingsRail,
   useSettingsPage,
@@ -97,7 +98,9 @@ function SettingsLayout() {
                 variant="page"
                 gap={6}
               >
-                <Outlet />
+                <SettingsPageTitleProvider value={page?.leaf}>
+                  <Outlet />
+                </SettingsPageTitleProvider>
               </ContentArea>
             </PageLayout>
           </div>
