@@ -6959,6 +6959,10 @@ tasks:
     showDetails: Details einblenden
     hideDetails: Details ausblenden
     openBoard: Board
+    copyLink: Link kopieren
+    linkCopied: Link kopiert
+    copyKey: '{key} kopieren'
+    keyCopied: '{key} kopiert'
     showEarlierComments: Frühere Kommentare anzeigen
     activity: Aktivität
     subtasks: Teilaufgaben

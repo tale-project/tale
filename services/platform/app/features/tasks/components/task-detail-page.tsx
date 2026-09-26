@@ -12,9 +12,12 @@
 
 import { Button } from '@tale/ui/button';
 import { PageLayout } from '@tale/ui/page-layout';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useCopy } from '@tale/ui/use-copy';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
-import { KanbanSquare } from 'lucide-react';
+import { KanbanSquare, Link2 } from 'lucide-react';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +37,15 @@ export function TaskDetailPage({
   const { task, isLoading } = useTask(taskId);
   // The next task opening in place fades in, as another chat does.
   const swapRef = useSwapFade<HTMLDivElement>(taskId);
+  const { copy } = useCopy();
+  // The page's own address, without any state in its query — the link a
+  // teammate opens lands on this task.
+  const copyLink = () => {
+    const link = `${window.location.origin}${window.location.pathname}`;
+    void copy(link).then((copied) => {
+      if (copied) toast({ title: t('detail.linkCopied') });
+    });
+  };
 
   const openBoard = () => {
     if (task === null) return;
@@ -60,18 +72,33 @@ export function TaskDetailPage({
           taskId={taskId}
           surface="page"
           pageActions={
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={KanbanSquare}
-              onClick={openBoard}
-              disabled={task === null}
-              aria-label={t('detail.openBoard')}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {/* Icon-only on a phone, where the header is tight. */}
-              <span className="hidden sm:inline">{t('detail.openBoard')}</span>
-            </Button>
+            <>
+              <Tooltip content={t('detail.copyLink')} side="bottom">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={copyLink}
+                  aria-label={t('detail.copyLink')}
+                  className="text-muted-foreground hover:text-foreground size-8"
+                >
+                  <Link2 className="size-4" />
+                </Button>
+              </Tooltip>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={KanbanSquare}
+                onClick={openBoard}
+                disabled={task === null}
+                aria-label={t('detail.openBoard')}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {/* Icon-only on a phone, where the header is tight. */}
+                <span className="hidden sm:inline">
+                  {t('detail.openBoard')}
+                </span>
+              </Button>
+            </>
           }
           onOpenTask={(nextTaskId) =>
             void navigate({

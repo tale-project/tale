@@ -30,9 +30,18 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 // The body is the board dialog's own, tested with it; here it only has to
-// show whether the page mounted it.
+// show whether the page mounted it, and carry the page's own verbs.
 vi.mock('./task-modal', () => ({
-  EditTaskBody: () => <div data-testid="task-body" />,
+  EditTaskBody: ({ pageActions }: { pageActions?: React.ReactNode }) => (
+    <div data-testid="task-body">{pageActions}</div>
+  ),
+}));
+
+const clipboard = vi.hoisted(() => ({
+  copy: vi.fn((_value: string) => Promise.resolve(true)),
+}));
+vi.mock('@tale/ui/use-copy', () => ({
+  useCopy: () => ({ copied: false, copy: clipboard.copy, reset: vi.fn() }),
 }));
 
 const notFound = enMessages.common.notFound;
@@ -53,6 +62,18 @@ describe('TaskDetailPage', () => {
       screen.getByRole('link', { name: notFound.backToDashboard }),
     ).toHaveAttribute('href', '/dashboard/org-1');
     expect(screen.queryByTestId('task-body')).toBeNull();
+  });
+
+  it('copies the task page link, without its query', async () => {
+    read.current = { task: { projectId: 'p1' }, isLoading: false };
+    window.history.pushState({}, '', '/dashboard/org-1/tasks/t1?from=search');
+    const { user } = render(
+      <TaskDetailPage organizationId="org-1" taskId="t1" />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(clipboard.copy).toHaveBeenCalledWith(
+      `${window.location.origin}/dashboard/org-1/tasks/t1`,
+    );
   });
 
   it('mounts the task body while the task loads and once it arrives', () => {

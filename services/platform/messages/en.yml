@@ -7032,6 +7032,10 @@ tasks:
     showDetails: Show details
     hideDetails: Hide details
     openBoard: Board
+    copyLink: Copy link
+    linkCopied: Link copied
+    copyKey: 'Copy {key}'
+    keyCopied: '{key} copied'
     showEarlierComments: Show earlier comments
     activity: Activity
     subtasks: Subtasks

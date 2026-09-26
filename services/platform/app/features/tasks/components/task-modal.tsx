@@ -23,6 +23,8 @@ import {
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
@@ -991,6 +993,13 @@ export function EditTaskBody({
   const { task, canEdit, canComment } = useTask(taskId);
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
+  const { copy } = useCopy();
+  const copyIdentifier = () => {
+    if (!identifier) return;
+    void copy(identifier).then((copied) => {
+      if (copied) toast({ title: t('detail.keyCopied', { key: identifier }) });
+    });
+  };
   const projectKey = project?.key ?? null;
   const { subtasks } = useSubtasks(taskId);
   const { data: me } = useCurrentMemberContext(task?.organizationId);
@@ -1842,9 +1851,21 @@ export function EditTaskBody({
                 {identifier && (
                   <>
                     <ThreadHeaderSeparator />
-                    <span className="shrink-0 font-mono text-[11px] tracking-tight">
-                      {identifier}
-                    </span>
+                    {/* The key is what people quote in a message or a
+                        commit — one click copies it. */}
+                    <Tooltip
+                      content={t('detail.copyKey', { key: identifier })}
+                      side="bottom"
+                    >
+                      <button
+                        type="button"
+                        onClick={copyIdentifier}
+                        aria-label={t('detail.copyKey', { key: identifier })}
+                        className="hover:text-foreground focus-visible:ring-ring -mx-0.5 shrink-0 cursor-copy rounded px-0.5 font-mono text-[11px] tracking-tight transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        {identifier}
+                      </button>
+                    </Tooltip>
                   </>
                 )}
                 <ThreadHeaderSeparator />

@@ -7065,6 +7065,10 @@ tasks:
     showDetails: Afficher les détails
     hideDetails: Masquer les détails
     openBoard: Tableau
+    copyLink: Copier le lien
+    linkCopied: Lien copié
+    copyKey: 'Copier {key}'
+    keyCopied: '{key} copié'
     showEarlierComments: Afficher les commentaires précédents
     activity: Activité
     subtasks: Sous-tâches
