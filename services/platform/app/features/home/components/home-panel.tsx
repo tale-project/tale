@@ -28,12 +28,22 @@ import {
   MessageSquareDashed,
   SquarePen,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 
 import { TOOLTIP_SHORTCUT_CLASS } from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { HomeRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import { ArchivedSection } from '@/app/features/chat/components/archived-section';
-import { ThreadDndProvider } from '@/app/features/chat/components/thread-dnd';
+import {
+  ThreadDndProvider,
+  useStayDropZone,
+} from '@/app/features/chat/components/thread-dnd';
 import {
   ThreadListFrameProvider,
   type ThreadListFrame,
@@ -341,10 +351,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
                   : {})}
               />
 
-              <div
-                ref={streamRef}
-                className="scrollbar-thin border-border/70 -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
-              >
+              <HomeStreamScroller scrollerRef={streamRef}>
                 {streamLoading ? (
                   <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
                     <HomeRowsSkeleton />
@@ -383,7 +390,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
                     ))}
                   </ol>
                 )}
-              </div>
+              </HomeStreamScroller>
 
               {(view === 'all' || view === 'chats') && <ArchivedSection />}
             </div>
@@ -391,6 +398,36 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         </ThreadListFrameProvider>
       )}
     </>
+  );
+}
+
+/**
+ * The stream's scroller, and the place a dragged chat is put back: releasing
+ * a row over the stream leaves it where it was, rather than filing it into
+ * whichever project or drawer the lifted card grazes.
+ */
+function HomeStreamScroller({
+  scrollerRef,
+  children,
+}: {
+  scrollerRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  const setDropRef = useStayDropZone();
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollerRef.current = node;
+      setDropRef(node);
+    },
+    [scrollerRef, setDropRef],
+  );
+  return (
+    <div
+      ref={setRefs}
+      className="scrollbar-thin border-border/70 -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
+    >
+      {children}
+    </div>
   );
 }
 
