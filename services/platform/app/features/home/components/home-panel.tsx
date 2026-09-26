@@ -461,7 +461,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
                     <HomeRowsSkeleton />
                   </Skeletonize>
                 ) : groups.length === 0 && !draftingChat ? (
-                  <HomeEmpty view={view} />
+                  <HomeEmpty view={view} organizationId={organizationId} />
                 ) : (
                   <ol
                     // Re-keyed per view, so switching views fades the new
@@ -596,10 +596,16 @@ const EMPTY_ICON: Record<HomeView, ReactNode> = {
   inbox: <Inbox className="size-7" />,
 };
 
-function HomeEmpty({ view }: { view: HomeView }) {
+function HomeEmpty({
+  view,
+  organizationId,
+}: {
+  view: HomeView;
+  organizationId: string;
+}) {
   const { t } = useT('home');
   return (
-    <div className="animate-in fade-in-0 flex flex-col items-center gap-1 px-6 py-10 text-center duration-300">
+    <div className="animate-in fade-in-0 slide-in-from-bottom-1 flex flex-col items-center gap-1 px-6 py-10 text-center duration-300 motion-reduce:animate-none">
       <span aria-hidden className="text-muted-foreground/60 mb-1">
         {EMPTY_ICON[view]}
       </span>
@@ -607,6 +613,26 @@ function HomeEmpty({ view }: { view: HomeView }) {
         {t(`empty.${view}.title`)}
       </p>
       <p className="text-muted-foreground text-xs">{t(`empty.${view}.hint`)}</p>
+      {/* The way out of an empty view: a first chat, or the projects where
+          tasks are handed out. */}
+      {view === 'tasks' ? (
+        <Button asChild size="sm" variant="secondary" className="mt-3">
+          <Link to="/dashboard/$id/projects" params={{ id: organizationId }}>
+            {t('projects.allProjects')}
+          </Link>
+        </Button>
+      ) : view === 'all' || view === 'chats' ? (
+        <Button asChild size="sm" variant="secondary" className="mt-3">
+          <Link
+            to="/dashboard/$id/chat"
+            params={{ id: organizationId }}
+            search={{ new: true }}
+          >
+            <SquarePen className="size-3.5" />
+            {t('newChat')}
+          </Link>
+        </Button>
+      ) : null}
     </div>
   );
 }

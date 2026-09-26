@@ -237,11 +237,26 @@ describe('HomeNavigator', () => {
     ).toHaveTextContent('New chat');
   });
 
-  it('says so when a view is empty', async () => {
+  it('says so when a view is empty, and offers the way forward', async () => {
     homeData.current = data({ items: [] });
+    location.current = { pathname: '/dashboard/org-1/projects', search: {} };
     const { user } = render(<HomeNavigator organizationId="org-1" />);
+    expect(screen.getByText('Nothing here yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New chat' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/chat',
+    );
+
     await user.click(screen.getByRole('radio', { name: /Tasks/ }));
     expect(screen.getByText('Nothing assigned to you')).toBeInTheDocument();
+    // Tasks are handed out in projects.
+    expect(
+      screen
+        .getAllByRole('link', { name: 'All projects' })
+        .some(
+          (link) => link.getAttribute('href') === '/dashboard/org-1/projects',
+        ),
+    ).toBe(true);
   });
 
   it('hides the Inbox view when the organization has no inbox', () => {
