@@ -4382,7 +4382,10 @@ knowledgeEntries:
   viewDialog:
     title: Détails de l'entrée de connaissances
     updated: Mis à jour
-    entryId: ID de l'entrée
+    entryId: ID de version
+    entryIdHint: Un nouvel identifiant est attribué à chaque modification. Le
+      sujet identifie l'entrée d'une version à l'autre, tout comme son ID de
+      document.
     history: Historique des versions
     versionCount: '{count, plural, one {# version précédente} other {# versions
       précédentes}}'

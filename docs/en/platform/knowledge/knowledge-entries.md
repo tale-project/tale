@@ -55,7 +55,7 @@ Click **Save**. The entry appears in the table with its topic, content, source (
 
 Open the entry's row menu, choose **Edit**, change the content, and **Save**. Editing creates a new current version and queues its updated text for indexing. There is one current entry per topic, so correcting the existing fact avoids competing answers.
 
-Open the entry's details to inspect **Version history** after a correction. Previous versions record what changed and when they were replaced; they are not additional current facts. An application can also create or update entries through the [REST API](/develop/api-reference).
+Open the entry's details to inspect **Version history** after a correction. Previous versions record what changed and when they were replaced; they are not additional current facts. The **Version ID** shown in the details belongs to the current version and changes with every edit; the topic identifies the entry across versions. An application can also create or update entries through the [REST API](/develop/api-reference).
 
 <Tip>
 

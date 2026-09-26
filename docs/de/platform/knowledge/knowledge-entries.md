@@ -55,7 +55,7 @@ Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Man
 
 Öffne das Zeilenmenü, wähle **Bearbeiten**, ändere den Inhalt und klicke auf **Speichern**. Damit entsteht eine neue aktuelle Fassung; ihr Text wird erneut zur Indexierung vorgemerkt. Pro Thema gibt es einen aktuellen Eintrag. Eine Korrektur am bestehenden Eintrag vermeidet widersprüchliche Antworten.
 
-Öffne nach einer Korrektur die Details und den **Versionsverlauf**. Frühere Fassungen zeigen, was geändert wurde und wann sie ersetzt wurden; sie sind keine zusätzlichen aktuellen Informationen. Anwendungen können Einträge auch über die [REST-API](/de/develop/api-reference) erstellen und ändern.
+Öffne nach einer Korrektur die Details und den **Versionsverlauf**. Frühere Fassungen zeigen, was geändert wurde und wann sie ersetzt wurden; sie sind keine zusätzlichen aktuellen Informationen. Die **Versions-ID** in den Details gehört zur aktuellen Fassung und ändert sich bei jeder Bearbeitung; das Thema kennzeichnet den Eintrag über alle Versionen hinweg. Anwendungen können Einträge auch über die [REST-API](/de/develop/api-reference) erstellen und ändern.
 
 <Tip>
 

@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 39 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 40 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -373,6 +373,13 @@ records and delete them after.
   superseded one under **Version history**; no image is requested (network
   panel shows no `plan.png`). The table's **Content** column shows one line
   of plain text with the decoration stripped.
+- [ ] `KNOW-F27` · **The copyable id is named as a version id** — Open an
+  entry's details → The copyable identifier at the bottom is labelled
+  **Version ID** (`knowledgeEntries.viewDialog.entryId`) with a caption
+  saying a new ID is issued on every edit and that the topic identifies the
+  entry (`knowledgeEntries.viewDialog.entryIdHint`). **Edit** the content,
+  save, reopen the details → the Version ID differs from the one copied
+  before while the topic and **Version history** carry the previous version.
 
 ## Boundary & error tests
 

@@ -74,8 +74,11 @@ export interface EntityViewDialogProps {
   facts?: StatGridItem[];
   /** Primary reading content, before supporting metadata. */
   content?: ReactNode;
-  /** Quiet copyable identifier, rendered after all record content. */
-  identifier?: { label: string; value: string };
+  /**
+   * Quiet copyable identifier, rendered after all record content. `hint` is
+   * a caption under it for what the value does and does not identify.
+   */
+  identifier?: { label: string; value: string; hint?: string };
   /** Sections below the facts — wrap each in `EntityViewSection` */
   children?: ReactNode;
   /**
@@ -234,16 +237,21 @@ export function EntityViewDialog({
           {children}
 
           {identifier ? (
-            <Row gap={3} className="pt-1" align="center">
-              <Text variant="caption" className="shrink-0">
-                {identifier.label}
-              </Text>
-              <CopyableField
-                value={identifier.value}
-                className="min-w-0 flex-1"
-                inputClassName="border-0 bg-transparent px-1 py-1.5 [&>span]:text-xs"
-              />
-            </Row>
+            <Stack gap={1} className="pt-1">
+              <Row gap={3} align="center">
+                <Text variant="caption" className="shrink-0">
+                  {identifier.label}
+                </Text>
+                <CopyableField
+                  value={identifier.value}
+                  className="min-w-0 flex-1"
+                  inputClassName="border-0 bg-transparent px-1 py-1.5 [&>span]:text-xs"
+                />
+              </Row>
+              {identifier.hint ? (
+                <Text variant="caption">{identifier.hint}</Text>
+              ) : null}
+            </Stack>
           ) : null}
         </Stack>
       </ViewDialog>

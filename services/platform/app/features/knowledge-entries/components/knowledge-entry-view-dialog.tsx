@@ -104,7 +104,13 @@ export function KnowledgeEntryViewDialog({
             }
           : undefined
       }
-      identifier={{ label: t('viewDialog.entryId'), value: entry._id }}
+      // The id is per version: an edit issues a new one and supersedes this
+      // row, so the caption says what keeps identifying the entry.
+      identifier={{
+        label: t('viewDialog.entryId'),
+        value: entry._id,
+        hint: t('viewDialog.entryIdHint'),
+      }}
       content={
         <MarkdownContent
           content={entry.content}

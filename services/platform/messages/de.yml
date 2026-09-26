@@ -4318,7 +4318,10 @@ knowledgeEntries:
   viewDialog:
     title: Details zum Wissenseintrag
     updated: Aktualisiert
-    entryId: Eintrags-ID
+    entryId: Versions-ID
+    entryIdHint: Bei jeder Bearbeitung wird eine neue ID vergeben. Das Thema
+      kennzeichnet den Eintrag über alle Versionen hinweg, ebenso seine
+      Dokument-ID.
     history: Versionsverlauf
     versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
     superseded: Ersetzt

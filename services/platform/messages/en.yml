@@ -4162,7 +4162,9 @@ knowledgeEntries:
   viewDialog:
     title: Knowledge entry details
     updated: Updated
-    entryId: Entry ID
+    entryId: Version ID
+    entryIdHint: A new ID is issued on every edit. The topic identifies the
+      entry across versions, as does its document ID.
     history: Version history
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded

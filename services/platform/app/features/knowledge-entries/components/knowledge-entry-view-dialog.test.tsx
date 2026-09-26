@@ -86,6 +86,11 @@ describe('KnowledgeEntryViewDialog', () => {
       within(dialog).getAllByText('Orders over CHF 100 ship free.'),
     ).toHaveLength(1);
     expect(within(dialog).getByText('entry-2')).toBeInTheDocument();
+    // The id is per version, so the dialog says what the copy identifies.
+    expect(within(dialog).getByText('Version ID')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/A new ID is issued on every edit/),
+    ).toBeInTheDocument();
     expect(
       within(dialog).queryByRole('region', { name: 'Version history' }),
     ).not.toBeInTheDocument();
