@@ -90,10 +90,16 @@ describe('record details layout', () => {
       expect(dialog.scrollWidth).toBeLessThanOrEqual(dialog.clientWidth);
       expect(box.height).toBeLessThanOrEqual(667 * 0.9 + 1);
     });
-    expect(
-      screen.getByRole('button', {
-        name: '795c9221-156f-434e-a458-24625f59bde0',
-      }),
-    ).toBeVisible();
+    // The geometry above is final while the dialog's enter animation still
+    // holds it at opacity 0, and an ancestor at opacity 0 counts as hidden —
+    // so wait for it to finish appearing rather than judging the first frame,
+    // which made this assertion pass or fail on timing alone.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: '795c9221-156f-434e-a458-24625f59bde0',
+        }),
+      ).toBeVisible(),
+    );
   });
 });
