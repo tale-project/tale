@@ -56,7 +56,8 @@ export function TaskPageLayout({
   // docked panel would leave the thread no room.
   const isMobile = useIsMobile();
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
-  const toggleLabel = detailsOpen
+  const showingDetails = isMobile ? mobileDetailsOpen : detailsOpen;
+  const toggleLabel = showingDetails
     ? t('detail.hideDetails')
     : t('detail.showDetails');
 
@@ -84,12 +85,19 @@ export function TaskPageLayout({
                     ? setMobileDetailsOpen(true)
                     : setDetailsOpen(!detailsOpen)
                 }
-                aria-label={isMobile ? t('detail.showDetails') : toggleLabel}
-                aria-expanded={isMobile ? mobileDetailsOpen : detailsOpen}
-                aria-controls="task-details"
+                aria-label={toggleLabel}
+                aria-expanded={showingDetails}
+                aria-haspopup={isMobile ? 'dialog' : undefined}
+                aria-controls={
+                  isMobile
+                    ? mobileDetailsOpen
+                      ? 'task-details-mobile'
+                      : undefined
+                    : 'task-details'
+                }
                 className="text-muted-foreground hover:text-foreground size-8"
               >
-                {detailsOpen ? (
+                {showingDetails ? (
                   <PanelRightClose className="size-4" />
                 ) : (
                   <PanelRightOpen className="size-4" />
@@ -111,9 +119,13 @@ export function TaskPageLayout({
               {/* The brief is the thread's opening: what the task is, what it
                   needs, what it splits into. */}
               <div className="border-border bg-card flex flex-col gap-5 rounded-2xl border p-5 shadow-xs">
+                <h2 className="sr-only">{t('detail.overview')}</h2>
                 {brief}
               </div>
-              {conversation}
+              <section>
+                <h2 className="sr-only">{t('detail.conversation')}</h2>
+                {conversation}
+              </section>
             </div>
           </div>
           {composer !== undefined &&
@@ -134,6 +146,7 @@ export function TaskPageLayout({
           )}
         >
           <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
+            <h2 className="sr-only">{t('detail.details')}</h2>
             {panel}
           </div>
         </aside>
@@ -145,7 +158,9 @@ export function TaskPageLayout({
         title={t('detail.details')}
         className="h-auto! max-h-[80vh] overflow-y-auto rounded-t-2xl p-5"
       >
-        <div className="flex flex-col gap-4 pt-2">{panel}</div>
+        <div id="task-details-mobile" className="flex flex-col gap-4 pt-2">
+          {panel}
+        </div>
       </Sheet>
     </div>
   );
