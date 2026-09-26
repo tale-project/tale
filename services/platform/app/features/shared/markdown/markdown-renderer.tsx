@@ -214,6 +214,23 @@ export const markdownComponents = {
   }: { node?: unknown } & React.HTMLAttributes<HTMLParagraphElement>) => (
     <MarkdownParagraph {...props} />
   ),
+  // Lists inherit the message's text colour. The shared markdown map draws
+  // lists in the muted docs-prose tone to match its muted paragraphs; here
+  // paragraphs are full contrast, so an inherited muted list read as a
+  // de-emphasised aside in the middle of an answer. Spacing and markers come
+  // from `markdownWrapperStyles`.
+  ul: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLUListElement>) => (
+    <ul {...props} />
+  ),
+  ol: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.OlHTMLAttributes<HTMLOListElement>) => (
+    <ol {...props} />
+  ),
   table: ({
     node: _node,
     ...props
