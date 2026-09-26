@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 37 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -341,6 +341,21 @@ records and delete them after.
   (c) a provider that caps the texts per request (DashScope-compatible
   gateways: 10 or 25) → a document with more chunks than the cap still
   indexes to **Indexed**, the platform log noting the cap it learned.
+- [ ] `KNOW-F23` · **A fact deep in a short document is answered** — Upload a
+  ~1 KB `.txt` whose only distinctive sentence ("The project codename is
+  BLUE-HERON-4471.") sits after ~600 characters of filler; wait for
+  **Indexed**; in a new chat ask "What is the project codename? Cite the
+  source." → The answer names BLUE-HERON-4471 with the file as its source;
+  the expanded **Searching the workspace** tool call shows the hit's snippet
+  as the whole passage (no `…(+N chars)` cut before the sentence).
+- [ ] `KNOW-F24` · **A product or contact answers from all its fields** —
+  Create a product with a price, a **currency**, a description holding a
+  code and tags, and a contact with an email, a phone and a **locale**; in a
+  new chat ask for the product's price and currency and the code in its
+  description, then for the contact's locale → Both answers state the stored
+  values; the expanded tool call's product row carries `currency` and
+  `description`, the contact row `locale` — never "not specified" for a
+  field the record has.
 
 
 ## Boundary & error tests
