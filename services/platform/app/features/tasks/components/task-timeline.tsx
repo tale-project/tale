@@ -28,7 +28,7 @@ import { AssigneeAvatar } from './assignee-avatar';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
 
-export function formatCents(cents: number): string {
+function formatCents(cents: number): string {
   return (cents / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

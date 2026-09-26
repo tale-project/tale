@@ -394,11 +394,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
   );
 }
 
-export function HomePanelHeader({
-  organizationId,
-}: {
-  organizationId: string;
-}) {
+function HomePanelHeader({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
   const isMac = useIsMac();
   const shortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';

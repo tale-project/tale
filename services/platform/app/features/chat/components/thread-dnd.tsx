@@ -205,7 +205,7 @@ const ThreadDndStateContext = createContext<{
 });
 
 /** True while a chat row is being dragged anywhere in the tree. */
-export function useThreadDndState() {
+function useThreadDndState() {
   return useContext(ThreadDndStateContext);
 }
 
