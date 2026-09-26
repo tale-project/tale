@@ -19,7 +19,7 @@ export type { MessagePart };
  * creatable. */
 export type ChatThreadKind = 'direct' | 'sandbox';
 
-/** One row of the thread list. */
+/** One chat, as the thread-list read returns it. */
 export interface ChatThreadSummary {
   readonly id: string;
   readonly title?: string;
@@ -51,8 +51,8 @@ export interface ChatThreadSummary {
   readonly viewerIsOwner?: boolean;
 }
 
-/** One project folder of the chat sub-panel, reduced to what a folder row
- * renders. */
+/** One project, reduced to what a Home project row and the move-to-project
+ * menu render. */
 export interface ChatProjectSummary {
   readonly id: string;
   readonly name: string;

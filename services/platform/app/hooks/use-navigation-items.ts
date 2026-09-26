@@ -59,7 +59,7 @@ export interface NavItem {
 export interface NavigationItems {
   /** Main destinations shown in the primary nav list. */
   primary: NavItem[];
-  /** Items pinned at the bottom of the sidebar (above the UserButton) and surfaced in the mobile overflow sheet. */
+  /** Items pinned at the foot of the rail (above the UserButton); on a phone they join the tab bar. */
   pinned: NavItem[];
 }
 

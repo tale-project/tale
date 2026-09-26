@@ -163,7 +163,7 @@ export function useInboxList({
   // Search, the read facet and the assignee facet all run client-side over the
   // loaded pages only, so while any of them is active we must keep draining
   // backend pages — a match beyond the first page would otherwise be silently
-  // missed (#2054). The channel facet is absent on purpose: it narrows
+  // missed. The channel facet is absent on purpose: it narrows
   // server-side, so its matches are never left behind a page boundary.
   const isFiltering =
     Boolean(searchQuery) ||

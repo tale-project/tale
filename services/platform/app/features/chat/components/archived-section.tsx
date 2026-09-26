@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * The ARCHIVED section — a collapsible drawer pinned under the thread list.
+ * The ARCHIVED section — a collapsible drawer pinned under the Home stream.
  *
  * Archived chats grow without bound, so the section is lazy and paginated:
  * collapsed it costs the panel nothing (the read is skipped), expanded it
@@ -53,9 +53,8 @@ export function ArchivedSection() {
         'rounded-none',
       )}
     >
-      {/* Same header vocabulary as PROJECTS and CHATS, but the WHOLE row is
-          the disclosure — exactly like a project folder's header — with the
-          trailing chevron as its state. */}
+      {/* Same header vocabulary as PROJECTS, but the WHOLE row is the
+          disclosure, with the trailing chevron as its state. */}
       <button
         type="button"
         onClick={() => setExpanded((open) => !open)}

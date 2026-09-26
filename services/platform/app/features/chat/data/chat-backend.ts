@@ -303,7 +303,7 @@ export function useChatQuery<Name extends QueryName>(
   return result;
 }
 
-/** The thread list in the chat sub-panel. */
+/** The caller's chats — the Home stream's chat rows. */
 export function useChatThreads(
   organizationId: string,
 ): ChatQuery<readonly ChatThreadSummary[]> {
@@ -311,9 +311,10 @@ export function useChatThreads(
 }
 
 /**
- * The project folders the chat sub-panel files threads under. The projects
- * feature owns the table; this read reduces its rows to what a folder row
- * renders, through the same degrade-to-unavailable seam as every chat read.
+ * The projects chats are filed under — Home's PROJECTS section and the
+ * move-to-project menu. The projects feature owns the table; this read
+ * reduces its rows to what a project row renders, through the same
+ * degrade-to-unavailable seam as every chat read.
  */
 export function useChatProjects(
   organizationId: string,
@@ -340,7 +341,7 @@ export function useChatProjects(
 }
 
 /**
- * Pin or unpin a project folder in the sub-panel. Routed through the seam —
+ * Pin or unpin a project in Home's PROJECTS list. Routed through the seam —
  * not the projects feature's react-query hooks — so a provider-less render
  * degrades to `available: false` instead of throwing.
  */
@@ -1065,8 +1066,9 @@ export function useResolveQuestion(organizationId: string): {
 
 /**
  * File a thread under a project (or take it back out with `null`) — the write
- * behind the sub-panel's drag-and-drop. Resolves `false` for a thread that is
- * not the caller's; `available` mirrors the reads for a provider-less render.
+ * behind Home's drag-and-drop and the move-to-project menu. Resolves `false`
+ * for a thread that is not the caller's; `available` mirrors the reads for a
+ * provider-less render.
  */
 export function useThreadProjectMove(organizationId: string): {
   readonly available: boolean;
