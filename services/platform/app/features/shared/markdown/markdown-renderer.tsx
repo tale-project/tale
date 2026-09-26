@@ -352,15 +352,23 @@ export const markdownComponents = {
 export function MarkdownContent({
   content,
   className,
+  disallowedElements,
 }: {
   content: string;
   className?: string;
+  /**
+   * HTML element names to leave out of the render (their children stay), e.g.
+   * `['img']` for user-authored text that must not load remote resources.
+   */
+  disallowedElements?: readonly string[];
 }) {
   return (
     <div className={cn('text-sm', markdownWrapperStyles, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={markdownComponents}
+        disallowedElements={disallowedElements}
+        unwrapDisallowed
       >
         {content}
       </ReactMarkdown>

@@ -91,6 +91,46 @@ describe('KnowledgeEntryViewDialog', () => {
     ).not.toBeInTheDocument();
   });
 
+  // Regression: the content is documented as Markdown but was printed as its
+  // source, in the current version and in the history alike.
+  it('renders the content as Markdown without loading images', () => {
+    mockVersions = {
+      entry: version('entry-2', 'active'),
+      versions: [
+        version('entry-2', 'active'),
+        {
+          ...version('entry-1', 'superseded'),
+          content: 'Was *provisional* before.',
+        },
+      ],
+    };
+    render(
+      <KnowledgeEntryViewDialog
+        isOpen
+        onClose={vi.fn()}
+        entry={makeEntry({
+          content:
+            'Open **only on Thursdays**\n\n- Owner: Kai\n\n![floor plan](https://example.com/plan.png)',
+        })}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', {
+      name: 'Knowledge entry details',
+    });
+    expect(within(dialog).getByText('only on Thursdays').tagName).toBe(
+      'STRONG',
+    );
+    expect(within(dialog).getByRole('listitem')).toHaveTextContent(
+      'Owner: Kai',
+    );
+    expect(within(dialog).queryByRole('img')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/\*\*/)).not.toBeInTheDocument();
+
+    const history = screen.getByRole('region', { name: 'Version history' });
+    expect(within(history).getByText('provisional').tagName).toBe('EM');
+  });
+
   // Regression: the history read the versions from a shape the adapter never
   // answered, so it never appeared; the chain also carries the current row.
   it('lists only the versions the entry replaced', () => {

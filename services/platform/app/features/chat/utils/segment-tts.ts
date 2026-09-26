@@ -1,7 +1,6 @@
+import { stripMarkdownOnce } from '@/app/features/shared/markdown/markdown-strip';
 import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
-
-import { stripMarkdownOnce } from '../hooks/markdown-strip';
 
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 

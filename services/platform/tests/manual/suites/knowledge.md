@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 39 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -364,6 +364,15 @@ records and delete them after.
   **Something went wrong** with **Try again** — never a table of the one
   folder row with **Showing all 1 document**. Unblock and **Try again** →
   the documents appear without navigating away.
+- [ ] `KNOW-F26` · **Entry content renders as Markdown** — Knowledge entries →
+  **Add entry** (`knowledgeEntries.addButton`) with content
+  `Open **only on Thursdays**`, a `- ` bullet list and
+  `![plan](https://example.com/plan.png)`; save, edit the content once more,
+  then open the row → The details show bold text and
+  a real list (no literal asterisks) for the current version and for the
+  superseded one under **Version history**; no image is requested (network
+  panel shows no `plan.png`). The table's **Content** column shows one line
+  of plain text with the decoration stripped.
 
 ## Boundary & error tests
 

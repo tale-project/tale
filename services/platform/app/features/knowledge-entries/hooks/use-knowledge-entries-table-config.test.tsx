@@ -76,3 +76,18 @@ describe('useKnowledgeEntriesTableConfig — createdAt cell', () => {
     expect(screen.getByText(/2026/i)).toHaveAttribute('title');
   });
 });
+
+describe('useKnowledgeEntriesTableConfig — content cell', () => {
+  // Regression: the column showed the Markdown source, asterisks and all.
+  it('previews the content with its Markdown decoration stripped', () => {
+    renderColumnCell('content', {
+      content: 'Open **only on Thursdays**\n\n- Owner: *Kai*',
+    });
+
+    const preview = screen.getByText('Open only on Thursdays Owner: Kai');
+    expect(preview).toHaveAttribute(
+      'title',
+      'Open only on Thursdays Owner: Kai',
+    );
+  });
+});

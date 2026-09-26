@@ -15,12 +15,19 @@ import { type RefObject, useMemo } from 'react';
 
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { sourceLabelKey } from '@/app/features/knowledge-entries/lib/source-label';
+import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import { useKnowledgeEntryVersions } from '../hooks/queries';
 import type { KnowledgeEntryItem } from '../hooks/queries';
 import { KnowledgeEntryEditDialog } from './knowledge-entry-edit-dialog';
+
+/**
+ * An entry is org-authored prose; rendering it must never load a remote
+ * resource, so images are dropped.
+ */
+const KNOWLEDGE_ENTRY_DISALLOWED_ELEMENTS = ['img'] as const;
 
 interface KnowledgeEntryViewDialogProps {
   isOpen: boolean;
@@ -99,9 +106,11 @@ export function KnowledgeEntryViewDialog({
       }
       identifier={{ label: t('viewDialog.entryId'), value: entry._id }}
       content={
-        <Text className="leading-relaxed wrap-anywhere whitespace-pre-wrap">
-          {entry.content}
-        </Text>
+        <MarkdownContent
+          content={entry.content}
+          className="wrap-anywhere"
+          disallowedElements={KNOWLEDGE_ENTRY_DISALLOWED_ELEMENTS}
+        />
       }
       facts={facts}
       restoreFocusRef={restoreFocusRef}
@@ -141,9 +150,11 @@ export function KnowledgeEntryViewDialog({
                     </Stack>
                   }
                 >
-                  <Text className="mt-3 text-sm wrap-anywhere whitespace-pre-wrap">
-                    {version.content}
-                  </Text>
+                  <MarkdownContent
+                    content={version.content}
+                    className="mt-3 wrap-anywhere"
+                    disallowedElements={KNOWLEDGE_ENTRY_DISALLOWED_ELEMENTS}
+                  />
                 </CollapsibleDetails>
               </div>
             ))}
