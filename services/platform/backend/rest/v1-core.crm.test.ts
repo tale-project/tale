@@ -46,7 +46,7 @@ vi.mock('../domains/products/service.ts', async (importOriginal) => {
   return {
     ...actual,
     createProduct: vi.fn(async () => 'p-new'),
-    updateProduct: vi.fn(async () => undefined),
+    updateProduct: vi.fn(async () => []),
     getProduct: vi.fn(async () => ({
       id: 'p-1',
       organizationId: 'org-1',

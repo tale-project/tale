@@ -477,6 +477,19 @@ records and delete them after.
   `Row 3: email: must not be blank`, `Row 4: A contact with this email
   already exists` (`contacts.import.errorCodes.duplicate_email`); line 2
   imported. Reopening either dialog starts clean.
+- [ ] `KNOW-B12` · **A deleted product's image goes with it** — Products →
+  **Add product** with an uploaded PNG → **Create** → open the details and
+  copy the image address (`/api/app/products/images/<id>?orgId=…`); with the
+  signed-in session, GET it → 200. Delete the product → the same GET → 404
+  `PRODUCT_IMAGE_NOT_FOUND`, also for the uploader, also after a minute; the
+  object is gone from the org store. **Edit** another product with an
+  uploaded image → **Remove image** → **Save** → its old address → 404; the
+  same after replacing it with a second upload. Two products created with
+  the same pasted managed address → delete one → the other's image still
+  loads. Settings › Governance › Legal holds with an org-wide hold active →
+  **Delete** on a product → toast **Couldn't delete product**
+  (`products.actions.deleteFailed`), the row stays; **Remove image** →
+  **Save** succeeds and the old address still answers 200 for the uploader.
 - [ ] `KNOW-B8` · **`http://` in each add-website mode** — Websites → **Add
   website** → **Whole website** → **Domain** = `http://example.net` → **Save**
   → the field shows the https-host sentence inline

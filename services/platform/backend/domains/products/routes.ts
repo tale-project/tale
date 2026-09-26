@@ -16,7 +16,12 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { readBodyBounded } from '../files/bounded-body.ts';
-import { FileError, openFileContent } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  FileError,
+  openFileContent,
+} from '../files/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   isProductImageUrl,
   readProductImage,
@@ -64,7 +69,11 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof RateLimitExceededError)
     return rateLimitedResponse(c, error);
-  if (error instanceof ProductError || error instanceof FileError) {
+  if (
+    error instanceof ProductError ||
+    error instanceof FileError ||
+    error instanceof LegalHoldError
+  ) {
     return c.json({ error: error.code }, error.status);
   }
   throw error;
@@ -242,10 +251,12 @@ export function createProductRoutes(deps: {
     }
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, async (tx) => {
+      const released = await transactSerializable(deps.sql, async (tx) => {
         await validateProductImageBinding(tx, scope, body.data.imageUrl);
-        await updateProduct(tx, scope, c.req.param('productId'), body.data);
+        return updateProduct(tx, scope, c.req.param('productId'), body.data);
       });
+      // The superseded image's bytes go once the row is gone for good.
+      await deleteOrgBlobRefs(deps.sql, scope.organizationId, released);
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -255,9 +266,10 @@ export function createProductRoutes(deps: {
   app.delete('/:productId', async (c) => {
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const released = await transactSerializable(deps.sql, (tx) =>
         deleteProduct(tx, scope, c.req.param('productId')),
       );
+      await deleteOrgBlobRefs(deps.sql, scope.organizationId, released);
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

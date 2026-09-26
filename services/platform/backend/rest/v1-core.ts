@@ -72,6 +72,7 @@ import {
   updateDocument,
 } from '../domains/documents/service.ts';
 import type { DocumentIndexingState } from '../domains/file_metadata/indexing-state.ts';
+import { deleteOrgBlobRefs } from '../domains/files/service.ts';
 import {
   KnowledgeError,
   searchKnowledgeForOrg,
@@ -680,10 +681,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     );
     if (body instanceof Response) return body;
     try {
-      await deps.sql.begin(async (tx) => {
+      const released = await deps.sql.begin(async (tx) => {
         await validateRestProductImage(tx, scope(c), body.imageUrl);
-        await updateProduct(tx, scope(c), c.req.param('id'), body);
+        return updateProduct(tx, scope(c), c.req.param('id'), body);
       });
+      // The superseded managed image's bytes go once the row is gone.
+      await deleteOrgBlobRefs(deps.sql, c.get('organizationId'), released);
       const updated = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!updated)
         return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
@@ -695,9 +698,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.delete('/products/:id', async (c) => {
     try {
-      await deps.sql.begin((tx) =>
+      const released = await deps.sql.begin((tx) =>
         deleteProduct(tx, scope(c), c.req.param('id')),
       );
+      await deleteOrgBlobRefs(deps.sql, c.get('organizationId'), released);
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);

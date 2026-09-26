@@ -54,7 +54,7 @@ Le menu de la ligne permet de modifier un produit enregistré. Choisis des noms 
 
 Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou SVG dans la zone d’image. La limite est de 5 Mio. Attends l’aperçu avant de poursuivre. Tale vérifie le contenu du fichier ; s’il le refuse, le message sous le champ d’image en donne la raison — un format non pris en charge, un fichier au-delà de la limite ou un SVG contenant des scripts ou des gestionnaires d’événements — pour que tu saches si un autre fichier est nécessaire.
 
-L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre.
+L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre. Retirer ou remplacer l’image, ou supprimer le produit, supprime aussi le fichier téléversé lui-même, sauf si un autre produit l’affiche encore.
 
 Si tu choisis **Ou coller une URL**, utilise une adresse HTTPS publique. Tale refuse les hôtes non sûrs ou non autorisés. Demande à un administrateur si tu as besoin d’une source d’image interne. Les images chargées depuis une adresse externe restent soumises aux règles d’accès de cette source.
 

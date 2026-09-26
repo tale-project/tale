@@ -122,6 +122,7 @@ export type GuardedTargetType =
   | 'thread'
   | 'document'
   | 'contact'
+  | 'product'
   | 'conversation'
   | 'folder'
   | 'userMembership'
