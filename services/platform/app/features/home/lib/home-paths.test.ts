@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isHomePath, isPanelCollapsible, readHomeLocation } from './home-paths';
+import {
+  isHomePath,
+  isPanelCollapsible,
+  readHomeLocation,
+  showsHomePanel,
+} from './home-paths';
 
 const ORG = 'org-1';
 
@@ -31,6 +36,37 @@ describe('isHomePath', () => {
     ]) {
       expect(isHomePath(path, ORG), path).toBe(false);
     }
+  });
+});
+
+describe('showsHomePanel', () => {
+  it('stands the panel beside every Home route', () => {
+    for (const path of [
+      '/dashboard/org-1/chat/t1',
+      '/dashboard/org-1/projects/p1',
+      '/dashboard/org-1/projects/p1/tasks/board',
+      '/dashboard/org-1/projects/p1/automations',
+      '/dashboard/org-1/tasks/k1',
+    ]) {
+      expect(showsHomePanel(path, 'org-1'), path).toBe(true);
+    }
+  });
+
+  it("leaves a project's automation workbench the full width", () => {
+    for (const path of [
+      '/dashboard/org-1/projects/p1/automations/intake',
+      '/dashboard/org-1/projects/p1/automations/intake/editor',
+      '/dashboard/org-1/projects/p1/automations/intake/runs/r1',
+    ]) {
+      expect(showsHomePanel(path, 'org-1'), path).toBe(false);
+      // Still Home as far as the rail is concerned.
+      expect(isHomePath(path, 'org-1'), path).toBe(true);
+    }
+  });
+
+  it('never shows outside Home', () => {
+    expect(showsHomePanel('/dashboard/org-1/automations', 'org-1')).toBe(false);
+    expect(showsHomePanel('/dashboard/org-1/settings', 'org-1')).toBe(false);
   });
 });
 

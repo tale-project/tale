@@ -86,6 +86,7 @@ describe('index.html boot-chat script', () => {
       '/dashboard/org-1/home',
       '/dashboard/org-1/projects',
       '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/projects/p-1/automations',
       '/dashboard/org-1/tasks/t-1',
       '/dashboard/org-1/conversations/open',
     ]) {
@@ -93,6 +94,18 @@ describe('index.html boot-chat script', () => {
         bootAt(path).classList.contains('boot-home-panel-open'),
         path,
       ).toBe(true);
+    }
+  });
+
+  it("leaves a project's automation workbench without the panel", () => {
+    for (const path of [
+      '/dashboard/org-1/projects/p-1/automations/intake',
+      '/dashboard/org-1/projects/p-1/automations/intake/editor',
+    ]) {
+      expect(
+        bootAt(path).classList.contains('boot-home-panel-open'),
+        path,
+      ).toBe(false);
     }
   });
 
@@ -137,6 +150,8 @@ describe('index.html boot-chat script', () => {
       '/dashboard/org-1/settings/account',
       '/dashboard/org-1/chat/shared/token-1',
       '/dashboard/switching',
+      '/dashboard/create-organization',
+      '/dashboard/changelog',
     ]) {
       const root = bootAt(path);
       expect(root.classList.contains('boot-home-panel-open'), path).toBe(false);

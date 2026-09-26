@@ -40,7 +40,7 @@ import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-ex
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
 import { HomePanel } from '@/app/features/home/components/home-panel';
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
-import { isHomePath } from '@/app/features/home/lib/home-paths';
+import { showsHomePanel } from '@/app/features/home/lib/home-paths';
 import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -420,7 +420,7 @@ function HomeSectionFrame({
   // A phone has no panel beside the page (its Home list is a screen of its
   // own), so the panel — and every read it makes — mounts on desktop only.
   const isMobile = useIsMobile();
-  if (!isHomePath(pathname, organizationId)) return <>{children}</>;
+  if (!showsHomePanel(pathname, organizationId)) return <>{children}</>;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       {!isMobile && <HomePanel organizationId={organizationId} />}

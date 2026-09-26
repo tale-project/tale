@@ -105,12 +105,14 @@
           var match = window.location.pathname.match(
             /\/dashboard\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/,
           );
-          // `switching` and `create-organization` are the literal (non-org)
-          // segments under /dashboard/ — they render no Home layout.
+          // `switching`, `create-organization` and `changelog` are the
+          // literal (non-org) segments under /dashboard/ — they render no
+          // Home layout.
           if (
             !match ||
             match[1] === 'switching' ||
-            match[1] === 'create-organization'
+            match[1] === 'create-organization' ||
+            match[1] === 'changelog'
           ) {
             return;
           }
@@ -119,6 +121,16 @@
           var home = ['home', 'chat', 'projects', 'tasks', 'conversations'];
           if (section !== undefined && home.indexOf(section) === -1) return;
           if (section === 'chat' && match[3] === 'shared') return;
+          // A project's automation workbench keeps the full width, like an
+          // automation outside a project (see showsHomePanel).
+          if (
+            section === 'projects' &&
+            /\/projects\/[^/]+\/automations\/[^/]+/.test(
+              window.location.pathname.slice(match.index),
+            )
+          ) {
+            return;
+          }
           var root = document.documentElement;
           var chat = section === undefined || section === 'chat';
           var collapsible =

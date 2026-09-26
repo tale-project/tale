@@ -31,6 +31,22 @@ export function isHomePath(pathname: string, organizationId: string): boolean {
   );
 }
 
+/**
+ * Whether the Home panel sits beside the page: on every Home route but a
+ * project's automation workbench (`/projects/<id>/automations/<slug>/…`),
+ * which wears the Automations chrome and keeps the full width for its
+ * canvas — exactly like an automation outside a project. The rail still
+ * marks Home there; the workbench simply has the room.
+ */
+export function showsHomePanel(
+  pathname: string,
+  organizationId: string,
+): boolean {
+  if (!isHomePath(pathname, organizationId)) return false;
+  const rest = orgRelative(pathname, organizationId) ?? '';
+  return !/^\/projects\/[^/]+\/automations\/[^/]+(?:\/|$)/.test(rest);
+}
+
 /** What the open page is, as far as the Home panel's highlight cares. */
 export type HomeLocation =
   | { kind: 'chat'; threadId?: string }
