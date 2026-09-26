@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 22 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -135,6 +135,22 @@ if you want to keep a write.
   source). The Home list, the project and Settings keep the shell bar with the
   account button. The throttled reload's loading screen draws no bar
   stand-in either (`<html>` carries the class `boot-thread-page`).
+- [ ] `RESP-F13` · **List tables scroll inside their card on a phone** — At
+  390 px open `/dashboard/{org}/documents` (with at least one file) and
+  `/dashboard/{org}/knowledge-entries` (with one entry) → read
+  `documentElement.scrollWidth` → it equals `clientWidth` (390) on both; the
+  table scrolls sideways inside its own frame (the frame's `scrollWidth` >
+  `clientWidth`), and swiping right never shows a blank page. Copy a
+  timestamp from the Updated/Modified cell → the "Copied" announcement is
+  read out and the page still does not widen.
+- [ ] `RESP-F14` · **Documents fits a 1440 px window** — At 1440×900 with the
+  sidebar expanded, open `/dashboard/{org}/documents` with a file whose
+  uploader is a long e-mail, a synced file, and a team-scoped file → The
+  **Modified** header is fully visible (no "Modi…"), the table's frame has no
+  horizontal scrollbar, and opening a row's **Open menu** or a dialog does not
+  scroll the **Document** column out of view. Size, Source, RAG status and
+  Modified cells show their full content; Uploaded by truncates the e-mail
+  with the full value on hover.
 
 ## Boundary & error tests
 
