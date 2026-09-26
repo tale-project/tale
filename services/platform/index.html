@@ -82,17 +82,20 @@
         }
       })();
     </script>
-    <!-- Pre-hydration boot-shell state: when the navigation targets a chat
-         route (shared-view routes excluded — they render no panel) or an
-         org root (which always redirects to chat), reveal the chat layout
-         pieces baked into the served boot shell before any JS or CSS runs.
-         `boot-chat` gates the composer stand-in (ChatComposerPlaceholder);
-         `boot-chat-panel-open` additionally gates the sub-panel skeleton
-         (ChatSubPanelPlaceholder) on the persisted panel state. Key mirrors
-         ChatLayoutProvider's `chat-history-panel-open-<orgId>` (org-scoped
-         precisely so this script can read it pre-auth). `boot-chat-notice`
-         reserves the confidentiality notice's row under the composer stand-in
-         when this device last saw the org show one: `chat-data-notice-<orgId>`
+    <!-- Pre-hydration boot-shell state: reveal the Home layout pieces baked
+         into the served boot shell before any JS or CSS runs.
+         `boot-home-panel-open` gates the Home panel skeleton
+         (HomePanelPlaceholder) on every Home route — chat, a task, a
+         project, the inbox, or an org root (which redirects to chat) — and
+         stays off only on a conversation-shaped page (a chat, a task, an
+         open inbox conversation) whose panel the persisted
+         `chat-history-panel-open-<orgId>` state has folded (org-scoped
+         precisely so this script can read it pre-auth; the live HomePanel
+         keeps the class in step). `boot-chat` gates the composer stand-in
+         (ChatComposerPlaceholder) on a chat route or org root; shared-chat
+         snapshots are neither. `boot-chat-notice` reserves the
+         confidentiality notice's row under the composer stand-in when this
+         device last saw the org show one: `chat-data-notice-<orgId>`
          (written by DataNoticeFooter, see data-notice-boot.ts) holds its text
          as a ready-escaped CSS string, copied to `--boot-chat-notice` so the
          row wraps like the live notice. -->
@@ -100,28 +103,42 @@
       (function () {
         try {
           var match = window.location.pathname.match(
-            /\/dashboard\/([^/]+)(?:\/chat(?:\/(?!shared\/)|$)|\/?$)/,
+            /\/dashboard\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/,
           );
-          // `switching` is the only literal (non-org) segment under
-          // /dashboard/ — the org-switch interstitial renders no panel.
-          if (!match || match[1] === 'switching') return;
-          document.documentElement.classList.add('boot-chat');
-          var stored = localStorage.getItem(
-            'chat-history-panel-open-' + match[1],
-          );
-          if (stored !== 'false') {
-            document.documentElement.classList.add('boot-chat-panel-open');
+          // `switching` and `create-organization` are the literal (non-org)
+          // segments under /dashboard/ — they render no Home layout.
+          if (
+            !match ||
+            match[1] === 'switching' ||
+            match[1] === 'create-organization'
+          ) {
+            return;
           }
-          var notice = localStorage.getItem('chat-data-notice-' + match[1]);
+          var org = match[1];
+          var section = match[2];
+          var home = ['home', 'chat', 'projects', 'tasks', 'conversations'];
+          if (section !== undefined && home.indexOf(section) === -1) return;
+          if (section === 'chat' && match[3] === 'shared') return;
+          var root = document.documentElement;
+          var chat = section === undefined || section === 'chat';
+          var collapsible =
+            chat ||
+            section === 'tasks' ||
+            (section === 'conversations' &&
+              /[?&]conversation=/.test(window.location.search));
+          var stored = localStorage.getItem('chat-history-panel-open-' + org);
+          if (!collapsible || stored !== 'false') {
+            root.classList.add('boot-home-panel-open');
+          }
+          if (!chat) return;
+          root.classList.add('boot-chat');
+          var notice = localStorage.getItem('chat-data-notice-' + org);
           if (notice) {
-            document.documentElement.classList.add('boot-chat-notice');
-            document.documentElement.style.setProperty(
-              '--boot-chat-notice',
-              notice,
-            );
+            root.classList.add('boot-chat-notice');
+            root.style.setProperty('--boot-chat-notice', notice);
           }
         } catch (error) {
-          console.warn('Failed to apply the boot chat-panel state', error);
+          console.warn('Failed to apply the boot Home-layout state', error);
         }
       })();
     </script>

@@ -189,6 +189,7 @@ function boardFilterParams(args: Record<string, unknown>): {
       )
     : [];
   const assigneeId = typeof args.assigneeId === 'string' ? args.assigneeId : '';
+  const reviewerId = typeof args.reviewerId === 'string' ? args.reviewerId : '';
   const externalSystem =
     typeof args.externalSystem === 'string' ? args.externalSystem : '';
   const params = new URLSearchParams({
@@ -196,6 +197,7 @@ function boardFilterParams(args: Record<string, unknown>): {
     ...(status.length > 0 ? { status } : {}),
     ...(statuses.length > 0 ? { statuses: statuses.join(',') } : {}),
     ...(assigneeId.length > 0 ? { assigneeId } : {}),
+    ...(reviewerId.length > 0 ? { reviewerId } : {}),
     ...(externalSystem.length > 0 ? { externalSystem } : {}),
   });
   return {
@@ -205,6 +207,7 @@ function boardFilterParams(args: Record<string, unknown>): {
       status,
       statuses.join(','),
       assigneeId,
+      reviewerId,
       externalSystem,
     ],
   };

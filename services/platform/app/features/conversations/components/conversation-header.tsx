@@ -2,8 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
-import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
@@ -16,7 +15,7 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ContactInfoPopover } from '@/app/features/contacts/components/contact-info-popover';
 import {
@@ -38,12 +37,14 @@ import {
 import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
 import type { ConversationWithMessages } from '../types';
+import { ContactInitials } from './contact-initials';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
-import { DotIcon } from './dot-icon';
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;
   organizationId: string;
+  /** Controls before the identity — a phone's way back to Home. */
+  before?: ReactNode;
   onResolve?: () => void;
   onReopen?: () => void;
 }
@@ -51,6 +52,7 @@ interface ConversationHeaderProps {
 export function ConversationHeader({
   conversation,
   organizationId,
+  before,
   onResolve,
   onReopen,
 }: ConversationHeaderProps) {
@@ -235,10 +237,6 @@ export function ConversationHeader({
     }
   }, []);
 
-  const initial = (contact.name ?? contact.email ?? '?')
-    .charAt(0)
-    .toUpperCase();
-
   const lastMessageTime = conversation.last_message_at
     ? formatRelative(new Date(conversation.last_message_at))
     : null;
@@ -248,14 +246,97 @@ export function ConversationHeader({
   const primaryLabel = contact.name || contact.email || t('unknownContact');
   const showEmailInMeta = Boolean(contact.name && contact.email);
 
+  // Where the thread came in, and so where a reply goes back out. The
+  // connector's name is shown, not hidden in a tooltip: with two connectors
+  // installed the address alone does not say which one carries the thread.
+  // An API thread has no address, so its source slug stands in its place.
+  const sourceLabel =
+    source.lane === 'api'
+      ? t('header.apiSource', {
+          source: source.label ?? t('header.apiSourceShort'),
+        })
+      : conversationFrom
+        ? inboxLabel
+          ? `${inboxLabel} · ${conversationFrom}`
+          : conversationFrom
+        : null;
+
   return (
-    <Stack gap={3} className="border-border border-b p-4 sm:px-6 sm:py-4">
-      {/* Subject Row */}
-      <Row justify="between" gap={2} className="min-w-0">
-        <Text className="min-w-0 truncate text-base font-semibold tracking-tight">
+    <ThreadHeader
+      className="sm:px-6"
+      before={before}
+      leading={
+        <ContactInfoPopover
+          contact={contactData}
+          open={isContactInfoOpen}
+          onOpenChange={setIsContactInfoOpen}
+          trigger={
+            <button
+              type="button"
+              className="focus-visible:ring-ring cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+              aria-label={t('header.contactInfo')}
+            >
+              <ContactInitials label={primaryLabel} size="lg" />
+            </button>
+          }
+        />
+      }
+      title={
+        <h2 className="truncate">
           {conversation.subject || conversation.title}
-        </Text>
-        <Row gap={2} className="shrink-0 items-center">
+        </h2>
+      }
+      meta={
+        <>
+          <button
+            type="button"
+            className="text-foreground/80 min-w-0 shrink cursor-pointer truncate font-medium hover:underline"
+            onClick={() => setIsContactInfoOpen(true)}
+          >
+            {primaryLabel}
+          </button>
+          {showEmailInMeta && (
+            // The email and its separator hide together on small screens —
+            // a lone dot would be left between the name and the time.
+            <span className="hidden min-w-0 items-center gap-1.5 md:inline-flex">
+              <ThreadHeaderSeparator />
+              <span className="min-w-0 truncate">{contact.email}</span>
+            </span>
+          )}
+          {lastMessageTime && (
+            <>
+              <ThreadHeaderSeparator />
+              <span className="shrink-0 whitespace-nowrap">
+                {lastMessageTime}
+              </span>
+            </>
+          )}
+          {sourceLabel !== null && (
+            <>
+              <ThreadHeaderSeparator />
+              <Tooltip content={sourceLabel}>
+                <span
+                  className="inline-flex min-w-0 items-center gap-1"
+                  aria-label={
+                    source.lane === 'api'
+                      ? sourceLabel
+                      : t('header.inboxSource', { inbox: conversationFrom })
+                  }
+                >
+                  {source.lane === 'api' ? (
+                    <Plug className="size-3 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <Mail className="size-3 shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="truncate">{sourceLabel}</span>
+                </span>
+              </Tooltip>
+            </>
+          )}
+        </>
+      }
+      actions={
+        <>
           <ConversationAssigneePicker
             conversation={conversation}
             organizationId={organizationId}
@@ -275,103 +356,8 @@ export function ConversationHeader({
             align="end"
             onOpenChange={handleDropdownOpenChange}
           />
-        </Row>
-      </Row>
-
-      {/* Sender Row */}
-      <div className="flex min-w-0 items-center gap-2.5">
-        <ContactInfoPopover
-          contact={contactData}
-          open={isContactInfoOpen}
-          onOpenChange={setIsContactInfoOpen}
-          trigger={
-            <button
-              type="button"
-              className="bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full"
-              aria-label={t('header.contactInfo')}
-            >
-              <span className="text-muted-foreground text-[13px] font-semibold">
-                {initial}
-              </span>
-            </button>
-          }
-        />
-        <div className="flex min-w-0 flex-col gap-px">
-          <button
-            type="button"
-            className="cursor-pointer truncate text-left text-[13px] font-semibold tracking-tight hover:underline"
-            onClick={() => setIsContactInfoOpen(true)}
-          >
-            {primaryLabel}
-          </button>
-          <div className="text-muted-foreground flex min-w-0 items-center text-xs tracking-tight">
-            {showEmailInMeta && (
-              <button
-                type="button"
-                className="hidden min-w-0 cursor-pointer truncate hover:underline md:inline"
-                onClick={() => setIsContactInfoOpen(true)}
-              >
-                {contact.email}
-              </button>
-            )}
-            {lastMessageTime && (
-              <>
-                {showEmailInMeta && (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
-                )}
-                <span className="shrink-0 whitespace-nowrap">
-                  {lastMessageTime}
-                </span>
-              </>
-            )}
-            {/* Where the thread came in, and so where a reply goes back out.
-                The connector's name is shown, not hidden in a tooltip: with
-                two connectors installed the address alone does not say which
-                one carries the thread. An API thread has no address, so its
-                source slug stands in its place. */}
-            {(conversationFrom || source.lane === 'api') && (
-              <>
-                {lastMessageTime ? (
-                  <DotIcon className="mx-0.5 shrink-0" />
-                ) : showEmailInMeta ? (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
-                ) : null}
-                {source.lane === 'api' ? (
-                  <span
-                    className="inline-flex min-w-0 items-center gap-1"
-                    aria-label={t('header.apiSource', {
-                      source: source.label ?? t('header.apiSourceShort'),
-                    })}
-                  >
-                    <Plug className="size-3 shrink-0" aria-hidden="true" />
-                    <span className="truncate">
-                      {t('header.apiSource', {
-                        source: source.label ?? t('header.apiSourceShort'),
-                      })}
-                    </span>
-                  </span>
-                ) : (
-                  <Tooltip content={conversationFrom}>
-                    <span
-                      className="inline-flex min-w-0 items-center gap-1"
-                      aria-label={t('header.inboxSource', {
-                        inbox: conversationFrom,
-                      })}
-                    >
-                      <Mail className="size-3 shrink-0" aria-hidden="true" />
-                      <span className="truncate">
-                        {inboxLabel
-                          ? `${inboxLabel} · ${conversationFrom}`
-                          : conversationFrom}
-                      </span>
-                    </span>
-                  </Tooltip>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </Stack>
+        </>
+      }
+    />
   );
 }

@@ -15,8 +15,23 @@ const uploadRecovery = vi.hoisted(() => ({
 }));
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
+  // Router-only props stay behind; everything else (an accessible name, a
+  // class) reaches the anchor as the real Link passes it through.
+  Link: ({
+    children,
+    to,
+    params: _params,
+    search: _search,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params?: unknown;
+    search?: unknown;
+  } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
   ),
   useNavigate: () => navigateMock,
 }));
@@ -187,6 +202,8 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     useChatQueryClient: vi.fn(() => ({}) as never),
   };
 });
+
+import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 
 import {
   useChatGeneration,
@@ -1199,61 +1216,61 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
  * skeleton, so these tests also pin the storage contract and the live
  * `boot-chat-panel-open` mirror on <html>.
  */
-describe('ChatSurface history panel toggle', () => {
+describe('ChatSurface Home panel toggle', () => {
   beforeEach(() => {
     vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
   });
 
   afterEach(() => {
     window.localStorage.removeItem('chat-history-panel-open-org-1');
-    document.documentElement.classList.remove('boot-chat-panel-open');
   });
 
-  it('collapses the panel, flips the toggle, and persists the choice', async () => {
-    const { user } = render(<ChatSurface organizationId="org-1" />);
+  // The Home panel lives in the dashboard shell, beside every Home route; the
+  // conversation header only toggles it through the shared panel state.
+  function renderInHome() {
+    return render(
+      <HomePanelProvider organizationId="org-1">
+        <ChatSurface organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+  }
 
-    const panel = screen.getByRole('navigation', { name: 'Chats' });
-    expect(panel).not.toHaveClass('w-0');
-    expect(document.documentElement).toHaveClass('boot-chat-panel-open');
+  it('offers no toggle outside a Home frame', () => {
+    render(<ChatSurface organizationId="org-1" />);
+    expect(
+      screen.queryByRole('button', { name: 'Hide sidebar' }),
+    ).not.toBeInTheDocument();
+  });
 
-    const toggle = screen.getByRole('button', { name: 'Hide chats' });
+  it('hides the panel, flips the toggle, and persists the choice', async () => {
+    const { user } = renderInHome();
+
+    const toggle = screen.getByRole('button', { name: 'Hide sidebar' });
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(toggle).toHaveAttribute('aria-controls', 'chat-sub-panel');
+    // No panel element in this render, so the toggle names none.
+    expect(toggle).not.toHaveAttribute('aria-controls');
     await user.click(toggle);
 
-    // The panel folds to zero width but keeps its landmark; its content is
-    // taken out of the accessibility tree and the tab order.
-    expect(panel).toHaveClass('w-0');
     expect(
-      // oxlint-disable-next-line testing-library/no-node-access -- the inert wrapper is structural, not a queryable role
-      panel.querySelector('[inert]'),
-    ).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.getByRole('button', { name: 'Show chats' })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
-    expect(document.documentElement).not.toHaveClass('boot-chat-panel-open');
+      screen.getByRole('button', { name: 'Show sidebar' }),
+    ).toHaveAttribute('aria-expanded', 'false');
     expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
       'false',
     );
   });
 
-  it('mounts collapsed when the persisted state says so', () => {
+  it('mounts folded when the persisted state says so', () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
-    render(<ChatSurface organizationId="org-1" />);
+    renderInHome();
 
-    expect(screen.getByRole('navigation', { name: 'Chats' })).toHaveClass(
-      'w-0',
-    );
     expect(
-      screen.getByRole('button', { name: 'Show chats' }),
+      screen.getByRole('button', { name: 'Show sidebar' }),
     ).toBeInTheDocument();
-    expect(document.documentElement).not.toHaveClass('boot-chat-panel-open');
   });
 
-  it('passes an axe audit while collapsed', async () => {
+  it('passes an axe audit while folded', async () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
-    const { container } = render(<ChatSurface organizationId="org-1" />);
+    const { container } = renderInHome();
     await waitFor(() => checkAccessibility(container));
   });
 });

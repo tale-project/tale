@@ -328,6 +328,7 @@ export function useChatProjects(
       data: projects.data.map((project) => ({
         id: project._id,
         name: project.name,
+        ...(project.key !== undefined ? { key: project.key } : {}),
         ...(project.icon !== undefined ? { icon: project.icon } : {}),
         ...(project.color !== undefined ? { color: project.color } : {}),
         ...(project.pinnedAt !== undefined

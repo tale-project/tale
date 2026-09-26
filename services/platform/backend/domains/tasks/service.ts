@@ -2482,6 +2482,8 @@ export interface TaskListFilters {
   status?: string;
   statuses?: string[];
   assigneeId?: string;
+  /** The person named to review the task's result (`reviewer_user_id`). */
+  reviewerId?: string;
   externalSystem?: string;
 }
 
@@ -2592,12 +2594,14 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const status = filters.status ?? null;
   const statuses = filters.statuses ?? null;
   const assigneeId = filters.assigneeId ?? null;
+  const reviewerId = filters.reviewerId ?? null;
   const externalSystem = filters.externalSystem ?? null;
   return sql`
     (${includeArchived} OR archived_at_ms IS NULL)
     AND (${status}::text IS NULL OR status = ${status})
     AND (${statuses === null} OR status = ANY(${statuses ?? []}))
     AND (${assigneeId}::text IS NULL OR assignee_id = ${assigneeId})
+    AND (${reviewerId}::text IS NULL OR reviewer_user_id = ${reviewerId})
     AND (${externalSystem}::text IS NULL OR external_system = ${externalSystem})
   `;
 }

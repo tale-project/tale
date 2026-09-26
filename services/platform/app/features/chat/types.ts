@@ -56,6 +56,8 @@ export interface ChatThreadSummary {
 export interface ChatProjectSummary {
   readonly id: string;
   readonly name: string;
+  /** The task-identifier prefix (`WEB` in `WEB-12`), when the project has one. */
+  readonly key?: string;
   readonly icon?: string;
   readonly color?: string;
   readonly pinnedAt?: number;

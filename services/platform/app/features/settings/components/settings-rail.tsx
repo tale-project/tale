@@ -1,17 +1,40 @@
 'use client';
 
+import { useAccentColor } from '@tale/ui/accent-color';
 import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
-import { SubPanel } from '@tale/ui/sub-panel';
 import {
-  SUB_PANEL_ROW_CLASS,
+  SECTION_NAV_ROW_CLASS,
+  SectionNavPanel,
+  SectionNavRow,
+  sectionNavRowTone,
+} from '@tale/ui/section-nav';
+import {
   SubPanelDisclosureBody,
-  SubPanelRowLink,
   SubPanelSectionHeader,
-  useSubPanelRowTreatment,
 } from '@tale/ui/sub-panel-list';
 import { useRouterState } from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
+import {
+  Bell,
+  Box,
+  Braces,
+  Building2,
+  ChartColumn,
+  ChevronRight,
+  Cpu,
+  Database,
+  Gauge,
+  KeyRound,
+  ListPlus,
+  Palette,
+  Plug,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+  UsersRound,
+  UserRoundCog,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
@@ -37,6 +60,7 @@ interface RailLeaf {
   /** Active-state match strategy. */
   matchMode?: 'exact' | 'startsWith';
   can?: [AppAction, AppSubject];
+  icon: LucideIcon;
 }
 
 /** An expandable row whose sub-items render inline when its route is active. */
@@ -45,6 +69,7 @@ interface RailGroup {
   labelKey: string;
   path: string;
   can?: [AppAction, AppSubject];
+  icon: LucideIcon;
   /** Sub-items shown indented under the group when the section is active. */
   children: {
     /** Path segment appended to the group's base path. */
@@ -65,33 +90,32 @@ interface RailSection {
 }
 
 /**
- * Left-rail settings navigation (replaces the horizontal tab strip). Renders
- * grouped sections — PERSONAL / ORGANIZATION / ADVANCED — with indented
- * rows. The two rows that own sub-routes (Governance, API) are expandable:
- * their children render inline and indented while the current path is within
- * that section, and collapse to a single chevroned row otherwise. This mirrors
- * the Pencil `SettingsRailGovExpanded` component.
+ * The settings sections, with the rows the caller's role may see. One source
+ * for the panel and for the page header, which names the open page.
  */
-export function SettingsRail({
-  organizationId,
-  showAccountTab = true,
-}: SettingsRailProps) {
+function useSettingsSections(showAccountTab: boolean): RailSection[] {
   const { t: tNav } = useT('navigation');
-  const { t: tSettings } = useT('settings');
   const { t: tGov } = useT('governance');
   const { t: tMetrics } = useT('metrics');
   const ability = useAbility();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  const base = `/dashboard/${organizationId}/settings`;
 
   const sections = useMemo<RailSection[]>(() => {
     const personal: RailItem[] = [
-      { kind: 'leaf', labelKey: 'account', path: 'account' },
-      { kind: 'leaf', labelKey: 'personalization', path: 'personalization' },
-      { kind: 'leaf', labelKey: 'notifications', path: 'notifications' },
+      { kind: 'leaf', labelKey: 'account', path: 'account', icon: UserRound },
+      {
+        kind: 'leaf',
+        labelKey: 'personalization',
+        path: 'personalization',
+        icon: SlidersHorizontal,
+      },
+      {
+        kind: 'leaf',
+        labelKey: 'notifications',
+        path: 'notifications',
+        icon: Bell,
+      },
       // No `can`: every role has personal limits to read.
-      { kind: 'leaf', labelKey: 'usage', path: 'usage' },
+      { kind: 'leaf', labelKey: 'usage', path: 'usage', icon: Gauge },
     ];
     if (!showAccountTab) personal.shift();
 
@@ -102,12 +126,14 @@ export function SettingsRail({
       {
         kind: 'leaf',
         labelKey: 'organization',
+        icon: Building2,
         path: 'organization',
         can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
         labelKey: 'teams',
+        icon: UsersRound,
         path: 'teams',
         matchMode: 'startsWith',
         can: ['read', 'orgSettings'],
@@ -115,12 +141,14 @@ export function SettingsRail({
       {
         kind: 'leaf',
         labelKey: 'members',
+        icon: UserRoundCog,
         path: 'members',
         can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
         labelKey: 'providers',
+        icon: Cpu,
         path: 'providers',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
@@ -128,22 +156,25 @@ export function SettingsRail({
       {
         kind: 'leaf',
         labelKey: 'connectors',
+        icon: Plug,
         path: 'connectors',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },
       // No `can`: any member may read the skills they are allowed to see, and
       // the action gates the skill actions apply per bundle.
-      { kind: 'leaf', labelKey: 'skills', path: 'skills' },
+      { kind: 'leaf', labelKey: 'skills', path: 'skills', icon: ListPlus },
       {
         kind: 'leaf',
         labelKey: 'branding',
+        icon: Palette,
         path: 'branding',
         can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
         labelKey: 'sandboxes',
+        icon: Box,
         path: 'sandboxes',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
@@ -151,6 +182,7 @@ export function SettingsRail({
       {
         kind: 'group',
         labelKey: 'governance',
+        icon: ShieldCheck,
         path: 'governance',
         can: ['read', 'orgSettings'],
         children: GOVERNANCE_NAV_ITEMS.map((item) => ({
@@ -161,6 +193,7 @@ export function SettingsRail({
       {
         kind: 'group',
         labelKey: 'metrics',
+        icon: ChartColumn,
         path: 'metrics',
         can: ['read', 'orgSettings'],
         children: METRICS_NAV_ITEMS.map((item) => ({
@@ -174,6 +207,7 @@ export function SettingsRail({
       {
         kind: 'group',
         labelKey: 'api',
+        icon: Braces,
         path: 'api',
         can: ['read', 'developerSettings'],
         children: API_NAV_ITEMS.map((item) => ({
@@ -184,6 +218,7 @@ export function SettingsRail({
       {
         kind: 'leaf',
         labelKey: 'enterpriseSso',
+        icon: KeyRound,
         path: 'enterprise-sso',
         matchMode: 'startsWith',
         can: ['read', 'orgSettings'],
@@ -191,6 +226,7 @@ export function SettingsRail({
       {
         kind: 'leaf',
         labelKey: 'dataResidency',
+        icon: Database,
         path: 'data-residency',
         can: ['read', 'orgSettings'],
       },
@@ -203,135 +239,217 @@ export function SettingsRail({
     ];
   }, [showAccountTab, tNav, tGov, tMetrics]);
 
-  const isLeafActive = (item: RailLeaf): boolean => {
-    const href = `${base}/${item.path}`;
-    return item.matchMode === 'startsWith'
-      ? pathname === href || pathname.startsWith(`${href}/`)
-      : pathname === href;
-  };
-
-  const isGroupActive = (item: RailGroup): boolean => {
-    const href = `${base}/${item.path}`;
-    return pathname === href || pathname.startsWith(`${href}/`);
-  };
-
-  return (
-    <SubPanel as="nav" ariaLabel={tNav('userSettings')}>
-      <Stack gap={6} className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-        {sections.map((section) => {
-          const visible = section.items.filter(
+  return useMemo(
+    () =>
+      sections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
             (item) => !item.can || ability.can(item.can[0], item.can[1]),
-          );
-          if (visible.length === 0) return null;
-
-          return (
-            <Stack key={section.key} gap={1}>
-              <SubPanelSectionHeader
-                label={tSettings(`menu.railSections.${section.labelKey}`)}
-              />
-              <ul className="flex flex-col gap-0.5">
-                {visible.map((item) =>
-                  item.kind === 'leaf' ? (
-                    <RailRow
-                      key={item.path}
-                      href={`${base}/${item.path}`}
-                      label={tNav(item.labelKey)}
-                      active={isLeafActive(item)}
-                    />
-                  ) : (
-                    <RailExpandableGroup
-                      key={item.path}
-                      href={`${base}/${item.path}`}
-                      label={tNav(item.labelKey)}
-                      active={isGroupActive(item)}
-                      childrenItems={item.children}
-                      pathname={pathname}
-                    />
-                  ),
-                )}
-              </ul>
-            </Stack>
-          );
-        })}
-      </Stack>
-    </SubPanel>
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [sections, ability],
   );
 }
 
-function RailRow({
-  href,
-  label,
-  active,
-  className,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  className?: string;
-}) {
+function isLeafActive(item: RailLeaf, base: string, pathname: string) {
+  const href = `${base}/${item.path}`;
+  return item.matchMode === 'startsWith'
+    ? pathname === href || pathname.startsWith(`${href}/`)
+    : pathname === href;
+}
+
+function isWithin(href: string, pathname: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * The open settings page's name ("Teams", "Governance · Budgets"), for the
+ * page header beside the panel — the panel's own header already says
+ * Settings. `undefined` on the settings index.
+ */
+export function useSettingsPageTitle(organizationId: string) {
+  const { t: tNav } = useT('navigation');
+  const sections = useSettingsSections(true);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const base = `/dashboard/${organizationId}/settings`;
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.kind === 'leaf') {
+        if (isLeafActive(item, base, pathname)) return tNav(item.labelKey);
+        continue;
+      }
+      const href = `${base}/${item.path}`;
+      if (!isWithin(href, pathname)) continue;
+      const child = item.children.find((entry) =>
+        isWithin(`${href}/${entry.slug}`, pathname),
+      );
+      return child !== undefined
+        ? `${tNav(item.labelKey)} · ${child.label}`
+        : tNav(item.labelKey);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The Settings panel — the same frame as the Home panel: full height beside
+ * the page, the section's name in an `h-13` header, then grouped rows
+ * (PERSONAL / ORGANIZATION / ADVANCED) that each carry an icon, like every
+ * other row in a section panel. One highlight glides to the open page, the
+ * way the rail's does. The rows that own sub-pages (Governance, Metrics, API)
+ * are disclosures whose children open inline.
+ */
+export function SettingsRail({
+  organizationId,
+  showAccountTab = true,
+}: SettingsRailProps) {
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const sections = useSettingsSections(showAccountTab);
+  const base = `/dashboard/${organizationId}/settings`;
+
+  // Which group disclosures are open: a group opens when the route enters it
+  // (deep links, redirects) but never closes on its own — collapsing is the
+  // user's call.
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const activeGroupPath = sections
+    .flatMap((section) => section.items)
+    .find(
+      (item): item is RailGroup =>
+        item.kind === 'group' && isWithin(`${base}/${item.path}`, pathname),
+    )?.path;
+  useEffect(() => {
+    if (activeGroupPath === undefined) return;
+    setOpenGroups((previous) =>
+      previous.has(activeGroupPath)
+        ? previous
+        : new Set([...previous, activeGroupPath]),
+    );
+  }, [activeGroupPath]);
+  const toggleGroup = (path: string) =>
+    setOpenGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+
+  // The row the highlight rests on: the open leaf, the open child of an
+  // expanded group, or a collapsed group that holds the open page.
+  let activeKey: string | null = null;
+  for (const section of sections) {
+    for (const item of section.items) {
+      const href = `${base}/${item.path}`;
+      if (item.kind === 'leaf') {
+        if (isLeafActive(item, base, pathname)) activeKey = href;
+      } else if (isWithin(href, pathname)) {
+        const child = item.children.find((entry) =>
+          isWithin(`${href}/${entry.slug}`, pathname),
+        );
+        activeKey =
+          openGroups.has(item.path) && child !== undefined
+            ? `${href}/${child.slug}`
+            : href;
+      }
+    }
+  }
   return (
-    <li>
-      <SubPanelRowLink to={href} active={active} className={className}>
-        {label}
-      </SubPanelRowLink>
-    </li>
+    <SectionNavPanel
+      title={tNav('userSettings')}
+      ariaLabel={tNav('userSettings')}
+      activeKey={activeKey}
+      layoutVersion={`${[...openGroups].join(',')}|${sections.length}`}
+    >
+      <Stack gap={5}>
+        {sections.map((section) => (
+          <Stack key={section.key} gap={1}>
+            <SubPanelSectionHeader
+              label={tSettings(`menu.railSections.${section.labelKey}`)}
+            />
+            <ul className="flex flex-col gap-0.5">
+              {section.items.map((item) => {
+                const href = `${base}/${item.path}`;
+                return item.kind === 'leaf' ? (
+                  <SectionNavRow
+                    key={item.path}
+                    href={href}
+                    label={tNav(item.labelKey)}
+                    icon={item.icon}
+                    active={href === activeKey}
+                  />
+                ) : (
+                  <RailExpandableGroup
+                    key={item.path}
+                    href={href}
+                    label={tNav(item.labelKey)}
+                    icon={item.icon}
+                    open={openGroups.has(item.path)}
+                    onToggle={() => toggleGroup(item.path)}
+                    activeKey={activeKey}
+                    childrenItems={item.children}
+                  />
+                );
+              })}
+            </ul>
+          </Stack>
+        ))}
+      </Stack>
+    </SectionNavPanel>
   );
 }
 
 /**
  * Expandable section row. The row is a disclosure button (not a link): it
  * toggles its children open/closed, each group independently of the others.
- * Navigating into the section (via a child link, a deep link, or the mobile
- * overview) auto-opens the group, but never forces it closed — the user owns
- * the disclosure state from then on.
+ * Collapsed, it carries the highlight when the open page lives inside it, so
+ * the active location stays visible; expanded, the child row carries it.
  */
 function RailExpandableGroup({
   href,
   label,
-  active,
+  icon: Icon,
+  open,
+  onToggle,
+  activeKey,
   childrenItems,
-  pathname,
 }: {
   href: string;
   label: string;
-  /** Whether the current route lives inside this section. */
-  active: boolean;
+  icon: LucideIcon;
+  open: boolean;
+  onToggle: () => void;
+  activeKey: string | null;
   childrenItems: { slug: string; label: string }[];
-  pathname: string;
 }) {
-  const [open, setOpen] = useState(active);
-
-  // Auto-open when the route enters the section (deep links, mobile overview,
-  // redirects) — but never auto-close; collapsing is the user's call.
-  useEffect(() => {
-    if (active) setOpen(true);
-  }, [active]);
-
-  // Highlight the collapsed parent when the current page lives inside it, so
-  // the active location stays visible; expanded, the child row carries it.
-  const parentActive = active && !open;
-  const parentTreatment = useSubPanelRowTreatment(parentActive);
-
+  const accentColor = useAccentColor();
+  const parentActive = activeKey === href;
   return (
     <li>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={onToggle}
         aria-expanded={open}
+        data-indicator-key={href}
         className={cn(
-          SUB_PANEL_ROW_CLASS,
-          'w-full cursor-pointer justify-between text-left',
-          parentTreatment.className,
+          SECTION_NAV_ROW_CLASS,
+          'cursor-pointer text-left',
+          sectionNavRowTone(parentActive),
         )}
-        {...(parentTreatment.style !== undefined
-          ? { style: parentTreatment.style }
+        {...(parentActive && accentColor
+          ? { style: { color: accentColor } }
           : {})}
       >
-        <span>{label}</span>
+        <Icon aria-hidden className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
         <ChevronRight
           aria-hidden
           className={cn(
-            'text-muted-foreground size-3.5 transition-transform duration-200 ease-out motion-reduce:transition-none',
+            'text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none',
             open && 'rotate-90',
           )}
         />
@@ -341,15 +459,13 @@ function RailExpandableGroup({
           <ul className="mt-0.5 flex flex-col gap-0.5 pb-0.5">
             {childrenItems.map((child) => {
               const childHref = `${href}/${child.slug}`;
-              const childActive =
-                pathname === childHref || pathname.startsWith(`${childHref}/`);
               return (
-                <RailRow
+                <SectionNavRow
                   key={child.slug}
                   href={childHref}
                   label={child.label}
-                  active={childActive}
-                  className="pl-5"
+                  active={childHref === activeKey}
+                  indent
                 />
               );
             })}

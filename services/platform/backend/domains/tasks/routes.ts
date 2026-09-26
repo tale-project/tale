@@ -249,6 +249,9 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       ...(c.req.query('assigneeId') !== undefined
         ? { assigneeId: c.req.query('assigneeId') }
         : {}),
+      ...(c.req.query('reviewerId') !== undefined
+        ? { reviewerId: c.req.query('reviewerId') }
+        : {}),
       ...(c.req.query('externalSystem') !== undefined
         ? { externalSystem: c.req.query('externalSystem') }
         : {}),

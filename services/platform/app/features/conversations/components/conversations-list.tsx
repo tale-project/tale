@@ -9,7 +9,6 @@ import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { decode } from 'he';
 import {
   ClipboardList,
   Inbox,
@@ -20,7 +19,6 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
-import striptags from 'striptags';
 
 import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
@@ -28,35 +26,8 @@ import { isKeyOf } from '@/lib/utils/type-utils';
 
 import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
+import { cleanMessagePreview } from '../lib/message-preview';
 import type { Conversation } from '../types';
-
-// Strip script/style + HTML tags, decode entities, and collapse whitespace
-// into a single-line message preview.
-const cleanMessagePreview = (raw: string): string => {
-  // Remove style and script tags and their contents
-  let content = raw.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-
-  // Insert spaces at HTML line-break or block boundaries before stripping tags
-  // This ensures previews reflect natural spacing between paragraphs, breaks, list items, etc.
-  content = content
-    // Line breaks
-    .replace(/<br\s*\/?>(?=\S)/gi, ' ')
-    // Closing block-level tags that typically imply a new line
-    .replace(
-      /<\/(p|div|li|h[1-6]|section|article|header|footer|tr|td|th)>/gi,
-      ' ',
-    );
-
-  // Strip HTML tags and trim
-  content = striptags(content).trim();
-
-  // Decode HTML entities (like &nbsp; to space)
-  content = decode(content);
-
-  // Clean up extra whitespace
-  return content.replace(/\s+/g, ' ').trim();
-};
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {

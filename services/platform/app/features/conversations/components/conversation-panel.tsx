@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n/client';
 
@@ -39,6 +40,7 @@ import {
   ConversationDateHeader,
   MessageTimestamp,
 } from './conversation-message-layout';
+import { InboxMobileBackButton } from './inbox-mobile-back-button';
 import { Message } from './message';
 import { MessageEditorPlaceholder } from './message-editor/message-editor-placeholder';
 
@@ -467,6 +469,12 @@ export function ConversationPanel({
               <ConversationHeader
                 conversation={conversation}
                 organizationId={conversation.organizationId}
+                before={
+                  <>
+                    <HomePanelToggle />
+                    <InboxMobileBackButton />
+                  </>
+                }
                 onResolve={() => {
                   onSelectedConversationChange(null);
                 }}

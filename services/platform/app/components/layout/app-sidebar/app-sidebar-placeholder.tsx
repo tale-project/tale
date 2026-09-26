@@ -8,12 +8,9 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
  * layout/skeleton primitives only).
  */
 
-// The real list is CASL-gated down to a few items and the gated count isn't
-// known until access resolves, so the placeholder optimistically renders the
-// whole set — a pixel match for the common admin/owner case (six primary
-// tiles today) that only over-draws a slot for limited members. Keep this in
-// step with the `primary` list in `use-navigation-items.ts`.
-const PLACEHOLDER_NAV_ITEMS = 6;
+// The sections of the `primary` list in `use-navigation-items.ts` — Home,
+// Knowledge, Automations. Keep in step; Settings is pinned to the footer.
+const PLACEHOLDER_NAV_ITEMS = 3;
 
 /** One masked 36×36 icon tile (logo/nav/bell slots). */
 function TileSkeleton() {
@@ -53,8 +50,9 @@ export function AppSidebarPlaceholder() {
               ))}
             </Stack>
           </div>
-          {/* Footer: bell + account tiles */}
+          {/* Footer: bell + Settings + account tiles */}
           <Stack gap={0} className="border-border shrink-0 gap-2 border-t py-2">
+            <TileSkeleton />
             <TileSkeleton />
             <Row gap={0} justify="center" className="size-9 shrink-0">
               <SkeletonCircle asChild>

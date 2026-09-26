@@ -17,7 +17,7 @@ import { Text } from '@tale/ui/text';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
-import { ChatRowsSkeleton } from '@/app/components/layout/chat-history-skeleton';
+import { ChatRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 

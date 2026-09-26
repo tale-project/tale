@@ -190,7 +190,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
 }
 
 /** The in-place rename field — Enter commits, Escape cancels, blur commits. */
-function ThreadRenameInput({
+export function ThreadRenameInput({
   thread,
   organizationId,
   onDone,
@@ -247,7 +247,7 @@ function ThreadRenameInput({
 }
 
 /** The row's More-actions menu. */
-function ThreadRowMenu({
+export function ThreadRowMenu({
   thread,
   variant,
   active,

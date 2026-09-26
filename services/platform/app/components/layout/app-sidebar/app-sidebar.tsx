@@ -4,7 +4,6 @@ import { Stack } from '@tale/ui/layout';
 
 import { useT } from '@/lib/i18n/client';
 
-import { MobileSidebarSheet } from './mobile-sidebar-sheet';
 import { SidebarFooter } from './sidebar-footer';
 import { SidebarHeader } from './sidebar-header';
 import { SidebarNav } from './sidebar-nav';
@@ -16,15 +15,15 @@ export interface AppSidebarProps {
 }
 
 /**
- * The app sidebar: a permanent 52px icon rail of primary destinations,
- * present on every dashboard route (chat search + history live in the chat
- * route's sub-panel — see ChatSubPanel; a section's labelled navigation
- * lives in its own sub-panel, like the settings rail). Every tile carries
- * its label as an `aria-label` with a right-side tooltip. Hidden below `md`,
- * where the mobile drawer takes over.
+ * The app sidebar: a permanent 52px icon rail of the sections — Home,
+ * Knowledge, Automations, with Settings, notifications and the account at
+ * its foot — present on every dashboard route. A section's own navigation
+ * lives in its panel beside the page (the Home panel, the Settings panel).
+ * Every tile carries its label as an `aria-label` with a right-side tooltip.
+ * Hidden below `md`, where the bottom tab bar takes over.
  *
- * Also mounts the surfaces that must exist on every route regardless of
- * viewport: the mobile drawer and the shared search palette.
+ * Also mounts the surface that must exist on every route regardless of
+ * viewport: the shared search palette.
  */
 export function AppSidebar({ organizationId }: AppSidebarProps) {
   const { t: tNav } = useT('navigation');
@@ -51,7 +50,6 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
           <SidebarFooter organizationId={organizationId} />
         </Stack>
       </aside>
-      <MobileSidebarSheet organizationId={organizationId} />
       <SidebarSearchCommand organizationId={organizationId} />
     </>
   );

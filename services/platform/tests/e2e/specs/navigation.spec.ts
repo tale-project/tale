@@ -7,7 +7,7 @@ import { STARTER_PROJECT_NAME } from '../helpers/seed';
 
 /**
  * Cross-cutting navigation/routing the per-feature specs don't exercise:
- * primary rail-nav, the settings-rail → governance click-path, breadcrumb
+ * primary rail-nav, the Home panel, the settings-rail → governance click-path, breadcrumb
  * up-navigation, the not-found shell, and back/forward history. Read-only —
  * only navigates and asserts.
  *
@@ -32,8 +32,18 @@ function primaryNav(page: Page): Locator {
   });
 }
 
+/**
+ * A rail tile by its href — anywhere on the rail, the pinned footer included
+ * (Settings sits there, beside notifications and the account).
+ */
 function navLinkByHref(page: Page, hrefSuffix: string): Locator {
-  return primaryNav(page).locator(`a[href$="${hrefSuffix}"]`);
+  return page
+    .getByRole('complementary', { name: t('navigation.sidebar.landmark') })
+    .locator(`a[href$="${hrefSuffix}"]`);
+}
+
+function homePanel(page: Page): Locator {
+  return page.getByRole('navigation', { name: t('home.aria.panel') });
 }
 
 /**
@@ -60,15 +70,6 @@ function navCases(organizationId: string): readonly NavCase[] {
   // (desktop) instance for those title anchors.
   return [
     {
-      key: 'projects',
-      hrefSuffix: `/dashboard/${organizationId}/projects`,
-      urlPattern: /\/projects(?:[/?#]|$)/,
-      anchor: (page) =>
-        page
-          .getByRole('button', { name: t('projects.list.createButton') })
-          .first(),
-    },
-    {
       key: 'knowledge',
       hrefSuffix: `/dashboard/${organizationId}/documents`,
       urlPattern: /\/documents(?:[/?#]|$)/,
@@ -90,16 +91,11 @@ function navCases(organizationId: string): readonly NavCase[] {
     {
       key: 'settings',
       hrefSuffix: `/dashboard/${organizationId}/settings`,
-      // Settings index redirects to a permission-appropriate sub-page.
+      // Settings index redirects to a permission-appropriate sub-page; the
+      // Settings panel beside it is the settled anchor.
       urlPattern: /\/settings(?:[/?#]|$)/,
       anchor: (page) =>
-        page
-          .getByRole('heading', {
-            name: t('navigation.userSettings'),
-            level: 1,
-          })
-          .filter({ visible: true })
-          .first(),
+        page.getByRole('navigation', { name: t('navigation.userSettings') }),
     },
   ];
 }
@@ -133,7 +129,8 @@ test.describe('navigation: primary side-nav rail', () => {
       await expect(primaryNav(page)).toBeVisible();
     }
 
-    // The chat rail link (shares its href with the logo) returns to chat.
+    // The Home tile (shares its href with the logo) returns to chat, with the
+    // Home panel beside it.
     await navLinkByHref(page, `/dashboard/${organizationId}/chat`)
       .first()
       .click();
@@ -141,6 +138,64 @@ test.describe('navigation: primary side-nav rail', () => {
     await expect(chatSurfaceAnchor(page)).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
     });
+    await expect(homePanel(page)).toBeVisible();
+  });
+});
+
+test.describe('navigation: the Home panel', () => {
+  test('keeps the panel beside projects and opens them from it', async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+    await page.goto(dashboardUrl(organizationId, '/chat'));
+    const panel = homePanel(page);
+    await expect(panel).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+    // The seeded starter project is a door in the panel's PROJECTS section.
+    await panel
+      .getByRole('region', { name: t('home.projects.title') })
+      .getByRole('link', { name: STARTER_PROJECT_NAME })
+      .click();
+    await page.waitForURL(/\/projects\/[^/]+/, { timeout: TIMEOUT.NAV });
+    // The panel stays, the project row now marked as the open page.
+    await expect(
+      panel.getByRole('link', { name: STARTER_PROJECT_NAME }),
+    ).toHaveAttribute('aria-current', 'page');
+
+    // "All projects" opens the project list, still beside the panel.
+    await panel
+      .getByRole('link', { name: t('home.projects.allProjects') })
+      .click();
+    await page.waitForURL(/\/projects(?:[?#]|$)/, { timeout: TIMEOUT.NAV });
+    await expect(
+      page
+        .getByRole('button', { name: t('projects.list.createButton') })
+        .first(),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(panel).toBeVisible();
+  });
+
+  test('narrows the list to one kind of work from the view switcher', async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+    await page.goto(dashboardUrl(organizationId, '/chat'));
+    const views = homePanel(page).getByRole('radiogroup', {
+      name: t('home.views.label'),
+    });
+    await expect(views).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+    const tasks = views.getByRole('radio', {
+      name: new RegExp(`^${t('home.views.tasks')}`),
+    });
+    await tasks.click();
+    await expect(tasks).toHaveAttribute('aria-checked', 'true');
+    // Back to everything, so later specs in this worker start from All.
+    await views
+      .getByRole('radio', { name: new RegExp(`^${t('home.views.all')}`) })
+      .click();
   });
 });
 

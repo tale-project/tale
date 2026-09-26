@@ -26,9 +26,8 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
-import { Sheet } from '@tale/ui/sheet';
-import { SubPanel } from '@tale/ui/sub-panel';
 import { Text } from '@tale/ui/text';
+import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { useToast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -36,10 +35,9 @@ import {
   Cpu,
   Download,
   Ellipsis,
+  MessageCircle,
   MessageCircleQuestion,
   MessageSquareOff,
-  PanelLeftClose,
-  PanelLeftOpen,
   Pin,
   PinOff,
   PlugZap,
@@ -50,6 +48,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { QuestionFlow } from '@/app/components/question-flow';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
+import { HomeBackButton } from '@/app/features/home/components/home-back-button';
+import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
+import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useFileUpload } from '@/app/features/shared/files/use-file-upload';
@@ -59,7 +60,6 @@ import {
 } from '@/app/features/shared/markdown/use-stream-buffer';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
-import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -118,7 +118,6 @@ import {
   resolveViewPath,
 } from '../lib/branch-selection';
 import type {
-  ChatThreadSummary,
   ChatMessageView,
   ComposerModelOption,
   ComposerSelection,
@@ -151,7 +150,6 @@ import type { MessageForkGroupView } from './message-item';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { ShareChatDialog } from './share-chat-dialog';
 import { ThreadDeleteDialog } from './thread-delete-dialog';
-import { ThreadList } from './thread-list';
 import { TranscriptionAvailabilityNotice } from './transcription-availability-notice';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 import { WelcomeView } from './welcome-view';
@@ -159,7 +157,6 @@ import { WelcomeView } from './welcome-view';
 const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
-const NO_THREADS: readonly ChatThreadSummary[] = [];
 
 /** How many sent-image previews stay alive for instant rendering before the
  * oldest are revoked — a compressed image is ≤1 MB, so this bounds the held
@@ -476,34 +473,23 @@ function ChatSurfaceInner({
   // menu keeps its one-gesture share+copy.
   const [shareOpen, setShareOpen] = useState(false);
 
-  // Chat sub-panel (thread list) visibility on desktop, toggled from the
-  // conversation column. Org-scoped, NOT user-scoped, on purpose: the
-  // pre-hydration script in index.html reads this exact key before auth (or
-  // any JS bundle) runs to decide whether the served boot shell shows the
-  // panel skeleton — it can't know the user id. Panel visibility is layout
-  // chrome, device-scoped like `tale-theme`.
-  const [isHistoryPanelOpen, setHistoryPanelOpen] = usePersistedState(
-    `chat-history-panel-open-${organizationId}`,
-    true,
-  );
+  // The Home panel (chats, tasks and the inbox in one list) sits beside the
+  // conversation; the shell owns it, this column only toggles it.
 
-  // Keep the pre-hydration `boot-chat` / `boot-chat-panel-open` markers (set
-  // by the inline script in index.html) honest live mirrors of "a chat
-  // surface is on screen" / "…with the panel open": they gate every chat
-  // placeholder (boot shell, access-resolving layout) — the composer
-  // stand-in and the sub-panel stand-in respectively — so a placeholder
-  // rendered after a runtime toggle or an org switch must reflect the
-  // current state, not the page-load snapshot. Removed on unmount —
-  // non-chat surfaces render neither.
+  // Keep the pre-hydration `boot-chat` marker (set by the inline script in
+  // index.html) an honest live mirror of "a chat surface is on screen": it
+  // gates the composer stand-in of every chat placeholder (boot shell,
+  // access-resolving layout), so a placeholder rendered after an org switch
+  // reflects the current page, not the page-load snapshot. Removed on
+  // unmount — non-chat surfaces render none. (The Home panel mirrors its own
+  // open state the same way.)
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add('boot-chat');
-    root.classList.toggle('boot-chat-panel-open', isHistoryPanelOpen);
     return () => {
       root.classList.remove('boot-chat');
-      root.classList.remove('boot-chat-panel-open');
     };
-  }, [isHistoryPanelOpen]);
+  }, []);
 
   // Only models a direct turn can call: a subscription credential is bound
   // to a vendor harness, and the chat page runs no sandbox.
@@ -620,15 +606,6 @@ function ChatSurfaceInner({
         ]
       : []),
   ];
-
-  // Mobile (<md): the desktop sub-panel and floating top bar are hidden —
-  // the drawer carries the thread list, the compact header the same
-  // conversation menu. Closed on every navigation so picking a chat lands
-  // on the conversation, not under the drawer.
-  const [mobileThreadsOpen, setMobileThreadsOpen] = useState(false);
-  useEffect(() => {
-    setMobileThreadsOpen(false);
-  }, [threadId]);
 
   // Arena Mode. The pair is SERVER state: the split view mounts while the
   // uncached pair watch answers non-null and collapses the moment settle
@@ -1754,56 +1731,27 @@ function ChatSurfaceInner({
     [],
   );
 
+  const panelToggle = <HomePanelToggle />;
+  const activeProject =
+    activeThread?.projectId !== undefined
+      ? headerProjects.find((project) => project.id === activeThread.projectId)
+      : undefined;
+
   return (
     // The preview map's identity never changes — the provider re-renders
     // nothing; rows read the map during their own renders.
     <AttachmentPreviewProvider value={sentPreviewsRef.current}>
       <div className="flex min-h-0 flex-1 flex-row">
-        {/* The panel folds to zero width while the fixed-width inner column
-          keeps its layout, so the fold is a clip, not a reflow. */}
-        <SubPanel
-          as="nav"
-          width="wide"
-          ariaLabel={t('chatsSection')}
-          id="chat-sub-panel"
-          className={cn(
-            '[transition:width_250ms_var(--ease-out-quint)] motion-reduce:transition-none',
-            !isHistoryPanelOpen && 'w-0 border-r-0',
-          )}
-        >
-          <div
-            inert={!isHistoryPanelOpen || undefined}
-            aria-hidden={!isHistoryPanelOpen}
-            className="flex h-full w-64 shrink-0 flex-col overflow-hidden"
-          >
-            <ThreadList
-              organizationId={organizationId}
-              threads={threadsAvailable ? threads.data : NO_THREADS}
-              activeThreadId={threadId}
-              available={threadsAvailable}
-              draftNewChat={threadId === undefined}
-              {...(projectId !== undefined
-                ? { draftProjectId: projectId }
-                : {})}
-            />
-          </div>
-        </SubPanel>
-
         <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
           {/* Mobile header (<md): the sub-panel and the floating bar above are
             desktop-only — without this row a phone could neither switch
             threads nor reach the conversation actions. */}
           <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setMobileThreadsOpen(true)}
-              // Named after the drawer it opens, not the desktop panel toggle
-              // — a screen reader (and a test locator) must tell them apart.
-              aria-label={t('chatsSection')}
-            >
-              <PanelLeftOpen className="text-muted-foreground size-5" />
-            </Button>
+            {/* Back to the Home list — where a phone keeps every chat, task
+                and conversation (the desktop panel's content). */}
+            <div className="flex w-9 justify-center">
+              <HomeBackButton organizationId={organizationId} />
+            </div>
             <div className="min-w-0 flex-1 px-2">
               {activeThread?.title !== undefined && (
                 <Text variant="muted" className="truncate text-center text-sm">
@@ -1830,39 +1778,6 @@ function ChatSurfaceInner({
               <div aria-hidden className="size-9" />
             )}
           </div>
-          <Sheet
-            open={mobileThreadsOpen}
-            onOpenChange={setMobileThreadsOpen}
-            title={t('chatsSection')}
-            side="left"
-            className="w-72 p-0"
-          >
-            {/* Any row link closes the drawer — the threadId effect below only
-              fires on a CHANGED thread, and re-picking the open one must not
-              leave the drawer covering it. */}
-            <div
-              className="flex h-full min-h-0 flex-col overflow-hidden pt-8"
-              onClickCapture={(event) => {
-                if (
-                  event.target instanceof Element &&
-                  event.target.closest('a') !== null
-                ) {
-                  setMobileThreadsOpen(false);
-                }
-              }}
-            >
-              <ThreadList
-                organizationId={organizationId}
-                threads={threadsAvailable ? threads.data : NO_THREADS}
-                activeThreadId={threadId}
-                available={threadsAvailable}
-                draftNewChat={threadId === undefined}
-                {...(projectId !== undefined
-                  ? { draftProjectId: projectId }
-                  : {})}
-              />
-            </div>
-          </Sheet>
 
           {/* Floating top bar: an absolute overlay on the message column, so
             content scrolls beneath it. A plain background gradient dissolves
@@ -1881,38 +1796,50 @@ function ChatSurfaceInner({
                   : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
               )}
             />
-            <div className="relative flex h-13 items-center px-4">
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setHistoryPanelOpen((open) => !open)}
-                aria-label={
-                  isHistoryPanelOpen ? t('hideHistory') : t('showHistory')
+            {activeThread !== undefined && !threadNotFound ? (
+              <ThreadHeader
+                floating
+                className="pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto"
+                before={panelToggle}
+                leading={
+                  <span className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-lg">
+                    <MessageCircle aria-hidden className="size-4" />
+                  </span>
                 }
-                aria-expanded={isHistoryPanelOpen}
-                aria-controls="chat-sub-panel"
-                className="pointer-events-auto -ml-2"
-              >
-                {isHistoryPanelOpen ? (
-                  <PanelLeftClose className="text-muted-foreground size-5 p-0.25" />
-                ) : (
-                  <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
-                )}
-              </Button>
-              {/* The open conversation's name, restored to the top bar — the
-                0.3 header carried it; truncation keeps long titles polite. */}
-              <div className="min-w-0 flex-1 px-3">
-                {activeThread?.title !== undefined && (
-                  <Text
-                    variant="muted"
-                    className="mx-auto max-w-96 truncate text-center text-sm"
-                  >
-                    {activeThread.title}
-                  </Text>
-                )}
-              </div>
-              {threadId !== undefined && !threadNotFound && (
-                <div className="pointer-events-auto flex items-center gap-1">
+                title={
+                  <h1 className="truncate">
+                    {activeThread.title ?? t('history.untitled')}
+                  </h1>
+                }
+                meta={
+                  activeProject !== undefined || activeThread.isShared ? (
+                    <>
+                      {activeProject !== undefined && (
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          <ProjectAvatar
+                            name={activeProject.name}
+                            icon={activeProject.icon}
+                            color={activeProject.color}
+                            size={16}
+                            variant="plain"
+                            className="size-3 [&_svg]:size-3"
+                          />
+                          <span className="truncate">{activeProject.name}</span>
+                        </span>
+                      )}
+                      {activeProject !== undefined && activeThread.isShared && (
+                        <ThreadHeaderSeparator />
+                      )}
+                      {activeThread.isShared && (
+                        <span className="inline-flex shrink-0 items-center gap-1">
+                          <Share2 aria-hidden className="size-3" />
+                          {t('share.sharedIndicator')}
+                        </span>
+                      )}
+                    </>
+                  ) : undefined
+                }
+                actions={
                   <DropdownMenu
                     align="end"
                     trigger={
@@ -1929,9 +1856,13 @@ function ChatSurfaceInner({
                     }
                     items={headerMenuItems}
                   />
-                </div>
-              )}
-            </div>
+                }
+              />
+            ) : (
+              <div className="relative flex h-13 items-center px-4">
+                {panelToggle}
+              </div>
+            )}
           </div>
           {threadNotFound ? (
             // Deleted, foreign, or revoked-share thread: an explicit dead end

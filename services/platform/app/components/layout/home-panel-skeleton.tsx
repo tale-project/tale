@@ -4,19 +4,18 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 
 /**
  * KEEP THIS MODULE LEAN. The boot-shell prerender script renders it under
- * plain `bun` (via ChatSubPanelPlaceholder) — imports must stay
- * framework-free (@tale/ui layout/skeleton primitives only).
+ * plain `bun` (via HomePanelPlaceholder) — imports must stay framework-free
+ * (@tale/ui layout/skeleton primitives only).
  */
 
 /**
- * Masked project-folder rows — the row geometry of ThreadList's loaded
- * folders (chevron `size-3.5` + plain-variant icon `size-3` + label), shared
- * by the full panel skeleton below and ThreadList's own PROJECTS section
- * while only the project read is still answering. The varied label widths
- * live on plain flex-item wrappers (a % width resolves against the row
- * there), with a `fullWidth` box filling each wrapper — a % width on the
- * hidden placeholder itself would either collapse to 0 (non-fullWidth) or be
- * ignored by the mask (fullWidth).
+ * Masked project rows — the geometry of the Home panel's loaded project rows
+ * (a 16px avatar + label in an `h-8` row), shared by the full panel skeleton
+ * below and the PROJECTS section while only the project read is answering.
+ * The varied label widths live on plain flex-item wrappers (a % width
+ * resolves against the row there), with a `fullWidth` box filling each
+ * wrapper — a % width on the hidden placeholder itself would either collapse
+ * to 0 (non-fullWidth) or be ignored by the mask (fullWidth).
  */
 export function ProjectRowsSkeleton() {
   return (
@@ -24,13 +23,10 @@ export function ProjectRowsSkeleton() {
       {Array.from({ length: 2 }).map((_, i) => (
         <div
           key={`project-${i}`}
-          className="flex h-8 shrink-0 items-center gap-1.5 px-2"
+          className="flex h-8 shrink-0 items-center gap-2 px-2"
         >
           <SkeletonBox>
-            <div className="size-3.5 rounded-sm" />
-          </SkeletonBox>
-          <SkeletonBox>
-            <div className="size-3 rounded-sm" />
+            <div className="size-4 rounded" />
           </SkeletonBox>
           <div style={{ width: `${58 - i * 14}%` }}>
             <SkeletonBox fullWidth>
@@ -44,9 +40,43 @@ export function ProjectRowsSkeleton() {
 }
 
 /**
- * Masked chat rows — the row geometry of ThreadList's loaded thread rows,
- * shared by the full panel skeleton below and ThreadList's own CHATS section
- * while only the thread read is still answering.
+ * Masked Home rows — the two-line geometry every Home row shares (a 20px
+ * glyph, a title line and a context line), shared by the full panel skeleton
+ * below and the stream / Inbox list while their reads answer.
+ */
+export function HomeRowsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Row
+          key={`row-${i}`}
+          gap={0}
+          className="shrink-0 items-start gap-2.5 px-2 py-1.5"
+        >
+          <SkeletonBox>
+            <div className="mt-0.5 size-5 rounded-full" />
+          </SkeletonBox>
+          <Stack gap={0} className="min-w-0 flex-1 gap-1.5 py-0.5">
+            <div style={{ width: `${82 - (i % 4) * 14}%` }}>
+              <SkeletonBox fullWidth>
+                <div className="h-3.5" />
+              </SkeletonBox>
+            </div>
+            <div style={{ width: `${46 - (i % 3) * 8}%` }}>
+              <SkeletonBox fullWidth>
+                <div className="h-3" />
+              </SkeletonBox>
+            </div>
+          </Stack>
+        </Row>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Masked single-line chat rows — the archived drawer's rows, which keep the
+ * compact chat-row geometry.
  */
 export function ChatRowsSkeleton() {
   return (
@@ -65,31 +95,49 @@ export function ChatRowsSkeleton() {
 }
 
 /**
- * Masked stand-in for the WHOLE project/chat history panel — one geometry
- * shared by the boot-shell/access-resolving ChatSubPanelPlaceholder, so the
- * reveal is a mask swap, not a layout change. Mirrors the loaded sidebar:
- * PROJECTS header + folder rows, divider, CHATS header + chat rows. Once the
- * real ThreadList mounts, its section HEADERS render real text immediately
- * and only the still-answering section keeps its rows masked (the pieces
- * above), so the panel loads in granularly instead of holding one big mask.
+ * Masked stand-in for the WHOLE Home panel — one geometry shared by the
+ * boot-shell / access-resolving HomePanelPlaceholder, so the reveal is a
+ * mask swap, not a layout change. Mirrors the loaded panel: the `h-13`
+ * header, the view switcher, the PROJECTS header and rows, then a day
+ * header and the two-line rows. Once the real panel mounts, its fixed parts
+ * render real text immediately and only the still-answering sections keep
+ * their rows masked (the pieces above).
  */
-export function ChatHistorySkeleton() {
+export function HomePanelSkeleton() {
   return (
     <Skeletonize loading>
-      <Stack gap={0} className="gap-0.5 pb-2">
-        <Row gap={0} className="h-7 px-2">
+      <Stack gap={0}>
+        <Row
+          gap={0}
+          className="border-border h-13 shrink-0 justify-between border-b pr-2.5 pl-4"
+        >
           <SkeletonBox>
-            <div className="h-3 w-16" />
+            <div className="h-4 w-14" />
+          </SkeletonBox>
+          <SkeletonBox>
+            <div className="size-5 rounded-md" />
           </SkeletonBox>
         </Row>
-        <ProjectRowsSkeleton />
-        <div aria-hidden className="border-border mt-1.5 mb-2 border-t" />
-        <Row gap={0} className="h-7 px-2">
-          <SkeletonBox>
-            <div className="h-3 w-12" />
+        <div className="px-2.5 pt-2.5 pb-2">
+          <SkeletonBox fullWidth>
+            <div className="h-8 rounded-lg" />
           </SkeletonBox>
-        </Row>
-        <ChatRowsSkeleton />
+        </div>
+        <Stack gap={0} className="gap-0.5 px-2.5">
+          <Row gap={0} className="h-7 px-2">
+            <SkeletonBox>
+              <div className="h-3 w-16" />
+            </SkeletonBox>
+          </Row>
+          <ProjectRowsSkeleton />
+          <div aria-hidden className="border-border/70 mt-2 border-t" />
+          <Row gap={0} className="h-7 px-2 pt-2">
+            <SkeletonBox>
+              <div className="h-3 w-12" />
+            </SkeletonBox>
+          </Row>
+          <HomeRowsSkeleton />
+        </Stack>
       </Stack>
     </Skeletonize>
   );

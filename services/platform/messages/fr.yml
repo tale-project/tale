@@ -1017,8 +1017,6 @@ chat:
     submitComment: Soumettre
   pinned: Épinglé
   pinFailed: Échec de l'épinglage
-  projectsSection: Projets
-  chatsSection: Chats
   welcomeEmpty: Sur quoi travaillons-nous ?
   starters:
     email: M’aider à rédiger un email clair et professionnel
@@ -1096,9 +1094,6 @@ chat:
     voiceOutputStop: Arrêter la sortie vocale
     voiceOutputStopped: Arrêté
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
-  showHistory: Afficher l'historique
-  hideHistory: Masquer l'historique
-  newProject: Nouveau projet
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question…
   generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
@@ -1274,8 +1269,6 @@ chat:
     error: Erreur
     noMetadata: L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.
   history:
-    empty: Aucune conversation pour l'instant
-    emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
     noProjects: Aucun projet — crées-en un dans le panneau ci-dessus.
     legalHold:
@@ -1288,8 +1281,6 @@ chat:
     generating: Génération de la réponse
     renameChat: Renommer
     loadMore: Charger plus
-    dropHereToAdd: Dépose un chat ici
-    dropToChatsHint: Dépose ici pour déplacer vers Chats
     toast:
       moveFailed: Échec du déplacement du chat
       renameFailed: Échec du renommage du chat
@@ -4241,6 +4232,65 @@ metrics:
     searchEmpty: Aucun projet trouvé
     emptyTitle: Sélectionner un projet
     emptyDescription: Choisis un projet pour afficher ses métriques.
+home:
+  title: Accueil
+  newChat: Nouveau chat
+  panel:
+    hide: Masquer le panneau latéral
+    show: Afficher le panneau latéral
+  views:
+    label: Afficher
+    all: Tout
+    chats: Chats
+    tasks: Tâches
+    inbox: Réception
+  groups:
+    pinned: Épinglés
+    today: Aujourd’hui
+    yesterday: Hier
+    thisWeek: 7 derniers jours
+    earlier: Plus ancien
+  projects:
+    title: Projets
+    newProject: Nouveau projet
+    allProjects: Tous les projets
+    actions: 'Actions pour {project}'
+    empty: Aucun projet pour le moment
+  inbox:
+    statusLabel: Statut de la conversation
+    compose: Nouvel e-mail
+    clearSelection: Effacer la sélection
+    status:
+      open: Ouvert
+      closed: Fermé
+      spam: Spam
+      archived: Archivé
+  row:
+    untitledChat: Chat sans titre
+    chat: Chat
+    draft: Brouillon
+    unread: Non lu
+    generating: Rédige une réponse…
+    awaitingReview: En attente de ta relecture
+  empty:
+    all:
+      title: Rien pour le moment
+      hint: Lance un chat ou prends en charge une tâche d’un projet.
+    chats:
+      title: Aucun chat pour le moment
+      hint: Tes conversations avec l’assistant apparaissent ici.
+    tasks:
+      title: Rien ne t’est attribué
+      hint: Les tâches ouvertes qui te sont attribuées dans un projet apparaissent ici.
+    inbox:
+      title: Aucune conversation
+      hint: Les conversations clients de ce statut apparaissent ici.
+      filtered: Aucune conversation ne correspond à la recherche ou aux filtres.
+  aria:
+    panel: Accueil
+    stream: Tes chats, tâches et conversations
+    inbox: Conversations de la boîte de réception
+    attention: '{count, plural, one {# élément attend ton action} other {# éléments attendent ton action}}'
 knowledge:
   title: Base de connaissances
   documents: Documents
@@ -4345,6 +4395,12 @@ metadata:
   project:
     title: Projet
     description: Un espace de travail partagé pour fichiers, instructions et discussions.
+  task:
+    title: Tâche
+    description: Un travail avec un responsable, un statut et sa discussion.
+  home:
+    title: Accueil
+    description: Tes chats, tâches et conversations de la boîte de réception, au même endroit.
   websites:
     title: Sites web
     description: Gère les sites web pour l'extraction de connaissances.
@@ -4476,10 +4532,9 @@ metadata:
     title: Configuration de l'automatisation
     description: Configure les paramètres de l'automatisation.
 navigation:
-  chat: Chat
+  home: Accueil
   knowledge: Connaissances
   automations: Automatisations
-  more: Plus
   userSettings: Paramètres
   notifications: Notifications
   organization: Organisation
@@ -4514,7 +4569,6 @@ navigation:
   enterpriseSso: SSO d'entreprise
   sidebar:
     landmark: Barre latérale du tableau de bord
-    title: Menu
     search: Rechercher
     searchGlobal: Tout rechercher
 notificationPreferences:
@@ -6976,6 +7030,8 @@ tasks:
     create: Créer une tâche
     created: Tâche créée
     comment: Commenter
+    commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent
+    commentShortcut: '{shortcut} pour envoyer'
     assign: Assigner
     add: Ajouter
     archive: Archiver
@@ -7003,6 +7059,12 @@ tasks:
     overview: Aperçu
     comments: Commentaires
     noComments: Aucun commentaire pour le moment.
+    conversation: Conversation
+    conversationEmpty: Aucun commentaire pour le moment — lance la conversation ci-dessous.
+    details: Détails
+    showDetails: Afficher les détails
+    hideDetails: Masquer les détails
+    openBoard: Tableau
     showEarlierComments: Afficher les commentaires précédents
     activity: Activité
     subtasks: Sous-tâches

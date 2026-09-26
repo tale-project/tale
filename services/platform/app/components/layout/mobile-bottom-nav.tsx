@@ -2,106 +2,53 @@
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { cn } from '@tale/ui/cn';
-import { Sheet } from '@tale/ui/sheet';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import {
-  BrainIcon,
-  Folder,
-  Inbox,
-  MessageCircle,
-  MoreHorizontal,
-  Settings as SettingsIcon,
-  Workflow,
-  type LucideIcon,
-} from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { House } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
-import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
+import {
+  useNavigationItems,
+  type NavItem,
+} from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
 
 export interface MobileBottomNavProps {
   organizationId: string;
 }
 
-interface PrimaryTab {
-  key: string;
-  label: string;
-  icon: LucideIcon;
-  to: string;
-  /** Path prefix used to compute `active`. */
-  activePrefix: string;
-  /** Optional CASL gate. */
-  gate?: () => boolean;
-  /** Unread count shown as a chip on the icon (omit/0 = no chip). */
-  badge?: number;
-  /** What that chip means, translated — the bar reads it out after the label. */
-  badgeLabel?: string;
-  /** Search applied when tapped while already active (chat: a fresh chat). */
-  reentrySearch?: Record<string, unknown>;
+function isPathMatch(href: string, pathname: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-interface OverflowItem {
-  key: string;
-  label: string;
-  icon: LucideIcon;
-  to: string;
-  activePrefix: string;
-  /** Optional override for the default `activePrefix` startsWith check. */
-  isActive?: (pathname: string) => boolean;
-  gate?: () => boolean;
-  reentrySearch?: Record<string, unknown>;
+function isItemActive(item: NavItem, pathname: string): boolean {
+  return item.isActivePath
+    ? item.isActivePath(pathname)
+    : isPathMatch(item.href, pathname) ||
+        (item.subItems?.some((sub) => isPathMatch(sub.href, pathname)) ??
+          false);
 }
 
 /**
- * Where a bottom-nav destination goes. Mirrors the desktop rail: always the
- * section's own landing page, so a tap lands on the same page every time.
- */
-function resolveNavTarget(
-  entry: Pick<PrimaryTab, 'to' | 'reentrySearch'>,
-  active: boolean,
-): { to: string; search?: Record<string, unknown> } {
-  return {
-    to: entry.to,
-    ...(active && entry.reentrySearch !== undefined
-      ? { search: entry.reentrySearch }
-      : {}),
-  };
-}
-
-/**
- * In-flow bottom tab bar wired with the platform's primary destinations. Hidden
- * on `md+` viewports — desktop continues to use the sidebar. Lives alongside
- * (not inside) the hamburger drawer so secondary navigation (org switcher,
- * account, sub-routes) stays available without crowding the tab bar.
+ * The phone's tab bar: the same sections as the desktop rail, from the same
+ * list (`useNavigationItems`), so the two navigations cannot drift — Home,
+ * Knowledge, Automations and Settings, four tabs and no overflow sheet.
+ * Hidden on `md+`, where the rail takes over.
  *
- * Layout: a row of primary nav destinations followed by a "More" tab that
- * opens a bottom sheet listing the destinations that don't fit (Knowledge,
- * Automations, Settings) — the standard iOS overflow pattern. Each tab highlights only
- * when its route is active.
+ * One difference from the rail: Home opens the Home list — on a phone the
+ * list of chats, tasks and conversations IS the Home screen, where a desktop
+ * keeps it as the panel beside the page. A tab always lands on its section's
+ * own first page, whatever was open there before.
  */
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const navigate = useNavigate();
-  const location = useLocation();
+  const { pathname } = useLocation();
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
-  const { t: tProjects } = useT('projects');
-  const { t: tConversations } = useT('conversations');
-  const [moreOpen, setMoreOpen] = useState(false);
-  // Same nav-gate signal as the desktop rail (`use-navigation-items.ts`): the
-  // Inbox tab only shows once at least one INSTALLED automation declares the
-  // `inbox` builtin view; hidden while the availability reads load.
-  const { hasInbox: hasInboxAutomation } = useInboxAvailability(organizationId);
-  // Same chip the desktop rail carries, and the SAME request: both narrow one
-  // `/conversations/counts` body, so the two navs never disagree and a phone
-  // pays for one fetch. Skipped while the tab itself is gated off.
-  const { data: unreadConversations } = useUnreadConversationCount(
-    hasInboxAutomation ? organizationId : undefined,
-  );
+  const { primary, pinned } = useNavigationItems(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
   // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
   // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
@@ -109,161 +56,43 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   // other browsers already get correct insets.
   const needsSafariBottomClearance = isMobileSafari && !isStandalone;
 
-  const tabs = useMemo<PrimaryTab[]>(
-    () => [
-      {
-        key: 'chat',
-        label: tNav('chat'),
-        icon: MessageCircle,
-        to: `/dashboard/${organizationId}/chat`,
-        activePrefix: `/dashboard/${organizationId}/chat`,
-        reentrySearch: { new: true },
-      },
-      {
-        key: 'projects',
-        label: tProjects('title'),
-        icon: Folder,
-        to: `/dashboard/${organizationId}/projects`,
-        activePrefix: `/dashboard/${organizationId}/projects`,
-        gate: () => ability.can('read', 'projects'),
-      },
-      {
-        key: 'inbox',
-        label: tConversations('title'),
-        icon: Inbox,
-        to: `/dashboard/${organizationId}/conversations`,
-        activePrefix: `/dashboard/${organizationId}/conversations`,
-        gate: () => hasInboxAutomation,
-        badge: unreadConversations ?? 0,
-        badgeLabel: tNav('aria.unreadConversations', {
-          count: unreadConversations ?? 0,
+  const items = useMemo<BottomTabBarItem[]>(
+    () =>
+      [...primary, ...pinned]
+        .filter((item) => !item.can || ability.can(item.can[0], item.can[1]))
+        .map((item, index) => {
+          const active = isItemActive(item, pathname);
+          // A zero is the resting state, not a chip reading "0".
+          const showBadge = item.badge !== undefined && item.badge > 0;
+          const isHome = index === 0;
+          return {
+            key: item.href,
+            label: item.label,
+            icon: item.icon ?? House,
+            active,
+            accentColor: active && accentColor ? accentColor : undefined,
+            badge: showBadge ? item.badge : undefined,
+            badgeLabel: showBadge ? item.badgeLabel : undefined,
+            onSelect: () => {
+              void navigate(
+                isHome
+                  ? {
+                      to: '/dashboard/$id/home',
+                      params: { id: organizationId },
+                    }
+                  : { to: item.to, params: item.params },
+              );
+            },
+          };
         }),
-      },
-    ],
-    [
-      ability,
-      organizationId,
-      tNav,
-      tProjects,
-      tConversations,
-      hasInboxAutomation,
-      unreadConversations,
-    ],
+    [primary, pinned, ability, pathname, accentColor, navigate, organizationId],
   );
-
-  const overflow = useMemo<OverflowItem[]>(
-    () => [
-      {
-        key: 'knowledge',
-        label: tNav('knowledge'),
-        icon: BrainIcon,
-        to: `/dashboard/${organizationId}/documents`,
-        activePrefix: `/dashboard/${organizationId}/documents`,
-      },
-      {
-        key: 'automations',
-        label: tNav('automations'),
-        icon: Workflow,
-        to: `/dashboard/${organizationId}/automations`,
-        activePrefix: `/dashboard/${organizationId}/automations`,
-      },
-      {
-        key: 'settings',
-        label: tNav('userSettings'),
-        icon: SettingsIcon,
-        to: `/dashboard/${organizationId}/settings`,
-        activePrefix: `/dashboard/${organizationId}/settings`,
-      },
-    ],
-    [organizationId, tNav],
-  );
-
-  const pathname = location.pathname;
-  const isPathActive = (prefix: string) =>
-    pathname === prefix || pathname.startsWith(`${prefix}/`);
-  const matchesOverflowItem = (item: OverflowItem) =>
-    item.isActive ? item.isActive(pathname) : isPathActive(item.activePrefix);
-  const moreActive = overflow.some(matchesOverflowItem);
-
-  const items = useMemo<BottomTabBarItem[]>(() => {
-    const primary: BottomTabBarItem[] = tabs
-      .filter((tab) => (tab.gate ? tab.gate() : true))
-      .map((tab) => {
-        const active = isPathActive(tab.activePrefix);
-        // A zero is the resting state, not a chip reading "0".
-        const showBadge = tab.badge !== undefined && tab.badge > 0;
-        return {
-          key: tab.key,
-          label: tab.label,
-          icon: tab.icon,
-          active,
-          accentColor: active && accentColor ? accentColor : undefined,
-          badge: showBadge ? tab.badge : undefined,
-          badgeLabel: showBadge ? tab.badgeLabel : undefined,
-          onSelect: () => {
-            void navigate(resolveNavTarget(tab, active));
-          },
-        };
-      });
-    primary.push({
-      key: 'more',
-      label: tNav('more'),
-      icon: MoreHorizontal,
-      active: moreActive,
-      accentColor: moreActive && accentColor ? accentColor : undefined,
-      onSelect: () => setMoreOpen(true),
-    });
-    return primary;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- isPathActive closes over `pathname`, which is the trigger
-  }, [tabs, pathname, navigate, accentColor, moreActive, tNav, organizationId]);
 
   return (
-    <>
-      <BottomTabBar
-        items={items}
-        ariaLabel={tNav('aria.primaryNavigation')}
-        className={cn(needsSafariBottomClearance && 'pb-12')}
-      />
-      <Sheet
-        open={moreOpen}
-        onOpenChange={setMoreOpen}
-        side="bottom"
-        title={tNav('more')}
-        description={tNav('aria.primaryNavigation')}
-        hideClose
-        className="h-auto! max-h-[60vh] rounded-t-2xl p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]"
-      >
-        <ul role="list" className="flex flex-col gap-1">
-          {overflow.map((item) => {
-            const Icon = item.icon;
-            const active = matchesOverflowItem(item);
-            return (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMoreOpen(false);
-                    void navigate(resolveNavTarget(item, active));
-                  }}
-                  className={cn(
-                    'group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors',
-                    'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
-                    active
-                      ? 'bg-muted text-foreground'
-                      : 'hover:bg-muted/60 text-foreground',
-                  )}
-                >
-                  <Icon
-                    className="text-muted-foreground group-hover:text-foreground size-5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </Sheet>
-    </>
+    <BottomTabBar
+      items={items}
+      ariaLabel={tNav('aria.primaryNavigation')}
+      className={cn(needsSafariBottomClearance && 'pb-12')}
+    />
   );
 }

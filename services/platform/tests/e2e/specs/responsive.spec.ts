@@ -15,10 +15,11 @@ import { t } from '../helpers/i18n';
  * chrome is `hidden md:flex` (side rail, settings desktop Save slot); mobile
  * chrome is `md:hidden` (the in-flow `BottomTabBar`, the content-width floating
  * Save dock above it). There is NO hamburger drawer — primary nav is the bottom
- * tab bar, and a trailing "More" tab opens a bottom `Sheet` (Radix dialog named
- * "More") with the overflow destinations. The settings test makes a throwaway
- * dirty edit to reveal the floating Save, then reloads to discard it (nothing
- * persists).
+ * tab bar, the same four sections as the desktop rail (Home, Knowledge,
+ * Automations, Settings), and Home opens the Home list: on a phone the list of
+ * chats, tasks and conversations is the Home screen itself. The settings test
+ * makes a throwaway dirty edit to reveal the floating Save, then reloads to
+ * discard it (nothing persists).
  */
 
 // Phone viewport — OVERRIDES the project's Desktop Chrome viewport for this file
@@ -36,7 +37,7 @@ function visibleSaveButton(page: Page) {
 }
 
 test.describe('responsive / mobile layout', () => {
-  test('app shell: desktop rail collapses; bottom tab bar + More sheet drive nav', async ({
+  test('app shell: desktop rail collapses; the bottom tab bar holds the sections', async ({
     page,
     org,
   }) => {
@@ -55,28 +56,29 @@ test.describe('responsive / mobile layout', () => {
       page.getByRole('navigation', { name: t('common.aria.mainNavigation') }),
     ).toBeHidden();
 
-    // "More" is the menu toggle that opens the overflow Sheet; scope to the
-    // mobile nav so it can't match a stray control elsewhere.
-    const moreTab = mobileNav.getByRole('button', {
-      name: t('navigation.more'),
-    });
-    await expect(moreTab).toBeVisible();
-    await moreTab.click();
+    // Every section is a tab of its own — no overflow sheet.
+    for (const key of [
+      'navigation.home',
+      'navigation.knowledge',
+      'navigation.automations',
+      'navigation.userSettings',
+    ]) {
+      await expect(
+        mobileNav.getByRole('button', { name: new RegExp(`^${t(key)}`) }),
+      ).toBeVisible();
+    }
 
-    // The Sheet is a Radix dialog whose accessible name is its title ("More").
-    const moreSheet = page.getByRole('dialog', { name: t('navigation.more') });
-    await expect(moreSheet).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // The overflow destinations appear in the drawer (read-only — no navigate).
+    // Home opens the Home list — the phone's view of chats, tasks and the
+    // inbox, with the same view switcher as the desktop panel.
+    await mobileNav
+      .getByRole('button', { name: new RegExp(`^${t('navigation.home')}`) })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/dashboard/${organizationId}/home`),
+    );
     await expect(
-      moreSheet.getByRole('button', { name: t('navigation.knowledge') }),
-    ).toBeVisible();
-    await expect(
-      moreSheet.getByRole('button', { name: t('navigation.userSettings') }),
-    ).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(moreSheet).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+      page.getByRole('radiogroup', { name: t('home.views.label') }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 
   test('settings: the floating Save dock is the visible Save cluster', async ({

@@ -50,6 +50,8 @@ export function useTasksAcrossProjects(options?: {
   status?: TaskStatusFilter;
   statuses?: TaskStatusFilter[];
   assigneeId?: string;
+  /** Only tasks naming this person as the reviewer of their result. */
+  reviewerId?: string;
   /** When false the query is skipped (single-project mode owns the board). */
   enabled?: boolean;
 }) {
@@ -64,6 +66,7 @@ export function useTasksAcrossProjects(options?: {
           status: options?.status,
           statuses: options?.statuses,
           assigneeId: options?.assigneeId,
+          reviewerId: options?.reviewerId,
         }
       : 'skip',
   );

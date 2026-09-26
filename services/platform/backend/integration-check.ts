@@ -2073,6 +2073,56 @@ async function checkTasks(
     `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canClaim}/${taskRead.data.canComment}` : 'ERR'}`,
   );
 
+  // ---- reviewer filter: Home's "waiting on my review" read -------------
+  // Home lists the tasks waiting on the caller's review whoever they are
+  // assigned to: `reviewerId` narrows the all-projects read to the tasks
+  // naming that person as reviewer, and composes with the status filter. The
+  // probe lives in a project of its own, so the board rollups asserted below
+  // never count it.
+  const reviewProject = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Review Probe Project',
+      })
+    ).json(),
+  );
+  const reviewProbe = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId: reviewProject.success ? reviewProject.data.projectId : '',
+        title: 'Review probe',
+        status: 'in_review',
+      })
+    ).json(),
+  );
+  const reviewProbeId = reviewProbe.success ? reviewProbe.data.taskId : '';
+  await send('POST', `/api/app/tasks/${reviewProbeId}?orgId=${orgId}`, {
+    reviewerUserId: userId,
+  });
+  const reviewList = z.object({
+    tasks: z.array(z.object({ id: z.string() }).loose()),
+  });
+  const mineToReview = reviewList.safeParse(
+    await get(
+      `/api/app/tasks?orgId=${orgId}&reviewerId=${encodeURIComponent(userId)}&status=in_review`,
+    ),
+  );
+  const othersToReview = reviewList.safeParse(
+    await get(
+      `/api/app/tasks?orgId=${orgId}&reviewerId=someone-else&status=in_review`,
+    ),
+  );
+  record(
+    'task list reviewer filter narrows to the named reviewer',
+    reviewProbe.success &&
+      mineToReview.success &&
+      mineToReview.data.tasks.some((task) => task.id === reviewProbeId) &&
+      !mineToReview.data.tasks.some((task) => task.id === parentId) &&
+      othersToReview.success &&
+      othersToReview.data.tasks.length === 0,
+    `mine=${mineToReview.success ? mineToReview.data.tasks.length : 'ERR'}, others=${othersToReview.success ? othersToReview.data.tasks.length : 'ERR'}`,
+  );
+
   // ---- attachments: the dialog's files are stored, owned, and released ---
   // The create and edit dialogs send `attachments`; the routes used to strip
   // the key, so an upload "succeeded" and was gone on the next read. Each
