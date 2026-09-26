@@ -102,6 +102,7 @@ import {
   assertSkillTeamsAssignable,
   SKILL_ERROR_STATUS,
 } from '../domains/skills/errors.ts';
+import { unequipDeletedSkill } from '../domains/skills/unequip.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { listTeamDirectory } from '../domains/teams/service.ts';
 import {
@@ -1598,7 +1599,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => deleteSkillForViewer({ ...who, slug, precondition }),
+        async () => {
+          const removed = await deleteSkillForViewer({
+            ...who,
+            slug,
+            precondition,
+          });
+          if (!removed) return false;
+          await unequipDeletedSkill(deps.sql, {
+            organizationId: c.get('organizationId'),
+            slug,
+            actor: { id: c.get('userId'), email: c.get('userEmail') },
+          });
+          return true;
+        },
       );
       if (!deleted) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       return c.body(null, 204);

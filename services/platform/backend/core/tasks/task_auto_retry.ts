@@ -33,6 +33,10 @@ export type TaskRunFailureCode =
   | 'park_deadline'
   | 'agent_deleted'
   | 'agent_model_missing'
+  /** A skill the agent equips does not exist or is not shared with the
+   * run's scope — configuration, not a fault: nothing about a retry
+   * changes it (2026-09-26 evaluation, C-09). */
+  | 'equipment_missing'
   /** The org's spend cap refused the start — the cap only moves with the
    * period or an admin, so a retry would only be refused again. */
   | 'budget_exceeded';
@@ -47,6 +51,7 @@ const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'park_deadline',
   'agent_deleted',
   'agent_model_missing',
+  'equipment_missing',
   'budget_exceeded',
 ] satisfies TaskRunFailureCode[]);
 

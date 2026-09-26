@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 26 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -189,6 +189,14 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   single harness process, and the backend log carries the
   `predecessor … reap` line ahead of the new exec's start — never two CLIs
   writing one workspace.
+- [ ] `TASK-F19` · **A missing skill fails once, without auto-retry** — Equip
+  a project agent with a skill, then narrow that skill's visibility so the
+  project no longer sees it (do not delete it); start a task with the agent
+  → The run fails at once with **the agent run could not start: the skill
+  "<slug>" is not available to this run …**, stays at one run — no
+  **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
+  after unticking the unavailable skill in the agent dialog, **Retry**
+  starts a run that reaches the harness.
 
 ## Boundary & error tests
 

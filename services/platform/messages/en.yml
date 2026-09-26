@@ -1340,6 +1340,7 @@ chat:
     sectionConnectors: Connectors
     sectionTools: Platform tools
     emptySkills: No skills in this organization yet.
+    unavailableOption: '"{slug}" (unavailable)'
     emptyConnectors: No connectors added yet.
     emptyTools: No platform tools available.
   generation:
@@ -4679,8 +4680,8 @@ skills:
   skillDeleted: Skill deleted
   skillDeleteFailed: Couldn't delete skill
   deleteConfirmation:
-    This removes the skill bundle "{slug}" from disk. Any agent currently
-    equipped with it loses access.
+    This removes the skill bundle "{slug}" from disk. Every agent currently
+    equipped with it is unequipped.
   listFailed: Couldn't load the skill library. Reload to retry.
   readOnly: You can read this skill but not change it — its owner (or an org
     admin, for shared skills) manages it.
@@ -6223,6 +6224,7 @@ settings:
         api: API
         workflow: Automation
       actionLabels:
+        skill.deleted: Skill deleted
         joined_organization: Joined organization
         signed_in_to_organization: Signed in to organization
         add_member: Added member

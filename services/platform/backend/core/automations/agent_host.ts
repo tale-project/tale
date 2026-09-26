@@ -89,6 +89,7 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import {
   retryResumePrompt,
   type WorkflowAgentRetryResume,
@@ -709,9 +710,7 @@ export async function stageSkillBundle(
     { orgSlug, slug, viewer },
   );
   if (bundle === null || bundle.files.length === 0) {
-    throw new Error(
-      `the skill "${slug}" is not available to this run — it does not exist or is not shared with the run's scope`,
-    );
+    throw new SkillUnavailableError(slug);
   }
   const files = bundle.files.map((file: SkillBundleFile) => ({
     path: `${destDir}/${file.path}`,
