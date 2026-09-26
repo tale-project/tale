@@ -713,6 +713,7 @@ automations:
     title: Node
     workflowTitle: Workflow
     noSelection: Wähle eine Node auf dem Canvas, um zu sehen und zu ändern, was sie tut.
+    noSelectionReadOnly: Wähle eine Node auf dem Canvas, um zu sehen, was sie tut.
     unknownType: 'Unbekannter Node-Typ: {type}'
     catalogUnavailable:
       Der Katalog der Node-Typen konnte nicht geladen werden, deshalb
@@ -839,11 +840,11 @@ automations:
     autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
     startedBy: 'Gestartet von {actor}'
-    startedAt: 'Gestartet {date}'
     starter:
       apiKey: '{name} über einen API-Schlüssel'
       trigger: einem Auslöser
       formerMember: einem ehemaligen Mitglied
+    startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'
     inputTitle: Eingabe des Laufs
     outputTitle: Ausgabe des Laufs

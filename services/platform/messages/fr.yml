@@ -719,6 +719,7 @@ automations:
     title: Nœud
     workflowTitle: Workflow
     noSelection: Sélectionne un nœud sur le canvas pour voir et modifier ce qu’il fait.
+    noSelectionReadOnly: Sélectionne un nœud sur le canvas pour voir ce qu’il fait.
     unknownType: 'Type de nœud inconnu : {type}'
     catalogUnavailable:
       Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls
@@ -845,11 +846,11 @@ automations:
     autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
     startedBy: 'Lancée par {actor}'
-    startedAt: 'Lancée {date}'
     starter:
       apiKey: '{name} via une clé API'
       trigger: un déclencheur
       formerMember: un ancien membre
+    startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'
     inputTitle: Entrée de l’exécution
     outputTitle: Sortie de l’exécution

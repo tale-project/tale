@@ -678,6 +678,7 @@ automations:
     title: Node
     workflowTitle: Workflow
     noSelection: Select a node on the canvas to see and edit what it does.
+    noSelectionReadOnly: Select a node on the canvas to see what it does.
     unknownType: 'Unknown node type: {type}'
     catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
     invalidJson: This is not valid JSON yet, so the node was not changed.
@@ -799,11 +800,11 @@ automations:
     autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
     startedBy: 'Started by {actor}'
-    startedAt: 'Started {date}'
     starter:
       apiKey: '{name} via an API key'
       trigger: a trigger
       formerMember: a former member
+    startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
     inputTitle: Run input
     outputTitle: Run output
