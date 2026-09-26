@@ -1,7 +1,11 @@
+import { Folder, MessageCircle, UserRound } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
+
+import { taskStatusIcon } from '@/app/features/tasks/components/task-status-glyph';
 
 import {
   parseTasksRouteContext,
+  platformResultIcon,
   searchResultTarget,
 } from './sidebar-search-command';
 
@@ -66,5 +70,30 @@ describe('searchResultTarget', () => {
       to: '/dashboard/$id/chat/$threadId',
       params: { id: ORG, threadId: 'c-1' },
     });
+  });
+});
+
+describe('platformResultIcon', () => {
+  it('gives each hit the glyph its kind wears in Home', () => {
+    expect(
+      platformResultIcon({
+        data: { kind: 'task', projectId: 'p-1', status: 'in_review' },
+      }),
+    ).toBe(taskStatusIcon('in_review'));
+    expect(platformResultIcon({ data: { kind: 'project' } })).toBe(Folder);
+    expect(platformResultIcon({ data: { kind: 'chat' } })).toBe(MessageCircle);
+    expect(platformResultIcon({ data: { kind: 'contact' } })).toBe(UserRound);
+  });
+
+  it('keeps one component per status, so a row never remounts its glyph', () => {
+    expect(taskStatusIcon('todo')).toBe(taskStatusIcon('todo'));
+    expect(taskStatusIcon('todo')).not.toBe(taskStatusIcon('done'));
+  });
+
+  it('leaves documents, and a task without a status, to the palette default', () => {
+    expect(
+      platformResultIcon({ data: { kind: 'task', projectId: 'p-1' } }),
+    ).toBeUndefined();
+    expect(platformResultIcon({ data: { kind: 'document' } })).toBeUndefined();
   });
 });

@@ -8,8 +8,10 @@ import {
 } from '@tale/ui/search';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo } from 'react';
+import { Folder, MessageCircle, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, type ComponentType } from 'react';
 
+import { taskStatusIcon } from '@/app/features/tasks/components/task-status-glyph';
 import { TASK_VIEW_ROUTES, type TaskView } from '@/app/features/tasks/lib/view';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -118,6 +120,24 @@ export function searchResultTarget(
     to: '/dashboard/$id/chat/$threadId',
     params: { id: organizationId, threadId: result.id },
   } as const;
+}
+
+/**
+ * Each hit wears the glyph its kind has in Home — a task its status, a chat
+ * its bubble, a project its folder — so a result reads the same wherever it
+ * is listed. Documents keep the palette's file glyph.
+ */
+export function platformResultIcon(
+  result: Pick<SearchResult, 'data'>,
+): ComponentType<{ className?: string }> | undefined {
+  const data = result.data;
+  if (isPlatformHit(data, 'task')) {
+    return data.status !== undefined ? taskStatusIcon(data.status) : undefined;
+  }
+  if (isPlatformHit(data, 'project')) return Folder;
+  if (isPlatformHit(data, 'chat')) return MessageCircle;
+  if (isPlatformHit(data, 'contact')) return UserRound;
+  return undefined;
 }
 
 const SCOPE_ORDER: SearchScope[] = ['chats', 'everything'];
@@ -282,6 +302,7 @@ export function SidebarSearchCommand({
       }
       minQueryLength={2}
       onSelect={handleSelect}
+      resultIcon={platformResultIcon}
       toolbar={toolbar}
     />
   );

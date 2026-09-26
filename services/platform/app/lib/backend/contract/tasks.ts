@@ -862,6 +862,13 @@ export interface TasksContract {
       taskId: string;
       projectId: string;
       title: string;
+      status:
+        | 'backlog'
+        | 'todo'
+        | 'in_progress'
+        | 'in_review'
+        | 'done'
+        | 'cancelled';
       snippet: string;
       updatedAt: number;
       number?: number;
