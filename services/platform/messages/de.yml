@@ -1856,7 +1856,10 @@ contacts:
     source:
       manual: Manuell
       upload: Upload
+      api: API
       conversation: Konversation
+      webhook: Webhook
+      custom: Benutzerdefiniert
   importForm:
     manualEntry: Manuelle Eingabe
     upload: Upload

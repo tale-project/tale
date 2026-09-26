@@ -1791,7 +1791,10 @@ contacts:
     source:
       manual: Manual
       upload: Upload
+      api: API
       conversation: Conversation
+      webhook: Webhook
+      custom: Custom
   importForm:
     manualEntry: Manual entry
     upload: Upload

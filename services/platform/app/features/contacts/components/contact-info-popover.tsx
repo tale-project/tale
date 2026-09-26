@@ -35,6 +35,7 @@ function InfoRow({ label, children }: InfoRowProps) {
 function ContactInfoCard({ contact }: { contact: ContactData }) {
   const { formatDate } = useFormatDate();
   const { t } = useT('common');
+  const { t: tContacts } = useT('contacts');
 
   const createdAt = useMemo(() => {
     if (isContactDoc(contact)) {
@@ -74,7 +75,11 @@ function ContactInfoCard({ contact }: { contact: ContactData }) {
         <InfoRow label={t('labels.source')}>
           {contact.source ? (
             <Badge variant="outline">
-              {getContactSourceLabel(contact.source, t('labels.notAvailable'))}
+              {getContactSourceLabel(
+                contact.source,
+                tContacts,
+                t('labels.notAvailable'),
+              )}
             </Badge>
           ) : (
             <Text className="text-[13px]">{t('labels.notAvailable')}</Text>

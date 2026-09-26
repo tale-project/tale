@@ -91,6 +91,10 @@ interface DateColumnOptions {
 
 interface SourceColumnOptions {
   size?: number;
+  /** The cell's label for a source value. Defaults to start-casing the enum
+   *  (`manual_import` → "Manual Import"); an entity with translated or
+   *  vendor-spelled names passes its own. */
+  formatSource?: (source: string | null | undefined) => string;
 }
 
 interface LocaleColumnOptions {
@@ -241,7 +245,9 @@ export function createSourceColumn<TData extends { source?: string | null }>(
     size: options?.size ?? 140,
     cell: ({ row }) => (
       <Text as="span" variant="caption">
-        {formatEnumLabel(row.original.source, tTables('cells.unknown'))}
+        {options?.formatSource
+          ? options.formatSource(row.original.source)
+          : formatEnumLabel(row.original.source, tTables('cells.unknown'))}
       </Text>
     ),
   };

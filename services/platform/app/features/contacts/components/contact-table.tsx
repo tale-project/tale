@@ -94,6 +94,7 @@ export function ContactsTable({
         options: [
           { value: 'manual_import', label: tContacts('filter.source.manual') },
           { value: 'file_upload', label: tContacts('filter.source.upload') },
+          { value: 'api_import', label: tContacts('filter.source.api') },
           {
             value: 'conversation',
             label: tContacts('filter.source.conversation'),

@@ -55,7 +55,7 @@ describe('ContactInfoPopover', () => {
     renderPopover();
 
     expect(screen.getByText('en-US')).toBeInTheDocument();
-    expect(screen.getByText('Manual Import')).toBeInTheDocument();
+    expect(screen.getByText('Manual')).toBeInTheDocument();
   });
 
   it('renders with ContactInfo fallback data', () => {

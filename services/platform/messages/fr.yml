@@ -1865,7 +1865,10 @@ contacts:
     source:
       manual: Manuel
       upload: Téléversement
+      api: API
       conversation: Conversation
+      webhook: Webhook
+      custom: Personnalisé
   importForm:
     manualEntry: Saisie manuelle
     upload: Téléversement

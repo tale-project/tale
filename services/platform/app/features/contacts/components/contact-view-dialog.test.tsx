@@ -86,7 +86,7 @@ describe('ContactViewDialog', () => {
   it('localizes the raw source enum instead of printing it verbatim (#2643)', () => {
     renderDialog();
 
-    expect(screen.getByText('Manual Import')).toBeInTheDocument();
+    expect(screen.getByText('Manual')).toBeInTheDocument();
     expect(screen.queryByText('manual_import')).not.toBeInTheDocument();
   });
 

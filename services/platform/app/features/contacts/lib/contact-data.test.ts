@@ -3,23 +3,42 @@ import { describe, expect, it } from 'vitest';
 import { getContactLocaleLabel, getContactSourceLabel } from './contact-data';
 
 describe('getContactSourceLabel', () => {
-  it('start-cases a snake_case source enum', () => {
-    expect(getContactSourceLabel('manual_import', 'Unknown')).toBe(
-      'Manual Import',
+  const tContacts = (key: string) => `t:${key}`;
+
+  it('names the worded sources through the contacts namespace', () => {
+    expect(getContactSourceLabel('manual_import', tContacts, 'Unknown')).toBe(
+      't:filter.source.manual',
+    );
+    expect(getContactSourceLabel('api_import', tContacts, 'Unknown')).toBe(
+      't:filter.source.api',
+    );
+    expect(getContactSourceLabel('conversation', tContacts, 'Unknown')).toBe(
+      't:filter.source.conversation',
     );
   });
 
-  it('start-cases a single-word source enum', () => {
-    expect(getContactSourceLabel('shopify', 'Unknown')).toBe('Shopify');
-    expect(getContactSourceLabel('conversation', 'Unknown')).toBe(
-      'Conversation',
+  it('spells vendors the way they spell themselves', () => {
+    expect(getContactSourceLabel('hubspot', tContacts, 'Unknown')).toBe(
+      'HubSpot',
+    );
+    expect(getContactSourceLabel('woocommerce', tContacts, 'Unknown')).toBe(
+      'WooCommerce',
+    );
+    expect(getContactSourceLabel('sap', tContacts, 'Unknown')).toBe('SAP');
+  });
+
+  it('start-cases a source it has no label for yet', () => {
+    expect(getContactSourceLabel('new_vendor', tContacts, 'Unknown')).toBe(
+      'New Vendor',
     );
   });
 
   it('falls back to the unknown label when source is unset', () => {
-    expect(getContactSourceLabel(undefined, 'Unknown')).toBe('Unknown');
-    expect(getContactSourceLabel(null, 'Unknown')).toBe('Unknown');
-    expect(getContactSourceLabel('', 'Unknown')).toBe('Unknown');
+    expect(getContactSourceLabel(undefined, tContacts, 'Unknown')).toBe(
+      'Unknown',
+    );
+    expect(getContactSourceLabel(null, tContacts, 'Unknown')).toBe('Unknown');
+    expect(getContactSourceLabel('', tContacts, 'Unknown')).toBe('Unknown');
   });
 });
 
