@@ -18,7 +18,7 @@ The project’s **Knowledge** tab holds files that its chats can retrieve. Uploa
 3. Click **Add file** or drop files onto the upload area.
 4. Check that each file appears in the intended folder and finishes indexing.
 
-**New folder** creates a folder at the root. A folder’s **New folder inside** action creates a subfolder. **Add folder** imports a folder from your device and recreates its structure under the selected location. A folder upload is limited to 200 files and 200 MB; split larger folders and check the report for skipped files.
+**New folder** creates a folder at the root. A folder’s **New folder inside** action creates a subfolder. **Upload folder** imports a folder from your device and recreates its structure under the selected location. A folder upload is limited to 200 files and 200 MB; split larger folders and check the report for skipped files.
 
 ## Check whether chat can read a file
 

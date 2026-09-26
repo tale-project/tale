@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
@@ -1069,10 +1070,9 @@ export function ProjectFilesTab({
           <Button
             variant="secondary"
             size="sm"
-            className="gap-2"
+            icon={FolderPlus}
             onClick={() => setCreateFolderParent({})}
           >
-            <FolderPlus className="size-4" aria-hidden="true" />
             {tDocuments('folder.newFolder')}
           </Button>
         ) : undefined
@@ -1094,15 +1094,17 @@ export function ProjectFilesTab({
             {rootFolders.map((folder) => renderFolder(folder, 0))}
             {rootFiles.map((doc) => renderFileRow(doc, 0))}
           </ul>
-        ) : !isLoading ? (
+        ) : isLoading ? (
+          <ProjectFilesTreeSkeleton canEdit={canEdit} />
+        ) : !canEdit ? (
+          // An editor's empty project needs no second dashed box: the upload
+          // area below is the empty state, and the one place to act on it.
           <EmptyState
             icon={FileText}
             title={t('files.emptyTitle')}
             className="rounded-lg border border-dashed py-8"
           />
-        ) : (
-          <ProjectFilesTreeSkeleton canEdit={canEdit} />
-        )}
+        ) : null}
 
         {canEdit ? (
           <FileUpload.Root>
@@ -1113,7 +1115,10 @@ export function ProjectFilesTab({
               disabled={uploading}
               inputId="project-files-upload"
               aria-label={t('files.addButton')}
-              className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors"
+              className={cn(
+                'hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors',
+                isEmpty && !isLoading && 'py-12',
+              )}
             >
               <Upload
                 className="text-muted-foreground size-6"
@@ -1154,11 +1159,11 @@ export function ProjectFilesTab({
                 type="button"
                 variant="secondary"
                 size="sm"
+                icon={FolderUp}
                 disabled={uploading}
                 onClick={() => folderInputRef.current?.click()}
               >
-                <FolderUp className="size-4" aria-hidden="true" />
-                {t('files.addFolderButton', { defaultValue: 'Add folder' })}
+                {t('files.addFolderButton')}
               </Button>
             </div>
           </FileUpload.Root>

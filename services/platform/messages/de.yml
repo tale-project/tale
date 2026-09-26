@@ -7616,7 +7616,7 @@ projects:
     indexingStartFailed: Indexierung konnte nicht gestartet werden
     treeLabel: Projektdateien
     addToFolder: Datei zu „{folder}“ hinzufügen
-    addFolderButton: Ordner hinzufügen
+    addFolderButton: Ordner hochladen
     batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     folderGone: Dieser Ordner existiert nicht mehr.

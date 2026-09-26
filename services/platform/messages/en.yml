@@ -4991,7 +4991,7 @@ projects:
     indexingStartFailed: Couldn't start indexing
     treeLabel: Project files
     addToFolder: Add file to "{folder}"
-    addFolderButton: Add folder
+    addFolderButton: Upload folder
     batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
     moreSkipped: +{count} more file(s) were skipped.
     folderGone: That folder no longer exists.
