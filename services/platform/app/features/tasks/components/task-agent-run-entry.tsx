@@ -35,10 +35,12 @@ import {
   useCancelTaskAgentRun,
   useStartTaskAgentRun,
 } from '../hooks/mutations';
+import { taskRunErrorMessage } from '../lib/task-run-error';
 
 interface TaskAgentRunEntryProps {
   organizationId: string;
   taskId: string;
+  assigneeId: string;
   canEdit: boolean;
 }
 
@@ -109,6 +111,7 @@ function TaskAgentRunDetailsDialog({
 export function TaskAgentRunEntry({
   organizationId,
   taskId,
+  assigneeId,
   canEdit,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
@@ -125,6 +128,7 @@ export function TaskAgentRunEntry({
   if (run === undefined) return null;
   const live =
     run !== null && (run.status === 'queued' || run.status === 'running');
+  const previousAssignee = run !== null && run.agentId !== assigneeId;
 
   const handleRetry = async () => {
     setBusy(true);
@@ -144,7 +148,10 @@ export function TaskAgentRunEntry({
       }
     } catch (error) {
       console.error('startTaskAgentRun failed', error);
-      toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+      toast({
+        title: taskRunErrorMessage(error, t) ?? t('agentRun.notStarted'),
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
     }
@@ -185,6 +192,11 @@ export function TaskAgentRunEntry({
 
   return (
     <Stack gap={1} className="min-w-0">
+      {previousAssignee && (
+        <Text variant="caption" className="text-muted-foreground text-pretty">
+          {t('agentRun.previousRun', { name: run.agentName ?? run.harness })}
+        </Text>
+      )}
       {/* One word + one signal: a spinner while the run moves, a coloured
           state dot once it stopped. The agent identity lives in the Assignee
           row right above; harness · model stay one hover away. */}
@@ -257,14 +269,18 @@ export function TaskAgentRunEntry({
             {t('agentRun.cancel')}
           </Button>
         ) : null}
-        {canEdit && (run.status === 'failed' || run.status === 'cancelled') ? (
+        {canEdit &&
+        !live &&
+        (previousAssignee ||
+          run.status === 'failed' ||
+          run.status === 'cancelled') ? (
           <Button
             variant="ghost"
             size="sm"
             disabled={busy}
             onClick={() => void handleRetry()}
           >
-            {t('agentRun.retry')}
+            {t(previousAssignee ? 'agentRun.start' : 'agentRun.retry')}
           </Button>
         ) : null}
       </Row>

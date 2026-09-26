@@ -8,8 +8,10 @@
 export function parseIssueNumber(
   externalId: string | undefined,
 ): number | null {
-  const parsed = Number(externalId?.split('#').pop());
-  return Number.isFinite(parsed) ? parsed : null;
+  const tail = externalId?.split('#').pop();
+  if (tail === undefined || !/^[1-9][0-9]*$/.test(tail)) return null;
+  const parsed = Number(tail);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 /**

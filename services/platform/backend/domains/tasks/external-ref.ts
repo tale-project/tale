@@ -1,3 +1,7 @@
+import {
+  taskExternalIssueSchema,
+  type TaskExternalIssue,
+} from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
@@ -10,6 +14,7 @@ import {
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -17,6 +22,7 @@ import {
   closePendingTaskReviewOnStatusLeave,
   requestTaskReview,
 } from './reviews.ts';
+import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 import {
   applyTaskCountTransition,
   computeEndRank,
@@ -188,6 +194,9 @@ export interface UpsertTaskByExternalRefArgs {
   externalId: string;
   title: string;
   externalUrl?: string;
+  /** Source-only synchronization: stable vendor identity and observed source
+   * content never overwrite the existing Tale task's human-owned fields. */
+  externalIssue?: TaskExternalIssue;
   description?: string;
   /** `'set'` (default) overwrites an existing task's description; `'preserve'`
    * keeps a non-empty one (background re-syncs must not clobber). */
@@ -244,20 +253,60 @@ export async function upsertTaskByExternalRef(
   args: UpsertTaskByExternalRefArgs,
 ): Promise<{ taskId: string | null; created: boolean }> {
   const { externalSystem, externalId } = canonicalExternalRef(args);
+  // Issue state is evidence for triage, including old source-less REST
+  // intakes. Generic desk mirrors keep their explicit lifecycle contract.
+  const lifecycleState =
+    externalSystem === 'github' || externalSystem === 'glitchtip'
+      ? undefined
+      : args.externalState;
   const title =
     truncateImportedTitle(args.title) || `${externalSystem} ${externalId}`;
   const description = args.description?.trim() || undefined;
   const now = Date.now();
-  const createIfMissing = args.createIfMissing ?? true;
+  const parsedSource =
+    args.externalIssue === undefined
+      ? undefined
+      : taskExternalIssueSchema.safeParse(args.externalIssue);
+  if (parsedSource !== undefined && !parsedSource.success) {
+    throw new TaskError(
+      'TASK_EXTERNAL_REF_INVALID',
+      'Invalid external issue snapshot',
+    );
+  }
+  const source = parsedSource?.data;
+  if (source !== undefined && args.projectId === undefined) {
+    throw new TaskError(
+      'TASK_EXTERNAL_REF_INVALID',
+      'Source synchronization requires a projectId',
+    );
+  }
+  const createIfMissing =
+    (args.createIfMissing ?? true) &&
+    (source === undefined || (source.state === 'open' && !source.unavailable));
 
-  const findExisting = (): Promise<TaskRow | null> =>
-    findTaskByExternalRef(tx, {
+  const findExisting = async (): Promise<TaskRow | null> => {
+    if (source !== undefined) {
+      // Lock the source row before reconciling: another sync may have
+      // refreshed it (or claimed a legacy locator) while this one waited.
+      const rows = await tx<TaskRow[]>`
+        SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
+        WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId ?? ''}
+          AND external_system = ${externalSystem}
+          AND (external_source_id = ${source.id}
+            OR (external_source_id IS NULL AND external_id = ${externalId}))
+        ORDER BY (external_source_id = ${source.id}) DESC NULLS LAST
+        LIMIT 1 FOR UPDATE
+      `;
+      return rows[0] ?? null;
+    }
+    return findTaskByExternalRef(tx, {
       organizationId: args.organizationId,
       ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
       externalSystem,
       externalId,
       dedupeScope: args.dedupeScope ?? 'org',
     });
+  };
 
   /** The update lane: reconcile an existing task from the external item.
    * An ARCHIVED task is read-only here as it is at every other door: local
@@ -266,6 +315,48 @@ export async function upsertTaskByExternalRef(
    * reviewer would be belled for on no board. The ref still resolves, so
    * the intake does not create a duplicate. */
   const reconcileExisting = async (existing: TaskRow): Promise<void> => {
+    if (source !== undefined) {
+      // Archived cards still report what happened upstream; archival and
+      // every Tale field stay untouched. An older overlapping observation
+      // cannot replace the source snapshot already committed by a newer run.
+      let updated: { id: string }[];
+      try {
+        updated = await tx<{ id: string }[]>`
+          UPDATE app.tasks SET
+            external_source_id = ${source.id}, external_issue = ${tx.json(source)},
+            external_id = ${externalId}, external_url = ${source.url}, updated_at_ms = ${now}
+          WHERE id = ${existing.id} AND org_id = ${args.organizationId}
+            AND (external_issue IS NULL
+              OR (external_issue ->> 'syncedAt')::bigint <= ${source.syncedAt})
+          RETURNING id
+        `;
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw new TaskError(
+            'TASK_EXTERNAL_REF_INVALID',
+            'This external issue reference already belongs to a different source identity',
+            409,
+          );
+        }
+        throw error;
+      }
+      if (updated.length > 0) {
+        await emitHintInTx(tx, {
+          orgId: args.organizationId,
+          entity: 'task',
+          entityId: existing.id,
+        });
+        await externalRefAudit(tx, {
+          organizationId: args.organizationId,
+          actorId: args.actorId,
+          action: TASK_AUDIT_ACTIONS.updated,
+          taskId: existing.id,
+          title: existing.title,
+          metadata: { externalSystem, externalId, sourceId: source.id },
+        });
+      }
+      return;
+    }
     if (existing.archivedAt !== null) return;
     const preserveDescription =
       args.descriptionMode === 'preserve' &&
@@ -316,7 +407,7 @@ export async function upsertTaskByExternalRef(
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
     if (
-      args.externalState === 'closed' &&
+      lifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
     ) {
       newStatus = completingActor ? 'done' : 'in_review';
@@ -325,7 +416,7 @@ export async function upsertTaskByExternalRef(
       externalClosedAt = now;
       rank = await computeEndRank(tx, existing.projectId, newStatus);
     } else if (
-      args.externalState === 'open' &&
+      lifecycleState === 'open' &&
       (existing.status === 'done' || mirrorParked)
     ) {
       newStatus = SYNC_OPEN_STATUS;
@@ -444,7 +535,9 @@ export async function upsertTaskByExternalRef(
   // Same completion invariant on CREATE: only the workflow engine lands an
   // already-closed item at `done`; anyone else inboxes it for triage.
   const status: TaskStatus =
-    args.externalState === 'closed' && args.actorId === 'workflow'
+    source === undefined &&
+    lifecycleState === 'closed' &&
+    args.actorId === 'workflow'
       ? 'done'
       : SYNC_OPEN_STATUS;
   const rank = await computeEndRank(tx, projectId, status);
@@ -471,22 +564,22 @@ export async function upsertTaskByExternalRef(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, status, priority, label_ids,
       assignee_type, assignee_id, rank, number, external_system, external_id,
-      external_url, completed_at_ms, external_closed_at_ms, created_by,
+      external_url, external_source_id, external_issue,
+      completed_at_ms, external_closed_at_ms, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
       ${args.organizationId}, ${projectId}, ${title}, ${description ?? null},
       ${status}, ${args.priority ?? null}, ${labelIds},
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
       ${rank}, ${number}, ${externalSystem}, ${externalId},
-      ${args.externalUrl ?? null}, ${status === 'done' ? now : null},
+      ${source?.url ?? args.externalUrl ?? null}, ${source?.id ?? null},
+      ${source !== undefined ? tx.json(source) : null}, ${status === 'done' ? now : null},
       ${status === 'done' ? now : null},
       ${createdByUser ? args.actorId : (ownerAutomation ?? args.actorId)},
       ${createdByUser ? 'user' : ownerAutomation !== null ? 'app' : 'agent'},
       ${now}, ${now}, ${now}
     )
-    ON CONFLICT (project_id, external_system, external_id)
-      WHERE external_system IS NOT NULL AND external_id IS NOT NULL
-      DO NOTHING
+    ON CONFLICT DO NOTHING
     RETURNING id
   `;
   const taskId = inserted[0]?.id;
@@ -500,6 +593,13 @@ export async function upsertTaskByExternalRef(
     // serialization failure instead — its retry lands on the update lane.)
     const winner = await findExisting();
     if (!winner) {
+      if (source !== undefined) {
+        throw new TaskError(
+          'TASK_EXTERNAL_REF_INVALID',
+          'This external issue reference already belongs to a different source identity',
+          409,
+        );
+      }
       throw new Error('TASK_CREATE_FAILED: the insert answered no row');
     }
     await reconcileExisting(winner);
@@ -631,6 +731,20 @@ export async function startWorkflowForTaskInTx(
       hashtext(${taskWorkflowStartLockKey(args.organizationId, args.task.id)})
     )
   `;
+  await lockTaskRunStart(tx, args.organizationId, args.task.id);
+  const agents = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId} AND task_id = ${args.task.id}
+      AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  if (agents.length > 0) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'An agent holds this task; cancel it before starting an automation',
+      409,
+    );
+  }
   // Any live run whose subject is this task — no name filter: the rule is
   // per task, and the winner may be another automation's run.
   const liveRun = async (): Promise<string | undefined> => {
@@ -648,6 +762,7 @@ export async function startWorkflowForTaskInTx(
   if (existing !== undefined) {
     return { runId: existing, alreadyRunning: true };
   }
+  await assertTaskAutomationEnabled(tx, args.organizationId);
   const input = taskWorkflowSubjectInput({
     _id: args.task.id,
     title: args.task.title,

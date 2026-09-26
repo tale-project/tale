@@ -10,6 +10,7 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 
+import { taskRunErrorMessage } from '../lib/task-run-error';
 import { useCancelTaskAgentRun, useStartTaskAgentRun } from './mutations';
 import {
   resolveTaskOwnership,
@@ -180,7 +181,10 @@ export function useTaskStatusChoreography(
             return 'blocked';
           } catch (error) {
             console.error('[tasks] agent-run start failed', error);
-            toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+            toast({
+              title: taskRunErrorMessage(error, t) ?? t('agentRun.notStarted'),
+              variant: 'destructive',
+            });
             return 'blocked';
           }
         }
@@ -286,7 +290,9 @@ export function useTaskStatusChoreography(
           } catch (error) {
             console.error('[tasks] status-choreographed start failed', error);
             toast({
-              title: t('run.notStarted', { name: ownership.displayName }),
+              title:
+                taskRunErrorMessage(error, t) ??
+                t('run.notStarted', { name: ownership.displayName }),
               variant: 'destructive',
             });
             return 'blocked';

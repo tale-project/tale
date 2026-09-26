@@ -1,9 +1,9 @@
 ---
 title: Mitgelieferte Automatisierungen
-description: Wähle einen Mail- oder GitHub-Workflow und prüfe vor dem Live-Schalten seine Eingaben, Verbindungen und Schreibvorgänge.
+description: Wähle einen mitgelieferten Mail-, GitHub- oder GlitchTip-Workflow, prüfe Eingaben und Verbindungen und erfahre vor dem Deployment, was er liest oder schreibt.
 ---
 
-Tale enthält acht Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen und zwei für GitHub. Jedes beginnt mit Version 1, einem Zeitplan und **Nicht live**. Nutze sie als Ausgangspunkt. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Inhaber, Admin oder Entwickler eine Version live schaltet.
+Tale enthält zehn Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen, zwei für die GitHub-Prüfung sowie Issue-Importe für GitHub und GlitchTip. Jedes beginnt mit Version 1 und **Nicht live**. Die Issue-Importer laufen manuell; die anderen Pakete enthalten Zeitpläne. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Inhaber, Admin oder Entwickler eine Version live schaltet.
 
 <Frame caption="Der Automatisierungskatalog zeigt Paketnamen, Versionszahlen und Live-Status.">
 
@@ -38,6 +38,19 @@ Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbunde
 | Gmail-Posteingang sichten | Gmail | Alle 6 Stunden |
 | Outlook-Posteingang sichten | Outlook | Alle 6 Stunden |
 | IMAP-Posteingang sichten | IMAP/SMTP | Alle 6 Stunden |
+
+## Issues importieren und synchronisieren
+
+**GitHub-Issues importieren** und **GlitchTip-Issues importieren** verwenden dasselbe Formular, um Issues als Aufgaben anzulegen. Sie beginnen ohne Zeitplan. Die Importe lesen die Quelle und schreiben Tale-Aufgaben. Sie kommentieren, schließen oder verändern keine Issues in der Quelle und starten keinen Agenten.
+
+1. Verbinde die Quelle unter **Einstellungen > Connectors** und wähle die Standard-Zugangsdaten. GitHub benötigt Repository-Zugriff mit Leserechten für Issues. GlitchTip benötigt die Instanz-URL und ein Token mit `project:read` und `event:read`. Ein Token nur für die Projekteinrichtung kann keine Issues lesen. Selbst gehostete Instanzen müssen durch die Host-Richtlinie des Connectors erlaubt sein.
+2. Öffne den Importer und wähle **Testlauf**. Wähle das **Tale-Projekt** und gib den GitHub-Inhaber samt Repository oder die Organisations- und Projektkennung von GlitchTip ein. Optionale Labels oder eine GlitchTip-Suche grenzen die Suche nach neuen Issues ein. **Maximale Anzahl an Issues** erlaubt 1–500; der Standard ist 100.
+3. Prüfe das Testergebnis, schalte die Version live und wähle **Live ausführen** mit demselben Ziel und denselben Filtern. Ein Testlauf verwendet Beispieldaten und erstellt keine Aufgaben. Erst ein Live-Durchlauf prüft die tatsächliche Verbindung.
+4. Öffne **Läufe** und wähle den Durchlauf. **Importierte Aufgaben** verlinkt die zugehörigen Tale-Aufgaben. Wenn ein weiterer Stapel verbleibt, übernimmt **Import fortsetzen** Quelle, Ziel und Fortsetzungsposition für den nächsten Durchlauf.
+
+Jede Synchronisierung sucht neue Issues und aktualisiert bis zu 500 verknüpfte Issues, beginnend mit den am längsten nicht geprüften. Das gilt auch für verknüpfte Issues, die nicht mehr zum Suchfilter passen. Wiederhole den Durchlauf, um große Bestände aktuell zu halten. GitHub-Pull-Requests sind ausgeschlossen. Wiederholungen verwenden innerhalb eines Tale-Projekts dieselbe Quellidentität. Wird ein Repository oder Projekt umbenannt, ändert sich der Link zur Quelle, ohne eine zweite Aufgabe anzulegen.
+
+Die Quellenkarte einer Aufgabe zeigt den aktuellen Titel, die Beschreibung und den Status der Quelle getrennt an. Wird ein Issue geschlossen oder behoben, bleiben Status, Titel, Beschreibung, Zuweisung und Priorität der Tale-Aufgabe erhalten. Ist ein Issue nicht mehr erreichbar, bleiben seine zuletzt bekannten Angaben sichtbar. Authentifizierungsfehler und Ratenbegrenzungen lassen den Durchlauf fehlschlagen, statt das Issue als gelöscht zu kennzeichnen. Prüfe und erledige die Arbeit weiterhin in Tale.
 
 ## GitHub-Arbeit prüfen
 

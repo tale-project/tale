@@ -3837,7 +3837,11 @@ export function buildSpec(): Json {
             type: 'string',
             enum: ['open', 'closed'],
             description:
-              'The source item’s lifecycle (default `open`). `closed` parks ' +
+              'The source item’s lifecycle (default `open`). For externalSystem ' +
+              '`github` or `glitchtip`, this field never changes Tale status: new ' +
+              'tasks enter `backlog`, and local progress stays authoritative on ' +
+              'every repeat. Issue import automations show source status separately. ' +
+              'For other source systems, `closed` parks ' +
               'the task at `in_review` for a person to complete — only the ' +
               'workflow engine itself lands a close at `done`. `open` ' +
               'reopens a task the mirror closed — one it parked at ' +
@@ -4054,7 +4058,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Start a deployed workflow on a project task',
       description:
-        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run, whichever automation started it: a start while one is live reuses it. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
+        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run across agents and automations: a live automation run is reused; a live project-agent run refuses the start with 409 `TASK_HAS_LIVE_RUN` until it finishes or is cancelled. New work also requires task automation to be enabled: 403 `TASK_AUTOMATION_DISABLED` when off, 409 `TASK_AUTOMATION_UNAVAILABLE` when its policy cannot be read. Existing runs continue. After those guards the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
       operationId: 'startTaskWorkflow',
       security: sec,
       parameters: taskParameters,
@@ -4101,7 +4105,7 @@ export function buildSpec(): Json {
         }),
         '403': errorResponse(
           'Project is read-only or archived, the task is archived ' +
-            '(`TASK_ARCHIVED`), or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`)',
+            '(`TASK_ARCHIVED`), the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`), or task automation is off (`TASK_AUTOMATION_DISABLED`)',
         ),
         '404': errorResponse(
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the ' +
@@ -4112,7 +4116,7 @@ export function buildSpec(): Json {
         '409': errorResponse(
           '`workflowSlug` names an automation that is saved but has no ' +
             'deployed version (`AUTOMATION_NOT_DEPLOYED`) — deploy it, then ' +
-            'start again',
+            'start again; an agent run holds the task (`TASK_HAS_LIVE_RUN`) — wait for it or cancel it; or the task-automation policy is unreadable (`TASK_AUTOMATION_UNAVAILABLE`)',
         ),
         ...standardErrors,
       },

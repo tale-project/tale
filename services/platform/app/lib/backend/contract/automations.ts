@@ -200,6 +200,7 @@ export interface AutomationsContract {
     kind: 'query';
     args: { organizationId: string; runId: string };
     returns: null | {
+      projectId?: string;
       finishedAt?: number;
       startedAt: number;
       detail?: string;

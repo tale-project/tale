@@ -100,6 +100,17 @@ const NATIVE_ACTIONS: Array<{
     input: { skill: 'document-verify', entry: 'scripts/run_batch.py' },
   },
   {
+    impl: 'task.upsert',
+    connector: 'task',
+    action: 'upsert',
+    input: {
+      projectId: 'proj_1',
+      externalSystem: 'github',
+      externalId: 'owner/repo#1',
+      title: 'Issue',
+    },
+  },
+  {
     impl: 'task.get',
     connector: 'task',
     action: 'get',
@@ -289,6 +300,16 @@ const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
 
 /** Task and document store doubles — the declared shapes, no Convex. */
 const taskStore: WorkflowTaskStore = {
+  upsertIssues: ({ issues }) =>
+    Promise.resolve(
+      issues.map((issue) => ({
+        taskId: 'task_1',
+        created: true,
+        title: issue.title,
+      })),
+    ),
+  listExternalIssues: () => Promise.resolve({ issues: [], hasMore: false }),
+  upsert: () => Promise.resolve({ taskId: 'task_1', created: true }),
   get: ({ taskId }) =>
     Promise.resolve({
       taskId,

@@ -1,0 +1,14 @@
+name: Import GitHub issues
+description: Create Tale tasks from GitHub issues. Repeat imports reuse existing tasks and preserve local progress and descriptions.
+icon: list-checks
+labels: [GitHub, Issues]
+scope: org
+requires:
+  connectors: [github, task]
+i18n:
+  de:
+    name: GitHub-Issues importieren
+    description: Erstellt Tale-Aufgaben aus GitHub-Issues. Wiederholte Importe verwenden bestehende Aufgaben und behalten den lokalen Fortschritt und die Beschreibungen bei.
+  fr:
+    name: Importer les issues GitHub
+    description: Crée des tâches Tale à partir des issues GitHub. Les imports suivants réutilisent les tâches existantes et conservent leur avancement et leurs descriptions.

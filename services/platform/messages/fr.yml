@@ -547,6 +547,29 @@ auth:
       completeMfa: Terminer la connexion multifacteur
       contactAdminMessage: Contacte ton administration pour résoudre ce problème.
 automations:
+  issueImport:
+    description: Importe les issues sous forme de tâches Tale. Un nouvel import réutilise les tâches liées et conserve leur statut et leur description. Configure d'abord les identifiants de la source dans Paramètres > Connectors.
+    chooseProject: Choisir un projet Tale
+    noProjects: Aucun projet trouvé. Crée un projet avant d'importer des issues.
+    limitHint: 'Lis entre 1 et 500 issues de la source par exécution. Si d''autres issues correspondent, poursuis l''import depuis le résultat.'
+    fields:
+      projectId: Projet Tale
+      owner: Propriétaire ou organisation GitHub
+      repo: Dépôt GitHub
+      labels: Labels GitHub (séparés par des virgules)
+      organization: Identifiant de l'organisation GlitchTip
+      project: Identifiant du projet GlitchTip
+      query: Recherche GlitchTip
+      limit: Nombre maximal d'issues
+    resultTitle: Tâches importées
+    summary: '{imported} issues traitées. Nouvelles tâches : {created}. Tâches existantes : {updated}.'
+    mockResult: Ceci est un résultat de test. Aucune issue n'a été récupérée et aucune tâche n'a été écrite.
+    openTask: 'Ouvrir la tâche {id}'
+    truncated: 'D''autres issues correspondent aux filtres. Poursuis l''import pour lire le lot suivant. Les issues déjà liées réutilisent leurs tâches Tale.'
+    continuing: 'Reprends à partir du lot suivant. Modifier les filtres de la source ou le projet Tale lance une nouvelle recherche.'
+    continue: 'Poursuivre l''import'
+    skipped: 'Issues ignorées : {count}. Les issues fermées ou résolues sans tâche Tale liée ne sont pas importées.'
+    refreshHasMore: 'D''autres tâches liées nécessitent une actualisation de la source. Relance l''import pour le groupe suivant ; Tale vérifie les contrôles les plus anciens en premier.'
   title: Automatisations
   entityLabel: automatisations
   entityLabelOne: automatisation
@@ -6907,6 +6930,17 @@ projectSecrets:
       administrateurs du projet peuvent les consulter ou les gérer.
     PROJECT_NOT_FOUND: Ce projet n'existe plus.
 tasks:
+  sourceIssue:
+    heading: 'Issue {provider}'
+    state:
+      open: Ouverte à la source
+      closed: Fermée à la source
+      resolved: Résolue à la source
+      ignored: Ignorée à la source
+    unavailable: Cette connexion ne peut plus accéder à l'issue. Les dernières informations connues sont conservées et la tâche Tale reste inchangée.
+    synced: 'Source vérifiée le {date}'
+    independentStatus: Le statut de la source est indépendant de cette tâche. Vérifie et termine la tâche dans Tale.
+    description: Description de la source
   run:
     started: '{name} a démarré et prend cette tâche en charge.'
     alreadyRunning: '{name} travaille déjà sur cette tâche.'
@@ -6942,6 +6976,9 @@ tasks:
     cancelConfirmBody: "L'exécution {name} sur cette tâche s'arrête ; la tâche passe à Annulé et peut être relancée."
     cancelConfirmMove: Une exécution travaille encore sur cette tâche — la sortir de En cours annule cette exécution. Elle pourra être relancée ensuite.
   agentRun:
+    automationDisabled: 'L’automatisation des tâches est désactivée. Demande à un administrateur de l’organisation de l’activer.'
+    automationUnavailable: 'L’automatisation des tâches est indisponible. Demande à un administrateur de l’organisation de vérifier sa politique.'
+    previousRun: 'Exécution précédente de {name}'
     label: Exécution
     started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
     alreadyRunning: L'agent de cette tâche tourne déjà.

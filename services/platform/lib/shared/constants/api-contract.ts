@@ -184,5 +184,15 @@
  * clear it with `teamId: null`, named by `source` and `externalId` like
  * every mirror route. Admin and owner keys only. New code
  * `CONVERSATION_NOT_FOUND` (404) for a mirror no snapshot created.
+ *
+ * 2.0.0 — 2026-09-26: GitHub and GlitchTip intake no longer lets
+ * `externalState` move Tale task status. New tasks enter backlog; existing
+ * local progress stays authoritative. Other external systems keep the
+ * mirrored close/reopen policy used by the generic desks. Task workflow
+ * starts also refuse an active project-agent run with 409
+ * `TASK_HAS_LIVE_RUN`; both engine families share one task start fence,
+ * including concurrent requests under frozen snapshots. New task work
+ * obeys the task-automation policy: 403 `TASK_AUTOMATION_DISABLED` or 409
+ * `TASK_AUTOMATION_UNAVAILABLE`.
  */
-export const API_CONTRACT_VERSION = '1.21.0';
+export const API_CONTRACT_VERSION = '2.0.0';

@@ -1,0 +1,14 @@
+name: Import GlitchTip issues
+description: Create Tale tasks from GlitchTip issues. Repeat imports reuse existing tasks and preserve local progress and descriptions.
+icon: list-checks
+labels: [GlitchTip, Issues]
+scope: org
+requires:
+  connectors: [glitchtip, task]
+i18n:
+  de:
+    name: GlitchTip-Issues importieren
+    description: Erstellt Tale-Aufgaben aus GlitchTip-Issues. Wiederholte Importe verwenden bestehende Aufgaben und behalten den lokalen Fortschritt und die Beschreibungen bei.
+  fr:
+    name: Importer les issues GlitchTip
+    description: Crée des tâches Tale à partir des issues GlitchTip. Les imports suivants réutilisent les tâches existantes et conservent leur avancement et leurs descriptions.

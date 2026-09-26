@@ -457,7 +457,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
-      "description": "Wähle einen Mail- oder GitHub-Workflow und prüfe vor dem Live-Schalten seine Eingaben, Verbindungen und Schreibvorgänge."
+      "description": "Wähle einen mitgelieferten Mail-, GitHub- oder GlitchTip-Workflow, prüfe Eingaben und Verbindungen und erfahre vor dem Deployment, was er liest oder schreibt."
     }
   },
   "de:platform/automations/catalog": {
@@ -1593,7 +1593,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Built-in automations",
-      "description": "Choose a shipped mail or GitHub workflow, check its inputs and connections, and understand what it reads or writes before deployment."
+      "description": "Choose a shipped mail, GitHub or GlitchTip workflow, check its inputs and connections, and understand what it reads or writes before deployment."
     }
   },
   "en:platform/automations/catalog": {
@@ -2729,7 +2729,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisations livrées",
-      "description": "Choisis un workflow de courrier ou GitHub et vérifie ses données, connexions et écritures avant sa mise en service."
+      "description": "Choisis un workflow fourni pour les e-mails, GitHub ou GlitchTip, vérifie ses entrées et connexions et découvre ce qu’il lit ou écrit avant le déploiement."
     }
   },
   "fr:platform/automations/catalog": {

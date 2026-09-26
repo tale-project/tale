@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(18);
+    expect(loaded.connectors).toHaveLength(19);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,

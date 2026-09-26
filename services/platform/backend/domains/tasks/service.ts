@@ -1,3 +1,4 @@
+import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -41,6 +42,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { TaskError } from './errors.ts';
 import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
@@ -92,24 +94,7 @@ export {
 } from '../../core/tasks/helpers.ts';
 export const TASK_BOARD_CAP = 2000;
 
-export class TaskError extends Error {
-  readonly code: string;
-  readonly status: 400 | 403 | 404 | 409;
-  readonly data: Record<string, unknown> | undefined;
-
-  constructor(
-    code: string,
-    message: string,
-    status: 400 | 403 | 404 | 409 = 400,
-    data?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = 'TaskError';
-    this.code = code;
-    this.status = status;
-    this.data = data;
-  }
-}
+export { TaskError } from './errors.ts';
 
 export interface TaskRow {
   id: string;
@@ -132,6 +117,8 @@ export interface TaskRow {
   externalSystem: string | null;
   externalId: string | null;
   externalUrl: string | null;
+  externalSourceId?: string | null;
+  externalIssue?: TaskExternalIssue | null;
   threadId: string | null;
   discussionThreadId: string | null;
   sourceDiscussionThreadId: string | null;
@@ -165,7 +152,8 @@ export const TASK_COLUMNS = `
   assignee_id AS "assigneeId", reviewer_user_id AS "reviewerUserId",
   parent_task_id AS "parentTaskId", comment_count AS "commentCount", rank,
   external_system AS "externalSystem", external_id AS "externalId",
-  external_url AS "externalUrl", thread_id AS "threadId",
+  external_url AS "externalUrl", external_source_id AS "externalSourceId",
+  external_issue AS "externalIssue", thread_id AS "threadId",
   discussion_thread_id AS "discussionThreadId",
   source_discussion_thread_id AS "sourceDiscussionThreadId",
   start_date_ms::float8 AS "startDate",

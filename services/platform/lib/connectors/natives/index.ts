@@ -23,6 +23,7 @@ import {
   type MailboxConfigResolver,
   type MailTransport,
 } from './imap-smtp';
+import { issueImportNatives } from './issue-import';
 import {
   platformConversationNatives,
   type WorkflowConversationStore,
@@ -132,6 +133,12 @@ export const NATIVE_IMPL_IDS = [
   'conversation.sync_mailbox',
   'document.create',
   'document.list',
+  'github.get_import_issue',
+  'github.list_import_issues',
+  'github.refresh_import_issues',
+  'glitchtip.get_import_issue',
+  'glitchtip.list_import_issues',
+  'glitchtip.refresh_import_issues',
   'imap-smtp.list_messages',
   'imap-smtp.get_message',
   'imap-smtp.send',
@@ -139,7 +146,10 @@ export const NATIVE_IMPL_IDS = [
   'task.comment',
   'task.get',
   'task.list_comments',
+  'task.list_external_issues',
   'task.update_status',
+  'task.upsert',
+  'task.upsert_issues',
   'webdav.delete',
   'webdav.list',
   'webdav.read',
@@ -158,6 +168,7 @@ export function registerNativeConnectors(
   deps: NativeConnectorDeps,
 ): () => void {
   const impls = {
+    ...issueImportNatives(),
     ...imapSmtpNatives({
       transport: deps.mailTransport ?? nodeMailTransport(),
       resolveAttachment: deps.mailAttachments,

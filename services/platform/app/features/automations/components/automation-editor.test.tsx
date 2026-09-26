@@ -265,7 +265,11 @@ beforeEach(() => {
   saveMutation.isPending = false;
   toastSpy.mockClear();
   onSelectVersion.mockClear();
-  startRun.mutate.mockClear();
+  startRun.mutate.mockReset();
+  startRun.mutate.mockImplementation(
+    (_args: unknown, callbacks: { onSuccess?: () => void }) =>
+      callbacks.onSuccess?.(),
+  );
   deploy.mutate.mockReset();
   projectsData.list = [];
   projectsData.bound = [];
@@ -650,9 +654,8 @@ describe('AutomationEditor', () => {
   });
 
   it('closes the Run live confirm as soon as the run is started', async () => {
-    // startRun only schedules the run — a later LIVE_BODY_FAILED is a run
-    // outcome, not a start refusal. Waiting on the mutation would leave the
-    // dialog stuck open after a failed live fetch.
+    // An accepted start closes the dialog; later execution failures belong
+    // to the run. A start refusal instead keeps the editable input below.
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'Run live' }));
     const dialog = screen.getByRole('dialog', { name: 'Run live?' });
@@ -669,6 +672,30 @@ describe('AutomationEditor', () => {
       expect.any(Object),
     );
     expect(screen.queryByRole('dialog', { name: 'Run live?' })).toBeNull();
+  });
+
+  it('keeps run input and the refusal visible when scheduling fails', async () => {
+    state.document = {
+      name: 'billing/dunning',
+      inputs: { type: 'object' },
+      nodes: [{ id: 'summary', type: 'transform', code: 'return input;' }],
+    };
+    startRun.mutate.mockImplementation(
+      (_args: unknown, callbacks: { onError: (error: Error) => void }) =>
+        callbacks.onError(new Error('Connection unavailable')),
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+    const dialog = screen.getByRole('dialog', { name: 'Test run' });
+    const input = within(dialog).getByRole('textbox', {
+      name: 'Run input (JSON)',
+    });
+    await user.clear(input);
+    await user.paste('{"owner":"example"}');
+    await user.click(within(dialog).getByRole('button', { name: 'Test run' }));
+    expect(dialog).toBeVisible();
+    expect(input).toHaveValue('{"owner":"example"}');
+    expect(within(dialog).getByText('Connection unavailable')).toBeVisible();
   });
 
   it('offers no run-scope picker unless the automation is multi-bound', () => {

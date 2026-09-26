@@ -93,3 +93,55 @@ describe('localized workflow task comments', () => {
     },
   );
 });
+
+describe('external issue task intake', () => {
+  const input = {
+    projectId: 'project-1',
+    externalSystem: 'github',
+    externalId: 'example/web#1',
+    title: 'Issue',
+    externalUrl: 'https://github.com/example/web/issues/1',
+  };
+
+  it('takes organization and caller from the trusted context', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ taskId: 'task-1', created: true });
+    const native = platformTaskNatives({ upsert } as never)['task.upsert'];
+    const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' };
+    await expect(
+      native?.(input, { organizationId: 'org-1', caller } as never),
+    ).resolves.toEqual({ taskId: 'task-1', created: true, title: 'Issue' });
+    expect(upsert).toHaveBeenCalledWith({
+      ...input,
+      organizationId: 'org-1',
+      caller,
+    });
+  });
+
+  it.each([
+    { ...input, projectId: ' ' },
+    { ...input, externalId: '' },
+    { ...input, externalUrl: 'javascript:alert(1)' },
+    { ...input, externalState: 'closed' },
+    { ...input, organizationId: 'foreign' },
+    { ...input, description: 'x'.repeat(100001) },
+  ])('rejects invalid input before writing', async (invalid) => {
+    const upsert = vi.fn();
+    const native = platformTaskNatives({ upsert } as never)['task.upsert'];
+    await expect(
+      native?.(invalid, { organizationId: 'org-1' } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('refuses a missing caller even with valid input', async () => {
+    const upsert = vi.fn();
+    await expect(
+      platformTaskNatives({ upsert } as never)['task.upsert']?.(input, {
+        organizationId: 'org-1',
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+});

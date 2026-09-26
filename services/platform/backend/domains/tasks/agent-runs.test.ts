@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   cancelAgentRunInTx,
   failAgentRunFromTurn,
@@ -12,6 +13,9 @@ import {
 } from './agent-runs.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
+vi.mock('../../lib/org-config.ts', () => ({
+  readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
+}));
 vi.mock('./run-ledger.ts', () => ({ recordTaskAgentRunLedgerEntry: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
@@ -247,6 +251,7 @@ describe('launchAgentRun — the running flip is exec-fenced', () => {
 
 describe('kickAgentRun — one live run per task is the schema’s rule', () => {
   beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
     vi.mocked(addJobInTx).mockReset();
   });
 
@@ -260,6 +265,32 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     startedBy: 'u-1',
   };
 
+  it('refuses new work when task automation is disabled, without scheduling a turn', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({ enabled: false });
+    const { tx, statements } = fakeTx(() => []);
+    await expect(kickAgentRun(tx, kick)).rejects.toMatchObject({
+      code: 'TASK_AUTOMATION_DISABLED',
+      status: 403,
+    });
+    expect(statements.some((text) => text.startsWith('INSERT'))).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing run available while new task work is disabled', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({ enabled: false });
+    const { tx } = fakeTx((text) =>
+      text.startsWith('SELECT id, exec_id')
+        ? [{ id: 'standing', execId: 'exec' }]
+        : [],
+    );
+    await expect(kickAgentRun(tx, kick)).resolves.toEqual({
+      runId: 'standing',
+      execId: 'exec',
+      reused: true,
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
   it('inserts under the live-run unique index and enqueues the turn on a win', async () => {
     const { tx, statements } = fakeTx((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs')
@@ -269,6 +300,8 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     const result = await kickAgentRun(tx, kick);
     expect(result.reused).toBe(false);
     expect(result.runId).toBe('run-new');
+    expect(statements[0]).toContain('UPDATE app.tasks');
+    expect(statements[1]).toContain('SELECT id FROM app.automation_runs');
     const insert = statements.find((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs'),
     );
@@ -279,6 +312,20 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     );
     expect(addJobInTx).toHaveBeenCalledTimes(1);
     expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_turn');
+  });
+
+  it('refuses a live automation without creating an agent run or launch job', async () => {
+    const { tx, statements } = fakeTx((text) =>
+      text.startsWith('SELECT id FROM app.automation_runs')
+        ? [{ id: 'automation-live' }]
+        : [],
+    );
+    await expect(kickAgentRun(tx, kick)).rejects.toMatchObject({
+      code: 'TASK_HAS_LIVE_RUN',
+      status: 409,
+    });
+    expect(statements.some((text) => text.startsWith('INSERT'))).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
   it('a lost insert answers with the concurrent winner’s run and enqueues nothing', async () => {

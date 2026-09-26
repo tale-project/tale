@@ -1,0 +1,85 @@
+version: 1
+name: github-import-issues
+description: Import new open issues and refresh linked source details without changing Tale edits or status.
+inputs:
+  type: object
+  additionalProperties: false
+  required: [projectId, owner, repo]
+  properties:
+    projectId: { type: string, minLength: 1 }
+    owner: { type: string, minLength: 1, maxLength: 100 }
+    repo: { type: string, minLength: 1, maxLength: 100 }
+    labels: { type: string, maxLength: 1000 }
+    limit: { type: integer, minimum: 1, maximum: 500 }
+    cursor: { type: string, maxLength: 12000 }
+nodes:
+  - id: issues
+    type: github.list_import_issues
+    input:
+      owner: '{{ input.owner }}'
+      repo: '{{ input.repo }}'
+      labels: '{{ input.labels ?? "" }}'
+      limit: '{{ input.limit ?? 100 }}'
+      cursor: '{{ input.cursor ?? "" }}'
+  - id: known
+    type: task.list_external_issues
+    input:
+      projectId: '{{ input.projectId }}'
+      externalSystem: github
+      limit: 500
+      legacyPrefixes: '{{ nodes.issues.output.legacyPrefixes ?? [] }}'
+      repositoryId: '{{ nodes.issues.output.repositoryId }}'
+  - id: refreshed
+    type: github.refresh_import_issues
+    input:
+      issues: '{{ nodes.known.output.issues }}'
+      repositoryId: '{{ nodes.issues.output.repositoryId }}'
+  - id: refreshed_tasks
+    type: task.upsert_issues
+    input:
+      projectId: '{{ input.projectId }}'
+      issues: '{{ nodes.refreshed.output }}'
+  - id: tasks
+    type: task.upsert_issues
+    input:
+      projectId: '{{ input.projectId }}'
+      issues: '{{ nodes.issues.output.issues }}'
+  - id: report
+    type: transform
+    input:
+      tasks: '{{ nodes.tasks.output }}'
+      refreshed: '{{ nodes.refreshed_tasks.output }}'
+      refreshHasMore: '{{ nodes.known.output.hasMore }}'
+      nextCursor: '{{ nodes.issues.output.nextCursor }}'
+    code: |
+      const results = [...(input.refreshed ?? []), ...(input.tasks ?? [])];
+      const unique = new Map();
+      let skipped = 0;
+      for (const task of results) {
+        if (!task.taskId) { skipped++; continue; }
+        const previous = unique.get(task.taskId);
+        unique.set(task.taskId, { ...task, created: task.created || previous?.created || false });
+      }
+      const tasks = [...unique.values()];
+      const created = tasks.filter((task) => task.created).length;
+      return { imported: tasks.length, created, updated: tasks.length - created, skipped, truncated: Boolean(input.nextCursor), nextCursor: input.nextCursor ?? null, refreshHasMore: input.refreshHasMore === true, tasks };
+output: '{{ nodes.report.output }}'
+tests:
+  - name: imports an issue into the selected project
+    input:
+      projectId: proj_mock
+      owner: example
+      repo: example
+    expect:
+      output:
+        imported: 1
+        created: 1
+        updated: 0
+        skipped: 0
+        truncated: false
+        nextCursor: null
+        refreshHasMore: false
+        tasks:
+          - taskId: task_github_example/example#1
+            created: true
+            title: Example issue

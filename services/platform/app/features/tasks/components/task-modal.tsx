@@ -106,6 +106,7 @@ import { TaskAutomationRunEntry } from './task-automation-run-entry';
 import { TaskCommentComposer, TaskComments } from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDependencies } from './task-dependencies';
+import { TaskExternalIssueCard } from './task-external-issue-card';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
@@ -1344,6 +1345,12 @@ export function EditTaskBody({
                 what it is, what to do next — and keeps the description as the
                 optional note it is, below the files (see the tail of this
                 column). */}
+      <TaskExternalIssueCard
+        externalSystem={task.externalSystem}
+        externalId={task.externalId}
+        externalUrl={task.externalUrl}
+        externalIssue={task.externalIssue}
+      />
       {ownedBy === null && descriptionSection}
 
       {ownedBy !== null && (
@@ -1658,11 +1665,12 @@ export function EditTaskBody({
       </PropertyField>
       {/* The agent lane's status + verbs live WITH the assignee — the
                 run is Alice's state, not a second card in the task body. */}
-      {task.assigneeType === 'agent' && (
+      {task.assigneeType === 'agent' && task.assigneeId && (
         <PropertyField label={t('agentRun.label')}>
           <TaskAgentRunEntry
             organizationId={task.organizationId}
             taskId={task._id}
+            assigneeId={task.assigneeId}
             canEdit={canMutate}
           />
         </PropertyField>

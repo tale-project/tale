@@ -38,6 +38,7 @@ import {
   updateMessageText,
 } from '../threads/store.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import { taskAutomationEnabled } from './run-start.ts';
 import {
   assertTaskReadable,
   assertTaskWritable,
@@ -70,6 +71,25 @@ export { TASK_COMMENT_MAX };
 interface CommentAuthor {
   actorType: 'user' | 'agent';
   actorId: string;
+}
+
+/** A broken policy blocks automatic starts, not the discussion itself.
+ * Explicit start actions retain their actionable configuration error. */
+async function commentAutomationEnabled(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  try {
+    return await taskAutomationEnabled(tx, organizationId);
+  } catch (error) {
+    if (
+      error instanceof TaskError &&
+      error.code === 'TASK_AUTOMATION_UNAVAILABLE'
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function ensureTaskDiscussionThread(
@@ -786,6 +806,7 @@ async function dispatchMentionedProjectAgent(
     }
   }
   if (instance === undefined) return;
+  if (!(await commentAutomationEnabled(tx, args.auth.organizationId))) return;
   // An automation-driven task keeps its automation — one engine per task.
   if (await taskHasLiveAutomationRun(tx, args.task)) return;
   if (instance.model === '') {
@@ -910,6 +931,8 @@ async function maybeTriggerOwningAutomation(
     LIMIT 1
   `;
   if (liveAgentRun.length > 0) return false;
+  if (!(await commentAutomationEnabled(tx, args.auth.organizationId)))
+    return false;
 
   // ENQUEUED, not started inline: the comment must commit first (the
   // workflow re-reads the timeline including it), and the start needs a

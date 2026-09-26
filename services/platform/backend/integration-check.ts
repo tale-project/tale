@@ -62,6 +62,8 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -14301,11 +14303,9 @@ async function checkRestMachineJourney(
       await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
     );
 
-  // The external lifecycle is a two-way door for the mirror (round e,
-  // E2-02): `closed` parks the task at in_review and stamps the park as the
-  // mirror's; `open` lifts exactly that park back to backlog and clears the
-  // stamp — `open` used to lift `done` alone, so a mirror could never undo
-  // a close it made.
+  // Source-only issue lifecycle also protects historical REST callers that
+  // supply externalState without the new source snapshot. Generic desk
+  // lifecycle mirroring is covered by the task-review integrity lane.
   const mirrorRef = {
     externalSystem: 'github',
     externalId: 'journey-issue-7',
@@ -14328,8 +14328,8 @@ async function checkRestMachineJourney(
   const afterReopen = await stampOf();
   const mirrorLaneOk =
     mirrorClosed.status === 200 &&
-    afterClose?.status === 'in_review' &&
-    typeof afterClose.externalClosedAt === 'number' &&
+    afterClose?.status === 'backlog' &&
+    afterClose.externalClosedAt === null &&
     mirrorReopened.status === 200 &&
     afterReopen?.status === 'backlog' &&
     afterReopen.externalClosedAt === null;
@@ -14653,7 +14653,7 @@ async function checkRestMachineJourney(
       twinDeleted.status === 204 &&
       twinGone.status === 404 &&
       twinKeyFree.status === 201,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), retry=${retryLaneOk}(${retryIndexing.success ? retryIndexing.data.status : 'ERR'} row=${JSON.stringify(retryRow ?? null)} want indexing + skip=false + a status; hub=${hubRetry.status}/${hubRetryBody.success ? hubRetryBody.data.code : 'ERR'} want 404 DOCUMENT_NOT_FOUND), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), mirror close/open=${mirrorLaneOk}(${mirrorClosed.status}/${afterClose?.status}/${typeof afterClose?.externalClosedAt} → ${mirrorReopened.status}/${afterReopen?.status}/${String(afterReopen?.externalClosedAt)} want 200/in_review/number → 200/backlog/null), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), retry=${retryLaneOk}(${retryIndexing.success ? retryIndexing.data.status : 'ERR'} row=${JSON.stringify(retryRow ?? null)} want indexing + skip=false + a status; hub=${hubRetry.status}/${hubRetryBody.success ? hubRetryBody.data.code : 'ERR'} want 404 DOCUMENT_NOT_FOUND), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), mirror close/open=${mirrorLaneOk}(${mirrorClosed.status}/${afterClose?.status}/${typeof afterClose?.externalClosedAt} → ${mirrorReopened.status}/${afterReopen?.status}/${String(afterReopen?.externalClosedAt)} want 200/backlog/object → 200/backlog/null), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
   );
 }
 
@@ -52003,6 +52003,20 @@ async function checkOrganizationLifecycle(
   const slugB = `itest-life-b-${orgSuffix}`;
   const orgA = await createOrg(owner.cookie, 'Life A', slugA);
   const orgB = await createOrg(owner.cookie, 'Life B', slugB);
+  // Creation asynchronously scaffolds each org with cleanFirst. Its worker
+  // must finish before the markers below, or it can remove the very tree
+  // this lane is checking while the retirement assertions run.
+  const scaffoldsDrained = await waitFor(async () => {
+    const rows = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM pgboss.job
+      WHERE name = 'org.scaffold'
+        AND data ->> 'orgSlug' IN (${slugA}, ${slugB})
+        AND state IN ('created', 'retry', 'active', 'failed')
+    `;
+    return rows[0]?.count === 0;
+  }, 10_000);
+  if (!scaffoldsDrained)
+    throw new Error('Organization lifecycle fixture scaffolds did not drain');
   const dirA = path.join(configRoot, slugA);
   const dirB = path.join(configRoot, slugB);
   for (const dir of [dirA, dirB]) {
@@ -53332,6 +53346,14 @@ async function main(): Promise<void> {
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
       ['checkOneLiveRunPerTask', () => checkOneLiveRunPerTask(sql, authCtx)],
+      [
+        'checkTaskRunStartFence',
+        () => checkTaskRunStartFence(sql, authCtx, record),
+      ],
+      [
+        'checkTaskExternalIssueSync',
+        () => checkTaskExternalIssueSync(sql, authCtx, record),
+      ],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),
