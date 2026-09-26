@@ -88,9 +88,9 @@ if you want to keep a write.
   chat input.)
 - [ ] `RESP-F5` · **DataTable page** — At 390 px, open
   `/dashboard/{org}/contacts` → The page settles into either the **Add** menu
-  button (`contacts.addButton`; its menu holds **Manual entry** / **From your
-  device**, `contacts.importMenu.manualEntry` /
-  `contacts.importMenu.fromDevice`) **or** the empty state **No contacts yet**
+  button (`contacts.addButton`; its menu holds **From your device** / **Manual
+  entry**, `contacts.importMenu.fromDevice` /
+  `contacts.importMenu.manualEntry`) **or** the empty state **No contacts yet**
   (`emptyStates.contacts.title`) — both prove the table chrome rendered. No
   action is clipped off-screen.
 - [ ] `RESP-F6` · **Dialog / sheet** — At 390 px, open a create dialog (e.g.
