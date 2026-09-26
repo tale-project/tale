@@ -28,6 +28,8 @@ A prefill also grows with the prompt, which no gateway knob bounds. A managed Cl
 
 A local server's prompt cache only helps when consecutive requests share their beginning. Claude Code opens every system prompt with an attribution line whose checksum changes on each request (`x-anthropic-billing-header: …; cch=…;`), which Anthropic's API reads and any other server takes as text. For a model that is not Claude, a managed turn therefore sets `CLAUDE_CODE_ATTRIBUTION_HEADER=0`, and each turn reuses the whole previous prompt instead of recomputing everything after the tool definitions.
 
+A server with several replicas keeps that prefix in one replica's cache, so a balancer that picks a replica by load alone sends later turns of one conversation to a replica that has to prefill it again. A managed Claude Code turn on a model that is not Claude therefore names its exec in every request (`ANTHROPIC_CUSTOM_HEADERS` carries `x-bf-eh-x-tale-cache-affinity: <exec id>`), which the gateway forwards upstream as `X-Tale-Cache-Affinity`; a balancer can hash that header to keep the turn on one replica, and an upstream that ignores it is unaffected.
+
 The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SANDBOX_LLM_GATEWAY_*` names for new configuration.
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container.
