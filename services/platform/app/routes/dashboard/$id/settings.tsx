@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
 import {
   SettingsRail,
-  useSettingsPageTitle,
+  useSettingsPage,
 } from '@/app/features/settings/components/settings-rail';
 import {
   SettingsHeaderActionsSetter,
@@ -44,8 +44,8 @@ function SettingsLayout() {
 
   // The panel's header already names the section; the page header names the
   // open page (the index, which has none, keeps the section's name).
-  const pageTitle = useSettingsPageTitle(organizationId);
-  const headerTitle = pageTitle ?? tNav('userSettings');
+  const page = useSettingsPage(organizationId);
+  const headerTitle = page?.title ?? tNav('userSettings');
 
   // Stable setter (from useState) goes in SetterContext so sub-page effects
   // can include it as a dep without causing re-render loops.
@@ -86,7 +86,10 @@ function SettingsLayout() {
             >
               <SettingsMobileActionBar />
               <ContentArea
-                key={location.pathname}
+                // Fades in per page — keyed on the page, not the path, so a
+                // drawer route inside one (a request over its list) keeps the
+                // page's state and scroll.
+                key={page?.key ?? location.pathname}
                 className={cn(
                   'animate-in fade-in-0 min-w-0 overflow-y-auto duration-200 motion-reduce:animate-none',
                   usesBoundedLayout ? 'min-h-0 flex-1' : 'flex-1',
