@@ -1307,12 +1307,14 @@ describe('rag_search work legs', () => {
               _id: 'task_a',
               title: 'Onboard docs',
               projectId: 'project_docs',
+              number: 7,
             }),
             taskRow({
               _id: 'task_b',
               title: 'Hire agents',
               projectId: 'project_sales',
               priority: undefined,
+              number: 3,
             }),
           ],
           isDone: true,
@@ -1338,12 +1340,68 @@ describe('rag_search work legs', () => {
       projectId: 'project_docs',
       project: 'Product Docs',
       projectKey: 'DOCS',
+      // The key the board shows — the id a user names in a question.
+      taskKey: 'DOCS-7',
     });
     expect(rows[1]?.data).toMatchObject({
       projectId: 'project_sales',
       project: 'Field Sales',
     });
     expect(rows[1]?.data).not.toHaveProperty('projectKey');
+    // No project key, no task key — never a dangling "-3".
+    expect(rows[1]?.data).not.toHaveProperty('taskKey');
+  });
+
+  it('carries the human task key on a search hit and the fetched task', async () => {
+    // 2026-09-26 evaluation, A-05: the assistant answered "no task carries
+    // that ID" for a key the board shows, because no tool result named it.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow({ number: 12 })],
+          isDone: true,
+          continueCursor: '',
+        }),
+        [PROJECT_LABELS_FN]: () => [
+          { id: 'project_1', name: 'Growth', key: 'GRW' },
+        ],
+        [TASK_BY_ID_FN]: () => ({ _id: 'task_1', projectId: 'project_1' }),
+        [TASK_CONTEXT_FN]: () => ({
+          task: {
+            _id: 'task_1',
+            title: 'Set up Facebook ad account',
+            status: 'todo',
+            number: 12,
+          },
+          project: { name: 'Growth', key: 'GRW' },
+          subtasks: [],
+          blockedBy: [],
+          comments: [],
+        }),
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_1'],
+          includeHub: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const search = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'GRW-12' },
+    })) as Record<string, unknown>;
+    const rows = search.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    expect(task?.data).toMatchObject({ taskKey: 'GRW-12', projectKey: 'GRW' });
+
+    const fetched = (await executor.execute({
+      id: 'c2',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_1' },
+    })) as Record<string, unknown>;
+    expect(fetched.status).toBe('ok');
+    expect(fetched.taskKey).toBe('GRW-12');
   });
 
   it('scopes the work legs to the projects the turn user can read', async () => {

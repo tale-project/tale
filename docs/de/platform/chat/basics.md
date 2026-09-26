@@ -55,7 +55,7 @@ Nutze [Anhänge](/de/platform/chat/attachments) für dieses Gespräch, [Projektd
 
 Unter **Quellen** stehen die geladenen Dokumente und Seiten. Öffne eine Quelle und prüfe, ob sie die jeweilige Aussage stützt. Eine Quellenangabe zeigt verwendetes Material, garantiert aber keine richtige Schlussfolgerung. Ohne Abrufschritt kann eine Antwort auf dem Vorwissen des Modells beruhen.
 
-Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte und zugängliche Aufgaben. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern oder Dateiergebnisse erstellen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an.
+Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte und zugängliche Aufgaben. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern oder Dateiergebnisse erstellen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an.
 
 ## Ein Gespräch fortsetzen oder aufbewahren
 

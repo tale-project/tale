@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 82 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -405,6 +405,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   cutting them off. The fresh composer shows the toggle alone. Moving the chat
   to another project (CHAT-F31) or stopping the share (CHAT-F22) updates the
   line without a reload.
+- [ ] `CHAT-F47` · **Task lookup by key** — Create a task in a project with a
+  key (the board shows it as e.g. `DOCS-12`), then in a chat ask "Find the
+  task DOCS-12 — title, project, status?" → The reply names that task's title,
+  project and status and quotes the key `DOCS-12` back; it never answers that
+  no task carries that ID, and never presents the internal reference as the
+  task's ID.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
