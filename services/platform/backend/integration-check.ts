@@ -47123,11 +47123,13 @@ async function checkArenaAndQuestions(
     {
       threadId: string;
       hidden: boolean | null;
-      archived: boolean;
+      status: string;
+      branchRootId: string | null;
       arena: unknown;
     }[]
   >`
-    SELECT thread_id AS "threadId", hidden, archived, arena
+    SELECT thread_id AS "threadId", hidden, status,
+           branch_root_id AS "branchRootId", arena
     FROM app.thread_metadata
     WHERE thread_id IN (${threadA}, ${threadB})
   `;
@@ -47176,21 +47178,26 @@ async function checkArenaAndQuestions(
         )
       ).json(),
     );
+  // The losing column goes to Trash as a root of its own (A-09): trashed,
+  // detached from A's lineage, no longer hidden — what the admin Trash
+  // lists and restores, what retention's root walk purges.
   record(
-    'arena: settle picks A, verdicts stack per run, resettle refused',
+    'arena: settle picks A, loser trashed, verdicts stack, resettle refused',
     settled1.success &&
       settled1.data.continueThreadId === threadA &&
-      (rowB?.hidden ?? false) &&
-      (rowB?.archived ?? false) &&
-      rowB?.arena === null &&
-      rowA?.arena === null &&
+      rowB?.status === 'trashed' &&
+      rowB.branchRootId === null &&
+      rowB.hidden !== true &&
+      rowB.arena === null &&
+      rowA?.status === 'active' &&
+      rowA.arena === null &&
       verdictRows1[0]?.count === '1' &&
       settled2.success &&
       settled2.data.continueThreadId === threadA &&
       verdictRows2[0]?.count === '2' &&
       settleAgain.success &&
       settleAgain.data.refused === 'not_found',
-    `settle=${settled1.success && settled1.data.continueThreadId === threadA}, loser=${rowB?.hidden}/${rowB?.archived}, verdicts=${verdictRows1[0]?.count}→${verdictRows2[0]?.count}, resettle=${settleAgain.success ? settleAgain.data.refused : 'shape-fail'}`,
+    `settle=${settled1.success && settled1.data.continueThreadId === threadA}, loser=${rowB?.status}/root=${rowB?.branchRootId}/hidden=${rowB?.hidden}, verdicts=${verdictRows1[0]?.count}→${verdictRows2[0]?.count}, resettle=${settleAgain.success ? settleAgain.data.refused : 'shape-fail'}`,
   );
 
   // ---- vote upsert regression (partial-unique keeps the vote lane) -------

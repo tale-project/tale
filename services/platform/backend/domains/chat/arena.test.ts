@@ -9,7 +9,10 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const createAuditLog = vi.hoisted(() => vi.fn(() => Promise.resolve('log')));
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 
 import { ensureArenaPair, settleArenaPair } from './arena.ts';
 
@@ -83,10 +86,15 @@ const PAIR_OF = (threadId: unknown) =>
     : { pairId: 'pair', role: 'b', partnerThreadId: 'thread_a', createdAt: 1 };
 
 /** The settle's reads answered; `newestOf` scripts each column's newest
- * turn row (the judgeable read), everything else is empty. */
-function settleSql(newestOf: (threadId: unknown) => unknown[]) {
+ * turn row (the judgeable read), `holds` the org's active legal holds,
+ * everything else is empty. */
+function settleSql(
+  newestOf: (threadId: unknown) => unknown[],
+  holds: { targetType: string; targetId: string }[] = [],
+) {
   return fakeSql((statement) => {
     if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
+    if (statement.text.includes('FROM app.legal_holds')) return holds;
     if (statement.text.includes('SELECT arena FROM')) {
       return [{ arena: PAIR_OF(statement.values[0]) }];
     }
@@ -210,6 +218,125 @@ describe('ensureArenaPair', () => {
     expect(birth?.values).toContain('high');
     // Still a hidden lineage sibling of A — never a second row in any list.
     expect(birth?.values).toContain('thread_a');
+  });
+});
+
+/** The loser's trash write (detach + status flip) and its lineage cascade. */
+function trashWrites(statements: Statement[]) {
+  const loser = statements.find(
+    (s) =>
+      s.text.includes("status = 'trashed'") &&
+      s.text.includes('branch_root_id = NULL'),
+  );
+  const cascade = statements.find(
+    (s) =>
+      s.text.includes("status = 'trashed'") &&
+      s.text.includes('WHERE branch_root_id = ?'),
+  );
+  return { loser, cascade };
+}
+
+/**
+ * The losing column is discarded like a deleted chat: detached from the
+ * lineage and moved to Trash in the settle transaction, never left as a
+ * hidden archived row no list, search or delete can reach (2026-09-26
+ * evaluation, A-09).
+ */
+describe('settleArenaPair discards the loser into Trash', () => {
+  beforeEach(() => {
+    createAuditLog.mockClear();
+  });
+
+  it('trashes the losing A as a root of its own once B has left its lineage', async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'b_better' }),
+    ).resolves.toEqual({ continueThreadId: 'thread_b' });
+
+    const { loser, cascade } = trashWrites(statements);
+    expect(loser?.text).toContain('hidden = NULL');
+    expect(loser?.text).toContain("AND status = 'active'");
+    expect(loser?.values.slice(1)).toEqual(['thread_a', 'org_1']);
+    expect(cascade?.values[1]).toBe('thread_a');
+    // B's graduation (`branch_root_id = NULL`) runs BEFORE A's cascade, so
+    // the winner never travels to Trash with the loser.
+    const graduation = statements.findIndex((s) =>
+      s.text.includes('UPDATE app.thread_metadata b'),
+    );
+    expect(graduation).toBeGreaterThanOrEqual(0);
+    expect(statements.indexOf(cascade as Statement)).toBeGreaterThan(
+      graduation,
+    );
+    expect(statements.some((s) => s.text.includes('hidden = true'))).toBe(
+      false,
+    );
+    // The verdict rides the survivor, not the row about to be purged.
+    const feedback = statements.find((s) =>
+      s.text.includes('INSERT INTO app.message_feedback'),
+    );
+    expect(feedback?.values[1]).toBe('thread_b');
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'chat_thread.trashed',
+        resourceId: 'thread_a',
+        resourceName: 'Pricing question',
+        metadata: { reason: 'arena_settled', verdict: 'b_better' },
+      }),
+    );
+  });
+
+  it('trashes the losing B, detached from A, when A wins', async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'a_better' }),
+    ).resolves.toEqual({ continueThreadId: 'thread_a' });
+
+    const { loser, cascade } = trashWrites(statements);
+    expect(loser?.values.slice(1)).toEqual(['thread_b', 'org_1']);
+    expect(cascade?.values[1]).toBe('thread_b');
+    expect(statements.some((s) => s.text.includes('hidden = true'))).toBe(
+      false,
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ resourceId: 'thread_b' }),
+    );
+  });
+
+  it('discards the hidden copy on a plain exit too', async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await expect(settleArenaPair(sql, ARGS)).resolves.toEqual({
+      continueThreadId: 'thread_a',
+    });
+    expect(trashWrites(statements).loser?.values.slice(1)).toEqual([
+      'thread_b',
+      'org_1',
+    ]);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ metadata: { reason: 'arena_settled' } }),
+    );
+  });
+
+  it('keeps the loser as a hidden archived root under a legal hold', async () => {
+    const { sql, statements } = settleSql(
+      () => [FRESH_REPLY],
+      [{ targetType: 'userMembership', targetId: 'user_1' }],
+    );
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'b_better' }),
+    ).resolves.toEqual({ continueThreadId: 'thread_b' });
+
+    expect(trashWrites(statements)).toEqual({
+      loser: undefined,
+      cascade: undefined,
+    });
+    const held = statements.find((s) =>
+      s.text.includes('hidden = true, archived = true'),
+    );
+    expect(held?.values).toEqual(['thread_a', 'org_1']);
+    expect(createAuditLog).not.toHaveBeenCalled();
   });
 });
 

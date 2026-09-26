@@ -33,6 +33,8 @@ Check factual accuracy against the source, whether the reply followed the instru
 
 Every choice ends the two-column comparison. The next message goes to the remaining conversation. To compare again, enable Arena again; a tie does not keep both columns active.
 
+The other column's answer is discarded and goes to the organization's [Trash](/platform/admin/governance/trash), where an administrator can restore it as a chat of its own until the retention grace window ends. It no longer appears in your chat list or in search, and a link to it reports that the chat is not available.
+
 ## Find the recorded feedback
 
 When both models have produced replies, a verdict contributes to the organization’s [Feedback analytics](/platform/admin/governance/feedback-analytics). Administrators can inspect **Arena verdicts** and model matchups there. A round in which only one column answered is never recorded: the verdict is refused, so the analytics only contain comparisons of two finished replies. Exiting without a verdict does not add a rating.

@@ -33,6 +33,8 @@ Vérifie les faits dans la source, le respect des instructions, les informations
 
 Chaque choix termine la comparaison à deux colonnes. Le message suivant est envoyé dans le chat conservé. Réactive l’Arène pour comparer à nouveau : une égalité ne maintient pas les deux colonnes actives.
 
+La réponse de l’autre colonne est écartée et rejoint la [corbeille](/fr/platform/admin/governance/trash) de l’organisation, où un administrateur peut la restaurer comme chat à part entière jusqu’à la fin du délai de grâce de rétention. Elle n’apparaît plus dans ta liste de chats ni dans la recherche, et un lien vers elle indique que le chat n’est pas disponible.
+
 ## Retrouver le feedback enregistré
 
 Lorsque les deux modèles ont répondu, le verdict alimente l’[analyse des retours](/fr/platform/admin/governance/feedback-analytics) de l’organisation. Les administrateurs peuvent y examiner les verdicts de l’Arène et les comparaisons entre modèles. Un tour où une seule colonne a répondu n’est jamais enregistré : le verdict est refusé, si bien que l’analyse ne contient que des comparaisons de deux réponses terminées. Quitter sans verdict n’ajoute aucune note.

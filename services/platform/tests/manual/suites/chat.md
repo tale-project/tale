@@ -411,6 +411,20 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   project and status and quotes the key `DOCS-12` back; it never answers that
   no task carries that ID, and never presents the internal reference as the
   task's ID.
+- [ ] `CHAT-F47` · **The losing Arena column goes to Trash** — Copy the
+  chat's URL, run an arena round (CHAT-F24) and pick **B is better**
+  (`chat.arena.bBetter`) → The chat continues under a new URL; opening the
+  copied URL shows **This chat is not available** (`chat.notFound`) with
+  **New chat** (`chat.newChat`), never an archived read-only stub; the losing
+  chat is in neither the chat list nor the **Archived** group, and search does
+  not find it by title or content; as an admin,
+  `/dashboard/{org}/settings/governance/trash` lists it under **Chats**
+  (`governance.trash.tab.chatThread`) with its title and **Trashed**
+  (`governance.trash.status.trashed`); **Restore**
+  (`governance.trash.restore.label`) brings it back to the owner's chat list
+  as a chat of its own, and its **Conversation actions** menu offers
+  **Delete**. Repeat with **A is better** (`chat.arena.aBetter`): the URL
+  stays, and Trash shows one row for the discarded column B.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

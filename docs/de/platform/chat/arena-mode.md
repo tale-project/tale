@@ -33,6 +33,8 @@ Prüfe die Fakten anhand der Quelle, die Einhaltung der Anweisungen, fehlende we
 
 Jede Auswahl beendet den Vergleich mit zwei Spalten. Die nächste Nachricht geht an den verbleibenden Chat. Aktiviere die Arena für einen neuen Vergleich erneut; bei einem Unentschieden bleiben nicht beide Spalten aktiv.
 
+Die Antwort der anderen Spalte wird verworfen und landet im [Papierkorb](/de/platform/admin/governance/trash) der Organisation. Dort kann ein Administrator sie bis zum Ende der Schonfrist als eigenen Chat wiederherstellen. Sie erscheint nicht mehr in deiner Chatliste oder in der Suche, und ein Link darauf meldet, dass der Chat nicht verfügbar ist.
+
 ## Gespeichertes Feedback finden
 
 Wenn beide Modelle geantwortet haben, fließt die Bewertung in die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) der Organisation ein. Administratoren können dort die Arena-Bewertungen und Modellvergleiche prüfen. Eine Runde, in der nur eine Spalte geantwortet hat, wird nie gespeichert: Die Bewertung wird abgelehnt, sodass die Analyse nur Vergleiche zweier fertiger Antworten enthält. **Ohne Bewertung beenden** erzeugt keine Bewertung.
