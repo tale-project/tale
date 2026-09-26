@@ -135,6 +135,13 @@ in the pool**, so they run before the removals.
   into red at its tip, and red, in that order. A full bar never reads as
   green: a spent plan is not a completed task. A window at 99.6 % reads
   99 % and orange-into-red, not 100 % and red.
+- [ ] `ACCT-47` · **Find an account whose session or weekly window reads
+  100 %** → its whole row greys out like a disabled one — name, plan, status,
+  bars, countdown and date — yet stays readable, keeps its place in the
+  order, and keeps its row menu at full strength: every action in it still
+  works. A per-model window at 100 % (Fable), or a session at 99 %, leaves
+  its row as it is. Once the spent window rolls over, the next reading brings
+  the row back by itself.
 - [ ] `ACCT-26` · **Hover a usage bar, then the grey bar beside it** → the
   first names the percentage, the second the exact instant that window
   resets — the date and the hour, in the panel's language, and the instant the

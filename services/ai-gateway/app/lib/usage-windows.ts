@@ -1,14 +1,17 @@
 /**
- * What two columns have to agree on.
+ * What a row's usage cells have to agree on — with each other, and with the
+ * row they sit in.
  *
  * A row's plan is drawn twice — how much of each window is spent, and how long
  * that window still has to run — in two table cells that must stay line for
- * line. Anything both of them decide lives here rather than in either one.
+ * line; and a plan that is spent greys the whole row. Anything more than one
+ * of them decides lives here rather than in any one.
  */
 
 import type { TFunction } from 'i18next';
 
 import type { UsageWindow } from '@/app/lib/api';
+import { isSpent, spentPercent } from '@/app/lib/usage-tint';
 
 /**
  * The windows the panel draws.
@@ -19,6 +22,23 @@ import type { UsageWindow } from '@/app/lib/api';
  */
 export function readableWindows(windows: UsageWindow[]): UsageWindow[] {
   return windows.filter((window) => window.utilization !== null);
+}
+
+/**
+ * Whether an account's reading says its plan is used up for now: its session
+ * or its weekly window stands at the ceiling.
+ *
+ * Only those two stop the account as a whole. A scoped window caps one model,
+ * and the account still answers for every other one — so a spent per-model
+ * week leaves its row alone. The figure is the one the bar prints, rounded
+ * down against the same ceiling, so a row reads as spent exactly when one of
+ * those two bars is red.
+ */
+export function planSpent(windows: UsageWindow[]): boolean {
+  return readableWindows(windows).some(
+    (window) =>
+      window.kind !== 'scoped' && isSpent(spentPercent(window.utilization)),
+  );
 }
 
 /**

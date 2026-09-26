@@ -13,11 +13,23 @@
  * complete bar green ("done"), and a spent plan is the opposite of done.
  */
 export function usageTint(percent: number): string {
-  if (percent >= 100) return 'bg-red-500';
+  if (isSpent(percent)) return 'bg-red-500';
   if (percent >= 95) return 'bg-gradient-to-r from-orange-500 to-red-500';
   if (percent >= 75) return 'bg-orange-500';
   if (percent >= 50) return 'bg-yellow-500';
   return 'bg-green-500';
+}
+
+/**
+ * Whether a share is the whole window: nothing of it is left until it rolls
+ * over.
+ *
+ * One ceiling, drawn twice — the bar turns red at it, and an account whose
+ * session or weekly window reaches it greys its whole row — so the two can
+ * never disagree about which windows are spent.
+ */
+export function isSpent(percent: number): boolean {
+  return percent >= 100;
 }
 
 /**

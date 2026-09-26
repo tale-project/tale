@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { spentPercent, usageTint } from '@/app/lib/usage-tint';
+import { isSpent, spentPercent, usageTint } from '@/app/lib/usage-tint';
 
 describe('usageTint', () => {
   it.each([
@@ -30,5 +30,21 @@ describe('spentPercent', () => {
 
   it('reads a window with no figure as none of it spent', () => {
     expect(spentPercent(null)).toBe(0);
+  });
+});
+
+describe('isSpent', () => {
+  it.each([
+    [99, false],
+    [100, true],
+    [104, true],
+  ])('calls a window %i%% spent: %s', (percent, spent) => {
+    expect(isSpent(percent)).toBe(spent);
+  });
+
+  it('is exactly where the bar turns red', () => {
+    for (const percent of [0, 50, 95, 99, 100, 101]) {
+      expect(isSpent(percent)).toBe(usageTint(percent) === 'bg-red-500');
+    }
   });
 });
