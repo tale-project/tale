@@ -199,13 +199,49 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     useChatMessages: vi.fn(() => ({ status: 'unavailable' as const })),
     useThreadFeedback: vi.fn(() => ({ status: 'unavailable' as const })),
     useThreadBranches: vi.fn(() => ({ status: 'unavailable' as const })),
+    useArenaPair: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatQueryClient: vi.fn(() => ({}) as never),
   };
 });
 
+// The arena writes: `settle` answers the surviving thread. Mutable so a test
+// scripts the verdict's outcome; reset in the shared afterEach.
+const arenaSettle = vi.hoisted(() =>
+  vi.fn<() => Promise<{ continueThreadId: string } | { refused: string }>>(() =>
+    Promise.resolve({ refused: 'not_found' }),
+  ),
+);
+vi.mock('../data/arena-actions', () => ({
+  useArenaActions: () => ({
+    available: true,
+    createThread: vi.fn(() => Promise.resolve(null)),
+    ensurePair: vi.fn(() => Promise.resolve({ refused: 'error' })),
+    startTurn: vi.fn(),
+    settle: arenaSettle,
+  }),
+}));
+// The split view's columns subscribe to their own transcripts; this stand-in
+// keeps the surface's contract — the verdict callback and the Model B pick
+// it is handed — and nothing of the columns.
+vi.mock('./arena/arena-split-view', () => ({
+  ArenaSplitView: ({
+    modelBId,
+    onVerdict,
+  }: {
+    modelBId?: string;
+    onVerdict: (verdict: 'a_better' | 'b_better') => void;
+  }) => (
+    <div data-testid="arena-split-view" data-model-b={modelBId}>
+      <button type="button" onClick={() => onVerdict('b_better')}>
+        B is better
+      </button>
+    </div>
+  ),
+}));
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
 
 import {
+  useArenaPair,
   useChatGeneration,
   useChatModelPreference,
   useChatSend,
@@ -273,6 +309,13 @@ afterEach(() => {
     available: false,
     resolve: () => Promise.resolve(),
   }));
+  vi.mocked(useArenaPair).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  arenaSettle.mockReset();
+  arenaSettle.mockImplementation(() =>
+    Promise.resolve({ refused: 'not_found' }),
+  );
 });
 
 it.each([
@@ -871,6 +914,61 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent('deepseek-v4-pro');
+  });
+
+  // 2026-09-26 evaluation, A-06: after "B is better" the composer stayed on
+  // Model A, so the next message went to the model the user had just judged
+  // worse, with no hint.
+  it('follows the winning Model B into the surviving conversation after "B is better"', async () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    const save = vi.fn();
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: {
+        status: 'ready',
+        data: { modelId: MODEL.id, providerSlug: MODEL.providerSlug },
+      },
+      save,
+    });
+    vi.mocked(useArenaPair).mockReturnValue({
+      status: 'ready',
+      data: {
+        pairId: 'pair-1',
+        threadIdA: 't1',
+        threadIdB: 't2',
+        createdAt: 1,
+      },
+    });
+    arenaSettle.mockResolvedValue({ continueThreadId: 't2' });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t1" />,
+    );
+    const picker = screen.getByRole('button', {
+      name: 'Choose model and reasoning effort',
+    });
+    expect(picker).toHaveTextContent('deepseek-v4-flash');
+    // Column B is seeded to the other listed model.
+    expect(screen.getByTestId('arena-split-view')).toHaveAttribute(
+      'data-model-b',
+      'deepseek-v4-pro',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'B is better' }));
+
+    await waitFor(() => expect(picker).toHaveTextContent('deepseek-v4-pro'));
+    expect(arenaSettle).toHaveBeenCalledWith('t1', 'b_better');
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ params: { id: 'org-1', threadId: 't2' } }),
+    );
+    // Session-only, like the Auto pin on entering Arena: the sticky
+    // preference stays what the user last picked by hand.
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("seeds the sticky pick's own provider when two providers list the id", async () => {

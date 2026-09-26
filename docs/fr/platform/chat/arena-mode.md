@@ -26,7 +26,7 @@ Vérifie les faits dans la source, le respect des instructions, les informations
 | Verdict | Quand le choisir | Le chat continue avec |
 | --- | --- | --- |
 | **A est meilleur** | A est plus utile ou plus exact. | La colonne A. |
-| **B est meilleur** | B est plus utile ou plus exact. | La colonne B. |
+| **B est meilleur** | B est plus utile ou plus exact. | La colonne B, et la zone de saisie passe au modèle B. |
 | **Égalité** | Les deux répondent aussi bien à la demande. | La colonne A. |
 | **Les deux sont mauvais** | Aucune réponse n’est acceptable. | La colonne A. |
 | **Quitter sans verdict** | Tu ne souhaites pas noter ce résultat. | La colonne A, sans verdict. |

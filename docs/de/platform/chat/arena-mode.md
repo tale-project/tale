@@ -26,7 +26,7 @@ Prüfe die Fakten anhand der Quelle, die Einhaltung der Anweisungen, fehlende we
 | Bewertung | Wann sie passt | Der Chat geht weiter mit |
 | --- | --- | --- |
 | **A ist besser** | A ist hilfreicher oder genauer. | Spalte A. |
-| **B ist besser** | B ist hilfreicher oder genauer. | Spalte B. |
+| **B ist besser** | B ist hilfreicher oder genauer. | Spalte B; der Eingabebereich wechselt zu Modell B. |
 | **Unentschieden** | Beide erfüllen den Auftrag gleich gut. | Spalte A. |
 | **Beide schlecht** | Keine Antwort ist brauchbar. | Spalte A. |
 | **Ohne Bewertung beenden** | Du möchtest den Vergleich nicht bewerten. | Spalte A, ohne Bewertung. |

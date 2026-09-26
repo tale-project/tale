@@ -206,7 +206,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   column shows its error row without a reload; **A is better**
   (`chat.arena.aBetter`) records with **Verdict recorded**
   (`chat.arena.verdictRecorded`); the Share dialog for an arena thread
-  refuses (`chat.share.notShareable` / `chat.share.cannotShareArena`)
+  refuses (`chat.share.notShareable` / `chat.share.cannotShareArena`); in a
+  new round pick **B is better** (`chat.arena.bBetter`) → the chat continues
+  with column B and the composer's model picker
+  (`chat.picker.ariaLabel`) now reads **Model B**'s name, so
+  the next message goes to the model just judged better; reload → the
+  picker shows the model saved before the round again (the switch is not
+  saved as the sticky pick)
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode

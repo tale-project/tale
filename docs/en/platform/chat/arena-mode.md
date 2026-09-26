@@ -26,7 +26,7 @@ Check factual accuracy against the source, whether the reply followed the instru
 | Verdict | Use it when | Conversation continues with |
 | --- | --- | --- |
 | **A is better** | A is more useful or accurate. | Column A. |
-| **B is better** | B is more useful or accurate. | Column B. |
+| **B is better** | B is more useful or accurate. | Column B, and the composer switches to Model B. |
 | **Tie** | Both meet the request equally well. | Column A. |
 | **Both bad** | Neither is acceptable. | Column A. |
 | **Exit without verdict** | You do not want to record a comparison. | Column A, without a verdict. |

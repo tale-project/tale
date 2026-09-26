@@ -714,8 +714,25 @@ function ChatSurfaceInner({
       return;
     }
     if (verdict !== undefined) toast({ title: t('arena.verdictRecorded') });
-    // The surviving A is already on screen; only a winning B navigates.
+    // The surviving A is already on screen; only a winning B navigates — and
+    // the composer follows it to Model B, so the next message goes to the
+    // model the user just judged better, not to A's (2026-09-26 evaluation,
+    // A-06). Session-only, like the Auto pin on entering Arena: the sticky
+    // preference stays what the user last picked by hand.
     if (result.continueThreadId !== viewThreadId) {
+      const modelB = verdict === 'b_better' ? arenaModelBChoice : undefined;
+      if (modelB !== undefined) {
+        setSelection((previous) => {
+          const { modelSelection: _auto, providerSlug: _a, ...rest } = previous;
+          return {
+            ...rest,
+            modelId: modelB.id,
+            ...(modelB.providerSlug !== undefined
+              ? { providerSlug: modelB.providerSlug }
+              : {}),
+          };
+        });
+      }
       void navigate({
         to: '/dashboard/$id/chat/$threadId',
         params: { id: organizationId, threadId: result.continueThreadId },
