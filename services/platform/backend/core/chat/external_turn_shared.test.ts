@@ -338,6 +338,56 @@ describe('classifyHarnessEnd', () => {
     return result;
   }
 
+  it('names the failure the harness reported as the reason (a Codex turn the provider refused)', async () => {
+    // As captured 2026-09-26: Codex narrates, runs a tool, and the gateway's
+    // second call draws DeepSeek's 400; the CLI hands the body back verbatim
+    // on `turn.failed`. The reason is that sentence — never the narration.
+    const refusal = JSON.stringify({
+      is_bifrost_error: false,
+      status_code: 400,
+      error: {
+        type: 'invalid_request_error',
+        message:
+          'The `reasoning_content` in the thinking mode must be passed back to the API.',
+      },
+    });
+    transport.stdout = `${[
+      { type: 'thread.started', thread_id: 'thr-1' },
+      { type: 'turn.started' },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_1',
+          type: 'agent_message',
+          text: "I'll start by inspecting the workspace.",
+        },
+      },
+      { type: 'error', message: refusal },
+      { type: 'turn.failed', error: { message: refusal } },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join('\n')}\n`;
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'exec-codex-refused',
+      harness: 'codex',
+      windowMs: 10_000,
+    });
+    if (result.kind !== 'terminal') {
+      throw new Error(`expected a terminal window, got ${result.kind}`);
+    }
+
+    expect(result.text).toContain("I'll start by inspecting the workspace.");
+    expect(result.ended).toMatchObject({ isError: true, apiErrorStatus: 400 });
+    expect(classifyHarnessEnd(result)).toEqual({
+      errored: true,
+      reason:
+        'The `reasoning_content` in the thinking mode must be passed back to the API. (API status 400)',
+      emptyAnswer: false,
+    });
+  });
+
   it('fails a turn whose model answered nothing (the live empty 200)', async () => {
     // As it ran: the held-stdin CLI lingers after its result, so the turn
     // ends on the grace cut, not on an exit.

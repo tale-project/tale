@@ -214,16 +214,19 @@ class CodexJsonlParser implements HarnessEventParser {
 
     if (type === 'turn.failed') {
       const events = this.maybeStart(ev);
-      const message =
-        (isRecord(ev.error) ? asString(ev.error.message) : undefined) ??
-        'Codex turn failed';
-      events.push({ type: 'error', message, raw: ev });
+      const failure = describeTurnFailure(
+        isRecord(ev.error) ? asString(ev.error.message) : undefined,
+      );
+      events.push({ type: 'error', message: failure.message, raw: ev });
       const result: HarnessEvent = {
         type: 'turn-ended',
         status: 'error',
         isError: true,
       };
       if (this.sessionId) result.sessionId = this.sessionId;
+      if (failure.apiErrorStatus !== undefined) {
+        result.apiErrorStatus = failure.apiErrorStatus;
+      }
       events.push(result);
       return events;
     }
@@ -238,6 +241,52 @@ class CodexJsonlParser implements HarnessEventParser {
 
     return [{ type: 'raw', harness: this.slug, payload: ev }];
   }
+}
+
+/**
+ * What a failed turn says, in one line. Codex hands the gateway's refusal
+ * back VERBATIM as the failure message — the whole JSON body
+ * (`{"is_bifrost_error":…,"status_code":400,"error":{"message":"…"}}`), so
+ * the run's reason read like a log dump and the kick could not tell a 400
+ * (a transcript the provider refuses — start fresh) from a 429 (wait and
+ * resume). Read the status and the provider's own sentence out of such a
+ * body; any other message passes through as is (`Codex turn failed` when
+ * the CLI gave none).
+ */
+export function describeTurnFailure(message: string | undefined): {
+  message: string;
+  apiErrorStatus?: number;
+} {
+  const text = message?.trim() ?? '';
+  if (text === '') return { message: 'Codex turn failed' };
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return { message: text };
+  let body: unknown;
+  try {
+    body = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return { message: text };
+  }
+  if (!isRecord(body)) return { message: text };
+  const status =
+    typeof body.status_code === 'number' && Number.isInteger(body.status_code)
+      ? body.status_code
+      : undefined;
+  const detail =
+    (isRecord(body.error) ? asString(body.error.message) : undefined) ??
+    asString(body.message);
+  if (detail === undefined && status === undefined) return { message: text };
+  const line =
+    detail !== undefined
+      ? status !== undefined
+        ? `${detail} (API status ${status})`
+        : detail
+      : `The model request failed (API status ${status})`;
+  return {
+    message: line,
+    ...(status !== undefined ? { apiErrorStatus: status } : {}),
+  };
 }
 
 export function createParser(slug: HarnessSlug): HarnessEventParser {

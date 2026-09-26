@@ -2187,8 +2187,11 @@ async function continueOrSettle(
   // when the harness announced a handle (init line or end stamp).
   const agentSessionId = ended?.sessionId ?? window.agentSessionId;
   const spendRefused = errored && isSpendRefusal(ended);
-  const settleReason =
-    reason ?? (spendRefused ? spendRefusalReason(text) : undefined);
+  // A spend refusal (402) is named as such first; otherwise the failure the
+  // harness named (or the platform's crash/empty-answer line) is the reason.
+  const settleReason = spendRefused
+    ? spendRefusalReason(window.harnessError ?? text)
+    : reason;
   await settleWorkflowAgentTurn(
     ctx,
     args,

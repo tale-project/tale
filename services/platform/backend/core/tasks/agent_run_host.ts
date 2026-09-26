@@ -1401,17 +1401,14 @@ async function continueOrSettle(
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
       : window.text;
-  // The harness's own last words ARE the reason when it reported the error
-  // itself (classify yields none there) — never bury a "401 token revoked"
-  // behind a generic line.
+  // The harness's own words ARE the reason when it reported the error
+  // itself: the failure it named on its stream (classify carries it), else
+  // its last words — never bury a "401 token revoked" behind a generic line.
+  // A spend refusal (402) is named as such first, whichever way it arrived.
   const spendRefused = errored && isSpendRefusal(ended);
-  const reason =
-    endReason ??
-    (spendRefused
-      ? spendRefusalReason(text)
-      : errored
-        ? failureReasonFromFinalText(text)
-        : undefined);
+  const reason = spendRefused
+    ? spendRefusalReason(window.harnessError ?? text)
+    : (endReason ?? (errored ? failureReasonFromFinalText(text) : undefined));
   await settleTaskAgentTurn(ctx, args, {
     errored,
     ...(reason !== undefined ? { reason } : {}),

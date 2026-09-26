@@ -459,6 +459,10 @@ export type HarnessWindowResult =
       /** The last lines the harness wrote to stderr (`harnessOutputTail`),
        * when it wrote any — what a crash names as its cause. */
       stderrTail?: string;
+      /** The last failure the harness itself named on its stream (a parser
+       * `error` event: Codex `turn.failed`, Hermes `run_end.error`) — what a
+       * harness-reported error gives as its reason. */
+      harnessError?: string;
       /** The output tokens the window's `usage` reports add up to; absent
        * reads as none. */
       outputTokens?: number;
@@ -565,10 +569,16 @@ export async function drainHarnessWindow(args: {
     stderrRing = (stderrRing + chunk).slice(-STDERR_RING_CHARS);
   };
 
+  // The harness's own account of a failure. Before this the `error` events
+  // were pushed and never read: a Codex turn the provider refused settled
+  // with the agent's last narration sentence as its reason (2026-09-26).
+  let harnessError: string | undefined;
   const onStdout = (chunk: string) => {
     for (const e of parser.feed(chunk)) {
       events.push(e);
-      if (e.type === 'task-started') {
+      if (e.type === 'error') {
+        harnessError = e.message;
+      } else if (e.type === 'task-started') {
         pendingTasks.add(e.taskId);
         // A task launched inside the grace (reply in, cut armed) reopens the
         // ledger — the cut must wait for it.
@@ -704,6 +714,7 @@ export async function drainHarnessWindow(args: {
     exited,
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
     ...(stderrTail !== '' ? { stderrTail } : {}),
+    ...(harnessError !== undefined ? { harnessError } : {}),
     outputTokens: outputTokensFromEvents(events),
   };
 }
@@ -747,6 +758,7 @@ type HarnessEndWindow = Pick<
   | 'timeline'
   | 'outputTokens'
   | 'stderrTail'
+  | 'harnessError'
 >;
 
 function hasWords(text: string | undefined): boolean {
@@ -808,14 +820,17 @@ export function spendRefusalReason(finalText: string | undefined): string {
 }
 
 /** How a terminal window classifies: the agent's own `turn-ended.isError`
- * wins when it exists; an exit without `turn-ended` is a crash by
- * definition, with the exec's own error carried as the reason; and a turn
- * that completed with nothing from its model is an empty answer. */
+ * wins when it exists (with the failure the harness named, when it named
+ * one); an exit without `turn-ended` is a crash by definition, with the
+ * exec's own error carried as the reason; and a turn that completed with
+ * nothing from its model is an empty answer. */
 export function classifyHarnessEnd(window: HarnessEndWindow): {
   errored: boolean;
-  /** Why the turn failed when the platform, not the harness, says so — a
-   * crash or an empty answer. A harness-reported error gets none: its own
-   * final words are the reason. */
+  /** Why the turn failed: the failure the harness named on its stream
+   * (`harnessError`), or — when the platform, not the harness, says so — a
+   * crash or an empty answer. A harness that only FLAGS the error (Claude
+   * Code's `is_error` result) gets none: its own final words are the
+   * reason. */
   reason?: string;
   /** A completed turn with nothing from its model (`isEmptyAnswer`). */
   emptyAnswer: boolean;
@@ -838,7 +853,18 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
         : crashed;
     return { errored: true, reason, emptyAnswer: false };
   }
-  if (ended.isError === true) return { errored: true, emptyAnswer: false };
+  if (ended.isError === true) {
+    const named = window.harnessError?.trim() ?? '';
+    if (named === '') return { errored: true, emptyAnswer: false };
+    // The run row is a status row, not a log store — the head carries the
+    // provider's sentence, a long tail is the payload it quoted.
+    const MAX = 500;
+    return {
+      errored: true,
+      reason: named.length <= MAX ? named : `${named.slice(0, MAX)} …`,
+      emptyAnswer: false,
+    };
+  }
   if (isEmptyAnswer(window, ended)) {
     return { errored: true, reason: EMPTY_ANSWER_REASON, emptyAnswer: true };
   }
