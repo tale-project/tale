@@ -19,7 +19,18 @@ describe('formatCompactAge', () => {
   });
 
   it('abbreviates the way each locale does', () => {
-    expect(formatCompactAge(NOW - 3 * 60 * MINUTE, NOW, 'de')).toBe('3 Std.');
+    // The narrow unit is the runtime's own locale data, and that data moves
+    // between builds (German reads "3 Std." under one ICU, "3h" under
+    // another) — so pin that the locale reaches Intl, not a literal.
+    const narrowHours = new Intl.NumberFormat('de', {
+      style: 'unit',
+      unit: 'hour',
+      unitDisplay: 'narrow',
+    }).format(3);
+    expect(formatCompactAge(NOW - 3 * 60 * MINUTE, NOW, 'de')).toBe(
+      narrowHours,
+    );
+    // English would read "now".
     expect(formatCompactAge(NOW - 20_000, NOW, 'de')).toBe('jetzt');
   });
 
