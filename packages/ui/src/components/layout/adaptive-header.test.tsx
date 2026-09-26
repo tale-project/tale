@@ -38,6 +38,26 @@ describe('AdaptiveHeader', () => {
     // into the mobile slot — so the inactive copy must be hidden from the
     // accessibility tree (`aria-hidden`) to avoid a duplicate `h1`. `getByRole`
     // ignores `aria-hidden` subtrees, so exactly one heading must remain.
+    // On a phone the slot is the title row itself: a back button, the title
+    // and a trailing control sit side by side, as on desktop — never stacked.
+    it('lays the mirrored content out as a row in the slot', () => {
+      render(
+        <AdaptiveHeaderProvider>
+          <AdaptiveHeaderRoot>
+            <button type="button">Back</button>
+            <AdaptiveHeaderTitle>Page Title</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+          <div data-testid="slot">
+            <AdaptiveHeaderSlot />
+          </div>
+        </AdaptiveHeaderProvider>,
+      );
+      const slot = screen.getByTestId('slot');
+      // oxlint-disable-next-line testing-library/no-node-access -- the slot's content wrapper is structural, not a queryable role
+      const content = slot.firstElementChild?.firstElementChild;
+      expect(content).toHaveClass('flex', 'items-center');
+    });
+
     it('exposes only one h1 even though the title is mirrored into the slot', () => {
       render(
         <AdaptiveHeaderProvider>
