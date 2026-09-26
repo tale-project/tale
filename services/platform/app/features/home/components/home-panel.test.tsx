@@ -4,7 +4,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { fireEvent, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
 
@@ -72,7 +72,8 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
   };
 });
 
-const { HomeNavigator } = await import('./home-panel');
+const { HomeNavigator, HomePanel } = await import('./home-panel');
+const { HomePanelProvider } = await import('./home-panel-context');
 
 // Noon today — the rows below land in Today and Yesterday.
 const NOW = new Date();
@@ -247,8 +248,74 @@ describe('HomeNavigator', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('opens the next and previous item with ⌥↓ and ⌥↑', () => {
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    render(<HomeNavigator organizationId="org-1" />);
+
+    // The chat is open; the task sits under it.
+    fireEvent.keyDown(window, { key: 'ArrowDown', altKey: true });
+    expect(click.mock.contexts.at(-1)).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/tasks/k1',
+    );
+    click.mockRestore();
+  });
+
+  it('moves between rows with the arrow keys', () => {
+    render(<HomeNavigator organizationId="org-1" />);
+    const [first, second] = within(stream()).getAllByRole('link');
+    first?.focus();
+    fireEvent.keyDown(first as HTMLElement, { key: 'ArrowDown' });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second as HTMLElement, { key: 'ArrowUp' });
+    expect(first).toHaveFocus();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
     await checkAccessibility(container);
+  });
+});
+
+describe('HomePanel', () => {
+  function backslash() {
+    // Whichever of the two the platform uses as its command key.
+    fireEvent.keyDown(window, {
+      key: '\\',
+      code: 'Backslash',
+      metaKey: true,
+      ctrlKey: true,
+    });
+  }
+
+  it('folds and unfolds with ⌘\\ on a page whose header can bring it back', () => {
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    backslash();
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'false',
+    );
+    backslash();
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'true',
+    );
+  });
+
+  it('ignores ⌘\\ where the panel stays open', () => {
+    location.current = { pathname: '/dashboard/org-1/projects/p1', search: {} };
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    backslash();
+    expect(
+      window.localStorage.getItem('chat-history-panel-open-org-1'),
+    ).toBeNull();
   });
 });

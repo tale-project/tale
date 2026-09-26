@@ -94,6 +94,8 @@ function RowText({
             'min-w-0 flex-1 truncate text-[13px] leading-5',
             unread ? 'text-foreground font-semibold' : 'text-foreground',
           )}
+          // A long title truncates in the narrow panel; hovering shows it whole.
+          {...(typeof title === 'string' ? { title } : {})}
         >
           {title}
         </span>

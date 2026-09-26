@@ -42,6 +42,8 @@ import { ProjectCreateDialog } from '@/app/features/projects/components/project-
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
+import { moveRowFocus } from '../lib/row-navigation';
+
 function HomeProjectRow({
   organizationId,
   project,
@@ -244,7 +246,11 @@ export function HomeProjects({
               {t('projects.empty')}
             </p>
           ) : (
-            <ul role="list" className="flex flex-col gap-0.5 py-0.5">
+            <ul
+              role="list"
+              onKeyDown={moveRowFocus}
+              className="flex flex-col gap-0.5 py-0.5"
+            >
               {sorted.map((project) => (
                 <HomeProjectRow
                   key={project.id}

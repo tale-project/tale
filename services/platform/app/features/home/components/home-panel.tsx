@@ -74,6 +74,7 @@ import {
   readHomeLocation,
   type HomeLocation,
 } from '../lib/home-paths';
+import { adjacentRow, moveRowFocus } from '../lib/row-navigation';
 import { HomeInboxList } from './home-inbox-list';
 import { useHomePanel } from './home-panel-context';
 import { HomeProjects } from './home-projects';
@@ -114,14 +115,33 @@ const NO_HELD = new Set<string>();
  */
 export function HomePanel({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
-  const { open: storedOpen, setMounted } = useHomePanel();
+  const {
+    open: storedOpen,
+    setOpen: setStoredOpen,
+    setMounted,
+  } = useHomePanel();
   const { pathname, search } = useLocation();
   // Only a conversation-shaped page (a chat, a task, an open conversation)
   // carries the toggle in its header, so only there may the panel fold away;
   // everywhere else in Home it stays, or it could not be brought back.
-  const open =
-    storedOpen ||
-    !isPanelCollapsible(readHomeLocation(pathname, search, organizationId));
+  const collapsible = isPanelCollapsible(
+    readHomeLocation(pathname, search, organizationId),
+  );
+  const open = storedOpen || !collapsible;
+  // ⌘\ (Ctrl+\) folds and unfolds the panel wherever the header's toggle
+  // could — the physical key too, for layouts that type "\" with Option.
+  const isMac = useIsMac();
+  useEffect(() => {
+    if (!collapsible) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(isMac ? event.metaKey : event.ctrlKey)) return;
+      if (event.key !== '\\' && event.code !== 'Backslash') return;
+      event.preventDefault();
+      setStoredOpen((previous) => !previous);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [collapsible, isMac, setStoredOpen]);
   // Tells the page's panel toggle that there is a panel to point at.
   useEffect(() => {
     setMounted(true);
@@ -169,6 +189,23 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
   const { pathname, search } = useLocation();
   const location = readHomeLocation(pathname, search, organizationId);
+
+  // ⌥↑/⌥↓ open the previous or next item of the list on screen from
+  // anywhere but a text field — through chats, tasks and conversations
+  // without reaching for the panel, even while it is folded away.
+  const navigatorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const root = navigatorRef.current;
+      if (root === null) return;
+      const row = adjacentRow(event, root);
+      if (row === null) return;
+      event.preventDefault();
+      row.click();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const [storedView, setView] = usePersistedState<HomeView>(
     `home-view-${organizationId}`,
@@ -366,7 +403,9 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
   };
 
   return (
-    <>
+    // `contents`: the navigator's parts stay children of the frame's flex
+    // column; the wrapper only scopes the list shortcuts.
+    <div ref={navigatorRef} className="contents">
       <div className="flex shrink-0 flex-col gap-2 px-2.5 pt-2.5 pb-2">
         <HomeViewSwitcher
           value={view}
@@ -417,6 +456,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
                     // list in instead of swapping rows in place.
                     key={view}
                     aria-label={t('aria.stream')}
+                    onKeyDown={moveRowFocus}
                     className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
                   >
                     {draftingChat && (
@@ -450,7 +490,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
           </ThreadDndProvider>
         </ThreadListFrameProvider>
       )}
-    </>
+    </div>
   );
 }
 

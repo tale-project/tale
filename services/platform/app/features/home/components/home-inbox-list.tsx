@@ -62,6 +62,7 @@ import {
   type HomeConversationItem,
   type InboxStatus,
 } from '../lib/home-items';
+import { moveRowFocus } from '../lib/row-navigation';
 import { HomeConversationRow } from './home-rows';
 
 const PAGE_SIZE = 30;
@@ -438,6 +439,7 @@ export function HomeInboxList({
           <ol
             key={status}
             aria-label={t('aria.inbox')}
+            onKeyDown={moveRowFocus}
             className="animate-in fade-in-0 flex flex-col gap-1 duration-200 motion-reduce:animate-none"
           >
             {groups.map((group) => (
