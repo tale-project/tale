@@ -1210,11 +1210,10 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 });
 
 /**
- * The thread-list panel folds away from a toggle in the conversation column
- * and the choice persists per org — the same key the index.html pre-hydration
- * script reads to decide whether the served boot shell shows the panel
- * skeleton, so these tests also pin the storage contract and the live
- * `boot-chat-panel-open` mirror on <html>.
+ * The Home panel folds away from a toggle in the conversation header and the
+ * choice persists per org — the same key the index.html pre-hydration script
+ * reads to decide whether the served boot shell shows the panel skeleton, so
+ * these tests also pin that storage contract.
  */
 describe('ChatSurface Home panel toggle', () => {
   beforeEach(() => {
@@ -1272,6 +1271,40 @@ describe('ChatSurface Home panel toggle', () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
     const { container } = renderInHome();
     await waitFor(() => checkAccessibility(container));
+  });
+});
+
+/**
+ * The header names the open chat even when the chat list does not hold it —
+ * an archived chat, or a teammate's shared into a project — from the
+ * thread's own read, so its title and the Share/Export menu never vanish.
+ */
+describe('ChatSurface header for a chat outside the list', () => {
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: {
+        id: 't-archived',
+        title: 'Launch retro',
+        kind: 'direct',
+        archived: true,
+        createdAt: 1,
+        updatedAt: 2,
+        generating: false,
+      },
+    });
+  });
+
+  it('still names an archived chat and offers its conversation menu', () => {
+    render(<ChatSurface organizationId="org-1" threadId="t-archived" />);
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Launch retro' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Conversation actions' }).length,
+    ).toBeGreaterThan(0);
   });
 });
 

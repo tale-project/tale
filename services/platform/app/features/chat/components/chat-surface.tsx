@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * The chat screen: thread list, conversation, composer, and the Canvas.
+ * The chat screen: the conversation under its header, the composer, and
+ * the Canvas. The Home panel beside it lives in the dashboard shell.
  *
  * Everything it renders comes through the one Convex seam in
  * `../data/chat-backend`. While that seam reports `unavailable` the screen
@@ -300,7 +301,7 @@ function ChatSurfaceInner({
   // its own so a streamed token in either column never re-renders it.
   // Row/adoption facts ONLY — the per-chunk stream text is subscribed by
   // the transcript boundary below, so a streaming turn never re-renders the
-  // surface (composer, thread list, header, canvas).
+  // surface (composer, header, canvas).
   const threadView = useThreadView(
     organizationId,
     arenaActive ? undefined : viewThreadId,
@@ -506,6 +507,14 @@ function ChatSurfaceInner({
     threadId !== undefined && threads.status === 'ready'
       ? threads.data.find((thread) => thread.id === threadId)
       : undefined;
+  // What the header names: the list's row, or — for a chat the list does not
+  // hold (an archived one, or a teammate's shared into a project) — the
+  // thread's own read. The owner's row actions still key off `activeThread`.
+  const headerThread =
+    activeThread ??
+    (openThread.status === 'ready' && openThread.data !== null
+      ? openThread.data
+      : undefined);
 
   // The header menu carries the SAME thread actions as the sidebar row (the
   // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
@@ -1512,7 +1521,7 @@ function ChatSurfaceInner({
   const handleForkImpl = (message: ChatMessageView) => {
     if (viewThreadId === undefined) return;
     const title = t('forkOf', {
-      title: activeThread?.title ?? t('history.untitled'),
+      title: headerThread?.title ?? t('history.untitled'),
     });
     void branchActions
       .fork(viewThreadId, message.id, title)
@@ -1733,8 +1742,8 @@ function ChatSurfaceInner({
 
   const panelToggle = <HomePanelToggle />;
   const activeProject =
-    activeThread?.projectId !== undefined
-      ? headerProjects.find((project) => project.id === activeThread.projectId)
+    headerThread?.projectId !== undefined
+      ? headerProjects.find((project) => project.id === headerThread.projectId)
       : undefined;
 
   return (
@@ -1743,9 +1752,9 @@ function ChatSurfaceInner({
     <AttachmentPreviewProvider value={sentPreviewsRef.current}>
       <div className="flex min-h-0 flex-1 flex-row">
         <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
-          {/* Mobile header (<md): the sub-panel and the floating bar above are
-            desktop-only — without this row a phone could neither switch
-            threads nor reach the conversation actions. */}
+          {/* Mobile header (<md): the Home panel and the floating header
+            below are desktop-only — without this row a phone could neither
+            get back to its Home list nor reach the conversation actions. */}
           <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
             {/* Back to the Home list — where a phone keeps every chat, task
                 and conversation (the desktop panel's content). */}
@@ -1753,9 +1762,9 @@ function ChatSurfaceInner({
               <HomeBackButton organizationId={organizationId} />
             </div>
             <div className="min-w-0 flex-1 px-2">
-              {activeThread?.title !== undefined && (
+              {headerThread?.title !== undefined && (
                 <Text variant="muted" className="truncate text-center text-sm">
-                  {activeThread.title}
+                  {headerThread.title}
                 </Text>
               )}
             </div>
@@ -1796,7 +1805,7 @@ function ChatSurfaceInner({
                   : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
               )}
             />
-            {activeThread !== undefined && !threadNotFound ? (
+            {headerThread !== undefined && !threadNotFound ? (
               <ThreadHeader
                 floating
                 className="pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto"
@@ -1808,11 +1817,11 @@ function ChatSurfaceInner({
                 }
                 title={
                   <h1 className="truncate">
-                    {activeThread.title ?? t('history.untitled')}
+                    {headerThread.title ?? t('history.untitled')}
                   </h1>
                 }
                 meta={
-                  activeProject !== undefined || activeThread.isShared ? (
+                  activeProject !== undefined || headerThread.isShared ? (
                     <>
                       {activeProject !== undefined && (
                         <span className="inline-flex min-w-0 items-center gap-1">
@@ -1827,10 +1836,10 @@ function ChatSurfaceInner({
                           <span className="truncate">{activeProject.name}</span>
                         </span>
                       )}
-                      {activeProject !== undefined && activeThread.isShared && (
+                      {activeProject !== undefined && headerThread.isShared && (
                         <ThreadHeaderSeparator />
                       )}
-                      {activeThread.isShared && (
+                      {headerThread.isShared && (
                         <span className="inline-flex shrink-0 items-center gap-1">
                           <Share2 aria-hidden className="size-3" />
                           {t('share.sharedIndicator')}
@@ -2207,7 +2216,7 @@ function ChatSurfaceInner({
             onOpenChange={setExportOpen}
             organizationId={organizationId}
             threadId={viewThreadId}
-            threadTitle={activeThread?.title}
+            threadTitle={headerThread?.title}
           />
         )}
 
