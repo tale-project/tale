@@ -281,8 +281,9 @@ loaded, and reads **No teams** for an account in none.
   and **Earlier** (`home.groups.*`); empty bands are left out; pinned chats
   lead above every band; band headings stay pinned while the list scrolls.
   Each row ends on a short age — "now", "5m", "3h", "2d", then a date once a
-  week has passed — abbreviated per locale (German reads "3 Std."), and the
-  ages move on without a reload.
+  week has passed — abbreviated in the locale's own short form, from the
+  browser's locale data (German in Chrome reads "3 Std."), and the ages move
+  on without a reload.
 - [ ] `NAV-F28` · **One row anatomy** — Read a chat, a task and a conversation
   row side by side → A chat row: a speech-bubble glyph, its title (**Untitled
   chat**, `home.row.untitledChat`, when it has none), then its project (or
