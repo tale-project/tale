@@ -71,7 +71,7 @@ WebDAV-Uploads folgen den Dokumentberechtigungen und Indexierungsregeln; ihre Qu
 
 Ein kompatibler Editor kann eine Datei während der Bearbeitung sperren. Ein konkurrierender Schreibzugriff erhält **423 Locked**. Beende die andere Bearbeitung, statt wiederholt zu überschreiben. Der Widerruf eines App-Passworts löst auch seine Dateisperren.
 
-Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade eine noch gespeicherte Datei bei Bedarf zur Prüfung herunter und stelle sie über Tale wieder her. Endgültig entfernte Dateien lassen sich dort nicht zurückholen.
+Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade eine noch gespeicherte Datei bei Bedarf zur Prüfung herunter und stelle sie über Tale wieder her. Endgültig entfernte Dateien lassen sich dort nicht zurückholen. Eine Datei, die du über WebDAV hochlädst, überschreibst, kopierst oder löschst, hinterlässt in deinem Namen einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**; eine Löschung erscheint dort als in den Papierkorb verschobenes Dokument.
 
 ## Einen Zugang widerrufen oder reparieren
 

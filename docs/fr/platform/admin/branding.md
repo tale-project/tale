@@ -35,7 +35,7 @@ L’action Abandonner de l’en-tête concerne les modifications du formulaire e
 
 ## Changer la couleur d’accentuation
 
-Modifie **Couleur d'accentuation** et examine l’aperçu. Sélectionne **Enregistrer** dans l’en-tête pour conserver la modification, ou **Abandonner** pour revenir à la valeur enregistrée. Le champ reflète le thème courant : la couleur dérivée du thème sombre peut donc différer de la valeur stockée pour le thème clair.
+Modifie **Couleur d'accentuation** et examine l’aperçu. Sélectionne **Enregistrer** dans l’en-tête pour conserver la modification, ou **Abandonner** pour revenir à la valeur enregistrée. Le champ reflète le thème courant : la couleur dérivée du thème sombre peut donc différer de la valeur stockée pour le thème clair. Enregistrer une modification, charger une image ou en retirer une laisse chaque fois une entrée dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux**.
 
 Après l’enregistrement, recharge la page et vérifie un élément de navigation sélectionné, un bouton et le focus au clavier. Une couleur convaincante sur une grande surface peut être difficile à distinguer sur un petit contrôle.
 

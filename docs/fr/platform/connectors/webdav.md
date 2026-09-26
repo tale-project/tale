@@ -71,7 +71,7 @@ L’envoi WebDAV suit les permissions et l’indexation des documents ; sa sour
 
 Un éditeur compatible peut verrouiller un fichier pendant sa modification. Une écriture concurrente reçoit **423 Locked**. Termine ou ferme l’autre session plutôt que de répéter l’écrasement. Révoquer un mot de passe applicatif libère aussi ses verrous.
 
-La zone `.trash/` liste en lecture seule les documents supprimés provisoirement. Télécharge un fichier encore conservé pour l’examiner et utilise Tale pour le restaurer. Cette zone ne récupère pas un fichier déjà supprimé définitivement.
+La zone `.trash/` liste en lecture seule les documents supprimés provisoirement. Télécharge un fichier encore conservé pour l’examiner et utilise Tale pour le restaurer. Cette zone ne récupère pas un fichier déjà supprimé définitivement. Un fichier que tu charges, écrases, copies ou supprimes via WebDAV laisse une entrée à ton nom dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux** ; une suppression y figure comme un document mis à la corbeille.
 
 ## Révoquer ou réparer une connexion
 

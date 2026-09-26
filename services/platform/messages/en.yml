@@ -6238,6 +6238,14 @@ settings:
         connector_credential.created: Connector credential created
         connector_credential.updated: Connector credential updated
         connector_credential.deleted: Connector credential deleted
+        document.created: Document created
+        document.updated: Document updated
+        document.trashed: Document moved to trash
+        document.deleted: Document deleted
+        folder.deleted: Folder deleted
+        branding.updated: Branding updated
+        branding.image_uploaded: Branding image uploaded
+        branding.image_deleted: Branding image removed
         joined_organization: Joined organization
         signed_in_to_organization: Signed in to organization
         add_member: Added member
@@ -6425,6 +6433,7 @@ settings:
         conversation: Conversation
         conversationMessage: Conversation message
         document: Document
+        folder: Folder
         agent: Agent
         workflow: Automation
         workflow_run: Automation run

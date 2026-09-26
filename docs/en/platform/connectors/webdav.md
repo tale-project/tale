@@ -71,7 +71,7 @@ A WebDAV upload follows document permissions and indexing rules; the source is r
 
 A compatible editor can lock a file while editing. A conflicting write receives **423 Locked**; finish or close the other editing session rather than repeatedly overwriting. Revoking an app-password also releases locks held by that credential.
 
-The `.trash/` area lists soft-deleted documents read-only. Download a retained file if you need to inspect it; use Tale’s UI to restore it. You cannot use this area to retrieve a file that has already been permanently removed.
+The `.trash/` area lists soft-deleted documents read-only. Download a retained file if you need to inspect it; use Tale’s UI to restore it. You cannot use this area to retrieve a file that has already been permanently removed. A file you upload, overwrite, copy or delete over WebDAV leaves a row in the audit log under **Settings > Governance > Logs** in your name; a deletion shows as a document moved to trash.
 
 ## Revoke or repair a connection
 

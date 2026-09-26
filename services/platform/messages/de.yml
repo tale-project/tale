@@ -6146,6 +6146,14 @@ settings:
         connector_credential.created: Connector-Zugangsdaten erstellt
         connector_credential.updated: Connector-Zugangsdaten aktualisiert
         connector_credential.deleted: Connector-Zugangsdaten gelöscht
+        document.created: Dokument erstellt
+        document.updated: Dokument aktualisiert
+        document.trashed: Dokument in den Papierkorb verschoben
+        document.deleted: Dokument gelöscht
+        folder.deleted: Ordner gelöscht
+        branding.updated: Branding aktualisiert
+        branding.image_uploaded: Branding-Bild hochgeladen
+        branding.image_deleted: Branding-Bild entfernt
         joined_organization: Organisation beigetreten
         signed_in_to_organization: An Organisation angemeldet
         add_member: Mitglied hinzugefügt
@@ -6333,6 +6341,7 @@ settings:
         conversation: Konversation
         conversationMessage: Konversationsnachricht
         document: Dokument
+        folder: Ordner
         agent: Agent
         workflow: Automatisierung
         workflow_run: Automatisierungslauf

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 49 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -338,6 +338,24 @@ select lists only the current admin's keys (`useApiKeys`).
   naming you as the actor and the team (its resource type reads **Team**,
   `settings.logs.audit.resourceTypeLabels.team`) by its name; the rename's
   detail shows the old and the new name.
+- [ ] `GOV-F30` · **WebDAV writes and branding changes reach the audit log**
+  — With a WebDAV client connected as you (`/dashboard/{org}/settings/api/webdav`
+  for the details) upload a new file into the hub, upload it again, then
+  delete it; then under `/dashboard/{org}/settings/branding` upload a logo,
+  change the accent colour and **Save**, and remove the logo → `logs` →
+  **Audit logs** shows **Document created**
+  (`settings.logs.audit.actionLabels.document.created`), **Document
+  updated** (`settings.logs.audit.actionLabels.document.updated`) and
+  **Document moved to trash**
+  (`settings.logs.audit.actionLabels.document.trashed`) in your name, each
+  detail carrying `door` = `webdav`, and **Branding image uploaded**
+  (`settings.logs.audit.actionLabels.branding.image_uploaded`), **Branding
+  updated** (`settings.logs.audit.actionLabels.branding.updated`, its changed
+  fields naming **accentColor** and its detail the old and the new value)
+  and **Branding image removed**
+  (`settings.logs.audit.actionLabels.branding.image_deleted`) on the
+  organization; the trashed file also sits in the client's `.trash/`
+  collection and under `trash`.
 
 ## Boundary & error tests
 

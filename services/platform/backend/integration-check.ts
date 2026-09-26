@@ -27971,6 +27971,49 @@ async function checkWebdav(
     `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
   );
 
+  // Every WebDAV write above left its audit row under the app-password's
+  // owner, stamped `door: webdav`: the first PUT a `document.created`, the
+  // overwrite a `document.updated`, the folder cascade one `folder.deleted`
+  // with the count it trashed (`plan2.txt` and the nested `foobar/x.txt` —
+  // the sum crosses the subtree), the entry's DELETE a `document.trashed`
+  // (never `document.deleted` — the row is in the Trash, not gone).
+  const planDocId = docRows[0]?.id ?? '';
+  const davAudit = await sql<
+    {
+      action: string;
+      actorId: string;
+      resourceName: string | null;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, actor_id AS "actorId", resource_name AS "resourceName",
+           metadata
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND metadata->>'door' = 'webdav'
+      AND (
+        (resource_type = 'document' AND resource_id = ${planDocId})
+        OR (resource_type = 'folder' AND resource_name = 'DavReports')
+        OR (resource_type = 'document' AND resource_id = (
+          SELECT document_id FROM app.knowledge_entries WHERE id = ${davEntryId}
+        ))
+      )
+    ORDER BY ts ASC
+  `;
+  const davActions = davAudit.map((row) => row.action);
+  const cascadeRow = davAudit.find((row) => row.action === 'folder.deleted');
+  record(
+    'webdav: PUT, overwrite, folder DELETE and DELETE leave document and folder audit rows under the app-password owner',
+    davActions[0] === 'document.created' &&
+      davActions[1] === 'document.updated' &&
+      davActions.includes('folder.deleted') &&
+      davActions.includes('document.trashed') &&
+      !davActions.includes('document.deleted') &&
+      davAudit.every((row) => row.actorId === userId) &&
+      cascadeRow?.metadata?.trashedDocumentCount === 2 &&
+      davAudit[0]?.resourceName === 'plan.txt',
+    `rows=${davActions.join(',')} (want document.created,document.updated,…,folder.deleted,…,document.trashed and no document.deleted) actors=${[...new Set(davAudit.map((row) => row.actorId))].join(',')} (want ${userId}) cascade trashed=${String(cascadeRow?.metadata?.trashedDocumentCount)} (want 2)`,
+  );
+
   // Chunked PUT (no Content-Length) is refused with 411 up front — the
   // presigned object-store PUT needs the length, and the refusal is an
   // expected client error, not a reported 500.
