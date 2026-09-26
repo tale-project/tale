@@ -13,8 +13,9 @@
  * the registry ingested the locale data, so compiling here cannot throw.
  */
 
-import type { PiiPattern } from '../../core/types';
+import type { PiiMatchSpan, PiiPattern } from '../../core/types';
 import type { NationalIdSpec } from '../../schema';
+import { composeKeywordAlternation } from '../keywords';
 import type { NativePatternBuilder } from '../native';
 import {
   arCuilCheck,
@@ -144,7 +145,59 @@ function resolveValidator(
   }
 }
 
+/** Separators allowed between a context keyword and the value it names:
+ * whitespace, a colon (ASCII or full-width), a number sign, a dot, a comma,
+ * a dash or a slash — "IRD number: 49-091-850", "ІПН № 1234567890". */
+const CONTEXT_GAP = /^[\s:：.,#№\-/]{0,12}/u;
+/** The longest value any spec matches, with its separators. */
+const CONTEXT_WINDOW = 64;
+
+/**
+ * A spec gated by context: the value counts only when one of the spec's
+ * keywords directly precedes it. The keyword regex is composed the way the
+ * phone pattern's is (word-bounded, case-insensitive, literal keywords);
+ * the spec's own vetted pattern then runs on the text right after the
+ * keyword, with the checksum when the spec declares one. The keyword
+ * itself is never part of the span — the mask keeps it.
+ */
+function keywordGatedDetect(
+  spec: NationalIdSpec,
+  keywords: readonly string[],
+): (text: string) => PiiMatchSpan[] {
+  const gate = new RegExp(
+    `(?<![\\p{L}\\p{M}])(?:${composeKeywordAlternation([keywords])})(?![\\p{L}\\p{M}])`,
+    'giu',
+  );
+  const validate = resolveValidator(spec);
+  return (text) => {
+    const out: PiiMatchSpan[] = [];
+    for (const hit of text.matchAll(gate)) {
+      const after = hit.index + hit[0].length;
+      const gap = CONTEXT_GAP.exec(text.slice(after, after + 12))?.[0] ?? '';
+      const start = after + gap.length;
+      // A fresh RegExp per keyword hit: the spec's source was vetted with
+      // the `g` flag in mind, and `exec` on a shared `g` regex would carry
+      // `lastIndex` between windows.
+      const value = new RegExp(spec.pattern).exec(
+        text.slice(start, start + CONTEXT_WINDOW),
+      );
+      if (!value || value.index !== 0) continue;
+      const matchedText = value[0];
+      if (validate && !validate(matchedText)) continue;
+      out.push({ start, end: start + matchedText.length, matchedText });
+    }
+    return out;
+  };
+}
+
 function specToPattern(spec: NationalIdSpec): PiiPattern {
+  if (spec.contextKeywords) {
+    return {
+      name: spec.id,
+      detect: keywordGatedDetect(spec, spec.contextKeywords),
+      replacement: spec.replacement,
+    };
+  }
   return {
     name: spec.id,
     regex: new RegExp(spec.pattern, 'g'),

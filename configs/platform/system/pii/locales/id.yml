@@ -56,6 +56,11 @@ nationalIds:
   - id: id-nik
     name: Indonesian NIK
     pattern: \b\d{16}\b
+    contextKeywords:
+      - NIK
+      - nomor induk kependudukan
+      - KTP
+      - no. KTP
     replacement: '[NIK]'
 dateOfBirth:
   monthsLong:

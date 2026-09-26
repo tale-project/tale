@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 46 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 47 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -316,6 +316,16 @@ select lists only the current admin's keys (`useApiKeys`).
   dialog opens with **Arrives on** set to B and **Sent to** set to the
   thread's address. From an API thread → **Arrives on** is its app and there
   is no **Sent to**.
+- [ ] `GOV-F28` · **Ordinary numbers survive PII masking** — With **PII
+  protection** on in **Mask** mode and **National ID** ticked (no locale
+  chosen — every dataset runs), send in a new chat: `order 12345678; date
+  2026-09-10; build 20260926; ref 87654321` → The user bubble and the reply
+  keep all four values (no `[PASSPORT]`, no `[NZ_IRD]`) and **Recent events**
+  (`governance.guardrailsOverview.recentEvents.title`) logs nothing for the
+  turn. Then send
+  `passnummer 12345678` → the bubble reads `passnummer [PASSPORT]` (the
+  stored message is the masked text — reload to confirm) and the event names
+  `se-passport`.
 
 ## Boundary & error tests
 

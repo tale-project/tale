@@ -171,6 +171,15 @@ export const nationalIdSpecSchema = z
     checksum: nationalIdChecksumSchema.optional(),
     /** Required by the icao9303 checksum (total length incl. check digit). */
     checksumLength: z.number().int().positive().optional(),
+    /**
+     * Words that must directly precede the value ("passnummer", "ІПН",
+     * "IRD number") for it to count. A digits-only identifier with no
+     * check digit (a Swedish passport, a Ukrainian tax id) is
+     * indistinguishable from an order number, a compact date or a build
+     * number by shape alone; the context is what makes it an identifier.
+     * Compared case-insensitively at word boundaries; literal text.
+     */
+    contextKeywords: z.array(z.string().min(1)).min(1).optional(),
     replacement: z.string().min(1).max(64),
   })
   .strict();
