@@ -26,6 +26,7 @@ const transport = vi.hoisted(() => ({
   stderr: '' as string,
   cancelled: [] as string[],
   exitAfterStdout: false,
+  exitCode: 0,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
@@ -46,7 +47,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   ) => {
     callbacks.onStdout?.(transport.stdout);
     if (transport.stderr !== '') callbacks.onStderr?.(transport.stderr);
-    if (transport.exitAfterStdout) return { exitCode: 0 };
+    if (transport.exitAfterStdout) return { exitCode: transport.exitCode };
     // A live exec: the drain only ends when the window (or the cut) aborts.
     await new Promise<never>((_resolve, reject) => {
       signal.addEventListener('abort', () => reject(signal.reason), {
@@ -121,6 +122,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.stderr = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
+    transport.exitCode = 0;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -169,38 +171,84 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     }
   });
 
-  it('still finalizes a held pi result on a real exit', async () => {
-    transport.stdout = ndjson([
-      { type: 'session', id: 'pi-live-session', version: 3 },
-      {
-        type: 'message_end',
-        message: {
-          role: 'assistant',
-          stopReason: 'error',
-          errorMessage: 'gateway refused the call',
-          content: [],
-        },
-      },
-      { type: 'agent_end' },
-    ]);
+  it('reports a Pi process killed during a tool as interrupted', async () => {
+    transport.stdout = PI_MID_TOOL;
     transport.exitAfterStdout = true;
+    transport.exitCode = 137;
 
     const result = await drainHarnessWindow({
       sessionId: 'sandbox',
-      execId: 'dead-pi',
+      execId: 'killed-pi',
       harness: 'pi',
-      windowMs: 5_000,
+      windowMs: 50,
     });
 
     expect(result.kind).toBe('terminal');
     if (result.kind === 'terminal') {
-      expect(result.exited).toBe(true);
-      expect(result.ended?.status).toBe('error');
-      expect(classifyHarnessEnd(result).errored).toBe(true);
+      expect(result.ended).toBeUndefined();
+      expect(result.agentSessionId).toBe('pi-live-session');
+      expect(result.timeline.map((part) => part.type)).toEqual(['tool-bash']);
+      expect(classifyHarnessEnd(result)).toEqual({
+        errored: true,
+        reason:
+          'The harness exited unexpectedly (exit code 137) without completing the turn.',
+        emptyAnswer: false,
+      });
     }
-    // The process exited on its own — nothing to reap.
     expect(transport.cancelled).toEqual([]);
   });
+
+  it.each([
+    {
+      stopReason: 'error',
+      status: 'error',
+      message: 'gateway refused the call',
+    },
+    {
+      stopReason: 'aborted',
+      status: 'cancelled',
+      message: 'Request was aborted',
+    },
+  ])(
+    'preserves a held Pi $status reason on real exit',
+    async ({ stopReason, status, message }) => {
+      transport.stdout = ndjson([
+        { type: 'session', id: 'pi-live-session', version: 3 },
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            stopReason,
+            errorMessage: message,
+            content: [],
+          },
+        },
+        { type: 'agent_end' },
+      ]);
+      transport.exitAfterStdout = true;
+
+      const result = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'dead-pi',
+        harness: 'pi',
+        windowMs: 5_000,
+      });
+
+      expect(result.kind).toBe('terminal');
+      if (result.kind === 'terminal') {
+        expect(result.exited).toBe(true);
+        expect(result.ended?.status).toBe(status);
+        expect(result.harnessError).toBe(message);
+        expect(classifyHarnessEnd(result)).toEqual({
+          errored: true,
+          reason: message,
+          emptyAnswer: false,
+        });
+      }
+      // The process exited on its own — nothing to reap.
+      expect(transport.cancelled).toEqual([]);
+    },
+  );
 
   it('keeps a claude turn running while a background task is open', async () => {
     transport.stdout = ndjson([
@@ -316,6 +364,7 @@ describe('classifyHarnessEnd', () => {
     transport.stdout = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
+    transport.exitCode = 0;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 

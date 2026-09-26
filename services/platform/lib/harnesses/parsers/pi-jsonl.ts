@@ -83,9 +83,14 @@ class PiJsonlParser implements HarnessEventParser {
 
   end(): HarnessEvent[] {
     const events = this.lines.flush().flatMap((line) => this.line(line));
-    // A held error `agent_end` with no retry (or a truncated retry loop) is
-    // finalized here — the process exiting IS the terminal signal.
-    if (!this.resultEmitted && this.lastStopReason !== undefined) {
+    // Only a held failure can be finalized at EOF. A successful model
+    // message (including a toolUse stop) does not finish the agent loop: the
+    // process may have died before executing its tools or emitting agent_end.
+    // Leave that exit without a result so the host reports an interrupted turn.
+    if (
+      !this.resultEmitted &&
+      (this.lastStopReason === 'error' || this.lastStopReason === 'aborted')
+    ) {
       events.push(...this.result());
     }
     return events;
