@@ -345,21 +345,33 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
     // anchors the checkbox to the row's true vertical center, matching the
     // column text alongside it. `justify-center` keeps it centered within the
     // 40px column width.
-    header: ({ table }) => (
-      <div className="flex h-full items-center justify-center">
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected()
-                ? 'indeterminate'
-                : false
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label={i18n.t('common:aria.selectAll')}
-        />
-      </div>
-    ),
+    header: ({ table }) => {
+      // The cells' rule, applied to the header: once the page has rows and
+      // none of them can be selected (the Members list shows only you), a
+      // select-all box would select nothing. While rows are still loading it
+      // stays, so the skeleton keeps its shape.
+      const rows = table.getRowModel().rows;
+      if (rows.length > 0 && !rows.some((row) => row.getCanSelect())) {
+        return null;
+      }
+      return (
+        <div className="flex h-full items-center justify-center">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                  ? 'indeterminate'
+                  : false
+            }
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label={i18n.t('common:aria.selectAll')}
+          />
+        </div>
+      );
+    },
     // Non-selectable rows (e.g. protected agents gated out by the table's
     // `enableRowSelection` predicate) render no checkbox at all — an inert
     // "Select row" control is a false affordance and a confusing AT target.
