@@ -100,6 +100,10 @@ interface ThreadRow {
   sharedBy: string | null;
   status: string;
   branchRootId: string | null;
+  /** The sibling this branch was forked FROM, and at which user-message
+   * sequence; both null on a root. */
+  branchParentId: string | null;
+  branchForkSequence: number | null;
   hidden: boolean | null;
   createdAt: number;
   updatedAt: number;
@@ -117,7 +121,9 @@ const THREAD_COLUMNS = `
   tm.last_read_at_ms::float8 AS "lastReadAt",
   tm.is_shared AS "isShared", tm.share_token AS "shareToken",
   tm.shared_at_ms::float8 AS "sharedAt", tm.shared_by AS "sharedBy",
-  tm.status, tm.branch_root_id AS "branchRootId", tm.hidden,
+  tm.status, tm.branch_root_id AS "branchRootId",
+  tm.branch_parent_id AS "branchParentId",
+  tm.branch_fork_sequence AS "branchForkSequence", tm.hidden,
   t.created_at_ms::float8 AS "createdAt", t.updated_at_ms::float8 AS "updatedAt"
 `;
 
@@ -1386,22 +1392,87 @@ export async function searchChats(
 /** Selections beyond this are dropped oldest-first — a bound, not a quota. */
 const MAX_BRANCH_SELECTIONS = 50;
 
+/** A fresh edit / regenerate sibling: its id and the fork point it hangs
+ * off — the `"<parentId>:<forkSequence>"` key the selection map speaks. */
+export interface BranchFork {
+  id: string;
+  parentId: string;
+  forkSequence: number;
+}
+
+/**
+ * The sibling a fork at `forkSequence` taken from `thread` hangs off. A
+ * branch forked at sequence S holds its own rows only FROM S on; everything
+ * before is its parent's copy. So a fork at or before S copies nothing the
+ * branch itself wrote, and it is another version of the SAME turn — a
+ * sibling of the branch, not its child. Walking up until an ancestor forked
+ * earlier than the new fork (or the root) keeps every version of a turn on
+ * one fork point: "Try again" then "Edit" reads ‹3/3› with the original
+ * reachable, instead of a chain the navigator can only show the tail of.
+ * Bounded like the view walk; a lineage is shallow in practice.
+ */
+async function forkOwner(
+  sql: Sql,
+  thread: ThreadRow,
+  forkSequence: number,
+): Promise<string> {
+  let owner = {
+    id: thread.id,
+    branchParentId: thread.branchParentId,
+    branchForkSequence: thread.branchForkSequence,
+  };
+  for (let guard = 0; guard < 50; guard += 1) {
+    if (
+      owner.branchParentId === null ||
+      owner.branchForkSequence === null ||
+      owner.branchForkSequence < forkSequence
+    ) {
+      return owner.id;
+    }
+    const rows = await sql<
+      {
+        id: string;
+        branchParentId: string | null;
+        branchForkSequence: number | null;
+      }[]
+    >`
+      SELECT t.id, tm.branch_parent_id AS "branchParentId",
+             tm.branch_fork_sequence AS "branchForkSequence"
+      FROM app.threads t
+      JOIN app.thread_metadata tm ON tm.thread_id = t.id
+      WHERE t.id = ${owner.branchParentId}
+        AND t.org_id = ${thread.organizationId}
+        AND t.user_id = ${thread.userId} AND tm.status = 'active'
+      LIMIT 1
+    `;
+    const ancestor = rows[0];
+    // An ancestor that is gone (a discarded empty sibling) cannot carry a
+    // fork the view could reach; the fork stays on the last live node.
+    if (ancestor === undefined) return owner.id;
+    owner = ancestor;
+  }
+  return owner.id;
+}
+
 /**
  * Copy `parent`'s conversation up to `copyThrough` (inclusive, by `order`)
- * into a fresh HIDDEN sibling forked at `forkSequence`. The branch inherits
- * everything a turn reads from the thread (agent, capabilities, project) so
- * a turn into it behaves exactly like one into the parent. Chat appends are
- * flat (`step_order` 0, `order` = the 0.4 sequence), so order comparisons
- * ARE the 0.4 sequence comparisons and the copy stays gap-free from zero.
+ * into a fresh HIDDEN sibling forked at `forkSequence`, hung off the fork's
+ * owner (`forkOwner` — `parent` itself, or the ancestor whose turn it
+ * versions). The branch inherits everything a turn reads from the thread
+ * (agent, capabilities, project) so a turn into it behaves exactly like one
+ * into the parent. Chat appends are flat (`step_order` 0, `order` = the 0.4
+ * sequence), so order comparisons ARE the 0.4 sequence comparisons and the
+ * copy stays gap-free from zero.
  */
 async function createBranchSibling(
   sql: Sql,
   parent: ThreadRow,
   forkSequence: number,
   copyThrough: number,
-): Promise<string> {
+): Promise<BranchFork> {
   const now = Date.now();
   const rootId = parent.branchRootId ?? parent.id;
+  const parentId = await forkOwner(sql, parent, forkSequence);
   return sql.begin(async (tx) => {
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
@@ -1424,7 +1495,7 @@ async function createBranchSibling(
         ${parent.kind}, 'active', ${parent.projectId}, ${parent.agentSlug},
         ${parent.harness},
         ${capabilities === null ? null : tx.json(toJson(capabilities))},
-        ${parent.reasoningEffort}, true, ${rootId}, ${parent.id},
+        ${parent.reasoningEffort}, true, ${rootId}, ${parentId},
         ${forkSequence}, ${now}
       )
     `;
@@ -1440,7 +1511,7 @@ async function createBranchSibling(
       WHERE thread_id = ${parent.id} AND "order" <= ${copyThrough}
       ORDER BY "order", step_order
     `;
-    return branchId;
+    return { id: branchId, parentId, forkSequence };
   });
 }
 
@@ -1455,7 +1526,7 @@ export async function branchForEdit(
   userId: string,
   threadId: string,
   editedMessageId: string,
-): Promise<string | null> {
+): Promise<BranchFork | null> {
   const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
   if (!thread) return null;
   const messages = await sql<{ order: number; role: string }[]>`
@@ -1479,7 +1550,7 @@ export async function branchForRegenerate(
   userId: string,
   threadId: string,
   assistantMessageId: string,
-): Promise<string | null> {
+): Promise<BranchFork | null> {
   const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
   if (!thread) return null;
   const messages = await sql<{ order: number; role: string }[]>`
@@ -1582,15 +1653,18 @@ export async function getThreadLineageIds(
 
 /** Record which sibling a fork point shows — stored on the ROOT as a JSON
  * map keyed `"<parentId>:<forkSequence>"`, bounded oldest-first. A metadata
- * edit: `updatedAt` stays untouched. */
+ * edit: `updatedAt` stays untouched. One flip can touch several keys (a
+ * lineage written before forks were flattened needs every ancestor's key
+ * at that sequence); they land in ONE read-modify-write so no key's write
+ * overtakes another's read. */
 export async function setBranchSelection(
   sql: Sql,
   organizationId: string,
   userId: string,
   rootThreadId: string,
-  forkKey: string,
-  selectedThreadId: string,
+  entries: ReadonlyArray<{ forkKey: string; selectedThreadId: string }>,
 ): Promise<void> {
+  if (entries.length === 0) return;
   const root = await loadOwnedThread(sql, organizationId, userId, rootThreadId);
   if (!root) return;
   const current = await sql<{ branchSelections: string | null }[]>`
@@ -1611,7 +1685,11 @@ export async function setBranchSelection(
       console.warn('[chat] unreadable branch selections were reset', error);
     }
   }
-  selections[forkKey] = selectedThreadId;
+  for (const entry of entries) {
+    // Re-insert so a re-chosen key counts as the newest under the bound.
+    delete selections[entry.forkKey];
+    selections[entry.forkKey] = entry.selectedThreadId;
+  }
   const keys = Object.keys(selections);
   if (keys.length > MAX_BRANCH_SELECTIONS) {
     selections = Object.fromEntries(

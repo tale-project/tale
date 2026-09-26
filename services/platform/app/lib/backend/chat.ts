@@ -309,39 +309,48 @@ export async function branchChatThread(
   return created.id;
 }
 
-export async function branchChatThreadForEdit(
+/** A fresh edit / regenerate sibling and the fork point it hangs off. The
+ * server may hang it off an ANCESTOR of the thread it was forked from (a
+ * fork at or before a sibling's own fork sequence is another version of the
+ * same turn), so the selection is keyed on `parentId`, never on the thread
+ * that was on screen. */
+export interface ChatBranchFork {
+  id: string;
+  parentId: string;
+  forkSequence: number;
+}
+
+export function branchChatThreadForEdit(
   organizationId: string,
   threadId: string,
   editedMessageId: string,
-): Promise<string> {
-  const created = await backendFetch<{ id: string }>(
+): Promise<ChatBranchFork> {
+  return backendFetch<ChatBranchFork>(
     `/chat/threads/${encodeURIComponent(threadId)}/branch-edit`,
     { method: 'POST', body: { editedMessageId }, orgId: organizationId },
   );
-  return created.id;
 }
 
-export async function branchChatThreadForRegenerate(
+export function branchChatThreadForRegenerate(
   organizationId: string,
   threadId: string,
   assistantMessageId: string,
-): Promise<string> {
-  const created = await backendFetch<{ id: string }>(
+): Promise<ChatBranchFork> {
+  return backendFetch<ChatBranchFork>(
     `/chat/threads/${encodeURIComponent(threadId)}/branch-regenerate`,
     { method: 'POST', body: { assistantMessageId }, orgId: organizationId },
   );
-  return created.id;
 }
 
+/** Every key one flip writes, in one request — a chosen version on a
+ * lineage written before forks were flattened needs each ancestor's key. */
 export function setChatBranchSelection(
   organizationId: string,
   threadId: string,
-  forkKey: string,
-  selectedThreadId: string,
+  selections: ReadonlyArray<{ forkKey: string; selectedThreadId: string }>,
 ): Promise<boolean> {
   return threadVerb(organizationId, threadId, 'branch-selection', {
-    forkKey,
-    selectedThreadId,
+    selections,
   });
 }
 

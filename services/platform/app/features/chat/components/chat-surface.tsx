@@ -63,6 +63,13 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
+import {
+  forkGroupsForPath,
+  forkKey,
+  parseBranchSelections,
+  resolveViewPath,
+  selectionChainFor,
+} from '@/lib/shared/branch-selection';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import {
   formatAnswerSetForModel,
@@ -111,12 +118,6 @@ import {
   useVoiceAudioElement,
   VoiceOutputProvider,
 } from '../hooks/voice-output-context';
-import {
-  forkGroupsForPath,
-  forkKey,
-  parseBranchSelections,
-  resolveViewPath,
-} from '../lib/branch-selection';
 import type {
   ChatThreadSummary,
   ChatMessageView,
@@ -180,12 +181,17 @@ function chatDraftKey(
   return threadId !== undefined ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
-/** The fork an edit / regenerate send goes into: the parent's fork point and
- * the fresh sibling — enough to undo the fork when the turn never lands. */
+/** The fork an edit / regenerate send goes into: the fork point (as the
+ * server resolved it — the thread whose turn the sibling versions) and the
+ * fresh sibling — enough to undo the fork when the turn never lands. */
 interface BranchFork {
   readonly parentId: string;
   readonly forkSequence: number;
   readonly branchId: string;
+  /** The sibling the fork point showed BEFORE the fork — where the view
+   * returns when the turn never lands (the parent's own tail when nothing
+   * was chosen there). */
+  readonly restoreTo: string;
 }
 
 interface ChatSurfaceProps {
@@ -263,15 +269,25 @@ function ChatSurfaceInner({
     // A different conversation starts from its own stored choices.
     setSelectionOverrides({});
   }, [threadId]);
-  const selections = useMemo(
-    () => ({
+  const selections = useMemo(() => {
+    const merged: Record<string, string> = {
       ...parseBranchSelections(
         branchData.status === 'ready' ? branchData.data.selections : null,
       ),
-      ...selectionOverrides,
-    }),
-    [branchData, selectionOverrides],
-  );
+    };
+    const listed = new Set(branches.map((branch) => branch.id));
+    for (const [key, chosen] of Object.entries(selectionOverrides)) {
+      // An override naming a sibling the branches read has not delivered
+      // yet (the fresh fork of an edit / retry) waits: the stored choice
+      // keeps the view where it is until the row arrives, instead of a hop
+      // to the fork point's own tail in between. A fork point's own id is
+      // always known.
+      if (listed.has(chosen) || key.startsWith(`${chosen}:`)) {
+        merged[key] = chosen;
+      }
+    }
+    return merged;
+  }, [branchData, branches, selectionOverrides]);
   const viewPath = useMemo(
     () =>
       threadId !== undefined
@@ -1103,18 +1119,21 @@ function ChatSurfaceInner({
     if (threadId === undefined) return;
     const key = forkKey(parentId, sequence);
     setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
-    branchActions.select(threadId, key, chosen);
+    branchActions.select(threadId, [
+      { forkKey: key, selectedThreadId: chosen },
+    ]);
   };
 
   /**
    * A send into a fresh edit / regenerate sibling names the fork it came
    * from, so a refusal that wrote nothing can undo the fork: the selection
-   * flips back to the parent's own tail and the empty sibling is dropped.
-   * Left in place, the persisted selection would follow it to a prefix-only
-   * branch whose fork row does not exist — no ‹n/m› control, no way back.
+   * flips back to the sibling it showed before and the empty sibling is
+   * dropped. Left in place, the persisted selection would follow it to a
+   * prefix-only branch whose fork row does not exist — no ‹n/m› control, no
+   * way back.
    */
   const abandonBranch = (fork: BranchFork) => {
-    rememberSelection(fork.parentId, fork.forkSequence, fork.parentId);
+    rememberSelection(fork.parentId, fork.forkSequence, fork.restoreTo);
     void branchActions.discard(fork.branchId);
   };
 
@@ -1374,7 +1393,7 @@ function ChatSurfaceInner({
               rememberSelection(
                 fork.parentId,
                 fork.forkSequence,
-                fork.parentId,
+                fork.restoreTo,
               );
             }
             toast({ title: t('toast.sendFailed'), variant: 'destructive' });
@@ -1414,9 +1433,23 @@ function ChatSurfaceInner({
         onSelect: (nextIndex) => {
           const chosen = group.siblings[nextIndex];
           if (chosen === undefined) return;
-          const key = forkKey(group.parentId, group.forkSequence);
-          setSelectionOverrides((previous) => ({ ...previous, [key]: chosen }));
-          branchActions.select(threadId, key, chosen);
+          // Every key that makes `chosen` the version on screen — one on a
+          // flat fork point, one per ancestor on a lineage written before
+          // forks were flattened — flips locally and lands in one write.
+          const chain = selectionChainFor(
+            group.forkSequence,
+            chosen,
+            viewPath,
+            branches,
+          );
+          setSelectionOverrides((previous) => {
+            const next = { ...previous };
+            for (const entry of chain) {
+              next[entry.forkKey] = entry.selectedThreadId;
+            }
+            return next;
+          });
+          branchActions.select(threadId, chain);
         },
       });
     }
@@ -1434,8 +1467,7 @@ function ChatSurfaceInner({
     text: string,
   ): Promise<boolean> => {
     if (viewThreadId === undefined) return false;
-    const parentId = viewThreadId;
-    const forked = await branchActions.branchForEdit(parentId, message.id);
+    const forked = await branchActions.branchForEdit(viewThreadId, message.id);
     if (forked.status === 'refused') {
       refusalToast(forked.reason, forked.code);
       return false;
@@ -1444,11 +1476,18 @@ function ChatSurfaceInner({
       toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       return false;
     }
-    rememberSelection(parentId, message.sequence, forked.id);
+    // The fork point is the server's: a "try again" sibling on screen is
+    // another version of the same turn, so the edit hangs off ITS parent
+    // and the selection is keyed there — three versions on one ‹n/m›, the
+    // original among them.
+    const { parentId, forkSequence } = forked;
+    const restoreTo = selections[forkKey(parentId, forkSequence)] ?? parentId;
+    rememberSelection(parentId, forkSequence, forked.id);
     handleSend(text, forked.id, {
       parentId,
-      forkSequence: message.sequence,
+      forkSequence,
       branchId: forked.id,
+      restoreTo,
     });
     return true;
   };
@@ -1471,14 +1510,13 @@ function ChatSurfaceInner({
             } as const)
           : undefined;
     if (modelPick === undefined) return;
-    const parentId = viewThreadId;
     const rows = threadView.items;
     const prompt = rows
       .toReversed()
       .find((row) => row.role === 'user' && row.sequence < message.sequence);
     if (!prompt) return;
     void branchActions
-      .branchForRegenerate(parentId, message.id)
+      .branchForRegenerate(viewThreadId, message.id)
       .then(async (forked) => {
         // The door measured the budget before forking: a reached cap is
         // named as a refused send is, and nothing was created or selected.
@@ -1491,7 +1529,11 @@ function ChatSurfaceInner({
           return;
         }
         const branchId = forked.id;
-        rememberSelection(parentId, prompt.sequence, branchId);
+        // The fork point as the server resolved it (see the edit above).
+        const { parentId, forkSequence } = forked;
+        const restoreTo =
+          selections[forkKey(parentId, forkSequence)] ?? parentId;
+        rememberSelection(parentId, forkSequence, branchId);
         const outcome = await branchActions.regenerate(branchId, {
           ...modelPick,
           ...(selection.reasoningEffort !== undefined
@@ -1505,13 +1547,9 @@ function ChatSurfaceInner({
         // unknown — the sibling stays reachable as ‹n/m›, only the view
         // returns.
         if (outcome.persisted === false) {
-          abandonBranch({
-            parentId,
-            forkSequence: prompt.sequence,
-            branchId,
-          });
+          abandonBranch({ parentId, forkSequence, branchId, restoreTo });
         } else if (outcome.persisted === undefined) {
-          rememberSelection(parentId, prompt.sequence, parentId);
+          rememberSelection(parentId, forkSequence, restoreTo);
         }
         if (isBudgetRefusalCode(outcome.code)) {
           refusalToast(outcome.reason, outcome.code);

@@ -77,12 +77,20 @@ describe('useBranchActions forks', () => {
     expect(invalidateBudgetStanding).toHaveBeenCalledTimes(1);
   });
 
-  it('resolves created with the sibling id and refreshes the thread reads', async () => {
-    branchChatThreadForEdit.mockResolvedValueOnce('b1');
+  it('resolves created with the sibling and its fork point, and refreshes the thread reads', async () => {
+    // The fork point is the server's: forked from `t1` (itself a "try
+    // again" sibling), the edit hangs off t1's parent `t0`.
+    branchChatThreadForEdit.mockResolvedValueOnce({
+      id: 'b1',
+      parentId: 't0',
+      forkSequence: 2,
+    });
     const { result } = renderHook(() => useBranchActions('org_1'));
     await expect(result.current.branchForEdit('t1', 'm1')).resolves.toEqual({
       status: 'created',
       id: 'b1',
+      parentId: 't0',
+      forkSequence: 2,
     });
     expect(invalidateChatThreads).toHaveBeenCalledWith({}, 'org_1');
     expect(invalidateBudgetStanding).not.toHaveBeenCalled();

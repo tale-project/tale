@@ -38846,6 +38846,42 @@ async function checkChatThreadSurface(
     `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${!listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
   );
 
+  // A fork at a sibling's own fork sequence versions the SAME turn: an edit
+  // taken from the regenerate sibling (forked at 0) hangs off the ROOT at
+  // 0 — three siblings of one fork point, never a chain — and the door
+  // answers that fork point beside the sibling's id.
+  const regenPrompt = await sql<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE thread_id = ${regenBranchId} AND "order" = 0 AND role = 'user'
+  `;
+  const nestedEdit = z
+    .object({ id: z.string(), parentId: z.string(), forkSequence: z.number() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${regenBranchId}/branch-edit?orgId=${orgId}`,
+          { editedMessageId: regenPrompt[0]?.id ?? '' },
+        )
+      ).json(),
+    );
+  const nestedStamp = await sql<
+    { parentId: string | null; forkSequence: number | null }[]
+  >`
+    SELECT branch_parent_id AS "parentId",
+           branch_fork_sequence AS "forkSequence"
+    FROM app.thread_metadata
+    WHERE thread_id = ${nestedEdit.success ? nestedEdit.data.id : ''}
+  `;
+  record(
+    'edit taken from a "try again" sibling hangs off the root — one fork point',
+    nestedEdit.success &&
+      nestedEdit.data.parentId === threadB &&
+      nestedEdit.data.forkSequence === 0 &&
+      nestedStamp[0]?.parentId === threadB &&
+      nestedStamp[0]?.forkSequence === 0,
+    `answer=${nestedEdit.success ? `${nestedEdit.data.parentId}:${nestedEdit.data.forkSequence}` : 'ERR'} row=${nestedStamp[0]?.parentId}:${nestedStamp[0]?.forkSequence} (want ${threadB}:0)`,
+  );
+
   // Palette search reads the whole live lineage: a body that exists ONLY on
   // the hidden edit sibling is found, and the hit names the ROOT (the id the
   // chat URL carries), never the sibling. The regenerate sibling — selected

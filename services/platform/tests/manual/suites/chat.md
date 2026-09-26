@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 77 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 78 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -339,6 +339,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   prompt appears once per column (never a second copy when the reply
   arrives), and the verdict buttons stay unavailable until both replies
   finish.
+- [ ] `CHAT-F44` · **Try again, then Edit → 3/3, original reachable** — On an
+  assistant reply click **Try again** (`chat.tryAgain`); once the new reply
+  lands, hover the user message above it → **Edit message**
+  (`chat.editMessage`) → change the text → **Send** (`chat.editSend`) → The
+  navigator under that user message reads 3/3; **Previous branch**
+  (`chat.branchNavigator.previous`) twice lands on 1/3 with the ORIGINAL
+  question and its ORIGINAL reply, and 2/3 shows the original question with
+  the retried reply; **Try again** twice on one reply likewise reads 3/3 with
+  the first reply still reachable; after a reload the same version is on
+  screen.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

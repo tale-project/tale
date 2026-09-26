@@ -16,6 +16,7 @@ const {
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
+  setBranchSelection,
   assertChatTurnBudget,
   getArenaPair,
   hasLiveGeneration,
@@ -33,6 +34,7 @@ const {
   listArchivedThreads: vi.fn(),
   branchForEdit: vi.fn(),
   branchForRegenerate: vi.fn(),
+  setBranchSelection: vi.fn(),
   assertChatTurnBudget: vi.fn(),
   getArenaPair: vi.fn(),
   hasLiveGeneration: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('./threads.ts', async (importOriginal) => ({
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
+  setBranchSelection,
 }));
 vi.mock('./budget-admission.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./budget-admission.ts')>()),
@@ -192,13 +195,24 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
     expect(emitHintInTx).not.toHaveBeenCalled();
   });
 
-  it('forks as before when every cap has room', async () => {
-    branchForEdit.mockResolvedValueOnce('b1');
+  it('forks when every cap has room, answering the sibling AND its fork point', async () => {
+    // The door passes the domain's fork point through: forked from `t1`,
+    // the sibling may hang off t1's own parent (another version of the
+    // same turn), and the client keys its selection on THAT id.
+    branchForEdit.mockResolvedValueOnce({
+      id: 'b1',
+      parentId: 't0',
+      forkSequence: 2,
+    });
     const res = await post('/threads/t1/branch-edit', {
       editedMessageId: 'm1',
     });
     expect(res.status).toBe(201);
-    await expect(res.json()).resolves.toEqual({ id: 'b1' });
+    await expect(res.json()).resolves.toEqual({
+      id: 'b1',
+      parentId: 't0',
+      forkSequence: 2,
+    });
     expect(branchForEdit).toHaveBeenCalledWith(
       expect.anything(),
       'o1',
@@ -208,6 +222,23 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
     );
   });
 
+  it('answers the regenerate fork point the same way', async () => {
+    branchForRegenerate.mockResolvedValueOnce({
+      id: 'b2',
+      parentId: 't1',
+      forkSequence: 4,
+    });
+    const res = await post('/threads/t1/branch-regenerate', {
+      assistantMessageId: 'm2',
+    });
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual({
+      id: 'b2',
+      parentId: 't1',
+      forkSequence: 4,
+    });
+  });
+
   it('lets a non-budget admission failure surface as an error, not a fork', async () => {
     assertChatTurnBudget.mockRejectedValueOnce(new Error('db down'));
     const res = await post('/threads/t1/branch-regenerate', {
@@ -215,6 +246,51 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
     });
     expect(res.status).toBe(500);
     expect(branchForRegenerate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A selection flip lands every key it needs in ONE write; the single-key
+ * shape stays for an older tab.
+ */
+describe('POST /threads/:threadId/branch-selection body', () => {
+  const post = (route: string, body?: string) =>
+    makeApp().request(`${route}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...(body !== undefined ? { body } : {}),
+    });
+
+  it('writes a selection chain in one call, and wraps the single-key shape', async () => {
+    setBranchSelection.mockResolvedValue(undefined);
+    const chain = [
+      { forkKey: 't1:2', selectedThreadId: 'b1' },
+      { forkKey: 'b1:2', selectedThreadId: 'b2' },
+    ];
+    const res = await post(
+      '/threads/t1/branch-selection',
+      JSON.stringify({ selections: chain }),
+    );
+    expect(res.status).toBe(200);
+    expect(setBranchSelection).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      chain,
+    );
+
+    await post(
+      '/threads/t1/branch-selection',
+      JSON.stringify({ forkKey: 't1:2', selectedThreadId: 'b1' }),
+    );
+    expect(setBranchSelection).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      't1',
+      [{ forkKey: 't1:2', selectedThreadId: 'b1' }],
+    );
   });
 });
 
