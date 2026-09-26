@@ -10,6 +10,7 @@ import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { toast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -416,10 +417,13 @@ function HomeSectionFrame({
   children: ReactNode;
 }) {
   const { pathname } = useLocation();
+  // A phone has no panel beside the page (its Home list is a screen of its
+  // own), so the panel — and every read it makes — mounts on desktop only.
+  const isMobile = useIsMobile();
   if (!isHomePath(pathname, organizationId)) return <>{children}</>;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <HomePanel organizationId={organizationId} />
+      {!isMobile && <HomePanel organizationId={organizationId} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
     </div>
   );

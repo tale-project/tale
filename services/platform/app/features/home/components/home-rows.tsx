@@ -84,11 +84,13 @@ function RowText({
       <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-4">
         {meta}
         {unread && (
-          <span
-            role="status"
-            aria-label={t('row.unread')}
-            className="animate-in zoom-in-50 ml-auto size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
-          />
+          <>
+            <span className="sr-only">{t('row.unread')}</span>
+            <span
+              aria-hidden
+              className="animate-in zoom-in-50 ml-auto size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
+            />
+          </>
         )}
       </span>
     </span>
@@ -189,11 +191,7 @@ export function HomeChatRow({
         >
           <RowGlyph>
             {item.generating ? (
-              <LoaderCircle
-                role="status"
-                aria-label={t('row.generating')}
-                className="size-4 animate-spin text-blue-500 motion-reduce:animate-none"
-              />
+              <LoaderCircle className="size-4 animate-spin text-blue-500 motion-reduce:animate-none" />
             ) : (
               <MessageCircle className="text-muted-foreground size-4" />
             )}

@@ -90,10 +90,15 @@ export function HomeViewSwitcher({
           >
             <span className="truncate">{t(`views.${option.view}`)}</span>
             {option.attention > 0 && (
-              <span
-                aria-label={t('aria.attention', { count: option.attention })}
-                className="animate-in zoom-in-50 size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
-              />
+              <>
+                <span className="sr-only">
+                  {`, ${t('aria.attention', { count: option.attention })}`}
+                </span>
+                <span
+                  aria-hidden
+                  className="animate-in zoom-in-50 size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
+                />
+              </>
             )}
           </button>
         );
