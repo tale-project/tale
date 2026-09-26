@@ -274,6 +274,14 @@ export async function upsertTaskByExternalRef(
     );
   }
   const source = parsedSource?.data;
+  const sourceScope =
+    source === undefined
+      ? undefined
+      : externalSystem === 'github'
+        ? source.repositoryId?.toString()
+        : externalSystem === 'glitchtip'
+          ? source.sourceProjectId
+          : undefined;
   if (source !== undefined && args.projectId === undefined) {
     throw new TaskError(
       'TASK_EXTERNAL_REF_INVALID',
@@ -328,6 +336,15 @@ export async function upsertTaskByExternalRef(
         updated = await tx<{ id: string }[]>`
           UPDATE app.tasks SET
             external_source_id = ${source.id}, external_issue = ${tx.json(source)},
+            external_issue_source_scopes = ARRAY(
+              SELECT DISTINCT scope FROM unnest(
+                COALESCE(external_issue_source_scopes, ARRAY[]::text[]) || ARRAY[
+                  CASE WHEN external_system = 'github' THEN external_issue->>'repositoryId'
+                    WHEN external_system = 'glitchtip' THEN external_issue->>'sourceProjectId' END,
+                  ${sourceScope ?? null}
+                ]::text[]
+              ) AS scope WHERE scope IS NOT NULL
+            ),
             external_id = ${externalId}, external_url = ${source.url}, updated_at_ms = ${now}
           WHERE id = ${existing.id} AND org_id = ${args.organizationId}
             AND (external_issue IS NULL
@@ -568,7 +585,7 @@ export async function upsertTaskByExternalRef(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, status, priority, label_ids,
       assignee_type, assignee_id, rank, number, external_system, external_id,
-      external_url, external_source_id, external_issue,
+      external_url, external_source_id, external_issue, external_issue_source_scopes,
       completed_at_ms, external_closed_at_ms, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
@@ -577,7 +594,8 @@ export async function upsertTaskByExternalRef(
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
       ${rank}, ${number}, ${externalSystem}, ${externalId},
       ${source?.url ?? args.externalUrl ?? null}, ${source?.id ?? null},
-      ${source !== undefined ? tx.json(source) : null}, ${status === 'done' ? now : null},
+      ${source !== undefined ? tx.json(source) : null},
+      ${sourceScope === undefined ? null : [sourceScope]}::text[], ${status === 'done' ? now : null},
       ${status === 'done' ? now : null},
       ${createdByUser ? args.actorId : (ownerAutomation ?? args.actorId)},
       ${createdByUser ? 'user' : ownerAutomation !== null ? 'app' : 'agent'},

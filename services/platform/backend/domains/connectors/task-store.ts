@@ -166,6 +166,10 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       limit,
       legacyPrefixes,
     }) {
+      const sourceScope =
+        externalSystem === 'github'
+          ? repositoryId?.toString()
+          : sourceProjectId;
       return sql.begin(async (tx) => {
         // Selection now writes its own attempt clock. Share the batch queue
         // so refresh bookkeeping and source upserts never lock a project's
@@ -182,8 +186,8 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           FROM app.tasks
           WHERE org_id = ${organizationId} AND project_id = ${projectId}
             AND external_system = ${externalSystem} AND ( (external_issue IS NOT NULL
-            AND ${repositoryId === undefined ? tx`TRUE` : tx`external_issue->>'repositoryId' = ${String(repositoryId)}`}
-            AND ${sourceProjectId === undefined ? tx`TRUE` : tx`external_issue->>'sourceProjectId' = ${sourceProjectId}`}
+            AND ${repositoryId === undefined ? tx`TRUE` : tx`(external_issue->>'repositoryId' = ${String(repositoryId)} OR ${String(repositoryId)} = ANY(external_issue_source_scopes))`}
+            AND ${sourceProjectId === undefined ? tx`TRUE` : tx`(external_issue->>'sourceProjectId' = ${sourceProjectId} OR ${sourceProjectId} = ANY(external_issue_source_scopes))`}
             AND ${sourceOrigin === undefined ? tx`TRUE` : tx`split_part(external_source_id, '#', 1) = ${sourceOrigin}`})
               OR (external_issue IS NULL AND EXISTS (
                 SELECT 1 FROM unnest(${legacyPrefixes ?? []}::text[]) AS prefix
@@ -202,11 +206,17 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           // This records a scheduling attempt, not a successful source read.
           // Missing legacy rows and failed reads must rotate behind unchecked
           // rows without inventing a snapshot or changing local task activity.
+          // Remember the authorized query scope before the remote read: even
+          // a legacy row may hydrate into a different repository or project.
           // Move behind the project's entire effective queue, including
           // clocks ahead of this replica after a wall-clock rollback. A
           // per-row increment alone can leave a legacy row ahead forever.
           await tx`
-            UPDATE app.tasks SET external_issue_refresh_attempted_at_ms = GREATEST(
+            UPDATE app.tasks SET external_issue_source_scopes = CASE
+              WHEN ${sourceScope === undefined} OR ${sourceScope ?? ''} = ANY(COALESCE(external_issue_source_scopes, ARRAY[]::text[]))
+                THEN external_issue_source_scopes
+              ELSE array_append(COALESCE(external_issue_source_scopes, ARRAY[]::text[]), ${sourceScope ?? ''}) END,
+            external_issue_refresh_attempted_at_ms = GREATEST(
               COALESCE(external_issue_refresh_attempted_at_ms, 0) + 1,
               ${Date.now()}, queue.next_clock
             )

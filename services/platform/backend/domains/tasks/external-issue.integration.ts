@@ -266,6 +266,143 @@ export async function checkTaskExternalIssueSync(
   await checkLegacySourceDiscovery(sql, ctx, record);
   await checkIssueBatchTransactions(sql, ctx, record);
   await checkIssueRefreshFairness(sql, ctx, record);
+  await checkTransferredIssueTracking(sql, ctx, record);
+}
+
+async function checkTransferredIssueTracking(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const store = pgTaskStore(sql);
+  const origin = 'https://transfers.example.test';
+  for (const provider of ['github', 'glitchtip'] as const) {
+    for (const legacy of [false, true]) {
+      const projectId = randomUUID();
+      const now = Date.now();
+      await sql`INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+        VALUES (${projectId}, ${ctx.orgId}, 'Transferred source proof', ${ctx.userId}, ${now}, ${now})`;
+      const prefix = (scope: number, instance = origin) =>
+        provider === 'github'
+          ? `example/repo-${scope}#`
+          : `${instance}/example/project-${scope}#`;
+      const snapshot = (
+        scope: number,
+        instance = origin,
+      ): TaskExternalIssue => ({
+        id: provider === 'github' ? `transfer-${projectId}` : `${instance}#1`,
+        title: 'Upstream transfer',
+        description: 'Source details',
+        state: 'open',
+        syncedAt: now + scope,
+        url:
+          provider === 'github'
+            ? `https://github.com/example/repo-${scope}/issues/1`
+            : `${instance}/example/issues/1`,
+        ...(provider === 'github'
+          ? { repositoryId: scope, number: 1 }
+          : { sourceProjectId: String(scope) }),
+      });
+      const write = (
+        scope: number,
+        issue?: TaskExternalIssue,
+        instance = origin,
+      ) =>
+        store.upsertIssues({
+          organizationId: ctx.orgId,
+          projectId,
+          caller: { kind: 'system', reason: 'isolated transfer proof' },
+          issues: [
+            {
+              externalSystem: provider,
+              externalId: `${prefix(scope, instance)}1`,
+              title: 'Imported title',
+              ...(issue ? { externalIssue: issue } : {}),
+            },
+          ],
+        });
+      const query = (scope: number) =>
+        store.listExternalIssues({
+          organizationId: ctx.orgId,
+          projectId,
+          caller: { kind: 'system', reason: 'isolated transfer proof' },
+          externalSystem: provider,
+          ...(provider === 'github'
+            ? { repositoryId: scope }
+            : { sourceOrigin: origin, sourceProjectId: String(scope) }),
+          legacyPrefixes: [prefix(scope)],
+          limit: 500,
+        });
+      const initial = await write(41, legacy ? undefined : snapshot(41));
+      const taskId = initial[0]?.taskId;
+      if (!taskId) throw new Error('Expected a transferred issue task');
+      await sql`UPDATE app.tasks SET title='Human transfer title', status='in_progress' WHERE id=${taskId}`;
+      if (legacy) {
+        // Remember an authorized legacy scope before the first remote read
+        // reveals that the issue already moved to another source project.
+        await query(41);
+      } else {
+        // Previous images have snapshots but no scope bookkeeping. Their
+        // first update must retain the old scope without relying on a list.
+        await sql`UPDATE app.tasks SET external_issue_source_scopes=NULL WHERE id=${taskId}`;
+      }
+      await write(legacy ? 41 : 42, snapshot(42));
+      const afterFirstMove = await query(41);
+      record(
+        `external issue: ${provider} ${legacy ? 'legacy' : 'tracked'} transfer remains in its original refresh scope`,
+        afterFirstMove.issues.some((issue) => issue.taskId === taskId),
+        `original scope matched=${afterFirstMove.issues.length}`,
+      );
+      await query(42);
+      await write(43, snapshot(43));
+      const scopeLists = await Promise.all([query(41), query(42), query(43)]);
+      record(
+        `external issue: ${provider} ${legacy ? 'legacy' : 'tracked'} repeated transfer retains original and intermediate scopes`,
+        scopeLists.every((list) =>
+          list.issues.some((issue) => issue.taskId === taskId),
+        ),
+        `scope matches=${scopeLists.map((list) => list.issues.length).join(',')}`,
+      );
+      const resolved = {
+        ...snapshot(43),
+        state:
+          provider === 'github' ? ('closed' as const) : ('resolved' as const),
+        syncedAt: now + 44,
+      };
+      await write(43, resolved);
+      const refreshed = await loadTaskOrThrow(sql, taskId, ctx.orgId);
+      const retained = await sql<{ scopes: string[] }[]>`
+        SELECT external_issue_source_scopes AS scopes FROM app.tasks WHERE id=${taskId}
+      `;
+      record(
+        `external issue: ${provider} ${legacy ? 'legacy' : 'tracked'} transferred resolution preserves local triage`,
+        refreshed.title === 'Human transfer title' &&
+          refreshed.status === 'in_progress' &&
+          refreshed.externalIssue?.state === resolved.state &&
+          refreshed.externalUrl === resolved.url &&
+          retained[0]?.scopes.length === 3 &&
+          ['41', '42', '43'].every((scope) =>
+            retained[0]?.scopes.includes(scope),
+          ),
+        `local=${refreshed.status}, source=${refreshed.externalIssue?.state}`,
+      );
+      if (provider === 'glitchtip') {
+        const foreign = 'https://foreign-transfers.example.test';
+        const foreignCreated = await write(41, snapshot(41, foreign), foreign);
+        await write(43, snapshot(43, foreign), foreign);
+        const sameScope = await query(41);
+        record(
+          `external issue: GlitchTip ${legacy ? 'legacy' : 'tracked'} retained scope cannot cross instances`,
+          sameScope.issues.length === 1 &&
+            sameScope.issues[0]?.taskId === taskId &&
+            sameScope.issues.every(
+              (issue) => issue.taskId !== foreignCreated[0]?.taskId,
+            ),
+          `matching tasks=${sameScope.issues.length}`,
+        );
+      }
+    }
+  }
 }
 
 async function checkLegacySourceDiscovery(
@@ -785,7 +922,7 @@ async function checkIssueRefreshFairness(
       );
     }
     const beforeRefusal =
-      await sql`SELECT id, external_issue_refresh_attempted_at_ms FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
+      await sql`SELECT id, external_issue_refresh_attempted_at_ms, external_issue_source_scopes FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
     let refused = false;
     try {
       await store.listExternalIssues({
@@ -797,7 +934,7 @@ async function checkIssueRefreshFairness(
         error instanceof TaskError && error.code === 'PROJECT_NOT_FOUND';
     }
     const afterRefusal =
-      await sql`SELECT id, external_issue_refresh_attempted_at_ms FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
+      await sql`SELECT id, external_issue_refresh_attempted_at_ms, external_issue_source_scopes FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
     record(
       `external issue: refused ${provider} refresh selection records no attempt`,
       refused && JSON.stringify(beforeRefusal) === JSON.stringify(afterRefusal),
