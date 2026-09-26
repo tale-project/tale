@@ -5442,7 +5442,7 @@ settings:
       statusNone: Nicht eingerichtet
       orgClientId: 'Client-ID: {clientId}'
       statusEnvDetail: Verwendet die in der Deployment-Umgebung registrierte App.
-      statusNoneDetail: Noch nirgends eine App — Verbinden ist erst danach möglich.
+      statusNoneDetail: Mitglieder können sich erst verbinden, wenn hier oder im Deployment eine App eingerichtet ist.
       configure: Einrichten
       remove: Entfernen
       removeTitle: OAuth-App für {connector} entfernen?

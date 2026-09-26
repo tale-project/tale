@@ -5523,7 +5523,7 @@ settings:
       statusNone: Non configurée
       orgClientId: 'ID client : {clientId}'
       statusEnvDetail: Utilise l'app enregistrée dans l'environnement du déploiement.
-      statusNoneDetail: Aucune app nulle part — la connexion n'est pas encore possible.
+      statusNoneDetail: Les membres ne peuvent pas s'y connecter tant qu'aucune app n'est configurée ici ou sur le déploiement.
       configure: Configurer
       remove: Retirer
       removeTitle: Retirer l'app OAuth de {connector} ?
