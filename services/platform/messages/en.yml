@@ -800,6 +800,10 @@ automations:
     cancel: Stop the run
     startedBy: 'Started by {actor}'
     startedAt: 'Started {date}'
+    starter:
+      apiKey: '{name} via an API key'
+      trigger: a trigger
+      formerMember: a former member
     finishedAt: 'Finished {date}'
     inputTitle: Run input
     outputTitle: Run output

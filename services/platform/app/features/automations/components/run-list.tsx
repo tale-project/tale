@@ -7,8 +7,10 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { History } from 'lucide-react';
 
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import { parseRunStarter } from '@/lib/shared/run-starter';
 
 import { readRunStatus } from '../lib/run-view';
 import { RunBadge } from './run-status-badge';
@@ -50,6 +52,27 @@ export function RunList({
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
+  const { members } = useMembers(organizationId);
+
+  // Who started the run, in words: the stored value is the door it came
+  // through (`user:<id>`, `api-key:<id>`, `trigger:<id>`), which the row
+  // used to print verbatim. Nothing is said while the member list loads —
+  // better a moment of silence than a flash of an internal id.
+  const starterLabel = (startedBy: string): string | null => {
+    const starter = parseRunStarter(startedBy);
+    if (starter.kind === 'trigger') return t('runs.starter.trigger');
+    if (starter.kind === 'unknown' || members === undefined) return null;
+    const member = members.find((entry) => entry.userId === starter.userId);
+    const name = member?.displayName || member?.email;
+    if (!name) return t('runs.starter.formerMember');
+    return starter.kind === 'api-key'
+      ? t('runs.starter.apiKey', { name })
+      : name;
+  };
+  const runStarterLine = (startedBy: string) => {
+    const actor = starterLabel(startedBy);
+    return actor === null ? null : t('runs.startedBy', { actor });
+  };
 
   if (runs.length === 0) {
     // The same dashed empty card every other list on a detail page shows,
@@ -99,7 +122,7 @@ export function RunList({
               {t('versions.versionLabel', { version: run.version })}
             </span>
             <span className="min-w-0 flex-1 truncate text-sm">
-              {run.detail ?? t('runs.startedBy', { actor: run.startedBy })}
+              {run.detail ?? runStarterLine(run.startedBy)}
             </span>
             <Text as="span" variant="muted" className="text-xs">
               {formatDate(new Date(run.startedAt), 'long')}

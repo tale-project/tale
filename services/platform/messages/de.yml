@@ -840,6 +840,10 @@ automations:
     cancel: Lauf stoppen
     startedBy: 'Gestartet von {actor}'
     startedAt: 'Gestartet {date}'
+    starter:
+      apiKey: '{name} über einen API-Schlüssel'
+      trigger: einem Auslöser
+      formerMember: einem ehemaligen Mitglied
     finishedAt: 'Beendet {date}'
     inputTitle: Eingabe des Laufs
     outputTitle: Ausgabe des Laufs
