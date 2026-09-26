@@ -1,10 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, GitCommitVertical, XCircle } from 'lucide-react';
 
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
@@ -49,9 +50,11 @@ export function VersionList({
   const ordered = [...versions].sort((a, b) => b.version - a.version);
   if (ordered.length === 0) {
     return (
-      <Text as="p" variant="muted" className="text-sm">
-        {t('versions.empty')}
-      </Text>
+      <EmptyState
+        icon={GitCommitVertical}
+        title={t('versions.empty')}
+        className="rounded-lg border border-dashed py-8"
+      />
     );
   }
 

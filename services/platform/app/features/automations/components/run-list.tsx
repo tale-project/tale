@@ -1,9 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
+import { History } from 'lucide-react';
 
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
@@ -50,10 +52,14 @@ export function RunList({
   const { formatDate } = useFormatDate();
 
   if (runs.length === 0) {
+    // The same dashed empty card every other list on a detail page shows,
+    // not a stray line of body text under the heading.
     return (
-      <Text as="p" variant="muted" className="text-sm">
-        {t('runs.empty')}
-      </Text>
+      <EmptyState
+        icon={History}
+        title={t('runs.empty')}
+        className="rounded-lg border border-dashed py-8"
+      />
     );
   }
 
