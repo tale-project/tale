@@ -433,6 +433,18 @@ export function EmailPreview({
             .dark [data-preview-sandbox] blockquote {
               border-left-color: #4b5563;
             }
+
+            /* A plain-text message arrives as one <pre>, kept to hold its
+               line breaks: it reads in the message's own font and wraps,
+               like any message — not as code. A <pre> inside an HTML email
+               stays monospace. */
+            [data-preview-sandbox] > pre:only-child {
+              margin: 0;
+              font-family: inherit;
+              font-size: inherit;
+              line-height: inherit;
+              white-space: pre-wrap;
+            }
           `,
         }}
       />
