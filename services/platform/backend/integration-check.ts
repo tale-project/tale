@@ -59,6 +59,7 @@ import { checkConversationApi } from './domains/conversations/api-sync.integrati
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
@@ -53097,6 +53098,10 @@ async function main(): Promise<void> {
       [
         'checkProviderCredentialConfiguration',
         () => checkProviderCredentialConfiguration(sql, authCtx, record),
+      ],
+      [
+        'checkBrokerAccountSelection',
+        () => checkBrokerAccountSelection(sql, authCtx, record),
       ],
       [
         'checkKnowledge',

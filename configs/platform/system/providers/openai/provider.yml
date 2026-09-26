@@ -16,3 +16,8 @@ embedding: supported
 auth:
   - method: api-key
   - method: env
+  - method: subscription-broker
+    baseUrl: https://chatgpt.com/backend-api/codex
+    constraints:
+      execution: sandbox
+      harness: codex

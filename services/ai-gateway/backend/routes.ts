@@ -57,7 +57,7 @@ function fail(code: string, message: string) {
 /**
  * One handed-out credential, in cc-gateway's wire shape.
  *
- * snake_case and this exact field set are the contract: the platform's
+ * snake_case and the original field names are the contract: the platform's
  * subscription-broker credential maps `$.tokens[*].access_token` by default,
  * and every tool written against cc-gateway reads the same names. `id` is a
  * string here — this service has never had cc-gateway's integer row ids.
@@ -65,12 +65,29 @@ function fail(code: string, message: string) {
 function serializeToken(handout: TokenHandout) {
   return {
     id: handout.id,
+    provider: handout.provider,
+    account_id: handout.accountId,
     label: handout.label,
     account_email: handout.accountEmail,
     status: handout.status,
     access_token: handout.accessToken,
     expires_at: handout.expiresAt,
     scopes: handout.scopes,
+    available: handout.available,
+    available_at: handout.availableAt,
+    usage: handout.usage
+      ? {
+          checked_at: handout.usage.checkedAt,
+          limited: handout.usage.limited ?? null,
+          windows: handout.usage.windows.map((window) => ({
+            kind: window.kind,
+            label: window.label,
+            utilization: window.utilization,
+            resets_at: window.resetsAt,
+            window_seconds: window.windowSeconds,
+          })),
+        }
+      : null,
   };
 }
 
@@ -142,6 +159,7 @@ export function createApi(options: ApiOptions) {
   });
 
   api.get('/accounts/:id/command', async (c) => {
+    c.header('Cache-Control', 'no-store');
     const command = await accounts.cliCommand(c.req.param('id'));
     if (command === null) {
       return c.json(fail('unknown_account', 'No such account.'), 404);
@@ -166,6 +184,7 @@ export function createApi(options: ApiOptions) {
    * the other audience is exactly the kind of mistake this split prevents.
    */
   const requireApiKey = createMiddleware(async (c, next) => {
+    c.header('Cache-Control', 'no-store');
     const provided = readApiKey(c.req.raw.headers);
     if (!provided || !secretsMatch(provided, options.apiKey)) {
       c.header('WWW-Authenticate', 'Bearer');
@@ -181,17 +200,12 @@ export function createApi(options: ApiOptions) {
   /**
    * The whole pool, both vendors at once.
    *
-   * This is the one payload where a token's vendor cannot be read off the URL,
-   * so it carries `provider` on top of cc-gateway's fields. A consumer that
-   * wants one vendor should ask for that vendor instead.
+   * Every token names its vendor, including on the single-vendor endpoints,
+   * so a consumer can reject a credential that belongs to another vendor.
    */
   api.get('/tokens', requireApiKey, async (c) =>
     c.json({
-      tokens: (await accounts.handOutTokens()).map((handout) =>
-        // `serializeToken` builds a fresh object per call, so naming the
-        // vendor on it mutates nothing anyone else holds.
-        Object.assign(serializeToken(handout), { provider: handout.provider }),
-      ),
+      tokens: (await accounts.handOutTokens()).map(serializeToken),
     }),
   );
 

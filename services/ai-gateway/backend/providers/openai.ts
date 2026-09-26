@@ -20,8 +20,10 @@
 import {
   decodeJwtClaims,
   expiresAtFrom,
+  fetchWithTimeout,
   generatePkce,
   parseAuthorizationCallback,
+  quoteShellValue,
   readJsonRecord,
   readObject,
   readString,
@@ -74,7 +76,7 @@ export function createOpenAiProvider(
   options: OpenAiProviderOptions = {},
 ): Provider {
   const clientId = options.clientId ?? DEFAULT_OPENAI_CLIENT_ID;
-  const doFetch = options.fetchImpl ?? fetch;
+  const doFetch = fetchWithTimeout(options.fetchImpl ?? fetch);
 
   async function postToken(
     payload: Record<string, string>,
@@ -190,8 +192,33 @@ export function createOpenAiProvider(
 
   return {
     id: 'openai',
-    cliCommand(accessToken) {
-      return `CODEX_ACCESS_TOKEN=${accessToken} codex`;
+    cliCommand(accessToken, accountId) {
+      if (!accountId) {
+        throw new ProviderError(
+          'openai',
+          'identity_failed',
+          'Reconnect this OpenAI account to recover its ChatGPT account identity.',
+        );
+      }
+      // CODEX_ACCESS_TOKEN selects Agent Identity authentication in current
+      // Codex. A ChatGPT OAuth credential belongs on its Responses transport,
+      // with the vendor account header, and never in that unrelated channel.
+      const settings = [
+        'model_provider="tale-subscription"',
+        'model_providers.tale-subscription.name="ChatGPT"',
+        'model_providers.tale-subscription.base_url="https://chatgpt.com/backend-api/codex"',
+        'model_providers.tale-subscription.env_key="TALE_SUBSCRIPTION_TOKEN"',
+        'model_providers.tale-subscription.env_http_headers={"ChatGPT-Account-ID"="TALE_SUBSCRIPTION_ACCOUNT_ID"}',
+        'model_providers.tale-subscription.wire_api="responses"',
+        'model_providers.tale-subscription.requires_openai_auth=false',
+      ];
+      return [
+        'env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY',
+        `TALE_SUBSCRIPTION_TOKEN=${quoteShellValue(accessToken)}`,
+        `TALE_SUBSCRIPTION_ACCOUNT_ID=${quoteShellValue(accountId)}`,
+        'codex',
+        ...settings.map((setting) => `-c ${quoteShellValue(setting)}`),
+      ].join(' ');
     },
 
     /**
@@ -323,9 +350,34 @@ export function createOpenAiProvider(
         );
       }
       const data = await readJsonRecord(response);
+      const limits = readObject(data, 'rate_limit');
+      const hasLimitFlag =
+        limits &&
+        (typeof limits['allowed'] === 'boolean' ||
+          typeof limits['limit_reached'] === 'boolean');
+      if (
+        !limits ||
+        !(
+          'primary_window' in limits ||
+          'secondary_window' in limits ||
+          hasLimitFlag
+        )
+      ) {
+        throw new ProviderError(
+          'openai',
+          'usage_failed',
+          'The OpenAI usage endpoint answered without a reading.',
+        );
+      }
       return {
         windows: parseOpenAiUsage(data),
         subscription: subscriptionFromPlanType(readString(data, 'plan_type')),
+        limited:
+          limits['allowed'] === false || limits['limit_reached'] === true
+            ? true
+            : hasLimitFlag
+              ? false
+              : null,
       };
     },
   };

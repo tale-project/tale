@@ -252,6 +252,10 @@ interface HandlerNames {
     };
   };
   provider_credentials: FunctionRef & {
+    mutations: FunctionRef & {
+      selectBrokerAccountInternal: FunctionRef;
+      recordBrokerFailureInternal: FunctionRef;
+    };
     queries: FunctionRef & {
       getCredentialInternal: FunctionRef;
       getDefaultCredentialInternal: FunctionRef;

@@ -142,9 +142,74 @@ The reserved prefix prevents a credential from selecting unrelated secrets such 
 
 After adding or rotating the value, recreate both `backend-api` and `backend-worker` with the updated environment. A Compose restart retains old environment values. Leading and trailing whitespace is removed before use; verify a real request after the rollout.
 
+## Connect a subscription broker
+
+A subscription broker supplies a pool of OAuth access tokens; Tale chooses a usable account for each agent turn. The shipped integrations are Anthropic with Claude Code and OpenAI ChatGPT with Codex, for task and automation agents. Keep direct API credentials for chats and other direct model calls. An OAuth token is not a provider API key.
+
+Use a separate endpoint for each provider. Tale AI gateway exposes `/api/tokens/anthropic` and `/api/tokens/openai`, authenticated with its API key as a bearer token. Its combined `/api/tokens` endpoint is not the right source for a single-provider credential. The backend must reach the broker under the same host policy described for provider endpoints above.
+
+The following example is the broker credential document built by the [AI providers form](/platform/admin/providers#connect-a-subscription-broker), not a provider definition file. Replace the hostname with your broker and provision `TALE_TOKEN_SOURCE_AI_GATEWAY` in both backend processes with that broker's API key. The mapped property names match Tale AI gateway; adapt them for another broker.
+
+```json
+{
+  "endpoint": "https://broker.example.com/api/tokens/anthropic",
+  "httpMethod": "GET",
+  "auth": {
+    "method": "bearer",
+    "secretEnv": "TALE_TOKEN_SOURCE_AI_GATEWAY"
+  },
+  "responseMapping": {
+    "tokensPath": "$.tokens",
+    "tokenField": "access_token",
+    "statusField": "status",
+    "activeValue": "active",
+    "expiresField": "expires_at"
+  },
+  "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
+  "selection": "round-robin"
+}
+```
+
+For OpenAI, change the endpoint suffix to `/api/tokens/openai` and `targetEnvVar` to `TALE_SUBSCRIPTION_TOKEN`. Every usable OpenAI item must also contain its vendor `account_id`. Tale passes that value as `TALE_SUBSCRIPTION_ACCOUNT_ID`, alongside the token, to Codex's ChatGPT connection. Do not substitute the gateway's `id` or `CODEX_ACCESS_TOKEN` for these values. Restrict the credential's model allowlist to model IDs supported by the ChatGPT plan; the OpenAI API catalog may contain models that are unavailable to subscriptions.
+
+For Anthropic OAuth, use `CLAUDE_CODE_OAUTH_TOKEN`. The legacy `ANTHROPIC_AUTH_TOKEN` target remains supported when explicitly configured; it uses Claude Code's generic bearer-authentication path. Tale clears competing provider credential variables before supplying the chosen token. A target variable unsupported by the selected runtime is refused.
+
+### Account identity and quota
+
+Alongside the mapped token, status and expiry fields, a broker may provide these standard fields on each token item. Their names are fixed and require no additional response mapping.
+
+| Field | Role |
+| --- | --- |
+| `id` | Broker account identifier |
+| `provider` | Provider identifier |
+| `account_id` | Vendor account identifier |
+| `available` | Quota availability |
+| `available_at` | Quota reset time |
+| `usage` | Usage snapshot |
+
+Keep `id` stable when the account's access token rotates, so retries recognize the same account. It is distinct from the vendor's `account_id` required by OpenAI. If `provider` names a different provider than the credential, the item is excluded.
+
+`available: false` excludes the account until the ISO timestamp in `available_at`. If no reset is known, omit that timestamp or use `null`; the account then stays excluded until the broker reports it available. Status and token expiry are checked separately. Tale AI gateway computes availability from a `usage` snapshot containing `checked_at` and `windows`, each with its kind, utilization and reset time.
+
+Older brokers can omit the optional metadata. Without `id`, retry identity falls back to a hash of the token, so it cannot recognize an account after its token changes. Missing quota information leaves an account eligible; it does not establish that quota remains.
+
+Tale AI gateway excludes an account when a fresh usage snapshot reports a global session or weekly window at 100% and its reset has not passed. A vendor's explicit limit signal (`usage.limited: true`) also makes the account unavailable, even when its displayed utilization is lower or missing. Model-specific limits do not exclude the whole account. Usage is considered stale after 15 minutes, so unknown or stale readings leave the account eligible; an exhausted window with no reset time is held only while its reading is fresh. The next token request refreshes stale usage where the vendor supports it. After the applicable reset, the account can rejoin the pool. Provider-side rejection is still possible between usage refreshes.
+
+### Selection and recovery
+
+`random` is the form's initial selection; `first` follows broker order. `round-robin` chooses the usable account selected least recently, with selection history stored per organization and credential. Concurrent requests from different backend processes update that history atomically; response reordering and backend restarts do not reset it. Preserving the account's history across token refreshes requires a stable `id`. These strategies distribute account selections, not tokens or active-agent capacity. Existing credentials retain their saved strategy.
+
+When an account returns HTTP 429, Tale excludes it from new selections for this organization and credential for 60 seconds. Retries prefer accounts not yet tried during that run's failure streak. If every otherwise usable account was tried, retries may reuse one; quota and cooldown exclusions still apply.
+
+Unless overridden, pool requests time out after 10 seconds and accept at most 262,144 bytes. A mapped token expiry must be more than five minutes away. Keep the status and expiry mappings when using Tale AI gateway so inactive or nearly expired tokens are skipped. Expiry values may be ISO timestamps or Unix timestamps in seconds or milliseconds.
+
+If the pool has no usable account, inspect broker authorization, account status, expiry, quota resets and the response mapping. Renew the account authorization or wait for quota recovery as appropriate, then verify a completed task or automation reply with the intended provider and runtime. A successful broker fetch alone does not test the vendor connection.
+
 ## Broker secrets from the environment
 
-A **Subscription broker** credential can also read its broker secret from the deployment environment. Use the separate `TALE_TOKEN_SOURCE_` prefix in **Secret from environment variable**. Names outside that namespace are rejected. Leaving the field empty uses the secret encrypted with the credential instead. Recreate the consuming processes when rotating an environment-backed value.
+A **Subscription broker** credential can read its broker secret from the deployment environment. Use the separate `TALE_TOKEN_SOURCE_` prefix in **Secret from environment variable** and leave **Broker secret** empty. Names outside that namespace are rejected. If you supply both, the stored broker secret takes precedence. Recreate the consuming processes when rotating an environment-backed value.
+
+When the replacement configuration still uses broker authentication, leaving both secret fields empty preserves its existing stored secret. Entering an environment reference without a new broker secret switches to the environment source. Choosing **None** for broker authentication removes the stored secret from the replacement configuration.
 
 ## Keep organization settings with the organization
 

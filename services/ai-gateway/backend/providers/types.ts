@@ -102,6 +102,8 @@ export interface ProviderIdentity {
 export interface UsageReading {
   windows: UsageWindow[];
   subscription: Subscription | null;
+  /** A vendor's explicit global limit, independent of rounded percentages. */
+  limited?: boolean | null;
 }
 
 /** What a stored account hands a provider call. */
@@ -193,10 +195,10 @@ export interface Provider {
   readonly id: ProviderId;
   /**
    * A ready-to-run command that starts the vendor's CLI on this token —
-   * `ANTHROPIC_AUTH_TOKEN=… claude` for Claude Code, `CODEX_ACCESS_TOKEN=…
-   * codex` for Codex.
+   * using its subscription transport and shell-quoted credential values.
+   * OpenAI additionally requires its vendor account identity.
    */
-  cliCommand(accessToken: string): string;
+  cliCommand(accessToken: string, accountId?: string | null): string;
   /** Start an authorization in the best flow the vendor allows here. */
   beginAuthorization(
     state: string,

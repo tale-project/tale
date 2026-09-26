@@ -51,9 +51,9 @@ import {
   buildBrokerAuthHeaders,
   describeEmptyPool,
   diagnoseTokenMapping,
-  pickToken,
+  type BrokerSelectionResult,
 } from './broker_pool';
-import { filterBrokerTokensByHash } from './token_hash';
+import { hashBrokerAccount, hashBrokerToken } from './token_hash';
 
 /** The full row shape the internal queries return (`returns: v.any()`
  * erases it on the wire). */
@@ -77,13 +77,13 @@ export interface ResolveCredentialArgs {
   /** Broker tokens already tried this turn — rotation always advances to a
    * fresh one. Ignored for the other auth methods. */
   readonly excludeBrokerTokens?: readonly string[];
-  /** sha256 hex of broker tokens a failure streak already burned
-   * (`hashBrokerToken` stamps on the run rows) — the pick advances past
-   * them. Softer than `excludeBrokerTokens`: when the exclusions would empty
-   * the pool, the pick falls back to the FULL pool instead of refusing — a
-   * one-account deployment must retry on its only account, not starve
-   * itself. Ignored for the other auth methods. */
+  /** Account hashes a failure streak already burned (legacy token hashes
+   * are also accepted). Advisory when every eligible account was tried;
+   * fallback never bypasses quota unavailability or a shared cooldown.
+   * Ignored for the other auth methods. */
   readonly excludeBrokerTokenHashes?: readonly string[];
+  /** Set by a harness whose vendor protocol requires an account header. */
+  readonly requireBrokerAccountId?: boolean;
 }
 
 export type ResolvedProviderCredential =
@@ -120,6 +120,10 @@ export type ResolvedProviderCredential =
       /** The picked pool token — inject under `targetEnvVar`. */
       readonly token: string;
       readonly targetEnvVar: string;
+      /** Stable broker account hash, falling back to the token for old pools. */
+      readonly brokerTokenHash: string;
+      /** Vendor account id, independent from the broker's stable identity. */
+      readonly accountId?: string;
       /** The row's endpoint override, when the brokered token authenticates
        * against a proxy instead of the vendor's default API host. */
       readonly endpointUrl?: string;
@@ -282,6 +286,7 @@ async function fetchBrokerJson(
 }
 
 async function resolveBroker(
+  ctx: ActionCtx,
   row: CredentialRow,
   args: ResolveCredentialArgs,
 ): Promise<ResolvedProviderCredential> {
@@ -305,6 +310,10 @@ async function resolveBroker(
     broker.responseMapping,
     Date.now(),
     broker.expirySkewMs,
+    args.providerSlug === 'openai' || args.providerSlug === 'anthropic'
+      ? args.providerSlug
+      : undefined,
+    args.requireBrokerAccountId ?? args.providerSlug === 'openai',
   );
   if (diagnostics.usableTokens.length === 0) {
     throw credentialError(
@@ -312,36 +321,53 @@ async function resolveBroker(
       `The token broker behind credential "${row.name}" yielded no usable tokens: ${describeEmptyPool(diagnostics, broker.responseMapping)}`,
     );
   }
-  // Hash-based exclusion (a retry steering away from the streak's burned
-  // accounts) is advisory: when it would empty the pool, fall back to the
-  // full pool — retrying the only account beats not retrying at all.
+  // Hash exclusions remain advisory, but only after hard availability and
+  // cooldown filters. Keep the legacy token hash compatible with old runs.
   const excludedHashes = new Set(args.excludeBrokerTokenHashes ?? []);
-  const { candidates, fellBack } = filterBrokerTokensByHash(
-    diagnostics.usableTokens,
-    excludedHashes,
+  const excludedTokens = new Set(args.excludeBrokerTokens ?? []);
+  const accounts = diagnostics.usableAccounts.filter(
+    (account) => !excludedTokens.has(account.token),
   );
-  if (fellBack) {
+  const byHash = new Map(
+    accounts.map((account) => [hashBrokerAccount(row._id, account), account]),
+  );
+  const selection: BrokerSelectionResult = await ctx.runMutation(
+    internal.provider_credentials.mutations.selectBrokerAccountInternal,
+    {
+      organizationId: args.organizationId,
+      credentialId: row._id,
+      selection: broker.selection,
+      candidates: [...byHash].map(([hash, account]) => ({
+        hash,
+        excluded:
+          excludedHashes.has(hash) ||
+          excludedHashes.has(hashBrokerToken(account.token)),
+      })),
+    },
+  );
+  if (selection.fellBack) {
     console.warn(
-      `[credentials] broker "${row.name}": every usable token (pool size ${diagnostics.usableTokens.length}, ${excludedHashes.size} hash exclusion(s)) was already tried by the failure streak — falling back to the full pool`,
+      `[credentials] broker "${row.name}": retry exclusions cover every currently eligible account — reusing an eligible account`,
     );
   }
-  const token = pickToken(
-    candidates,
-    new Set(args.excludeBrokerTokens ?? []),
-    broker.selection,
-  );
-  if (token === null) {
+  const account =
+    selection.hash === null ? undefined : byHash.get(selection.hash);
+  if (account === undefined || selection.hash === null) {
     throw credentialError(
       'CREDENTIAL_BROKER_EXHAUSTED',
-      `Every token in the pool behind credential "${row.name}" was already tried this turn (${diagnostics.usableTokens.length} token(s)).`,
+      selection.retryAtMs !== undefined
+        ? `Every account behind credential "${row.name}" is cooling down after a rate limit — try again in ${Math.max(1, Math.ceil((selection.retryAtMs - Date.now()) / 1000))} seconds.`
+        : `Every token in the pool behind credential "${row.name}" was already tried this turn (${diagnostics.usableTokens.length} token(s)).`,
     );
   }
   return {
     authMethod: 'subscription-broker',
     credentialId: row._id,
     name: row.name,
-    token,
+    token: account.token,
+    brokerTokenHash: selection.hash,
     targetEnvVar: broker.targetEnvVar,
+    ...(account.accountId !== undefined && { accountId: account.accountId }),
     ...(row.endpointUrl !== undefined ? { endpointUrl: row.endpointUrl } : {}),
   };
 }
@@ -417,7 +443,7 @@ export async function resolveProviderCredential(
       };
     }
     case 'subscription-broker':
-      return await resolveBroker(row, args);
+      return await resolveBroker(ctx, row, args);
     default: {
       const _exhaustive: never = row.authMethod;
       return _exhaustive;

@@ -398,7 +398,7 @@ describe('parseAnthropicUsage', () => {
 describe('cliCommand', () => {
   it('exports the token Claude Code reads', () => {
     expect(createAnthropicProvider().cliCommand('access-1')).toBe(
-      'ANTHROPIC_AUTH_TOKEN=access-1 claude',
+      "env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN='access-1' claude",
     );
   });
 });

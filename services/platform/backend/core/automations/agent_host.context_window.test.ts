@@ -15,10 +15,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
-  starts: [] as Array<{ execId: string; env: Record<string, string> }>,
+  starts: [] as Array<{
+    execId: string;
+    argv: string[];
+    env: Record<string, string>;
+  }>,
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -34,10 +39,14 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     },
     drainHarnessWindow: async (args: {
       execId: string;
-      start?: { env: Record<string, string> };
+      start?: { argv: string[]; env: Record<string, string> };
     }) => {
       if (args.start !== undefined) {
-        io.starts.push({ execId: args.execId, env: args.start.env });
+        io.starts.push({
+          execId: args.execId,
+          argv: args.start.argv,
+          env: args.start.env,
+        });
       }
       return { kind: 'running', text: '', timeline: [] };
     },
@@ -45,6 +54,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
 });
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
+}));
+vi.mock('../provider_credentials/resolve_credential', () => ({
+  resolveProviderCredential: vi.fn(),
 }));
 vi.mock('../lib/providers/agent_serving', () => ({
   resolveWorkflowAgentServing: async () => ({
@@ -123,6 +135,7 @@ const WAITING_CURSOR = {
 
 function makeCtx(cursor: unknown) {
   const queries: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const scheduled: string[] = [];
   const ctx = {
     runQuery: async (ref: unknown, args: Record<string, unknown>) => {
@@ -150,8 +163,9 @@ function makeCtx(cursor: unknown) {
           throw new Error(`unexpected query ${name}`);
       }
     },
-    runMutation: async (ref: unknown) => {
+    runMutation: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
+      mutations.push({ name, args });
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
         return { allowed: true, budgetCents: 500 };
       }
@@ -170,21 +184,112 @@ function makeCtx(cursor: unknown) {
       },
     },
   } as unknown as ActionCtx;
-  return { ctx, queries, scheduled };
+  return { ctx, queries, scheduled, mutations };
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.starts = [];
   io.instructions = [];
   vi.mocked(resolveModel).mockReset();
+  vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('an automation agent turn', () => {
+  it.each(
+    [
+      {
+        providerSlug: 'anthropic',
+        harness: 'claude-code',
+        modelId: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      },
+      {
+        providerSlug: 'openai',
+        harness: 'codex',
+        modelId: 'gpt-5.4',
+        apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+        targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      },
+    ].flatMap((provider) =>
+      [undefined, 'https://subscription-proxy.example.com/vendor'].map(
+        (endpointUrl) => Object.assign({}, provider, { endpointUrl }),
+      ),
+    ),
+  )(
+    'delivers the $providerSlug broker channel and endpoint override $endpointUrl',
+    async ({
+      providerSlug,
+      harness,
+      modelId,
+      apiBaseUrl,
+      targetEnvVar,
+      endpointUrl,
+    }) => {
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-broker',
+        credentialId: 'credential-1',
+        name: 'Synthetic broker',
+        token: 'synthetic-oauth-token',
+        targetEnvVar,
+        accountId: 'synthetic-account',
+        brokerTokenHash: 'stable-selected-account-hash',
+        ...(endpointUrl !== undefined ? { endpointUrl } : {}),
+      } as never);
+      const { ctx, mutations } = makeCtx({ status: 'running' });
+
+      await startWorkflowAgentTurnImpl(ctx, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        nodeId: 'book',
+        execId: 'exec-1',
+        sessionId: 'wf-run-1',
+        harness,
+        lane: 'subscription',
+        providerSlug,
+        modelId,
+        gatewayModel: modelId,
+        apiBaseUrl,
+        deadlineAt: Date.now() + 60_000,
+        request: { model: modelId, prompt: 'Book the synthetic invoice.' },
+      } as never);
+
+      expect(console.error).not.toHaveBeenCalled();
+      expect(io.starts).toHaveLength(1);
+      expect(io.starts[0]?.env[targetEnvVar]).toBe('synthetic-oauth-token');
+      expect(resolveProviderCredential).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          requireBrokerAccountId: harness === 'codex',
+        }),
+      );
+      if (providerSlug === 'openai') {
+        expect(io.starts[0]?.env.TALE_SUBSCRIPTION_ACCOUNT_ID).toBe(
+          'synthetic-account',
+        );
+        expect(io.starts[0]?.argv).toContain(
+          `model_providers.tale-subscription.base_url="${endpointUrl ?? apiBaseUrl}"`,
+        );
+      } else {
+        expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(
+          endpointUrl ?? apiBaseUrl,
+        );
+      }
+      expect(
+        mutations.find((m) => m.args.brokerTokenHash !== undefined)?.args
+          .brokerTokenHash,
+      ).toBe('stable-selected-account-hash');
+    },
+  );
+
   it('starts Claude Code with the serving model’s window', async () => {
     servesWindow(32_768);
-    const { ctx, queries, scheduled } = makeCtx({ status: 'running' });
+    const { ctx, queries, scheduled, mutations } = makeCtx({
+      status: 'running',
+    });
 
     await startWorkflowAgentTurnImpl(ctx, {
       organizationId: 'org-1',
@@ -203,6 +308,11 @@ describe('an automation agent turn', () => {
 
     expect(console.error).not.toHaveBeenCalled();
     expect(io.starts).toHaveLength(1);
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:stampAgentTurnLaunch',
+      )?.args.brokerTokenHash,
+    ).toBeNull();
     expect(io.instructions[0]).toContain(
       'default agent language is German (de)',
     );

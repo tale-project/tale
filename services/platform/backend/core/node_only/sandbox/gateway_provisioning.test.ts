@@ -134,6 +134,7 @@ describe('buildProviderProvision', () => {
       name: 'Claude sub',
       token: 'tok',
       targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      brokerTokenHash: 'synthetic-broker-account-hash',
     });
     await expect(
       buildProviderProvision(fakeCtx(), {

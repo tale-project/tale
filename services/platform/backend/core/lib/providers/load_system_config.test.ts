@@ -360,6 +360,18 @@ describe('shipped harnesses', () => {
       kind: 'env',
       tokenVar: 'ANTHROPIC_AUTH_TOKEN',
       baseUrlVar: 'ANTHROPIC_BASE_URL',
+      tokenVarOverrides: ['CLAUDE_CODE_OAUTH_TOKEN'],
+      clearEnv: [
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_API_KEY',
+        'CLAUDE_CODE_OAUTH_TOKEN',
+      ],
+    });
+    expect(table.get('codex')?.subscription).toEqual({
+      kind: 'env',
+      tokenVar: 'TALE_SUBSCRIPTION_TOKEN',
+      accountIdVar: 'TALE_SUBSCRIPTION_ACCOUNT_ID',
+      clearEnv: ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'],
     });
     expect(table.get('hermes')?.subscription).toEqual({
       kind: 'env',

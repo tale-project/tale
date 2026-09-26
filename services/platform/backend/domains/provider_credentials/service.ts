@@ -23,7 +23,7 @@ import {
 } from '../../core/lib/config_store/precondition';
 import { sha256 } from '../../core/lib/file_io';
 import type { EncryptedSecret } from '../../core/lib/secret_box.ts';
-import { encryptSecret } from '../../core/lib/secret_box.ts';
+import { decryptSecret, encryptSecret } from '../../core/lib/secret_box.ts';
 import { maskSecret } from '../../core/provider_credentials/masking.ts';
 import {
   resolveProviderCredential as resolveProviderCredential04,
@@ -33,12 +33,18 @@ import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  brokerFailureArgsSchema,
+  brokerSelectionArgsSchema,
+  recordBrokerFailure,
+  selectBrokerAccount,
+} from './broker-selection.ts';
 
 /**
  * AI-provider credentials — the org's keys to LLM/embedding providers.
  * The RESOLUTION path (decrypt / env gate / broker pool fetch+pick) reuses
- * the 0.4 module byte-for-byte through the ctx shim: only the two row
- * lookups it makes are re-pointed at `app.provider_credentials`. Secret
+ * the core resolver through the ctx shim: row lookups and shared broker
+ * account selection are backed by Postgres. Secret
  * material never leaves the server: list/read return metadata + the
  * write-time masked preview.
  *
@@ -115,6 +121,26 @@ function isNameUniqueViolation(error: unknown): boolean {
   return typeof constraint !== 'string' || constraint.includes('_name_');
 }
 
+/** Concurrent first defaults race the pre-check; the partial unique index
+ * remains authoritative and must surface the same actionable 409. */
+function isDefaultUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === '23505' &&
+    'constraint_name' in error &&
+    error.constraint_name === 'provider_credentials_one_default'
+  );
+}
+
+function defaultConflictError(): CredentialAdminError {
+  return new CredentialAdminError(
+    'CREDENTIAL_DEFAULT_CONFLICT',
+    'Another default credential exists. Review that credential before changing the default.',
+    409,
+  );
+}
+
 /** The row shape the reused 0.4 resolver and serving walks expect (`_id`,
  * camelCase). `modelAllowlist` rides along for the walks: the direct/pinned
  * agent serving, the title lane, and the chat lane's catalog-less lookup
@@ -161,6 +187,10 @@ export function credentialShimHandlers(
   sql: Sql,
 ): Record<string, (raw: unknown) => Promise<unknown>> {
   return {
+    'provider_credentials/mutations:selectBrokerAccountInternal': (raw) =>
+      selectBrokerAccount(sql, brokerSelectionArgsSchema.parse(raw)),
+    'provider_credentials/mutations:recordBrokerFailureInternal': (raw) =>
+      recordBrokerFailure(sql, brokerFailureArgsSchema.parse(raw)),
     'provider_credentials/queries:getCredentialInternal': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
       const { credentialId } = raw as { credentialId: string };
@@ -205,11 +235,12 @@ export async function resolveProviderCredential(
     credentialId?: string;
     excludeBrokerTokens?: readonly string[];
     excludeBrokerTokenHashes?: readonly string[];
+    requireBrokerAccountId?: boolean;
   },
 ): Promise<ResolvedProviderCredential> {
   const shim = createCtxShim(credentialShimHandlers(sql));
   return resolveProviderCredential04(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused 0.4 resolver touches only runQuery (see ctx-shim contract)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused resolver uses the shim's query and mutation handlers (see ctx-shim contract)
     shim as unknown as Parameters<typeof resolveProviderCredential04>[0],
     {
       organizationId: args.organizationId,
@@ -224,6 +255,9 @@ export async function resolveProviderCredential(
         : {}),
       ...(args.excludeBrokerTokenHashes !== undefined
         ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+        : {}),
+      ...(args.requireBrokerAccountId !== undefined
+        ? { requireBrokerAccountId: args.requireBrokerAccountId }
         : {}),
     },
   );
@@ -399,6 +433,35 @@ export function parseBrokerConfigDocument(
   return parsed.data;
 }
 
+/** A blank replacement secret means keep it; an explicit environment source
+ * or unauthenticated broker means switch away from the stored secret. */
+export function replaceBrokerConfigDocument(
+  document: string,
+  previous?: EncryptedSecret | null,
+): string {
+  const next = parseBrokerConfigDocument(document);
+  if (next.auth.method === 'none') {
+    delete next.authSecret;
+  } else if (
+    next.authSecret === undefined &&
+    next.auth.secretEnv === undefined &&
+    previous != null
+  ) {
+    try {
+      const old = brokerCredentialDataSchema.parse(
+        JSON.parse(decryptSecret(previous)),
+      );
+      if (old.authSecret !== undefined) next.authSecret = old.authSecret;
+    } catch {
+      throw new CredentialAdminError(
+        'CREDENTIAL_BROKER_CONFIG_INVALID',
+        'The previous broker secret cannot be recovered — re-enter it or configure an environment source.',
+      );
+    }
+  }
+  return JSON.stringify(next);
+}
+
 /** The one env-name rule (`providerKeyEnvNameSchema`: the reserved
  * `TALE_PROVIDER_KEY_` prefix, the documented length cap) — the same
  * definition the resolver's read-time gate derives from, never a restated
@@ -499,6 +562,7 @@ export async function createCredential(
       RETURNING id
     `;
   } catch (error) {
+    if (isDefaultUniqueViolation(error)) throw defaultConflictError();
     if (expectedHash === null && isNameUniqueViolation(error))
       throw new ConfigurationError(
         'CONFIG_VERSION_CONFLICT',
@@ -567,13 +631,14 @@ export async function updateCredential(
       modelAllowlist: string[] | null;
       createdAt: number;
       updatedAt: number;
+      encryptedData: EncryptedSecret | null;
     }[]
   >`
     SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name,
            auth_method AS "authMethod", status, id, env_name AS "envName",
            endpoint_url AS "endpointUrl", masked_preview AS "maskedPreview",
            model_allowlist AS "modelAllowlist", created_at_ms::float8 AS "createdAt",
-           updated_at_ms::float8 AS "updatedAt"
+           updated_at_ms::float8 AS "updatedAt", encrypted_data AS "encryptedData"
     FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}
     LIMIT 1
@@ -663,12 +728,14 @@ export async function updateCredential(
     }
     // A broker configuration is JSON, not a key — same rules as creation:
     // validated against the resolver's schema, and no masked preview.
-    if (row.authMethod === 'subscription-broker') {
-      parseBrokerConfigDocument(patch.secret);
-    } else {
+    if (row.authMethod !== 'subscription-broker') {
       rotatedPreview = maskSecret(patch.secret);
     }
-    rotated = encryptSecret(patch.secret);
+    rotated = encryptSecret(
+      row.authMethod === 'subscription-broker'
+        ? replaceBrokerConfigDocument(patch.secret, row.encryptedData)
+        : patch.secret,
+    );
   }
   if (patch.endpointUrl !== undefined && patch.endpointUrl !== null) {
     assertCredentialEndpointUrl(patch.endpointUrl);
@@ -688,6 +755,7 @@ export async function updateCredential(
       WHERE id = ${credentialId}
     `;
   } catch (error) {
+    if (isDefaultUniqueViolation(error)) throw defaultConflictError();
     if (name !== undefined && isNameUniqueViolation(error)) {
       throw nameTakenError(name);
     }

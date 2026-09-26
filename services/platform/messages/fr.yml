@@ -6046,9 +6046,9 @@ settings:
       removeModel: Retirer {model}
     broker:
       explainer:
-        Un courtier d'abonnement fournit des jetons OAuth rotatifs, par ex.
-        pour un abonnement Claude. Ces identifiants s'exécutent en sandbox sur
-        le harness de leur fournisseur.
+        Un courtier d'abonnement fournit des jetons OAuth renouvelés pour les
+        abonnements Claude ou ChatGPT. Ils servent aux agents de tâche et
+        d'automatisation dans l'environnement sandbox du fournisseur.
       invalid: 'Configuration du courtier invalide : {error}'
       endpoint: Endpoint du courtier
       httpMethod: Méthode HTTP
@@ -6061,12 +6061,15 @@ settings:
       authSecretHelp: Envoyé au courtier comme valeur Bearer ou d'en-tête. Stocké chiffré.
       secretEnv: Secret depuis une variable d'environnement
       secretEnvHelp:
-        'Optionnel, géré par les ops : lire le secret du courtier depuis
-        cette variable du déploiement — le préfixe est fixe.'
+        Facultatif. Utilisé si Secret du courtier est vide. Définir cette
+        référence lors du remplacement de la configuration active la source
+        d'environnement.
       tokensPath: Chemin du tableau de jetons
       tokenField: Champ du jeton
       targetEnvVar: Variable d'environnement cible
-      targetEnvVarHelp: La variable de la sandbox dans laquelle le jeton choisi est injecté.
+      targetEnvVarHelp:
+        Utilise CLAUDE_CODE_OAUTH_TOKEN pour Claude Code ou TALE_SUBSCRIPTION_TOKEN
+        pour Codex. Les réponses du courtier OpenAI doivent aussi inclure account_id.
       selection: Sélection du jeton
       selectionRandom: Aléatoire
       selectionFirst: Premier utilisable

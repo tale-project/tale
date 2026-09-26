@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeJwtClaims,
   expiresAtFrom,
+  fetchWithTimeout,
   generatePkce,
   generateState,
   isRecord,
@@ -16,6 +17,44 @@ import {
   tokenFailureCode,
   toUtilization,
 } from './oauth';
+
+describe('fetchWithTimeout', () => {
+  it('aborts a provider call that never answers', async () => {
+    const boundedFetch = fetchWithTimeout(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+      20,
+    );
+    await expect(
+      boundedFetch('https://provider.test/usage'),
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
+  });
+
+  it('preserves caller cancellation alongside the deadline', async () => {
+    const controller = new AbortController();
+    const boundedFetch = fetchWithTimeout(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    );
+    const call = boundedFetch('https://provider.test/usage', {
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(call).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
 
 describe('generatePkce', () => {
   it('derives the challenge from the verifier with S256', () => {

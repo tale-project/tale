@@ -289,6 +289,76 @@ describe('subscription delivery', () => {
     expect(exec.argv.join(' ')).not.toContain(subscription.secret);
   });
 
+  it.each(['claude-code', 'claude-code-compact'])(
+    '%s: broker OAuth delivery clears the managed bearer and competing API key',
+    (slug) => {
+      const exec = buildHarnessExec(
+        fact(slug),
+        managedSpec({
+          subscription: {
+            ...subscription,
+            targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+          },
+          mcp: { bridgeUrl: 'https://platform.example.com/capabilities' },
+        }),
+      );
+      expect(exec.env.CLAUDE_CODE_OAUTH_TOKEN).toBe(subscription.secret);
+      expect(exec.env.ANTHROPIC_AUTH_TOKEN).toBe('');
+      expect(exec.env.ANTHROPIC_API_KEY).toBe('');
+      expect(exec.env.ANTHROPIC_BASE_URL).toBe(subscription.baseUrl);
+      expect(exec.argv.join(' ')).not.toContain(subscription.secret);
+      expect(exec.argv.join(' ')).toContain(GOLDEN_GATEWAY.token);
+    },
+  );
+
+  it('rejects a broker env target the harness cannot authenticate with', () => {
+    expect(() =>
+      buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({
+          subscription: { ...subscription, targetEnvVar: 'PATH' },
+        }),
+      ),
+    ).toThrow(/subscription.*environment variable/i);
+  });
+
+  it('codex: uses the subscription endpoint, OAuth token, and account header with the bridge intact', () => {
+    const exec = buildHarnessExec(
+      fact('codex'),
+      managedSpec({
+        subscription: {
+          secret: subscription.secret,
+          targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+          baseUrl: 'https://chatgpt.com/backend-api/codex',
+          accountId: 'chatgpt-account-1',
+        },
+        mcp: { bridgeUrl: 'https://platform.example.com/capabilities' },
+      }),
+    );
+    expect(exec.env.TALE_SUBSCRIPTION_TOKEN).toBe(subscription.secret);
+    expect(exec.env.TALE_SUBSCRIPTION_ACCOUNT_ID).toBe('chatgpt-account-1');
+    expect(exec.env.CODEX_ACCESS_TOKEN).toBe('');
+    expect(exec.env.CODEX_API_KEY).toBe('');
+    expect(exec.env.OPENAI_API_KEY).toBe('');
+    expect(exec.env.TALE_CONNECTORS_TOKEN).toBe(GOLDEN_GATEWAY.token);
+    expect(exec.argv).toContain('model_provider="tale-subscription"');
+    expect(exec.argv).toContain(
+      'model_providers.tale-subscription.base_url="https://chatgpt.com/backend-api/codex"',
+    );
+    expect(exec.argv).toContain(
+      'model_providers.tale-subscription.env_http_headers={"ChatGPT-Account-ID"="TALE_SUBSCRIPTION_ACCOUNT_ID"}',
+    );
+    expect(exec.argv.join(' ')).not.toContain(subscription.secret);
+    expect(exec.stdin).not.toContain(subscription.secret);
+    expect(exec.stagedFiles).toBeUndefined();
+  });
+
+  it('codex: refuses subscription delivery without the selected account identity', () => {
+    expect(() =>
+      buildHarnessExec(fact('codex'), managedSpec({ subscription })),
+    ).toThrow(/account.*required/i);
+  });
+
   it('hermes: env kind rides the OpenAI-compatible pair (the Nous Portal path)', () => {
     const exec = buildHarnessExec(
       fact('hermes'),
@@ -344,13 +414,10 @@ describe('subscription delivery', () => {
     ]);
   });
 
-  it('is ignored by a harness whose YAML declares no subscription delivery', () => {
-    const withSub = buildHarnessExec(
-      fact('codex'),
-      managedSpec({ subscription }),
-    );
-    const without = buildHarnessExec(fact('codex'), managedSpec());
-    expect(withSub).toEqual(without);
+  it('refuses a subscription when the harness has no delivery channel', () => {
+    expect(() =>
+      buildHarnessExec(fact('pi'), managedSpec({ subscription })),
+    ).toThrow(/no subscription delivery/);
   });
 });
 

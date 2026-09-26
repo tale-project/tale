@@ -30,6 +30,7 @@ import type { SkillViewer } from '../../../lib/skills/visibility';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
   drainHarnessWindow,
@@ -78,7 +79,6 @@ import {
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
@@ -896,7 +896,7 @@ interface WorkflowTurnAuth {
   allowedModels: string[];
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
-  /** sha256 of the broker token this turn was minted on — only the
+  /** Opaque broker-scoped account hash this turn was minted on — only the
    * subscription-broker branch, where a retry can rotate accounts. */
   brokerTokenHash?: string;
 }
@@ -919,6 +919,7 @@ async function mintWorkflowTurnAuth(
     organizationId: string;
     sessionId: string;
     execId: string;
+    harness: string;
     lane: 'gateway' | 'subscription';
     providerSlug: string;
     modelId: string;
@@ -991,6 +992,7 @@ async function mintWorkflowTurnAuth(
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: args.providerSlug,
+    requireBrokerAccountId: harnessRequiresSubscriptionAccountId(args.harness),
     ...(args.excludeBrokerTokenHashes !== undefined &&
     args.excludeBrokerTokenHashes.length > 0
       ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
@@ -1014,14 +1016,25 @@ async function mintWorkflowTurnAuth(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl: args.apiBaseUrl,
+      baseUrl:
+        (credential.authMethod === 'subscription-broker'
+          ? credential.endpointUrl
+          : undefined) ?? args.apiBaseUrl,
       bridgeToken,
+      ...(credential.authMethod === 'subscription-broker'
+        ? {
+            targetEnvVar: credential.targetEnvVar,
+            ...(credential.accountId !== undefined
+              ? { accountId: credential.accountId }
+              : {}),
+          }
+        : {}),
     },
     tokenHash: hashVirtualKey(bridgeToken),
     allowedModels: [],
     budgetCents: 0,
     ...(credential.authMethod === 'subscription-broker'
-      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      ? { brokerTokenHash: credential.brokerTokenHash }
       : {}),
   };
 }
@@ -1151,6 +1164,7 @@ export async function startWorkflowAgentTurnImpl(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: args.execId,
+        harness: args.harness,
         lane: args.lane ?? 'gateway',
         providerSlug: args.providerSlug,
         modelId: args.modelId,
@@ -1177,9 +1191,7 @@ export async function startWorkflowAgentTurnImpl(
           nodeId: args.nodeId,
           execId: args.execId,
           launchedAt: Date.now(),
-          ...(auth.brokerTokenHash !== undefined
-            ? { brokerTokenHash: auth.brokerTokenHash }
-            : {}),
+          brokerTokenHash: auth.brokerTokenHash ?? null,
         },
       );
       await ctx.runMutation(
@@ -1707,6 +1719,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         organizationId: args.organizationId,
         sessionId,
         execId,
+        harness: agent.harness,
         lane: serving.lane,
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
@@ -1782,9 +1795,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           nodeId: ask.nodeId,
           execId,
           launchedAt: Date.now(),
-          ...(auth.brokerTokenHash !== undefined
-            ? { brokerTokenHash: auth.brokerTokenHash }
-            : {}),
+          brokerTokenHash: auth.brokerTokenHash ?? null,
         },
       );
       await ctx.runMutation(
@@ -2286,6 +2297,25 @@ async function settleWorkflowAgentTurn(
     console.warn(
       `[agent-host] finalize claim for ${args.execId} was burned with no recorded result — completing the dead settle's record`,
     );
+  }
+
+  if (result.errored && result.apiErrorStatus === 429) {
+    const state = await ctx.runQuery(
+      internal.automations.queries.readAgentCursor,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      { organizationId: args.organizationId, runId: args.runId as never },
+    );
+    const agent = state?.cursor?.agent;
+    if (agent?.execId === args.execId && agent.brokerTokenHash) {
+      await ctx.runMutation(
+        internal.provider_credentials.mutations.recordBrokerFailureInternal,
+        {
+          organizationId: args.organizationId,
+          brokerTokenHash: agent.brokerTokenHash,
+          apiErrorStatus: result.apiErrorStatus,
+        },
+      );
+    }
   }
 
   let files: AgentTurnFile[] = result.files;

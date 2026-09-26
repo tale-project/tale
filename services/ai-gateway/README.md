@@ -15,11 +15,11 @@ one that serves the whole pool.
 
 | | |
 | --- | --- |
-| **One endpoint per vendor** | `GET /api/tokens/anthropic` and `GET /api/tokens/openai` answer with that vendor's access tokens, expiries and statuses; `GET /api/tokens` serves the whole pool |
-| **cc-gateway's wire shape** | `{"tokens": [{ id, label, account_email, status, access_token, expires_at, scopes }]}` — a broker mapping written against the retired cc-gateway reads this one unchanged |
+| **One endpoint per vendor** | `GET /api/tokens/anthropic` and `GET /api/tokens/openai` answer with that vendor's access tokens, identities and quota availability; `GET /api/tokens` serves the whole pool |
+| **Compatible token fields** | Keeps cc-gateway's `id`, `label`, `account_email`, `status`, `access_token`, `expires_at` and `scopes`, adding metadata for selection without changing those names |
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
 | **Connects on its own** | A ChatGPT account connects through OpenAI's device sign-in, and a Claude account — when the panel is opened on localhost — through a redirect straight back to the gateway; there is no code to carry back |
-| **Always-fresh tokens** | A background pass refreshes each access token ahead of its expiry, so an account stays usable as long as its refresh token does |
+| **Token refresh** | Background passes and token requests refresh access tokens before expiry; transient failures pause retries, and refused refresh grants require a new sign-in |
 | **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars coloured by how much is spent (green, yellow from half, orange from three quarters, red at the ceiling), beside a short grey one counting the window down to its rollover, which turns green when that is within the hour |
 | **The plan, named** | Each account's plan as its vendor sells it — Max 20x, Pro, Plus, Pro Lite — read from Anthropic's profile and from ChatGPT's own usage answer |
 | **Encrypted at rest** | AES-256-GCM under `AI_GATEWAY_ENCRYPTION_KEY`; a tampered store fails loudly rather than decrypting to something plausible |
@@ -101,41 +101,107 @@ curl localhost:3004/api/tokens/openai    -H "Authorization: Bearer $AI_GATEWAY_A
 {
   "tokens": [
     {
-      "id": "…",
+      "id": "gateway-account-1",
+      "provider": "anthropic",
+      "account_id": null,
       "label": "you@example.com",
       "account_email": "you@example.com",
       "status": "active",
       "access_token": "sk-ant-oat01-…",
       "expires_at": "2026-10-21T09:40:00Z",
-      "scopes": "org:create_api_key user:profile user:inference"
+      "scopes": "org:create_api_key user:profile user:inference",
+      "available": true,
+      "available_at": null,
+      "usage": {
+        "checked_at": "2026-09-26T10:00:00Z",
+        "limited": null,
+        "windows": [
+          {
+            "kind": "weekly",
+            "label": null,
+            "utilization": 20,
+            "resets_at": "2026-09-29T10:00:00Z",
+            "window_seconds": 604800
+          }
+        ]
+      }
     }
   ]
 }
 ```
 
-That is the shape the retired **cc-gateway** answered with, field for field,
-so anything written against it — the platform's `subscription-broker`
-credential included — reads this one with no remapping. The one difference is
-`id`: a string here, where cc-gateway had SQLite row integers.
+This example uses a synthetic account id and a shortened token. The original
+**cc-gateway** fields keep their meanings, so existing token mappings still
+work. `id` is a stable gateway account string, where cc-gateway used SQLite
+row integers. Use it for selection and retry exclusions: token bytes change
+when a token refreshes. `account_id` is the vendor's own identity instead;
+OpenAI's ChatGPT account id must accompany its access token.
 
-`GET /api/tokens` still serves the whole pool. Because a mixed payload cannot
-say which vendor a token belongs to from its URL, each of its entries carries
-one extra field, `provider`.
+Both endpoint shapes include `provider`. A caller should require the expected
+vendor, an `active` status, an unexpired token, and `available: true` before
+selecting a credential. The gateway reports the pool; the consumer owns
+distribution between its eligible entries.
+
+`available` describes quota eligibility independently of credential status.
+A session or weekly window at 100% makes it false until its reset. OpenAI's
+explicit `allowed: false` or `limit_reached: true` also makes it false, even
+with rounded or absent percentages; `usage.limited` preserves that signal
+(`null` when the vendor does not report it). Contradictory flags are treated
+as limited. An explicit limit without a matching full window has no known
+reset: `available_at` stays null until a new reading or the freshness limit
+releases it. A
+model-specific (`scoped`) cap does not remove the whole account. When several
+general windows are exhausted, `available_at` is their latest reset; it is
+null when any blocking window has no known reset. A passed reset stops
+blocking even if the next usage read has not happened yet.
+
+Usage is refreshed on token requests subject to
+`AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS`. The gateway ignores exhaustion from
+readings 15 minutes old or older, future timestamps, or absent readings, and
+reports `available: true` in those cases. This keeps a metrics outage from
+stranding accounts indefinitely; it is not a guarantee that the next inference
+request has capacity. `usage.checked_at` records the last successful read.
+A failed read keeps that timestamp and its figures, without changing a valid
+credential's status. `usage` is null before any successful read.
 
 An unknown vendor is a 404 (`unknown_provider`); a vendor with no accounts is
 a 200 and an empty array.
 
 To run a vendor's CLI on a token, the panel's **Copy CLI command** action
-composes the whole line:
+composes the whole line. The Claude command uses its OAuth channel and clears
+the credentials that could take precedence. With the token in `ACCESS_TOKEN`:
 
 ```bash
-ANTHROPIC_AUTH_TOKEN=<access_token> claude
-CODEX_ACCESS_TOKEN=<access_token> codex
+env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY \
+  CLAUDE_CODE_OAUTH_TOKEN="$ACCESS_TOKEN" claude
 ```
 
-Every non-expired token is refreshed-if-stale before an endpoint answers, so a
-caller never receives one that is about to expire — and asking for one vendor
-refreshes only that vendor's accounts.
+For Codex, put the token in `ACCESS_TOKEN` and the response's `account_id` in
+`CHATGPT_ACCOUNT_ID`. Its ChatGPT Responses endpoint needs both. The command
+uses environment variables for credential delivery; `CODEX_ACCESS_TOKEN`
+selects a different authentication protocol and is not the subscription
+token variable.
+
+```bash
+env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY \
+  TALE_SUBSCRIPTION_TOKEN="$ACCESS_TOKEN" \
+  TALE_SUBSCRIPTION_ACCOUNT_ID="$CHATGPT_ACCOUNT_ID" codex \
+  -c 'model_provider="tale-subscription"' \
+  -c 'model_providers.tale-subscription.name="ChatGPT"' \
+  -c 'model_providers.tale-subscription.base_url="https://chatgpt.com/backend-api/codex"' \
+  -c 'model_providers.tale-subscription.env_key="TALE_SUBSCRIPTION_TOKEN"' \
+  -c 'model_providers.tale-subscription.env_http_headers={"ChatGPT-Account-ID"="TALE_SUBSCRIPTION_ACCOUNT_ID"}' \
+  -c 'model_providers.tale-subscription.wire_api="responses"' \
+  -c 'model_providers.tale-subscription.requires_openai_auth=false'
+```
+
+The gateway refreshes tokens near expiry before answering. Consumers still
+check status and expiry because a vendor can refuse or fail a refresh. One
+vendor's token request refreshes only that vendor's accounts. Accounts are
+refreshed concurrently, overlapping calls share the work per account, and
+each provider HTTP request has a four-second deadline. An unreadable stored
+credential is marked expired and omitted without taking the rest of the pool
+offline. Token and copied-command responses use `Cache-Control: no-store`.
 
 ## Routes
 

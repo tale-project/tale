@@ -65,7 +65,7 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx() {
+function makeCtx(brokerTokenHash?: string) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -82,6 +82,7 @@ function makeCtx() {
               providerSlug: KEYS.providerSlug,
               gatewayModel: KEYS.gatewayModel,
               harness: KEYS.harness,
+              ...(brokerTokenHash !== undefined ? { brokerTokenHash } : {}),
               input: {},
             },
           },
@@ -122,9 +123,93 @@ function ndjson(lines: Array<Record<string, unknown>>): string {
 const INIT = { type: 'system', subtype: 'init', session_id: 'conv-1' };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.stdout = '';
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+describe('a brokered automation agent reaching a vendor rate limit', () => {
+  it.each(['claude-code', 'codex'])(
+    '%s cools down the selected account before the retry can run',
+    async (harness) => {
+      io.stdout = ndjson(
+        harness === 'codex'
+          ? [
+              { type: 'thread.started', thread_id: 'conv-429' },
+              {
+                type: 'turn.failed',
+                error: {
+                  message: "You've hit your usage limit. Try again later.",
+                },
+              },
+            ]
+          : [
+              { type: 'system', subtype: 'init', session_id: 'conv-429' },
+              {
+                type: 'result',
+                subtype: 'error_during_execution',
+                is_error: true,
+                api_error_status: 429,
+                result: 'Rate limited',
+                session_id: 'conv-429',
+              },
+            ],
+      );
+      const { ctx, mutations } = makeCtx('stable-selected-account-hash');
+
+      await driveWorkflowAgentTurnImpl(ctx, { ...KEYS, harness });
+
+      const cooldown = mutations.findIndex(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      );
+      const retry = mutations.findIndex((m) =>
+        m.name.endsWith(':recordAgentTurnSettled'),
+      );
+      expect(cooldown).toBeGreaterThanOrEqual(0);
+      expect(cooldown).toBeLessThan(retry);
+      expect(mutations[cooldown]?.args).toEqual({
+        organizationId: 'org-1',
+        brokerTokenHash: 'stable-selected-account-hash',
+        apiErrorStatus: 429,
+      });
+    },
+  );
+});
+
+it('persists a Codex subscription turn’s terminal usage with its result', async () => {
+  io.stdout = ndjson([
+    { type: 'thread.started', thread_id: 'codex-subscription' },
+    {
+      type: 'item.completed',
+      item: { id: 'message-1', type: 'agent_message', text: 'Done.' },
+    },
+    {
+      type: 'turn.completed',
+      usage: {
+        input_tokens: 900,
+        cached_input_tokens: 600,
+        output_tokens: 12,
+      },
+    },
+  ]);
+  const { ctx, mutations } = makeCtx('stable-selected-account-hash');
+
+  await driveWorkflowAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' });
+
+  expect(settledOf(mutations)).toEqual([
+    expect.objectContaining({
+      args: expect.objectContaining({
+        result: expect.objectContaining({
+          errored: false,
+          text: 'Done.',
+          usage: { inputTokens: 900, outputTokens: 12 },
+        }),
+      }),
+    }),
+  ]);
 });
 
 describe('an errored automation agent turn', () => {

@@ -280,6 +280,53 @@ describe('non-chat catalog entries never serve agent turns', () => {
 });
 
 describe('resolveWorkflowAgentServing — subscription pass', () => {
+  it('restricts OpenAI subscription models to the credential allowlist and uses native model ids', async () => {
+    const openai = providerDefinitionSchema.parse({
+      name: 'openai',
+      displayName: 'OpenAI',
+      apiFormat: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      catalog: { source: 'static' },
+      auth: [
+        {
+          method: 'subscription-broker',
+          baseUrl: 'https://chatgpt.com/backend-api/codex',
+          constraints: { execution: 'sandbox', harness: 'codex' },
+        },
+      ],
+    });
+    resolveConnectors.mockResolvedValue([openai]);
+    loadHarnesses.mockReturnValue([
+      harness('codex', { managed: true, byo: true }, true, 'openai-responses'),
+    ]);
+    getProviderCatalog.mockResolvedValue([
+      { id: 'gpt-5.5', tags: ['chat'] },
+      { id: 'gpt-5.5-pro', tags: ['chat'] },
+    ]);
+    credentials = { openai: { ...BROKER, modelAllowlist: ['gpt-5.5'] } };
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        modelProvider: 'openai',
+        model: 'openai/gpt-5.5',
+        harness: 'codex',
+      }),
+    ).resolves.toMatchObject({
+      lane: 'subscription',
+      modelId: 'gpt-5.5',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    });
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        modelProvider: 'openai',
+        model: 'gpt-5.5-pro',
+        harness: 'codex',
+      }),
+    ).rejects.toThrow(/allowlist excludes/);
+  });
+
   it('serves a broker-only org on the subscription lane', async () => {
     credentials = { anthropic: BROKER };
 

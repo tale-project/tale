@@ -31,10 +31,25 @@ const claude: TokenHandout = {
   provider: 'anthropic',
   label: 'you@example.com',
   accountEmail: 'you@example.com',
+  accountId: null,
   status: 'active',
   accessToken: 'sk-ant-oat01-access-1',
   expiresAt: '2026-10-21T09:40:00.000Z',
   scopes: 'user:inference',
+  available: false,
+  availableAt: '2026-09-23T10:00:00.000Z',
+  usage: {
+    checkedAt: '2026-09-21T10:00:00.000Z',
+    windows: [
+      {
+        kind: 'weekly',
+        label: null,
+        utilization: 100,
+        resetsAt: '2026-09-23T10:00:00.000Z',
+        windowSeconds: 604_800,
+      },
+    ],
+  },
 };
 
 const chatgpt: TokenHandout = {
@@ -42,10 +57,14 @@ const chatgpt: TokenHandout = {
   provider: 'openai',
   label: 'you@example.org',
   accountEmail: 'you@example.org',
+  accountId: 'chatgpt-account-2',
   status: 'active',
   accessToken: 'codex-access-2',
   expiresAt: null,
   scopes: null,
+  available: true,
+  availableAt: null,
+  usage: null,
 };
 
 const pool = [claude, chatgpt];
@@ -120,6 +139,15 @@ describe('the panel routes', () => {
     const response = await call('/api/accounts');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ accounts: [view] });
+  });
+
+  it('does not cache copied credentials', async () => {
+    const { call } = build();
+    expect(
+      (await call('/api/accounts/account-1/command')).headers.get(
+        'cache-control',
+      ),
+    ).toBe('no-store');
   });
 
   it('describes the providers it can add', async () => {
@@ -281,19 +309,47 @@ describe('the token endpoints', () => {
     ).toBe(200);
   });
 
-  it('answers in cc-gateway’s shape, field for field', async () => {
+  it.each(paths)(
+    'does not cache %s, including failed authentication',
+    async (path) => {
+      const { call } = build();
+      expect(
+        (await call(path, { headers: withKey })).headers.get('cache-control'),
+      ).toBe('no-store');
+      expect((await call(path)).headers.get('cache-control')).toBe('no-store');
+    },
+  );
+
+  it('keeps cc-gateway fields and adds stable identity and quota metadata', async () => {
     const { call } = build();
     const response = await call('/api/tokens/anthropic', { headers: withKey });
     expect(await response.json()).toEqual({
       tokens: [
         {
           id: 'account-1',
+          provider: 'anthropic',
+          account_id: null,
           label: 'you@example.com',
           account_email: 'you@example.com',
           status: 'active',
           access_token: 'sk-ant-oat01-access-1',
           expires_at: '2026-10-21T09:40:00.000Z',
           scopes: 'user:inference',
+          available: false,
+          available_at: '2026-09-23T10:00:00.000Z',
+          usage: {
+            checked_at: '2026-09-21T10:00:00.000Z',
+            limited: null,
+            windows: [
+              {
+                kind: 'weekly',
+                label: null,
+                utilization: 100,
+                resets_at: '2026-09-23T10:00:00.000Z',
+                window_seconds: 604_800,
+              },
+            ],
+          },
         },
       ],
     });
@@ -317,12 +373,17 @@ describe('the token endpoints', () => {
       tokens: [
         {
           id: 'account-2',
+          provider: 'openai',
+          account_id: 'chatgpt-account-2',
           label: 'you@example.org',
           account_email: 'you@example.org',
           status: 'active',
           access_token: 'codex-access-2',
           expires_at: null,
           scopes: null,
+          available: true,
+          available_at: null,
+          usage: null,
         },
       ],
     });
@@ -367,22 +428,42 @@ describe('the token endpoints', () => {
         {
           id: 'account-1',
           provider: 'anthropic',
+          account_id: null,
           label: 'you@example.com',
           account_email: 'you@example.com',
           status: 'active',
           access_token: 'sk-ant-oat01-access-1',
           expires_at: '2026-10-21T09:40:00.000Z',
           scopes: 'user:inference',
+          available: false,
+          available_at: '2026-09-23T10:00:00.000Z',
+          usage: {
+            checked_at: '2026-09-21T10:00:00.000Z',
+            limited: null,
+            windows: [
+              {
+                kind: 'weekly',
+                label: null,
+                utilization: 100,
+                resets_at: '2026-09-23T10:00:00.000Z',
+                window_seconds: 604_800,
+              },
+            ],
+          },
         },
         {
           id: 'account-2',
           provider: 'openai',
+          account_id: 'chatgpt-account-2',
           label: 'you@example.org',
           account_email: 'you@example.org',
           status: 'active',
           access_token: 'codex-access-2',
           expires_at: null,
           scopes: null,
+          available: true,
+          available_at: null,
+          usage: null,
         },
       ],
     });

@@ -208,6 +208,11 @@ class CodexJsonlParser implements HarnessEventParser {
       const result: HarnessEvent = { type: 'turn-ended', status: 'completed' };
       if (this.sessionId) result.sessionId = this.sessionId;
       if (this.finalText) result.finalText = this.finalText;
+      // Vendor-direct subscription turns have no gateway usage to book.
+      // Codex's input total already includes cache reads.
+      if (usage !== undefined) {
+        result.usageTotals = { inputTokens, outputTokens };
+      }
       events.push(result);
       return events;
     }
@@ -259,24 +264,39 @@ export function describeTurnFailure(message: string | undefined): {
 } {
   const text = message?.trim() ?? '';
   if (text === '') return { message: 'Codex turn failed' };
+  // Vendor errors do not carry the gateway's status_code envelope. Pinned
+  // Codex 0.142.5 prints ordinary HTTP failures as `unexpected status NNN`;
+  // a ChatGPT usage_limit_reached 429 instead becomes this exact prose prefix.
+  // Recover the status from the CLI's error channel, never assistant text.
+  const httpStatus = /^unexpected status ([45]\d{2})\b/i.exec(text)?.[1];
+  const nativeStatus =
+    httpStatus !== undefined
+      ? Number(httpStatus)
+      : text.startsWith("You've hit your usage limit.")
+        ? 429
+        : undefined;
+  const fallback = {
+    message: text,
+    ...(nativeStatus !== undefined ? { apiErrorStatus: nativeStatus } : {}),
+  };
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) return { message: text };
+  if (start === -1 || end <= start) return fallback;
   let body: unknown;
   try {
     body = JSON.parse(text.slice(start, end + 1));
   } catch {
-    return { message: text };
+    return fallback;
   }
-  if (!isRecord(body)) return { message: text };
+  if (!isRecord(body)) return fallback;
   const status =
     typeof body.status_code === 'number' && Number.isInteger(body.status_code)
       ? body.status_code
-      : undefined;
+      : nativeStatus;
   const detail =
     (isRecord(body.error) ? asString(body.error.message) : undefined) ??
     asString(body.message);
-  if (detail === undefined && status === undefined) return { message: text };
+  if (detail === undefined && status === undefined) return fallback;
   const line =
     detail !== undefined
       ? status !== undefined

@@ -142,9 +142,74 @@ Le préfixe réservé empêche un accès de désigner un autre secret tel que `S
 
 Après avoir ajouté ou renouvelé la valeur, recrée `backend-api` et `backend-worker` avec le nouvel environnement. Un redémarrage Compose conserve les anciennes valeurs. Les espaces au début et à la fin sont supprimés avant utilisation. Vérifie une vraie requête après le déploiement.
 
+## Connecter un courtier d’abonnement
+
+Un courtier d’abonnement fournit un pool de jetons d’accès OAuth ; Tale choisit un compte utilisable pour chaque tour d’agent. Les intégrations livrées sont Anthropic avec Claude Code et OpenAI ChatGPT avec Codex, pour les agents de tâche et d’automatisation. Conserve des identifiants API directs pour les chats et les autres appels directs aux modèles. Un jeton OAuth n’est pas une clé API de fournisseur.
+
+Utilise une adresse distincte pour chaque fournisseur. Tale AI Gateway expose `/api/tokens/anthropic` et `/api/tokens/openai`, avec sa clé API comme jeton Bearer pour l’authentification. L’adresse combinée `/api/tokens` ne convient pas à des identifiants associés à un seul fournisseur. Le backend doit pouvoir joindre le courtier selon la politique d’accès aux hôtes décrite plus haut pour les fournisseurs.
+
+L’exemple ci-dessous est le document d’identifiants du courtier construit par le [formulaire des fournisseurs IA](/fr/platform/admin/providers#connecter-un-courtier-dabonnement), pas un fichier de définition de fournisseur. Remplace le nom d’hôte par celui de ton courtier et fournis sa clé API dans `TALE_TOKEN_SOURCE_AI_GATEWAY` aux deux processus backend. Les noms de propriétés correspondent à Tale AI Gateway ; adapte-les à la réponse si tu utilises un autre courtier.
+
+```json
+{
+  "endpoint": "https://broker.example.com/api/tokens/anthropic",
+  "httpMethod": "GET",
+  "auth": {
+    "method": "bearer",
+    "secretEnv": "TALE_TOKEN_SOURCE_AI_GATEWAY"
+  },
+  "responseMapping": {
+    "tokensPath": "$.tokens",
+    "tokenField": "access_token",
+    "statusField": "status",
+    "activeValue": "active",
+    "expiresField": "expires_at"
+  },
+  "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
+  "selection": "round-robin"
+}
+```
+
+Pour OpenAI, remplace la fin de l’adresse par `/api/tokens/openai` et `targetEnvVar` par `TALE_SUBSCRIPTION_TOKEN`. Chaque entrée OpenAI utilisable doit aussi contenir l’`account_id` du fournisseur. Tale transmet cette valeur dans `TALE_SUBSCRIPTION_ACCOUNT_ID`, avec le jeton, à la connexion ChatGPT de Codex. N’utilise ni l’`id` de la passerelle ni `CODEX_ACCESS_TOKEN` à la place de ces valeurs. Limite les modèles autorisés de ces identifiants aux modèles pris en charge par l’abonnement ChatGPT ; le catalogue de l’API OpenAI peut contenir des modèles indisponibles avec les abonnements.
+
+Pour Anthropic OAuth, utilise `CLAUDE_CODE_OAUTH_TOKEN`. La cible historique `ANTHROPIC_AUTH_TOKEN` reste prise en charge lorsqu’elle est configurée explicitement ; elle utilise l’authentification Bearer générique de Claude Code. Tale retire les autres variables d’identifiants du fournisseur avant de transmettre le jeton choisi. Une variable cible non prise en charge par l’environnement d’agent sélectionné est refusée.
+
+### Identité des comptes et quotas
+
+En plus des champs de jeton, de statut et d’expiration configurés, chaque entrée peut fournir les champs standard suivants. Leurs noms sont fixes et ne demandent aucune configuration supplémentaire de la réponse.
+
+| Champ | Rôle |
+| --- | --- |
+| `id` | Identifiant du courtier |
+| `provider` | Fournisseur |
+| `account_id` | Compte du fournisseur |
+| `available` | Quota disponible |
+| `available_at` | Renouvellement du quota |
+| `usage` | Relevé d’usage |
+
+L’`id` doit rester stable lorsque le jeton d’accès change, afin de reconnaître le compte lors des nouvelles tentatives. Il est distinct de l’`account_id` du fournisseur requis par OpenAI. Si `provider` désigne un autre fournisseur que celui des identifiants, l’entrée est exclue.
+
+`available: false` exclut le compte jusqu’à l’horodatage ISO dans `available_at`. Si le renouvellement est inconnu, omets cet horodatage ou utilise `null` ; le compte reste alors exclu jusqu’à ce que le courtier le déclare disponible. Le statut et l’expiration du jeton sont vérifiés séparément. Tale AI Gateway calcule la disponibilité à partir d’un relevé `usage` contenant `checked_at` et `windows`, chaque fenêtre indiquant son type, son utilisation et son horodatage de renouvellement.
+
+Les anciens courtiers peuvent omettre ces métadonnées facultatives. Sans `id`, Tale utilise une empreinte du jeton pour identifier le compte lors des nouvelles tentatives ; il ne peut donc pas le reconnaître après un changement de jeton. L’absence de données de quota laisse le compte sélectionnable, sans prouver qu’il reste du quota.
+
+Tale AI Gateway exclut un compte lorsqu’un relevé récent indique qu’une fenêtre globale de session ou hebdomadaire est utilisée à 100 % et que son renouvellement n’a pas encore eu lieu. Un signal explicite de limite du fournisseur (`usage.limited: true`) rend aussi le compte indisponible, même si le taux d’utilisation affiché est inférieur ou absent. Les limites propres à un modèle n’excluent pas le compte entier. Un relevé devient périmé après 15 minutes : des données inconnues ou périmées laissent donc le compte sélectionnable. Une fenêtre épuisée sans horodatage de renouvellement bloque le compte uniquement tant que le relevé est récent. La demande de jetons suivante actualise les données périmées lorsque le fournisseur le permet. Après le renouvellement du quota concerné, le compte peut rejoindre le pool. Le fournisseur peut encore refuser une requête entre deux actualisations.
+
+### Sélection et résolution des erreurs
+
+`random` est le choix initial du formulaire ; `first` suit l’ordre du courtier. `round-robin` choisit le compte utilisable dont la dernière sélection est la plus ancienne, avec un historique conservé par organisation et par identifiants. Les requêtes simultanées de plusieurs processus backend mettent cet historique à jour de façon atomique ; l’ordre des réponses et les redémarrages ne le réinitialisent pas. Conserver l’historique d’un compte après un changement de jeton exige un `id` stable. Ces stratégies répartissent les sélections de comptes, pas la consommation de jetons ni la capacité des agents en cours. Les identifiants existants conservent leur stratégie enregistrée.
+
+Lorsqu’un compte répond HTTP 429, Tale l’exclut des nouvelles sélections pendant 60 secondes pour cette organisation et ces identifiants. Les nouvelles tentatives privilégient les comptes encore inutilisés pendant la série d’échecs de l’exécution. Si tous les comptes autrement utilisables ont été essayés, une tentative peut en réutiliser un ; les exclusions liées au quota et au délai d’attente restent applicables.
+
+Sans valeur personnalisée, une demande de pool expire après 10 secondes et accepte au plus 262 144 octets. L’expiration d’un jeton, lorsqu’un champ est configuré pour la lire, doit se situer à plus de cinq minutes. Avec Tale AI Gateway, conserve les champs de statut et d’expiration pour écarter les jetons inactifs ou proches de leur expiration. Les dates d’expiration peuvent être des horodatages ISO ou Unix, en secondes ou en millisecondes.
+
+Si aucun compte n’est utilisable, vérifie l’authentification auprès du courtier, le statut des comptes, les expirations, les renouvellements de quota et les champs de réponse configurés. Renouvelle l’autorisation du compte ou attends le renouvellement du quota selon le cas, puis vérifie qu’une tâche ou automatisation termine sa réponse avec le fournisseur et l’environnement prévus. Une requête réussie auprès du courtier ne teste pas à elle seule la connexion au fournisseur.
+
 ## Secrets de courtier depuis l’environnement
 
-Un accès de type **Courtier d’abonnement** peut aussi lire le secret du courtier dans l’environnement du déploiement. Utilise le préfixe distinct `TALE_TOKEN_SOURCE_` dans **Secret depuis une variable d’environnement**. Les autres noms sont refusés. Si le champ reste vide, le secret est chiffré avec l’accès. Recrée les processus concernés lorsque tu changes une valeur issue de l’environnement.
+Des identifiants de type **Courtier d'abonnement** peuvent lire le secret du courtier dans l’environnement du déploiement. Utilise le préfixe distinct `TALE_TOKEN_SOURCE_` dans **Secret depuis une variable d'environnement** et laisse **Secret du courtier** vide. Les autres noms sont refusés. Si tu fournis les deux valeurs, le secret stocké du courtier est prioritaire. Recrée les processus concernés lorsque tu changes une valeur issue de l’environnement.
+
+Si la nouvelle configuration du courtier utilise encore une authentification, laisser les deux champs de secret vides conserve le secret déjà stocké. Saisir une référence d’environnement sans nouveau secret du courtier active la source d’environnement. Choisir **Aucune** pour l’authentification du courtier retire le secret stocké de la configuration de remplacement.
 
 ## Gérer les réglages propres à l’organisation
 
