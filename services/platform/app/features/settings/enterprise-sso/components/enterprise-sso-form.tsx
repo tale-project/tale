@@ -12,6 +12,7 @@ import { Input } from '@tale/ui/input';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { ReorderList, type ReorderItem } from '@tale/ui/reorder-list';
 import { Select } from '@tale/ui/select';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
@@ -1524,6 +1525,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   );
 }
 
+/** The masked pill's stand-in value: a callback URL's typical length. */
+const LOADING_URL_STAND_IN = 'https://tale.example.com/api/auth/sso/callback';
+
 function ReadOnlyCopy({
   label,
   value,
@@ -1536,14 +1540,19 @@ function ReadOnlyCopy({
   // A settings field like any other: label + help on the left, the value
   // pinned right in the shared control column — as the standard copyable
   // pill (full value on hover, inline copied feedback), not a hand-rolled
-  // code block + button.
+  // code block + button. While the page is masked the pill stands in at a
+  // URL's length, so the row doesn't read "—" and then change.
+  const loading = useSkeleton();
   return (
     <SettingsFieldRow
       label={label}
       {...(helpText !== undefined ? { description: helpText } : {})}
     >
-      {value ? (
-        <CopyableField value={value} copyAriaLabel={label} />
+      {value || loading ? (
+        <CopyableField
+          value={value || LOADING_URL_STAND_IN}
+          copyAriaLabel={label}
+        />
       ) : (
         <Text as="span" variant="muted">
           —
