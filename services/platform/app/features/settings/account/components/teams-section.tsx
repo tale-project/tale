@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
@@ -28,6 +29,18 @@ export function TeamsSection() {
       id="teams"
       title={tSettings('account.teams.title')}
       description={tSettings('account.teams.description')}
+      action={
+        canManageTeams && organizationId ? (
+          <Button asChild variant="secondary" size="sm">
+            <Link
+              to="/dashboard/$id/settings/teams"
+              params={{ id: organizationId }}
+            >
+              {tSettings('account.teams.manageLink')}
+            </Link>
+          </Button>
+        ) : undefined
+      }
     >
       {isLoading ? null : !teams || teams.length === 0 ? (
         <Text variant="muted">{tSettings('account.teams.none')}</Text>
@@ -40,17 +53,6 @@ export function TeamsSection() {
           ))}
         </HStack>
       )}
-      {canManageTeams && organizationId ? (
-        <Text variant="muted" className="mt-2 text-sm">
-          <Link
-            to="/dashboard/$id/settings/teams"
-            params={{ id: organizationId }}
-            className="text-primary hover:underline"
-          >
-            {tSettings('account.teams.manageLink')}
-          </Link>
-        </Text>
-      ) : null}
     </SettingsSection>
   );
 }
