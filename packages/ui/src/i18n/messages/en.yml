@@ -220,6 +220,7 @@ common:
     rowsPerPage: Rows per page
     showing: "{start}-{end} of {total}"
     showingAll: "{count, plural, one {Showing all # {entityOne}} other {Showing all # {entityOther}}}"
+    showingLoaded: "{count, plural, one {Showing the first # {entityOne} — scroll for more} other {Showing the first # {entityOther} — scroll for more}}"
     showingFiltered: "{total, plural, one {Showing {filtered} of # {entityOne}} other {Showing {filtered} of # {entityOther}}}"
     showingRange: "{total, plural, one {Showing {start}-{end} of # {entityOne}} other {Showing {start}-{end} of # {entityOther}}}"
   search:

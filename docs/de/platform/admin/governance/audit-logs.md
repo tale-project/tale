@@ -30,7 +30,7 @@ Nutze das Protokoll als Nachweis der darin erfassten Ereignisse. Es enthält kei
 
 ## Den richtigen Tab wählen
 
-**Audit-Protokolle** enthält einzelne Ereignisse. Die Ansicht für Anmeldesperren hilft bei blockierten Anmeldungen. Aktivitätslogs fassen Vorgänge und Ergebnisse über einen Zeitraum zusammen. Fehlerlogs konzentrieren sich auf Fehler und lassen sich nach Kategorie eingrenzen.
+**Audit-Protokolle** enthält einzelne Ereignisse; die Tabelle lädt beim Scrollen weitere, und die Fußzeile nennt, wie viele Ereignisse bisher geladen sind – eine Zahl ist erst dann die gesamte Historie, wenn die Fußzeile das sagt. Die Ansicht für Anmeldesperren hilft bei blockierten Anmeldungen. Aktivitätslogs fassen Vorgänge und Ergebnisse über einen Zeitraum zusammen: Der im **Filter** gewählte Zeitraum (7, 30 oder 90 Tage) steht über den Summen, und jede Zahl auf dem Tab bezieht sich nur auf diesen Zeitraum. Fehlerlogs konzentrieren sich auf Fehler und lassen sich nach Kategorie eingrenzen.
 
 Kann sich ein Mitglied nicht anmelden, beginne mit den Anmeldesperren und der [Anleitung zur Kontosicherheit](/de/platform/admin/two-factor-authentication). Wurde eine Konfiguration unerwartet geändert, prüfe das Audit-Ereignis und seine Details.
 

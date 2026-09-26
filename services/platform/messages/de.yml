@@ -6120,6 +6120,7 @@ settings:
         last7Days: Letzte 7 Tage
         last30Days: Letzte 30 Tage
         last90Days: Letzte 90 Tage
+      periodCaption: 'Zeitraum: {period}. Alle Summen unten beziehen sich auf diesen Zeitraum.'
       cards:
         total: Aktionen gesamt
         success: Erfolgreich

@@ -371,6 +371,19 @@ select lists only the current admin's keys (`useApiKeys`).
   raw `automationRun`, no category twice; **Restore**
   (`governance.trash.restore.label`) → the chat is back in the owner's list
   with both versions in its branch navigator.
+- [ ] `GOV-F32` · **Log counts never claim more than they show** — In an org
+  with more audit events than one page (seed a few hundred), open `logs` →
+  **Audit logs** (`settings.logs.auditLogs`) → The footer reads **Showing the
+  first N audit logs — scroll for more** (the shared data-table footer over
+  `settings.logs.audit.entityLabel`), never **Showing all N** while a scroll
+  still loads rows; scroll to the end → once nothing more loads the footer
+  switches to **Showing all N audit logs**; then **Activity logs**
+  (`settings.logs.activityLogs`) → above the
+  stat cards a caption reads **Period: Last 7 days. All totals below cover
+  this period.** (`settings.logs.activity.periodCaption`); **Filter** →
+  **Period** (`settings.logs.activity.period.label`) → **Last 30 days**
+  (`settings.logs.activity.period.last30Days`) → the caption and the totals
+  change together.
 
 ## Boundary & error tests
 

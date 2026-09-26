@@ -220,6 +220,7 @@ common:
     rowsPerPage: Lignes par page
     showing: "{start}-{end} sur {total}"
     showingAll: "{count, plural, one {Affichage de # {entityOne} au total} other {Affichage de # {entityOther} au total}}"
+    showingLoaded: "{count, plural, one {Affichage de # {entityOne} – fais défiler pour en voir plus} other {Affichage des # premiers {entityOther} – fais défiler pour en voir plus}}"
     showingFiltered: "{total, plural, one {Affichage de {filtered} sur # {entityOne}} other {Affichage de {filtered} sur # {entityOther}}}"
     showingRange: "{total, plural, one {Affichage de {start}-{end} sur # {entityOne}} other {Affichage de {start}-{end} sur # {entityOther}}}"
   search:

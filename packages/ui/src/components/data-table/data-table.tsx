@@ -1192,10 +1192,20 @@ export function DataTable<TData, TValue = unknown>({
               total: infiniteScroll.totalCount,
               ...entityLabelForms(infiniteScroll.entityLabel),
             })
-          : t('pagination.showingAll', {
-              count: shownEntityCount,
-              ...entityLabelForms(infiniteScroll.entityLabel),
-            })}
+          : infiniteScroll.hasMore
+            ? // No server total to name (a paginated source counts only what
+              // it has loaded) while more can still load: "Showing all N"
+              // would claim a completeness the list does not have, and an
+              // investigator reading an audit table might conclude an event is
+              // absent (2026-09-26 evaluation, E-03).
+              t('pagination.showingLoaded', {
+                count: shownEntityCount,
+                ...entityLabelForms(infiniteScroll.entityLabel),
+              })
+            : t('pagination.showingAll', {
+                count: shownEntityCount,
+                ...entityLabelForms(infiniteScroll.entityLabel),
+              })}
       </output>
     );
 

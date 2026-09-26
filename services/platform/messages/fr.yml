@@ -6219,6 +6219,7 @@ settings:
         last7Days: 7 derniers jours
         last30Days: 30 derniers jours
         last90Days: 90 derniers jours
+      periodCaption: 'Période : {period}. Tous les totaux ci-dessous couvrent cette période.'
       cards:
         total: Actions totales
         success: Succès

@@ -134,6 +134,9 @@ function ActivityLogViewInner({
 
   const topActors = summary?.topActors ?? [];
   const maxActorCount = topActors[0]?.count ?? 1;
+  const periodLabel =
+    periodOptions.find((option) => option.value === String(periodDays))
+      ?.label ?? '';
 
   return (
     <Stack gap={6}>
@@ -158,24 +161,33 @@ function ActivityLogViewInner({
         actions={actions}
       />
 
-      <StatCardGrid>
-        <StatCard
-          label={t('logs.activity.cards.total')}
-          value={formatNumber(summary?.totalActions ?? 0)}
-        />
-        <StatCard
-          label={t('logs.activity.cards.success')}
-          value={formatNumber(summary?.successCount ?? 0)}
-        />
-        <StatCard
-          label={t('logs.activity.cards.failure')}
-          value={formatNumber(summary?.failureCount ?? 0)}
-        />
-        <StatCard
-          label={t('logs.activity.cards.denied')}
-          value={formatNumber(summary?.deniedCount ?? 0)}
-        />
-      </StatCardGrid>
+      <Stack gap={2}>
+        {/* The window every number below covers. The filter's pick sits
+            behind an icon button and the 7-day default is its resting
+            state, so nothing else on the tab named it and "1,310 actions"
+            read as an all-time total (2026-09-26 evaluation, E-03). */}
+        <Text variant="muted" className="text-sm">
+          {t('logs.activity.periodCaption', { period: periodLabel })}
+        </Text>
+        <StatCardGrid>
+          <StatCard
+            label={t('logs.activity.cards.total')}
+            value={formatNumber(summary?.totalActions ?? 0)}
+          />
+          <StatCard
+            label={t('logs.activity.cards.success')}
+            value={formatNumber(summary?.successCount ?? 0)}
+          />
+          <StatCard
+            label={t('logs.activity.cards.failure')}
+            value={formatNumber(summary?.failureCount ?? 0)}
+          />
+          <StatCard
+            label={t('logs.activity.cards.denied')}
+            value={formatNumber(summary?.deniedCount ?? 0)}
+          />
+        </StatCardGrid>
+      </Stack>
 
       <Grid lg={2}>
         <BreakdownPanel

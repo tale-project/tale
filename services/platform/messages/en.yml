@@ -6210,6 +6210,7 @@ settings:
         last7Days: Last 7 days
         last30Days: Last 30 days
         last90Days: Last 90 days
+      periodCaption: 'Period: {period}. All totals below cover this period.'
       cards:
         total: Total actions
         success: Success
