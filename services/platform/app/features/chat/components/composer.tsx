@@ -97,6 +97,9 @@ interface ComposerProps {
    * the new-chat index), so switching threads swaps drafts instead of
    * carrying text across. */
   draftKey: string;
+  /** DOM id for the message field — the target of a skip link that jumps
+   * past the sidebar straight to the box. */
+  textareaId?: string;
   /** The direct-served models the chat lane can call. */
   models: readonly ComposerModelOption[];
   selection: ComposerSelection;
@@ -175,6 +178,7 @@ export const Composer = memo(
   forwardRef<ComposerHandle, ComposerProps>(function Composer(
     {
       draftKey,
+      textareaId,
       models,
       selection,
       onSelectionChange,
@@ -465,6 +469,7 @@ export const Composer = memo(
             <div className="relative">
               <Textarea
                 ref={textareaRef}
+                id={textareaId}
                 // The field sits under a visible section, so its name is carried by
                 // `aria-label` rather than a label that would duplicate the chrome.
                 aria-label={t('aria.chatInput')}

@@ -116,6 +116,13 @@ component-level axe coverage comes from `vitest-axe` via
   checkbox is named "You: …" / "Assistant: …" (`chat.export.you`,
   `chat.export.assistant`) followed by a short snippet of that message, never
   unnamed and never the whole reply.
+- [ ] `A11Y-A16` · **Reaching the chat composer by keyboard** — On a desktop
+  (mouse) browser open a new chat (`/chat?new=1`) → The message box
+  (`chat.aria.chatInput`) holds the focus on load (not on a touch device, and
+  not when opening an existing chat). Then from the top of any chat page press
+  Tab: after **Skip to main content** (`common.aria.skipToContent`) the next
+  stop is **Skip to message box** (`chat.aria.skipToComposer`); Enter lands the
+  focus in the message box, past every sidebar row.
 
 ## Boundary & error tests
 

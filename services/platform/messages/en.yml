@@ -1276,6 +1276,7 @@ chat:
     messageHistory: Message history
     chatRegion: Chat
     chatInput: Message input
+    skipToComposer: Skip to message box
     threadActions: Conversation actions
   structured:
     nextSteps: Suggested follow-ups

@@ -531,6 +531,68 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     });
   });
 
+  /** Answer `(pointer: fine)` the way a desktop does, restoring the harness
+   * mock afterwards — every other query keeps answering "no". */
+  function withFinePointer<T>(run: () => T): T {
+    const matchMedia = vi.mocked(window.matchMedia);
+    const previous = matchMedia.getMockImplementation();
+    matchMedia.mockImplementation((query: string) => ({
+      matches: query === '(pointer: fine)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      return run();
+    } finally {
+      if (previous) matchMedia.mockImplementation(previous);
+    }
+  }
+
+  // 2026-09-26 evaluation, G-11: nothing was focused on a new chat, and the
+  // page's skip link landed on `main`, which begins with the sidebar — ~290
+  // Tabs to the message box.
+  it('starts a new chat in the message box for a pointer user', () => {
+    withFinePointer(() => {
+      render(<ChatSurface organizationId="org-1" />);
+      expect(
+        screen.getByRole('textbox', { name: 'Message input' }),
+      ).toHaveFocus();
+    });
+  });
+
+  it('leaves the focus alone on a coarse pointer and on an open thread', () => {
+    const { unmount } = render(<ChatSurface organizationId="org-1" />);
+    expect(
+      screen.getByRole('textbox', { name: 'Message input' }),
+    ).not.toHaveFocus();
+    unmount();
+
+    withFinePointer(() => {
+      render(<ChatSurface organizationId="org-1" threadId="t1" />);
+      expect(
+        screen.getByRole('textbox', { name: 'Message input' }),
+      ).not.toHaveFocus();
+    });
+  });
+
+  it('offers a skip link that lands in the message box', async () => {
+    // The harness answers no media query, so nothing auto-focuses here.
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    expect(input).toBeEnabled();
+    expect(input).not.toHaveFocus();
+
+    await user.click(screen.getByRole('link', { name: 'Skip to message box' }));
+
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('id', 'chat-composer');
+  });
+
   it('welcomes on the index instead of claiming a connection problem', () => {
     render(<ChatSurface organizationId="org-1" />);
 

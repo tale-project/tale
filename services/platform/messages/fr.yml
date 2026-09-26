@@ -1328,6 +1328,7 @@ chat:
     messageHistory: Historique des messages
     chatRegion: Chat
     chatInput: Saisie du message
+    skipToComposer: Aller au champ de message
     threadActions: Actions de la conversation
   structured:
     nextSteps: Suggestions de suivi

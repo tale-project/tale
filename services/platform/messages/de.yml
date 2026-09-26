@@ -1320,6 +1320,7 @@ chat:
     messageHistory: Nachrichtenverlauf
     chatRegion: Chat
     chatInput: Nachrichteneingabe
+    skipToComposer: Zum Nachrichtenfeld springen
     threadActions: Aktionen zur Unterhaltung
   structured:
     nextSteps: Vorgeschlagene Folgefragen
