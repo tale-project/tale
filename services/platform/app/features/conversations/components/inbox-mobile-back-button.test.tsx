@@ -46,7 +46,7 @@ describe('InboxMobileBackButton', () => {
     expect(screen.queryByRole('button', { name: BACK_LABEL })).toBeNull();
   });
 
-  it('clears the conversation search param on back', async () => {
+  it('leads back to the Home list from an open conversation', async () => {
     mockSearch = { conversation: 'conv-1' };
     const { user } = render(<InboxMobileBackButton />);
 
@@ -54,52 +54,23 @@ describe('InboxMobileBackButton', () => {
     expect(back).toHaveClass('md:hidden');
     await user.click(back);
 
+    // A phone keeps every conversation in the Home list (its Inbox view
+    // carries the statuses and bulk verbs), so back goes there.
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/conversations/$status',
-      params: { id: ORG, status: 'open' },
-      search: expect.any(Function),
-      replace: true,
-    });
-    const searchUpdater = mockNavigate.mock.calls[0]?.[0]?.search as (prev: {
-      conversation?: string;
-      compose?: string;
-      composeContact?: string;
-    }) => {
-      conversation?: string;
-      compose?: string;
-      composeContact?: string;
-    };
-    expect(searchUpdater({ conversation: 'conv-1' })).toEqual({
-      conversation: undefined,
-      compose: undefined,
-      composeContact: undefined,
+      to: '/dashboard/$id/home',
+      params: { id: ORG },
     });
   });
 
-  it('shows while composing and clears compose params on back', async () => {
+  it('shows while composing and leads back to Home', async () => {
     mockSearch = { compose: 'new', composeContact: 'contact-1' };
     const { user } = render(<InboxMobileBackButton />);
 
     await user.click(screen.getByRole('button', { name: BACK_LABEL }));
 
-    const searchUpdater = mockNavigate.mock.calls[0]?.[0]?.search as (prev: {
-      conversation?: string;
-      compose?: string;
-      composeContact?: string;
-    }) => {
-      conversation?: string;
-      compose?: string;
-      composeContact?: string;
-    };
-    expect(
-      searchUpdater({
-        compose: 'new',
-        composeContact: 'contact-1',
-      }),
-    ).toEqual({
-      conversation: undefined,
-      compose: undefined,
-      composeContact: undefined,
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/home',
+      params: { id: ORG },
     });
   });
 

@@ -1,13 +1,11 @@
 @import '@tale/ui/globals.css';
 
 /*
- * Unified app sidebar: expanded panel ↔ collapsed icon rail. Consumed by the
- * AppSidebar width animation AND its skeleton placeholder so both share one
- * geometry (8px inset + 36px tile + 8px inset = 3.25rem/52px rail). Fixed
- * widths from first paint — otherwise the column reflows as content hydrates,
+ * The app rail's width, shared by the AppSidebar AND its skeleton placeholder
+ * so both hold one geometry (8px inset + 36px tile + 8px inset = 3.25rem/52px
+ * rail) from first paint — otherwise the column reflows as content hydrates,
  * shifting the whole page on reload.
  */
 :root {
-  --sidebar-width: 14rem;
   --sidebar-width-collapsed: 3.25rem;
 }

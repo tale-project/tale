@@ -1,12 +1,11 @@
 import { cleanup } from '@testing-library/react';
-import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
 import { MobileBottomNav } from './mobile-bottom-nav';
 
-// The two reads the Inbox tab depends on, mirroring the desktop rail.
+// The two reads the Home tab's chip depends on, mirroring the desktop rail.
 const inbox = { hasInbox: true };
 const unread: { data: number | undefined } = { data: undefined };
 const unreadCalls: (string | undefined)[] = [];
@@ -29,10 +28,13 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
+const navigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
 }));
+
+vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
 
 vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ accentColor: null, logoUrl: null }),
@@ -46,10 +48,6 @@ vi.mock('@/app/hooks/use-display-mode', () => ({
   useDisplayMode: () => ({ isStandalone: false, isMobileSafari: false }),
 }));
 
-vi.mock('@tale/ui/sheet', () => ({
-  Sheet: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-}));
-
 beforeEach(() => {
   inbox.hasInbox = true;
   unread.data = undefined;
@@ -61,9 +59,26 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-/** The phone's Inbox tab carries the same unread chip as the desktop rail —
+describe('the mobile tab bar', () => {
+  it('lists the same sections as the rail, Settings included', () => {
+    render(<MobileBottomNav organizationId="org-1" />);
+    const tabs = screen.getAllByRole('button').map((tab) => tab.textContent);
+    expect(tabs).toEqual(['home', 'knowledge', 'automations', 'userSettings']);
+  });
+
+  it('opens the Home list from the Home tab', async () => {
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /^home/ }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/home',
+      params: { id: 'org-1' },
+    });
+  });
+});
+
+/** The phone's Home tab carries the same unread chip as the desktop rail —
  *  a second nav surface, so it needs its own proof. */
-describe('the mobile Inbox tab', () => {
+describe('the mobile Home tab', () => {
   it('shows the unread count, with its meaning in the accessible name', () => {
     unread.data = 4;
     render(<MobileBottomNav organizationId="org-1" />);
@@ -88,7 +103,7 @@ describe('the mobile Inbox tab', () => {
     expect(screen.queryByText(/aria\.unreadConversations/)).toBeNull();
   });
 
-  it('skips the count read while the tab itself is gated off', () => {
+  it('skips the count read when the organization has no inbox', () => {
     inbox.hasInbox = false;
     render(<MobileBottomNav organizationId="org-1" />);
     expect(unreadCalls).toEqual([undefined]);

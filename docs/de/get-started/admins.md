@@ -29,7 +29,7 @@ Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das
 
 <Step title="Das Modell in einem neuen Chat prüfen">
 
-Öffne **Chat**, beginne ein neues Gespräch und wähle ein verfügbares Modell. Sende einen eigenständigen Prompt wie „Schreibe eine Checkliste mit drei Punkten für eine Besprechung“. Warte auf die vollständige Antwort. Gespeicherte Zugangsdaten allein belegen noch keinen Zugriff auf das gewählte Modell.
+Öffne **Start**, wähle **Neuer Chat** und dann ein verfügbares Modell. Sende einen eigenständigen Prompt wie „Schreibe eine Checkliste mit drei Punkten für eine Besprechung“. Warte auf die vollständige Antwort. Gespeicherte Zugangsdaten allein belegen noch keinen Zugriff auf das gewählte Modell.
 
 Bleibt die Modellauswahl leer oder lehnt der Anbieter die Anfrage ab, folge der Fehlersuche unter [KI-Anbieter](/de/platform/admin/providers).
 

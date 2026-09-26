@@ -1,13 +1,18 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { TaskComments } from './task-comments';
+import { taskCommentDraftKey } from '../lib/draft-key';
+import { TaskCommentComposer, TaskComments } from './task-comments';
 
 const localeState = { locale: 'en' };
 
 const mutationState = vi.hoisted(() => ({
   addPending: false,
   addMutateAsync: vi.fn(),
+}));
+
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'u1' } }),
 }));
 
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
@@ -363,5 +368,41 @@ describe('TaskComments submit loading', () => {
       screen.getByRole('button', { name: 'actions.comment' }),
     ).toBeDisabled();
     mutationState.addPending = false;
+  });
+});
+
+describe('TaskCommentComposer draft', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('brings back the unsent comment of its own task', () => {
+    window.localStorage.setItem(
+      taskCommentDraftKey('u1', 'org-1', 'task-1'),
+      JSON.stringify('Half a thought'),
+    );
+    render(
+      <TaskCommentComposer
+        taskId="task-1"
+        organizationId="org-1"
+        projectId="project-1"
+      />,
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('Half a thought');
+  });
+
+  it('starts empty on a task with nothing unsent', () => {
+    window.localStorage.setItem(
+      taskCommentDraftKey('u1', 'org-1', 'task-1'),
+      JSON.stringify('Half a thought'),
+    );
+    render(
+      <TaskCommentComposer
+        taskId="task-2"
+        organizationId="org-1"
+        projectId="project-1"
+      />,
+    );
+    expect(screen.getByRole('textbox')).toHaveValue('');
   });
 });

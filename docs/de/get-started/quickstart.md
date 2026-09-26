@@ -15,9 +15,9 @@ Mit deinem Konto meldest du dich an. Die Organisation ist der Arbeitsbereich fü
 
 <Steps>
 
-<Step title="Anmelden und Chat öffnen">
+<Step title="Anmelden und einen Chat beginnen">
 
-Öffne deine Instanz und melde dich mit der vom Admin vorgesehenen Methode an. Gehörst du mehreren Organisationen an, wähle den passenden Arbeitsbereich. Öffne **Chat** und dann **Neuer Chat** in der Chat-Seitenleiste. Ist der Verlauf ausgeblendet, blende ihn mit **Chats anzeigen** ein.
+Öffne deine Instanz und melde dich mit der vom Admin vorgesehenen Methode an. Gehörst du mehreren Organisationen an, wähle den passenden Arbeitsbereich. Öffne **Start** und wähle dann **Neuer Chat**, den Stift oben in der Liste von **Start**.
 
 </Step>
 
@@ -47,7 +47,7 @@ Prüfe, ob Länge und Format stimmen. Stelle eine Anschlussfrage, etwa: „Ergä
 
 ## Den Chat wiederfinden
 
-Öffne das Gespräch erneut über die Chat-Seitenleiste. Ein neuer Chat beginnt ein separates Gespräch und eignet sich für einen Themenwechsel. [Chat-Grundlagen](/de/platform/chat/basics) erklärt Namen, Verlauf und Antwortfunktionen.
+**Start** führt das Gespräch unter **Heute** auf; wähle es dort aus, um es wieder zu öffnen. Ein neuer Chat beginnt ein separates Gespräch und eignet sich für einen Themenwechsel. [Chat-Grundlagen](/de/platform/chat/basics) erklärt Namen, Verlauf und Antwortfunktionen.
 
 <Tip>
 

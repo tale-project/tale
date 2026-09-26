@@ -24,8 +24,8 @@ import {
  * Whether it shows is decided entirely in CSS by the `boot-chat` class on
  * `<html>`, set by the pre-hydration script in `index.html` when the
  * navigation targets a chat route (or an org root, which always redirects to
- * chat) — same contract as ChatSubPanelPlaceholder, minus the panel-open
- * condition: the composer is part of every chat layout. The notice row under
+ * chat) — the same CSS-only contract as HomePanelPlaceholder, gated on the
+ * chat route alone: the composer is part of every chat layout. The notice row under
  * the frame follows `boot-chat-notice` the same way (see
  * `features/governance/lib/data-notice-boot.ts`).
  */

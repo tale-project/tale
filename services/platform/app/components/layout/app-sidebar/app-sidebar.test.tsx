@@ -9,14 +9,10 @@ import { AppSidebar } from './app-sidebar';
 
 vi.mock('./sidebar-context', () => ({
   useSidebar: () => ({
-    isMobileSheetOpen: false,
-    setMobileSheetOpen: vi.fn(),
     isSearchOpen: false,
     setSearchOpen: vi.fn(),
   }),
   useOptionalSidebar: () => ({
-    isMobileSheetOpen: false,
-    setMobileSheetOpen: vi.fn(),
     isSearchOpen: false,
     setSearchOpen: vi.fn(),
   }),
@@ -81,9 +77,6 @@ vi.mock('@/app/components/user-button', () => ({
 }));
 vi.mock('@/app/features/notifications/components/notification-bell', () => ({
   NotificationBell: () => null,
-}));
-vi.mock('./mobile-sidebar-sheet', () => ({
-  MobileSidebarSheet: () => null,
 }));
 vi.mock('./sidebar-search-command', () => ({
   SidebarSearchCommand: () => null,

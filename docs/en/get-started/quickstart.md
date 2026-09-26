@@ -15,9 +15,9 @@ An account lets you sign in. Your organization is the workspace that holds your 
 
 <Steps>
 
-<Step title="Sign in and open Chat">
+<Step title="Sign in and start a chat">
 
-Open your instance and sign in with the method your administrator provided. If you belong to several organizations, choose the one where you want to work. Open **Chat**, then **New chat** in the chat sidebar. If the history is hidden, use **Show chats** to reveal it.
+Open your instance and sign in with the method your administrator provided. If you belong to several organizations, choose the one where you want to work. Open **Home**, then choose **New chat**, the pencil at the top of the Home list.
 
 </Step>
 
@@ -47,7 +47,7 @@ Check whether it followed the requested length and format. Ask a follow-up such 
 
 ## Find the chat again
 
-Use the chat sidebar to reopen the conversation. A new chat starts a separate conversation; it is useful when you change subjects. For names, history, and response controls, read [Chat basics](/platform/chat/basics).
+Home lists the conversation under **Today**; choose it to reopen it. A new chat starts a separate conversation; it is useful when you change subjects. For names, history, and response controls, read [Chat basics](/platform/chat/basics).
 
 <Tip>
 

@@ -19,11 +19,11 @@ describe('renderBootShell', () => {
     expect(html).toContain('aria-hidden="true"');
   });
 
-  it('bakes the chat sub-panel placeholder, gated on the pre-hydration boot class', () => {
+  it('bakes the Home panel placeholder, gated on the pre-hydration boot class', () => {
     // The panel stand-in ships in every served shell; the inline script in
-    // index.html reveals it via the `boot-chat-panel-open` class on <html>
-    // when the navigation targets a chat route with the panel open.
-    expect(renderBootShell()).toContain('boot-chat-panel-open');
+    // index.html reveals it via the `boot-home-panel-open` class on <html>
+    // when the navigation targets a Home route with the panel open.
+    expect(renderBootShell()).toContain('boot-home-panel-open');
   });
 
   it('bakes the confidentiality notice row, sized by the remembered text rather than a text node', () => {

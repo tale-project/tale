@@ -15,9 +15,9 @@ Ton compte te permet de te connecter. L’organisation est l’espace qui regrou
 
 <Steps>
 
-<Step title="Te connecter et ouvrir Chat">
+<Step title="Te connecter et démarrer un chat">
 
-Ouvre ton instance et utilise la méthode de connexion indiquée par ton admin. Si tu appartiens à plusieurs organisations, choisis celle où tu veux travailler. Ouvre **Chat**, puis **Nouveau chat** dans la barre latérale des chats. Si l’historique est masqué, utilise **Afficher les chats** pour le retrouver.
+Ouvre ton instance et utilise la méthode de connexion indiquée par ton admin. Si tu appartiens à plusieurs organisations, choisis celle où tu veux travailler. Ouvre **Accueil**, puis choisis **Nouveau chat**, le crayon en haut de la liste d’**Accueil**.
 
 </Step>
 
@@ -47,7 +47,7 @@ Vérifie le respect de la longueur et du format demandés. Pose une question com
 
 ## Retrouver le chat
 
-Rouvre la conversation dans la barre latérale des chats. Un nouveau chat démarre une conversation séparée, utile lorsque tu changes de sujet. Les [bases du chat](/fr/platform/chat/basics) expliquent les noms, l’historique et les commandes des réponses.
+**Accueil** range la conversation sous **Aujourd’hui** ; choisis-la pour la rouvrir. Un nouveau chat démarre une conversation séparée, utile lorsque tu changes de sujet. Les [bases du chat](/fr/platform/chat/basics) expliquent les noms, l’historique et les commandes des réponses.
 
 <Tip>
 

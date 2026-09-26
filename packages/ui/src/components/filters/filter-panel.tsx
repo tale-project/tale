@@ -156,6 +156,8 @@ interface FilterPanelProps {
   align?: 'start' | 'end';
   /** Show the button as its icon alone — see `FilterButton`'s `iconOnly`. */
   iconOnly?: boolean;
+  /** The compact toolbar height — see `FilterButton`'s `compact`. */
+  compact?: boolean;
 }
 
 export function FilterPanel({
@@ -165,6 +167,7 @@ export function FilterPanel({
   disabled = false,
   align = 'start',
   iconOnly = false,
+  compact = false,
 }: FilterPanelProps) {
   const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -183,6 +186,7 @@ export function FilterPanel({
         hasActiveFilters={false}
         isLoading={isLoading}
         iconOnly={iconOnly}
+        compact={compact}
         disabled
       />
     );
@@ -219,6 +223,7 @@ export function FilterPanel({
           hasActiveFilters={activeFilterCount > 0}
           isLoading={isLoading}
           iconOnly={iconOnly}
+          compact={compact}
         />
       }
     >

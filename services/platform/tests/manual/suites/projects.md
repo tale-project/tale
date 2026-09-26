@@ -1,12 +1,14 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 35 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 38 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
-threads, agents, instructions, secrets, metrics, automations), and the task
+threads, agents, instructions, secrets, metrics, automations), the task
 board/list (backlog is the leftmost lane) with the task detail sheet and the
-cascade-delete confirmation. Mock-LLM stack; no real provider needed for these
-flows.
+cascade-delete confirmation, and the **Projects** section of the Home panel —
+the doors into every project, beside every Home route. Projects have no rail
+tile of their own: they live in Home. Mock-LLM stack; no real provider needed
+for these flows.
 
 ## Scope & routes
 
@@ -247,6 +249,41 @@ projects-list row ⋯ menu.
   a team on **General** asks for confirmation that members outside the
   remaining teams lose access before it saves; clearing every team makes the
   row read `projects.list.sharingOrgWide`.
+- [ ] `PROJ-F28` · **Projects in the Home panel** — With four projects, one
+  pinned, open the Home panel's **All** view and click a project row → The
+  **Projects** section (`home.projects.title`) lists every project you can
+  see, the pinned one first and the rest A→Z, each with its avatar; the row
+  opens `/dashboard/{org}/projects/{projectId}` and stays marked current
+  (`aria-current="page"`) while you are anywhere in that project; **All
+  projects** (`home.projects.allProjects`) opens `/dashboard/{org}/projects`;
+  **New project** (`home.projects.newProject`) opens the **Create project**
+  dialog (`projects.create.title`), and the new project joins the section
+  without a reload. The section's header collapses it (the count shows beside
+  the title) and the choice survives a reload; a member of no project reads
+  **No projects yet** (`home.projects.empty`); only the Inbox view hides the
+  section.
+- [ ] `PROJ-F26` · **A project row's menu** — Hover a project row and open
+  **Actions for {project}** (`home.projects.actions`) → **New chat**
+  (`chat.newChat`) opens a fresh composer bound to that project
+  (`/chat?projectId=…`), whose first message files the chat under the project
+  (its row and header then name the project); **Pin project**
+  (`chat.pinProject`) lifts it to the top of the section with a pin mark and
+  survives a reload, and **Unpin project** (`chat.unpinProject`) puts it back
+  in A→Z order.
+- [ ] `PROJ-F27` · **The Chats tab lists chats the way Home does** — Open a
+  project's **Chats** tab (`projects.navigation.threads`,
+  `/dashboard/{org}/projects/{projectId}/threads`) holding chats of yours and
+  one another member shared with the project; click a row beside its title,
+  then flip a row's **Share with project** switch
+  (`projects.threads.shareToggle`) → Under **Your chats**
+  (`projects.threads.yourChats`) each row shows the speech-bubble glyph, its
+  title — **Untitled chat** (`home.row.untitledChat`) for one without, never
+  its id — and how long ago it last moved; under **Shared with project**
+  (`projects.threads.sharedWithProject`) the row adds its author's name. A
+  click anywhere on a row opens `/dashboard/{org}/chat/{threadId}`, while the
+  switch changes the sharing without opening the chat; **New chat**
+  (`projects.overview.newChatCta`) carries the pencil Home's **New chat**
+  wears.
 
 - [ ] `PROJ-F25` · **A failed list read is an error, not an empty list** — In
   DevTools, block `GET /api/app/projects/overview` (or answer it 500) and

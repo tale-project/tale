@@ -45,4 +45,4 @@ Use Backlog to review ideas before committing them to the team's work.
 
 </CardGroup>
 
-**General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. A bound automation adds an **Automations** surface, and project administrators can configure **Environment**. Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.
+Every project you can open is listed under **Projects** in [Home](/platform#home), where **All projects** opens the full list. A project opens on its task board; **General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. A bound automation adds an **Automations** surface, and project administrators can configure **Environment**. Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.

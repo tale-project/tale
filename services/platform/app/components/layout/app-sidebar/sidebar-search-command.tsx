@@ -8,8 +8,10 @@ import {
 } from '@tale/ui/search';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo } from 'react';
+import { Folder, MessageCircle, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, type ComponentType } from 'react';
 
+import { taskStatusIcon } from '@/app/features/tasks/components/task-status-glyph';
 import { TASK_VIEW_ROUTES, type TaskView } from '@/app/features/tasks/lib/view';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -29,7 +31,7 @@ function isPlatformHit<K extends PlatformSearchHitData['kind']>(
 }
 
 /** Parse the tasks route when a global task hit should land in context. */
-function parseTasksRouteContext(
+export function parseTasksRouteContext(
   pathname: string,
   search: Record<string, unknown>,
 ): {
@@ -47,6 +49,95 @@ function parseTasksRouteContext(
     taskView,
     allProjects: search.projects === 'all',
   };
+}
+
+type TasksRouteContext = ReturnType<typeof parseTasksRouteContext>;
+
+/**
+ * Where a palette hit leads. A task opens on its own page, the way Home
+ * opens it — unless its board is the page you are on, where its dialog opens
+ * in place. Pure, so the routing is testable without the palette.
+ */
+export function searchResultTarget(
+  result: Pick<SearchResult, 'id' | 'title' | 'data'>,
+  organizationId: string,
+  tasksRoute: TasksRouteContext,
+) {
+  const data = result.data;
+  if (isPlatformHit(data, 'project')) {
+    return {
+      to: '/dashboard/$id/projects/$projectId',
+      params: { id: organizationId, projectId: result.id },
+    } as const;
+  }
+  if (isPlatformHit(data, 'task')) {
+    const onSameTasksRoute =
+      tasksRoute.routeProjectId !== undefined &&
+      data.projectId === tasksRoute.routeProjectId;
+    if (!onSameTasksRoute) {
+      return {
+        to: '/dashboard/$id/tasks/$taskId',
+        params: { id: organizationId, taskId: result.id },
+      } as const;
+    }
+    return {
+      to: TASK_VIEW_ROUTES[tasksRoute.taskView],
+      params: { id: organizationId, projectId: data.projectId },
+      search: {
+        task: result.id,
+        ...(tasksRoute.allProjects ? { projects: 'all' as const } : {}),
+      },
+    } as const;
+  }
+  if (isPlatformHit(data, 'document')) {
+    if (data.projectId) {
+      return {
+        to: '/dashboard/$id/projects/$projectId/files',
+        params: { id: organizationId, projectId: data.projectId },
+        search: {
+          doc: result.id,
+          ...(data.folderId ? { folderId: data.folderId } : {}),
+        },
+      } as const;
+    }
+    return {
+      to: '/dashboard/$id/documents',
+      params: { id: organizationId },
+      search: {
+        doc: result.id,
+        ...(data.folderId ? { folderId: data.folderId } : {}),
+      },
+    } as const;
+  }
+  if (isPlatformHit(data, 'contact')) {
+    return {
+      to: '/dashboard/$id/contacts',
+      params: { id: organizationId },
+      search: { query: result.title },
+    } as const;
+  }
+  return {
+    to: '/dashboard/$id/chat/$threadId',
+    params: { id: organizationId, threadId: result.id },
+  } as const;
+}
+
+/**
+ * Each hit wears the glyph its kind has in Home — a task its status, a chat
+ * its bubble, a project its folder — so a result reads the same wherever it
+ * is listed. Documents keep the palette's file glyph.
+ */
+export function platformResultIcon(
+  result: Pick<SearchResult, 'data'>,
+): ComponentType<{ className?: string }> | undefined {
+  const data = result.data;
+  if (isPlatformHit(data, 'task')) {
+    return data.status !== undefined ? taskStatusIcon(data.status) : undefined;
+  }
+  if (isPlatformHit(data, 'project')) return Folder;
+  if (isPlatformHit(data, 'chat')) return MessageCircle;
+  if (isPlatformHit(data, 'contact')) return UserRound;
+  return undefined;
 }
 
 const SCOPE_ORDER: SearchScope[] = ['chats', 'everything'];
@@ -137,69 +228,7 @@ export function SidebarSearchCommand({
 
   const handleSelect = useCallback(
     (result: SearchResult) => {
-      const data = result.data;
-      if (isPlatformHit(data, 'project')) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId',
-          params: { id: organizationId, projectId: result.id },
-        });
-        return;
-      }
-      if (isPlatformHit(data, 'task')) {
-        const taskProjectId = data.projectId;
-        const onSameTasksRoute =
-          tasksRoute.routeProjectId !== undefined &&
-          taskProjectId === tasksRoute.routeProjectId;
-        const search = {
-          task: result.id,
-          ...(tasksRoute.allProjects ? { projects: 'all' as const } : {}),
-        };
-        void navigate({
-          to: TASK_VIEW_ROUTES[
-            onSameTasksRoute ? tasksRoute.taskView : 'board'
-          ],
-          params: { id: organizationId, projectId: taskProjectId },
-          search,
-        });
-        return;
-      }
-      if (isPlatformHit(data, 'document')) {
-        if (data.projectId) {
-          void navigate({
-            to: '/dashboard/$id/projects/$projectId/files',
-            params: {
-              id: organizationId,
-              projectId: data.projectId,
-            },
-            search: {
-              doc: result.id,
-              ...(data.folderId ? { folderId: data.folderId } : {}),
-            },
-          });
-          return;
-        }
-        void navigate({
-          to: '/dashboard/$id/documents',
-          params: { id: organizationId },
-          search: {
-            doc: result.id,
-            ...(data.folderId ? { folderId: data.folderId } : {}),
-          },
-        });
-        return;
-      }
-      if (isPlatformHit(data, 'contact')) {
-        void navigate({
-          to: '/dashboard/$id/contacts',
-          params: { id: organizationId },
-          search: { query: result.title },
-        });
-        return;
-      }
-      void navigate({
-        to: '/dashboard/$id/chat/$threadId',
-        params: { id: organizationId, threadId: result.id },
-      });
+      void navigate(searchResultTarget(result, organizationId, tasksRoute));
     },
     [navigate, organizationId, tasksRoute],
   );
@@ -273,6 +302,7 @@ export function SidebarSearchCommand({
       }
       minQueryLength={2}
       onSelect={handleSelect}
+      resultIcon={platformResultIcon}
       toolbar={toolbar}
     />
   );

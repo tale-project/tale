@@ -29,7 +29,7 @@ Open **Settings > AI providers**, select **Add credential**, and choose the prov
 
 <Step title="Check the model in a new chat">
 
-Open **Chat**, start a new conversation, and select an available model. Send a self-contained prompt such as “Write a three-item meeting checklist.” Wait for the answer to finish. A saved credential alone does not prove that its account has access to the selected model.
+Open **Home**, choose **New chat**, and select an available model. Send a self-contained prompt such as “Write a three-item meeting checklist.” Wait for the answer to finish. A saved credential alone does not prove that its account has access to the selected model.
 
 If the model list is empty or the provider rejects the request, use the recovery steps in [AI providers](/platform/admin/providers).
 

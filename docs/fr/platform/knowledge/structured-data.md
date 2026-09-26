@@ -38,9 +38,9 @@ Le rôle Rédacteur ou un rôle supérieur est nécessaire pour modifier les fic
 2. Vérifie **Langue**, dont la valeur initiale est `en`, et adapte-la à la langue du contact.
 3. Choisis **Enregistrer**. La fiche apparaît dans Contacts avec ses coordonnées et sa date d’ajout.
 
-Tu peux aussi créer une fiche au moment d’écrire. Dans la boîte de réception, choisis **Rédiger** et saisis une adresse dans **À** : si aucun contact ne la porte, la liste propose **Ajouter « … » comme contact**, ce qui ouvre ce même formulaire avec le **Courriel** déjà renseigné. Une fois la fiche enregistrée, ce contact devient le destinataire : tu ne quittes jamais le message en cours.
+Tu peux aussi créer une fiche au moment d’écrire. Dans la vue **Réception** d’**Accueil**, choisis **Nouvel e-mail** et saisis une adresse dans **À** : si aucun contact ne la porte, la liste propose **Ajouter « … » comme contact**, ce qui ouvre ce même formulaire avec le **Courriel** déjà renseigné. Une fois la fiche enregistrée, ce contact devient le destinataire : tu ne quittes jamais le message en cours.
 
-Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne ; depuis **Rédiger**, Tale sélectionne pour toi le contact existant. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
+Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne ; depuis **Nouvel e-mail**, Tale sélectionne pour toi le contact existant. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
 
 ## Créer une fiche produit
 

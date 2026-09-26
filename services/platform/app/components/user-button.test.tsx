@@ -234,13 +234,8 @@ describe('UserButton', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Manage account');
   });
 
-  it('sidebar variant: expanded row shows the display name inline, no tooltip', () => {
-    render(<UserButton sidebarExpanded />);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-  });
-
-  it('sidebar variant: collapsed tile keeps the hover tooltip', () => {
-    render(<UserButton sidebarExpanded={false} />);
+  it('rail variant: the account tile keeps the hover tooltip', () => {
+    render(<UserButton variant="rail" />);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Manage account');
   });
 

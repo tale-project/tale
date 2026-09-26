@@ -35,7 +35,7 @@ Edit your profile, check your usage limits, and understand saved preferences and
 
 </CardGroup>
 
-Switch between daily tasks with the [main navigation](/platform#navigation): returning to a section reopens your recent work, while choosing the active section again takes you back to its starting point.
+Move between your daily work with the [main navigation](/platform#navigation). Each section opens on its own first page; on a computer, **Home** reopens the chat you last read instead, and choosing it again starts a new chat. [Home](/platform#home) also lists your projects, the open tasks assigned to you or waiting for your review, and the inbox when your organization has one.
 
 ## Follow a notification
 

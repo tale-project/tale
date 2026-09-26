@@ -749,6 +749,7 @@ export interface TasksContract {
         | 'todo'
         | 'in_progress';
       assigneeId?: string;
+      reviewerId?: string;
       statuses?: Array<
         'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo' | 'in_progress'
       >;
@@ -861,6 +862,13 @@ export interface TasksContract {
       taskId: string;
       projectId: string;
       title: string;
+      status:
+        | 'backlog'
+        | 'todo'
+        | 'in_progress'
+        | 'in_review'
+        | 'done'
+        | 'cancelled';
       snippet: string;
       updatedAt: number;
       number?: number;

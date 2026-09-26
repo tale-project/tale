@@ -3,7 +3,7 @@ title: Project concepts
 description: Understand what a project shares, what stays personal, and when to move recurring work into one.
 ---
 
-Use a project when several questions or tasks depend on the same reference material. A project brings together files, instructions, chats, a task board, and task agents. A one-off question can stay in Chat; a launch, customer handover, or ongoing investigation usually benefits from a project.
+Use a project when several questions or tasks depend on the same reference material. A project brings together files, instructions, chats, a task board, and task agents. A one-off question can stay in an ordinary chat; a launch, customer handover, or ongoing investigation usually benefits from a project.
 
 ## What the project keeps together
 
@@ -43,7 +43,7 @@ A chat inside a project starts as your own conversation. Other project members d
 
 Read the messages before sharing, including any sensitive information the answer quotes. Moving a shared chat to a different project, or out of the project, ends its project share. Share it again deliberately if the new audience should read it.
 
-Use **Move to project…** in a chat's actions when an existing conversation belongs with this work. Organization-wide snapshot links are a separate option, described in [Share a chat](/platform/chat/shared-threads).
+Use **Move to project…** in a chat's actions, or drag the chat onto the project in Home, when an existing conversation belongs with this work. Organization-wide snapshot links are a separate option, described in [Share a chat](/platform/chat/shared-threads).
 
 ## Turn discussion into work
 

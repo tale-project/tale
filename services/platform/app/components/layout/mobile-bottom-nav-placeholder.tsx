@@ -6,10 +6,10 @@ import { BottomTabBarPlaceholder } from '@tale/ui/bottom-tab-bar';
  * `@tale/ui` placeholder only.
  */
 
-// MobileBottomNav shows Chat, Projects and More for most members; Inbox joins
-// once an inbox automation is installed. The count only moves the masked pills
+// MobileBottomNav shows Home, Knowledge, Automations and Settings — the rail's
+// sections, with Settings from its foot. The count only moves the masked pills
 // sideways — the placeholder is the live bar's height whatever the count.
-const PLACEHOLDER_TABS = 3;
+const PLACEHOLDER_TABS = 4;
 
 /**
  * Masked stand-in for MobileBottomNav, shown in the served boot shell and by

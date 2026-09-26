@@ -63,13 +63,78 @@ Below `md`, the trail collapses toward an immediate-parent back control. `showIm
 
 ## Add a section rail
 
-`SubPanel` provides the bordered secondary navigation surface. The default width is 224px; `wide` is 256px. It is hidden below `md`, so the host needs a mobile navigation path, such as a labelled drawer.
+`SubPanel` provides the bordered panel a section's navigation lives in, full height beside the page. Choose its width by the rows it holds: the default 224px for single-line rows, `wide` (256px) for longer labels, and `list` (280px) when each row carries a second line of context. It is hidden below `md`, so the host needs a mobile navigation path, such as a tab strip or a list screen of its own.
 
 ```tsx
-import { SubPanel } from '@tale/ui/sub-panel';
+import { SubPanel, SubPanelHeader } from '@tale/ui/sub-panel';
 import { SubPanelRowLink, SubPanelSectionHeader } from '@tale/ui/sub-panel-list';
 ```
 
-The caller supplies rows and scrolling. Use `SubPanelRowLink` for destinations and `SubPanelSectionHeader` for groups. For a custom row, reuse `SUB_PANEL_ROW_CLASS` and `useSubPanelRowTreatment` rather than reproducing selection styles.
+Head the panel with `SubPanelHeader`: the section's name and at most one or two actions, in the same `h-13` row as the page header beside it, so the two bottom rules meet as one line. The caller supplies rows and scrolling. Use `SubPanelRowLink` for destinations and `SubPanelSectionHeader` for groups. For a custom row, reuse `SUB_PANEL_ROW_CLASS` and `useSubPanelRowTreatment` rather than reproducing selection styles.
+
+When the section's navigation is a fixed set of pages, `SectionNavPanel` assembles the whole panel: the `list`-width frame, the header, and one highlight that glides to the open page instead of blinking between rows.
+
+```tsx
+import { SectionNavPanel, SectionNavRow } from '@tale/ui/section-nav';
+
+<SectionNavPanel title="Knowledge" ariaLabel="Knowledge navigation" activeKey={activeHref}>
+  <ul className="flex flex-col gap-1">
+    <SectionNavRow href={documentsHref} label="Documents" icon={FileText} active={activeHref === documentsHref} />
+  </ul>
+</SectionNavPanel>
+```
+
+`activeKey` names the `href` of the row the highlight rests on; each `SectionNavRow` marks itself with that key. Pass `layoutVersion` when something moves rows without changing the open page, such as a disclosure opening above it. The highlight comes from `useSlidingIndicator` (`@tale/ui/use-sliding-indicator`), which you can use directly for any control whose selection should glide: the item carries `data-indicator-key`, the hook measures it against its positioned container, and the indicator moves with a CSS transform that respects reduced motion.
+
+For a panel list of your own, draw that highlight with `SlidingHighlight` (from `@tale/ui/section-nav`) inside the list's positioned scroller, and let the rows keep only their text treatment above it (`relative z-10`, no fill of their own):
+
+```tsx
+import { SlidingHighlight } from '@tale/ui/section-nav';
+import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
+
+const { containerRef, ...indicator } = useSlidingIndicator<HTMLDivElement>(openKey, rowOrder);
+
+<div ref={containerRef} className="relative overflow-y-auto">
+  <SlidingHighlight indicator={indicator} />
+  {rows}
+</div>
+```
+
+The hook applies one motion to every highlight: with nothing active it fades out where it stood, it lands on the next active item with a fade instead of sliding in from a corner, and it glides only between two places the reader can see. Take its `transitionClassName` rather than a transition of your own, so the rail, the segmented controls and the panels all move alike.
+
+## Head a conversation page
+
+`ThreadHeader` (`@tale/ui/thread-header`) is the title row of every conversation-shaped page — a chat, a task's discussion, a customer conversation — so each reads the same way: controls before the identity (a panel toggle, a phone's back button), a 32px identity mark, the title, one line of context, and the page's actions.
+
+```tsx
+import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
+
+<ThreadHeader
+  leading={<ContactInitials label={contact} />}
+  title={<h1>{subject}</h1>}
+  meta={
+    <>
+      <span>{contact}</span>
+      <ThreadHeaderSeparator />
+      <span>{age}</span>
+    </>
+  }
+  actions={<AssignButton />}
+/>
+```
+
+It keeps the page header's `h-13` height and bottom rule; pass `floating` to draw it over scrolling content without the rule, as the chat does. The title slot takes a heading or an in-place editor for the name — the page supplies its single `h1`.
+
+When the page opens another item in the same place — the next chat, task or conversation — let the swap read as new content rather than a flicker with `useSwapFade` (`@tale/ui/use-swap-fade`). Give it the open item's key and put its ref on the view that shows the item:
+
+```tsx
+import { useSwapFade } from '@tale/ui/use-swap-fade';
+
+const viewRef = useSwapFade<HTMLDivElement>(itemId);
+
+<div ref={viewRef}>{item}</div>
+```
+
+It fades opacity only, through the Web Animations API, so the view stays mounted and nothing it measures moves: a transcript restoring its scroll, a composer that keeps a draft. The first render never fades, nor does a change to nothing open, and reduced motion skips it. Pass `fromEmpty: false` when an item is born in place — a chat created by its first message is the same conversation continuing.
 
 Start the application with a `SkipLink` targeting `<main id="main" tabIndex={-1}>`. Name each navigation landmark. Scrolling a rail to its active row should not steal the reader's initial keyboard position. Use the [list-page](/docs/patterns/list-page) or [settings-page](/docs/patterns/settings-page) pattern for the content inside this shell.

@@ -38,9 +38,9 @@ Zum Pflegen der Organisationsdatensätze brauchst du die Rolle Redakteur oder h�
 2. Prüfe **Sprache**. Das Feld ist mit `en` vorbelegt; passe es an die Sprache des Kontakts an.
 3. Wähle **Speichern**. Der Kontakt erscheint mit seinen Angaben und dem Erstellungsdatum in der Tabelle.
 
-Du kannst einen Kontakt auch beim Schreiben anlegen. Wähle im Posteingang **Verfassen** und tippe eine Adresse in **An**: Trägt sie kein Kontakt, bietet die Liste **„…“ als Kontakt hinzufügen** an und öffnet dasselbe Formular mit bereits ausgefüllter **E-Mail**. Nach dem Speichern ist dieser Kontakt der Empfänger – du verlässt die begonnene Nachricht also nie.
+Du kannst einen Kontakt auch beim Schreiben anlegen. Wähle im Bereich **Start** in der Ansicht **Inbox** die Schaltfläche **Neue E-Mail** und tippe eine Adresse in **An**: Trägt sie kein Kontakt, bietet die Liste **„…“ als Kontakt hinzufügen** an und öffnet dasselbe Formular mit bereits ausgefüllter **E-Mail**. Nach dem Speichern ist dieser Kontakt der Empfänger – du verlässt die begonnene Nachricht also nie.
 
-Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü; aus **Verfassen** heraus wählt Tale den vorhandenen Kontakt für dich aus. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
+Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü; aus **Neue E-Mail** heraus wählt Tale den vorhandenen Kontakt für dich aus. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
 
 ## Ein Produkt anlegen
 

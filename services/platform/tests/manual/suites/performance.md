@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 13 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 15 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -77,10 +77,12 @@ gives
   (first provider SSE text delta); `mockA`/`local` ≈ 12–18 s round-trip
   (classifier + local amp) — record the number, do not fail it.
 - [ ] `PERF-P3` · **Thread switch** — On `/dashboard/{org}/chat/{threadId}`
-  open a different thread (chat sidebar). → URL `{threadId}` changes and the
-  message list repaints. Target: warm prod < 1 s; record the dev/local number.
+  open a different thread (a chat row in the Home panel). → URL `{threadId}`
+  changes and the message list repaints while the panel stays put. Target:
+  warm prod < 1 s; record the dev/local number.
 - [ ] `PERF-P4` · **Warm transition** — Hover a left-nav target (e.g.
-  **Contacts**), then click it. → URL commits to `/dashboard/{org}/contacts`;
+  **Contacts** in the Knowledge panel), then click it. → URL commits to
+  `/dashboard/{org}/contacts`;
   on a warm module cache the route paints without a blocking skeleton
   (row-hover + loader prefetch primed it). Compare cold vs. warm nav delta.
 - [ ] `PERF-P5` · **List pagination** — On `/dashboard/{org}/contacts` (or an

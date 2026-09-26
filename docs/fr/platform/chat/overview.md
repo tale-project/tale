@@ -13,7 +13,7 @@ Chat permet de poser rapidement une question sur un document, de comprendre un s
 
 ## Commencer par une question utile
 
-Ouvre **Chat**, écris dans le champ de message et envoie. Une suggestion peut t’aider à démarrer. Indique le résultat attendu et la source pertinente : « À partir du guide d’onboarding, liste les étapes qu’un nouveau client doit terminer. Cite le guide. »
+Ouvre **Accueil**, choisis **Nouveau chat**, écris dans le champ de message et envoie. Une suggestion peut t’aider à démarrer. Indique le résultat attendu et la source pertinente : « À partir du guide d’onboarding, liste les étapes qu’un nouveau client doit terminer. Cite le guide. »
 
 Lorsque plusieurs modèles utilisables sont disponibles, le sélecteur peut démarrer sur **Auto**. Choisis un modèle nommé pour décider quel modèle disponible répondra, et ajuste l’effort de raisonnement lorsqu’il est pris en charge. Tu peux joindre un fichier pour poser une question sur son contenu, ou ouvrir un chat de projet pour des références récurrentes.
 
@@ -27,7 +27,7 @@ Lorsque plusieurs modèles utilisables sont disponibles, le sélecteur peut dém
 
 | Tu souhaites | Commence dans |
 | --- | --- |
-| Poser une question, comparer des informations ou clarifier une réponse | **Chat** |
+| Poser une question, comparer des informations ou clarifier une réponse | Un **chat** |
 | Réutiliser les mêmes fichiers et instructions dans plusieurs conversations | Un **chat de projet** |
 | Produire un livrable avec un responsable et une relecture | Une **tâche** de projet |
 | Exécuter un processus répétable selon un horaire ou un événement | Une **automatisation** |

@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 74 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -86,12 +86,15 @@ any toggled setting after the run.
 
 - [ ] `SET-F1` · **Rail structure & index redirect** — Desktop: open
   `/dashboard/{org}/settings` as owner → The URL is replaced by a
-  permission-appropriate leaf; the rail shows the three section headers
-  **Personal** / **Organization** / **Advanced**
-  (`settings.menu.railSections.*`); the personalization row is labelled
-  **Preferences** (`navigation.personalization`); **Governance**, **Metrics**,
-  and **API** are disclosure rows (chevron, `aria-expanded`) whose children
-  indent when open; the active row is visually marked.
+  permission-appropriate leaf; the Settings panel runs the full height beside
+  the page under its own header, **Settings** (`navigation.userSettings`), and
+  shows the three section headers **Personal** / **Organization** /
+  **Advanced** (`settings.menu.railSections.*`); every row carries an icon;
+  the personalization row is labelled **Preferences**
+  (`navigation.personalization`); **Governance**, **Metrics**, and **API** are
+  disclosure rows (chevron, `aria-expanded`) whose children indent when open;
+  one highlight glides to the open page's row (`aria-current="page"`), and
+  rests on a collapsed group's row while the open page is inside it.
 - [ ] `SET-F2` · **Mobile settings overviews** — Narrow viewport (or emulate
   mobile): open `/dashboard/{org}/settings`, then
   `/dashboard/{org}/settings/personal` → The workspace overview lists grouped
@@ -540,6 +543,26 @@ any toggled setting after the run.
   last complete color until all six digits are in, then re-tints to
   `#E11D48`; **Save** stays disabled while the value is shorter than six
   digits.
+- [ ] `SET-F48` · **The page header names the open page** — Desktop, as owner:
+  click **Teams** in the Settings panel, then expand **Governance** and click
+  **Policies & Limits**, then open **Branding** and edit a field → The page
+  header beside the panel reads **Teams** (`navigation.teams`), then
+  **Governance · Policies & Limits** (`navigation.governance` ·
+  `governance.groups.policiesAndLimits`), then **Branding** — never a bare
+  **Settings**, which the panel's own header already says; Branding's **Save**
+  / **Discard** cluster sits in that same page header; each switch fades the
+  new page in while the panel stays put, its scroll untouched.
+- [ ] `SET-F47` · **A page never prints its own name twice** — Desktop, as
+  owner: open **Teams**, **Members** and **Notifications** in the Settings
+  panel → Under the header **Teams** (`navigation.teams`) the page opens on
+  its section's description (`settings.teams.sectionDescription`) and the
+  table, with no second visible **Teams** heading; **Members**
+  (`navigation.members`) likewise opens on
+  `settings.organization.membersDescription`; the accessibility tree still
+  holds each section's `h2` (**Teams**, **Members**). On **Notifications**,
+  whose first section is **Email delivery**
+  (`notificationPreferences.deliveryTitle`), the second section keeps its
+  visible **Notifications** title (`notificationPreferences.title`).
 
 ## Boundary & error tests
 

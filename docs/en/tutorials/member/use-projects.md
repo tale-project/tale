@@ -13,12 +13,12 @@ New projects are **Org-wide**. Use non-sensitive material for this walkthrough; 
 
 ## Create the project
 
-1. Open **Projects** and click **Create project**.
+1. In Home, click **New project**, the folder icon beside **Projects**.
 2. Set **Project name** to a recognizable name, such as `Website relaunch`.
 3. Check **Project key**, the short prefix used in task identifiers such as `WEB-1`. It cannot be changed after creation.
 4. Add an optional **Description** and click **Create project**.
 
-The new project opens on **Tasks**. The navigation also includes **General**, **Chats**, **Knowledge**, and **Agents**. You do not need to create an agent to use project chat.
+The new project opens on **Tasks** and appears under **Projects** in Home. The project's navigation also includes **General**, **Chats**, **Knowledge**, and **Agents**. You do not need to create an agent to use project chat.
 
 ## Upload a reference file
 

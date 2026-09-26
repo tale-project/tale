@@ -71,6 +71,6 @@ Chaque limite d’utilisation indique la quantité utilisée, la limite et le mo
 
 Sous **Paramètres > Compte > Tes chats**, les actions **Archiver tous les chats** et **Supprimer tous les chats** portent sur tes propres chats dans l’organisation actuelle, y compris les chats de projet. L’archivage concerne les chats non archivés. La suppression inclut aussi les chats archivés et les déplace dans la corbeille, où tu peux les restaurer pendant le délai de conservation. Les chats sous conservation légale restent inchangés, et ceux avec une réponse en cours ne peuvent pas être supprimés.
 
-Lis la confirmation avant de continuer. Le résultat indique combien de chats ont été modifiés et combien n’ont pas pu l’être. Utilise le menu d’une conversation si tu souhaites seulement ranger celle-ci.
+Lis la confirmation avant de continuer. Le résultat indique combien de chats ont été modifiés et combien n’ont pas pu l’être. Utilise le menu d’un chat dans **Accueil** si tu souhaites seulement ranger celui-ci. Les chats archivés restent sous **Archivés**, en bas de la liste d’**Accueil**, où **Désarchiver** dans le menu d’un chat le fait revenir.
 
 **Se déconnecter** dans le menu de profil ferme la session actuelle et ramène à la connexion. Déconnecte-toi après usage sur un appareil partagé. Pour un espace dédié sur ton propre appareil, consulte [Installer l’application](/fr/platform/member/install-as-app).

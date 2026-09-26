@@ -3,13 +3,11 @@ import { useT } from '@tale/ui/i18n/client';
 import { TaleLogo } from '@tale/ui/logo';
 import {
   Bell,
-  Bot,
   BrainIcon,
   CircleUser,
   Ellipsis,
-  Folder,
+  House,
   Lock,
-  MessageCircle,
   MessagesSquare,
   Search,
   Settings,
@@ -25,18 +23,12 @@ import type { ReactNode } from 'react';
 const DEMO_ORIGIN = 'tale.yourcompany.com';
 
 /**
- * Primary nav in sidebar order — mirrors
- * services/platform/app/hooks/use-navigation-items.ts (Settings is last in
- * the primary list; notifications + account sit at the bottom).
+ * The rail's sections in order — mirrors the `primary` list of
+ * services/platform/app/hooks/use-navigation-items.ts: Home, Knowledge,
+ * Automations. Settings is pinned at the foot with notifications and the
+ * account.
  */
-const NAV_ICONS = [
-  MessageCircle,
-  Folder,
-  BrainIcon,
-  Bot,
-  Workflow,
-  Settings,
-] as const;
+const NAV_ICONS = [House, BrainIcon, Workflow] as const;
 
 type DemoNav =
   | 'chat'
@@ -46,13 +38,17 @@ type DemoNav =
   | 'automations'
   | 'settings';
 
-const NAV_INDEX: Record<DemoNav, number> = {
+/**
+ * Which rail tile a depicted screen lights. Chats, projects (and the agents
+ * configured on them) all live in Home now; Settings lights its footer tile.
+ */
+const NAV_INDEX: Record<DemoNav, number | 'settings'> = {
   chat: 0,
-  projects: 1,
-  knowledge: 2,
-  agents: 3,
-  automations: 4,
-  settings: 5,
+  projects: 0,
+  knowledge: 1,
+  agents: 0,
+  automations: 2,
+  settings: 'settings',
 };
 
 /** Navs whose product page uses AdaptiveHeaderTitle (not chat-header). */
@@ -171,6 +167,18 @@ export function DemoShell({
               })}
             </span>
             <span className="text-fg-muted flex shrink-0 flex-col items-center gap-1 py-2 md:gap-2 md:py-3">
+              <span
+                className={cn(
+                  'flex items-center justify-center rounded-lg p-1.5 md:p-2',
+                  activeIndex === 'settings' &&
+                    'bg-surface-site-inset text-fg-base',
+                )}
+              >
+                <Settings
+                  className="size-4 md:size-5"
+                  strokeWidth={activeIndex === 'settings' ? 2 : 1.75}
+                />
+              </span>
               <span className="relative flex items-center justify-center rounded-lg p-1.5 md:p-2">
                 <Bell className="size-4 md:size-5" strokeWidth={1.75} />
                 <span className="bg-brand-base absolute top-1.5 right-1.5 size-1.5 rounded-full md:top-2 md:right-2" />

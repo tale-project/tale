@@ -6,7 +6,7 @@ import { AppSidebarPlaceholder } from './app-sidebar/app-sidebar-placeholder';
 // Relative imports on purpose: this module also runs under plain `bun`
 // (the boot-shell prerender), where the `@/` tsconfig alias isn't guaranteed.
 import { ChatComposerPlaceholder } from './chat-composer-placeholder';
-import { ChatSubPanelPlaceholder } from './chat-sub-panel-placeholder';
+import { HomePanelPlaceholder } from './home-panel-placeholder';
 import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
 
 /**
@@ -30,7 +30,15 @@ export function DashboardShellFrame() {
           landing): a leading cluster of action icons + the trailing account
           avatar, so the real header slots in without reflow. Matches the
           DashboardLayout header geometry (px-4, min-h-12). */}
-      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+      {/* The notch clearance a thread page keeps without the bar (zero where
+          there is no notch, so harmless on desktop). */}
+      <div
+        aria-hidden
+        className="hidden h-(--safe-top) shrink-0 [.boot-thread-page_&]:block"
+      />
+      {/* Hidden on a chat, a task or an open conversation, which carry their
+          own header on a phone (`boot-thread-page`, set before first paint). */}
+      <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden [.boot-thread-page_&]:hidden">
         <Skeletonize loading>
           <Row gap={2} className="min-h-12">
             {/* Leading action icons (sidebar menu / search). */}
@@ -62,15 +70,14 @@ export function DashboardShellFrame() {
         gap={0}
         className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
       >
-        {/* Chat layout stand-ins — the row mirrors ChatSurface's frame
-            (sub-panel beside the message column, composer at the column's
-            foot), so the real chat slots in without reflow. Each piece
-            shows itself in CSS only (`boot-chat` / `boot-chat-panel-open`
-            on <html>) when the navigation targets a chat route; on every
-            other route the row renders empty, keeping the shell's single
-            variant. */}
+        {/* Home layout stand-ins — the row mirrors the Home frame (the
+            panel beside the page, a chat's composer at the column's foot),
+            so the real page slots in without reflow. Each piece shows itself
+            in CSS only (`boot-home-panel-open` on a Home route, `boot-chat`
+            on a chat route, on <html>); on every other route the row renders
+            empty, keeping the shell's single variant. */}
         <div className="flex min-h-0 flex-1 flex-row">
-          <ChatSubPanelPlaceholder />
+          <HomePanelPlaceholder />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ChatComposerPlaceholder />
           </div>

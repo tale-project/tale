@@ -76,8 +76,13 @@ test('notification preferences: toggles a channel, persists, and restores', asyn
   const { organizationId } = org;
   await page.goto(`/dashboard/${organizationId}/settings/notifications`);
 
+  // The section's own heading — the page header above it names the page
+  // with the same word, as the h1.
   await expect(
-    page.getByRole('heading', { name: t('notificationPreferences.title') }),
+    page.getByRole('heading', {
+      name: t('notificationPreferences.title'),
+      level: 2,
+    }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
   // "Agent escalations" defaults on (an undefined preference reads as

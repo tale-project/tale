@@ -29,7 +29,7 @@ Ouvre **Paramètres > Fournisseurs IA**, sélectionne **Ajouter des identifiants
 
 <Step title="Vérifier le modèle dans un nouveau chat">
 
-Ouvre **Chat**, démarre une conversation et choisis un modèle disponible. Envoie une demande autonome, par exemple « Rédige une liste de trois points pour préparer une réunion ». Attends la réponse complète. L’enregistrement des identifiants ne prouve pas à lui seul que le compte a accès au modèle choisi.
+Ouvre **Accueil**, choisis **Nouveau chat**, puis un modèle disponible. Envoie une demande autonome, par exemple « Rédige une liste de trois points pour préparer une réunion ». Attends la réponse complète. L’enregistrement des identifiants ne prouve pas à lui seul que le compte a accès au modèle choisi.
 
 Si la liste reste vide ou si le fournisseur refuse la requête, suis les étapes de dépannage de la page [Fournisseurs IA](/fr/platform/admin/providers).
 

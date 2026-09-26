@@ -16,8 +16,10 @@ export function ConversationListPanel({
   return (
     <div
       className={cn(
-        'border-border relative flex w-full flex-col border-r md:max-w-[24.75rem] md:flex-[0_0_24.75rem]',
-        hidden ? 'hidden md:flex' : 'flex',
+        // Phones only: on desktop the Home panel beside the page lists the
+        // conversations, so the inbox page is its reading pane alone.
+        'border-border relative flex w-full flex-col border-r md:hidden',
+        hidden ? 'hidden' : 'flex',
       )}
     >
       <Stack

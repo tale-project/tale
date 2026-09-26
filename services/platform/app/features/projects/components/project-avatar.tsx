@@ -58,7 +58,7 @@ export interface ProjectAvatarProps {
    *
    * `'plain'`: just the icon in a neutral muted tone, no background. Use
    * in dense lists where many side-by-side colored chips would crowd the
-   * eye (e.g. the chat sidebar's project folders, where the row is already
+   * eye (e.g. Home's project rows and chat markers, where the row is already
    * named and the icon is just a glanceable marker).
    */
   variant?: 'filled' | 'plain';

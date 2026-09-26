@@ -2482,6 +2482,8 @@ export interface TaskListFilters {
   status?: string;
   statuses?: string[];
   assigneeId?: string;
+  /** The person named to review the task's result (`reviewer_user_id`). */
+  reviewerId?: string;
   externalSystem?: string;
 }
 
@@ -2592,12 +2594,14 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const status = filters.status ?? null;
   const statuses = filters.statuses ?? null;
   const assigneeId = filters.assigneeId ?? null;
+  const reviewerId = filters.reviewerId ?? null;
   const externalSystem = filters.externalSystem ?? null;
   return sql`
     (${includeArchived} OR archived_at_ms IS NULL)
     AND (${status}::text IS NULL OR status = ${status})
     AND (${statuses === null} OR status = ANY(${statuses ?? []}))
     AND (${assigneeId}::text IS NULL OR assignee_id = ${assigneeId})
+    AND (${reviewerId}::text IS NULL OR reviewer_user_id = ${reviewerId})
     AND (${externalSystem}::text IS NULL OR external_system = ${externalSystem})
   `;
 }
@@ -2852,6 +2856,8 @@ export interface TaskSearchHit {
   taskId: string;
   projectId: string;
   title: string;
+  /** Where the task stands — the palette shows it the way Home does. */
+  status: TaskStatus;
   snippet: string;
   updatedAt: number;
   number?: number;
@@ -2908,13 +2914,14 @@ export async function searchTasks(
     taskId: string;
     projectId: string;
     title: string;
+    status: TaskStatus;
     description: string | null;
     updatedAt: number;
     number: number | null;
     archivedAt: number | null;
   }
   const fieldHits = await sql<FieldHit[]>`
-    SELECT t.id AS "taskId", t.project_id AS "projectId", t.title,
+    SELECT t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
            t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
            t.archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks t
@@ -2937,6 +2944,7 @@ export async function searchTasks(
       taskId: hit.taskId,
       projectId: hit.projectId,
       title: hit.title,
+      status: hit.status,
       snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
     };
@@ -2953,7 +2961,7 @@ export async function searchTasks(
   if (results.length < SEARCH_MAX_RESULTS) {
     const commentHits = await sql<(FieldHit & { body: string })[]>`
       SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-             t.id AS "taskId", t.project_id AS "projectId", t.title,
+             t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
              t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
              t.archived_at_ms::float8 AS "archivedAt",
              m.text AS body

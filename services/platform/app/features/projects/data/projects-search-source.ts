@@ -12,6 +12,15 @@ export type ProjectSearchHitData = {
   kind: 'project';
 };
 
+/** The palette snippet reads `KEY · description`; the title carries the
+ * key, so the line under it keeps the description alone (or nothing). */
+function withoutKey(snippet: string, key: string | undefined): string {
+  if (key === undefined || key.length === 0) return snippet;
+  if (snippet === key) return '';
+  const prefix = `${key} · `;
+  return snippet.startsWith(prefix) ? snippet.slice(prefix.length) : snippet;
+}
+
 export function createProjectsSearchSource(options: {
   organizationId: string;
   enabled?: boolean;
@@ -33,7 +42,8 @@ export function createProjectsSearchSource(options: {
       return hits.data.map((hit) => ({
         id: hit.projectId,
         title: hit.key ? `${hit.key} · ${hit.name}` : hit.name,
-        subtitle: hit.snippet,
+        // The key already leads the title; underneath, only the description.
+        subtitle: withoutKey(hit.snippet, hit.key),
         ...(hit.archived ? { badge: t('search.badgeArchived') } : {}),
         group: 'projects',
         data: { kind: 'project' as const },

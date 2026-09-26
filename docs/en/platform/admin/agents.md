@@ -3,7 +3,7 @@ title: Govern project agents
 description: Review who can change agents, which resources they can use and how secret grants affect their runs.
 ---
 
-Govern an agent through its project and the organization resources it uses. There is no separate organization-wide agent roster to configure: open **Projects**, select the project, then **Agents** to inspect or edit its workers.
+Govern an agent through its project and the organization resources it uses. There is no separate organization-wide agent roster to configure: open the project from **Projects** in Home, then **Agents** to inspect or edit its workers.
 
 ## Establish who can change the agent
 

@@ -3,7 +3,7 @@ title: Comprendre les projets
 description: Comprends ce qu’un projet partage, quels chats restent personnels et quand y regrouper un travail suivi.
 ---
 
-Utilise un projet lorsque plusieurs questions ou tâches reposent sur les mêmes documents. Il réunit fichiers, instructions, chats, tableau des tâches et agents. Une question ponctuelle peut rester dans Chat. Un lancement, une passation client ou une investigation suivie gagne généralement à être organisé dans un projet.
+Utilise un projet lorsque plusieurs questions ou tâches reposent sur les mêmes documents. Il réunit fichiers, instructions, chats, tableau des tâches et agents. Une question ponctuelle peut rester dans un chat ordinaire. Un lancement, une passation client ou une investigation suivie gagne généralement à être organisé dans un projet.
 
 ## Ce que le projet regroupe
 
@@ -43,7 +43,7 @@ Un chat dans un projet commence comme ta propre conversation. Les autres membres
 
 Relis les messages avant de partager, y compris les informations sensibles citées par une réponse. Déplacer un chat partagé vers un autre projet, ou hors du projet, met fin à son partage avec le projet. Partage-le à nouveau volontairement si le nouveau public doit le lire.
 
-Utilise **Déplacer vers un projet…** dans les actions du chat pour y rattacher une conversation existante. Les liens d’instantané pour l’organisation constituent une fonction distincte ; consulte [Partager un chat](/fr/platform/chat/shared-threads).
+Utilise **Déplacer vers un projet…** dans les actions du chat, ou fais glisser le chat sur le projet dans **Accueil**, pour y rattacher une conversation existante. Les liens d’instantané pour l’organisation constituent une fonction distincte ; consulte [Partager un chat](/fr/platform/chat/shared-threads).
 
 ## Passer de la discussion au travail
 

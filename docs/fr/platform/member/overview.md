@@ -35,7 +35,7 @@ Modifie ton profil, consulte tes limites d’utilisation et comprends les préf�
 
 </CardGroup>
 
-Passe d’une activité à l’autre avec la [navigation principale](/fr/platform#navigation). Revenir dans une section rouvre ton travail récent ; choisir à nouveau la section active ramène à son point de départ.
+Passe d’une activité à l’autre avec la [navigation principale](/fr/platform#navigation). Chaque section s’ouvre sur sa première page ; sur ordinateur, **Accueil** rouvre plutôt le chat que tu as lu en dernier, et le choisir à nouveau démarre un nouveau chat. [Accueil](/fr/platform#home) liste aussi tes projets, les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, et la boîte de réception si ton organisation en a une.
 
 ## Ouvrir une notification
 

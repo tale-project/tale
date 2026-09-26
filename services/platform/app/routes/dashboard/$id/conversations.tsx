@@ -216,38 +216,43 @@ function ConversationsLayout() {
       // pane scrolls.
       className="overflow-hidden"
       header={
-        <>
-          <AdaptiveHeaderRoot standalone={false} className="gap-1">
-            <InboxMobileBackButton />
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
-          <ConversationsNavigation
-            organizationId={organizationId}
-            action={
-              composeParam === undefined ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={SquarePen}
-                  onClick={() =>
-                    void navigate({
-                      to: '/dashboard/$id/conversations/$status',
-                      params: { id: organizationId, status: currentStatus },
-                      search: (prev) => ({
-                        ...prev,
-                        compose: 'new',
-                        composeContact: undefined,
-                        conversation: undefined,
-                      }),
-                    })
-                  }
-                >
-                  {t('compose.compose')}
-                </Button>
-              ) : undefined
-            }
-          />
-        </>
+        // Phones only, and only over the list: on desktop the Home panel
+        // carries the status switch, the list and New email; an open
+        // conversation has its own header (with the way back) on both.
+        typeof rawSearch.conversation === 'string' ? undefined : (
+          <div className="md:hidden">
+            <AdaptiveHeaderRoot standalone={false} className="gap-1">
+              <InboxMobileBackButton />
+              <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+            </AdaptiveHeaderRoot>
+            <ConversationsNavigation
+              organizationId={organizationId}
+              action={
+                composeParam === undefined ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={SquarePen}
+                    onClick={() =>
+                      void navigate({
+                        to: '/dashboard/$id/conversations/$status',
+                        params: { id: organizationId, status: currentStatus },
+                        search: (prev) => ({
+                          ...prev,
+                          compose: 'new',
+                          composeContact: undefined,
+                          conversation: undefined,
+                        }),
+                      })
+                    }
+                  >
+                    {t('compose.compose')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          </div>
+        )
       }
     >
       <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">

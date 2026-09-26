@@ -9,7 +9,7 @@ Wissen ist die gemeinsame Bibliothek deiner Organisation. Dokumente, kurze Infor
 
 </Video>
 
-<Frame caption="Für Dateien beginne unter Dokumente. Für andere Quellen wähle den passenden Tab. Die Ansicht ist auf hochgeladene, indexierte Dateien gefiltert.">
+<Frame caption="Für Dateien beginne unter Dokumente. Für andere Quellen öffne die passende Seite. Die Ansicht ist auf hochgeladene, indexierte Dateien gefiltert.">
 
 ![Der Bereich Wissen zeigt die Tabs Dokumente, Wissenseinträge, Websites, Produkte und Kontakte über einer Tabelle gemeinsamer Dateien.](/images/get-started/documents-list.webp)
 

@@ -19,11 +19,15 @@ import { useMemo } from 'react';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
+import { isTaskStatus, type TaskStatus } from '../lib/display';
+
 const NO_RESULTS: SearchResult<TaskSearchHitData>[] = [];
 
 export type TaskSearchHitData = {
   kind: 'task';
   projectId: string;
+  /** Drives the row's status glyph, the way a Home row reads. */
+  status?: TaskStatus;
 };
 
 export function createTasksSearchSource(options: {
@@ -34,6 +38,7 @@ export function createTasksSearchSource(options: {
   const { organizationId, projectId } = options;
   return (query, { active }) => {
     const { t } = useT('dialogs');
+    const { t: tTasks } = useT('tasks');
     const trimmed = query.trim();
     const hits = useBackendQuery(
       'tasks/search:searchTasks',
@@ -58,16 +63,28 @@ export function createTasksSearchSource(options: {
           : hit.projectArchived
             ? t('search.badgeProjectArchived')
             : undefined;
+        // A task with no description would repeat its title underneath;
+        // its status says more there.
+        const repeatsTitle = hit.snippet.trim() === hit.title.trim();
+        const subtitle = !repeatsTitle
+          ? hit.snippet
+          : isTaskStatus(hit.status)
+            ? tTasks(`status.${hit.status}`)
+            : '';
         return {
           id: hit.taskId,
           title: identifier ? `${identifier} · ${hit.title}` : hit.title,
-          subtitle: hit.snippet,
+          subtitle,
           ...(badge !== undefined ? { badge } : {}),
           group: 'tasks',
-          data: { kind: 'task' as const, projectId: hit.projectId },
+          data: {
+            kind: 'task' as const,
+            projectId: hit.projectId,
+            ...(isTaskStatus(hit.status) ? { status: hit.status } : {}),
+          },
         };
       });
-    }, [hits.data, t]);
+    }, [hits.data, t, tTasks]);
 
     if (!active || trimmed.length === 0) {
       return { results: NO_RESULTS, status: 'ready' };

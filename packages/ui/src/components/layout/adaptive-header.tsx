@@ -216,7 +216,9 @@ export function AdaptiveHeaderSlot({ className }: AdaptiveHeaderSlotProps) {
       aria-hidden={!isMobile || undefined}
       className={cn('flex min-w-0 flex-1 items-center gap-2', className)}
     >
-      <div className="min-w-0 flex-1">{content}</div>
+      {/* A row, like the desktop title row: a back button, the title and
+          its trailing controls sit side by side instead of stacking. */}
+      <div className="flex min-w-0 flex-1 items-center gap-1">{content}</div>
       <div
         ref={setIdentityElMobile}
         className="flex shrink-0 items-center gap-2 empty:hidden"

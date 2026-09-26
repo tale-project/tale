@@ -11,7 +11,7 @@ Du brauchst ein angemeldetes Konto und einen funktionierenden [ersten Chat](/de/
 
 ## Eine Frage mit ausreichend Kontext stellen
 
-Öffne **Chat** und wähle **Neuer Chat**. Beschreibe die Aufgabe, gib die nötigen Informationen mit und nenne das gewünschte Ergebnisformat. Füge etwa Besprechungsnotizen ein und bitte um Entscheidungen, Zuständige und offene Fragen.
+Öffne **Start** und wähle **Neuer Chat**. Beschreibe die Aufgabe, gib die nötigen Informationen mit und nenne das gewünschte Ergebnisformat. Füge etwa Besprechungsnotizen ein und bitte um Entscheidungen, Zuständige und offene Fragen.
 
 Lies die Antwort, bevor du sie verwendest. Enthält sie eine Quellenangabe, öffne die Quelle und prüfe, ob sie die Aussage belegt. Eine flüssige Antwort beweist nicht, dass das richtige Dokument verwendet wurde. [Wirksam chatten](/de/tutorials/member/chat-effectively) zeigt, wie du mit Anschlussfragen weiterkommst.
 
@@ -36,7 +36,7 @@ Kannst du eine gemeinsame Quelle nicht hinzufügen, bitte eine Person mit Bearbe
 
 ## In einem Projekt arbeiten
 
-Öffne **Projekte** und wähle ein zugängliches Projekt. Unter **Aufgaben** siehst du die Arbeit, unter **Wissen** die Projektdateien und unter **Chats** die Gespräche. Projektchats bleiben persönlich, bis du sie mit dem Projekt teilst.
+Wähle im Bereich **Start** unter **Projekte** ein Projekt, auf das du zugreifen kannst. Unter **Aufgaben** siehst du die Arbeit, unter **Wissen** die Projektdateien und unter **Chats** die Gespräche. Projektchats bleiben persönlich, bis du sie mit dem Projekt teilst.
 
 <Frame caption="Das Board gruppiert Arbeit nach Status; eine Karte öffnet die Aufgabendetails.">
 
@@ -48,8 +48,8 @@ Kannst du eine gemeinsame Quelle nicht hinzufügen, bitte eine Person mit Bearbe
 
 ## Zur Arbeit zurückkehren
 
-Wählst du **Projekte** oder **Wissen** aus einem anderen Bereich, öffnet sich deine zuletzt besuchte Ansicht. Wähle den bereits aktiven Bereich erneut, um zu seiner Liste zurückzukehren. Die [Navigationsanleitung](/de/platform#navigation) erklärt die Bedienelemente am Computer und auf dem Smartphone.
+Jeder Bereich öffnet seine eigene erste Seite – egal, was du dort zuletzt getan hast. Am Computer ist **Start** die Ausnahme: Dort öffnet sich der Chat, den du zuletzt gelesen hast, und wählst du **Start** erneut, beginnt ein neuer Chat. Die [Navigationsanleitung](/de/platform#navigation) erklärt die Bedienelemente am Computer und auf dem Smartphone.
 
-Die Chat-Seitenleiste enthält deinen Gesprächsverlauf. Blende sie bei Bedarf mit **Chats anzeigen** ein und öffne das Gespräch erneut. Beginne für ein neues Thema einen neuen Chat und teile Projektgespräche bewusst, wenn andere sie benötigen.
+**Start** zeigt deine Chats zusammen mit den offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten. Mit **Chats** oder **Aufgaben** über der Liste siehst du nur eine der beiden Arten. Ist die Seitenleiste ausgeblendet, holt **Seitenleiste einblenden** am Anfang der Kopfzeile sie zurück. Beginne für ein neues Thema einen neuen Chat und teile Projektgespräche bewusst, wenn andere sie benötigen.
 
 Sprache und Erscheinungsbild findest du unter **Konto verwalten**. Die [Einstellungen](/de/platform/member/preferences) erklären weitere Kontofunktionen und wo sie wirken.

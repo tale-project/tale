@@ -106,6 +106,7 @@ describe('task read adapters', () => {
       'todo,backlog',
       'u1',
       '',
+      '',
     ]);
     const result = (await row?.queryFn()) as {
       tasks: Record<string, unknown>[];
@@ -125,6 +126,40 @@ describe('task read adapters', () => {
     expect(view?.folderExists).toBe(true);
     expect(view).not.toHaveProperty('id');
     expect(result.canEdit).toBe(true);
+  });
+
+  // Home's "waiting for your review" read: the reviewer filter reaches the
+  // URL, and keys its own cache entry apart from the assignee read.
+  it('carries the reviewer filter into the URL and the key across projects', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(
+        jsonResponse(200, { tasks: [], truncated: false, canEdit: false }),
+      );
+
+    const row = taskReadAdapters[
+      'tasks/queries:listTasksForAccessibleProjects'
+    ]?.(
+      { organizationId: 'org-1', statuses: ['in_review'], reviewerId: 'u1' },
+      {},
+    );
+    expect(row?.queryKey).toEqual([
+      'backend',
+      'org-1',
+      'task',
+      'across-projects',
+      false,
+      '',
+      'in_review',
+      '',
+      'u1',
+      '',
+    ]);
+    await row?.queryFn();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/tasks?includeArchived=false&statuses=in_review&reviewerId=u1&orgId=org-1',
+      expect.anything(),
+    );
   });
 
   it('maps a missing task detail to null — the 0.4 answer', async () => {

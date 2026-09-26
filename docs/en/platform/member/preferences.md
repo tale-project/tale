@@ -71,6 +71,6 @@ Each usage limit shows the amount used, the limit, and when it resets in your lo
 
 **Settings > Account > Your chats** offers **Archive all chats** and **Delete all chats** for your own chats in the current organization, including project chats. Archiving affects unarchived chats; deleting also includes archived chats and moves them to Trash, where they can be restored during the retention grace period. Chats under legal hold remain unchanged, and chats with a running reply cannot be deleted.
 
-Read the confirmation before proceeding. The result reports how many chats changed and how many could not be changed. Use an individual chat’s menu when you only want to organize that conversation.
+Read the confirmation before proceeding. The result reports how many chats changed and how many could not be changed. Use an individual chat's menu in Home when you only want to organize that conversation. Archived chats stay under **Archived** at the bottom of the Home list, where **Unarchive** in a chat's menu brings it back.
 
 **Log out** in the profile menu ends the current session and returns you to sign-in. Sign out on a shared device when you finish using Tale. For a dedicated app window on your own device, see [Install as app](/platform/member/install-as-app).

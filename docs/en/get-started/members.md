@@ -11,7 +11,7 @@ Start with a signed-in account and a working [first chat](/get-started/quickstar
 
 ## Ask a question with enough context
 
-Open **Chat** and select **New chat**. Describe the task, provide the information needed, and say what the result should look like. For example, paste meeting notes and ask for decisions, owners, and open questions.
+Open **Home** and select **New chat**. Describe the task, provide the information needed, and say what the result should look like. For example, paste meeting notes and ask for decisions, owners, and open questions.
 
 Read the result before using it. When the answer cites a source, open it and check that it supports the claim. A fluent answer is not evidence that the model used the correct document. [Chat effectively](/tutorials/member/chat-effectively) shows how to improve an answer with follow-up questions.
 
@@ -36,7 +36,7 @@ If you cannot add a shared source, ask someone with edit access. Include the int
 
 ## Work in a project
 
-Open **Projects** and select a project you can access. Use **Tasks** to see the work, **Knowledge** for project files, and **Chats** for conversations. Project chats remain personal until shared with the project.
+In Home, choose a project you can access under **Projects**. Use **Tasks** to see the work, **Knowledge** for project files, and **Chats** for conversations. Project chats remain personal until shared with the project.
 
 <Frame caption="A board groups work by status; each card opens the task details.">
 
@@ -48,8 +48,8 @@ Open a task to read its description, assignee, and discussion. If you have edit 
 
 ## Return to your work
 
-Choosing **Projects** or **Knowledge** from another section returns you to the place you last visited. Choose the already active section again to return to its list. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
+Every section opens on its own first page, whatever you did there last. On a computer, **Home** is the exception: it reopens the chat you last read, and choosing it again starts a new chat. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
 
-The chat sidebar keeps your conversation history. Use **Show chats** when it is hidden, then reopen the conversation. Use a new chat for a new subject and share a project conversation deliberately when teammates need it.
+Home lists your chats together with the open tasks assigned to you or waiting for your review; choose **Chats** or **Tasks** above the list to see one kind only. If the Home panel is hidden, **Show sidebar** at the start of the header brings it back. Use a new chat for a new subject and share a project conversation deliberately when teammates need it.
 
 Your language and theme are available from **Manage account**. The [preferences guide](/platform/member/preferences) explains the other account settings and which features use them.

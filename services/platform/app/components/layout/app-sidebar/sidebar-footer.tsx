@@ -36,7 +36,7 @@ export function SidebarFooter({ organizationId }: SidebarFooterProps) {
           ))}
         </ul>
       )}
-      <UserButton sidebarExpanded={false} />
+      <UserButton variant="rail" />
     </Stack>
   );
 }

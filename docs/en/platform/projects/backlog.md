@@ -3,7 +3,7 @@ title: Triage the project backlog
 description: Capture proposed work, decide what is ready, and move it into delivery without confusing assignment with execution.
 ---
 
-Use **Backlog** for proposed work the team has not committed to yet. It is a normal task status, shown first in the board and list. A proposal can already have an assignee; assignment alone does not make it active work.
+Use **Backlog** for proposed work the team has not committed to yet. It is a normal task status, shown first in the board and list. A proposal can already have an assignee; assignment alone does not make it active work. A proposal assigned to you still appears among your tasks in [Home](/platform#home), marked **Backlog**.
 
 ## Capture a proposal
 

@@ -3,7 +3,7 @@ title: Den Projekt-Backlog sichten
 description: Sammle Arbeitsvorschläge, entscheide über ihre Aufnahme und unterscheide Zuweisung vom tatsächlichen Start.
 ---
 
-Verwende **Backlog** für vorgeschlagene Arbeit, die das Team noch nicht zugesagt hat. Dieser normale Aufgabenstatus steht im Board und in der Liste an erster Stelle. Ein Vorschlag darf bereits zugewiesen sein; dadurch wird er noch nicht zu laufender Arbeit.
+Verwende **Backlog** für vorgeschlagene Arbeit, die das Team noch nicht zugesagt hat. Dieser normale Aufgabenstatus steht im Board und in der Liste an erster Stelle. Ein Vorschlag darf bereits zugewiesen sein; dadurch wird er noch nicht zu laufender Arbeit. Ist er dir zugewiesen, erscheint er dennoch mit dem Status **Backlog** unter deinen Aufgaben im Bereich [Start](/de/platform#home).
 
 ## Einen Vorschlag erfassen
 

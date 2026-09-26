@@ -13,7 +13,7 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 ## Die erste Nachricht senden
 
-Öffne **Chat**. Dabei kann sich ein kürzlich besuchtes Gespräch wieder öffnen. Wähle **Neuer Chat** oder klicke im bereits aktiven Chat-Bereich erneut auf **Chat**, um ein neues Thema zu beginnen. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
+Öffne **Start**. Am Computer öffnet sich dabei der Chat, den du zuletzt gelesen hast, falls es einen gibt. Für ein neues Thema wählst du **Neuer Chat** oben in der Liste von **Start** oder klickst am Computer erneut auf **Start**, während der Bereich aktiv ist. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 
@@ -61,7 +61,7 @@ Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Ko
 
 Über die Antwortleiste kopierst du Text, gibst Feedback, öffnest Details oder zweigst das Gespräch an dieser Stelle ab. Mit einer Abzweigung probierst du eine andere Richtung aus und behältst den bisherigen Austausch.
 
-Frühere Chats findest du in der Seitenleiste. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
+Frühere Chats findest du im Bereich [Start](/de/platform#home); die Ansicht **Chats** über der Liste zeigt nur deine Chats. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird: Zieh sie auf das Projekt oder wähle **In Projekt verschieben…** in ihrem Menü. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
 
 Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tale zeigt einen Hinweis, wenn ältere Nachrichten nicht mehr mitgegeben werden. Wiederhole wichtige Anforderungen oder beginne einen neuen Chat mit den benötigten Quellen, statt die vollständige Historie vorauszusetzen.
 
