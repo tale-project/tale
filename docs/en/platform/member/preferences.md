@@ -25,7 +25,7 @@ Check the organization name before changing settings or adding content.
 
 ## See your role {#role}
 
-**Settings > Account > Your role** shows your role in this organization, such as Editor or Member. Your role decides what you can do; your teams decide which team work you can see. Admins assign roles under [Members and roles](/platform/admin/members-and-roles). With single sign-on, your identity provider can also set your role each time you sign in. Owners and Admins see a **Manage members** link in the section.
+**Settings > Account > Your role** shows your role in this organization, such as Editor or Member. Your role decides what you can do; your teams decide which team work you can see. Admins assign roles under [Members and roles](/platform/admin/members-and-roles). With single sign-on, your identity provider can also set your role each time you sign in. Owners and Admins see a **Manage members** button beside the section's title.
 
 ## See your teams {#teams}
 
@@ -33,7 +33,7 @@ Check the organization name before changing settings or adding content.
 
 To narrow a list to certain work, use its **Teams** filter: **Organization-wide** shows only items without a team, **My teams** shows items any of your teams can see, and each team is listed by name. The inbox offers an **Assignee** filter behind its search box, listing people and teams together. A filter changes the current view; it does not grant access to another team’s data.
 
-Owners and Admins manage membership under [Teams](/platform/admin/teams); the section links there for them.
+Owners and Admins manage membership under [Teams](/platform/admin/teams); the section's **Manage teams** button takes them there.
 
 ## Set custom instructions for the chat assistant
 

@@ -179,7 +179,10 @@ export const ResponsiveDialogContent = forwardRef<
             onInteractOutside={preventDatePickerDismiss}
             onFocusOutside={preventDatePickerDismiss}
             className={cn(
-              'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
+              // `outline-none`, as on `Dialog`: when Radix parks focus on the
+              // panel itself (nothing to start in, or the content it held
+              // was swapped out) the panel is not a control and draws no ring.
+              'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl outline-none',
               'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
               'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 duration-[var(--duration-standard)]',
               'motion-reduce:animate-none',
@@ -214,7 +217,7 @@ export const ResponsiveDialogContent = forwardRef<
           onInteractOutside={preventDatePickerDismiss}
           onFocusOutside={preventDatePickerDismiss}
           className={cn(
-            'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',
+            'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg outline-none',
             // Never exceed the viewport: cap at 90dvh and scroll internally so a
             // tall dialog (long form, comment/activity feeds) stays fully usable
             // instead of overflowing off-screen.

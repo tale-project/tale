@@ -48,16 +48,18 @@ export function ContactsActionMenu({
       <DataTableActionMenu
         label={tContacts('addButton')}
         icon={Plus}
+        // Same order as the products and documents menus: the device import
+        // leads, so the two options never swap places between sibling pages.
         menuItems={[
-          {
-            label: tContacts('importMenu.manualEntry'),
-            icon: UserPlus,
-            onClick: handleAddClick,
-          },
           {
             label: tContacts('importMenu.fromDevice'),
             icon: HardDrive,
             onClick: handleUploadClick,
+          },
+          {
+            label: tContacts('importMenu.manualEntry'),
+            icon: UserPlus,
+            onClick: handleAddClick,
           },
         ]}
       />

@@ -3,13 +3,16 @@
 import { Row, Stack } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
 import {
-  MessageCircle,
-  Inbox,
-  Brain,
-  CheckCircle,
-  Bot,
-  Network,
-  User,
+  ArrowUp,
+  Bell,
+  BrainIcon,
+  CircleUser,
+  House,
+  MessageSquare,
+  Search,
+  SettingsIcon,
+  SquarePen,
+  Workflow,
 } from 'lucide-react';
 import { memo } from 'react';
 
@@ -28,7 +31,20 @@ interface BrandingPreviewProps {
   data: BrandingPreviewData;
 }
 
-const NAV_ICONS = [MessageCircle, Inbox, Brain, CheckCircle, Bot, Network];
+/** The rail's sections, in the live rail's order and glyphs; Home leads, open. */
+const RAIL_SECTIONS = [House, BrainIcon, Workflow];
+const RAIL_FOOTER = [Bell, SettingsIcon, CircleUser];
+
+/** The Home panel's view switcher, as the live panel labels it. */
+const VIEW_KEYS = ['views.all', 'views.chats', 'views.tasks', 'views.inbox'];
+
+/** Stand-in stream rows: title and context-line widths. */
+const STREAM_ROWS = [
+  { title: '78%', context: '46%' },
+  { title: '64%', context: '38%' },
+  { title: '84%', context: '52%' },
+  { title: '58%', context: '34%' },
+];
 
 function BrowserChrome({
   appName,
@@ -73,10 +89,17 @@ function BrowserChrome({
   );
 }
 
+/**
+ * A miniature of the app shell as members see it — the rail (the accent marks
+ * the open section, as the live rail does), the Home panel's list and an open
+ * chat — so a logo, name or accent is judged in the place it will appear.
+ * Drawn from placeholders and the live labels; it holds no real data.
+ */
 export const BrandingPreview = memo(function BrandingPreview({
   data,
 }: BrandingPreviewProps) {
   const { t } = useT('settings');
+  const { t: tHome } = useT('home');
   const { resolvedTheme } = useTheme();
   const { appName, logoUrl, faviconUrl } = data;
   // Mirror the live app: the one picked accent is normalized into the same
@@ -99,16 +122,14 @@ export const BrandingPreview = memo(function BrandingPreview({
       <div className="bg-background border-border w-full max-w-[660px] overflow-hidden rounded-2xl border shadow-sm">
         <BrowserChrome appName={appName} faviconUrl={faviconUrl} />
 
-        {/* App layout preview */}
         <Row gap={0} align="stretch" className="h-[400px]">
-          {/* Sidebar */}
+          {/* Rail */}
           <Stack
             gap={0}
             align="center"
-            className="bg-muted/50 border-border w-12 shrink-0 border-r py-3"
+            className="bg-sidebar border-border w-11 shrink-0 border-r py-2.5"
           >
-            {/* Logo */}
-            <Row gap={0} justify="center" className="size-8 pb-4">
+            <Row gap={0} justify="center" className="size-7">
               {logoUrl ? (
                 <Image
                   src={logoUrl}
@@ -133,27 +154,30 @@ export const BrandingPreview = memo(function BrandingPreview({
                 />
               )}
             </Row>
-
-            {/* Nav icons */}
-            <Stack gap={2} className="pt-4">
-              {NAV_ICONS.map((Icon, i) => (
+            <Row gap={0} justify="center" className="mt-2 size-7">
+              <Search className="text-muted-foreground size-3.5" />
+            </Row>
+            <Stack gap={1} className="mt-1">
+              {RAIL_SECTIONS.map((Icon, i) => (
                 <Row
                   key={i}
                   gap={0}
                   justify="center"
-                  className="relative size-8 rounded"
+                  className={
+                    i === 0 && !accentColor
+                      ? 'bg-muted size-7 rounded-md'
+                      : 'size-7 rounded-md'
+                  }
+                  style={
+                    i === 0 && accentColor
+                      ? { backgroundColor: `${accentColor}26` }
+                      : undefined
+                  }
+                  data-testid={i === 0 ? 'preview-rail-active' : undefined}
                 >
-                  {i === 0 && accentColor && (
-                    <div
-                      className="absolute inset-0 rounded opacity-10"
-                      style={{ backgroundColor: accentColor }}
-                    />
-                  )}
                   <Icon
                     className={
-                      i === 0
-                        ? 'relative size-4'
-                        : 'text-muted-foreground size-4'
+                      i === 0 ? 'size-3.5' : 'text-muted-foreground size-3.5'
                     }
                     style={
                       i === 0 && accentColor
@@ -164,56 +188,107 @@ export const BrandingPreview = memo(function BrandingPreview({
                 </Row>
               ))}
             </Stack>
-
-            <div className="mt-auto">
-              <User className="text-muted-foreground size-4" />
-            </div>
-          </Stack>
-
-          {/* Main content */}
-          <Stack gap={0} className="flex-1">
-            {/* Header */}
-            <Row gap={0} className="border-border h-10 border-b px-4">
-              <div className="bg-muted h-2 w-16 rounded-sm" />
-            </Row>
-
-            {/* Tab nav */}
-            <Row gap={3} className="border-border h-8 border-b px-4">
-              <span
-                className="text-foreground mt-auto border-b-2 pb-1.5 text-[10px] font-medium"
-                style={{
-                  borderColor: accentColor || 'currentColor',
-                }}
-              >
-                {t('branding.previewStatus.open')}
-              </span>
-              <span className="text-muted-foreground text-[10px]">
-                {t('branding.previewStatus.closed')}
-              </span>
-              <span className="text-muted-foreground text-[10px]">
-                {t('branding.previewStatus.spam')}
-              </span>
-            </Row>
-
-            {/* Content placeholder */}
-            <Stack gap={3} className="flex-1 p-4">
-              {[...Array(4)].map((_, i) => (
-                <Row key={i} gap={3}>
-                  <div className="bg-muted size-6 rounded-full" />
-                  <Stack gap={1} className="flex-1">
-                    <div
-                      className="bg-muted h-2 rounded"
-                      style={{ width: `${60 + i * 10}%` }}
-                    />
-                    <div
-                      className="bg-muted/50 h-1.5 rounded"
-                      style={{ width: `${40 + i * 5}%` }}
-                    />
-                  </Stack>
-                  <div className="bg-muted/50 h-1.5 w-8 rounded" />
+            <Stack gap={1} className="border-border mt-auto border-t pt-1.5">
+              {RAIL_FOOTER.map((Icon, i) => (
+                <Row key={i} gap={0} justify="center" className="size-7">
+                  <Icon className="text-muted-foreground size-3.5" />
                 </Row>
               ))}
             </Stack>
+          </Stack>
+
+          {/* Home panel */}
+          <Stack
+            gap={0}
+            className="border-border w-40 shrink-0 border-r"
+            data-testid="preview-home-panel"
+          >
+            <Row
+              gap={0}
+              justify="between"
+              className="border-border h-9 shrink-0 border-b px-3"
+            >
+              <span className="text-foreground text-[10px] font-semibold">
+                {tHome('title')}
+              </span>
+              <SquarePen className="text-muted-foreground size-3" />
+            </Row>
+            <div className="px-2 pt-2">
+              <Row gap={0} className="bg-muted rounded-md p-0.5">
+                {VIEW_KEYS.map((key, i) => (
+                  <span
+                    key={key}
+                    className={
+                      i === 0
+                        ? 'bg-background text-foreground flex-1 rounded-[4px] py-0.5 text-center text-[8px] font-medium shadow-xs'
+                        : 'text-muted-foreground flex-1 py-0.5 text-center text-[8px]'
+                    }
+                  >
+                    {tHome(key)}
+                  </span>
+                ))}
+              </Row>
+            </div>
+            <span className="text-muted-foreground px-3 pt-3 pb-1 text-[7px] font-medium tracking-wide uppercase">
+              {tHome('groups.today')}
+            </span>
+            <Stack gap={0} className="gap-0.5 px-1.5">
+              {STREAM_ROWS.map((row, i) => (
+                <Row
+                  key={i}
+                  gap={2}
+                  align="start"
+                  className={
+                    i === 0
+                      ? 'bg-muted rounded-md px-1.5 py-1.5'
+                      : 'px-1.5 py-1.5'
+                  }
+                  data-testid="preview-row"
+                >
+                  <MessageSquare className="text-muted-foreground mt-px size-2.5 shrink-0" />
+                  <Stack gap={1} className="min-w-0 flex-1">
+                    <div
+                      className="bg-foreground/15 h-1.5 rounded-sm"
+                      style={{ width: row.title }}
+                    />
+                    <div
+                      className="bg-foreground/[0.07] h-1 rounded-sm"
+                      style={{ width: row.context }}
+                    />
+                  </Stack>
+                </Row>
+              ))}
+            </Stack>
+          </Stack>
+
+          {/* An open chat */}
+          <Stack gap={0} className="min-w-0 flex-1">
+            <Row gap={2} className="border-border h-9 shrink-0 border-b px-3">
+              <div className="bg-muted flex size-4 items-center justify-center rounded">
+                <MessageSquare className="text-muted-foreground size-2.5" />
+              </div>
+              <div className="bg-foreground/15 h-1.5 w-24 rounded-sm" />
+            </Row>
+            <Stack gap={3} className="flex-1 px-6 py-5">
+              <div className="bg-muted ml-auto h-6 w-2/5 rounded-xl" />
+              <Stack gap={0} className="gap-1.5">
+                <div className="bg-foreground/[0.08] h-1.5 w-11/12 rounded-sm" />
+                <div className="bg-foreground/[0.08] h-1.5 w-4/5 rounded-sm" />
+                <div className="bg-foreground/[0.08] h-1.5 w-3/5 rounded-sm" />
+              </Stack>
+            </Stack>
+            <div className="px-5 pb-4">
+              <Row
+                gap={0}
+                justify="between"
+                className="border-border h-12 rounded-xl border px-3"
+              >
+                <div className="bg-foreground/[0.07] h-1.5 w-1/3 rounded-sm" />
+                <div className="bg-foreground flex size-5 items-center justify-center rounded-full">
+                  <ArrowUp className="text-background size-3" />
+                </div>
+              </Row>
+            </div>
           </Stack>
         </Row>
       </div>

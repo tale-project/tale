@@ -119,8 +119,7 @@ export function ProjectAgentsTab({
   };
 
   const newAgentButton = (
-    <Button size="sm" onClick={openCreate}>
-      <Plus aria-hidden className="size-4" />
+    <Button variant="secondary" size="sm" icon={Plus} onClick={openCreate}>
       {t('agents.newAgent')}
     </Button>
   );

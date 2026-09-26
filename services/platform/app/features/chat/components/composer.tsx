@@ -25,11 +25,12 @@ import { cn } from '@tale/ui/cn';
 import { FileUpload } from '@tale/ui/file-upload';
 import { EnterKeyIcon } from '@tale/ui/icons/enter-key-icon';
 import { Row, Stack } from '@tale/ui/layout';
+import { SendButton } from '@tale/ui/send-button';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { Tooltip } from '@tale/ui/tooltip';
 import { toast } from '@tale/ui/use-toast';
-import { ArrowUp, CircleStop, Loader2 } from 'lucide-react';
+import { CircleStop, Loader2 } from 'lucide-react';
 import {
   forwardRef,
   memo,
@@ -373,16 +374,7 @@ export const Composer = memo(
           : undefined;
 
     const sendButton = (
-      <Button
-        variant="primary"
-        size="icon"
-        onClick={submit}
-        disabled={!canSend}
-        aria-label={t('send')}
-        className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
-      >
-        <ArrowUp aria-hidden className="size-4" />
-      </Button>
+      <SendButton label={t('send')} onClick={submit} disabled={!canSend} />
     );
 
     return (

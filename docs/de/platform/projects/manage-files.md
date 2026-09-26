@@ -18,7 +18,7 @@ Unter **Wissen** im Projekt liegen Dateien, die dessen Chats abrufen können. La
 3. Klicke auf **Datei hinzufügen** oder ziehe Dateien auf die Upload-Fläche.
 4. Prüfe, ob jede Datei im gewünschten Ordner erscheint und fertig indexiert wird.
 
-**Neuer Ordner** erstellt einen Ordner auf der obersten Ebene. Mit **Neuer Unterordner** legst du einen Ordner innerhalb eines anderen an. **Ordner hinzufügen** importiert einen Ordner von deinem Gerät und bildet seine Struktur am gewählten Ort nach. Ein Ordner-Upload ist auf 200 Dateien und 200 MB begrenzt. Teile größere Ordner auf und prüfe den Bericht auf übersprungene Dateien.
+**Neuer Ordner** erstellt einen Ordner auf der obersten Ebene. Mit **Neuer Unterordner** legst du einen Ordner innerhalb eines anderen an. **Ordner hochladen** übernimmt einen Ordner von deinem Gerät und bildet seine Struktur am gewählten Ort nach. Ein Ordner-Upload ist auf 200 Dateien und 200 MB begrenzt. Teile größere Ordner auf und prüfe den Bericht auf übersprungene Dateien.
 
 ## Prüfen, ob der Chat die Datei lesen kann
 

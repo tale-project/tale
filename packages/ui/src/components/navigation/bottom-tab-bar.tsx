@@ -4,6 +4,7 @@ import { type LucideIcon } from 'lucide-react';
 import { forwardRef, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { COUNT_BADGE_CLASS, CountBadge } from '../feedback/count-badge';
 import { SkeletonBox, SkeletonCircle } from '../feedback/skeleton';
 import { Skeletonize } from '../feedback/skeleton-context';
 
@@ -179,12 +180,22 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
         />
         {item.badge !== undefined && (
           <>
-            <span
-              aria-hidden="true"
-              className="text-destructive-foreground absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] leading-none font-semibold"
-            >
-              {item.badge}
-            </span>
+            {typeof item.badge === 'number' ? (
+              <CountBadge
+                count={item.badge}
+                className="absolute -top-0.5 -right-0.5"
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  COUNT_BADGE_CLASS,
+                  'absolute -top-0.5 -right-0.5',
+                )}
+              >
+                {item.badge}
+              </span>
+            )}
             <span className="sr-only">
               {' '}
               {item.badgeLabel ?? `(${stringifyBadge(item.badge)} unread)`}

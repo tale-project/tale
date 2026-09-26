@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../lib/cn';
 import {
@@ -33,8 +34,15 @@ export function ProgressBar({
   indicatorClassName,
   valueText,
 }: ProgressBarProps) {
+  const { i18n } = useTranslation();
   const percentage = max > 0 ? Math.round((value / max) * 100) : 0;
   const clampedPercentage = Math.min(percentage, 100);
+  // The UI language decides the spacing: "50%" in English, "50 %" in German
+  // and French — a hand-placed narrow space printed the French form for all.
+  const percentText = new Intl.NumberFormat(
+    i18n?.resolvedLanguage ?? i18n?.language ?? 'en',
+    { style: 'percent', maximumFractionDigits: 0 },
+  ).format(clampedPercentage / 100);
   const barPercentage = Math.min(
     Math.max(max > 0 ? (value / max) * 100 : 0, 0),
     100,
@@ -66,11 +74,7 @@ export function ProgressBar({
       </div>
       {valueText === null ? null : (
         <span className="text-muted-foreground w-10 shrink-0 text-right text-xs tabular-nums">
-          {valueText === undefined ? (
-            <>{clampedPercentage}&#8239;%</>
-          ) : (
-            valueText
-          )}
+          {valueText === undefined ? percentText : valueText}
         </span>
       )}
     </div>

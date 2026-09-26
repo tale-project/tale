@@ -99,6 +99,21 @@ describe('FeedbackMetricsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('marks the filter active only away from its resting 7-day window', () => {
+    statsResult = { data: loadedStats, isLoading: false, error: null };
+
+    const { container, unmount } = render(
+      <FeedbackMetricsPage {...baseProps} />,
+    );
+    expect(container.querySelector('.bg-blue-500')).toBeNull();
+    unmount();
+
+    const other = render(
+      <FeedbackMetricsPage {...baseProps} period={'30' as FeedbackPeriod} />,
+    );
+    expect(other.container.querySelector('.bg-blue-500')).not.toBeNull();
+  });
+
   it('still renders the heading on the empty-org teaching panel', () => {
     statsResult = {
       data: { ...loadedStats, hasAnyFeedback: false },

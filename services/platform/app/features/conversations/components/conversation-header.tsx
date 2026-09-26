@@ -2,6 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useCopy } from '@tale/ui/use-copy';
@@ -41,6 +43,56 @@ import { channelSourceOf } from '../lib/channel-source';
 import type { ConversationWithMessages } from '../types';
 import { ContactInitials } from './contact-initials';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
+
+/**
+ * The header while its conversation is on the way: the live header's own
+ * ThreadHeader row — the contact's avatar, the subject, the context line and
+ * the verbs — with each value masked, so the thread below doesn't jump when
+ * the conversation arrives. Render it inside the panel's `<Skeletonize
+ * loading>`; `before` (the way back) stays live, since leaving never waits.
+ */
+export function ConversationHeaderSkeleton({ before }: { before?: ReactNode }) {
+  return (
+    <ThreadHeader
+      className="sm:px-6"
+      before={
+        before === undefined ? undefined : (
+          <Skeletonize loading={false} className="contents">
+            {before}
+          </Skeletonize>
+        )
+      }
+      leading={
+        <SkeletonCircle asChild>
+          <div className="size-8 shrink-0 rounded-full" />
+        </SkeletonCircle>
+      }
+      title={
+        <span className="block w-64 max-w-full">
+          <SkeletonText />
+        </span>
+      }
+      meta={
+        <span className="block w-44 max-w-full">
+          <SkeletonText seed={1} />
+        </span>
+      }
+      actions={
+        <>
+          <SkeletonBox asChild>
+            <div className="size-8 rounded-lg" />
+          </SkeletonBox>
+          <SkeletonBox asChild>
+            <div className="size-8 rounded-lg md:w-20" />
+          </SkeletonBox>
+          <SkeletonBox asChild>
+            <div className="size-8 rounded-lg" />
+          </SkeletonBox>
+        </>
+      }
+    />
+  );
+}
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;

@@ -71,7 +71,9 @@ function FeedbackRoute() {
   );
 
   return (
-    <SettingsPage>
+    // `fullWidth`, like every Metrics page: a dashboard of stat cards and
+    // charts, and moving between Metrics pages no longer resizes the column.
+    <SettingsPage fullWidth>
       <FeedbackMetricsPage
         organizationId={organizationId}
         period={period}

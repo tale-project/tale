@@ -35,18 +35,62 @@ export function canEmailContact(contact: ContactData): boolean {
   return Boolean(contact.email && contact.email !== UNKNOWN_CONTACT_EMAIL);
 }
 
+/** Vendor sources are proper nouns, spelled the vendor's way in every locale —
+ *  start-casing the enum wrote "Hubspot", "Woocommerce" and "Sap". */
+const VENDOR_SOURCE_NAMES: Readonly<Record<string, string>> = {
+  shopify: 'Shopify',
+  woocommerce: 'WooCommerce',
+  magento: 'Magento',
+  bigcommerce: 'BigCommerce',
+  prestashop: 'PrestaShop',
+  chargebee: 'Chargebee',
+  stripe: 'Stripe',
+  recurly: 'Recurly',
+  salesforce: 'Salesforce',
+  hubspot: 'HubSpot',
+  pipedrive: 'Pipedrive',
+  zoho: 'Zoho',
+  sap: 'SAP',
+  oracle: 'Oracle',
+  netsuite: 'NetSuite',
+  mailchimp: 'Mailchimp',
+  klaviyo: 'Klaviyo',
+  sendgrid: 'SendGrid',
+  zapier: 'Zapier',
+};
+
 /**
- * Localized-casing label for a contact's `source` enum (e.g. `manual_import`
- * → "Manual Import") — thin re-export of the shared `formatEnumLabel` so the
- * details dialog / popover use the exact same mapping as the table's Source
- * column (`createSourceColumn` in column-builders.tsx) instead of a second,
- * independently-drifting implementation (#2643).
+ * The label for a contact's `source` — one mapping for the table's Source
+ * column, the details dialog and the conversation popover, so the three never
+ * drift apart (#2643). The sources the app names in words ("Manual", "API")
+ * are translated through the `contacts` namespace, the same words the Source
+ * filter offers; vendors keep their own spelling. An enum value added later
+ * falls back to start-casing rather than printing nothing.
  */
 export function getContactSourceLabel(
   source: string | null | undefined,
+  tContacts: (key: string) => string,
   unknownLabel: string,
 ): string {
-  return formatEnumLabel(source, unknownLabel);
+  switch (source) {
+    case 'manual_import':
+      return tContacts('filter.source.manual');
+    case 'file_upload':
+      return tContacts('filter.source.upload');
+    case 'api_import':
+      return tContacts('filter.source.api');
+    case 'conversation':
+      return tContacts('filter.source.conversation');
+    case 'webhook':
+      return tContacts('filter.source.webhook');
+    case 'custom':
+      return tContacts('filter.source.custom');
+    default:
+      return (
+        (source ? VENDOR_SOURCE_NAMES[source] : undefined) ??
+        formatEnumLabel(source, unknownLabel)
+      );
+  }
 }
 
 /**

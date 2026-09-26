@@ -678,6 +678,7 @@ automations:
     title: Node
     workflowTitle: Workflow
     noSelection: Select a node on the canvas to see and edit what it does.
+    noSelectionReadOnly: Select a node on the canvas to see what it does.
     unknownType: 'Unknown node type: {type}'
     catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
     invalidJson: This is not valid JSON yet, so the node was not changed.
@@ -799,6 +800,10 @@ automations:
     autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
     startedBy: 'Started by {actor}'
+    starter:
+      apiKey: '{name} via an API key'
+      trigger: a trigger
+      formerMember: a former member
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
     inputTitle: Run input
@@ -1541,7 +1546,7 @@ common:
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
-    backToDashboard: Back to dashboard
+    backToDashboard: Back to Home
   moveUp: Move up
   moveDown: Move down
   drag: Drag to reorder
@@ -1791,7 +1796,10 @@ contacts:
     source:
       manual: Manual
       upload: Upload
+      api: API
       conversation: Conversation
+      webhook: Webhook
+      custom: Custom
   importForm:
     manualEntry: Manual entry
     upload: Upload
@@ -2434,7 +2442,7 @@ onboarding:
     inviteItem: Invite teammates to collaborate.
     providerCta: Connect a provider
     inviteCta: Invite teammates
-    goToDashboard: Go to dashboard
+    goToDashboard: Go to Home
 emptyStates:
   providers:
     title: Connect your first AI provider
@@ -4349,6 +4357,7 @@ navigation:
   aria:
     primaryNavigation: Primary navigation
     unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'
+    unreadNotifications: '{count, plural, one {# unread notification} other {# unread notifications}}'
   dataResidency: Data residency
   sandboxes: Sandboxes
   enterpriseSso: Enterprise SSO
@@ -4987,7 +4996,7 @@ projects:
     indexingStartFailed: Couldn't start indexing
     treeLabel: Project files
     addToFolder: Add file to "{folder}"
-    addFolderButton: Add folder
+    addFolderButton: Upload folder
     batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
     moreSkipped: +{count} more file(s) were skipped.
     folderGone: That folder no longer exists.
@@ -5108,7 +5117,7 @@ projects:
     deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
   settings:
     name: Name
-    nameHint: Shown in the projects list and the chat sidebar.
+    nameHint: Shown in the projects list and the Home panel.
     description: Description
     descriptionHint: A short summary that tells teammates what belongs here.
     audience: Audience
@@ -5565,7 +5574,7 @@ settings:
       statusNone: Not configured
       orgClientId: 'Client ID: {clientId}'
       statusEnvDetail: Using the app registered on the deployment environment.
-      statusNoneDetail: No app anywhere — connecting is not possible yet.
+      statusNoneDetail: Members can't connect it until an app is configured here or on the deployment.
       configure: Configure
       remove: Remove
       removeTitle: Remove the {connector} OAuth app?
@@ -5990,6 +5999,7 @@ settings:
       noDirectCredential:
         No directly usable provider credential yet — add an API key or an
         environment credential above.
+      noModel: No model yet
       degraded: Recently failing
       subscriptionVia: Subscription · {provider}
       subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
@@ -6559,10 +6569,6 @@ settings:
     uploadLogo: Upload logo
     uploadFavicon: Upload favicon
     preview: Branding preview
-    previewStatus:
-      open: Open
-      closed: Closed
-      spam: Spam
     pickColorAria: Pick {label}
     hexValueAria: '{label} hex value'
     removeImageAria: Remove {label}

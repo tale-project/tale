@@ -5,7 +5,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Center, Row, Stack, VStack } from '@tale/ui/layout';
 import { lazyComponent } from '@tale/ui/lazy-component';
 import { PanelFooter } from '@tale/ui/panel-footer';
-import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
@@ -36,7 +36,10 @@ import {
 } from '../hooks/mutations';
 import { useConversationWithMessages, useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
-import { ConversationHeader } from './conversation-header';
+import {
+  ConversationHeader,
+  ConversationHeaderSkeleton,
+} from './conversation-header';
 import {
   ConversationDateHeader,
   MessageTimestamp,
@@ -496,37 +499,14 @@ export function ConversationPanel({
                 }}
               />
             ) : (
-              <Stack
-                gap={3}
-                className="border-border border-b p-4 sm:px-6 sm:py-4"
-              >
-                <Row justify="between" gap={2} className="min-w-0">
-                  <div className="w-64 min-w-0 text-base">
-                    <SkeletonText />
-                  </div>
-                  <Row gap={2} className="shrink-0">
-                    <SkeletonBox asChild>
-                      <div className="size-8 rounded-lg md:w-24" />
-                    </SkeletonBox>
-                    <SkeletonBox asChild>
-                      <div className="size-8 rounded-lg" />
-                    </SkeletonBox>
-                  </Row>
-                </Row>
-                <div className="flex items-center gap-2.5">
-                  <SkeletonCircle asChild>
-                    <div className="size-8 shrink-0 rounded-full" />
-                  </SkeletonCircle>
-                  <VStack gap={0} className="min-w-0 gap-px">
-                    <Text className="w-28 max-w-full text-[13px] font-semibold">
-                      <SkeletonText />
-                    </Text>
-                    <Text variant="caption" className="w-44 max-w-full">
-                      <SkeletonText />
-                    </Text>
-                  </VStack>
-                </div>
-              </Stack>
+              <ConversationHeaderSkeleton
+                before={
+                  <>
+                    <HomePanelToggle />
+                    <InboxMobileBackButton />
+                  </>
+                }
+              />
             )}
           </div>
           <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">

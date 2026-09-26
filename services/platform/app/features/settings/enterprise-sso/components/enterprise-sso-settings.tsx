@@ -1,5 +1,7 @@
 'use client';
 
+import { Skeletonize } from '@tale/ui/skeleton-context';
+
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { EmbeddingSection } from '@/app/features/settings/trusted-headers/components/embedding-section';
@@ -28,7 +30,7 @@ export function EnterpriseSsoSettings({
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const { data } = useEnterpriseSso(organizationId);
+  const { data, isLoading } = useEnterpriseSso(organizationId);
   // `undefined` while the query is loading; the form shows its loading state.
   const config: EnterpriseSsoConfig | undefined = data;
 
@@ -40,7 +42,11 @@ export function EnterpriseSsoSettings({
   // so the section rhythm matches the other settings pages.
   return (
     <SettingsPage>
-      <EnterpriseSsoForm organizationId={organizationId} config={config} />
+      {/* Masked in place while the connection loads, like every other
+          settings editor — not a form of empty fields that fill in later. */}
+      <Skeletonize loading={abilityLoading || isLoading}>
+        <EnterpriseSsoForm organizationId={organizationId} config={config} />
+      </Skeletonize>
       <TrustedHeadersSection organizationId={organizationId} />
       <EmbeddingSection organizationId={organizationId} />
     </SettingsPage>

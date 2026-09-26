@@ -3,6 +3,7 @@ import {
   EditorActions,
   useActiveEditor,
 } from '@tale/ui/editor';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -735,6 +736,21 @@ describe('EnterpriseSsoForm deployment warnings + redirect URL (A2.1)', () => {
       'https://app.example.com/api/sso/callback',
     );
     expect(redirectUrls.length).toBeGreaterThan(0);
+  });
+
+  it('masks the redirect URL in place while the connection loads', () => {
+    render(
+      <Bare>
+        <Skeletonize loading>
+          <EnterpriseSsoForm organizationId="org-1" config={undefined} />
+        </Skeletonize>
+      </Bare>,
+    );
+    expect(
+      screen.getByText(/redirect url to register in entra/i),
+    ).toBeInTheDocument();
+    // A pill-shaped mask, not "no URL" that then changes to one.
+    expect(screen.queryByText('—')).toBeNull();
   });
 
   it('warns when the callback URL is empty (SITE_URL unset)', () => {

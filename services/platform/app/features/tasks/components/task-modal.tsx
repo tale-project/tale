@@ -20,8 +20,9 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Textarea } from '@tale/ui/textarea';
 import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useCopy } from '@tale/ui/use-copy';
@@ -103,7 +104,11 @@ import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskAutomationRunEntry } from './task-automation-run-entry';
-import { TaskCommentComposer, TaskComments } from './task-comments';
+import {
+  TaskCommentComposer,
+  TaskCommentComposerSkeleton,
+  TaskComments,
+} from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
@@ -316,13 +321,44 @@ function PropertyField({
       </div>
     );
   }
+  // The label centres on the row's first `h-7` line — the height every value
+  // control here shares — rather than hanging from its top edge, where it sat
+  // above the middle of a taller control. A label that wraps grows the row.
   return (
     <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium break-words hyphens-auto">
+      <span className="text-muted-foreground flex min-h-7 w-20 shrink-0 items-center text-xs font-medium break-words hyphens-auto">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </Row>
+  );
+}
+
+/**
+ * The details panel while the task is on its way: the fields every task
+ * shows, named, with their values masked on the line they will fill.
+ */
+function TaskDetailsSkeleton({ showProject }: { showProject: boolean }) {
+  const { t } = useT('tasks');
+  const labels = [
+    ...(showProject ? [t('fields.project')] : []),
+    t('fields.status'),
+    t('fields.priority'),
+    t('fields.assignee'),
+    t('fields.reviewer'),
+    t('startDate.label'),
+    t('dueDate.label'),
+  ];
+  return (
+    <>
+      {labels.map((label, index) => (
+        <PropertyField key={label} label={label}>
+          <span className="block w-28 max-w-full text-sm leading-7">
+            <SkeletonText seed={index + 3} />
+          </span>
+        </PropertyField>
+      ))}
+    </>
   );
 }
 
@@ -741,6 +777,12 @@ function CreateTaskBody({
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  const { resolveActor } = useActorDirectory(organizationId, projectId);
+  // Named beside the avatar, as on the task's own details panel — the bare
+  // avatar button left "who takes this" to a hover.
+  const assigneeName = assignee
+    ? resolveActor(assignee.type, assignee.id).name
+    : t('assignee.unassigned');
 
   const submit = async () => {
     const trimmed = title.trim();
@@ -887,6 +929,7 @@ function CreateTaskBody({
                 priority={priority}
                 onChange={setPriority}
                 align="end"
+                showLabel
               />
             </PropertyField>
             <PropertyField label={t('fields.assignee')}>
@@ -899,12 +942,23 @@ function CreateTaskBody({
                 taskDescription={description}
                 taskLabels={labels}
                 align="end"
+                afterTrigger={
+                  <span
+                    className={cn(
+                      'min-w-0 truncate text-sm',
+                      assignee ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {assigneeName}
+                  </span>
+                }
                 onAssign={(type, id) => setAssignee({ type, id })}
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
             <PropertyField label={t('startDate.label')}>
               <DatePicker
+                variant="ghost"
                 className="w-full"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
@@ -912,6 +966,7 @@ function CreateTaskBody({
             </PropertyField>
             <PropertyField label={t('dueDate.label')}>
               <DatePicker
+                variant="ghost"
                 className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
@@ -969,6 +1024,7 @@ function CreateTaskBody({
 
 export function EditTaskBody({
   taskId,
+  organizationId,
   onOpenTask,
   onClose,
   showProjectLink = false,
@@ -976,6 +1032,9 @@ export function EditTaskBody({
   pageActions,
 }: {
   taskId: string;
+  /** Page surface: the page's organization, which frames the page while the
+   *  task is still on its way. */
+  organizationId?: string;
   onOpenTask?: (taskId: string) => void;
   onClose: () => void;
   showProjectLink?: boolean;
@@ -1108,9 +1167,77 @@ export function EditTaskBody({
   };
 
   if (!task) {
-    return surface === 'dialog' ? (
-      <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>
-    ) : null;
+    if (surface === 'dialog') {
+      // The dialog's own shape while the task is on its way — its key, its
+      // title, the brief and the details, masked where each will land —
+      // instead of an empty panel.
+      return (
+        <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
+          <ModalLayout
+            header={
+              <Stack gap={2}>
+                <Text
+                  as="span"
+                  variant="muted"
+                  className="w-12 font-mono text-xs tracking-wide"
+                >
+                  <SkeletonText />
+                </Text>
+                <ResponsiveDialogTitle className="sr-only">
+                  {t('title')}
+                </ResponsiveDialogTitle>
+                <div className="w-72 max-w-full text-lg leading-snug font-semibold">
+                  <SkeletonText seed={1} />
+                </div>
+              </Stack>
+            }
+            main={
+              <div className="text-sm leading-6">
+                <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+              </div>
+            }
+            panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
+          />
+        </Skeletonize>
+      );
+    }
+    if (organizationId === undefined) return null;
+    // The page's frame is there before the task is: the header, the brief,
+    // the composer and the details keep their places with their values
+    // masked. Same element in the same place as the loaded page below, so
+    // the frame stays mounted and nothing moves when the task arrives.
+    return (
+      <div className="contents">
+        <TaskPageLayout
+          loading
+          organizationId={organizationId}
+          leading={
+            <SkeletonBox asChild>
+              <span className="bg-muted flex size-8 rounded-lg" />
+            </SkeletonBox>
+          }
+          title={
+            <span className="block w-48 max-w-full">
+              <SkeletonText />
+            </span>
+          }
+          meta={
+            <span className="block w-36 max-w-full">
+              <SkeletonText seed={1} />
+            </span>
+          }
+          actions={pageActions}
+          brief={
+            <div className="text-sm leading-6">
+              <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+            </div>
+          }
+          conversation={null}
+          composer={<TaskCommentComposerSkeleton />}
+          panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
+        />
+      </div>
+    );
   }
 
   const isArchived = task.archivedAt != null;
@@ -1480,19 +1607,21 @@ export function EditTaskBody({
         )}
         {canMutate && (
           <Row gap={2}>
-            <Textarea
+            {/* A one-line field, like the button beside it: a subtask is a
+                title, and the one-row textarea it used to be stood a few
+                pixels taller than the button and showed a resize grip. */}
+            <Input
               id="new-subtask"
-              rows={1}
               value={subtaskTitle}
               onChange={(e) => setSubtaskTitle(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   if (!createTask.isPending) void addSubtask();
                 }
               }}
               placeholder={t('detail.addSubtask')}
-              className="min-h-0"
+              aria-label={t('detail.addSubtask')}
               wrapperClassName="min-w-0 flex-1"
             />
             <Button
@@ -1572,7 +1701,7 @@ export function EditTaskBody({
               next.task = task._id;
               return next;
             }}
-            className="text-foreground hover:text-foreground/80 focus-visible:ring-ring min-w-0 truncate rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-none"
+            className="text-foreground hover:text-foreground/80 focus-visible:ring-ring inline-block max-w-full truncate rounded-sm align-top text-sm leading-7 focus-visible:ring-2 focus-visible:outline-none"
           >
             {project.name}
           </Link>
@@ -1616,6 +1745,7 @@ export function EditTaskBody({
           priority={task.priority ?? null}
           disabled={!canMutate}
           align="end"
+          showLabel
           onChange={(priority) =>
             void updateTask
               .mutateAsync({ taskId: task._id, priority })
@@ -1636,7 +1766,15 @@ export function EditTaskBody({
           disabled={!canMutate}
           align="end"
           afterTrigger={
-            <span className="text-foreground min-w-0 truncate text-sm">
+            // An empty value reads muted, like the dates' "Pick a date".
+            <span
+              className={cn(
+                'min-w-0 truncate text-sm',
+                task.assigneeType && task.assigneeId
+                  ? 'text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
               {assigneeName}
             </span>
           }
@@ -1692,7 +1830,14 @@ export function EditTaskBody({
           disabled={!canMutate}
           align="end"
           afterTrigger={
-            <span className="text-foreground min-w-0 truncate text-sm">
+            <span
+              className={cn(
+                'min-w-0 truncate text-sm',
+                task.reviewerUserId !== undefined
+                  ? 'text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
               {reviewerName}
             </span>
           }
@@ -1705,6 +1850,7 @@ export function EditTaskBody({
       </PropertyField>
       <PropertyField label={t('startDate.label')}>
         <DatePicker
+          variant="ghost"
           className="w-full"
           value={task.startDate}
           disabled={!canMutate}
@@ -1717,6 +1863,7 @@ export function EditTaskBody({
       </PropertyField>
       <PropertyField label={t('dueDate.label')}>
         <DatePicker
+          variant="ghost"
           className="w-full"
           value={task.dueDate}
           disabled={!canMutate}
@@ -1755,7 +1902,7 @@ export function EditTaskBody({
 
       <PanelDivider />
       <PropertyField label={t('fields.author')}>
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-h-7 min-w-0 items-center gap-1.5">
           <AssigneeAvatar
             assigneeType={task.createdByType}
             assigneeId={task.createdBy}
@@ -1767,7 +1914,7 @@ export function EditTaskBody({
         </div>
       </PropertyField>
       <PropertyField label={t('fields.created')}>
-        <span className="text-foreground text-sm">
+        <span className="text-foreground block text-sm leading-7">
           {formatDate(new Date(task.createdAt), 'medium')}
         </span>
       </PropertyField>

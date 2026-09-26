@@ -396,6 +396,40 @@ describe('MessageThread transcript contract', () => {
     expect(within(failed).getByRole('alert')).toBeInTheDocument();
   });
 
+  it("shows a failed reply's error above its toolbar", async () => {
+    // After the body, the error drew under the toolbar: a failed turn with no
+    // text showed its info and menu buttons first and the failure below them.
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: '',
+            isStreaming: false,
+            // A settled history row: its toolbar shows at once.
+            isFinalReveal: false,
+            error: 'The model provider answered 500',
+            status: 'failed',
+          },
+        ]}
+      />,
+    );
+
+    const failed = screen.getAllByTestId('chat-message').at(-1);
+    if (!failed) throw new Error('expected a failed item');
+    const info = await within(failed).findByTestId('message-info-button');
+    const alert = within(failed).getByRole('alert');
+    expect(
+      alert.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('drops the gap shell when the reply was stopped before any text', () => {
     render(
       <MessageThread

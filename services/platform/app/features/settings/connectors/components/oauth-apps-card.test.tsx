@@ -1,6 +1,48 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { hasDeploymentApp } from './oauth-apps-card';
+import { render, screen } from '@/tests/utils/render';
+
+import type { ConnectorSummary } from '../hooks/backend';
+import { hasDeploymentApp, OauthAppsCard } from './oauth-apps-card';
+
+const reads = vi.hoisted(() => ({ loading: false }));
+
+vi.mock('../hooks/oauth-apps', () => ({
+  useConnectorOauthApps: () => ({
+    data: reads.loading ? undefined : [],
+    isLoading: reads.loading,
+    isError: false,
+    error: null,
+  }),
+  useCloudImportAppStatus: () => ({
+    data: reads.loading ? undefined : { configured: false, source: null },
+    isLoading: reads.loading,
+    isError: false,
+    error: null,
+  }),
+  useEntraSsoSource: () => ({
+    data: { available: false, reason: 'no_sso' },
+    isLoading: false,
+  }),
+  useUpsertConnectorOauthApp: () => ({ mutateAsync: vi.fn() }),
+  useRemoveConnectorOauthApp: () => ({ mutate: vi.fn() }),
+  useReuseSsoOauthApp: () => ({ mutate: vi.fn() }),
+}));
+
+const gmail: ConnectorSummary = {
+  slug: 'gmail',
+  displayName: 'Gmail',
+  description: 'Read and send mail.',
+  tags: ['Email'],
+  endpointMode: 'fixed',
+  authMethods: ['oauth2'],
+  configFields: [],
+  actionCount: 4,
+  iconUrl: '/api/connectors/gmail/icon.svg',
+};
+
+const NONE_DETAIL =
+  "Members can't connect it until an app is configured here or on the deployment.";
 
 /**
  * The card's status column answers one question per row: is there an app
@@ -41,5 +83,50 @@ describe('hasDeploymentApp', () => {
   it('reports none for Google Drive when neither lane is set', () => {
     expect(hasDeploymentApp('google-drive', null, null)).toBe(false);
     expect(hasDeploymentApp('google-drive', 'org', 'org')).toBe(false);
+  });
+});
+
+/**
+ * While the catalog or an app's status is on its way, the card cannot know
+ * whether an app stands behind a row — it masks the row in place instead of
+ * printing "Not configured" and correcting itself a moment later.
+ */
+describe('OauthAppsCard while loading', () => {
+  beforeEach(() => {
+    reads.loading = false;
+  });
+
+  it('masks a row per expected app while the catalog is on its way', () => {
+    render(
+      <OauthAppsCard organizationId="org-1" connectors={[]} catalogLoading />,
+    );
+
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    // No OneDrive row alone that the catalog's rows then push down.
+    expect(
+      screen.queryByText('OneDrive / SharePoint (Knowledge import)'),
+    ).toBeNull();
+    expect(screen.queryByText(NONE_DETAIL)).toBeNull();
+    const configures = screen.getAllByText('Configure');
+    expect(configures).toHaveLength(5);
+    for (const configure of configures) {
+      expect(configure.closest('[inert]')).not.toBeNull();
+    }
+  });
+
+  it('names the rows but masks their status until each source answers', () => {
+    reads.loading = true;
+    render(<OauthAppsCard organizationId="org-1" connectors={[gmail]} />);
+
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
+    expect(screen.queryByText(NONE_DETAIL)).toBeNull();
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('states each status once every source has answered', () => {
+    render(<OauthAppsCard organizationId="org-1" connectors={[gmail]} />);
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getAllByText(NONE_DETAIL)).toHaveLength(2);
   });
 });

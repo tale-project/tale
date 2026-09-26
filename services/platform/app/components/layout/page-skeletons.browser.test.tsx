@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest';
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { CatalogCardSkeleton } from '@tale/ui/catalog/catalog-card-skeleton';
 import { CatalogCard, CatalogCardIcon } from '@tale/ui/catalog/catalog-grid';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { ThreadHeader } from '@tale/ui/thread-header';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +13,8 @@ import { Composer } from '@/app/features/chat/components/composer';
 import { ConversationSkeleton } from '@/app/features/chat/components/conversation-skeleton';
 import { MessageThread } from '@/app/features/chat/components/message-thread';
 import { toSettledItems } from '@/app/features/chat/lib/thread-view-core';
+import { ContactInitials } from '@/app/features/conversations/components/contact-initials';
+import { ConversationHeaderSkeleton } from '@/app/features/conversations/components/conversation-header';
 import {
   ConversationDateHeader,
   MessageTimestamp,
@@ -538,6 +542,48 @@ describe('page skeleton geometry in Chromium', () => {
         size(requireElement(screen.getByTestId('fixture'), '.max-w-2xl')),
       ).toEqual(live);
       expect(screen.getByTestId('fixture').scrollHeight).toBe(500);
+    },
+  );
+
+  // The live inbox header is one ThreadHeader row (avatar, subject, context
+  // line, verbs); its loading stand-in must be that same row, or the thread
+  // below jumps when the conversation arrives.
+  it.each([390, 1100])(
+    'keeps the inbox header one row with the subject in place at %ipx',
+    (width) => {
+      const fixture = (loading: boolean) => (
+        <div data-testid="fixture" style={{ width }}>
+          {loading ? (
+            <Skeletonize loading>
+              <ConversationHeaderSkeleton
+                before={<Button aria-label="Back">←</Button>}
+              />
+            </Skeletonize>
+          ) : (
+            <ThreadHeader
+              className="sm:px-6"
+              before={<Button aria-label="Back">←</Button>}
+              leading={<ContactInitials label="Anna Meier" size="lg" />}
+              title={<h2 className="truncate">Invoice #2231</h2>}
+              meta={<span>Anna Meier</span>}
+              actions={<Button aria-label="More">…</Button>}
+            />
+          )}
+        </div>
+      );
+      const titleBox = () =>
+        requireElement(
+          screen.getByTestId('fixture'),
+          '.flex-1.flex-col',
+        ).getBoundingClientRect();
+      const { rerender } = render(fixture(false));
+      const liveHeight = screen.getByTestId('fixture').offsetHeight;
+      const liveTitle = titleBox();
+      rerender(fixture(true));
+      expect(screen.getByTestId('fixture').offsetHeight).toBe(liveHeight);
+      expect(titleBox().x).toBe(liveTitle.x);
+      const back = screen.getByRole('button', { name: 'Back' });
+      expect(back.closest('[inert]')).toBeNull();
     },
   );
 });

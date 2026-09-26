@@ -2,12 +2,12 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
+import { SendButton } from '@tale/ui/send-button';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import {
   LoaderCircleIcon,
   PaperclipIcon,
-  Send,
   WandSparklesIcon,
 } from 'lucide-react';
 import { memo, useRef, type ReactNode } from 'react';
@@ -108,32 +108,29 @@ export const EditorActionBar = memo(function EditorActionBar({
       )}
       {isImproveMode && <div />}
 
-      {!isImproveMode && replyDestination !== undefined && (
-        <Text variant="caption" className="truncate">
-          {replyDestination}
-        </Text>
-      )}
+      {/* Where the reply goes sits beside the control that sends it, the way
+          the task composer's key hint does — centred between the two groups it
+          floated free of both. */}
       {!isImproveMode && (
-        <Button
-          onClick={onSend}
-          size="icon"
-          title={tConversations('editor.send')}
-          disabled={
-            disabled ||
-            isLoading ||
-            (!hasContent && attachedFiles.length === 0) ||
-            isImproving ||
-            isSending
-          }
-          disabledReason={disabled ? sendDisabledReason : undefined}
-          className="rounded-full"
-        >
-          {isSending ? (
-            <LoaderCircleIcon className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
+        <HStack gap={3} className="min-w-0">
+          {replyDestination !== undefined && (
+            <Text variant="caption" className="truncate">
+              {replyDestination}
+            </Text>
           )}
-        </Button>
+          <SendButton
+            label={tConversations('editor.send')}
+            onClick={onSend}
+            disabled={
+              disabled ||
+              isLoading ||
+              (!hasContent && attachedFiles.length === 0) ||
+              isImproving
+            }
+            disabledReason={disabled ? sendDisabledReason : undefined}
+            sending={isSending}
+          />
+        </HStack>
       )}
       {isImproveMode && (
         <Tooltip

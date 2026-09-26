@@ -124,6 +124,7 @@ export function ConnectorsSettings({
         <OauthAppsCard
           organizationId={organizationId}
           connectors={connectorsQuery.data ?? []}
+          catalogLoading={connectorsQuery.isLoading}
         />
       )}
     </SettingsPage>

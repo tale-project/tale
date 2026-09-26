@@ -713,6 +713,7 @@ automations:
     title: Node
     workflowTitle: Workflow
     noSelection: Wähle eine Node auf dem Canvas, um zu sehen und zu ändern, was sie tut.
+    noSelectionReadOnly: Wähle eine Node auf dem Canvas, um zu sehen, was sie tut.
     unknownType: 'Unbekannter Node-Typ: {type}'
     catalogUnavailable:
       Der Katalog der Node-Typen konnte nicht geladen werden, deshalb
@@ -839,6 +840,10 @@ automations:
     autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
     startedBy: 'Gestartet von {actor}'
+    starter:
+      apiKey: '{name} über einen API-Schlüssel'
+      trigger: einem Auslöser
+      formerMember: einem ehemaligen Mitglied
     startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'
     inputTitle: Eingabe des Laufs
@@ -1591,7 +1596,7 @@ common:
   notFound:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
-    backToDashboard: Zurück zum Dashboard
+    backToDashboard: Zurück zu Start
   moveUp: Nach oben
   moveDown: Nach unten
   drag: Zum Sortieren ziehen
@@ -1856,7 +1861,10 @@ contacts:
     source:
       manual: Manuell
       upload: Upload
+      api: API
       conversation: Konversation
+      webhook: Webhook
+      custom: Benutzerdefiniert
   importForm:
     manualEntry: Manuelle Eingabe
     upload: Upload
@@ -2529,7 +2537,7 @@ onboarding:
     inviteItem: Lade Teammitglieder zur Zusammenarbeit ein.
     providerCta: Anbieter verbinden
     inviteCta: Teammitglieder einladen
-    goToDashboard: Zum Dashboard
+    goToDashboard: Zu Start
 emptyStates:
   providers:
     title: Verbinde deinen ersten AI-Anbieter
@@ -4507,6 +4515,7 @@ navigation:
   aria:
     primaryNavigation: Hauptnavigation
     unreadConversations: '{count, plural, one {# ungelesene Konversation} other {# ungelesene Konversationen}}'
+    unreadNotifications: '{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}'
   dataResidency: Datenresidenz
   sandboxes: Sandboxes
   enterpriseSso: Enterprise-SSO
@@ -5438,7 +5447,7 @@ settings:
       statusNone: Nicht eingerichtet
       orgClientId: 'Client-ID: {clientId}'
       statusEnvDetail: Verwendet die in der Deployment-Umgebung registrierte App.
-      statusNoneDetail: Noch nirgends eine App — Verbinden ist erst danach möglich.
+      statusNoneDetail: Mitglieder können sich erst verbinden, wenn hier oder im Deployment eine App eingerichtet ist.
       configure: Einrichten
       remove: Entfernen
       removeTitle: OAuth-App für {connector} entfernen?
@@ -5893,6 +5902,7 @@ settings:
       noDirectCredential:
         Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
         API-Schlüssel oder eine Umgebungsvariable hinzu.
+      noModel: Noch kein Modell
       degraded: Zuletzt fehlerhaft
       subscriptionVia: Abo · {provider}
       subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
@@ -6469,10 +6479,6 @@ settings:
     uploadLogo: Logo hochladen
     uploadFavicon: Favicon hochladen
     preview: Branding-Vorschau
-    previewStatus:
-      open: Offen
-      closed: Geschlossen
-      spam: Spam
     pickColorAria: '{label} auswählen'
     hexValueAria: Hex-Wert für {label}
     removeImageAria: '{label} entfernen'
@@ -7617,7 +7623,7 @@ projects:
     indexingStartFailed: Indexierung konnte nicht gestartet werden
     treeLabel: Projektdateien
     addToFolder: Datei zu „{folder}“ hinzufügen
-    addFolderButton: Ordner hinzufügen
+    addFolderButton: Ordner hochladen
     batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     folderGone: Dieser Ordner existiert nicht mehr.
@@ -7745,7 +7751,7 @@ projects:
     deleteBody: '"{name}" löschen? Aufgaben, die auf ihn verwiesen haben, behalten ihre Historie.'
   settings:
     name: Name
-    nameHint: Wird in der Projektliste und der Chat-Seitenleiste angezeigt.
+    nameHint: Wird in der Projektliste und in der Seitenleiste von Start angezeigt.
     description: Beschreibung
     descriptionHint:
       Eine kurze Zusammenfassung, damit dein Team weiß, was hierher

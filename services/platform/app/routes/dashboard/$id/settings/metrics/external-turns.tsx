@@ -53,7 +53,7 @@ function ExternalTurnsRoute() {
   );
 
   return (
-    <SettingsPage>
+    <SettingsPage fullWidth>
       <ExternalTurnMetricsPage
         organizationId={organizationId}
         periodDays={periodDays}

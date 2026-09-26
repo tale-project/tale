@@ -8,6 +8,7 @@ import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 
 import { ContactRowActions } from '../components/contact-row-actions';
+import { getContactSourceLabel } from '../lib/contact-data';
 
 type Contact = ContactDoc;
 
@@ -120,7 +121,13 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
           </Text>
         ),
       },
-      { ...builders.createSourceColumn(tTables), enableSorting: false },
+      {
+        ...builders.createSourceColumn(tTables, {
+          formatSource: (source) =>
+            getContactSourceLabel(source, tEntity, tTables('cells.unknown')),
+        }),
+        enableSorting: false,
+      },
       { ...builders.createLocaleColumn(), enableSorting: false },
       builders.createCreationTimeColumn(tTables, {
         header: sortableHeader<Contact>(

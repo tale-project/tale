@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type ReactNode,
   type Ref,
 } from 'react';
 
@@ -162,6 +163,22 @@ function MessageItemComponent({
     message.blockedReason !== undefined &&
     !stopped &&
     message.text.length === 0;
+  const errorNode =
+    message.error !== undefined ? (
+      <ChatErrorDisplay
+        error={message.error}
+        organizationId={organizationId}
+        onRetry={
+          isLast && isAssistant && onRegenerate !== undefined
+            ? () => onRegenerate(message)
+            : undefined
+        }
+      />
+    ) : null;
+  // An assistant reply shows its failure inside its body, above the toolbar:
+  // after the body, a failed turn with no text drew its toolbar FIRST and the
+  // error under it.
+  const errorInBody = isAssistant && !blockedSubstitutes;
 
   return (
     <li
@@ -199,6 +216,7 @@ function MessageItemComponent({
           speakAvailable={speakAvailable}
           voicePillForced={voicePillForced}
           isFreshSinceMount={isFreshSinceMount}
+          errorSlot={errorNode}
         />
       ) : (
         <MessageParts parts={message.parts} />
@@ -213,17 +231,7 @@ function MessageItemComponent({
       {message.blockedReason !== undefined &&
         !stopped &&
         !blockedSubstitutes && <BlockedNotice />}
-      {message.error !== undefined && (
-        <ChatErrorDisplay
-          error={message.error}
-          organizationId={organizationId}
-          onRetry={
-            isLast && isAssistant && onRegenerate !== undefined
-              ? () => onRegenerate(message)
-              : undefined
-          }
-        />
-      )}
+      {!errorInBody && errorNode}
     </li>
   );
 }
@@ -375,6 +383,7 @@ function AssistantBody({
   speakAvailable,
   voicePillForced,
   isFreshSinceMount,
+  errorSlot,
 }: {
   message: ChatMessageItem;
   isLast: boolean;
@@ -387,6 +396,8 @@ function AssistantBody({
   speakAvailable?: boolean;
   voicePillForced?: boolean;
   isFreshSinceMount?: boolean;
+  /** The turn's failure, drawn after the answer and before the toolbar. */
+  errorSlot?: ReactNode;
 }) {
   const { t } = useT('chat');
   const { text, isStreaming } = message;
@@ -582,6 +593,7 @@ function AssistantBody({
       {!isStreaming && (
         <SourceCards parts={message.parts} organizationId={organizationId} />
       )}
+      {errorSlot}
       {/* The toolbar arrives when the REVEAL settles — the live region below
           the transcript narrates the in-flight states — and, when this mount
           watched the reply stream in, enters with the same fade+lift the

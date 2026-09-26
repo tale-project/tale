@@ -144,7 +144,10 @@ rollups**, so figures may legitimately lag same-day activity.
   — feedback adds **Last 24 hours** and **All time**
   (`metrics.period.last24Hours` / `…allTime`), chat health caps at 30 days —
   and the choice does **not** leak across tabs (each tab keeps its own search
-  params)
+  params). On a fresh visit (no `?period=`) no tab's **Filter** button shows
+  the active dot — its resting window (the last 7 days on feedback and chat
+  health, 30 elsewhere) is not a filter — and **Clear all** returns a tab to
+  that window
 - [ ] `MET-F11` · **Feedback narrowing states** — On feedback with data: pick
   a period window that predates all feedback; then apply a filter matching
   nothing → The period-empty alert (`analytics.feedback.periodEmpty.title`)

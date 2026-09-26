@@ -1,5 +1,6 @@
 'use client';
 
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
 import { Text } from '@tale/ui/text';
@@ -113,14 +114,11 @@ export function AutomationRunDialog({
               spellCheck={false}
             />
           </Field>
-          <details className="text-sm">
-            <summary className="cursor-pointer">
-              {t('detail.runInput.schema')}
-            </summary>
+          <CollapsibleDetails summary={t('detail.runInput.schema')}>
             <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
               {JSON.stringify(request.schema, null, 2)}
             </pre>
-          </details>
+          </CollapsibleDetails>
         </div>
       )}
     </ConfirmDialog>

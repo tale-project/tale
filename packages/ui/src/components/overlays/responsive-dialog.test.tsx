@@ -100,6 +100,14 @@ describe('ResponsiveDialog', () => {
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
 
+    // Radix parks focus on the panel when its content is swapped out (a
+    // task dialog whose loading title gives way to the task); the panel is
+    // not a control, so the browser's default ring must not frame it.
+    it('draws no focus ring around the panel itself', () => {
+      render(<Example />);
+      expect(screen.getByRole('dialog')).toHaveClass('outline-none');
+    });
+
     it('returns focus to the opener when a state-opened dialog closes', async () => {
       await expectFocusReturnsToOpener();
     });
@@ -141,6 +149,11 @@ describe('ResponsiveDialog', () => {
     it('marks the drawer content as a modal dialog (aria-modal)', () => {
       render(<Example />);
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
+    it('draws no focus ring around the drawer itself', () => {
+      render(<Example />);
+      expect(screen.getByRole('dialog')).toHaveClass('outline-none');
     });
 
     it('returns focus to the opener when a state-opened drawer closes', async () => {

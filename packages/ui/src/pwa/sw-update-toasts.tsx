@@ -48,8 +48,11 @@ export function SwUpdateToasts() {
         });
       }}
       renderOfflineReadyToast={({ labels }) => {
+        // A confirmation, like "Team created": it carries the success check
+        // rather than reading as a bare note in the corner.
         toast({
           duration: 4_000,
+          variant: 'success',
           title: labels.offlineReady,
         });
       }}

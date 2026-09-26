@@ -13,6 +13,7 @@ import {
   FolderUp,
   MessageSquare,
   Plus,
+  SquarePen,
   Upload,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -111,8 +112,7 @@ export function ProjectFilesSkeleton({
     <ProjectFilesFrame
       action={
         canEdit ? (
-          <Button variant="secondary" size="sm" className="gap-2" disabled>
-            <FolderPlus className="size-4" aria-hidden />
+          <Button variant="secondary" size="sm" icon={FolderPlus} disabled>
             {tDocuments('folder.newFolder')}
           </Button>
         ) : undefined
@@ -129,8 +129,7 @@ export function ProjectFilesSkeleton({
               </Text>
             </div>
             <div className="mt-2 flex justify-center">
-              <Button variant="secondary" size="sm" disabled>
-                <FolderUp className="size-4" aria-hidden />
+              <Button variant="secondary" size="sm" icon={FolderUp} disabled>
                 {t('files.addFolderButton')}
               </Button>
             </div>
@@ -192,8 +191,7 @@ export function ProjectAgentsSkeleton({
     <ProjectAgentsFrame
       action={
         canEdit ? (
-          <Button size="sm" disabled>
-            <Plus aria-hidden className="size-4" />
+          <Button variant="secondary" size="sm" icon={Plus} disabled>
             {t('agents.newAgent')}
           </Button>
         ) : undefined
@@ -239,7 +237,11 @@ export function ProjectThreadsSkeleton() {
       <StickySectionHeader
         title={t('threads.yourChats')}
         description={t('threads.subtitle')}
-        action={<Button disabled>{t('overview.newChatCta')}</Button>}
+        action={
+          <Button variant="secondary" size="sm" icon={SquarePen} disabled>
+            {t('overview.newChatCta')}
+          </Button>
+        }
       />
       <FormSection>
         <Text variant="muted" className="text-sm">
