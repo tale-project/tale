@@ -11,9 +11,13 @@ A dense, calm, keyboard-friendly product surface in **light and dark**. Inter th
 only, generous whitespace on the `gap` scale, one bordered surface (`Card`), one control height (`h-9`).
 Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is small and purposeful:
 fades, slides, the AI shimmer — never decorative. A selection **glides** to its new place (the rail
-pill, the view switcher, a section panel's highlight — measured with `useSlidingIndicator` and moved
-by a CSS transform, since the app loads the lean animation bundle); new badges and unread dots pop in
-once; a list swapped for another fades in; every motion honours `prefers-reduced-motion`.
+pill, the view switcher, the open row of every panel list — measured with `useSlidingIndicator`,
+drawn by `SlidingHighlight` and moved by a CSS transform on one shared timing, since the app loads the
+lean animation bundle); with nothing open it fades out where it stood and lands on the next item with
+a fade, never sliding in from a corner. A row that joins an open list drops into place; new badges
+and unread dots pop in once; a list swapped for another fades in; another item opening in the same
+place fades its view in (`useSwapFade`, opacity only, so nothing the view measures moves); every
+motion honours `prefers-reduced-motion`.
 
 ## Shell & layout
 
@@ -37,9 +41,11 @@ what is there, and the page shows the one thing you opened.
   by time (Pinned, Today, Yesterday, Previous 7 days, Earlier). Every row has one anatomy: a 20px
   glyph that says what the item is (chat bubble, task status, contact initials), the title, a
   compact age, and a line of context (project, task key and status, contact and preview), with the
-  blue unread dot in the same place for every kind. The Inbox view adds the status switch, search,
-  facets and multi-select with bulk verbs. The panel stays mounted across every Home route; on a
-  phone it is the Home screen itself.
+  blue unread dot in the same place for every kind; an item whose composer holds unsent text says
+  **Draft** on its context line. The Inbox view adds the status switch, search, facets and
+  multi-select with bulk verbs. The panel stays mounted across every Home route; on a phone it is the
+  Home screen itself. From the keyboard, ⌘\ folds it, ⌥↑/⌥↓ open the previous or next item of the
+  list on screen from anywhere but a text field, and ↑/↓ move between a list's rows.
 - **Header** — per-page title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
   **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (project and
   automation detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder`).
@@ -50,7 +56,9 @@ what is there, and the page shows the one thing you opened.
   then the actions), a centred reading column, and the composer pinned at the foot in the same frame
   for all three (`CHAT_COMPOSER_FRAME_CLASS`). A task is a structured chat: its brief (description,
   files, subtasks) opens the thread as a card, comments and history follow oldest first under day
-  pills, and its structure (status, owner, dates…) lives in a details panel that folds away.
+  pills, and its structure (status, owner, dates…) lives in a details panel that folds away. The
+  actions a teammate needs lead: **Copy link** on a task and a conversation, and a task's key copies
+  itself from the header. On a phone the page keeps its own header row only — no shell bar above it.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
