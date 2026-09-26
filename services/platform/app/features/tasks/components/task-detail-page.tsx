@@ -20,7 +20,9 @@ import { useNavigate } from '@tanstack/react-router';
 import { KanbanSquare, Link2 } from 'lucide-react';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
+import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useT } from '@/lib/i18n/client';
+import { documentTitle } from '@/lib/utils/seo';
 
 import { useTask } from '../hooks/queries';
 import { EditTaskBody } from './task-modal';
@@ -37,6 +39,10 @@ export function TaskDetailPage({
   const { task, isLoading } = useTask(taskId);
   // The next task opening in place fades in, as another chat does.
   const swapRef = useSwapFade<HTMLDivElement>(taskId);
+  // The tab names the task, so several open tasks stay apart in the browser.
+  useDocumentTitle(
+    task !== null ? documentTitle('task', task.title) : undefined,
+  );
   const { copy } = useCopy();
   // The page's own address, without any state in its query — the link a
   // teammate opens lands on this task.

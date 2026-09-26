@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useBackendConnectionState } from '@/app/hooks/use-backend-connection-state';
+import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useT } from '@/lib/i18n/client';
 
 const DISCONNECT_GRACE_MS = 3_000;
@@ -108,15 +109,9 @@ function OfflineOverlay({ reason }: OfflineOverlayProps) {
   // Surface the reconnect state in the tab title so a glance at a window
   // chooser / tab strip shows which tab dropped — and so the org name (or the
   // platform default pre-auth) stays in the title even on routes whose own
-  // title strips the suffix. Restore the prior title on dismiss so we don't
-  // permanently overwrite it.
-  useEffect(() => {
-    const previous = document.title;
-    document.title = `${t('tabTitle')} — ${appName ?? 'Tale'}`;
-    return () => {
-      document.title = previous;
-    };
-  }, [t, appName]);
+  // title strips the suffix. It outranks the open chat's or task's name, and
+  // the page's title comes back on dismiss.
+  useDocumentTitle(`${t('tabTitle')} — ${appName ?? 'Tale'}`, { notice: true });
 
   const heading = reason === 'device' ? t('deviceTitle') : t('backendTitle');
   const description =

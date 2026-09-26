@@ -2,11 +2,11 @@
 
 import { Stack } from '@tale/ui/layout';
 import { rootRouteId, useMatch, useRouterState } from '@tanstack/react-router';
-import { useEffect } from 'react';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
 import { NotFoundState } from '@/app/components/layout/not-found-state';
 import { LogoLink } from '@/app/components/logo/logo-link';
+import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { seo } from '@/lib/utils/seo';
 
 // Route id (and id prefix) of the dashboard org subtree. Every dashboard page
@@ -26,25 +26,6 @@ function notFoundTitle(): string | undefined {
     (tag): tag is { title: string } => 'title' in tag,
   );
   return titleTag?.title;
-}
-
-/**
- * Sets the document title while mounted, restoring the prior title on unmount so
- * we don't permanently overwrite whatever TanStack's `HeadContent` rendered for
- * the matched route. Mirrors the existing tab-title pattern in `online-gate`. An
- * `undefined` title is a no-op.
- */
-function useDocumentTitle(title: string | undefined) {
-  useEffect(() => {
-    if (title === undefined || typeof document === 'undefined') {
-      return undefined;
-    }
-    const previous = document.title;
-    document.title = title;
-    return () => {
-      document.title = previous;
-    };
-  }, [title]);
 }
 
 /**

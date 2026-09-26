@@ -21,7 +21,7 @@ vi.mock('@/app/lib/title-suffix', () => ({
   getTitleSuffix: () => getTitleSuffix(),
 }));
 
-const { seo } = await import('./seo');
+const { documentTitle, seo } = await import('./seo');
 
 function titleOf(tags: Array<Record<string, string>>): string | undefined {
   return tags.find((tag) => 'title' in tag)?.title;
@@ -75,6 +75,17 @@ describe('seo', () => {
       const tags = seo('chat', undefined);
 
       expect(titleOf(tags)).toBe('Chat - QA Guides Org');
+    });
+  });
+
+  describe('documentTitle', () => {
+    it("is the browser tab's text: the open item's name, then the org", () => {
+      getTitleSuffix.mockReturnValue('QA Guides Org');
+
+      expect(documentTitle('chat', 'Getting started')).toBe(
+        'Getting started - QA Guides Org',
+      );
+      expect(documentTitle('chat')).toBe('Chat - QA Guides Org');
     });
   });
 });

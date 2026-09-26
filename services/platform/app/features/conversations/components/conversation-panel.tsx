@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
+import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n/client';
 
@@ -61,6 +62,7 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
+import { documentTitle } from '@/lib/utils/seo';
 
 interface AttachedFile {
   id: string;
@@ -120,6 +122,12 @@ export function ConversationPanel({
   // The next conversation opening in place fades in, as another chat does.
   const swapRef = useSwapFade<HTMLDivElement>(
     selectedConversationId ?? undefined,
+  );
+  // The tab names the conversation, as a chat's and a task's do.
+  useDocumentTitle(
+    conversation?.title
+      ? documentTitle('conversations', conversation.title)
+      : undefined,
   );
   // Where a reply leaves from. The server derives the route — down to the
   // mailbox — from the conversation's own stamps, so this states the outcome

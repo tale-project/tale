@@ -8,7 +8,7 @@ import { TaskDetailPage } from './task-detail-page';
 
 const read = vi.hoisted(() => ({
   current: { task: null, isLoading: true } as {
-    task: { projectId: string } | null;
+    task: { projectId: string; title?: string } | null;
     isLoading: boolean;
   },
 }));
@@ -74,6 +74,20 @@ describe('TaskDetailPage', () => {
     expect(clipboard.copy).toHaveBeenCalledWith(
       `${window.location.origin}/dashboard/org-1/tasks/t1`,
     );
+  });
+
+  it('names the browser tab after the task', () => {
+    read.current = {
+      task: { projectId: 'p1', title: 'Review the launch checklist' },
+      isLoading: false,
+    };
+    const { unmount } = render(
+      <TaskDetailPage organizationId="org-1" taskId="t1" />,
+    );
+    expect(document.title).toMatch(/^Review the launch checklist - /);
+
+    unmount();
+    expect(document.title).not.toMatch(/^Review the launch checklist/);
   });
 
   it('mounts the task body while the task loads and once it arrives', () => {

@@ -62,6 +62,7 @@ import {
 } from '@/app/features/shared/markdown/use-stream-buffer';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
+import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -70,6 +71,7 @@ import {
   formatAnswerSetForModel,
   type QuestionAnswer,
 } from '@/lib/shared/schemas/questions';
+import { documentTitle } from '@/lib/utils/seo';
 
 import { useArenaActions } from '../data/arena-actions';
 import { useBranchActions } from '../data/branch-actions';
@@ -1734,6 +1736,12 @@ function ChatSurfaceInner({
   const threadSwapRef = useSwapFade<HTMLDivElement>(threadId, {
     fromEmpty: false,
   });
+  // The tab names the chat, so several open chats stay apart in the browser.
+  useDocumentTitle(
+    headerThread?.title !== undefined
+      ? documentTitle('chat', headerThread.title)
+      : undefined,
+  );
   const activeProject =
     headerThread?.projectId !== undefined
       ? headerProjects.find((project) => project.id === headerThread.projectId)
