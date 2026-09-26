@@ -1725,6 +1725,8 @@ conversations:
     spamFailed: Échec du marquage des conversations comme spam
   header:
     moreActions: Plus d'actions
+    copyLink: Copier le lien
+    linkCopied: Lien copié
     contactInfo: Informations contact
     closeConversation: Fermer la conversation
     closing: Fermeture...

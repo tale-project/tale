@@ -1720,6 +1720,8 @@ conversations:
     spamFailed: Konversationen konnten nicht als Spam markiert werden
   header:
     moreActions: Weitere Aktionen
+    copyLink: Link kopieren
+    linkCopied: Link kopiert
     contactInfo: Kontaktinfo
     closeConversation: Konversation schließen
     closing: Wird geschlossen...

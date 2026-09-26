@@ -1656,6 +1656,8 @@ conversations:
     spamFailed: Couldn't mark conversations as spam
   header:
     moreActions: More actions
+    copyLink: Copy link
+    linkCopied: Link copied
     contactInfo: Contact info
     closeConversation: Close conversation
     closing: Closing...

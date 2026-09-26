@@ -4,10 +4,12 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
+import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
 import {
   Ellipsis,
+  Link2,
   Mail,
   MessageSquare,
   MessageSquareOff,
@@ -169,6 +171,16 @@ export function ConversationHeader({
   }, [markAsSpamMutation, conversation.id, t, onResolve]);
 
   const contactData = contactDoc ?? conversation.contact;
+
+  // The conversation's own address, as a teammate would open it: this page
+  // with the conversation selected, nothing else from the query.
+  const { copy } = useCopy();
+  const copyLink = () => {
+    const link = `${window.location.origin}${window.location.pathname}?conversation=${encodeURIComponent(conversation.id)}`;
+    void copy(link).then((copied) => {
+      if (copied) toast({ title: t('header.linkCopied') });
+    });
+  };
 
   const moreMenuItems = useMemo<DropdownMenuItem[]>(() => {
     const items: DropdownMenuItem[] = [
@@ -337,6 +349,17 @@ export function ConversationHeader({
       }
       actions={
         <>
+          <Tooltip content={t('header.copyLink')} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={copyLink}
+              aria-label={t('header.copyLink')}
+              className="text-muted-foreground hover:text-foreground size-8 shrink-0"
+            >
+              <Link2 className="size-4" />
+            </Button>
+          </Tooltip>
           <ConversationAssigneePicker
             conversation={conversation}
             organizationId={organizationId}

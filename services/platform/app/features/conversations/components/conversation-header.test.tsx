@@ -67,6 +67,14 @@ vi.mock('@tale/ui/use-format-date', () => ({
 
 vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+const clipboard = vi.hoisted(() => ({
+  copy: vi.fn((_value: string) => Promise.resolve(true)),
+}));
+vi.mock('@tale/ui/use-copy', () => ({
+  useCopy: () => ({ copied: false, copy: clipboard.copy, reset: vi.fn() }),
 }));
 
 function makeConversation(overrides = {}) {
@@ -164,6 +172,24 @@ describe('ConversationHeader', () => {
     );
 
     expect(screen.getByLabelText('More actions')).toBeInTheDocument();
+  });
+
+  it('copies the conversation link, as a teammate would open it', async () => {
+    window.history.pushState(
+      {},
+      '',
+      '/dashboard/org-1/conversations/open?conversation=conv-1&compose=new',
+    );
+    const { user } = render(
+      <ConversationHeader
+        conversation={makeConversation()}
+        organizationId="org-1"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(clipboard.copy).toHaveBeenCalledWith(
+      `${window.location.origin}/dashboard/org-1/conversations/open?conversation=conv-1`,
+    );
   });
 
   it('falls back to title when subject is missing', () => {
