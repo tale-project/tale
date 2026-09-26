@@ -271,18 +271,24 @@ test.describe('navigation: breadcrumbs', () => {
 
     // The breadcrumb parent ("Projects") is a real link; the leaf is the
     // project's name (the breadcrumb switcher). Both prove the trail rendered.
-    // Scope to the breadcrumb landmark: the side-nav rail also has a
-    // "Projects" link (icon-only with an `aria-label`), so a page-wide lookup
-    // hits a strict-mode collision.
-    const projectsCrumb = page
-      .getByRole('navigation', { name: t('common.aria.breadcrumb') })
-      .getByRole('link', { name: t('projects.title') });
+    // Scope both to the breadcrumb landmark: the Home panel beside the page
+    // lists the same project, so a page-wide lookup would find its row
+    // instead of the trail.
+    const breadcrumb = page.getByRole('navigation', {
+      name: t('common.aria.breadcrumb'),
+    });
+    const projectsCrumb = breadcrumb.getByRole('link', {
+      name: t('projects.title'),
+    });
     await expect(projectsCrumb).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     // The breadcrumb trail (like all adaptive-header content) renders twice —
     // desktop strip + mobile slot — so the leaf appears once visibly and once
     // hidden; target the visible (desktop) copy.
     await expect(
-      page.getByText(STARTER_PROJECT_NAME).filter({ visible: true }).first(),
+      breadcrumb
+        .getByText(STARTER_PROJECT_NAME)
+        .filter({ visible: true })
+        .first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // Clicking the parent crumb navigates up to the projects list.
