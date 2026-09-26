@@ -99,6 +99,49 @@ describe('Dialog', () => {
       });
     });
 
+    it('opens a form on its first field, never on Close', async () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Add contact">
+          <label>
+            Name
+            <input />
+          </label>
+          <label>
+            Email
+            <input type="email" />
+          </label>
+        </Dialog>,
+      );
+      await waitFor(() => {
+        expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
+      });
+      expect(screen.getByRole('button', { name: 'Close' })).not.toHaveFocus();
+    });
+
+    it('skips a file input and lands on the dialog when nothing else is typeable', async () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Upload contacts">
+          <input type="file" aria-label="File" />
+          <p>Drop a spreadsheet here.</p>
+        </Dialog>,
+      );
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toHaveFocus();
+      });
+    });
+
+    it('opens a dialog without fields on the dialog itself', async () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Delete project">
+          <p>This cannot be undone.</p>
+        </Dialog>,
+      );
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toHaveFocus();
+      });
+      expect(screen.getByRole('button', { name: 'Close' })).not.toHaveFocus();
+    });
+
     it('top-aligns end-placed actions with the title when a subtitle is present', () => {
       render(
         <Dialog
