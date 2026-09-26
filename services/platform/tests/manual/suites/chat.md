@@ -106,7 +106,11 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-F10` · **Stop generation** — Send, then click **Stop generating**
   (`chat.stopGenerating`) while it streams → The button shows **Stopping…**
   (`chat.stoppingGeneration`) then Send returns; the partial reply is retained
-  with a **Generation stopped** annotation (`chat.generationStopped`)
+  with a **Generation stopped** annotation (`chat.generationStopped`). Stop
+  about 1 s after the first text appears, wait 5 s, note the reply's length,
+  then reload → the reply on screen before the reload is the same text and
+  length as after it (the settled reply may be longer than the text shown at
+  the click, and it appears at once, without typing on).
 - [ ] `CHAT-F11` · **Copy reply** — Assistant toolbar → **Copy**
   (`common.actions.copy`) → The tooltip flips to **Copied**
   (`common.actions.copied`); the clipboard holds the reply as normalized plain

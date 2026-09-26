@@ -730,6 +730,47 @@ describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
 
     expect(result.current.displayLength).toBeGreaterThan(0);
   });
+
+  it('shows the settled text at once when a stopped stream settles', () => {
+    // Stop freezes the reveal where the user clicked; the server settles
+    // with everything it had received by then. Once the row settles, the
+    // screen must equal the saved text — no drain, no stale freeze.
+    const streamed =
+      'Stopped reply text that is long enough for the animation loop to ' +
+      'reveal only a prefix before the user clicks Stop generating.';
+    const settled =
+      streamed +
+      ' And this is the tail the server had already received when the ' +
+      'stop landed, which the typewriter never showed.';
+
+    const { result, rerender } = renderHook(
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      { initialProps: { text: streamed, isStreaming: true } },
+    );
+
+    act(() => advanceFrames(30));
+    const frozenLength = result.current.displayLength;
+    expect(frozenLength).toBeGreaterThan(0);
+    expect(frozenLength).toBeLessThan(streamed.length);
+
+    act(() => freezeActiveStream());
+    act(() => advanceFrames(30));
+    expect(result.current.displayLength).toBe(frozenLength);
+    expect(isStreamFrozen()).toBe(true);
+
+    // The generation settles: the row carries the saved text.
+    rerender({ text: settled, isStreaming: false });
+
+    expect(result.current.displayLength).toBe(settled.length);
+    expect(result.current.progress).toBe(1);
+    expect(result.current.isTyping).toBe(false);
+    expect(result.current.isDraining).toBe(false);
+    expect(isStreamFrozen()).toBe(false);
+
+    // Nothing keeps typing afterwards.
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(settled.length);
+  });
 });
 
 // ============================================================================
@@ -1278,12 +1319,13 @@ describe('useStreamBuffer — isStreamFrozen', () => {
     act(() => freezeActiveStream());
     const frozenLen = result.current.displayLength;
 
-    // End stream — display stays frozen because globalFrozen is true
-    rerender({
-      text: 'first streaming message with enough text for buffer',
-      isStreaming: false,
-    });
-    expect(result.current.displayLength).toBe(frozenLen);
+    // End stream — the settled row shows its saved text at once and the
+    // freeze that held the reveal is released with it.
+    const settledText = 'first streaming message with enough text for buffer';
+    expect(frozenLen).toBeLessThan(settledText.length);
+    rerender({ text: settledText, isStreaming: false });
+    expect(result.current.displayLength).toBe(settledText.length);
+    expect(isStreamFrozen()).toBe(false);
 
     // Reset freeze externally (simulates onBeforeSend → resetCancelled)
     act(() => resetGlobalFreeze());
