@@ -1,0 +1,44 @@
+# Captured from the installed OpenCode CLI against an isolated synthetic
+# gateway (2026-09-26). Session/part ids and timestamps are normalized.
+# The CLI publishes the bash call only once, after it has completed.
+events:
+  - type: step_start
+    sessionID: session-audit
+  - type: tool_use
+    sessionID: session-audit
+    part:
+      type: tool
+      tool: bash
+      callID: call-audit
+      id: part-audit
+      state:
+        status: completed
+        input:
+          command: printf TOOL_OK
+          description: Verify isolated shell tool
+        output: TOOL_OK
+        metadata:
+          output: TOOL_OK
+          exit: 0
+          description: Verify isolated shell tool
+          truncated: false
+        title: Verify isolated shell tool
+  - type: step_finish
+    sessionID: session-audit
+    part:
+      reason: tool-calls
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { write: 0, read: 0 } }
+      cost: 0
+  - type: step_start
+    sessionID: session-audit
+  - type: text
+    sessionID: session-audit
+    part:
+      type: text
+      text: HARNESS_OK
+  - type: step_finish
+    sessionID: session-audit
+    part:
+      reason: stop
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { write: 0, read: 0 } }
+      cost: 0

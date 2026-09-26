@@ -1,0 +1,28 @@
+# Captured from Qwen Code 0.23.3 against an isolated synthetic HTTP 401
+# gateway (2026-09-26). Identifiers normalized; redundant deltas omitted.
+events:
+  - type: system
+    subtype: init
+    session_id: session-audit
+    model: audit-model
+  - type: assistant
+    session_id: session-audit
+    message:
+      id: message-audit
+      type: message
+      role: assistant
+      model: audit-model
+      content:
+        - type: text
+          text: '[API Error: 401 Synthetic credential rejected]'
+      stop_reason: null
+      usage: { input_tokens: 0, output_tokens: 0 }
+  - type: result
+    subtype: success
+    session_id: session-audit
+    is_error: false
+    duration_ms: 691
+    num_turns: 1
+    result: '[API Error: 401 Synthetic credential rejected]'
+    usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 }
+    permission_denials: []

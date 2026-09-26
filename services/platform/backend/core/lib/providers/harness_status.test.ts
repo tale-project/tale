@@ -106,6 +106,25 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     ]);
   });
 
+  it.each(HARNESSES.filter((harness) => harness.credentialPolicy.managed))(
+    'requires a subscription delivery channel for $slug',
+    (harness) => {
+      const rows = deriveHarnessStatus({
+        harnesses: HARNESSES,
+        directModels: [],
+        subscriptions: [subscription('subscription-provider', harness.slug)],
+      });
+
+      expect(entryOf(rows, harness.slug).subscriptions).toEqual([
+        {
+          providerSlug: 'subscription-provider',
+          usable:
+            harness.credentialPolicy.byo && harness.subscription !== undefined,
+        },
+      ]);
+    },
+  );
+
   it('collapses several credentials of one vendor into one row, usable when any is', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,

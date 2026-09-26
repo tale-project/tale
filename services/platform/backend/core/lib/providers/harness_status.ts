@@ -50,7 +50,7 @@ export interface HarnessStatusEntry {
   label: string;
   managed: HarnessManagedStatus;
   /** Vendor subscriptions bound to this harness; `usable: false` marks an
-   * inert binding (the harness cannot accept bring-your-own credentials). */
+   * inert binding (no bring-your-own support or subscription delivery). */
   subscriptions: { providerSlug: string; usable: boolean }[];
 }
 
@@ -114,6 +114,7 @@ export function deriveHarnessStatus(inputs: {
       for (const entry of inputs.subscriptions) {
         if (entry.credential.constraints.harness !== harness.slug) continue;
         const usable =
+          harness.subscription !== undefined &&
           resolveExecution(
             { model: probe, credential: entry.credential, mode: 'sandbox' },
             table,

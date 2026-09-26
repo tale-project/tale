@@ -27,8 +27,14 @@ describe('opencode-jsonl parser', () => {
         toolUseId: 'call_1',
         output: 'Switched to a new branch',
       },
-      // call_2 surfaces straight in the error state — the result still
-      // pairs by id even though no running phase was seen.
+      // The CLI may publish only the settled phase. Keep its input and
+      // name so the transcript can render the result against its call.
+      {
+        type: 'tool-use',
+        toolUseId: 'call_2',
+        toolName: 'edit',
+        input: { path: 'missing.ts' },
+      },
       {
         type: 'tool-result',
         toolUseId: 'call_2',
@@ -95,6 +101,62 @@ describe('opencode-jsonl parser', () => {
         usageTotals: { inputTokens: 0, outputTokens: 0, costEstimateUsd: 0 },
       },
     ]);
+  });
+
+  it('preserves a real CLI tool call that arrives only after completion', () => {
+    const events = collectEvents(
+      createParser('opencode'),
+      readFixture('opencode', 'completed-tool-turn'),
+      7,
+    );
+
+    expect(
+      events.filter(
+        (event) => event.type === 'tool-use' || event.type === 'tool-result',
+      ),
+    ).toEqual([
+      {
+        type: 'tool-use',
+        toolUseId: 'part-audit',
+        toolName: 'bash',
+        input: {
+          command: 'printf TOOL_OK',
+          description: 'Verify isolated shell tool',
+        },
+      },
+      { type: 'tool-result', toolUseId: 'part-audit', output: 'TOOL_OK' },
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      status: 'completed',
+      finalText: 'HARNESS_OK',
+    });
+  });
+
+  it('keeps the CLI error text on a failed tool call', () => {
+    // A real `read` of a missing file publishes state.error, not state.output.
+    const events = collectEvents(
+      createParser('opencode'),
+      JSON.stringify({
+        type: 'tool_use',
+        part: {
+          id: 'part-read',
+          tool: 'read',
+          state: {
+            status: 'error',
+            input: { filePath: '/agent/workspace/missing-audit-file' },
+            error: 'File not found: /agent/workspace/missing-audit-file',
+          },
+        },
+      }),
+    );
+
+    expect(events.at(-1)).toEqual({
+      type: 'tool-result',
+      toolUseId: 'part-read',
+      isError: true,
+      output: 'File not found: /agent/workspace/missing-audit-file',
+    });
   });
 
   it.each(['issue-to-pr', 'simple-turn'])(
