@@ -119,6 +119,7 @@ import {
   parseBranchSelections,
   resolveViewPath,
 } from '../lib/branch-selection';
+import { chatDraftKey } from '../lib/draft-key';
 import type {
   ChatMessageView,
   ComposerModelOption,
@@ -164,20 +165,6 @@ const NO_MODELS: readonly ComposerModelOption[] = [];
  * oldest are revoked — a compressed image is ≤1 MB, so this bounds the held
  * blobs to a few dozen MB in the worst case. */
 const SENT_PREVIEW_CAP = 30;
-
-/** One draft slot per conversation (and one for the new-chat index), scoped
- * to user + org so shared machines never leak text across accounts. */
-function chatDraftKey(
-  userId: string | undefined,
-  organizationId: string,
-  threadId?: string,
-) {
-  const prefix =
-    userId !== undefined
-      ? `chat-draft-${userId}-${organizationId}`
-      : `chat-draft-${organizationId}`;
-  return threadId !== undefined ? `${prefix}-${threadId}` : `${prefix}-new`;
-}
 
 /** The fork an edit / regenerate send goes into: the parent's fork point and
  * the fresh sibling — enough to undo the fork when the turn never lands. */

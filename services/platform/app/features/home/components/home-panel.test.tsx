@@ -44,6 +44,10 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => location.current,
 }));
 
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'u1' } }),
+}));
+
 // The three reads Home is made of, steered per test.
 const homeData = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock('../hooks/use-home-data', async (importOriginal) => {
@@ -271,6 +275,22 @@ describe('HomeNavigator', () => {
     expect(second).toHaveFocus();
     fireEvent.keyDown(second as HTMLElement, { key: 'ArrowUp' });
     expect(first).toHaveFocus();
+  });
+
+  it('marks an item whose composer holds something unsent', () => {
+    window.localStorage.setItem(
+      'task-comment-draft-u1-org-1-k1',
+      JSON.stringify('Half a thought'),
+    );
+    render(<HomeNavigator organizationId="org-1" />);
+    const task = within(stream()).getByRole('link', {
+      name: /Review the launch checklist/,
+    });
+    expect(task).toHaveTextContent('Draft');
+    // The open chat's composer is in view — its row says nothing.
+    expect(
+      within(stream()).getByRole('link', { current: 'page' }),
+    ).not.toHaveTextContent('Draft');
   });
 
   it('passes an axe audit', async () => {

@@ -76,6 +76,10 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useLocation: () => backend.location,
 }));
 
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'u1' } }),
+}));
+
 vi.mock('../hooks/use-home-data', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/use-home-data')>()),
   useHomeData: () => backend.home,

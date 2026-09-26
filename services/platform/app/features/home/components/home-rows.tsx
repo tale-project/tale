@@ -16,6 +16,7 @@ import { Link } from '@tanstack/react-router';
 import {
   LoaderCircle,
   MessageCircle,
+  PencilLine,
   Pin,
   Share2,
   SquarePen,
@@ -77,6 +78,7 @@ function RowText({
   age,
   meta,
   actions = false,
+  draft = false,
 }: {
   title: ReactNode;
   unread: boolean;
@@ -84,6 +86,8 @@ function RowText({
   meta: ReactNode;
   /** The row reveals its actions over the age's edge (desktop). */
   actions?: boolean;
+  /** Something unsent waits in this item's composer. */
+  draft?: boolean;
 }) {
   const { t } = useT('home');
   return (
@@ -114,6 +118,12 @@ function RowText({
         )}
       </span>
       <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-4">
+        {draft && (
+          <span className="flex shrink-0 items-center gap-1 font-medium text-amber-600 dark:text-amber-500">
+            <PencilLine aria-hidden className="size-3" />
+            {t('row.draft')}
+          </span>
+        )}
         {meta}
         {unread && (
           <>
@@ -171,6 +181,7 @@ export function HomeChatRow({
   project,
   active,
   entering = false,
+  draft = false,
 }: {
   item: HomeChatItem;
   thread: ChatThreadSummary;
@@ -178,6 +189,8 @@ export function HomeChatRow({
   active: boolean;
   /** The row just joined the list — it slides in. */
   entering?: boolean;
+  /** A message waits unsent in this chat's composer. */
+  draft?: boolean;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -236,6 +249,7 @@ export function HomeChatRow({
             unread={item.unread && !active}
             age={item.generating ? null : age}
             actions
+            draft={draft}
             meta={
               <>
                 {item.pinnedAt !== undefined && (
@@ -322,12 +336,15 @@ export function HomeTaskRow({
   organizationId,
   active,
   entering = false,
+  draft = false,
 }: {
   item: HomeTaskItem;
   organizationId: string;
   active: boolean;
   /** The row just joined the list — it slides in. */
   entering?: boolean;
+  /** A comment waits unsent in this task's composer. */
+  draft?: boolean;
 }) {
   const { t } = useT('home');
   const { t: tTasks } = useT('tasks');
@@ -353,6 +370,7 @@ export function HomeTaskRow({
           title={item.title}
           unread={item.awaitingMyReview && !active}
           age={age}
+          draft={draft}
           meta={
             <>
               {item.identifier !== undefined && (
@@ -390,6 +408,7 @@ export function HomeConversationRow({
   active,
   selection,
   entering = false,
+  draft = false,
 }: {
   item: HomeConversationItem;
   organizationId: string;
@@ -398,6 +417,8 @@ export function HomeConversationRow({
   selection?: HomeRowSelection;
   /** The row just joined the list — it slides in. */
   entering?: boolean;
+  /** A reply waits unsent in this conversation's composer. */
+  draft?: boolean;
 }) {
   const { t: tConversations } = useT('conversations');
   const tone = useHomeRowTone(active);
@@ -440,6 +461,7 @@ export function HomeConversationRow({
           title={item.title}
           unread={item.unread && !active}
           age={age}
+          draft={draft}
           meta={
             <span className="min-w-0 truncate">
               <span className="text-foreground/80 font-medium">{contact}</span>

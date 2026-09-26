@@ -53,11 +53,13 @@ import {
 } from '@/app/features/chat/components/thread-list-context';
 import { useThreadHolds } from '@/app/features/chat/data/chat-backend';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { useHomeData } from '../hooks/use-home-data';
+import { hasDraft, homeDraftKey } from '../lib/home-drafts';
 import {
   DRAFT_ROW_KEY,
   HOME_VIEWS,
@@ -226,6 +228,8 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         : 'open';
 
   const data = useHomeData(organizationId);
+  const { data: me } = useCurrentUser();
+  const myUserId = me?.userId;
   const view: HomeView =
     isHomeView(storedView) && (storedView !== 'inbox' || data.hasInbox)
       ? storedView
@@ -360,8 +364,13 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
       : []),
   ];
 
+  // Unsent text marks its row — not the open one, whose composer is in view.
+  const draftFor = (item: HomeItem, active: boolean) =>
+    !active && hasDraft(homeDraftKey(item, myUserId, organizationId));
+
   const renderRow = (item: HomeItem) => {
     const active = isActive(item, location);
+    const draft = draftFor(item, active);
     if (item.kind === 'chat') {
       const thread = data.threadsById.get(item.id);
       if (thread === undefined) return null;
@@ -369,6 +378,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         <HomeChatRow
           key={homeItemKey(item)}
           entering={entering.has(homeItemKey(item))}
+          draft={draft}
           item={item}
           thread={thread}
           project={
@@ -385,6 +395,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         <HomeTaskRow
           key={homeItemKey(item)}
           entering={entering.has(homeItemKey(item))}
+          draft={draft}
           item={item}
           organizationId={organizationId}
           active={active}
@@ -395,6 +406,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
       <HomeConversationRow
         key={homeItemKey(item)}
         entering={entering.has(homeItemKey(item))}
+        draft={draft}
         item={item}
         organizationId={organizationId}
         active={active}

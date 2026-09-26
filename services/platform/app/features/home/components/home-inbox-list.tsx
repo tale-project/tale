@@ -50,11 +50,13 @@ import {
   mailboxOptionValue,
 } from '@/app/features/conversations/lib/channel-source';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { toHomeConversationItem } from '../hooks/use-home-data';
+import { hasDraft, homeDraftKey } from '../lib/home-drafts';
 import {
   INBOX_STATUSES,
   groupHomeItems,
@@ -121,6 +123,7 @@ export function HomeInboxList({
   const { t: tCommon } = useT('common');
   const { t: tDialogs } = useT('dialogs');
   const navigate = useNavigate();
+  const { data: me } = useCurrentUser();
 
   const [search, setSearch] = useState('');
   const [storedRead, setRead] = usePersistedState<ReadFilter>(
@@ -453,6 +456,12 @@ export function HomeInboxList({
                       <HomeConversationRow
                         key={item.id}
                         entering={entering.has(item.id)}
+                        draft={
+                          item.id !== activeConversationId &&
+                          hasDraft(
+                            homeDraftKey(item, me?.userId, organizationId),
+                          )
+                        }
                         item={item}
                         organizationId={organizationId}
                         active={item.id === activeConversationId}

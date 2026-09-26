@@ -13,6 +13,8 @@ import { ArrowUp } from 'lucide-react';
 import { useState } from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 
@@ -23,6 +25,7 @@ import {
 } from '../hooks/mutations';
 import { useTaskDiscussion } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { taskCommentDraftKey } from '../lib/draft-key';
 import {
   pickCommentBody,
   type CommentBodyByLocale,
@@ -232,7 +235,12 @@ export function TaskCommentComposer({
   const { t: tCommon } = useT('common');
   const addComment = useAddTaskComment();
   const isMac = useIsMac();
-  const [draft, setDraft] = useState('');
+  const { data: me } = useCurrentUser();
+  // Kept per task, like a chat's draft: leaving the task never loses it.
+  const [draft, setDraft, clearDraft] = usePersistedState(
+    taskCommentDraftKey(me?.userId, organizationId, taskId),
+    '',
+  );
   const isAdding = addComment.isPending;
   const empty = draft.trim().length === 0;
 
@@ -242,7 +250,7 @@ export function TaskCommentComposer({
     try {
       const result = await addComment.mutateAsync({ taskId, body });
       toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
-      setDraft('');
+      clearDraft();
     } catch (error) {
       console.error('[tasks] comment action failed', error);
       toast({ title: tCommon('errors.generic'), variant: 'destructive' });
