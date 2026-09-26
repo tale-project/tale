@@ -8,6 +8,7 @@ import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { Link, Navigate, createFileRoute } from '@tanstack/react-router';
 import { SquarePen } from 'lucide-react';
 
+import { SidebarSearchTrigger } from '@/app/components/layout/app-sidebar/sidebar-search-trigger';
 import { HomeNavigator } from '@/app/features/home/components/home-panel';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -46,12 +47,14 @@ function HomeScreen() {
       header={
         <AdaptiveHeaderRoot standalone={false} className="gap-2">
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          {/* The rail's search, for the phone — where the rail is hidden. */}
+          <SidebarSearchTrigger className="text-muted-foreground hover:bg-muted/60 hover:text-foreground ml-auto flex size-9 items-center justify-center rounded-md p-0" />
           <Button
             asChild
             size="icon"
             variant="ghost"
             aria-label={t('newChat')}
-            className="text-muted-foreground ml-auto size-9"
+            className="text-muted-foreground size-9"
           >
             <Link
               to="/dashboard/$id/chat"

@@ -15,8 +15,8 @@ export interface SidebarSearchTriggerProps {
 }
 
 /**
- * Opens the shared search palette on Everything (⌘K / Ctrl+K). Sidebar rail
- * and mobile menu only — the chat thread list opens the same palette on Chats.
+ * Opens the shared search palette on Everything (⌘K / Ctrl+K) — from the
+ * rail on a computer, and from the Home screen's header on a phone.
  */
 export function SidebarSearchTrigger({ className }: SidebarSearchTriggerProps) {
   const sidebar = useOptionalSidebar();
