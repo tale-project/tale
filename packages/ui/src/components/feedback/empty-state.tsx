@@ -8,7 +8,8 @@ import { cn } from '../../lib/cn';
 
 interface EmptyStateProps {
   icon?: ComponentType<{ className?: string }>;
-  title: string;
+  /** The heading's text — or, inside a loading `Skeletonize`, its mask. */
+  title: ReactNode;
   /** Plain text or rich content (links, doc CTAs). Rendered in a `<div>`. */
   description?: ReactNode;
   action?: ReactNode;
