@@ -147,12 +147,16 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       : []),
   ];
 
+  // The four sizes add up to the settings column's width, so every column
+  // shows at once: summed past it, the table ran wider than the page and cut
+  // the Labels column off at the frame while the name truncated to a stub.
   const columns = useMemo<ColumnDef<SkillRow>[]>(
     () => [
       {
         id: 'slug',
         accessorKey: 'slug',
         header: t('columns.name'),
+        size: 200,
         meta: { skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
           <TableIconCell
@@ -181,7 +185,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'description',
         accessorKey: 'description',
         header: t('columns.description'),
-        size: 380,
+        size: 290,
         cell: ({ row }) => (
           <span className="text-muted-foreground line-clamp-2 text-sm">
             {row.original.description}
@@ -191,7 +195,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       {
         id: 'visibility',
         header: t('columns.visibility'),
-        size: 160,
+        size: 140,
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const skill = row.original;
@@ -217,7 +221,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       {
         id: 'labels',
         header: t('columns.labels'),
-        size: 200,
+        size: 136,
         cell: ({ row }) => (
           <CatalogLabels labels={row.original.labels} tone="quiet" />
         ),
