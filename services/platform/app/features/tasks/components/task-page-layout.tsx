@@ -15,6 +15,7 @@ import { Sheet } from '@tale/ui/sheet';
 import { ThreadHeader } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -22,6 +23,10 @@ import { HomeBackButton } from '@/app/features/home/components/home-back-button'
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
+
+/** Tailwind's `xl`: where the details panel docks instead of opening as a
+ *  sheet. Kept in step with the aside's `xl:block`. */
+const DOCKED_DETAILS_QUERY = '(min-width: 1280px)';
 
 export function TaskPageLayout({
   organizationId,
@@ -52,11 +57,16 @@ export function TaskPageLayout({
     'task-page-details-open',
     true,
   );
-  // On a phone the details open as a sheet over the conversation; the
-  // docked panel would leave the thread no room.
+  // The panel docks beside the thread only where both fit: from xl the
+  // conversation keeps ~600px next to the rail, the Home panel and these
+  // 20rem. Narrower — a tablet, a half-screen window, a phone — the details
+  // open as a sheet over the conversation instead (from the side, or from the
+  // bottom on a phone); docked there, they left the thread a 200px column.
   const isMobile = useIsMobile();
-  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
-  const toggleLabel = detailsOpen
+  const canDock = useMediaQuery(DOCKED_DETAILS_QUERY);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const docked = canDock && detailsOpen;
+  const toggleLabel = docked
     ? t('detail.hideDetails')
     : t('detail.showDetails');
 
@@ -80,16 +90,14 @@ export function TaskPageLayout({
                 size="icon"
                 variant="ghost"
                 onClick={() =>
-                  isMobile
-                    ? setMobileDetailsOpen(true)
-                    : setDetailsOpen(!detailsOpen)
+                  canDock ? setDetailsOpen(!detailsOpen) : setSheetOpen(true)
                 }
-                aria-label={isMobile ? t('detail.showDetails') : toggleLabel}
-                aria-expanded={isMobile ? mobileDetailsOpen : detailsOpen}
-                aria-controls="task-details"
+                aria-label={toggleLabel}
+                aria-expanded={canDock ? detailsOpen : sheetOpen}
+                aria-controls={canDock ? 'task-details' : undefined}
                 className="text-muted-foreground hover:text-foreground size-8"
               >
-                {detailsOpen ? (
+                {docked ? (
                   <PanelRightClose className="size-4" />
                 ) : (
                   <PanelRightOpen className="size-4" />
@@ -127,9 +135,9 @@ export function TaskPageLayout({
         <aside
           id="task-details"
           aria-label={t('detail.details')}
-          inert={!detailsOpen || undefined}
+          inert={!docked || undefined}
           className={cn(
-            'border-border hidden shrink-0 overflow-hidden border-l [transition:width_260ms_var(--ease-out-quint)] motion-reduce:transition-none md:block',
+            'border-border hidden shrink-0 overflow-hidden border-l [transition:width_260ms_var(--ease-out-quint)] motion-reduce:transition-none xl:block',
             detailsOpen ? 'w-80' : 'w-0 border-l-0',
           )}
         >
@@ -139,11 +147,15 @@ export function TaskPageLayout({
         </aside>
       </div>
       <Sheet
-        open={isMobile && mobileDetailsOpen}
-        onOpenChange={setMobileDetailsOpen}
-        side="bottom"
+        open={!canDock && sheetOpen}
+        onOpenChange={setSheetOpen}
+        side={isMobile ? 'bottom' : 'right'}
         title={t('detail.details')}
-        className="h-auto! max-h-[80vh] overflow-y-auto rounded-t-2xl p-5"
+        className={
+          isMobile
+            ? 'h-auto! max-h-[80vh] overflow-y-auto rounded-t-2xl p-5'
+            : 'w-80 overflow-y-auto p-5'
+        }
       >
         <div className="flex flex-col gap-4 pt-2">{panel}</div>
       </Sheet>

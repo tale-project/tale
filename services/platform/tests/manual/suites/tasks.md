@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 41 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 42 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -217,6 +217,13 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (`home.row.awaitingReview`) with the blue dot, and the **Tasks** option
   carries the attention dot until you decide it. Clicking a row opens
   `/dashboard/{org}/tasks/{taskId}`.
+- [ ] `TASK-F29` · **Task details in a narrower window** — At 900 px (a
+  tablet, or a desktop window at half width) open a task → The conversation
+  takes the full width beside the Home panel with no docked **Details**
+  (`tasks.detail.details`); **Show details** (`tasks.detail.showDetails`)
+  opens them as a sheet from the right over the conversation, Escape closes it
+  and focus returns to the button; widen the window past 1280 px → the panel
+  docks beside the thread again, as `TASK-F23` left it.
 - [ ] `TASK-F20` · **The page's frame** — Open a task from Home → Beside the
   Home panel, one header: the **Hide sidebar** toggle (`home.panel.hide`),
   the task's status glyph, its title (click it, type, Enter — the new title
