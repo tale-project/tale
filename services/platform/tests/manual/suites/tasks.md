@@ -348,7 +348,7 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   `/dashboard/{org}/tasks/{taskId}` for a task that was deleted, for an id
   that never existed, and for a task in a project you cannot read → Once the
   read answers, the page shows **Page not found** (`common.notFound.title`)
-  with **Back to dashboard** (`common.notFound.backToDashboard`), which leads
+  with **Back to Home** (`common.notFound.backToDashboard`), which leads
   to `/dashboard/{org}`, beside the Home panel — never a blank column without
   a header or a way back. While the read is still on its way the page shows
   no dead end.

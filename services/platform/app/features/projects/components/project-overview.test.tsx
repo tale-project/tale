@@ -116,7 +116,7 @@ describe('ProjectOverview', () => {
     renderOverview();
 
     expect(
-      screen.getByText('Shown in the projects list and the chat sidebar.'),
+      screen.getByText('Shown in the projects list and the Home panel.'),
     ).toBeInTheDocument();
     expect(
       screen.getByText(

@@ -7,7 +7,7 @@ import { SearchX } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface NotFoundStateProps {
-  /** Where the "Back to dashboard" recovery link leads. */
+  /** Where the "Back to Home" recovery link leads. */
   href: string;
 }
 

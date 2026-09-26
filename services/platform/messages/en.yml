@@ -1541,7 +1541,7 @@ common:
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
-    backToDashboard: Back to dashboard
+    backToDashboard: Back to Home
   moveUp: Move up
   moveDown: Move down
   drag: Drag to reorder
@@ -2434,7 +2434,7 @@ onboarding:
     inviteItem: Invite teammates to collaborate.
     providerCta: Connect a provider
     inviteCta: Invite teammates
-    goToDashboard: Go to dashboard
+    goToDashboard: Go to Home
 emptyStates:
   providers:
     title: Connect your first AI provider
@@ -5109,7 +5109,7 @@ projects:
     deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
   settings:
     name: Name
-    nameHint: Shown in the projects list and the chat sidebar.
+    nameHint: Shown in the projects list and the Home panel.
     description: Description
     descriptionHint: A short summary that tells teammates what belongs here.
     audience: Audience

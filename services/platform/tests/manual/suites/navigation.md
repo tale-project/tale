@@ -447,7 +447,7 @@ loaded, and reads **No teams** for an account in none.
   → A styled 404 renders inside the dashboard layout (rail still present):
   heading **Page not found** (`common.notFound.title`), the message **The page
   you're looking for doesn't exist or may have been moved.**
-  (`common.notFound.description`), and a **Back to dashboard** link
+  (`common.notFound.description`), and a **Back to Home** link
   (`common.notFound.backToDashboard`) to `/dashboard/{org}`. Document title is
   **Page not found** (`metadata.notFound.title`), not the marketing default.
   No white-screen crash.
@@ -489,7 +489,7 @@ loaded, and reads **No teams** for an account in none.
   such route); then repeat in a private window, signed out → Both show the
   standalone 404: the logo home link in the top corner over a centred **Page
   not found** (`common.notFound.title`), its message
-  (`common.notFound.description`) and a **Back to dashboard** button
+  (`common.notFound.description`) and a **Back to Home** button
   (`common.notFound.backToDashboard`), never the bare framework "Not Found"
   text. The tab reads **Page not found** (`metadata.notFound.title`). The
   button opens the organization's dashboard when signed in, and **Log in**

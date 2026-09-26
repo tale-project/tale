@@ -3,8 +3,7 @@
 /**
  * The project's danger zone — delete only (dialog-guarded, cascading) — at
  * the bottom of the project's general page, in the same destructive-Alert
- * vocabulary as the organization settings. The chat sidebar's folder menu
- * deep-links here via PROJECT_DANGER_ZONE_ID.
+ * vocabulary as the organization settings.
  */
 
 import { Alert } from '@tale/ui/alert';

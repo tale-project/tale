@@ -152,7 +152,7 @@ export async function createOrgViaWizard(
       // Finish to the dashboard. Next creates the org (org.create +
       // default-workflow init), which on a cold or loaded backend can take
       // well past the default expect timeout before the finish step (and its
-      // "Go to dashboard" button) renders — so wait generously.
+      // "Go to Home" button) renders — so wait generously.
       const finishButton = page.getByRole('button', {
         name: t('onboarding.finish.goToDashboard'),
         exact: true,

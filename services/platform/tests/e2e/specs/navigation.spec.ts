@@ -17,7 +17,7 @@ import { STARTER_PROJECT_NAME } from '../helpers/seed';
  *
  * NOT-FOUND NOTE: a splat/catch-all route (`/dashboard/$id/$`) renders a styled
  * 404 inside the matched `$id` layout's `<Outlet/>` for any unmatched child —
- * a heading, message, and a "Back to dashboard" recovery link — so the copy is
+ * a heading, message, and a "Back to Home" recovery link — so the copy is
  * translated and asserted via `t('common.notFound.*')`. An unmatched URL outside
  * the dashboard renders the same 404 as a standalone page.
  */

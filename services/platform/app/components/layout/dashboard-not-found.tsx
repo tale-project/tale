@@ -5,7 +5,7 @@ import { PageLayout } from '@tale/ui/page-layout';
 import { NotFoundState } from '@/app/components/layout/not-found-state';
 
 interface DashboardNotFoundProps {
-  /** Org id used to build the "Back to dashboard" recovery link. */
+  /** Org id used to build the "Back to Home" recovery link. */
   organizationId: string;
   className?: string;
 }

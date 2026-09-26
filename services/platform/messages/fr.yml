@@ -1598,7 +1598,7 @@ common:
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
-    backToDashboard: Retour au tableau de bord
+    backToDashboard: Retour à l’Accueil
   moveUp: Monter
   moveDown: Descendre
   drag: Glisser pour réordonner
@@ -2555,7 +2555,7 @@ onboarding:
     inviteItem: Invite des coéquipiers à collaborer.
     providerCta: Connecter un fournisseur
     inviteCta: Inviter des coéquipiers
-    goToDashboard: Aller au tableau de bord
+    goToDashboard: Aller à l’Accueil
 emptyStates:
   providers:
     title: Connecte ton premier fournisseur AI
@@ -7841,7 +7841,7 @@ projects:
     deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
   settings:
     name: Nom
-    nameHint: Affiché dans la liste des projets et la barre latérale du chat.
+    nameHint: Affiché dans la liste des projets et dans le panneau latéral d’Accueil.
     description: Description
     descriptionHint: Un court résumé pour que ton équipe sache ce qui va
       ici.

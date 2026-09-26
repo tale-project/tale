@@ -77,7 +77,7 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-F6` · **Create-org wizard** — Fresh user →
   `/dashboard/create-organization`; fill **Organization name**
   (`settings.organization.organizationName`) → **Next**
-  (`common.actions.next`) → **Go to dashboard**
+  (`common.actions.next`) → **Go to Home**
   (`onboarding.finish.goToDashboard`) → URL becomes `/dashboard/{org}` (a 16+
   char id); the new org's chat loads.
 - [ ] `AUTH-F7` · **Change password** — `/dashboard/{org}/settings/account` →
