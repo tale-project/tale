@@ -831,11 +831,18 @@ if [ "$1" = "daemon" ]; then
   # incarnation — this keeps the old /tmp lifecycle (temp died with the
   # container) now that the dir persists on the workspace.
   $DROP rm -rf /agent/.runtime/tmp
+  # Every harness state root a harness.yml points at under HOME must exist
+  # before the harness starts: Codex refuses to start when CODEX_HOME names
+  # a missing directory ("Error finding codex home", exit 1, stderr only),
+  # which every managed Codex run hit until this list carried it
+  # (2026-09-26 evaluation, C-08). The image conformance test pins the list
+  # to the registry's `env.base` roots.
   $DROP mkdir -p \
     /agent/workspace \
     /agent/uploads \
     /agent/output \
     /agent/.runtime/home \
+    /agent/.runtime/home/.codex \
     /agent/.runtime/tmp \
     /agent/.runtime/deps/python \
     /agent/.runtime/deps/node

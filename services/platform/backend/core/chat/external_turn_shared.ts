@@ -456,6 +456,9 @@ export type HarnessWindowResult =
       execResult?: SessionExecResult;
       exited: boolean;
       agentSessionId?: string;
+      /** The last lines the harness wrote to stderr (`harnessOutputTail`),
+       * when it wrote any — what a crash names as its cause. */
+      stderrTail?: string;
       /** The output tokens the window's `usage` reports add up to; absent
        * reads as none. */
       outputTokens?: number;
@@ -551,6 +554,17 @@ export async function drainHarnessWindow(args: {
     }
   };
 
+  // The harness's stderr is not the protocol (no event ever rides it), but
+  // it is where a CLI says why it could not start — a config it refuses, a
+  // path it cannot find. The last few KB are kept so a crash can name its
+  // cause; before this they were streamed and dropped, and every startup
+  // failure read "exited unexpectedly (exit code 1)" with nothing to act on
+  // (2026-09-26 evaluation, C-08).
+  let stderrRing = '';
+  const onStderr = (chunk: string) => {
+    stderrRing = (stderrRing + chunk).slice(-STDERR_RING_CHARS);
+  };
+
   const onStdout = (chunk: string) => {
     for (const e of parser.feed(chunk)) {
       events.push(e);
@@ -627,7 +641,7 @@ export async function drainHarnessWindow(args: {
       args.sessionId,
       body,
       drainSignal,
-      { onStdout },
+      { onStdout, onStderr },
       args.start ? {} : { resumeSinceSeq: 0 },
     );
     exited = true;
@@ -680,6 +694,7 @@ export async function drainHarnessWindow(args: {
     );
   }
 
+  const stderrTail = harnessOutputTail(stderrRing);
   return {
     kind: 'terminal',
     text,
@@ -688,8 +703,34 @@ export async function drainHarnessWindow(args: {
     ...(execResult !== undefined ? { execResult } : {}),
     exited,
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+    ...(stderrTail !== '' ? { stderrTail } : {}),
     outputTokens: outputTokensFromEvents(events),
   };
+}
+
+/** How much of the harness's stderr a window keeps. */
+const STDERR_RING_CHARS = 4_096;
+/** How much of it a crash reason quotes. */
+const STDERR_TAIL_CHARS = 600;
+
+/**
+ * The last lines of a harness's stderr, fit for a run's failure reason:
+ * terminal escapes and control characters out, whitespace folded, anything
+ * shaped like a bearer token or an API key redacted (a CLI echoing its
+ * config must never put a credential on a run row), cut to the tail.
+ */
+export function harnessOutputTail(stderr: string): string {
+  const plain = stderr
+    // oxlint-disable-next-line no-control-regex -- terminal escapes are exactly what is stripped here
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    // oxlint-disable-next-line no-control-regex -- control characters other than whitespace
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .replace(/\b(?:Bearer\s+)?(?:sk-|key-)[A-Za-z0-9_-]{8,}\b/g, '[redacted]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain.length > STDERR_TAIL_CHARS
+    ? `…${plain.slice(-STDERR_TAIL_CHARS)}`
+    : plain;
 }
 
 /** The reason a turn settles failed with when its model answered nothing. */
@@ -699,7 +740,13 @@ export const EMPTY_ANSWER_REASON =
 /** What `classifyHarnessEnd` reads of a terminal window. */
 type HarnessEndWindow = Pick<
   Extract<HarnessWindowResult, { kind: 'terminal' }>,
-  'ended' | 'execResult' | 'exited' | 'text' | 'timeline' | 'outputTokens'
+  | 'ended'
+  | 'execResult'
+  | 'exited'
+  | 'text'
+  | 'timeline'
+  | 'outputTokens'
+  | 'stderrTail'
 >;
 
 function hasWords(text: string | undefined): boolean {
@@ -776,7 +823,7 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   const { ended, execResult } = window;
   if (ended === undefined) {
     if (!window.exited) return { errored: false, emptyAnswer: false };
-    const reason =
+    const crashed =
       execResult?.errorMessage !== undefined && execResult.errorMessage !== ''
         ? `The harness stopped: ${execResult.errorMessage}`
         : `The harness exited unexpectedly${
@@ -784,6 +831,11 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
               ? ` (exit code ${execResult.exitCode})`
               : ''
           } without completing the turn.`;
+    // The harness's own last words are the only lead a crash leaves.
+    const reason =
+      window.stderrTail !== undefined && window.stderrTail !== ''
+        ? `${crashed} Last output: ${window.stderrTail}`
+        : crashed;
     return { errored: true, reason, emptyAnswer: false };
   }
   if (ended.isError === true) return { errored: true, emptyAnswer: false };

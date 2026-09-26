@@ -52,3 +52,5 @@ Outbound access normally permits package installation and repository cloning whi
 ## Check the result
 
 The runtime determines when its turn is finished; Tale collects the report and output. Read both before marking the task complete. Confirm which checks actually ran and which depend on services unavailable in the sandbox. [Task automation](/platform/projects/task-automation) explains the review loop; [execution logs](/platform/automations/execution-logs) explains an automation’s agent-step result.
+
+If the runtime cannot start at all — a configuration it refuses, a state directory it cannot find — the run fails at once and its reason quotes the last lines the runtime wrote, so the cause is named rather than a bare exit code. Such a run is not retried automatically; fix the cause, then retry.
