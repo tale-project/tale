@@ -236,8 +236,7 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
           className={cn(
             'pointer-events-none absolute top-0 left-0 rounded-md',
             !accentColor && 'bg-muted',
-            indicator.animated &&
-              '[transition:transform_300ms_var(--ease-out-quint),opacity_150ms] motion-reduce:transition-none',
+            indicator.transitionClassName,
           )}
         />
         {primary.map((item) => (

@@ -62,8 +62,7 @@ export function HomeViewSwitcher({
         style={indicator.style}
         className={cn(
           'bg-background ring-border/60 pointer-events-none absolute top-0 left-0 rounded-md shadow-xs ring-1',
-          indicator.animated &&
-            '[transition:transform_260ms_var(--ease-out-quint),width_260ms_var(--ease-out-quint),opacity_150ms] motion-reduce:transition-none',
+          indicator.transitionClassName,
         )}
       />
       {options.map((option) => {

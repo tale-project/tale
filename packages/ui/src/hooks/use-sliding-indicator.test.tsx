@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useSlidingIndicator } from './use-sliding-indicator';
@@ -40,7 +40,11 @@ function Probe({ active }: { active: string | null }) {
         indicator.containerRef(node);
       }}
     >
-      <span data-testid="indicator" style={indicator.style} />
+      <span
+        data-testid="indicator"
+        style={indicator.style}
+        className={indicator.transitionClassName}
+      />
       {['a', 'b', 'c'].map((key, index) => (
         <button
           key={key}
@@ -78,6 +82,48 @@ describe('useSlidingIndicator', () => {
     });
     expect(getByTestId('indicator').style.transform).toBe(
       'translate3d(0px, 80px, 0)',
+    );
+  });
+
+  it('fades out where it stood when nothing is active', () => {
+    const { getByTestId, rerender } = render(<Probe active="b" />);
+    act(() => {
+      rerender(<Probe active={null} />);
+    });
+    const indicator = getByTestId('indicator');
+    expect(indicator.style.opacity).toBe('0');
+    // Still on the last item, not collapsed to the container's corner.
+    expect(indicator.style.transform).toBe('translate3d(0px, 40px, 0)');
+    expect(indicator.style.height).toBe('36px');
+  });
+
+  it('lands on its first item before it glides', async () => {
+    const { getByTestId } = render(<Probe active="a" />);
+    const indicator = getByTestId('indicator');
+    expect(indicator.className).toContain('opacity_150ms');
+    expect(indicator.className).not.toContain('transform_280ms');
+    await waitFor(() =>
+      expect(indicator.className).toContain('transform_280ms'),
+    );
+  });
+
+  it('lands again, without gliding, after a spell with nothing active', async () => {
+    const { getByTestId, rerender } = render(<Probe active="a" />);
+    const indicator = getByTestId('indicator');
+    await waitFor(() =>
+      expect(indicator.className).toContain('transform_280ms'),
+    );
+    act(() => {
+      rerender(<Probe active={null} />);
+    });
+    act(() => {
+      rerender(<Probe active="c" />);
+    });
+    expect(indicator.style.transform).toBe('translate3d(0px, 80px, 0)');
+    expect(indicator.style.opacity).toBe('1');
+    expect(indicator.className).not.toContain('transform_280ms');
+    await waitFor(() =>
+      expect(indicator.className).toContain('transform_280ms'),
     );
   });
 });

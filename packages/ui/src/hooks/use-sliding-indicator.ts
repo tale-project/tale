@@ -3,7 +3,6 @@
 import {
   useCallback,
   useLayoutEffect,
-  useRef,
   useState,
   type CSSProperties,
 } from 'react';
@@ -15,22 +14,37 @@ interface IndicatorBox {
   readonly height: number;
 }
 
+/** The glide every sliding highlight shares — the rail's pill, a segmented
+ * control's thumb, a panel's selection: position and size ease out over one
+ * duration, opacity fades quickly. */
+const GLIDE_TRANSITION =
+  '[transition:transform_280ms_var(--ease-out-quint),width_280ms_var(--ease-out-quint),height_280ms_var(--ease-out-quint),opacity_150ms_ease-out] motion-reduce:transition-none';
+
+/** While the highlight lands — its first placement, or the first after a
+ * spell with nothing active — it appears where it belongs and only fades. */
+const LAND_TRANSITION =
+  '[transition:opacity_150ms_ease-out] motion-reduce:transition-none';
+
 export interface SlidingIndicator<Container extends HTMLElement> {
   /** Attach to the positioned element the indicator is drawn inside. */
   readonly containerRef: (node: Container | null) => void;
-  /** Position + size of the indicator; hidden while nothing is active. */
+  /** Position + size of the indicator; transparent while nothing is active. */
   readonly style: CSSProperties;
-  /** False until the first placement painted — the indicator appears in
-   * place on mount and only glides between later positions. */
-  readonly animated: boolean;
+  /** The indicator's transition: a fade while it lands, the glide once it
+   * stands somewhere — so it never slides in from the container's corner. */
+  readonly transitionClassName: string;
 }
 
 /**
  * A highlight that glides to whichever item is active: the rail's selected
- * tile, a segmented control's current option. Items mark themselves with
- * `data-indicator-key`; the indicator is an absolutely positioned sibling
- * inside the container, moved with a transform so the browser composites the
- * motion instead of re-laying out the row.
+ * tile, a segmented control's current option, the open row of a panel. Items
+ * mark themselves with `data-indicator-key`; the indicator is an absolutely
+ * positioned sibling inside the container, moved with a transform so the
+ * browser composites the motion instead of re-laying out the row.
+ *
+ * With nothing active the indicator fades out where it stood, and the next
+ * active item gets it faded in on the spot rather than glided to from a
+ * place the user no longer sees.
  *
  * Measured, not animated by a layout engine, because the app loads the lean
  * animation bundle — shared-element transitions are not in it, and a CSS
@@ -44,32 +58,37 @@ export function useSlidingIndicator<Container extends HTMLElement>(
 ): SlidingIndicator<Container> {
   const [container, setContainer] = useState<Container | null>(null);
   const [box, setBox] = useState<IndicatorBox | null>(null);
-  const [animated, setAnimated] = useState(false);
-  const placedOnce = useRef(false);
+  const [visible, setVisible] = useState(false);
+  const [gliding, setGliding] = useState(false);
 
   const containerRef = useCallback((node: Container | null) => {
     setContainer(node);
   }, []);
 
   useLayoutEffect(() => {
-    if (container === null || activeKey === null) {
-      setBox(null);
-      return undefined;
-    }
-    const item = container.querySelector<HTMLElement>(
-      `[data-indicator-key="${CSS.escape(activeKey)}"]`,
-    );
-    if (item === null) {
-      setBox(null);
+    const item =
+      container === null || activeKey === null
+        ? null
+        : container.querySelector<HTMLElement>(
+            `[data-indicator-key="${CSS.escape(activeKey)}"]`,
+          );
+    if (container === null || item === null) {
+      setVisible(false);
       return undefined;
     }
     const measure = () => {
       const outer = container.getBoundingClientRect();
       const inner = item.getBoundingClientRect();
       setBox((previous) => {
+        // Relative to the padding box — where an absolute child's origin
+        // sits — so a bordered container does not shift the highlight.
         const next = {
-          x: inner.left - outer.left + container.scrollLeft,
-          y: inner.top - outer.top + container.scrollTop,
+          x:
+            inner.left -
+            outer.left -
+            container.clientLeft +
+            container.scrollLeft,
+          y: inner.top - outer.top - container.clientTop + container.scrollTop,
           width: inner.width,
           height: inner.height,
         };
@@ -83,6 +102,7 @@ export function useSlidingIndicator<Container extends HTMLElement>(
       });
     };
     measure();
+    setVisible(true);
     // The container, its direct children and the item itself: a disclosure
     // opening above the item moves it without resizing it, but it does
     // resize the child that holds the list.
@@ -93,24 +113,30 @@ export function useSlidingIndicator<Container extends HTMLElement>(
     return () => observer.disconnect();
   }, [container, activeKey, layoutVersion]);
 
-  // Arm the transition one frame after the first placement, so the first
-  // paint lands in place rather than sliding in from the corner.
+  // Glide only between two places the highlight is seen at: arriving, it
+  // lands and fades in, and the glide arms a frame after that paint.
   useLayoutEffect(() => {
-    if (box === null || placedOnce.current) return undefined;
-    placedOnce.current = true;
-    const frame = requestAnimationFrame(() => setAnimated(true));
+    if (!visible) {
+      setGliding(false);
+      return undefined;
+    }
+    const frame = requestAnimationFrame(() => setGliding(true));
     return () => cancelAnimationFrame(frame);
-  }, [box]);
+  }, [visible]);
 
   const style: CSSProperties =
     box === null
       ? { opacity: 0, width: 0, height: 0 }
       : {
-          opacity: 1,
+          opacity: visible ? 1 : 0,
           width: box.width,
           height: box.height,
           transform: `translate3d(${box.x}px, ${box.y}px, 0)`,
         };
 
-  return { containerRef, style, animated };
+  return {
+    containerRef,
+    style,
+    transitionClassName: gliding ? GLIDE_TRANSITION : LAND_TRANSITION,
+  };
 }

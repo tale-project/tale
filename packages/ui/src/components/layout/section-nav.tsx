@@ -13,7 +13,10 @@ import { useAccentColor } from '@tale/ui/accent-color';
 import { cn } from '@tale/ui/cn';
 import { SubPanel, SubPanelHeader } from '@tale/ui/sub-panel';
 import { SUB_PANEL_ROW_CLASS } from '@tale/ui/sub-panel-list';
-import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
+import {
+  useSlidingIndicator,
+  type SlidingIndicator,
+} from '@tale/ui/use-sliding-indicator';
 import { Link } from '@tanstack/react-router';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -66,6 +69,41 @@ export function SectionNavRow({
   );
 }
 
+/**
+ * The one highlight a panel list draws under its open row, gliding from row
+ * to row — the section panels', the Home panel's. Rows stay above it
+ * (`relative z-10`) and only change colour; a branded organization tints it
+ * with its accent.
+ */
+export function SlidingHighlight({
+  indicator,
+  className,
+}: {
+  indicator: Pick<
+    SlidingIndicator<HTMLElement>,
+    'style' | 'transitionClassName'
+  >;
+  className?: string;
+}) {
+  const accentColor = useAccentColor();
+  return (
+    <span
+      aria-hidden
+      style={
+        accentColor
+          ? { ...indicator.style, backgroundColor: `${accentColor}26` }
+          : indicator.style
+      }
+      className={cn(
+        'pointer-events-none absolute top-0 left-0 rounded-lg',
+        !accentColor && 'bg-muted',
+        indicator.transitionClassName,
+        className,
+      )}
+    />
+  );
+}
+
 export function SectionNavPanel({
   title,
   ariaLabel,
@@ -82,7 +120,6 @@ export function SectionNavPanel({
   layoutVersion?: string | number;
   children: ReactNode;
 }) {
-  const accentColor = useAccentColor();
   const indicator = useSlidingIndicator<HTMLDivElement>(
     activeKey,
     layoutVersion ?? null,
@@ -94,20 +131,7 @@ export function SectionNavPanel({
         ref={indicator.containerRef}
         className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2.5 pt-2.5 pb-4"
       >
-        <span
-          aria-hidden
-          style={
-            accentColor
-              ? { ...indicator.style, backgroundColor: `${accentColor}26` }
-              : indicator.style
-          }
-          className={cn(
-            'pointer-events-none absolute top-0 left-0 rounded-lg',
-            !accentColor && 'bg-muted',
-            indicator.animated &&
-              '[transition:transform_280ms_var(--ease-out-quint),height_280ms_var(--ease-out-quint),opacity_150ms] motion-reduce:transition-none',
-          )}
-        />
+        <SlidingHighlight indicator={indicator} />
         {children}
       </div>
     </SubPanel>
