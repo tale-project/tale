@@ -5,11 +5,11 @@ import { cn } from '@tale/ui/cn';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
+import { SendButton } from '@tale/ui/send-button';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
-import { ArrowUp } from 'lucide-react';
 import { useState } from 'react';
 
 import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
@@ -309,17 +309,12 @@ export function TaskCommentComposer({
                 shortcut: isMac ? '⌘ Enter' : 'Ctrl + Enter',
               })}
           </Text>
-          <Button
-            size="icon"
-            variant={empty ? 'secondary' : 'primary'}
-            disabled={empty || isAdding}
-            isLoading={isAdding}
+          <SendButton
+            label={t('actions.comment')}
             onClick={() => void submit()}
-            aria-label={t('actions.comment')}
-            className="size-9 shrink-0 rounded-full transition-transform active:scale-95"
-          >
-            <ArrowUp className="size-4" />
-          </Button>
+            disabled={empty}
+            sending={isAdding}
+          />
         </Row>
       </Stack>
     );

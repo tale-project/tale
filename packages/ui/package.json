@@ -272,6 +272,7 @@
     "./segmented-control": "./src/components/forms/segmented-control.tsx",
     "./select": "./src/components/forms/select.tsx",
     "./selectable-row": "./src/components/data-display/selectable-row.tsx",
+    "./send-button": "./src/components/primitives/send-button.tsx",
     "./seo": "./src/seo/index.ts",
     "./seo/alternates": "./src/seo/alternates.ts",
     "./seo/builders/json-ld": "./src/seo/builders/json-ld.ts",
