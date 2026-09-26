@@ -52,7 +52,7 @@ Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bear
 
 Gespeicherte Produkte bearbeitest du über das Zeilenmenü. Verwende unterscheidbare Produktnamen und kontrolliere Preis und Währung, bevor du den Status änderst.
 
-Wähle **Bild hochladen** oder ziehe eine PNG-, JPEG-, WebP-, GIF- oder SVG-Datei in den Bildbereich. Die Obergrenze liegt bei 5 MiB. Warte auf die Vorschau, bevor du fortfährst. Prüfe bei einem fehlgeschlagenen Upload Dateiformat und Größe und versuche es erneut. Tale prüft die hochgeladenen Dateiinhalte und weist SVG-Dateien mit aktiven Inhalten ab.
+Wähle **Bild hochladen** oder ziehe eine PNG-, JPEG-, WebP-, GIF- oder SVG-Datei in den Bildbereich. Die Obergrenze liegt bei 5 MiB. Warte auf die Vorschau, bevor du fortfährst. Tale prüft die hochgeladenen Dateiinhalte; lehnt es die Datei ab, nennt die Meldung unter dem Bildfeld den Grund — ein nicht unterstütztes Format, eine Datei über der Obergrenze oder eine SVG-Datei mit Skripten oder Event-Handlern —, damit du weißt, ob eine andere Datei nötig ist.
 
 Das hochgeladene Bild bleibt nach dem Speichern und Neuladen des Produkts verfügbar. Sobald das Produkt gespeichert ist, können andere Organisationsmitglieder mit Produktzugriff das Bild sehen. Die Bildadresse setzt eine angemeldete Sitzung voraus und eignet sich nicht als öffentlicher Freigabelink. Zum Entfernen bearbeitest du das Produkt, wählst **Bild entfernen** und speicherst die Änderung.
 

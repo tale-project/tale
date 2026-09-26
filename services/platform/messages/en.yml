@@ -1490,6 +1490,10 @@ chat:
   budgetWarningTypeRequests: request
   budgetViewUsage: View usage
 common:
+  import:
+    rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
+    rowError: 'Row {row}: {message}'
+    moreRows: '…and {count} more'
   or: or
   units:
     stock: '{count, plural, one {# unit} other {# units}}'
@@ -4674,9 +4678,18 @@ products:
     pasteUrl: Or paste a URL
     imageTooLarge: Image is too large (max 5 MB).
     imageUploadFailed: Image upload failed. Try again.
+    imageActiveContent: 'This SVG contains scripts or event handlers and can''t be used. Upload a plain image or an SVG without them.'
+    imageUnsupported: 'This file isn''t a supported image. Use PNG, JPEG, WebP, GIF or SVG.'
     currencyPlaceholder: USD
     validation:
       currency: Enter a three-letter ISO 4217 currency code (for example USD or EUR)
+      priceNumber: Enter a number for the price
+      priceNonNegative: Price must be 0 or more
+      priceTooLarge: Price is too large
+      stockNumber: Enter a number for the stock
+      stockNonNegative: Stock must be 0 or more
+      stockTooLarge: Stock is too large
+      stockInteger: Stock must be a whole number
     labels:
       name: Product name
       description: Description

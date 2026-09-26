@@ -52,7 +52,7 @@ Ouvre **Connaissances > Produits**, choisis **Ajouter un produit**, puis **Saisi
 
 Le menu de la ligne permet de modifier un produit enregistré. Choisis des noms faciles à distinguer et vérifie le prix ainsi que la devise avant de changer le statut.
 
-Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou SVG dans la zone d’image. La limite est de 5 Mio. Attends l’aperçu avant de poursuivre. Si l’import échoue, vérifie le format et la taille du fichier, puis réessaie. Tale vérifie le contenu du fichier et refuse les SVG contenant du contenu actif.
+Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou SVG dans la zone d’image. La limite est de 5 Mio. Attends l’aperçu avant de poursuivre. Tale vérifie le contenu du fichier ; s’il le refuse, le message sous le champ d’image en donne la raison — un format non pris en charge, un fichier au-delà de la limite ou un SVG contenant des scripts ou des gestionnaires d’événements — pour que tu saches si un autre fichier est nécessaire.
 
 L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre.
 

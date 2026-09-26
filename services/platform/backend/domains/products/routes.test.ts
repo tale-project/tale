@@ -11,13 +11,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { listProducts } = vi.hoisted(() => ({
+const { listProducts, bulkCreateProducts } = vi.hoisted(() => ({
   listProducts: vi.fn(),
+  bulkCreateProducts: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./service.ts')>();
-  return { ...actual, listProducts };
+  return { ...actual, listProducts, bulkCreateProducts };
 });
 
 vi.mock('../../auth/session.ts', () => ({
@@ -119,16 +120,59 @@ describe('POST /products — a refused body names its field', () => {
     expect(body.data.issues.map((issue) => issue.path)).toEqual(['price']);
   });
 
-  it('names the row and column of a refused bulk import', async () => {
+  it('imports the valid rows and names the row and column of each refused one', async () => {
+    bulkCreateProducts.mockResolvedValue({ success: 1, failed: 0, errors: [] });
     const res = await makeApp().request('/bulk?orgId=o1', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        products: [{ name: 'Kettle' }, { name: 'Toaster', price: 'free' }],
+        products: [
+          { name: 'Kettle' },
+          { name: 'Toaster', price: 'free' },
+          { name: '', stock: 1 },
+        ],
       }),
     });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { message: string };
-    expect(body.message).toMatch(/^products\.1\.price: /);
+    expect(res.status).toBe(200);
+    expect(bulkCreateProducts).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      [{ name: 'Kettle' }],
+    );
+    const body = (await res.json()) as {
+      success: number;
+      failed: number;
+      errors: { index: number; error: string; issues: { path: string }[] }[];
+    };
+    expect(body.success).toBe(1);
+    expect(body.failed).toBe(2);
+    expect(body.errors.map((entry) => entry.index)).toEqual([1, 2]);
+    expect(body.errors[0]?.error).toMatch(/^price: /);
+    expect(body.errors[0]?.issues[0]?.path).toBe('price');
+    expect(body.errors[1]?.error).toMatch(/^name: /);
+  });
+
+  it('reports a domain refusal at the row index the caller sent', async () => {
+    bulkCreateProducts.mockResolvedValue({
+      success: 0,
+      failed: 1,
+      errors: [
+        {
+          index: 0,
+          error: 'exists',
+          errorCode: 'DUPLICATE_PRODUCT_NAME',
+          product: { name: 'Kettle' },
+        },
+      ],
+    });
+    const res = await makeApp().request('/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        products: [{ name: 'Toaster', price: 'free' }, { name: 'Kettle' }],
+      }),
+    });
+    const body = (await res.json()) as { errors: { index: number }[] };
+    expect(body.errors.map((entry) => entry.index)).toEqual([0, 1]);
   });
 });

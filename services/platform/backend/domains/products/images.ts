@@ -135,13 +135,18 @@ async function imageFormat(
   } catch {
     throw new ProductError('PRODUCT_IMAGE_INVALID', 'Unsupported image bytes');
   }
-  if (/<svg(?:\s|>)/i.test(text) && !svgHasActiveContent(text)) {
-    return { mime: 'image/svg+xml', ext: 'svg' };
+  if (/<svg(?:\s|>)/i.test(text)) {
+    if (!svgHasActiveContent(text)) {
+      return { mime: 'image/svg+xml', ext: 'svg' };
+    }
+    // Its own code: a passive copy of the same drawing would be accepted,
+    // which a retry of the same file never is, so the form can say so.
+    throw new ProductError(
+      'PRODUCT_IMAGE_ACTIVE_CONTENT',
+      'SVG images must not contain scripts, event handlers or external references',
+    );
   }
-  throw new ProductError(
-    'PRODUCT_IMAGE_INVALID',
-    'Unsupported or active image content',
-  );
+  throw new ProductError('PRODUCT_IMAGE_INVALID', 'Unsupported image bytes');
 }
 
 /** Register server-validated bytes immediately; no unregistered raw ref escapes. */

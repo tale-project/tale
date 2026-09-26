@@ -4,10 +4,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
+import {
+  type ImportRowError,
+  mergeImportRowErrors,
+} from '@/app/features/shared/import/import-row-errors';
+import { ImportRowErrorsAlert } from '@/app/features/shared/import/import-row-errors-alert';
 import {
   useFileImport,
   productMappers,
@@ -70,6 +75,9 @@ export function ProductsImportDialog({
   } = formMethods;
 
   const { mutateAsync: bulkCreateProducts } = useBulkCreateProducts();
+  // The rows the last attempt could not land, by spreadsheet line; the
+  // dialog stays open over them so the user can fix the file and retry.
+  const [rowErrors, setRowErrors] = useState<ImportRowError[]>([]);
 
   const validateStatus = useCallback(
     (value: unknown): ProductStatus =>
@@ -102,6 +110,7 @@ export function ProductsImportDialog({
 
   const resetForm = useCallback(() => {
     formMethods.reset();
+    setRowErrors([]);
   }, [formMethods]);
 
   const handleClose = useCallback(() => {
@@ -120,9 +129,10 @@ export function ProductsImportDialog({
           return;
         }
 
-        const { data: products, errors } = await parseFile(values.file);
+        const parsed = await parseFile(values.file);
+        const { data: products, errors } = parsed;
 
-        if (errors.length > 0 && products.length === 0) {
+        if (errors.length > 0) {
           toast({
             title: errors[0],
             variant: 'destructive',
@@ -130,7 +140,7 @@ export function ProductsImportDialog({
           return;
         }
 
-        if (products.length === 0) {
+        if (products.length === 0 && parsed.rowErrors.length === 0) {
           toast({
             title: t('noValidData'),
             variant: 'destructive',
@@ -138,38 +148,33 @@ export function ProductsImportDialog({
           return;
         }
 
-        const result = await bulkCreateProducts({
-          organizationId,
-          products,
-        });
+        // The rows the parser refused are listed beside the ones the server
+        // refuses; the rest of the file still lands (the REST bulk
+        // semantics), so a thousand good rows never wait on one bad one.
+        const result =
+          products.length > 0
+            ? await bulkCreateProducts({ organizationId, products })
+            : { success: 0, failed: 0, errors: [] };
+        const failedRows = mergeImportRowErrors(parsed, result.errors);
+        setRowErrors(failedRows);
 
         if (result.success > 0) {
           toast({
             title: t('import.success'),
             description: t('import.successDescription', {
               success: result.success,
-              failed: result.failed,
+              failed: failedRows.length,
             }),
             variant: 'success',
           });
-
-          if (result.errors.length > 0) {
-            console.warn('Import errors:', result.errors);
-          }
-
           onSuccess?.();
-          handleClose();
+          if (failedRows.length === 0) handleClose();
         } else {
-          const firstError = result.errors[0];
-          const errorCodeKeys: Record<string, string> = {
-            unknown: 'import.errorCodes.unknown',
-          };
-          const errorKey = firstError
-            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
-            : undefined;
           toast({
             title: t('noneImported'),
-            description: errorKey ? t(errorKey) : undefined,
+            description: failedRows[0]
+              ? tCommon('import.rowError', failedRows[0])
+              : t('import.errorCodes.unknown'),
             variant: 'destructive',
           });
         }
@@ -183,7 +188,15 @@ export function ProductsImportDialog({
         });
       }
     },
-    [parseFile, bulkCreateProducts, organizationId, t, onSuccess, handleClose],
+    [
+      parseFile,
+      bulkCreateProducts,
+      organizationId,
+      t,
+      tCommon,
+      onSuccess,
+      handleClose,
+    ],
   );
 
   return (
@@ -200,6 +213,7 @@ export function ProductsImportDialog({
       <FormProvider {...formMethods}>
         <ProductImportForm organizationId={organizationId} hideTabs={true} />
       </FormProvider>
+      <ImportRowErrorsAlert errors={rowErrors} />
     </FormDialog>
   );
 }

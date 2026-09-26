@@ -437,14 +437,46 @@ records and delete them after.
   files tab and an automation's uploads panel behave the same) → toast **A
   folder with this name already exists** (`documents.folder.duplicateName`),
   never the generic **Couldn't create folder**; nothing is created.
-- [ ] `KNOW-B7` · **A refused product or import names its field** — Products
-  → **Add product** with price `1e20` → **Create** → toast **Couldn't create
+- [ ] `KNOW-B7` · **A refused product names its field** — Products → **Add
+  product** → **Pricing & inventory** with currency `zzz` → **Next** stays on
+  the step and names the field (`products.edit.validation.currency`); a
+  refusal the form does not know (an image URL on a private host, pasted
+  under **Or paste a URL**) reaches **Create** as the toast **Couldn't create
   product** (`products.create.toast.error`) with a description starting
-  `price:`; the same for **Edit**. Import a CSV whose second row has price
-  `notanumber` → toast **Couldn't import products** (`products.import.error`)
-  with a description starting `products.1.price:`; a contacts CSV with an
-  invalid email on the second row → **Import error** (`contacts.import.error`)
-  with `contacts.1.email:`. Nothing is imported in either case.
+  `imageUrl:`; the same for **Edit**.
+- [ ] `KNOW-B9` · **Price and stock are refused at the step** — **Add
+  product** → **Pricing & inventory**: price `-5` → **Next** stays on the
+  step with **Price must be 0 or more**
+  (`products.edit.validation.priceNonNegative`) under **Price**; price `1e20`
+  → `products.edit.validation.priceTooLarge`; stock `-3` →
+  `products.edit.validation.stockNonNegative`; stock `1.5` →
+  `products.edit.validation.stockInteger`; **Review** is never shown. Price
+  `12.50`, stock `3` → **Next** → **Create** → the row shows them. **Edit** a
+  product to price `-5` → **Save** → the same field error, nothing saved.
+- [ ] `KNOW-B10` · **A refused image says why** — **Add product** → **Basics**:
+  upload an SVG carrying `onload="alert(1)"` → under **Image** and as a toast,
+  `products.edit.imageActiveContent` (names scripts/event handlers), never
+  "try again"; upload a `.txt` renamed `.png` →
+  `products.edit.imageUnsupported`; a 6 MB PNG →
+  `products.edit.imageTooLarge`. A passive SVG (`<rect/>` only) uploads and
+  previews; **Remove image** clears the message.
+- [ ] `KNOW-B11` · **An import lists its refused rows by line** — Products →
+  **Add product** → **From your device** with a CSV whose header is line 1
+  and whose lines 2–6 are: a good row; an empty name; price `notanumber`;
+  currency `EURO`; status `flying` → **Import** → toast **Import successful**
+  (`products.import.success`) "Imported 1 products, 4 failed"; the dialog
+  stays open with the banner **4 rows were not imported**
+  (`common.import.rowErrorsTitle`) listing `Row 3: name: must not be blank`,
+  `Row 4: price: must be a number`, `Row 5: currency: …`, `Row 6: status:
+  must be one of …` (`common.import.rowError`); the table shows the one
+  product, and no product carries `flying` or status **Draft** from an
+  unknown status. A file whose every row is refused → toast **No products
+  were imported** (`products.noneImported`) naming the first line, nothing
+  created. Contacts → **Upload contacts** with a CSV whose line 3 has no
+  email and line 4 an email already in the directory → the same banner:
+  `Row 3: email: must not be blank`, `Row 4: A contact with this email
+  already exists` (`contacts.import.errorCodes.duplicate_email`); line 2
+  imported. Reopening either dialog starts clean.
 - [ ] `KNOW-B8` · **`http://` in each add-website mode** — Websites → **Add
   website** → **Whole website** → **Domain** = `http://example.net` → **Save**
   → the field shows the https-host sentence inline

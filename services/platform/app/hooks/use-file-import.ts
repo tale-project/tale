@@ -2,8 +2,10 @@
 
 import { useState, useCallback } from 'react';
 
+import { isIso4217Currency } from '@/backend/core/products/field_limits';
 import { CONTACT_LOCALE_PATTERN } from '@/lib/shared/schemas/common';
 import {
+  ImportRowRefusal,
   parseImportFile,
   parseCSVWithMapper,
   type FileParseResult,
@@ -87,7 +89,7 @@ export function useFileImport<T>({
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to parse file';
         setError(errorMessage);
-        return { data: [], errors: [errorMessage] };
+        return { data: [], rows: [], errors: [errorMessage], rowErrors: [] };
       } finally {
         setIsParsing(false);
       }
@@ -111,7 +113,7 @@ export function useFileImport<T>({
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to parse CSV';
         setError(errorMessage);
-        return { data: [], errors: [errorMessage] };
+        return { data: [], rows: [], errors: [errorMessage], rowErrors: [] };
       }
     },
     [csvMapper],
@@ -143,6 +145,39 @@ function getNumber(value: unknown): number | undefined {
     return isNaN(parsed) ? undefined : parsed;
   }
   return undefined;
+}
+
+/**
+ * A product's count or amount from a cell — the create form's rule, in the
+ * server's `field: reason` voice: blank means "not given", and anything
+ * that is not a non-negative number within the safe range is a row error,
+ * never silently `0` (`notanumber` used to import as a free product).
+ */
+function productNumber(
+  value: unknown,
+  field: 'price' | 'stock',
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string' && value.trim() === '') return undefined;
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value.trim())
+        : Number.NaN;
+  if (!Number.isFinite(parsed)) {
+    throw new ImportRowRefusal(`${field}: must be a number`);
+  }
+  if (parsed < 0) {
+    throw new ImportRowRefusal(`${field}: must be 0 or more`);
+  }
+  if (parsed > Number.MAX_SAFE_INTEGER) {
+    throw new ImportRowRefusal(`${field}: is too large`);
+  }
+  if (field === 'stock' && !Number.isInteger(parsed)) {
+    throw new ImportRowRefusal(`${field}: must be a whole number`);
+  }
+  return parsed;
 }
 
 // Accepted (lowercase) header spellings for contact imports. Headers are
@@ -237,6 +272,8 @@ export const customerMappers = {
  * `'en'` for a value nobody chose (#2642).
  */
 export const contactMappers = {
+  /** The positional (header-less) fallback; a row without an email is
+   * skipped, as the paste lane always did. */
   csv: (row: string[], _index: number) => {
     const email = row[0]?.trim();
     if (!email) return null;
@@ -257,9 +294,11 @@ export const contactMappers = {
       source: 'manual_import' as const,
     };
   },
+  /** The header-mapped lane (CSV with headers, Excel): a row without an
+   * email is a row error the dialog lists, not a row that vanishes. */
   excel: (record: Record<string, unknown>) => {
     const email = pickField(record, EMAIL_HEADER_ALIASES);
-    if (!email) return null;
+    if (!email) throw new ImportRowRefusal('email: must not be blank');
 
     return {
       email,
@@ -294,15 +333,22 @@ export const PRODUCT_REQUIRED_COLUMNS: RequiredColumn[] = [
 export const productMappers = {
   getString,
   getNumber,
-  /** Helper to validate product status */
+  /** A blank status takes the default; an unknown one (`flying`) is a row
+   * error, never silently the default. */
   validateStatus: <T extends string>(
     value: unknown,
     validStatuses: readonly T[],
     defaultStatus: T,
   ): T => {
-    if (typeof value !== 'string') return defaultStatus;
-    const lowerValue = value.toLowerCase();
-    return validStatuses.find((s) => s === lowerValue) ?? defaultStatus;
+    if (typeof value !== 'string' || value.trim() === '') return defaultStatus;
+    const lowerValue = value.trim().toLowerCase();
+    const match = validStatuses.find((s) => s === lowerValue);
+    if (match === undefined) {
+      throw new ImportRowRefusal(
+        `status: must be one of ${validStatuses.join(', ')}`,
+      );
+    }
+    return match;
   },
   /** Expected header names for product imports */
   expectedHeaders: [
@@ -323,10 +369,19 @@ export const productMappers = {
   csv: (_row: string[], _index: number) => {
     return null;
   },
-  /** Record-based mapper used by both CSV (with headers) and Excel imports */
+  /** Record-based mapper used by both CSV (with headers) and Excel imports.
+   * A row the catalog would refuse — no name, a price or stock that is not a
+   * number, a currency that is not ISO 4217 — is a row error carrying the
+   * server's own `field: reason` voice, so the dialog lists it by line. */
   record: (record: Record<string, unknown>) => {
     const name = getString(record.name) || getString(record.title);
-    if (!name) return null;
+    if (!name) throw new ImportRowRefusal('name: must not be blank');
+    const currency = getString(record.currency);
+    if (currency !== undefined && !isIso4217Currency(currency.toUpperCase())) {
+      throw new ImportRowRefusal(
+        'currency: must be a three-letter ISO 4217 currency code',
+      );
+    }
 
     return {
       name,
@@ -335,9 +390,9 @@ export const productMappers = {
         getString(record.imageurl) ||
         getString(record.image_url) ||
         getString(record['image url']),
-      stock: getNumber(record.stock) ?? 0,
-      price: getNumber(record.price) ?? 0,
-      currency: getString(record.currency) || 'USD',
+      stock: productNumber(record.stock, 'stock') ?? 0,
+      price: productNumber(record.price, 'price') ?? 0,
+      currency: currency?.toUpperCase() ?? 'USD',
       category: getString(record.category),
       status: record.status,
     };

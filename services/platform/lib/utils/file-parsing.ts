@@ -5,10 +5,33 @@
 
 import { isSpreadsheet } from '@/lib/shared/file-types';
 
+/** A row the mapper refused, by the line the user sees in a spreadsheet
+ * (the header is line 1, so the first data row is line 2). */
+export type ImportRowError = { row: number; message: string };
+
 export type FileParseResult<T> = {
   data: T[];
+  /** The spreadsheet line each `data` entry came from, by position — what
+   * maps a server's per-row refusal (`errors[].index`) back to the file. */
+  rows: number[];
+  /** File-level failures: format, a missing required column. */
   errors: string[];
+  /** Rows the mapper refused; the rest of the file still parsed. */
+  rowErrors: ImportRowError[];
 };
+
+/** A refused row, thrown by a record mapper; the parser files it under the
+ * row's own line instead of dropping the row or the whole file. */
+export class ImportRowRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportRowRefusal';
+  }
+}
+
+function emptyResult<T>(errors: string[] = []): FileParseResult<T> {
+  return { data: [], rows: [], errors, rowErrors: [] };
+}
 
 /**
  * A column the import file must contain. `label` is the canonical name shown
@@ -147,22 +170,20 @@ export function parseCSVWithMapper<T>(
     ...csvOptions,
     hasHeaders: !!recordMapper,
   });
-  const data: T[] = [];
-  const errors: string[] = [];
+  const result = emptyResult<T>();
 
   // Fail loudly when the header row is missing a required column, instead of
   // silently dropping rows or importing partial data (see #1312, #1323).
   if (recordMapper) {
     const missing = detectMissingColumns(headers, requiredColumns);
     if (missing.length > 0) {
-      return {
-        data: [],
-        errors: [missingColumnsError(missing, headers ?? [])],
-      };
+      return emptyResult([missingColumnsError(missing, headers ?? [])]);
     }
   }
 
+  const firstLine = headers ? 2 : 1;
   rows.forEach((row, index) => {
+    const line = firstLine + index;
     try {
       let mapped: T | null;
       if (headers && recordMapper) {
@@ -175,16 +196,18 @@ export function parseCSVWithMapper<T>(
         mapped = mapper(row, index);
       }
       if (mapped !== null) {
-        data.push(mapped);
+        result.data.push(mapped);
+        result.rows.push(line);
       }
     } catch (error) {
-      errors.push(
-        `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
+      result.rowErrors.push({
+        row: line,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   });
 
-  return { data, errors };
+  return result;
 }
 
 /**
@@ -273,9 +296,6 @@ export async function parseImportFile<T>(
   excelMapper: (record: Record<string, unknown>) => T | null,
   options: { requiredColumns?: RequiredColumn[] } = {},
 ): Promise<FileParseResult<T>> {
-  const errors: string[] = [];
-  const data: T[] = [];
-
   try {
     if (isCSVFile(file)) {
       const text = await readFileAsText(file);
@@ -292,32 +312,35 @@ export async function parseImportFile<T>(
       const headerKeys = records.length > 0 ? Object.keys(records[0]) : [];
       const missing = detectMissingColumns(headerKeys, options.requiredColumns);
       if (missing.length > 0) {
-        return { data: [], errors: [missingColumnsError(missing, headerKeys)] };
+        return emptyResult([missingColumnsError(missing, headerKeys)]);
       }
 
+      const result = emptyResult<T>();
       records.forEach((record, index) => {
+        // `sheet_to_json` reads the header from the sheet's first row.
+        const line = index + 2;
         try {
           const mapped = excelMapper(record);
           if (mapped !== null) {
-            data.push(mapped);
+            result.data.push(mapped);
+            result.rows.push(line);
           }
         } catch (error) {
-          errors.push(
-            `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
+          result.rowErrors.push({
+            row: line,
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
         }
       });
-      return { data, errors };
+      return result;
     } else {
-      return {
-        data: [],
-        errors: ['Unsupported file format. Please use CSV or Excel files.'],
-      };
+      return emptyResult([
+        'Unsupported file format. Please use CSV or Excel files.',
+      ]);
     }
   } catch (error) {
-    return {
-      data: [],
-      errors: [error instanceof Error ? error.message : 'Failed to parse file'],
-    };
+    return emptyResult([
+      error instanceof Error ? error.message : 'Failed to parse file',
+    ]);
   }
 }

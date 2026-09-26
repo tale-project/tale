@@ -52,7 +52,7 @@ Open **Knowledge > Products**, choose **Add product**, then **Manual entry**. Th
 
 Use the row menu to edit a saved product. Keep product names distinct so teammates can identify the right record, and review the price and currency before changing its status.
 
-To add a product image, choose **Upload image** or drop a PNG, JPEG, WebP, GIF, or SVG file into the image area. The limit is 5 MiB. Wait for the preview before moving on; if the upload fails, check the format and size, then try again. Tale checks the uploaded bytes and refuses active SVG content.
+To add a product image, choose **Upload image** or drop a PNG, JPEG, WebP, GIF, or SVG file into the image area. The limit is 5 MiB. Wait for the preview before moving on. Tale checks the uploaded bytes; if it refuses the file, the message under the image field says why — an unsupported format, a file over the limit, or an SVG that carries scripts or event handlers — so you know whether another file is needed.
 
 The uploaded image stays available after you save and reload the product. Other organization members with product access can view it once the product is saved; the image address requires a signed-in session and is not a public sharing link. To remove it, edit the product, choose **Remove image**, then save.
 

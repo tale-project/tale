@@ -13,7 +13,7 @@ import { type WizardStepMeta } from '@tale/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@tale/ui/wizard/wizard';
 import { WizardFooter } from '@tale/ui/wizard/wizard-footer';
 import { WizardProgress } from '@tale/ui/wizard/wizard-progress';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { Image } from '@/app/components/image';
@@ -34,6 +34,7 @@ import {
 import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useCreateProduct } from '../hooks/mutations';
+import { productNumberSchema } from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
 function isProductStatus(value: string): value is ProductStatus {
@@ -121,8 +122,19 @@ export function ProductCreateDialog({
             max: PRODUCT_IMAGE_URL_MAX,
           }),
         ),
-        stock: z.string(),
-        price: z.string(),
+        // Refused at the Pricing step (a negative or an amount past the
+        // safe range used to reach Review and fail there as a bare toast).
+        stock: productNumberSchema({
+          number: tProducts('edit.validation.stockNumber'),
+          nonNegative: tProducts('edit.validation.stockNonNegative'),
+          tooLarge: tProducts('edit.validation.stockTooLarge'),
+          integer: tProducts('edit.validation.stockInteger'),
+        }),
+        price: productNumberSchema({
+          number: tProducts('edit.validation.priceNumber'),
+          nonNegative: tProducts('edit.validation.priceNonNegative'),
+          tooLarge: tProducts('edit.validation.priceTooLarge'),
+        }),
         // The door's rule, mirrored: an ISO 4217 code in any case (sent
         // uppercase), or nothing.
         currency: z
@@ -151,6 +163,7 @@ export function ProductCreateDialog({
     reset,
     setValue,
     watch,
+    trigger,
     formState: { errors },
   } = useForm<ProductFormData>({
     resolver: zodResolver(formSchema),
@@ -171,6 +184,17 @@ export function ProductCreateDialog({
   const nameValid = values.name.trim().length > 0;
 
   const [activeIndex, setActiveIndex] = useState(0);
+
+  // Each step validates its own fields on Next, so a refused value is named
+  // under its box before Review, not after Create.
+  const validateBasics = useCallback(
+    () => trigger(['name', 'description', 'imageUrl']),
+    [trigger],
+  );
+  const validatePricing = useCallback(
+    () => trigger(['price', 'currency', 'stock', 'category']),
+    [trigger],
+  );
 
   const handleClose = () => {
     reset();
@@ -261,7 +285,7 @@ export function ProductCreateDialog({
       >
         <WizardProgress ariaLabel={tProducts('create.title')} segmented />
 
-        <WizardStep id="basics" valid={nameValid}>
+        <WizardStep id="basics" valid={nameValid} onBeforeNext={validateBasics}>
           <Input
             id="name"
             label={tProducts('edit.labels.name')}
@@ -289,7 +313,7 @@ export function ProductCreateDialog({
           />
         </WizardStep>
 
-        <WizardStep id="pricing">
+        <WizardStep id="pricing" onBeforeNext={validatePricing}>
           <Grid cols={2} gap={4}>
             <Input
               id="price"
@@ -301,6 +325,7 @@ export function ProductCreateDialog({
               {...register('price')}
               placeholder={tProducts('edit.pricePlaceholder')}
               disabled={isSubmitting}
+              errorMessage={errors.price?.message}
             />
             <Input
               id="currency"
@@ -323,6 +348,7 @@ export function ProductCreateDialog({
               {...register('stock')}
               placeholder={tProducts('edit.stockPlaceholder')}
               disabled={isSubmitting}
+              errorMessage={errors.stock?.message}
             />
             <Input
               id="category"

@@ -1547,6 +1547,10 @@ chat:
   budgetWarningTypeRequests: requête
   budgetViewUsage: Voir l'utilisation
 common:
+  import:
+    rowErrorsTitle: '{count, plural, one {# ligne n''a pas été importée} other {# lignes n''ont pas été importées}}'
+    rowError: 'Ligne {row} : {message}'
+    moreRows: '… et {count} de plus'
   or: ou
   units:
     stock: '{count, plural, one {# unité} other {# unités}}'
@@ -4913,9 +4917,18 @@ products:
     pasteUrl: Ou coller une URL
     imageTooLarge: L'image est trop volumineuse (max. 5 Mo).
     imageUploadFailed: Échec du téléversement de l'image. Réessaie.
+    imageActiveContent: 'Ce fichier SVG contient des scripts ou des gestionnaires d''événements et ne peut pas être utilisé. Téléverse une image simple ou un SVG sans ces éléments.'
+    imageUnsupported: 'Ce fichier n''est pas une image prise en charge. Utilise PNG, JPEG, WebP, GIF ou SVG.'
     currencyPlaceholder: EUR
     validation:
       currency: Saisis un code devise ISO 4217 à trois lettres (par exemple EUR ou USD)
+      priceNumber: Saisis un nombre pour le prix
+      priceNonNegative: Le prix doit être supérieur ou égal à 0
+      priceTooLarge: Le prix est trop élevé
+      stockNumber: Saisis un nombre pour le stock
+      stockNonNegative: Le stock doit être supérieur ou égal à 0
+      stockTooLarge: Le stock est trop élevé
+      stockInteger: Le stock doit être un nombre entier
     labels:
       name: Nom du produit
       description: Description

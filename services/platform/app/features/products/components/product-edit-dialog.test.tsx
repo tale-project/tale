@@ -194,3 +194,32 @@ describe('ProductEditDialog', () => {
     expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ currency: 'EUR' });
   });
 });
+
+describe('ProductEditDialog — price and stock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ['price', '-5', 'products.edit.validation.priceNonNegative'],
+    ['stock', '1.5', 'products.edit.validation.stockInteger'],
+  ])('refuses %s %s under its field on Save', async (field, value, message) => {
+    const { user } = render(
+      <ProductEditDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        product={{ ...PRODUCT, price: 10, stock: 1 }}
+      />,
+    );
+    const input = screen.getByLabelText(`products.edit.labels.${field}`, {
+      exact: false,
+    });
+    await user.clear(input);
+    await user.type(input, value);
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+});

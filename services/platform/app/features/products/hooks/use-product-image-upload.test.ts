@@ -62,6 +62,25 @@ describe('useProductImageUpload', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  // The door names its refusal; the field maps the code to a cause instead
+  // of "try again".
+  it("carries the door's refusal code when the upload is refused", async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'PRODUCT_IMAGE_ACTIVE_CONTENT' }),
+      }),
+    );
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await expect(result.current.uploadImage(file())).rejects.toMatchObject({
+      data: { code: 'PRODUCT_IMAGE_ACTIVE_CONTENT' },
+    });
+  });
+
   it('throws when the response has no stable image URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(
