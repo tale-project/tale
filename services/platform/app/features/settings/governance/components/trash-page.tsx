@@ -18,8 +18,9 @@ import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hoo
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
-  SOFT_DELETE_RESOURCE_TYPES,
+  TRASH_LISTED_RESOURCE_TYPES,
   type SoftDeleteResourceType,
+  type TrashListedResourceType,
 } from '@/backend/core/governance/soft_delete';
 import { useT } from '@/lib/i18n/client';
 
@@ -29,11 +30,12 @@ interface Props {
   organizationId: string;
 }
 
-// Trash UI surfaces every soft-deletable resource — the registry no
-// longer carries cascade-only types (messageMetadata, workflowTriggerLog)
-// after the round-2 V2 P1-A/B cleanup, so this is now an alias.
-const VISIBLE_RESOURCE_TYPES: readonly SoftDeleteResourceType[] =
-  SOFT_DELETE_RESOURCE_TYPES;
+// The filter offers exactly the categories the server lists — the same
+// list the trash registry is keyed by — so every option is a category with
+// a label that can hold rows, and no category appears twice under two
+// names (2026-09-26 evaluation, E-20/G-15).
+const VISIBLE_RESOURCE_TYPES: readonly TrashListedResourceType[] =
+  TRASH_LISTED_RESOURCE_TYPES;
 
 interface RestoreTarget {
   resourceType: SoftDeleteResourceType;
@@ -42,6 +44,8 @@ interface RestoreTarget {
   status: 'trashed' | 'expired';
 }
 
+// The contract's row shape — wider than the listed types on purpose, so a
+// row of a type this build no longer lists still renders and restores.
 interface TrashRow {
   resourceType: SoftDeleteResourceType;
   id: string;
@@ -75,7 +79,7 @@ export function TrashPage({ organizationId }: Props) {
   // Selected resource types (multi-select). Empty array = "all visible
   // categories", which is the default and most useful entry point —
   // admin opens the page to see what's actually in the trash.
-  const [selectedTypes, setSelectedTypes] = useState<SoftDeleteResourceType[]>(
+  const [selectedTypes, setSelectedTypes] = useState<TrashListedResourceType[]>(
     [],
   );
 
@@ -106,7 +110,7 @@ export function TrashPage({ organizationId }: Props) {
 
   const handleFilterChange = useCallback(
     (values: string[]) => {
-      const next: SoftDeleteResourceType[] = [];
+      const next: TrashListedResourceType[] = [];
       for (const value of values) {
         for (const rt of VISIBLE_RESOURCE_TYPES) {
           if (rt === value) {

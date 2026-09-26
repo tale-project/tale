@@ -356,6 +356,21 @@ select lists only the current admin's keys (`useApiKeys`).
   (`settings.logs.audit.actionLabels.branding.image_deleted`) on the
   organization; the trashed file also sits in the client's `.trash/`
   collection and under `trash`.
+- [ ] `GOV-F31` · **Trash names chats and lists each category once** — As a
+  member, edit a message in a chat you own so it has two versions, then
+  delete the chat; as an admin open `trash` → The row's **Name**
+  (`governance.trash.column.name`) is the chat's title, not its id, its
+  **Type** reads **Chats** (`governance.trash.tab.chatThread`), and the
+  edited version is NOT a second row; **Filter** → **Category**
+  (`governance.trash.filterTitle`) offers exactly **Chats**, **Documents**
+  (`governance.trash.tab.document`), **Temporary files**
+  (`governance.trash.tab.fileMetadata`), **Message feedback**
+  (`governance.trash.tab.messageFeedback`), **Contacts**
+  (`governance.trash.tab.contact`) and **External conversations**
+  (`governance.trash.tab.externalConversation`) — no **Chat history**, no
+  raw `automationRun`, no category twice; **Restore**
+  (`governance.trash.restore.label`) → the chat is back in the owner's list
+  with both versions in its branch navigator.
 
 ## Boundary & error tests
 

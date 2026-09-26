@@ -8,7 +8,7 @@ En tant qu’admin ou propriétaire, ouvre **Paramètres > Gouvernance > Corbeil
 ## Restaurer un enregistrement
 
 1. Ouvre la corbeille et utilise **Filtre > Catégorie** pour réduire la liste, ou garde la vue sans filtre pour voir tous les types pris en charge.
-2. Vérifie le nom, le propriétaire, le type et la date de suppression pour distinguer les enregistrements similaires.
+2. Vérifie le nom, le propriétaire, le type et la date de suppression pour distinguer les enregistrements similaires. Un chat apparaît sous son titre ; la réponse écartée lors d’une comparaison en [Arène](/fr/platform/chat/arena-mode) garde le titre de son chat.
 3. Choisis **Restaurer** sur la ligne et lis la confirmation.
 4. Pour un enregistrement expiré par rétention, saisis exactement `restore`. Confirme, puis retrouve l’enregistrement à son emplacement d’origine, par exemple dans sa liste de chats ou les connaissances.
 
@@ -23,7 +23,7 @@ La ligne restaurée disparaît de la corbeille. Tale consigne la restauration da
 
 **Expiré** ne signifie pas que le délai de récupération est déjà écoulé. La rétention marque les enregistrements comme expirés au début de leur délai de grâce ; le nettoyage définitif intervient après ce délai.
 
-Le filtre de catégorie comprend les chats, documents, fichiers, retours, contacts, conversations externes, exécutions de workflow et d’automatisation, données d’usage, entrées d’audit et événements de filtre de chat pris en charge. Certaines données sont supprimées directement ou avec leur parent et n’ont pas d’action de restauration séparée.
+Le filtre de catégorie liste les types d’enregistrements qui passent par la corbeille : chats, documents, fichiers temporaires, retours sur les messages, contacts et conversations externes. Les versions antérieures d’un chat voyagent avec lui : elles sont mises à la corbeille et restaurées avec le chat et n’apparaissent jamais comme lignes à part. Les autres données, comme les exécutions d’automatisation, les données d’usage, les entrées d’audit et les événements de filtre de chat, sont supprimées directement ou avec leur parent et n’ont pas d’action de restauration ici.
 
 ## Vérifier le délai de récupération
 

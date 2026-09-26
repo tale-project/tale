@@ -47,3 +47,25 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
 
 export type SoftDeleteResourceType =
   (typeof SOFT_DELETE_RESOURCE_TYPES)[number];
+
+/**
+ * The subset the admin Trash actually lists and restores — every type with
+ * a pg trash stop (a lifecycle column the soft delete writes and the
+ * restore flips back). The rest of `SOFT_DELETE_RESOURCE_TYPES` is deleted
+ * outright, through its own door or by retention, and never answers a
+ * Trash row; offering it as a filter category only ever produced an empty
+ * list (2026-09-26 evaluation, E-20/G-15). The server's source registry
+ * (`backend/domains/governance/trash.ts`) and the Trash page's filter both
+ * key off this list, so the two cannot drift.
+ */
+export const TRASH_LISTED_RESOURCE_TYPES = [
+  'chatThread',
+  'contact',
+  'document',
+  'externalConversation',
+  'fileMetadata',
+  'messageFeedback',
+] as const satisfies readonly SoftDeleteResourceType[];
+
+export type TrashListedResourceType =
+  (typeof TRASH_LISTED_RESOURCE_TYPES)[number];
